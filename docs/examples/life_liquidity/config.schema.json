@@ -1,0 +1,915 @@
+{
+  "$defs": {
+    "EconomicsConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "fee_ceiling_bps": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fee Ceiling Bps"
+        },
+        "fee_max_age": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fee Max Age"
+        },
+        "fee_policy": {
+          "anyOf": [
+            {
+              "enum": [
+                "pause",
+                "conservative_ceiling"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fee Policy"
+        },
+        "holding_horizon": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Holding Horizon"
+        },
+        "min_net_edge_bps": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Min Net Edge Bps"
+        },
+        "objective": {
+          "default": "profit_mm",
+          "enum": [
+            "profit_mm",
+            "liquidity_service"
+          ],
+          "title": "Objective",
+          "type": "string"
+        },
+        "subsidy_budget_quote": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SubsidyBudgetConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "uncertainty_buffer_bps": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Uncertainty Buffer Bps"
+        }
+      },
+      "title": "EconomicsConfig",
+      "type": "object"
+    },
+    "HedgeConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "basis_limit_bps": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Basis Limit Bps"
+        },
+        "deadband_base": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Deadband Base"
+        },
+        "funding_budget_quote": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Funding Budget Quote"
+        },
+        "max_slippage_bps": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Slippage Bps"
+        },
+        "max_unhedged_base": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Unhedged Base"
+        },
+        "max_unhedged_duration": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Unhedged Duration"
+        }
+      },
+      "title": "HedgeConfig",
+      "type": "object"
+    },
+    "InventoryConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "deadline": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Deadline"
+        },
+        "max_participation": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Participation"
+        },
+        "price_limit": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Price Limit"
+        },
+        "target_base": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target Base"
+        }
+      },
+      "title": "InventoryConfig",
+      "type": "object"
+    },
+    "PerpetualConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "connector": {
+          "const": "okx_perpetual",
+          "default": "okx_perpetual",
+          "title": "Connector",
+          "type": "string"
+        },
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "leverage": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Leverage"
+        },
+        "margin_mode": {
+          "anyOf": [
+            {
+              "const": "cross",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Margin Mode"
+        },
+        "pair": {
+          "const": "LIFE-USDT",
+          "default": "LIFE-USDT",
+          "title": "Pair",
+          "type": "string"
+        },
+        "position_mode": {
+          "anyOf": [
+            {
+              "enum": [
+                "HEDGE",
+                "ONEWAY"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Position Mode"
+        }
+      },
+      "title": "PerpetualConfig",
+      "type": "object"
+    },
+    "QuotesConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "sizes_base": {
+          "items": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ]
+          },
+          "title": "Sizes Base",
+          "type": "array"
+        },
+        "spreads_bps": {
+          "items": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ]
+          },
+          "title": "Spreads Bps",
+          "type": "array"
+        }
+      },
+      "required": [
+        "spreads_bps",
+        "sizes_base"
+      ],
+      "title": "QuotesConfig",
+      "type": "object"
+    },
+    "ReferenceConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "influence": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Influence"
+        },
+        "lookback": {
+          "title": "Lookback",
+          "type": "string"
+        },
+        "max_age": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Age"
+        },
+        "max_deviation_bps": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Deviation Bps"
+        },
+        "mode": {
+          "default": "market",
+          "enum": [
+            "market",
+            "bounded_benchmark",
+            "bootstrap_simulation"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "sources": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ReferenceSourceConfig"
+          },
+          "title": "Sources",
+          "type": "array"
+        },
+        "transition_duration": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Transition Duration"
+        }
+      },
+      "required": [
+        "lookback"
+      ],
+      "title": "ReferenceConfig",
+      "type": "object"
+    },
+    "ReferenceSourceConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "connector": {
+          "title": "Connector",
+          "type": "string"
+        },
+        "pair": {
+          "title": "Pair",
+          "type": "string"
+        },
+        "quote_currency": {
+          "const": "USDT",
+          "title": "Quote Currency",
+          "type": "string"
+        },
+        "weight": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Weight"
+        }
+      },
+      "required": [
+        "connector",
+        "pair",
+        "quote_currency",
+        "weight"
+      ],
+      "title": "ReferenceSourceConfig",
+      "type": "object"
+    },
+    "ResumePolicyConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "clear_halt_automatically": {
+          "const": false,
+          "default": false,
+          "title": "Clear Halt Automatically",
+          "type": "boolean"
+        },
+        "probe_size_base": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Probe Size Base"
+        },
+        "stable_data_duration": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stable Data Duration"
+        }
+      },
+      "title": "ResumePolicyConfig",
+      "type": "object"
+    },
+    "RiskConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "execution_loss_budget_quote": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Execution Loss Budget Quote"
+        },
+        "margin_buffer_quote": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Margin Buffer Quote"
+        },
+        "markout_horizons": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Markout Horizons",
+          "type": "array"
+        },
+        "markout_min_samples": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Markout Min Samples"
+        },
+        "max_drawdown_bps": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Drawdown Bps"
+        },
+        "max_filled_base_per_window": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Filled Base Per Window"
+        },
+        "max_gross_quote": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Gross Quote"
+        },
+        "max_inventory_base": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Inventory Base"
+        },
+        "max_net_base": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Net Base"
+        },
+        "min_inventory_base": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Min Inventory Base"
+        },
+        "resume_policy": {
+          "$ref": "#/$defs/ResumePolicyConfig"
+        },
+        "rolling_fill_window": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rolling Fill Window"
+        },
+        "stress_loss_budget_quote": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stress Loss Budget Quote"
+        }
+      },
+      "title": "RiskConfig",
+      "type": "object"
+    },
+    "SessionConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "duration": {
+          "title": "Duration",
+          "type": "string"
+        },
+        "on_expiry": {
+          "default": "pause_quotes",
+          "enum": [
+            "pause_quotes",
+            "switch_to_market_reference"
+          ],
+          "title": "On Expiry",
+          "type": "string"
+        },
+        "start_policy": {
+          "default": "when_ready",
+          "title": "Start Policy",
+          "type": "string"
+        },
+        "successor_duration": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Successor Duration"
+        }
+      },
+      "required": [
+        "duration"
+      ],
+      "title": "SessionConfig",
+      "type": "object"
+    },
+    "SpotConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "connector": {
+          "const": "okx",
+          "default": "okx",
+          "title": "Connector",
+          "type": "string"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "pair": {
+          "const": "LIFE-USDT",
+          "default": "LIFE-USDT",
+          "title": "Pair",
+          "type": "string"
+        }
+      },
+      "title": "SpotConfig",
+      "type": "object"
+    },
+    "SubsidyBudgetConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "campaign": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Campaign"
+        },
+        "day": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Day"
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Session"
+        }
+      },
+      "required": [
+        "campaign"
+      ],
+      "title": "SubsidyBudgetConfig",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "config_version": {
+      "default": 1,
+      "minimum": 1,
+      "title": "Config Version",
+      "type": "integer"
+    },
+    "economics": {
+      "$ref": "#/$defs/EconomicsConfig"
+    },
+    "execution_mode": {
+      "default": "simulation",
+      "enum": [
+        "simulation",
+        "shadow",
+        "demo",
+        "live"
+      ],
+      "title": "Execution Mode",
+      "type": "string"
+    },
+    "hedge": {
+      "$ref": "#/$defs/HedgeConfig"
+    },
+    "inventory": {
+      "$ref": "#/$defs/InventoryConfig"
+    },
+    "perpetual": {
+      "$ref": "#/$defs/PerpetualConfig"
+    },
+    "quotes": {
+      "$ref": "#/$defs/QuotesConfig"
+    },
+    "reference": {
+      "$ref": "#/$defs/ReferenceConfig"
+    },
+    "risk": {
+      "$ref": "#/$defs/RiskConfig"
+    },
+    "session": {
+      "$ref": "#/$defs/SessionConfig"
+    },
+    "spot": {
+      "$ref": "#/$defs/SpotConfig"
+    }
+  },
+  "required": [
+    "session",
+    "reference",
+    "quotes"
+  ],
+  "title": "StrategyConfig",
+  "type": "object"
+}

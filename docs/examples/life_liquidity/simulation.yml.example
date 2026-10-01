@@ -1,0 +1,23 @@
+# Synthetic example for offline configuration validation only.
+# No credentials, exchange connection, or order sender is initialized by this file.
+execution_mode: simulation
+spot:
+  enabled: true
+  connector: okx
+  pair: LIFE-USDT
+perpetual:
+  enabled: false
+session:
+  duration: 4h
+  start_policy: when_ready
+  on_expiry: pause_quotes
+reference:
+  mode: market
+  lookback: 15m
+  sources: []
+quotes:
+  spreads_bps: ["30"]
+  sizes_base: ["10"]
+risk: {}
+economics:
+  objective: profit_mm

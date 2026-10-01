@@ -242,8 +242,8 @@ Each stage must pass its applicable P8/P9 gates before live operation. Completin
 
 | Phase | Main deliverable | Status | Evidence/commit |
 |---|---|---|---|
-| P0 | Behavioral specification, baseline, and test harness | Not started | — |
-| P1 | Schema, units, and configuration validation | Not started | — |
+| P0 | Behavioral specification, baseline, and test harness | In progress; offline harness passes, repository baseline blocked by environment | P0 evidence below |
+| P1 | Schema, units, and configuration validation | In progress; core validation passes, CLI integration pending | P1 evidence below |
 | P2 | Market data and listing gate | Not started | — |
 | P3 | Reference engine and configurable sessions | Not started | — |
 | P4 | Economics, risk, reservations, safety loop, and minimum WAL | Not started | — |
@@ -261,32 +261,128 @@ Each stage must pass its applicable P8/P9 gates before live operation. Completin
 
 **Implementation:** create the harness under `test/hummingbot/strategy_v2/life_liquidity/`, reusable fixtures, a balance ledger, and a fake exchange. Record baseline results for relevant connector/executor suites before changing code.
 
-- [ ] P0.1: Map R01–R12 to test IDs, modules, and completion phases.
-- [ ] P0.2: Define `CREATED`, `WAITING_READY`, `ACTIVE`, `TRANSITIONING`, `PAUSED`, `EXPIRED`, `HALTED`, and `RECONCILING`, including order permissions in each state.
-- [ ] P0.3: Provide fixtures for an empty book, no trades, a one-sided book, partial fills, pending cancellation, and restart.
-- [ ] P0.4: Verify the Conda/Cython/pytest environment; record baseline passes/failures and distinguish environment failures from strategy defects.
-- [ ] P0.5: Document unknowns: listing phases, a valid LIFE reference price, budgets, risk thresholds, account mode, actual fees, and OKX market-maker obligations.
-- [ ] P0.6: Select `profit_mm` or `liquidity_service`; define starting-capital/cash-flow accounting, subsidy/execution-loss/stress budgets, and liquidity KPIs. Specify units, owners, and calibration methods. Label synthetic test values explicitly and track unresolved live values in the decision register. Every live threshold needs a numeric value and supporting rationale before P9 live eligibility; unresolved live inputs do not block offline implementation and cannot become implicit live defaults.
-- [ ] P0.7: Audit actual connectors for account fees, position quantity, margin/position modes, exchange-enforced closing semantics, and the final send path. Track spot and perpetual blockers separately; a working demo does not clear accounting blockers.
-- [ ] P0.8: Define calibration/evaluation dataset requirements and separation, a no-trading baseline, and an MM baseline using only a qualified LIFE reference. Track unavailable LIFE datasets as unresolved evidence; synthetic fixtures permit offline development but do not satisfy live economic validation. Freeze numeric acceptance thresholds before evaluation. Do not use future data to make current pricing decisions.
+- [x] P0.1: Map R01–R12 to test IDs, modules, and completion phases.
+- [x] P0.2: Define `CREATED`, `WAITING_READY`, `ACTIVE`, `TRANSITIONING`, `PAUSED`, `EXPIRED`, `HALTED`, and `RECONCILING`, including order permissions in each state.
+- [x] P0.3: Provide fixtures for an empty book, no trades, a one-sided book, partial fills, pending cancellation, and restart.
+- [x] P0.4: Verify the Conda/Cython/pytest environment; record baseline passes/failures and distinguish environment failures from strategy defects.
+- [x] P0.5: Document unknowns: listing phases, a valid LIFE reference price, budgets, risk thresholds, account mode, actual fees, and OKX market-maker obligations.
+- [x] P0.6: Select `profit_mm` or `liquidity_service`; define starting-capital/cash-flow accounting, subsidy/execution-loss/stress budgets, and liquidity KPIs. Specify units, owners, and calibration methods. Label synthetic test values explicitly and track unresolved live values in the decision register. Every live threshold needs a numeric value and supporting rationale before P9 live eligibility; unresolved live inputs do not block offline implementation and cannot become implicit live defaults. The technical measurement contract and live `liquidity_service` objective are recorded below; numeric owner approvals remain P9 release gates.
+- [x] P0.7: Audit actual connectors for account fees, position quantity, margin/position modes, exchange-enforced closing semantics, and the final send path. Track spot and perpetual blockers separately; a working demo does not clear accounting blockers.
+- [x] P0.8: Define calibration/evaluation dataset requirements and separation, a no-trading baseline, and an MM baseline using only a qualified LIFE reference. Track unavailable LIFE datasets as unresolved evidence; synthetic fixtures permit offline development but do not satisfy live economic validation. Freeze numeric acceptance thresholds before evaluation. Do not use future data to make current pricing decisions.
 
 **Done when:** fixtures produce repeatable offline results, and unresolved assumptions are not silently replaced with live defaults.
+
+#### P0 implementation evidence and remaining decisions (2026-10-01)
+
+The offline harness is in [fakes.py](../../test/hummingbot/strategy_v2/life_liquidity/fakes.py) with behavior tests in [test_fakes.py](../../test/hummingbot/strategy_v2/life_liquidity/test_fakes.py). It uses `Decimal`, a manual UTC/monotonic clock, explicit fill injection, fill ID deduplication, pending cancel states, and JSON-compatible checkpoints. Empty and one-sided books never manufacture trades. Exchange-level balance changes occur only on injected fills; order reservations, fees, and connector event contracts belong to later phases.
+
+| Evidence | Command / result |
+|---|---|
+| Red | `python3 -m unittest -v test.hummingbot.strategy_v2.life_liquidity.test_fakes`: 8 behavior tests failed at deliberate `NotImplementedError` stubs; imports and test environment worked. |
+| Green | `python3 -m unittest -q test.hummingbot.strategy_v2.life_liquidity.test_fakes`: 9 tests passed, including a JSON checkpoint and fill/cancel ACK race. |
+| Repository baseline | `python3 -m unittest -q` against `test_terminal_exposure`, OKX spot, and OKX perpetual modules: all stopped at import due to missing `pandas` or `aioresponses`. This host also has no `conda` or `pytest`. These are environment blockers, not strategy test failures. Baseline source revision: `34432aadf`. |
+| Runtime scope | No exchange connector, credential, network call, or order sender is imported by the new harness. |
+
+**P0.1 traceability.** The table points to planned tests and implementation modules; the only implemented tests here are the offline harness cases above.
+
+| Requirement | Acceptance IDs | Planned module / completion phase |
+|---|---|---|
+| R01 | A04, A07–A08, A21 | `quotes.py`, `execution.py`; P4–P5 |
+| R02 | A16, A31–A34 | perpetual adapter, `risk.py`; P6 |
+| R03 | A05, A17, A25–A26 | `reference.py`; P3 |
+| R04 | A02–A03 | `config.py`, `session.py`; P1/P3 |
+| R05 | A03, A11, A23 | `session.py`, `safety.py`; P3–P5 |
+| R06 | A12, A37 | `execution.py`; P7 |
+| R07 | A10, A34 | `execution.py`, `risk.py`; P6 |
+| R08 | A06–A08, A23–A24, A27, A30 | `market_data.py`, `risk.py`, `safety.py`; P2–P5 |
+| R09 | A03, A09, A13, A35 | `state.py`, `execution.py`; P4/P5/P8 |
+| R10 | A01, A19–A20 | `market_data.py`, `config.py`; P0–P2 |
+| R11 | A21–A22, A38 | `economics.py`; P2/P4/P9 |
+| R12 | A29–A30, A33 | `risk.py`, `economics.py`; P4/P6 |
+
+**P0.2 session permissions.** These are design contracts for P3/P4 tests, not implemented state transitions.
+
+| State | New risk-increasing orders | Required safety behavior |
+|---|---|---|
+| `CREATED` | No | Load persisted state and reconcile before readiness checks |
+| `WAITING_READY` | No | Continue listing/data checks; reconcile any pre-existing orders |
+| `ACTIVE` | Only with current reference, economics, risk, and final-send permit | Monitor fills, deadlines, and feed quality |
+| `TRANSITIONING` | No orders under the old epoch | Revoke old permits, cancel/reconcile, persist successor before its first quote |
+| `PAUSED` | No new quotes | Cancel and reconcile; exposure reduction requires its own policy and limits |
+| `EXPIRED` | No orders under the expired epoch | Reconcile; at most one valid successor may activate under P3.9 |
+| `HALTED` | No new risk; no automatic resume | Cancel/reconcile; separately authorized exposure reduction retains price limits |
+| `RECONCILING` | No | Query unresolved orders/positions and retain reservations until confirmed |
+
+**P0.6 measurement contract.** This is the specification for P4 accounting and P9 release evidence; it is not an implemented ledger or a live approval.
+
+- **Capital basis:** record the capital allocated to this strategy, its opening balances, and independently qualified, conservative LIFE exit value in USDT at the campaign anchor. A shared account needs a strategy subledger reconciled to the exchange account, so unrelated assets and trades do not enter strategy NAV. Maintain an immutable, timestamped external deposit/withdrawal ledger; value non-USDT flows at a qualified conversion rate when they occur. `NAV_USDT` is net allocated equity including spot assets, perpetual positions, liabilities, fees, and funding exactly once. The adapter must document which components its equity snapshot already includes and convert OKX's USD-denominated account fields to USDT explicitly; `totalEq`, `adjEq`, and available equity have different meanings in the [OKX account balance API](https://www.okx.com/docs-v5/en/#trading-account-rest-api-get-balance). Calculate `adjusted_NAV_USDT = NAV_USDT − cumulative_external_net_inflows_USDT`; drawdown is `max(0, adjusted_high_water_mark_USDT − adjusted_NAV_USDT)` and its percentage uses the positive adjusted high-water mark. A deposit cannot erase a loss. If LIFE cannot be valued independently, report NAV/drawdown as unavailable and block additional risk rather than using the bot's own target quote as a mark.
+- **Performance attribution:** report (a) market-price contribution on inventory actually held over each observation interval, with opening inventory shown separately, (b) execution contribution from fills relative to the qualified contemporaneous valuation or executable exit, and (c) actual fees, funding, hedging, and exit costs. Reconcile their sum with cashflow-adjusted NAV change; never count markouts at multiple horizons as additional realized PnL. Track gross and net spot/perpetual exposure together, while keeping product-level attribution.
+- **Budget units and use:** all monetary budgets, reservations, consumption, and NAV use USDT; quote width uses bps, order depth uses LIFE and USDT, availability uses a fraction of eligible time. For `liquidity_service`, reserve the conservative expected negative net edge of all simultaneously fillable open quotes against session/day/campaign subsidy caps. Reconcile reservations to actual realized execution and costs after fills; unresolved orders retain reservations. Execution-loss, stress-loss, and risk-reduction exit-loss caps are distinct hard limits and cannot be replenished by a new session, restart, a favorable benchmark mark, or unused subsidy. The session/day/campaign identifiers and UTC boundaries are persisted. A simultaneous-fill and impaired-exit scenario must remain within the approved stress cap before each order.
+- **Liquidity KPIs:** define two-sided quoting availability as time with both valid bid and ask divided by independently eligible continuous-trading time; also report availability over the full configured session so pauses cannot disappear from reports. Measure quoted spread in bps at a defined LIFE size and bid/ask executable depth in LIFE and USDT after minimum size, own-balance, and order-state checks. Report accepted/canceled order rates, response latency, and fill quality separately; displayed quote volume is not traded volume. The owner must set numeric targets, quote size, measurement window, minimum eligible sample, and exclusions before evaluation.
+- **Calibration:** the market-data owner supplies qualified LIFE observations and depth; the account operator supplies fee/funding and cashflow evidence; the risk owner proposes loss/stress caps from adverse-fill, latency, liquidity-withdrawal, and margin scenarios; the project owner selects the objective, capital allocation, subsidy affordability, and liquidity target. Freeze values and rationale before the separate evaluation set. Missing or sparse observations cannot be treated as passing data. An offline fixture may use arbitrary labeled values to test arithmetic but cannot populate live configuration.
+
+**P0.5–P0.6 decision register.** Offline fixtures use 100 LIFE and 1,000 USDT as **synthetic test balances**, not a funded live allocation. `profit_mm` is a provisional **offline test objective**. On 2026-10-01 the requester chose `liquidity_service` as the **intended live objective for implementation**; project-owner sign-off remains a P9 release decision. P0.6 is complete as an offline specification. Funded starting capital, monetary limits, and measurable service targets remain open P9 release decisions. A numeric live limit needs a recorded rationale and evidence before P9; an unresolved value has no implicit default.
+
+| P0.6 live decision | Unit / owner | Calibration evidence and acceptance record | Current value |
+|---|---|---|---|
+| Objective | `profit_mm` or `liquidity_service` / project owner | Requester choice recorded in this conversation, 2026-10-01; project-owner release sign-off pending | `liquidity_service` for implementation |
+| Funded starting balances | LIFE and USDT / project owner | Funding source, allocation, and account snapshot | **TBD** |
+| Session/day/campaign subsidy caps | USDT per UTC window / project owner and risk owner | Affordable service expense under adverse fill and fee scenarios; required only for `liquidity_service` | **TBD** |
+| Execution-loss and risk-reduction exit-loss caps | USDT per session/day/campaign / risk owner | Calibrated adverse markouts, executable exit depth, and allowed cash loss | **TBD** |
+| Joint stress-loss and capital drawdown caps | USDT and drawdown % / risk owner | All-open-orders fill, delayed cancel, impaired exit, basis/margin shocks, and funded capital tolerance | **TBD** |
+| Two-sided availability, spread, and depth targets | % of eligible/full session, bps, LIFE and USDT at specified size / project owner and market-data owner | Continuous-market samples, documented windows/exclusions, minimum sample size | **TBD** |
+| Fee, funding, and valuation assumptions | USDT, bps, TTL, source timestamps / account operator and market-data owner | Account-specific exchange snapshot and qualified independent LIFE observations | **TBD** |
+
+| Open live input | Owner / evidence needed | Gate |
+|---|---|---|
+| Listing stage, actual spot/SWAP instruments and MM obligations | Operator/OKX account information and instrument metadata | P2/P9 |
+| Qualified independent LIFE valuation and benchmark suitability | Market data owner; post-listing order book/trades and model evaluation | P3/P9 |
+| Account fee tier, fee currency, funding schedule, position/margin modes | Account operator; exchange account/API snapshots | P2/P6/P9 |
+| Starting capital, deposits/withdrawals, subsidy/exit/stress budgets and liquidity KPIs | Project owner and risk owner; quote-currency amounts and measurement window | P1/P4/P9 |
+| Response latency, source age, markout horizons, resume policy | Risk owner; measured feed/order timing and calibrated loss tolerance | P1/P4/P9 |
+
+**P0.7 connector audit.** These findings are blockers to their corresponding live features, not claims that the adapter has been fixed.
+
+| Scope | Inspected behavior | Required before live |
+|---|---|---|
+| Spot | `OKXExchange._update_trading_fees()` is `pass`; trading rules parse size increments but require a listing-state gate. | P2 account-specific fee snapshot and continuous-trading validation |
+| Perpetual | `_update_trading_fees()` is `pass`; `get_position_amount()` uses `notionalUsd / avgPx` and rounds, and `_place_order()` hard-codes cross margin without ONEWAY `reduceOnly`. | P2 fee snapshot; P6 position quantity, mode, and exchange-enforced close contract tests |
+| Shared submission | `OrderExecutor.control_order()` can place an order when `_order` is absent, including after failure/cancel; controller approval alone is insufficient. | P4 final-send gate on every send/retry/renewal |
+| Safety | `ControllerBase.control_task()` requires global provider readiness and an executor update event. | P2 callback scheduling and P4 independent safety-loop contract tests |
+
+**P0.8 evaluation protocol.** Capture timestamped, independently observed LIFE order book/trade data; account fees/funding, order acknowledgments, fills, cancel latency, and cashflows. Keep calibration and evaluation periods disjoint and time ordered. Freeze numerical thresholds and model version before evaluation; do not tune on the evaluation period or use future observations to price current orders. Compare equal initial capital, inventory, horizon, and risk constraints against (1) holding the starting inventory with no trading and (2) spot MM using a qualified LIFE reference without a benchmark. The current fixtures are synthetic; no LIFE dataset or economic result has been certified for live use.
+
+**P0 status:** the fixture behavior is implemented and repeatable, and the P0.6 measurement contract and objective are recorded. P0 remains **In progress** because connector/executor regression suites cannot run in the current environment. P1 work may be developed offline, but its completion cannot imply live readiness or close the P9 live-value gates.
 
 ### P1 — Schema and validation
 
 **Tests first:** `test_config.py`, `test_duration.py`, `test_config_update.py`.
 
-- [ ] P1.1: Parse `30m`, `4h`, and `12h` correctly; reject zero, negative, infinite, NaN, and malformed durations or units.
-- [ ] P1.2: Changing `lookback` does not change session duration, and vice versa.
-- [ ] P1.3: Prices/quantities use `Decimal`; bps/percent/fraction conversions have separate tests.
-- [ ] P1.4: Reject invalid benchmark weights, currencies without conversion paths, unknown fields, and missing live limits.
+- [x] P1.1: Parse `30m`, `4h`, and `12h` correctly; reject zero, negative, infinite, NaN, and malformed durations or units.
+- [x] P1.2: Changing `lookback` does not change session duration, and vice versa.
+- [x] P1.3: Prices/quantities use `Decimal`; bps/percent/fraction conversions have separate tests.
+- [x] P1.4: Reject invalid benchmark weights, currencies without conversion paths, unknown fields, and missing live limits.
 - [ ] P1.5: An invalid configuration update preserves the previous configuration, records a reason code, and generates no orders.
-- [ ] P1.6: Provide `simulation.yml.example` and a JSON/schema export; examples contain no credentials and cannot automatically start live trading.
+- [x] P1.6: Provide `simulation.yml.example` and a JSON/schema export; examples contain no credentials and cannot automatically start live trading.
 - [ ] P1.7: The CLI discovers `life_liquidity`; test nested fields and serialization rather than assuming the existing CLI supports all nested updates.
-- [ ] P1.8: Reject live configurations missing an objective, fee policy, or cost/loss/stress budgets. Subsidies require an explicit allocation and cannot disable hard limits.
-- [ ] P1.9: Reject margin modes unsupported by the adapter; feature-gate benchmark baskets and perpetual quotes until each has separate evidence.
+- [x] P1.8: Reject live configurations missing an objective, fee policy, or cost/loss/stress budgets. Subsidies require an explicit allocation and cannot disable hard limits.
+- [x] P1.9: Reject margin modes unsupported by the adapter; feature-gate benchmark baskets and perpetual quotes until each has separate evidence.
 
 **Done when:** all validation cases pass and example files parse/round-trip without losing precision or changing units.
+
+#### P1 implementation evidence and remaining integration (2026-10-01)
+
+The pure Pydantic schema in [config.py](../../hummingbot/strategy_v2/life_liquidity/config.py) validates explicit duration units, `Decimal` quote prices/sizes/spreads, source weights/currency, account mode restrictions, expiry successor duration, bounded subsidy windows, inventory/hedge limits, markout horizons, and economic/risk fields. Nested models reject unknown fields and use immutable tuples for quote levels. Hot reload constructs and validates one new config version; the old version is preserved on failure. Live mode remains disabled at this phase even if the currently defined numeric fields are supplied. The [simulation example](../examples/life_liquidity/simulation.yml.example) and [generated JSON Schema](../examples/life_liquidity/config.schema.json) are checked for round-trip and structural schema consistency.
+
+| Evidence | Command / result |
+|---|---|
+| Red | Isolated `pytest` against the initial permissive config: 32 behavior failures and one pass; failures came from missing parsing/validation/update behavior. A later nested-mutation test failed on a mutable list before tuple conversion. |
+| Green | `/tmp/life-p1-venv/bin/python -m pytest -q test/hummingbot/strategy_v2/life_liquidity`: 53 passed, including P0 harness tests, with Pydantic 2.13.5 and pytest 9.1.1 in a temporary environment. |
+| Coverage | `COVERAGE_FILE=/tmp/life-p1-coverage /tmp/life-p1-venv/bin/python -m coverage run --rcfile=/dev/null --include='*/hummingbot/strategy_v2/life_liquidity/config.py' -m pytest -q test/hummingbot/strategy_v2/life_liquidity`, followed by `coverage report --rcfile=/dev/null -m` with the same `COVERAGE_FILE`: 89% line coverage of `config.py`. This is isolated module coverage, not the repository's CI diff-coverage gate. |
+| Example/schema | YAML validates in simulation mode, survives JSON round-trip, and equals `StrategyConfig.model_json_schema()`; no API credentials or order sender is configured. |
+| Repository integration | The host lacks the complete Hummingbot environment. `controllers/generic/life_liquidity.py`, CLI discovery, runner semantics, and connector-level regression are not yet verified. |
+
+P1.5 remains open because the isolated config core cannot yet prove that a rejected update emits a CLI/controller reason code or zero real order requests. P1.7 remains open until the V2 controller adapter and its nested-field CLI behavior are tested in the full environment. Core config tests load `config.py` directly to avoid importing the repository's runtime dependencies; they do not count as a runner integration test. To reproduce the isolated tests, create a temporary Python environment with Pydantic 2, pytest, PyYAML, pytest-asyncio, pytest-timeout, and coverage; the full repository environment is still required for connector/CLI regression.
 
 ### P2 — Market data and listing gate
 
