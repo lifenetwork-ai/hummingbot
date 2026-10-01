@@ -242,8 +242,8 @@ Each stage must pass its applicable P8/P9 gates before live operation. Completin
 
 | Phase | Main deliverable | Status | Evidence/commit |
 |---|---|---|---|
-| P0 | Behavioral specification, baseline, and test harness | In progress; offline harness passes, repository baseline blocked by environment | P0 evidence below |
-| P1 | Schema, units, and configuration validation | In progress; core validation passes, CLI integration pending | P1 evidence below |
+| P0 | Behavioral specification, baseline, and test harness | Complete for offline scope | P0 evidence below |
+| P1 | Schema, units, and configuration validation | Complete for offline/CLI scope; trading remains disabled | P1 evidence below |
 | P2 | Market data and listing gate | Not started | — |
 | P3 | Reference engine and configurable sessions | Not started | — |
 | P4 | Economics, risk, reservations, safety loop, and minimum WAL | Not started | — |
@@ -280,7 +280,7 @@ The offline harness is in [fakes.py](../../test/hummingbot/strategy_v2/life_liqu
 |---|---|
 | Red | `python3 -m unittest -v test.hummingbot.strategy_v2.life_liquidity.test_fakes`: 8 behavior tests failed at deliberate `NotImplementedError` stubs; imports and test environment worked. |
 | Green | `python3 -m unittest -q test.hummingbot.strategy_v2.life_liquidity.test_fakes`: 9 tests passed, including a JSON checkpoint and fill/cancel ACK race. |
-| Repository baseline | `python3 -m unittest -q` against `test_terminal_exposure`, OKX spot, and OKX perpetual modules: all stopped at import due to missing `pandas` or `aioresponses`. This host also has no `conda` or `pytest`. These are environment blockers, not strategy test failures. Baseline source revision: `34432aadf`. |
+| Repository baseline | Initial `python3 -m unittest -q` against `test_terminal_exposure`, OKX spot, and OKX perpetual modules stopped at import due to missing `pandas` or `aioresponses`; source revision `34432aadf`. After installing the full source environment, `pytest -q` on those same three modules passed **110 tests**. |
 | Runtime scope | No exchange connector, credential, network call, or order sender is imported by the new harness. |
 
 **P0.1 traceability.** The table points to planned tests and implementation modules; the only implemented tests here are the offline harness cases above.
@@ -352,7 +352,7 @@ The offline harness is in [fakes.py](../../test/hummingbot/strategy_v2/life_liqu
 
 **P0.8 evaluation protocol.** Capture timestamped, independently observed LIFE order book/trade data; account fees/funding, order acknowledgments, fills, cancel latency, and cashflows. Keep calibration and evaluation periods disjoint and time ordered. Freeze numerical thresholds and model version before evaluation; do not tune on the evaluation period or use future observations to price current orders. Compare equal initial capital, inventory, horizon, and risk constraints against (1) holding the starting inventory with no trading and (2) spot MM using a qualified LIFE reference without a benchmark. The current fixtures are synthetic; no LIFE dataset or economic result has been certified for live use.
 
-**P0 status:** the fixture behavior is implemented and repeatable, and the P0.6 measurement contract and objective are recorded. P0 remains **In progress** because connector/executor regression suites cannot run in the current environment. P1 work may be developed offline, but its completion cannot imply live readiness or close the P9 live-value gates.
+**P0 status:** complete for the offline behavioral specification and baseline. The fixtures are repeatable, the P0.6 measurement contract and objective are recorded, and the selected connector/executor baseline now passes. Unresolved listing data and numerical live decisions remain later-phase/P9 gates.
 
 ### P1 — Schema and validation
 
@@ -362,15 +362,15 @@ The offline harness is in [fakes.py](../../test/hummingbot/strategy_v2/life_liqu
 - [x] P1.2: Changing `lookback` does not change session duration, and vice versa.
 - [x] P1.3: Prices/quantities use `Decimal`; bps/percent/fraction conversions have separate tests.
 - [x] P1.4: Reject invalid benchmark weights, currencies without conversion paths, unknown fields, and missing live limits.
-- [ ] P1.5: An invalid configuration update preserves the previous configuration, records a reason code, and generates no orders.
+- [x] P1.5: An invalid configuration update preserves the previous configuration, records a reason code, and generates no orders. The real CLI rolls back invalid nested edits; the V2 loader reports failed YAML to the LIFE controller, which retains its active config, records `CONFIG_LOAD_FAILED`, and blocks queued `CreateExecutorAction` at the runner listener. Network send/retry validation remains P4.13.
 - [x] P1.6: Provide `simulation.yml.example` and a JSON/schema export; examples contain no credentials and cannot automatically start live trading.
-- [ ] P1.7: The CLI discovers `life_liquidity`; test nested fields and serialization rather than assuming the existing CLI supports all nested updates.
+- [x] P1.7: The real `hbot create` CLI discovers `life_liquidity`, writes a validated nested controller config, and accepts a dotted nested setting. `hbot config` validates and rolls back invalid file edits. Nested strategy values are not live-updatable in P1 and take effect after restart; in-process V2 runner loading is tested.
 - [x] P1.8: Reject live configurations missing an objective, fee policy, or cost/loss/stress budgets. Subsidies require an explicit allocation and cannot disable hard limits.
 - [x] P1.9: Reject margin modes unsupported by the adapter; feature-gate benchmark baskets and perpetual quotes until each has separate evidence.
 
 **Done when:** all validation cases pass and example files parse/round-trip without losing precision or changing units.
 
-#### P1 implementation evidence and remaining integration (2026-10-01)
+#### P1 implementation evidence and boundaries (2026-10-01)
 
 The pure Pydantic schema in [config.py](../../hummingbot/strategy_v2/life_liquidity/config.py) validates explicit duration units, `Decimal` quote prices/sizes/spreads, source weights/currency, account mode restrictions, expiry successor duration, bounded subsidy windows, inventory/hedge limits, markout horizons, and economic/risk fields. Nested models reject unknown fields and use immutable tuples for quote levels. Hot reload constructs and validates one new config version; the old version is preserved on failure. Live mode remains disabled at this phase even if the currently defined numeric fields are supplied. The [simulation example](../examples/life_liquidity/simulation.yml.example) and [generated JSON Schema](../examples/life_liquidity/config.schema.json) are checked for round-trip and structural schema consistency.
 
@@ -380,9 +380,12 @@ The pure Pydantic schema in [config.py](../../hummingbot/strategy_v2/life_liquid
 | Green | `/tmp/life-p1-venv/bin/python -m pytest -q test/hummingbot/strategy_v2/life_liquidity`: 53 passed, including P0 harness tests, with Pydantic 2.13.5 and pytest 9.1.1 in a temporary environment. |
 | Coverage | `COVERAGE_FILE=/tmp/life-p1-coverage /tmp/life-p1-venv/bin/python -m coverage run --rcfile=/dev/null --include='*/hummingbot/strategy_v2/life_liquidity/config.py' -m pytest -q test/hummingbot/strategy_v2/life_liquidity`, followed by `coverage report --rcfile=/dev/null -m` with the same `COVERAGE_FILE`: 89% line coverage of `config.py`. This is isolated module coverage, not the repository's CI diff-coverage gate. |
 | Example/schema | YAML validates in simulation mode, survives JSON round-trip, and equals `StrategyConfig.model_json_schema()`; no API credentials or order sender is configured. |
-| Repository integration | The host lacks the complete Hummingbot environment. `controllers/generic/life_liquidity.py`, CLI discovery, runner semantics, and connector-level regression are not yet verified. |
+| P1.7 isolated adapter | Red: 4 adapter tests errored while the module was absent. Green: `controllers/generic/life_liquidity.py` exposes one V2 config/controller pair. Isolated tests cover V2 class selection, nested YAML/JSON round-trip, nested validation failure, inert actions, rejected hot reload, and the synthetic `controller.simulation.yml.example`. |
+| Full source environment | `make install` completed on macOS arm64 after replacing the removed `conda develop` step with a source `.pth` link. The source environment includes compiled extensions and the real CLI/controller/runner imports. |
+| Real CLI and runner | `test_runtime_integration.py` uses the real `hbot create` and `hbot config` Typer commands, config loader/editor, `ControllerBase`, `StrategyV2ConfigBase.load_controller_configs()` and class discovery, `StrategyV2Base.update_controllers_configs()`, and `listen_to_executor_actions()`. Invalid nested CLI edits restore the YAML; invalid YAML in the runner preserves the controller config, records `CONFIG_LOAD_FAILED`, and drops an already queued create action. Script-owned create actions retain their existing path. |
+| Green / regression | LIFE suite: **73 passed**. LIFE + V2 runner/controller + CLI config/create suites: **208 passed**. Selected OKX spot/perpetual and order executor baseline: **110 passed**. `flake8` on the changed LIFE Python files passed. The repository-wide suite and a daemon-process smoke test are not claimed. |
 
-P1.5 remains open because the isolated config core cannot yet prove that a rejected update emits a CLI/controller reason code or zero real order requests. P1.7 remains open until the V2 controller adapter and its nested-field CLI behavior are tested in the full environment. Core config tests load `config.py` directly to avoid importing the repository's runtime dependencies; they do not count as a runner integration test. To reproduce the isolated tests, create a temporary Python environment with Pydantic 2, pytest, PyYAML, pytest-asyncio, pytest-timeout, and coverage; the full repository environment is still required for connector/CLI regression.
+P1.5 uses `ConfigUpdateState`: rejected updates preserve the active config/version, record `CONFIG_VALIDATION_FAILED`, `CONFIG_UPDATE_UNSUPPORTED`, or `CONFIG_LOAD_FAILED`, and latch `order_permission()` false. The TDD red run had 3 failing new core tests before the state class, another failing test before the load-failure method, and adapter tests before controller hooks existed. The real V2 loader now reports malformed YAML through the LIFE fail-closed hook. The runner rechecks controller permission after dequeuing actions and drops blocked create actions. The LIFE controller remains inert until later strategy gates, and the final connector send/retry gate belongs to P4.13. P1.7 uses the real CLI for creation, nested dotted edits, validation, and rollback; the interactive client prompt traversal still does not descend into `StrategyConfig`. Nested strategy values are not live-updatable in P1, so a valid file edit applies after restart. The full bot daemon and real exchange order path remain outside P1 acceptance.
 
 ### P2 — Market data and listing gate
 

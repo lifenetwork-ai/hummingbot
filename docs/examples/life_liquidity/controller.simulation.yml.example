@@ -1,0 +1,28 @@
+# Synthetic V2 controller configuration. The adapter emits no executor actions.
+# Copy to conf/controllers only after reviewing the nested strategy settings.
+id: life-liquidity-simulation
+controller_type: generic
+controller_name: life_liquidity
+total_amount_quote: "0"
+strategy:
+  execution_mode: simulation
+  spot:
+    enabled: true
+    connector: okx
+    pair: LIFE-USDT
+  perpetual:
+    enabled: false
+  session:
+    duration: 4h
+    start_policy: when_ready
+    on_expiry: pause_quotes
+  reference:
+    mode: market
+    lookback: 15m
+    sources: []
+  quotes:
+    spreads_bps: ["30"]
+    sizes_base: ["10"]
+  risk: {}
+  economics:
+    objective: profit_mm

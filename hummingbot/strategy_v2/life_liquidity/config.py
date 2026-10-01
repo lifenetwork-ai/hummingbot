@@ -5,12 +5,12 @@ disabled until the later risk, execution, and release gates have been implemente
 """
 
 import re
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Annotated, Literal, Optional
 
-from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, field_validator, model_validator
-
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 _DURATION = re.compile(r"([0-9]+(?:\.[0-9]+)?)([smhd])")
 _SECONDS_PER_UNIT = {"s": Decimal("1"), "m": Decimal("60"), "h": Decimal("3600"), "d": Decimal("86400")}
@@ -419,3 +419,55 @@ def apply_update(config: StrategyConfig, changes: dict) -> StrategyConfig:
         data[section].update(fields)
     data["config_version"] = config.config_version + 1
     return StrategyConfig.model_validate(data)
+
+
+@dataclass(frozen=True)
+class ConfigUpdateDecision:
+    applied: bool
+    reason_code: Literal[
+        "CONFIG_UPDATE_APPLIED", "CONFIG_UPDATE_UNSUPPORTED", "CONFIG_VALIDATION_FAILED", "CONFIG_LOAD_FAILED",
+    ]
+    active_version: int
+
+
+class ConfigUpdateState:
+    """Atomic config versions and a fail-closed flag for the future order gate.
+
+    A rejected update latches the gate closed. A later valid update does not
+    implicitly resume quoting; the controller must reconcile and use a separate
+    authorized resume path before it may send new orders.
+    """
+
+    def __init__(self, config: StrategyConfig):
+        self.config = config
+        self.last_decision: Optional[ConfigUpdateDecision] = None
+        self.last_rejection: Optional[ConfigUpdateDecision] = None
+        self._rejected_update = False
+
+    def try_update(self, changes: dict) -> ConfigUpdateDecision:
+        try:
+            candidate = apply_update(self.config, changes)
+        except ValidationError:
+            decision = ConfigUpdateDecision(False, "CONFIG_VALIDATION_FAILED", self.config.config_version)
+            self._rejected_update = True
+        except ValueError:
+            decision = ConfigUpdateDecision(False, "CONFIG_UPDATE_UNSUPPORTED", self.config.config_version)
+            self._rejected_update = True
+        else:
+            self.config = candidate
+            decision = ConfigUpdateDecision(True, "CONFIG_UPDATE_APPLIED", candidate.config_version)
+        self.last_decision = decision
+        if not decision.applied:
+            self.last_rejection = decision
+        return decision
+
+    def order_permission(self) -> bool:
+        return not self._rejected_update
+
+    def reject(self, reason_code: Literal["CONFIG_LOAD_FAILED", "CONFIG_UPDATE_UNSUPPORTED"]) -> ConfigUpdateDecision:
+        """Record a rejection raised before a candidate reaches ``apply_update``."""
+        decision = ConfigUpdateDecision(False, reason_code, self.config.config_version)
+        self._rejected_update = True
+        self.last_decision = decision
+        self.last_rejection = decision
+        return decision

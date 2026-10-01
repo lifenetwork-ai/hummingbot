@@ -69,11 +69,12 @@ if [ "$(uname)" == "Darwin" ]; then
     conda install -n hummingbot -y appnope
 fi
 
-# Add the project directory to module search paths.
-conda develop .
+# Add the project directory to module search paths. Current Conda no longer
+# provides `conda develop`, so write a .pth file into the active environment.
+HBOT_REPO_ROOT="$(pwd)" python -c 'import os, site; from pathlib import Path; Path(site.getsitepackages()[0], "hummingbot-source.pth").write_text(os.environ["HBOT_REPO_ROOT"] + "\n")'
 
-# Expose the `hbot` CLI on PATH within the env. `conda develop` does not install console scripts,
-# so symlink the launcher into the env's bin directory.
+# Expose the `hbot` CLI on PATH within the env. The .pth source link does
+# not install console scripts, so symlink the launcher into the env's bin directory.
 ln -sf "$(pwd)/bin/hbot" "${CONDA_PREFIX}/bin/hbot"
 
 # For some reason, this needs to be installed outside of the environment file,

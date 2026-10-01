@@ -50,7 +50,7 @@ install:
 	@if [ "$$(uname)" = "Darwin" ]; then \
 		conda install -n hummingbot -y appnope; \
 	fi
-	@conda run -n hummingbot conda develop .
+	@HBOT_REPO_ROOT="$(CURDIR)" conda run -n hummingbot python -c 'import os, site; from pathlib import Path; Path(site.getsitepackages()[0], "hummingbot-source.pth").write_text(os.environ["HBOT_REPO_ROOT"] + "\n")'
 	@conda run -n hummingbot python -m pip install --no-deps -r setup/pip_packages.txt > logs/pip_install.log 2>&1
 	@conda run -n hummingbot pre-commit install
 	@if [ "$$(uname)" = "Linux" ] && command -v dpkg >/dev/null 2>&1; then \

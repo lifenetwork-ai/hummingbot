@@ -697,12 +697,48 @@ class StrategyV2Base(StrategyPyBase):
             return
         if self._last_config_update_ts + self.config_update_interval < self.current_timestamp:
             self._last_config_update_ts = self.current_timestamp
-            controllers_configs = self.config.load_controller_configs()
+            try:
+                controllers_configs = self.config.load_controller_configs()
+            except Exception as e:
+                self.logger().error(f"Error loading controller configurations: {e}", exc_info=True)
+                # A malformed file is rejected before ControllerBase.update_config runs. Let
+                # controllers with an explicit fail-closed hook revoke pending create actions.
+                for controller in self.controllers.values():
+                    on_failure = getattr(controller, "on_config_load_failure", None)
+                    if callable(on_failure):
+                        try:
+                            on_failure()
+                        except Exception:
+                            self.logger().error("Controller config-load failure hook failed", exc_info=True)
+                return
             for controller_config in controllers_configs:
                 if controller_config.id in self.controllers:
                     self.controllers[controller_config.id].update_config(controller_config)
                 else:
                     self.add_controller(controller_config)
+
+    def _filter_authorized_actions(self, actions: List[ExecutorAction]) -> List[ExecutorAction]:
+        """Recheck controller create permission after actions leave their queue."""
+        permitted = []
+        for action in actions:
+            if isinstance(action, CreateExecutorAction):
+                controller = self.controllers.get(action.controller_id)
+                if controller is None:
+                    # Preserve the existing handling of script-owned and unknown
+                    # actions. Only controllers with an explicit gate opt in here.
+                    permitted.append(action)
+                    continue
+                create_allowed = getattr(controller, "allow_create_executor_actions", None)
+                if callable(create_allowed):
+                    try:
+                        if not create_allowed():
+                            self.logger().warning(f"Ignoring blocked create action for controller {action.controller_id}")
+                            continue
+                    except Exception:
+                        self.logger().error("Controller create-permission check failed", exc_info=True)
+                        continue
+            permitted.append(action)
+        return permitted
 
     async def listen_to_executor_actions(self):
         """
@@ -711,6 +747,9 @@ class StrategyV2Base(StrategyPyBase):
         while True:
             try:
                 actions = await self.actions_queue.get()
+                actions = self._filter_authorized_actions(actions)
+                if not actions:
+                    continue
                 self.executor_orchestrator.execute_actions(actions)
                 self.update_executors_info()
                 controller_id = actions[0].controller_id
