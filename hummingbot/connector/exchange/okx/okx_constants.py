@@ -55,6 +55,8 @@ OKX_ORDER_DETAILS_PATH = '/api/v5/trade/order'
 OKX_ORDER_CANCEL_PATH = '/api/v5/trade/cancel-order'
 OKX_BATCH_ORDER_CANCEL_PATH = '/api/v5/trade/cancel-batch-orders'
 OKX_BALANCE_PATH = '/api/v5/account/balance'
+OKX_ACCOUNT_CONFIG_PATH = '/api/v5/account/config'
+OKX_TRADE_FEE_PATH = '/api/v5/account/trade-fee'
 OKX_TRADE_FILLS_PATH = "/api/v5/trade/fills"
 
 # WebSocket channels
@@ -104,5 +106,7 @@ RATE_LIMITS = [
     RateLimit(limit_id=OKX_ORDER_CANCEL_PATH, limit=20, time_interval=2),
     RateLimit(limit_id=OKX_BATCH_ORDER_CANCEL_PATH, limit=300, time_interval=2),
     RateLimit(limit_id=OKX_BALANCE_PATH, limit=10, time_interval=2),
+    RateLimit(limit_id=OKX_ACCOUNT_CONFIG_PATH, limit=5, time_interval=2),
+    RateLimit(limit_id=OKX_TRADE_FEE_PATH, limit=5, time_interval=2),
     RateLimit(limit_id=OKX_TRADE_FILLS_PATH, limit=60, time_interval=2),
 ]

@@ -22,6 +22,43 @@ class TestMarketDataProvider(IsolatedAsyncioWrapperTestCase):
         self.connectors = {"mock_connector": self.mock_connector}
         self.provider = MarketDataProvider(self.connectors)
 
+    async def test_initial_book_timeout_is_not_reported_as_success(self):
+        provider = self.provider
+        connector = MagicMock()
+        provider.connectors = {}
+        provider.get_connector_with_fallback = MagicMock(return_value=connector)
+        provider._ensure_non_trading_connector_started = AsyncMock(return_value=True)
+        provider._wait_for_order_book_initialized = AsyncMock(return_value=False)
+
+        assert await provider.initialize_order_book("okx", "LIFE-USDT") is False
+        provider._wait_for_order_book_initialized.assert_awaited_once_with(connector, "LIFE-USDT")
+
+    async def test_retry_waits_for_an_already_subscribed_book(self):
+        provider = self.provider
+        connector = MagicMock()
+        connector.order_book_tracker.order_books = {"LIFE-USDT": MagicMock()}
+        provider.connectors = {}
+        provider._non_trading_connectors_started["okx"] = True
+        provider.get_connector_with_fallback = MagicMock(return_value=connector)
+        provider._wait_for_order_book_initialized = AsyncMock(side_effect=[False, True])
+
+        assert await provider.initialize_order_book("okx", "LIFE-USDT") is False
+        assert await provider.initialize_order_book("okx", "LIFE-USDT") is True
+        connector.add_trading_pair.assert_not_called()
+
+    async def test_dynamic_subscription_waits_for_nonempty_book(self):
+        provider = self.provider
+        connector = MagicMock()
+        connector.order_book_tracker.order_books = {}
+        connector.add_trading_pair = AsyncMock(return_value=True)
+        provider.connectors = {"okx": connector}
+        provider.get_connector_with_fallback = MagicMock(return_value=connector)
+        provider._wait_for_order_book_initialized = AsyncMock(return_value=False)
+
+        assert await provider.initialize_order_book("okx", "LIFE-USDT") is False
+        connector.add_trading_pair.assert_awaited_once_with("LIFE-USDT")
+        provider._wait_for_order_book_initialized.assert_awaited_once_with(connector, "LIFE-USDT")
+
     def test_initialize_candles_feed(self):
         with patch('hummingbot.data_feed.candles_feed.candles_factory.CandlesFactory.get_candle', return_value=MagicMock()):
             config = CandlesConfig(connector="mock_connector", trading_pair="BTC-USDT", interval="1m", max_records=100)

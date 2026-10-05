@@ -119,6 +119,21 @@ def test_loader_failure_records_reason_and_blocks_order_actions(adapter_module):
     )
     controller = adapter_module.LifeLiquidityController(config)
     controller.trading_permissions_ready = lambda: True
+    controller.listing_gate.instrument_found = True
+    controller.listing_gate.instrument_rules = True
+    controller.listing_gate.instrument_state = "live"
+    controller.book_ready = True
+    controller.continuous_gate.ready = True
+    controller.snapshot_gate.ready = True
+    controller.snapshot_gate.snapshot = type("Snapshot", (), {"received_monotonic": 0, "observed_age_ms": 0})()
+    controller.snapshot_gate.clock = lambda: 0
+    controller._live_spot_book_ready = lambda: True
+    from hummingbot.connector.exchange.okx.okx_book_health import BookFeedHealth
+    controller._book_feed_health = lambda: BookFeedHealth(
+        connected=True, synchronized=True, epoch=1, sequence_id=1,
+        snapshot_exchange_timestamp_ms=1, snapshot_received_monotonic=0,
+        last_message_monotonic=0)
+    controller.continuity_gate.confirmed_epoch = 1
     assert controller.allow_create_executor_actions() is True
     decision = controller.on_config_load_failure()
     assert decision.reason_code == "CONFIG_LOAD_FAILED"

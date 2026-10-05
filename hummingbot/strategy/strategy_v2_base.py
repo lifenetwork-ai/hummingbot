@@ -299,6 +299,8 @@ class StrategyV2Base(StrategyPyBase):
 
         :param timestamp: current tick timestamp
         """
+        if not self._is_stop_triggered:
+            self._run_safety_callbacks(timestamp)
         if not self.ready_to_trade:
             self.ready_to_trade = all(ex.ready for ex in self.connectors.values())
             if not self.ready_to_trade:
@@ -308,6 +310,15 @@ class StrategyV2Base(StrategyPyBase):
             self.executor_orchestrator.initialize_initial_positions()
         else:
             self.on_tick()
+
+    def _run_safety_callbacks(self, timestamp: float):
+        """Call opted-in controller safety hooks before any market-readiness gate."""
+        for controller in self.controllers.values():
+            if callable(getattr(type(controller), "on_safety_tick", None)):
+                try:
+                    controller.on_safety_tick(timestamp)
+                except Exception:
+                    self.logger().error("Controller safety callback failed", exc_info=True)
 
     def on_tick(self):
         """

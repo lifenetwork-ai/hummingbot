@@ -407,6 +407,14 @@ class MarketDataProvider:
             self.logger().warning(f"Connector {connector_name} does not have order_book_tracker")
             return False
 
+        # A timed-out initial subscription may already have created the book.
+        # Wait for its depth on retry instead of subscribing a duplicate pair.
+        tracker = connector.order_book_tracker
+        started = (connector_name in self.connectors
+                   or self._non_trading_connectors_started.get(connector_name, False))
+        if started and trading_pair in tracker.order_books:
+            return await self._wait_for_order_book_initialized(connector, trading_pair)
+
         # For non-trading connectors, ensure the network is started with this trading pair
         if connector_name not in self.connectors:
             if not self._non_trading_connectors_started.get(connector_name, False):
@@ -418,11 +426,12 @@ class MarketDataProvider:
                     return False
                 # The trading pair was added during startup, so we're done
                 # Wait for order book to be initialized
-                await self._wait_for_order_book_initialized(connector, trading_pair)
-                return True
+                return await self._wait_for_order_book_initialized(connector, trading_pair)
 
         # Add trading pair dynamically via connector method
-        return await connector.add_trading_pair(trading_pair)
+        if not await connector.add_trading_pair(trading_pair):
+            return False
+        return await self._wait_for_order_book_initialized(connector, trading_pair)
 
     async def _wait_for_order_book_initialized(
         self, connector: ConnectorBase, trading_pair: str, timeout: float = 30.0

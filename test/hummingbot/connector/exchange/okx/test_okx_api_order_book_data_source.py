@@ -69,6 +69,31 @@ class OkxAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTestCase):
         return any(record.levelname == log_level and record.getMessage() == message
                    for record in self.log_records)
 
+    async def test_book_gap_forces_reconnect_and_revokes_feed_health(self):
+        pair = self.trading_pair
+        self.data_source._book_health.on_connect()
+
+        def message(action, seq, prev):
+            return {"arg": {"channel": "books", "instId": pair}, "action": action,
+                    "data": [{"asks": [], "bids": [], "ts": "2000",
+                              "seqId": seq, "prevSeqId": prev}]}
+
+        assert self.data_source._channel_originating_message(message("snapshot", 10, -1)) == \
+            self.data_source._snapshot_messages_queue_key
+        assert self.data_source.book_feed_health(pair).synchronized
+        assert self.data_source._channel_originating_message(message("update", 15, 10)) == \
+            self.data_source._diff_messages_queue_key
+        gap = message("update", 20, 11)
+        assert self.data_source._channel_originating_message(gap) == ""
+        with self.assertRaises(ConnectionError):
+            await self.data_source._process_message_for_unknown_channel(gap, MagicMock())
+        await self.data_source._on_order_stream_interruption()
+        assert not self.data_source.book_feed_health(pair).connected
+        self.data_source._book_health.on_connect()
+        assert not self.data_source.book_feed_health(pair).synchronized
+        assert self.data_source._channel_originating_message(message("snapshot", 30, -1)) == \
+            self.data_source._snapshot_messages_queue_key
+
     def _create_exception_and_unlock_test_with_event(self, exception):
         self.resume_test_event.set()
         raise exception

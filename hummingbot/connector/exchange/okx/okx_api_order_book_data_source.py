@@ -2,6 +2,7 @@ import asyncio
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from hummingbot.connector.exchange.okx import okx_constants as CONSTANTS, okx_web_utils as web_utils
+from hummingbot.connector.exchange.okx.okx_book_health import BookFeedHealth, OkxBookHealthTracker
 from hummingbot.core.data_type.common import TradeType
 from hummingbot.core.data_type.order_book_message import OrderBookMessage, OrderBookMessageType
 from hummingbot.core.data_type.order_book_tracker_data_source import OrderBookTrackerDataSource
@@ -27,6 +28,12 @@ class OkxAPIOrderBookDataSource(OrderBookTrackerDataSource):
         super().__init__(trading_pairs)
         self._connector = connector
         self._api_factory = api_factory
+        self._book_health = OkxBookHealthTracker(trading_pairs)
+        self._symbol_to_pair = {pair: pair for pair in trading_pairs}
+        self._book_resync_required = False
+
+    def book_feed_health(self, trading_pair: str) -> BookFeedHealth:
+        return self._book_health.status(trading_pair)
 
     async def get_last_traded_prices(self,
                                      trading_pairs: List[str],
@@ -143,6 +150,7 @@ class OkxAPIOrderBookDataSource(OrderBookTrackerDataSource):
         try:
             for trading_pair in self._trading_pairs:
                 symbol = await self._connector.exchange_symbol_associated_to_pair(trading_pair=trading_pair)
+                self._symbol_to_pair[symbol] = trading_pair
 
                 payload = {
                     "op": "subscribe",
@@ -183,12 +191,32 @@ class OkxAPIOrderBookDataSource(OrderBookTrackerDataSource):
             event_channel = event_message["arg"]["channel"]
             if event_channel == CONSTANTS.OKX_WS_PUBLIC_TRADES_CHANNEL:
                 channel = self._trade_messages_queue_key
-            elif event_channel == CONSTANTS.OKX_WS_PUBLIC_BOOKS_CHANNEL and event_message["action"] == "update":
-                channel = self._diff_messages_queue_key
-            elif event_channel == CONSTANTS.OKX_WS_PUBLIC_BOOKS_CHANNEL and event_message["action"] == "snapshot":
-                channel = self._snapshot_messages_queue_key
+            elif event_channel == CONSTANTS.OKX_WS_PUBLIC_BOOKS_CHANNEL:
+                action = event_message.get("action")
+                pair = self._symbol_to_pair.get(event_message["arg"].get("instId"))
+                if self._book_health.status(pair).connected:
+                    data = event_message["data"]
+                    if (not isinstance(data, list) or len(data) != 1 or not isinstance(data[0], dict)
+                            or not self._book_health.on_message(pair, action, data[0])):
+                        self._book_resync_required = True
+                        return ""
+                if action == "update":
+                    channel = self._diff_messages_queue_key
+                elif action == "snapshot":
+                    channel = self._snapshot_messages_queue_key
 
         return channel
+
+    async def _process_message_for_unknown_channel(self, event_message, websocket_assistant):
+        if self._book_resync_required:
+            self._book_resync_required = False
+            raise ConnectionError("OKX order book sequence lost; reconnect for a new snapshot")
+        await super()._process_message_for_unknown_channel(event_message, websocket_assistant)
+
+    async def _on_order_stream_interruption(self, websocket_assistant=None):
+        self._book_health.on_disconnect()
+        self._book_resync_required = False
+        await super()._on_order_stream_interruption(websocket_assistant)
 
     async def _process_websocket_messages(self, websocket_assistant: WSAssistant):
         while True:
@@ -204,6 +232,7 @@ class OkxAPIOrderBookDataSource(OrderBookTrackerDataSource):
             await ws.connect(
                 ws_url=CONSTANTS.get_okx_ws_uri_public(sub_domain=self._connector.okx_registration_sub_domain),
                 message_timeout=CONSTANTS.SECONDS_TO_WAIT_TO_RECEIVE_MESSAGE)
+        self._book_health.on_connect()
         return ws
 
     async def subscribe_to_trading_pair(self, trading_pair: str) -> bool:
@@ -222,6 +251,8 @@ class OkxAPIOrderBookDataSource(OrderBookTrackerDataSource):
 
         try:
             symbol = await self._connector.exchange_symbol_associated_to_pair(trading_pair=trading_pair)
+            self._book_health.add_pair(trading_pair)
+            self._symbol_to_pair[symbol] = trading_pair
 
             trade_payload = {
                 "op": "subscribe",
