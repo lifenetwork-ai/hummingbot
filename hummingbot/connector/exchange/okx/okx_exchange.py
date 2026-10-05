@@ -17,6 +17,7 @@ from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState,
 from hummingbot.core.data_type.order_book_tracker_data_source import OrderBookTrackerDataSource
 from hummingbot.core.data_type.trade_fee import TokenAmount, TradeFeeBase
 from hummingbot.core.data_type.user_stream_tracker_data_source import UserStreamTrackerDataSource
+from hummingbot.core.utils.async_utils import safe_ensure_future
 from hummingbot.core.utils.estimate_fee import build_trade_fee
 from hummingbot.core.web_assistant.connections.data_types import RESTMethod
 from hummingbot.core.web_assistant.web_assistants_factory import WebAssistantsFactory
@@ -45,6 +46,7 @@ class OkxExchange(ExchangePyBase):
         self.okx_registration_sub_domain = okx_registration_sub_domain or "www"
         self._trading_required = trading_required
         self._trading_pairs = trading_pairs
+        self._protected_trading_pairs: set[str] = set()
         super().__init__(balance_asset_limit, rate_limits_share_pct)
 
     @property
@@ -101,6 +103,29 @@ class OkxExchange(ExchangePyBase):
 
     def supported_order_types(self):
         return [OrderType.LIMIT, OrderType.LIMIT_MAKER, OrderType.MARKET]
+
+    def enable_protected_trading_pair(self, trading_pair: str) -> None:
+        if not trading_pair:
+            raise ValueError("protected trading pair required")
+        self._protected_trading_pairs.add(trading_pair)
+
+    def submit_protected_order(self, *, order_id: str, trading_pair: str, amount: Decimal,
+                               trade_type: TradeType, order_type: OrderType, price: Decimal,
+                               pre_send_check, on_ack) -> str:
+        """Schedule an order with an externally persisted ID and final-send check.
+
+        The caller must commit the ID/reservation/epoch to its WAL before this
+        method is invoked. Ordinary connector orders keep their existing path.
+        """
+        if (not order_id or not callable(pre_send_check) or not callable(on_ack)
+                or order_type != OrderType.LIMIT_MAKER
+                or trading_pair not in self._protected_trading_pairs):
+            raise ValueError("protected OKX order requires ID, callbacks, and post-only type")
+        safe_ensure_future(self._create_order(
+            trade_type=trade_type, order_id=order_id, trading_pair=trading_pair,
+            amount=amount, order_type=order_type, price=price,
+            pre_send_check=pre_send_check, on_ack=on_ack))
+        return order_id
 
     def _is_request_exception_related_to_time_synchronizer(self, request_exception: Exception):
         error_description = str(request_exception)
@@ -190,6 +215,12 @@ class OkxExchange(ExchangePyBase):
                            price: Decimal,
                            **kwargs) -> Tuple[str, float]:
 
+        pre_send_check = kwargs.pop("pre_send_check", None)
+        on_ack = kwargs.pop("on_ack", None)
+        if (trading_pair in self._protected_trading_pairs
+                and (pre_send_check is None or on_ack is None)):
+            raise PermissionError("PROTECTED_ORDER_REQUIRED")
+
         data = {
             "clOrdId": order_id,
             "tdMode": "cash",
@@ -204,16 +235,21 @@ class OkxExchange(ExchangePyBase):
             # Specify that the order quantity for market orders is denominated in base currency
             data["tgtCcy"] = "base_ccy"
 
+        final_check = (None if pre_send_check is None
+                       else lambda: pre_send_check(data))
         exchange_order_id = await self._api_request(
             path_url=CONSTANTS.OKX_PLACE_ORDER_PATH,
             method=RESTMethod.POST,
             data=data,
             is_auth_required=True,
             limit_id=CONSTANTS.OKX_PLACE_ORDER_PATH,
+            pre_send_check=final_check,
         )
         data = exchange_order_id["data"][0]
         if data["sCode"] != "0":
             raise IOError(f"Error submitting order {order_id}: {data['sMsg']}")
+        if on_ack is not None:
+            on_ack(str(data["ordId"]))
         return str(data["ordId"]), self.current_timestamp
 
     async def _place_cancel(self, order_id: str, tracked_order: InFlightOrder):

@@ -933,6 +933,7 @@ class ExchangePyBase(ExchangeBase, ABC):
             return_err: bool = False,
             limit_id: Optional[str] = None,
             headers: Optional[Dict[str, Any]] = None,
+            pre_send_check: Optional[Callable[[], None]] = None,
             **kwargs,
     ) -> Dict[str, Any]:
 
@@ -952,6 +953,7 @@ class ExchangePyBase(ExchangeBase, ABC):
                     return_err=return_err,
                     throttler_limit_id=limit_id if limit_id else path_url,
                     headers=headers,
+                    pre_send_check=pre_send_check,
                 )
 
                 return request_result

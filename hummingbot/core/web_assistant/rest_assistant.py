@@ -1,7 +1,7 @@
 import json
 from asyncio import wait_for
 from copy import deepcopy
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 from hummingbot.core.api_throttler.async_throttler_base import AsyncThrottlerBase
 from hummingbot.core.web_assistant.auth import AuthBase
@@ -44,6 +44,7 @@ class RESTAssistant:
         return_err: bool = False,
         timeout: Optional[float] = None,
         headers: Optional[Dict[str, Any]] = None,
+        pre_send_check: Optional[Callable[[], None]] = None,
     ) -> Union[str, Dict[str, Any]]:
         response = await self.execute_request_and_get_response(
             url=url,
@@ -55,6 +56,7 @@ class RESTAssistant:
             return_err=return_err,
             timeout=timeout,
             headers=headers,
+            pre_send_check=pre_send_check,
         )
         response_json = await response.json()
         return response_json
@@ -70,6 +72,7 @@ class RESTAssistant:
             return_err: bool = False,
             timeout: Optional[float] = None,
             headers: Optional[Dict[str, Any]] = None,
+            pre_send_check: Optional[Callable[[], None]] = None,
     ) -> RESTResponse:
 
         headers = headers or {}
@@ -92,7 +95,8 @@ class RESTAssistant:
         )
 
         async with self._throttler.execute_task(limit_id=throttler_limit_id):
-            response = await self.call(request=request, timeout=timeout)
+            response = await self.call(request=request, timeout=timeout,
+                                       pre_send_check=pre_send_check)
 
             if 400 <= response.status:
                 if not return_err:
@@ -102,11 +106,14 @@ class RESTAssistant:
                                   f"Error: {error_text}")
             return response
 
-    async def call(self, request: RESTRequest, timeout: Optional[float] = None) -> RESTResponse:
+    async def call(self, request: RESTRequest, timeout: Optional[float] = None,
+                   pre_send_check: Optional[Callable[[], None]] = None) -> RESTResponse:
         request = deepcopy(request)
         request = await self._pre_process_request(request)
         request = await self._authenticate(request)
-        resp = await wait_for(self._connection.call(request), timeout)
+        connection_call = (self._connection.call(request) if pre_send_check is None
+                           else self._connection.call(request, pre_send_check=pre_send_check))
+        resp = await wait_for(connection_call, timeout)
         resp = await self._post_process_response(resp)
         return resp
 
