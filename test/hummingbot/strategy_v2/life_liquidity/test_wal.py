@@ -59,3 +59,34 @@ def test_pre_send_identity_can_be_armed_once_or_aborted_without_exchange_send(tm
     assert wal.abort_before_send("intent-2")
     assert not wal.abort_before_send("intent-2")
     assert "life-0002" not in wal.scoped_order_ids("s1", 1)
+
+
+def test_stale_prepared_snapshot_cannot_abort_armed_disk_record(tmp_path):
+    path = tmp_path / "intents.json"
+    stale = IntentWAL(path)
+    stale.begin("intent-1", client_order_id="life-0001", session_id="s1",
+                epoch=1, reservation_id="intent-1")
+    newer = IntentWAL(path)
+    newer.arm_send("intent-1", client_order_id="life-0001", session_id="s1",
+                   epoch=1, reservation_id="intent-1")
+
+    with pytest.raises(ValueError, match="WAL_STATE_UNCERTAIN"):
+        stale.abort_before_send("intent-1")
+    assert IntentWAL(path).get("intent-1").state == "SEND_UNKNOWN"
+
+
+def test_aborting_one_intent_cannot_overwrite_another_armed_disk_record(tmp_path):
+    path = tmp_path / "intents.json"
+    stale = IntentWAL(path)
+    stale.begin("intent-1", client_order_id="life-0001", session_id="s1",
+                epoch=1, reservation_id="intent-1")
+    stale.begin("intent-2", client_order_id="life-0002", session_id="s1",
+                epoch=1, reservation_id="intent-2")
+    newer = IntentWAL(path)
+    newer.arm_send("intent-2", client_order_id="life-0002", session_id="s1",
+                   epoch=1, reservation_id="intent-2")
+
+    with pytest.raises(ValueError, match="WAL_STATE_UNCERTAIN"):
+        stale.abort_before_send("intent-1")
+    assert IntentWAL(path).get("intent-1").state == "PREPARED"
+    assert IntentWAL(path).get("intent-2").state == "SEND_UNKNOWN"

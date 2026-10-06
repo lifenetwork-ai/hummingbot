@@ -172,16 +172,47 @@ def test_aborted_pre_send_does_not_block_distinct_intent_after_capacity_returns(
     assert len(connector.sent) == 1
 
 
-def test_wal_arm_failure_after_reservation_retains_both_journals_without_send(tmp_path):
+def test_wal_arm_failure_before_commit_releases_proven_unsent_reservation(tmp_path):
     _, executor, connector, wal, ledger, _ = _setup(tmp_path)
     wal.arm_send = lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("crash"))
     with pytest.raises(OSError, match="crash"):
         executor.place_open_order()
-    assert IntentWAL(wal.path).get("executor-1").state == "PREPARED"
-    assert ledger.has_open_intent("executor-1")
+    assert IntentWAL(wal.path).get("executor-1").state == "ABORTED_BEFORE_SEND"
+    assert ledger.is_terminal_intent("executor-1")
     assert connector.sent == []
     with pytest.raises(ValueError, match="RECONCILE_BEFORE_RETRY"):
         executor.place_open_order()
+
+
+def test_revoked_before_wal_arm_releases_proven_unsent_reservation(tmp_path):
+    controller, executor, connector, wal, ledger, _ = _setup(tmp_path)
+    controller._protected_spot_sender.policy_authorize = lambda _permit: False
+
+    with pytest.raises(PermissionError, match="SEND_PERMISSION_REVOKED"):
+        executor.place_open_order()
+
+    assert wal.get("executor-1").state == "ABORTED_BEFORE_SEND"
+    assert ledger.is_terminal_intent("executor-1")
+    assert ledger.reserved_usdt == Decimal("0")
+    assert connector.sent == []
+
+
+def test_wal_arm_disk_commit_with_lost_fsync_keeps_reservation(tmp_path):
+    _, executor, connector, wal, ledger, _ = _setup(tmp_path)
+    original_save = wal._save
+
+    def save_then_fail(records):
+        original_save(records)
+        if records["executor-1"].state == "SEND_UNKNOWN":
+            raise OSError("directory fsync lost")
+
+    wal._save = save_then_fail
+    with pytest.raises(OSError, match="directory fsync lost"):
+        executor.place_open_order()
+
+    assert IntentWAL(wal.path).get("executor-1").state == "SEND_UNKNOWN"
+    assert ledger.has_open_intent("executor-1")
+    assert connector.sent == []
 
 
 def test_wire_id_allocation_failure_leaves_no_journal_or_reservation(tmp_path):

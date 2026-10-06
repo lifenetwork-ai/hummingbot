@@ -118,5 +118,20 @@ class ProtectedSpotExecutorSender:
             self.gateway.wal.abort_before_send(config.id)
             raise PermissionError("RESERVATION_UNAVAILABLE")
         self._issued_intents[config.id] = intent
-        return self.gateway.submit(permit, side=side, trading_pair=pair,
-                                   order_type=order_type)
+        try:
+            return self.gateway.submit(permit, side=side, trading_pair=pair,
+                                       order_type=order_type)
+        except Exception:
+            # The gateway arms SEND_UNKNOWN before touching the connector. Only
+            # a durable PREPARED record proves that no request was enqueued.
+            # If an fsync error left memory behind disk, abort_before_send
+            # refuses the stale snapshot and the reservation stays locked.
+            try:
+                if self.gateway.wal.get(config.id).state == "PREPARED":
+                    self.gateway.wal.abort_before_send(config.id)
+                    self.reservations.abort_unsent(
+                        config.id, session_id=current.session_id,
+                        epoch=current.epoch, wal=self.gateway.wal)
+            except (KeyError, OSError, ValueError):
+                pass  # startup recovery retains or repairs uncertain exposure
+            raise

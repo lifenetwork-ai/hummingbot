@@ -142,10 +142,16 @@ class IntentWAL:
     def abort_before_send(self, intent_id: str) -> bool:
         with self._lock:
             record = self._records[intent_id]
+            if record.state not in ("PREPARED", "ABORTED_BEFORE_SEND"):
+                raise ValueError("ORDER_MAY_HAVE_BEEN_SENT")
+            try:
+                durable_records = IntentWAL(self.path)._records
+            except (OSError, TypeError, ValueError) as exc:
+                raise ValueError("WAL_STATE_UNCERTAIN") from exc
+            if durable_records != self._records:
+                raise ValueError("WAL_STATE_UNCERTAIN")
             if record.state == "ABORTED_BEFORE_SEND":
                 return False
-            if record.state != "PREPARED":
-                raise ValueError("ORDER_MAY_HAVE_BEEN_SENT")
             self._commit(replace(record, state="ABORTED_BEFORE_SEND"))
             return True
 
