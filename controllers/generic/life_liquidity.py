@@ -141,6 +141,18 @@ class LifeLiquidityController(ControllerBase):
             raise ValueError("ORDER_SAFETY_RISK_LIMITS_MISSING")
         limits = RiskLimits(risk.min_inventory_base, risk.max_inventory_base,
                             risk.max_gross_quote, risk.max_net_base)
+        account_ownership = AccountRiskPoolLock(
+            self.config.recovery_account_uid, account_lock.ACCOUNT_LOCK_ROOT)
+        account_ownership.acquire()
+        try:
+            self._restore_order_safety_journals(paths, limits)
+        except BaseException:
+            account_ownership.release()
+            raise
+        self._order_safety_account_lock = account_ownership
+
+    def _restore_order_safety_journals(self, paths: list[Path], limits: RiskLimits) -> None:
+        """Read and repair journals only while the account-wide lock is held."""
         manager = SessionManager(SessionStore(paths[0]),
                                  wall_clock=lambda: datetime.now(timezone.utc),
                                  max_reconciliation_age_ms=(
@@ -149,9 +161,25 @@ class LifeLiquidityController(ControllerBase):
         reservations = ReservationLedger.restore(paths[2], limits=limits)
         approvals = CashflowApprovals.load(paths[3])
         records = wal.all_records()
+        record_ids = {record.reservation_id for record in records}
         if (len({record.client_order_id for record in records}) != len(records)
                 or any(record.reservation_id != record.intent_id for record in records)
-                or {record.reservation_id for record in records} != reservations.reservation_ids):
+                or any(record.state not in ("PREPARED", "ABORTED_BEFORE_SEND",
+                                            "SEND_UNKNOWN", "ACKED", "TERMINAL")
+                       for record in records)
+                or not reservations.reservation_ids <= record_ids
+                or any(record.state not in ("PREPARED", "ABORTED_BEFORE_SEND")
+                       and record.reservation_id not in reservations.reservation_ids
+                       for record in records)
+                or any(record.reservation_id in reservations.reservation_ids
+                       and not reservations.matches_identity(
+                           record.reservation_id, record.session_id, record.epoch)
+                       for record in records)
+                or any(record.state in ("PREPARED", "ABORTED_BEFORE_SEND")
+                       and record.reservation_id in reservations.reservation_ids
+                       and not reservations.can_abort_unsent(
+                           record.reservation_id, record.session_id, record.epoch)
+                       for record in records)):
             raise ValueError("ORDER_SAFETY_JOURNALS_DISAGREE")
         if manager.current_session is None:
             raise ValueError("ORDER_SAFETY_SESSION_MISSING")
@@ -173,15 +201,18 @@ class LifeLiquidityController(ControllerBase):
             apply_fills=reconciler.apply_fills, confirm_terminal=reconciler.confirm_terminal,
             on_cancel_requested=reconciler.request_cancel, on_unknown=reconciler.mark_unknown,
             account_check=account.check)
-        account_ownership = AccountRiskPoolLock(
-            self.config.recovery_account_uid, account_lock.ACCOUNT_LOCK_ROOT)
-        account_ownership.acquire()
-        try:
-            self.install_order_safety(manager, gateway, wal, reservations=reservations)
-        except BaseException:
-            account_ownership.release()
-            raise
-        self._order_safety_account_lock = account_ownership
+        # PREPARED is durable proof that the protected connector was never
+        # called. Abort the WAL first, then release any matching unfilled
+        # reservation; a crash between writes is safe to replay.
+        for record in records:
+            if record.state == "PREPARED":
+                wal.abort_before_send(record.intent_id)
+            if record.state in ("PREPARED", "ABORTED_BEFORE_SEND"):
+                if record.reservation_id in reservations.reservation_ids:
+                    reservations.abort_unsent(
+                        record.reservation_id, session_id=record.session_id,
+                        epoch=record.epoch, wal=wal)
+        self.install_order_safety(manager, gateway, wal, reservations=reservations)
 
     def install_order_safety(self, manager: SessionManager, gateway: OkxSpotOrderGateway,
                              wal: IntentWAL, *, reservations: ReservationLedger | None = None) -> None:
@@ -397,7 +428,7 @@ class LifeLiquidityController(ControllerBase):
             self._account_uid_verified = True
         current = manager.current_session
         scopes = {(record.session_id, record.epoch) for record in wal.all_records()
-                  if record.state != "TERMINAL"}
+                  if record.state not in ("TERMINAL", "ABORTED_BEFORE_SEND")}
         scopes.add((current.session_id, current.epoch))
         primary_result = None
         reason = "OLD_ORDERS_RECONCILED"

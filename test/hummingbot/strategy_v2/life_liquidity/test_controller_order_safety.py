@@ -396,6 +396,7 @@ def test_wal_and_reservation_journal_mismatch_blocks_auto_recovery(tmp_path):
                 epoch=primary.epoch, reservation_id="i1")
     ReservationLedger(life_balance=Decimal("10"), usdt_balance=Decimal("10"),
                       limits=_limits(), path=recovery_dir / "reservations.json")
+    _cashflows(recovery_dir)
     connector = FakeOkx()
     provider = MagicMock()
     provider.get_connector_with_fallback.return_value = connector
@@ -404,6 +405,93 @@ def test_wal_and_reservation_journal_mismatch_blocks_auto_recovery(tmp_path):
     assert controller.order_safety_reason_code == "ORDER_SAFETY_RECOVERY_FAILED"
     assert controller.order_safety_task is None
     assert connector.cancels == []
+
+
+@pytest.mark.parametrize("with_reservation,already_aborted", [
+    (False, False), (True, False), (True, True),
+])
+def test_pre_send_crash_recovers_without_exchange_request(
+        tmp_path, with_reservation, already_aborted):
+    recovery_dir = tmp_path / "recovery"
+    _seed_recovery(recovery_dir)
+    wal = IntentWAL(recovery_dir / "intents.json")
+    old = wal.get("i1")
+    wal.begin("i2", client_order_id="wire-2", session_id=old.session_id,
+              epoch=old.epoch, reservation_id="i2")
+    if with_reservation:
+        ledger = ReservationLedger.restore(recovery_dir / "reservations.json", limits=_limits())
+        assert ledger.reserve(SpotIntent("i2", "BUY", Decimal("1"), Decimal("1"),
+                                         old.session_id, old.epoch),
+                              reference_price=Decimal("1")).allowed
+        if not already_aborted:
+            with pytest.raises(ValueError, match="UNSENT_WAL_PROOF_INVALID"):
+                ledger.abort_unsent("i2", session_id=old.session_id,
+                                    epoch=old.epoch, wal=wal)
+    if already_aborted:
+        wal.abort_before_send("i2")  # crash before the reservation release
+    connector = FakeOkx()
+    provider = MagicMock()
+    provider.get_connector_with_fallback.return_value = connector
+    controller = LifeLiquidityController(_recovery_config(recovery_dir), provider, MagicMock())
+    try:
+        controller._restore_order_safety()
+        assert IntentWAL(recovery_dir / "intents.json").get("i2").state == "ABORTED_BEFORE_SEND"
+        ledger = ReservationLedger.restore(recovery_dir / "reservations.json", limits=_limits())
+        assert ledger.reserved_usdt == Decimal("1")  # i1 remains unresolved
+        if with_reservation:
+            assert ledger.is_terminal_intent("i2")
+        assert "wire-2" not in controller._order_safety_wal.scoped_order_ids(
+            old.session_id, old.epoch)
+        assert connector.cancels == []
+    finally:
+        controller.stop()
+
+
+def test_pre_send_recovery_rejects_filled_reservation(tmp_path):
+    recovery_dir = tmp_path / "recovery"
+    _seed_recovery(recovery_dir)
+    wal = IntentWAL(recovery_dir / "intents.json")
+    old = wal.get("i1")
+    wal.begin("i2", client_order_id="wire-2", session_id=old.session_id,
+              epoch=old.epoch, reservation_id="i2")
+    ledger = ReservationLedger.restore(recovery_dir / "reservations.json", limits=_limits())
+    assert ledger.reserve(SpotIntent("i2", "BUY", Decimal("1"), Decimal("1"),
+                                     old.session_id, old.epoch),
+                          reference_price=Decimal("1")).allowed
+    ledger.record_fill("i2", "unexpected-fill", Decimal("0.1"), Decimal("1"))
+    provider = MagicMock()
+    provider.get_connector_with_fallback.return_value = FakeOkx()
+    controller = LifeLiquidityController(_recovery_config(recovery_dir), provider, MagicMock())
+    controller.on_safety_tick(10)
+    assert controller.order_safety_reason_code == "ORDER_SAFETY_RECOVERY_FAILED"
+    assert IntentWAL(wal.path).get("i2").state == "PREPARED"
+
+
+def test_recovery_reads_journals_only_after_account_lock(tmp_path, monkeypatch):
+    recovery_dir = tmp_path / "recovery"
+    _seed_recovery(recovery_dir)
+    wal = IntentWAL(recovery_dir / "intents.json")
+    old = wal.get("i1")
+    wal.begin("i2", client_order_id="wire-2", session_id=old.session_id,
+              epoch=old.epoch, reservation_id="i2")
+    original_acquire = account_lock.AccountRiskPoolLock.acquire
+
+    def competing_writer_before_lock(self):
+        wal.arm_send("i2", client_order_id="wire-2", session_id=old.session_id,
+                     epoch=old.epoch, reservation_id="i2")
+        return original_acquire(self)
+
+    monkeypatch.setattr(account_lock.AccountRiskPoolLock, "acquire",
+                        competing_writer_before_lock)
+    provider = MagicMock()
+    provider.get_connector_with_fallback.return_value = FakeOkx()
+    controller = LifeLiquidityController(_recovery_config(recovery_dir), provider, MagicMock())
+    try:
+        controller.on_safety_tick(10)
+        assert controller.order_safety_reason_code == "ORDER_SAFETY_RECOVERY_FAILED"
+        assert IntentWAL(wal.path).get("i2").state == "SEND_UNKNOWN"
+    finally:
+        controller.stop()
 
 
 def _seed_recovery(directory):

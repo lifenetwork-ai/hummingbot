@@ -70,9 +70,16 @@ class ProtectedSpotGateway:
 
         if not permitted():
             raise PermissionError("SEND_PERMISSION_REVOKED")
-        self.wal.prepare(permit.intent_id, client_order_id=permit.client_order_id,
-                         session_id=permit.session_id, epoch=permit.epoch,
-                         reservation_id=permit.reservation_id)
+        try:
+            self.wal.get(permit.intent_id)
+        except KeyError:
+            self.wal.prepare(permit.intent_id, client_order_id=permit.client_order_id,
+                             session_id=permit.session_id, epoch=permit.epoch,
+                             reservation_id=permit.reservation_id)
+        else:
+            self.wal.arm_send(permit.intent_id, client_order_id=permit.client_order_id,
+                              session_id=permit.session_id, epoch=permit.epoch,
+                              reservation_id=permit.reservation_id)
         return self.connector.submit_protected_order(
             order_id=permit.client_order_id, trading_pair=trading_pair,
             amount=permit.quantity_base,

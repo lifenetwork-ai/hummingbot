@@ -1,8 +1,8 @@
-"""Opt-in bridge from a pre-reserved LIFE OrderExecutor to protected spot send.
+"""Opt-in bridge from a LIFE OrderExecutor to protected spot send.
 
 The LIFE controller does not install this bridge or grant trading permission at
-runtime yet. A quote engine must first create a matching durable reservation,
-and a live authorization observer remains a separate release gate.
+runtime yet. A qualified reference-price provider and a live authorization
+observer remain separate release gates.
 """
 
 from decimal import Decimal
@@ -18,16 +18,33 @@ from hummingbot.strategy_v2.life_liquidity.send_gate import SendPermit
 class ProtectedSpotExecutorSender:
     def __init__(self, controller, gateway: ProtectedSpotGateway,
                  reservations: ReservationLedger, *, risk_epoch: Callable[[], int],
-                 authorize: Callable[[SendPermit], bool]):
+                 authorize: Callable[[SendPermit], bool],
+                 reference_price: Callable[[], Decimal]):
         self.controller = controller
         self.gateway = gateway
         self.reservations = reservations
         self.risk_epoch = risk_epoch
         self.policy_authorize = authorize
+        self.reference_price = reference_price
         self.manager = controller._order_safety_manager
         self._issued_intents: dict[str, SpotIntent] = {}
         self._attempted_intents: set[str] = set()
         self.gateway.authorize = self._authorized
+
+    def _journals_match(self, records, *, pending_intent_id: str | None = None) -> bool:
+        reservation_ids = self.reservations.reservation_ids
+        required_ids = set()
+        for record in records:
+            if record.state == "PREPARED" and record.intent_id != pending_intent_id:
+                return False
+            if record.state == "ABORTED_BEFORE_SEND":
+                if record.reservation_id in reservation_ids:
+                    if not self.reservations.is_terminal_intent(record.reservation_id):
+                        return False
+                    required_ids.add(record.reservation_id)
+            else:
+                required_ids.add(record.reservation_id)
+        return reservation_ids == required_ids
 
     def _authorized(self, permit: SendPermit) -> bool:
         current = self.manager.current_session
@@ -47,10 +64,7 @@ class ProtectedSpotExecutorSender:
                 or not self.reservations.matches_open_intent(intent)):
             return False
         records = self.gateway.wal.all_records()
-        record_ids = {record.reservation_id for record in records}
-        expected_ids = (record_ids if permit.intent_id in {record.intent_id for record in records}
-                        else record_ids | {permit.reservation_id})
-        if self.reservations.reservation_ids != expected_ids:
+        if not self._journals_match(records, pending_intent_id=permit.intent_id):
             return False
         decision = self.policy_authorize(permit)
         return decision is True or getattr(decision, "allowed", False) is True
@@ -75,25 +89,34 @@ class ProtectedSpotExecutorSender:
         if (current is None or not self.manager.can_quote(
                 reference_ready=True, all_gates_ready=True, market_reference_ready=True)):
             raise PermissionError("SESSION_PERMISSION_REVOKED")
+        reservation_path = self.reservations.path
+        if (reservation_path is None or not reservation_path.is_file()
+                or reservation_path.is_symlink()):
+            raise PermissionError("RESERVATION_JOURNAL_NOT_DURABLE")
         if config.id in self._attempted_intents:
             raise ValueError("RECONCILE_BEFORE_RETRY")
         records = self.gateway.wal.all_records()
         if any(item.intent_id == config.id for item in records):
             raise ValueError("RECONCILE_BEFORE_RETRY")
+        if config.id in self.reservations.reservation_ids:
+            raise PermissionError("RESERVATION_UNAVAILABLE")
+        if not self._journals_match(records):
+            raise PermissionError("RECOVERY_JOURNALS_DISAGREE")
         side = config.side.name
         intent = SpotIntent(config.id, side, amount, price, current.session_id, current.epoch)
-        if not self.reservations.matches_open_intent(intent):
-            raise PermissionError("RESERVATION_UNAVAILABLE")
-        if self.reservations.reservation_ids != {
-                item.reservation_id for item in records} | {config.id}:
-            raise PermissionError("RECOVERY_JOURNALS_DISAGREE")
         wire_id = self.gateway.allocate_client_order_id(side=side, trading_pair=pair)
         permit = SendPermit(config.id, wire_id, config.id, current.session_id, current.epoch,
                             current.config_version, self.risk_epoch(), price, amount)
-        self._issued_intents[config.id] = intent
-        # A synchronous failure can occur after WAL persistence but before
-        # the caller receives an ID. Never infer from the exception that the
-        # connector did not enqueue a request.
+        # A synchronous failure can occur after either journal commit.
+        # Never infer from the exception that a connector request was absent.
         self._attempted_intents.add(config.id)
+        self.gateway.wal.begin(config.id, client_order_id=wire_id,
+                               session_id=current.session_id, epoch=current.epoch,
+                               reservation_id=config.id)
+        decision = self.reservations.reserve(intent, reference_price=self.reference_price())
+        if not decision.allowed:
+            self.gateway.wal.abort_before_send(config.id)
+            raise PermissionError("RESERVATION_UNAVAILABLE")
+        self._issued_intents[config.id] = intent
         return self.gateway.submit(permit, side=side, trading_pair=pair,
                                    order_type=order_type)

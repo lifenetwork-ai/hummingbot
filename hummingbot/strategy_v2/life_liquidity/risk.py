@@ -8,6 +8,8 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from threading import RLock
 
+from hummingbot.strategy_v2.life_liquidity.state import IntentWAL
+
 
 def _finite(value: Decimal, *, positive: bool = False) -> bool:
     return (isinstance(value, Decimal) and value.is_finite()
@@ -309,6 +311,45 @@ class ReservationLedger:
             return (item is not None and item.state == "OPEN" and item.intent == intent
                     and item.remaining_base == intent.quantity_base
                     and item.filled_base == 0)
+
+    def matches_identity(self, intent_id: str, session_id: str, epoch: int) -> bool:
+        with self._lock:
+            item = self._reservations.get(intent_id)
+            return (item is not None and item.intent.session_id == session_id
+                    and item.intent.epoch == epoch)
+
+    def is_terminal_intent(self, intent_id: str) -> bool:
+        with self._lock:
+            item = self._reservations.get(intent_id)
+            return item is not None and item.state == "TERMINAL"
+
+    def can_abort_unsent(self, intent_id: str, session_id: str, epoch: int) -> bool:
+        with self._lock:
+            item = self._reservations.get(intent_id)
+            return (item is not None and item.intent.session_id == session_id
+                    and item.intent.epoch == epoch and item.filled_base == 0
+                    and item.state in ("OPEN", "TERMINAL")
+                    and (item.remaining_base == item.intent.quantity_base
+                         if item.state == "OPEN" else item.remaining_base == 0))
+
+    def abort_unsent(self, intent_id: str, *, session_id: str, epoch: int,
+                     wal: IntentWAL) -> bool:
+        """Release only a full, unfilled reservation whose WAL never armed a send."""
+        record = wal.get(intent_id)
+        if (record.state != "ABORTED_BEFORE_SEND" or record.reservation_id != intent_id
+                or record.session_id != session_id or record.epoch != epoch):
+            raise ValueError("UNSENT_WAL_PROOF_INVALID")
+        with self._lock:
+            if not self.can_abort_unsent(intent_id, session_id, epoch):
+                raise ValueError("UNSENT_RESERVATION_UNSAFE")
+            item = self._reservations[intent_id]
+            if item.state == "TERMINAL":
+                return False
+            updated = dict(self._reservations)
+            updated[intent_id] = replace(item, remaining_base=Decimal("0"),
+                                         state="TERMINAL")
+            self._commit(self.life_balance, self.usdt_balance, updated, self._trades)
+            return True
 
     @property
     def reserved_life(self) -> Decimal:

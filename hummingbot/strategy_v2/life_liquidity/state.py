@@ -111,10 +111,10 @@ class IntentWAL:
         with self._lock:
             return tuple(record.client_order_id for record in self._records.values()
                          if record.session_id == session_id and record.epoch == epoch
-                         and record.state != "TERMINAL")
+                         and record.state not in ("TERMINAL", "ABORTED_BEFORE_SEND"))
 
-    def prepare(self, intent_id: str, *, client_order_id: str, session_id: str,
-                epoch: int, reservation_id: str) -> None:
+    def begin(self, intent_id: str, *, client_order_id: str, session_id: str,
+              epoch: int, reservation_id: str) -> None:
         if (not intent_id or not client_order_id or not session_id or not reservation_id
                 or not isinstance(epoch, int) or isinstance(epoch, bool) or epoch < 1):
             raise ValueError("intent identity invalid")
@@ -126,7 +126,35 @@ class IntentWAL:
             prepared = IntentRecord(intent_id, client_order_id, session_id, epoch,
                                     reservation_id, "PREPARED")
             self._commit(prepared)
-            self._commit(replace(prepared, state="SEND_UNKNOWN"))
+
+    def arm_send(self, intent_id: str, *, client_order_id: str, session_id: str,
+                 epoch: int, reservation_id: str) -> bool:
+        with self._lock:
+            record = self._records[intent_id]
+            if (record.state != "PREPARED" or record.cancel_requested
+                    or (record.client_order_id, record.session_id, record.epoch,
+                        record.reservation_id) != (client_order_id, session_id, epoch,
+                                                   reservation_id)):
+                raise ValueError("RECONCILE_BEFORE_RETRY")
+            self._commit(replace(record, state="SEND_UNKNOWN"))
+            return True
+
+    def abort_before_send(self, intent_id: str) -> bool:
+        with self._lock:
+            record = self._records[intent_id]
+            if record.state == "ABORTED_BEFORE_SEND":
+                return False
+            if record.state != "PREPARED":
+                raise ValueError("ORDER_MAY_HAVE_BEEN_SENT")
+            self._commit(replace(record, state="ABORTED_BEFORE_SEND"))
+            return True
+
+    def prepare(self, intent_id: str, *, client_order_id: str, session_id: str,
+                epoch: int, reservation_id: str) -> None:
+        self.begin(intent_id, client_order_id=client_order_id, session_id=session_id,
+                   epoch=epoch, reservation_id=reservation_id)
+        self.arm_send(intent_id, client_order_id=client_order_id,
+                      session_id=session_id, epoch=epoch, reservation_id=reservation_id)
 
     def acknowledge(self, intent_id: str, exchange_order_id: str) -> bool:
         if not isinstance(exchange_order_id, str) or not exchange_order_id:

@@ -39,3 +39,23 @@ def test_lost_ack_or_restart_cannot_blindly_resend(tmp_path):
         restarted.send_once("intent-1", client_order_id="life-0001", session_id="s1",
                             epoch=1, reservation_id="reservation-1", sender=lambda _: None)
     assert restarted.pending_reconciliation("s1", 1) == ("life-0001",)
+
+
+def test_pre_send_identity_can_be_armed_once_or_aborted_without_exchange_send(tmp_path):
+    wal = IntentWAL(tmp_path / "intents.json")
+    wal.begin("intent-1", client_order_id="life-0001", session_id="s1",
+              epoch=1, reservation_id="intent-1")
+    assert IntentWAL(wal.path).get("intent-1").state == "PREPARED"
+    assert wal.arm_send("intent-1", client_order_id="life-0001", session_id="s1",
+                        epoch=1, reservation_id="intent-1")
+    with pytest.raises(ValueError, match="RECONCILE_BEFORE_RETRY"):
+        wal.arm_send("intent-1", client_order_id="life-0001", session_id="s1",
+                     epoch=1, reservation_id="intent-1")
+    with pytest.raises(ValueError, match="ORDER_MAY_HAVE_BEEN_SENT"):
+        wal.abort_before_send("intent-1")
+
+    wal.begin("intent-2", client_order_id="life-0002", session_id="s1",
+              epoch=1, reservation_id="intent-2")
+    assert wal.abort_before_send("intent-2")
+    assert not wal.abort_before_send("intent-2")
+    assert "life-0002" not in wal.scoped_order_ids("s1", 1)

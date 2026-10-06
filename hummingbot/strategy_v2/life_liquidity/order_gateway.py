@@ -142,7 +142,7 @@ class OkxSpotOrderGateway:
 
     async def request_cancel(self, session_id: str, epoch: int) -> None:
         for record in self.wal.scoped_records(session_id, epoch):
-            if record.state == "TERMINAL":
+            if record.state in ("TERMINAL", "PREPARED", "ABORTED_BEFORE_SEND"):
                 continue
             # Persist the cancel intent before invoking an asynchronous connector.
             # An ACK only proves receipt of the request, not terminal state.
@@ -317,9 +317,15 @@ class OkxSpotOrderGateway:
         terminal_candidates = []
         scope_complete = True
         fills_reconciled = True
-        records = self.wal.scoped_records(session_id, epoch)
+        records = tuple(record for record in self.wal.scoped_records(session_id, epoch)
+                        if record.state != "ABORTED_BEFORE_SEND")
         for record in records:
             wire_id = record.client_order_id
+            if record.state == "PREPARED":
+                unknown_ids.append(wire_id)
+                scope_complete = False
+                fills_reconciled = False
+                continue
             try:
                 try:
                     if record.exchange_order_id is None:

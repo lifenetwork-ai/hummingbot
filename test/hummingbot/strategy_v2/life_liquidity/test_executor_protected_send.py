@@ -44,16 +44,17 @@ class Connector:
         return kwargs["order_id"]
 
 
-def _setup(tmp_path, *, reserve=True, connector=None):
+def _setup(tmp_path, *, reserve=True, pre_reserve=False, connector=None):
     clock = FakeClock()
     active = manager(tmp_path, clock)
     begin(active)
     session = active.current_session
     wal = IntentWAL(tmp_path / "intents.json")
     limits = RiskLimits(Decimal("0"), Decimal("20"), Decimal("20"), Decimal("20"))
-    ledger = ReservationLedger(life_balance=Decimal("10"), usdt_balance=Decimal("10"),
+    ledger = ReservationLedger(life_balance=Decimal("10"),
+                               usdt_balance=Decimal("10") if reserve else Decimal("0"),
                                limits=limits, path=tmp_path / "reservations.json")
-    if reserve:
+    if pre_reserve:
         assert ledger.reserve(SpotIntent("executor-1", "BUY", Decimal("1"), Decimal("1"),
                                          session.session_id, session.epoch),
                               reference_price=Decimal("1")).allowed
@@ -71,7 +72,8 @@ def _setup(tmp_path, *, reserve=True, connector=None):
     gateway = ProtectedSpotGateway(connector, wal, authorize=lambda _: True)
     sender = ProtectedSpotExecutorSender(
         controller, gateway, ledger, risk_epoch=lambda: allowed["risk_epoch"],
-        authorize=lambda permit: allowed["value"])
+        authorize=lambda permit: allowed["value"],
+        reference_price=lambda: Decimal("1"))
     controller.install_protected_spot_sender(sender)
     strategy = MagicMock(spec=StrategyV2Base)
     strategy.controllers = {"life": controller}
@@ -105,6 +107,33 @@ def test_executor_send_uses_preallocated_wal_id_before_connector_enqueue(tmp_pat
     assert not controller.trading_permissions_ready()
 
 
+def test_wal_identity_is_durable_before_risk_reservation(tmp_path):
+    _, executor, connector, wal, ledger, _ = _setup(tmp_path)
+    original = ledger.reserve
+
+    def reserve(intent, *, reference_price):
+        record = IntentWAL(wal.path).get(intent.intent_id)
+        assert record.state == "PREPARED"
+        assert record.client_order_id
+        assert record.session_id == intent.session_id
+        return original(intent, reference_price=reference_price)
+
+    ledger.reserve = reserve
+    executor.place_open_order()
+    assert len(connector.sent) == 1
+
+
+def test_crash_before_reservation_keeps_prepared_identity_and_no_send(tmp_path):
+    _, executor, connector, wal, ledger, _ = _setup(tmp_path)
+    ledger.reserve = lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("crash"))
+
+    with pytest.raises(OSError, match="crash"):
+        executor.place_open_order()
+    assert connector.sent == []
+    assert IntentWAL(wal.path).get("executor-1").state == "PREPARED"
+    assert ledger.reservation_ids == frozenset()
+
+
 def test_executor_retry_after_lost_ack_cannot_duplicate_order(tmp_path):
     _, executor, connector, wal, ledger, _ = _setup(tmp_path)
     executor.place_open_order()
@@ -118,15 +147,73 @@ def test_executor_retry_after_lost_ack_cannot_duplicate_order(tmp_path):
     assert ledger.has_open_intent("executor-1")
 
 
-def test_missing_reservation_blocks_executor_before_wal_or_connector(tmp_path):
+def test_refused_reservation_leaves_aborted_wal_identity_and_no_connector_send(tmp_path):
     _, executor, connector, wal, _, _ = _setup(tmp_path, reserve=False)
 
     with pytest.raises(PermissionError, match="RESERVATION_UNAVAILABLE"):
         executor.place_open_order()
 
-    assert wal.all_records() == ()
+    assert wal.get("executor-1").state == "ABORTED_BEFORE_SEND"
     assert connector.sent == []
     executor._strategy.buy.assert_not_called()
+
+
+def test_aborted_pre_send_does_not_block_distinct_intent_after_capacity_returns(tmp_path):
+    _, executor, connector, wal, ledger, _ = _setup(tmp_path, reserve=False)
+    with pytest.raises(PermissionError, match="RESERVATION_UNAVAILABLE"):
+        executor.place_open_order()
+    ledger.record_cashflow("123", "USDT", Decimal("2"))
+    next_config = executor.config.model_copy(update={"id": "executor-2"})
+    next_executor = OrderExecutor(executor._strategy, next_config)
+    next_executor.get_order_price = lambda: Decimal("1")
+    next_executor.place_open_order()
+    assert wal.get("executor-1").state == "ABORTED_BEFORE_SEND"
+    assert wal.get("executor-2").state == "SEND_UNKNOWN"
+    assert len(connector.sent) == 1
+
+
+def test_wal_arm_failure_after_reservation_retains_both_journals_without_send(tmp_path):
+    _, executor, connector, wal, ledger, _ = _setup(tmp_path)
+    wal.arm_send = lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("crash"))
+    with pytest.raises(OSError, match="crash"):
+        executor.place_open_order()
+    assert IntentWAL(wal.path).get("executor-1").state == "PREPARED"
+    assert ledger.has_open_intent("executor-1")
+    assert connector.sent == []
+    with pytest.raises(ValueError, match="RECONCILE_BEFORE_RETRY"):
+        executor.place_open_order()
+
+
+def test_wire_id_allocation_failure_leaves_no_journal_or_reservation(tmp_path):
+    controller, executor, connector, wal, ledger, _ = _setup(tmp_path)
+    controller._protected_spot_sender.gateway.allocate_client_order_id = (
+        lambda **_kwargs: (_ for _ in ()).throw(ValueError("allocation failed")))
+    with pytest.raises(ValueError, match="allocation failed"):
+        executor.place_open_order()
+    assert wal.all_records() == ()
+    assert ledger.reservation_ids == frozenset()
+    assert connector.sent == []
+
+
+def test_in_memory_reservation_ledger_cannot_reach_executor_send(tmp_path):
+    _, executor, connector, wal, ledger, _ = _setup(tmp_path)
+    ledger.path = None
+    with pytest.raises(PermissionError, match="RESERVATION_JOURNAL_NOT_DURABLE"):
+        executor.place_open_order()
+    assert wal.all_records() == ()
+    assert connector.sent == []
+
+
+def test_ambiguous_connector_enqueue_keeps_reservation_for_reconciliation(tmp_path):
+    _, executor, connector, wal, ledger, _ = _setup(tmp_path)
+    connector.submit_protected_order = (
+        lambda **_kwargs: (_ for _ in ()).throw(TimeoutError("unknown enqueue")))
+    with pytest.raises(TimeoutError, match="unknown enqueue"):
+        executor.place_open_order()
+    assert wal.get("executor-1").state == "SEND_UNKNOWN"
+    assert ledger.has_open_intent("executor-1")
+    with pytest.raises(ValueError, match="RECONCILE_BEFORE_RETRY"):
+        executor.place_open_order()
 
 
 def test_wal_write_failure_never_enqueues_and_retry_stays_blocked(tmp_path):
@@ -136,7 +223,7 @@ def test_wal_write_failure_never_enqueues_and_retry_stays_blocked(tmp_path):
     with pytest.raises(OSError, match="disk failure"):
         executor.place_open_order()
     assert connector.sent == []
-    assert ledger.has_open_intent("executor-1")
+    assert not ledger.has_open_intent("executor-1")
     with pytest.raises(ValueError, match="RECONCILE_BEFORE_RETRY"):
         executor.place_open_order()
 
@@ -155,7 +242,7 @@ def test_unmatched_reservation_journal_blocks_send(tmp_path):
 
 
 def test_reservation_with_existing_fill_cannot_authorize_new_full_size_send(tmp_path):
-    _, executor, connector, wal, ledger, _ = _setup(tmp_path)
+    _, executor, connector, wal, ledger, _ = _setup(tmp_path, pre_reserve=True)
     ledger.record_fill("executor-1", "trade-1", Decimal("0.25"), Decimal("1"))
 
     with pytest.raises(PermissionError, match="RESERVATION_UNAVAILABLE"):
