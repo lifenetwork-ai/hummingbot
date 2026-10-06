@@ -23,6 +23,9 @@ class IntentRecord:
     cancel_attempts: int = 0
     last_cancel_attempt_at: str | None = None
     exchange_terminal_observed: bool = False
+    slot_market: str | None = None
+    slot_side: str | None = None
+    slot_level: int | None = None
 
 
 class IntentWAL:
@@ -37,6 +40,13 @@ class IntentWAL:
                 raise ValueError("intent WAL invalid")
             self._records = {key: IntentRecord(**value) for key, value in data["records"].items()}
             for record in self._records.values():
+                slot_fields = (record.slot_market, record.slot_side, record.slot_level)
+                if (any(value is not None for value in slot_fields)
+                        and (not isinstance(record.slot_market, str) or not record.slot_market
+                             or record.slot_side not in ("BUY", "SELL")
+                             or not isinstance(record.slot_level, int)
+                             or isinstance(record.slot_level, bool) or record.slot_level < 0)):
+                    raise ValueError("intent WAL slot identity invalid")
                 if (not isinstance(record.cancel_requested, bool)
                         or not isinstance(record.exchange_terminal_observed, bool)
                         or not isinstance(record.cancel_attempts, int)
@@ -173,17 +183,46 @@ class IntentWAL:
                          and record.state not in ("TERMINAL", "ABORTED_BEFORE_SEND"))
 
     def begin(self, intent_id: str, *, client_order_id: str, session_id: str,
-              epoch: int, reservation_id: str) -> None:
+              epoch: int, reservation_id: str, slot_market: str | None = None,
+              slot_side: str | None = None, slot_level: int | None = None) -> None:
         if (not intent_id or not client_order_id or not session_id or not reservation_id
                 or not isinstance(epoch, int) or isinstance(epoch, bool) or epoch < 1):
             raise ValueError("intent identity invalid")
+        slot_fields = (slot_market, slot_side, slot_level)
+        slotted = any(value is not None for value in slot_fields)
+        if slotted and (not isinstance(slot_market, str) or not slot_market
+                        or slot_side not in ("BUY", "SELL")
+                        or not isinstance(slot_level, int) or isinstance(slot_level, bool)
+                        or slot_level < 0):
+            raise ValueError("SLOT_IDENTITY_INVALID")
         with self._lock:
+            # A second WAL instance may have advanced the journal since this one
+            # loaded it. Never overwrite that state while claiming a slot.
+            try:
+                durable_records = IntentWAL(self.path)._records if self.path.exists() else {}
+            except (OSError, TypeError, ValueError) as exc:
+                raise ValueError("WAL_STATE_UNCERTAIN") from exc
+            if durable_records != self._records:
+                raise ValueError("WAL_STATE_UNCERTAIN")
+            if slotted:
+                for record in self._records.values():
+                    if record.state in ("TERMINAL", "ABORTED_BEFORE_SEND"):
+                        continue
+                    if record.slot_market is None:
+                        raise ValueError("SLOT_SCOPE_UNPROVEN")
+                    if record.session_id != session_id or record.epoch != epoch:
+                        raise ValueError("OLD_SESSION_ORDERS_UNRESOLVED")
+                    if (record.slot_market, record.slot_side, record.slot_level) == slot_fields:
+                        raise ValueError("SLOT_OCCUPIED")
+            elif any(record.slot_market is not None for record in self._records.values()):
+                raise ValueError("SLOT_REQUIRED")
             if intent_id in self._records:
                 raise ValueError("RECONCILE_BEFORE_RETRY")
             if any(record.client_order_id == client_order_id for record in self._records.values()):
                 raise ValueError("CLIENT_ORDER_ID_DUPLICATE")
             prepared = IntentRecord(intent_id, client_order_id, session_id, epoch,
-                                    reservation_id, "PREPARED")
+                                    reservation_id, "PREPARED", slot_market=slot_market,
+                                    slot_side=slot_side, slot_level=slot_level)
             self._commit(prepared)
 
     def arm_send(self, intent_id: str, *, client_order_id: str, session_id: str,
