@@ -1,6 +1,7 @@
 """P4.13/P4.14 contract from OrderExecutor through the protected OKX gateway."""
 
 import asyncio
+from dataclasses import replace
 from decimal import Decimal
 from test.hummingbot.strategy_v2.life_liquidity.test_protected_okx_send import PausedThrottler
 from test.hummingbot.strategy_v2.life_liquidity.test_session import FakeClock, begin, manager
@@ -18,6 +19,7 @@ from hummingbot.core.web_assistant.rest_assistant import RESTAssistant
 from hummingbot.strategy.strategy_v2_base import StrategyV2Base
 from hummingbot.strategy_v2.executors.order_executor.data_types import ExecutionStrategy, OrderExecutorConfig
 from hummingbot.strategy_v2.executors.order_executor.order_executor import OrderExecutor
+from hummingbot.strategy_v2.life_liquidity.config import QuotesConfig
 from hummingbot.strategy_v2.life_liquidity.executor_send import ProtectedSpotExecutorSender
 from hummingbot.strategy_v2.life_liquidity.order_gateway import OkxSpotOrderGateway
 from hummingbot.strategy_v2.life_liquidity.protected_send import ProtectedSpotGateway
@@ -44,7 +46,8 @@ class Connector:
         return kwargs["order_id"]
 
 
-def _setup(tmp_path, *, reserve=True, pre_reserve=False, connector=None):
+def _setup(tmp_path, *, reserve=True, pre_reserve=False, connector=None,
+           level_id="0", quote_levels=1):
     clock = FakeClock()
     active = manager(tmp_path, clock)
     begin(active)
@@ -59,7 +62,13 @@ def _setup(tmp_path, *, reserve=True, pre_reserve=False, connector=None):
                                          session.session_id, session.epoch),
                               reference_price=Decimal("1")).allowed
     connector = connector or Connector()
-    controller = LifeLiquidityController(LifeLiquidityConfig.model_construct(id="life"),
+    controller_config = LifeLiquidityConfig.model_construct(id="life")
+    if quote_levels != 1:
+        quotes = QuotesConfig(spreads_bps=tuple(Decimal(30 + level) for level in range(quote_levels)),
+                              sizes_base=tuple(Decimal("1") for _ in range(quote_levels)))
+        strategy_config = controller_config.strategy.model_copy(update={"quotes": quotes})
+        controller_config = controller_config.model_copy(update={"strategy": strategy_config})
+    controller = LifeLiquidityController(controller_config,
                                          MagicMock(), MagicMock())
     safety = OkxSpotOrderGateway(
         connector, wal, trading_pair="LIFE-USDT", clock=lambda: clock.wall,
@@ -81,10 +90,121 @@ def _setup(tmp_path, *, reserve=True, pre_reserve=False, connector=None):
     config = OrderExecutorConfig(
         id="executor-1", controller_id="life", side=TradeType.BUY,
         connector_name="okx", trading_pair="LIFE-USDT", amount=Decimal("1"),
-        price=Decimal("1"), execution_strategy=ExecutionStrategy.LIMIT_MAKER)
+        price=Decimal("1"), execution_strategy=ExecutionStrategy.LIMIT_MAKER,
+        level_id=level_id)
     executor = OrderExecutor(strategy, config)
     executor.get_order_price = lambda: Decimal("1")
     return controller, executor, connector, wal, ledger, allowed
+
+
+def _next_executor(previous, intent_id, *, level_id="0", side=TradeType.BUY):
+    config = previous.config.model_copy(update={"id": intent_id, "level_id": level_id, "side": side})
+    executor = OrderExecutor(previous._strategy, config)
+    executor.get_order_price = lambda: Decimal("1")
+    return executor
+
+
+@pytest.mark.parametrize("level_id", [None, "", "00", "-1", "one"])
+def test_executor_requires_canonical_quote_level_before_journal_or_send(tmp_path, level_id):
+    _, executor, connector, wal, ledger, _ = _setup(tmp_path, level_id=level_id)
+    with pytest.raises(ValueError, match="SLOT_LEVEL_INVALID"):
+        executor.place_open_order()
+    assert wal.all_records() == ()
+    assert ledger.reservation_ids == frozenset()
+    assert connector.sent == []
+
+
+def test_executor_claims_durable_slot_before_reservation_and_blocks_duplicate(tmp_path):
+    _, executor, connector, wal, ledger, _ = _setup(tmp_path)
+    original_reserve = ledger.reserve
+
+    def reserve(intent, *, reference_price):
+        record = IntentWAL(wal.path).get(intent.intent_id)
+        assert (record.slot_market, record.slot_side, record.slot_level) == (
+            "LIFE-USDT", "BUY", 0)
+        assert record.state == "PREPARED"
+        return original_reserve(intent, reference_price=reference_price)
+
+    ledger.reserve = reserve
+    executor.place_open_order()
+    duplicate = _next_executor(executor, "executor-2")
+    with pytest.raises(ValueError, match="SLOT_OCCUPIED"):
+        duplicate.place_open_order()
+    assert len(connector.sent) == 1
+    assert "executor-2" not in {record.intent_id for record in wal.all_records()}
+    assert ledger.reservation_ids == frozenset({"executor-1"})
+
+
+def test_executor_rejects_level_outside_configured_quote_count(tmp_path):
+    _, executor, connector, wal, ledger, _ = _setup(tmp_path, level_id="1")
+    with pytest.raises(ValueError, match="SLOT_LEVEL_UNCONFIGURED"):
+        executor.place_open_order()
+    assert wal.all_records() == ()
+    assert ledger.reservation_ids == frozenset()
+    assert connector.sent == []
+
+
+def test_executor_waits_for_terminal_reconciliation_before_replacement(tmp_path):
+    _, executor, connector, wal, ledger, _ = _setup(tmp_path)
+    executor.place_open_order()
+    replacement = _next_executor(executor, "executor-2")
+    wal.acknowledge("executor-1", "exchange-1")
+    ledger.record_fill("executor-1", "trade-1", Decimal("0.4"), Decimal("1"))
+    wal.mark_cancel_requested("executor-1")
+    wal.mark_exchange_terminal_observed("executor-1", "exchange-1")
+    with pytest.raises(ValueError, match="SLOT_OCCUPIED"):
+        replacement.place_open_order()
+    assert len(connector.sent) == 1
+    ledger.confirm_terminal("executor-1", cumulative_filled=Decimal("0.4"),
+                            fills_reconciled=True, exchange_state="CANCELED")
+    wal.mark_terminal("executor-1", "exchange-1")
+    _next_executor(executor, "executor-3").place_open_order()
+    assert wal.get("executor-3").slot_level == 0
+    assert len(connector.sent) == 2
+
+
+def test_executor_blocks_replacement_when_wal_terminal_precedes_reservation(tmp_path):
+    _, executor, connector, wal, ledger, _ = _setup(tmp_path)
+    executor.place_open_order()
+    wal.mark_terminal("executor-1", "exchange-1")
+    replacement = _next_executor(executor, "executor-2")
+    with pytest.raises(PermissionError, match="RECOVERY_JOURNALS_DISAGREE"):
+        replacement.place_open_order()
+    assert ledger.has_open_intent("executor-1")
+    assert len(connector.sent) == 1
+
+
+def test_executor_blocks_other_slots_when_reservation_terminal_precedes_wal(tmp_path):
+    _, executor, connector, wal, ledger, _ = _setup(tmp_path, quote_levels=2)
+    executor.place_open_order()
+    ledger.confirm_terminal("executor-1", cumulative_filled=Decimal("0"),
+                            fills_reconciled=True, exchange_state="CANCELED")
+    other_level = _next_executor(executor, "executor-2", level_id="1")
+    with pytest.raises(PermissionError, match="RECOVERY_JOURNALS_DISAGREE"):
+        other_level.place_open_order()
+    assert wal.get("executor-1").state == "SEND_UNKNOWN"
+    assert len(connector.sent) == 1
+
+
+def test_executor_can_claim_different_side_or_level(tmp_path):
+    _, executor, connector, wal, ledger, _ = _setup(tmp_path, quote_levels=2)
+    executor.place_open_order()
+    _next_executor(executor, "executor-2", level_id="1").place_open_order()
+    _next_executor(executor, "executor-3", side=TradeType.SELL).place_open_order()
+    assert len(connector.sent) == 3
+    assert {(item.slot_side, item.slot_level) for item in wal.all_records()} == {
+        ("BUY", 0), ("BUY", 1), ("SELL", 0)}
+
+
+def test_final_send_gate_rechecks_persisted_slot_identity(tmp_path):
+    _, executor, connector, wal, _, _ = _setup(tmp_path)
+    executor.place_open_order()
+    wal._commit(replace(wal.get("executor-1"), slot_level=1))
+    with pytest.raises(PermissionError, match="SEND_PERMISSION_REVOKED"):
+        connector.sent[0]["pre_send_check"]({
+            "clOrdId": executor._order.order_id, "instId": "LIFE-USDT",
+            "side": "buy", "ordType": "post_only", "tdMode": "cash",
+            "px": "1", "sz": "1"})
 
 
 def test_executor_send_uses_preallocated_wal_id_before_connector_enqueue(tmp_path):

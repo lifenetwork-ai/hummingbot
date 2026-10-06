@@ -5,6 +5,7 @@ runtime yet. A qualified reference-price provider and a live authorization
 observer remain separate release gates.
 """
 
+import re
 from decimal import Decimal
 from typing import Callable
 
@@ -13,6 +14,7 @@ from hummingbot.strategy_v2.executors.order_executor.data_types import Execution
 from hummingbot.strategy_v2.life_liquidity.protected_send import ProtectedSpotGateway
 from hummingbot.strategy_v2.life_liquidity.risk import ReservationLedger, SpotIntent
 from hummingbot.strategy_v2.life_liquidity.send_gate import SendPermit
+from hummingbot.strategy_v2.life_liquidity.slots import SpotQuoteSlots
 
 
 class ProtectedSpotExecutorSender:
@@ -27,7 +29,9 @@ class ProtectedSpotExecutorSender:
         self.policy_authorize = authorize
         self.reference_price = reference_price
         self.manager = controller._order_safety_manager
+        self.slots = SpotQuoteSlots(gateway.wal, market=controller.config.strategy.spot.pair)
         self._issued_intents: dict[str, SpotIntent] = {}
+        self._issued_slots: dict[str, int] = {}
         self._attempted_intents: set[str] = set()
         self.gateway.authorize = self._authorized
 
@@ -37,12 +41,19 @@ class ProtectedSpotExecutorSender:
         for record in records:
             if record.state == "PREPARED" and record.intent_id != pending_intent_id:
                 return False
+            if (record.state == "TERMINAL"
+                    and not self.reservations.is_terminal_intent(record.reservation_id)):
+                return False
             if record.state == "ABORTED_BEFORE_SEND":
                 if record.reservation_id in reservation_ids:
                     if not self.reservations.is_terminal_intent(record.reservation_id):
                         return False
                     required_ids.add(record.reservation_id)
             else:
+                if (record.state != "TERMINAL"
+                        and record.reservation_id in reservation_ids
+                        and self.reservations.is_terminal_intent(record.reservation_id)):
+                    return False
                 required_ids.add(record.reservation_id)
         return reservation_ids == required_ids
 
@@ -66,6 +77,11 @@ class ProtectedSpotExecutorSender:
         records = self.gateway.wal.all_records()
         if not self._journals_match(records, pending_intent_id=permit.intent_id):
             return False
+        record = next((item for item in records if item.intent_id == permit.intent_id), None)
+        if (record is None or record.slot_market != self.slots.market
+                or record.slot_side != intent.side
+                or record.slot_level != self._issued_slots.get(permit.intent_id)):
+            return False
         decision = self.policy_authorize(permit)
         return decision is True or getattr(decision, "allowed", False) is True
 
@@ -83,6 +99,15 @@ class ProtectedSpotExecutorSender:
                 or amount <= 0 or amount != config.amount
                 or not isinstance(price, Decimal) or not price.is_finite() or price <= 0):
             raise ValueError("PROTECTED_EXECUTOR_ORDER_INVALID")
+        if (not isinstance(config.level_id, str)
+                or re.fullmatch(r"0|[1-9][0-9]*", config.level_id) is None):
+            raise ValueError("SLOT_LEVEL_INVALID")
+        try:
+            level = int(config.level_id)
+        except ValueError as exc:
+            raise ValueError("SLOT_LEVEL_INVALID") from exc
+        if level >= len(self.controller.config.strategy.quotes.spreads_bps):
+            raise ValueError("SLOT_LEVEL_UNCONFIGURED")
         if self.controller.allow_create_executor_actions() is not True:
             raise PermissionError("LIFE_TRADING_DISABLED")
         current = self.manager.current_session
@@ -110,14 +135,15 @@ class ProtectedSpotExecutorSender:
         # A synchronous failure can occur after either journal commit.
         # Never infer from the exception that a connector request was absent.
         self._attempted_intents.add(config.id)
-        self.gateway.wal.begin(config.id, client_order_id=wire_id,
-                               session_id=current.session_id, epoch=current.epoch,
-                               reservation_id=config.id)
+        self.slots.claim(intent_id=config.id, client_order_id=wire_id,
+                         reservation_id=config.id, session_id=current.session_id,
+                         epoch=current.epoch, side=side, level=level)
         decision = self.reservations.reserve(intent, reference_price=self.reference_price())
         if not decision.allowed:
             self.gateway.wal.abort_before_send(config.id)
             raise PermissionError("RESERVATION_UNAVAILABLE")
         self._issued_intents[config.id] = intent
+        self._issued_slots[config.id] = level
         try:
             return self.gateway.submit(permit, side=side, trading_pair=pair,
                                        order_type=order_type)
