@@ -5,13 +5,18 @@ order, and release gates are implemented. Loading this module cannot place order
 """
 
 import asyncio
+from datetime import datetime, timezone
 from decimal import Decimal
+from pathlib import Path
 from typing import Literal
 
 from pydantic import Field
 
 from hummingbot.connector.exchange.okx.okx_book_health import BookFeedHealth
 from hummingbot.strategy_v2.controllers.controller_base import ControllerBase, ControllerConfigBase
+from hummingbot.strategy_v2.life_liquidity import account_lock
+from hummingbot.strategy_v2.life_liquidity.account_bills import CashflowApprovals, SpotBillReconciler
+from hummingbot.strategy_v2.life_liquidity.account_lock import AccountLockUnavailable, AccountRiskPoolLock
 from hummingbot.strategy_v2.life_liquidity.config import ConfigUpdateState, StrategyConfig
 from hummingbot.strategy_v2.life_liquidity.market_data import (
     BenchmarkConnectorRoute,
@@ -24,6 +29,14 @@ from hummingbot.strategy_v2.life_liquidity.market_data import (
     SnapshotQualityGate,
     is_order_book_ready,
 )
+from hummingbot.strategy_v2.life_liquidity.order_gateway import (
+    OkxSpotOrderGateway,
+    SpotAccountReconciler,
+    SpotReservationReconciler,
+)
+from hummingbot.strategy_v2.life_liquidity.risk import ReservationLedger, RiskLimits
+from hummingbot.strategy_v2.life_liquidity.session import SessionManager, SessionStore
+from hummingbot.strategy_v2.life_liquidity.state import IntentWAL
 
 # Synthetic offline guard only. A separately calibrated live book TTL is a P9 decision.
 SYNTHETIC_BOOK_MAX_AGE_MS = 2000
@@ -56,6 +69,10 @@ class LifeLiquidityConfig(ControllerConfigBase):
         description="Nested settings can be edited in YAML or with hbot config dotted keys; restart to apply.",
         json_schema_extra={"prompt_on_new": False, "is_updatable": False},
     )
+    recovery_state_dir: str | None = Field(default=None, json_schema_extra={"is_updatable": False})
+    recovery_account_uid: str | None = Field(default=None, json_schema_extra={"is_updatable": False})
+    recovery_reconciliation_max_age_ms: int | None = Field(
+        default=None, json_schema_extra={"is_updatable": False})
 
     def update_markets(self, markets):
         # P2.9 bootstraps the public LIFE book after listing checks. Benchmarks
@@ -83,6 +100,94 @@ class LifeLiquidityController(ControllerBase):
         self.snapshot_gate = SnapshotQualityGate(config.strategy.spot.pair, SYNTHETIC_BOOK_MAX_AGE_MS)
         self.continuity_gate = BookContinuityGate(SYNTHETIC_FEED_MAX_SILENCE_SECONDS)
         self.processed_data = {}
+        self._order_safety_manager: SessionManager | None = None
+        self._order_safety_gateway: OkxSpotOrderGateway | None = None
+        self._order_safety_wal: IntentWAL | None = None
+        self._order_safety_account_lock: AccountRiskPoolLock | None = None
+        self._account_uid_verified = False
+        self._release_account_lock_on_task_done = False
+        self._order_safety_stopped = False
+        self.order_safety_task: asyncio.Task | None = None
+        self.order_safety_reason_code = "ORDER_SAFETY_NOT_INSTALLED"
+
+    def _restore_order_safety(self) -> None:
+        """Restore existing journals only; no synthetic session or balances are created."""
+        directory = Path(self.config.recovery_state_dir)
+        if (not directory.is_absolute() or not directory.is_dir()
+                or not isinstance(self.config.recovery_account_uid, str)
+                or not self.config.recovery_account_uid.isascii()
+                or not self.config.recovery_account_uid.isdecimal()
+                or not isinstance(self.config.recovery_reconciliation_max_age_ms, int)
+                or isinstance(self.config.recovery_reconciliation_max_age_ms, bool)
+                or self.config.recovery_reconciliation_max_age_ms <= 0):
+            raise ValueError("ORDER_SAFETY_RECOVERY_CONFIG_INVALID")
+        paths = [directory / name for name in (
+            "session.json", "intents.json", "reservations.json", "cashflows.json")]
+        if any(not path.is_file() or path.is_symlink() for path in paths):
+            raise ValueError("ORDER_SAFETY_JOURNAL_MISSING")
+        risk = self.config.strategy.risk
+        if any(value is None for value in (
+                risk.min_inventory_base, risk.max_inventory_base,
+                risk.max_gross_quote, risk.max_net_base)):
+            raise ValueError("ORDER_SAFETY_RISK_LIMITS_MISSING")
+        limits = RiskLimits(risk.min_inventory_base, risk.max_inventory_base,
+                            risk.max_gross_quote, risk.max_net_base)
+        manager = SessionManager(SessionStore(paths[0]),
+                                 wall_clock=lambda: datetime.now(timezone.utc),
+                                 max_reconciliation_age_ms=(
+                                     self.config.recovery_reconciliation_max_age_ms))
+        wal = IntentWAL(paths[1])
+        reservations = ReservationLedger.restore(paths[2], limits=limits)
+        approvals = CashflowApprovals.load(paths[3])
+        records = wal.all_records()
+        if (len({record.client_order_id for record in records}) != len(records)
+                or any(record.reservation_id != record.intent_id for record in records)
+                or {record.reservation_id for record in records} != reservations.reservation_ids):
+            raise ValueError("ORDER_SAFETY_JOURNALS_DISAGREE")
+        if manager.current_session is None:
+            raise ValueError("ORDER_SAFETY_SESSION_MISSING")
+        connector = self.market_data_provider.get_connector_with_fallback(
+            self.config.strategy.spot.connector)
+        required = ("cancel_by_client_id", "get_order_by_client_id",
+                    "cancel_by_exchange_order_id", "get_order_by_exchange_order_id",
+                    "get_fills_by_exchange_order_id", "get_all_open_spot_orders_page",
+                    "get_spot_order_history_page", "get_spot_fill_history_page",
+                    "get_spot_cash_balances", "get_account_uid", "get_account_bills_page")
+        if any(not callable(getattr(connector, name, None)) for name in required):
+            raise ValueError("ORDER_SAFETY_CONNECTOR_UNAVAILABLE")
+        reconciler = SpotReservationReconciler(wal, reservations, require_fees=True)
+        bills = SpotBillReconciler(connector, reservations, wal, approvals)
+        account = SpotAccountReconciler(connector, reservations, bills=bills)
+        gateway = OkxSpotOrderGateway(
+            connector, wal, trading_pair=self.config.strategy.spot.pair,
+            clock=lambda: datetime.now(timezone.utc),
+            apply_fills=reconciler.apply_fills, confirm_terminal=reconciler.confirm_terminal,
+            on_cancel_requested=reconciler.request_cancel, on_unknown=reconciler.mark_unknown,
+            account_check=account.check)
+        account_ownership = AccountRiskPoolLock(
+            self.config.recovery_account_uid, account_lock.ACCOUNT_LOCK_ROOT)
+        account_ownership.acquire()
+        try:
+            self.install_order_safety(manager, gateway, wal)
+        except BaseException:
+            account_ownership.release()
+            raise
+        self._order_safety_account_lock = account_ownership
+
+    def install_order_safety(self, manager: SessionManager, gateway: OkxSpotOrderGateway,
+                             wal: IntentWAL) -> None:
+        """Attach restored spot order state; this never enables order creation."""
+        if (manager.current_session is None or gateway.wal is not wal
+                or gateway.trading_pair != self.config.strategy.spot.pair
+                or gateway.apply_fills is None or gateway.confirm_terminal is None
+                or gateway.on_cancel_requested is None or gateway.on_unknown is None
+                or gateway.account_check is None
+                or gateway.scope_check is not None):
+            raise ValueError("ORDER_SAFETY_RECOVERY_INCOMPLETE")
+        self._order_safety_manager = manager
+        self._order_safety_gateway = gateway
+        self._order_safety_wal = wal
+        self.order_safety_reason_code = "ORDER_SAFETY_READY_TO_RECONCILE"
 
     def update_config(self, new_config: LifeLiquidityConfig):
         if new_config.strategy != self.config.strategy:
@@ -98,13 +203,135 @@ class LifeLiquidityController(ControllerBase):
         return False
 
     def on_safety_tick(self, timestamp: float) -> None:
-        """P2 runner integration hook; P4.15 implements actual safety actions."""
-        pass
+        """Persist expiry and run order cancellation independent of quote readiness."""
+        if self._order_safety_stopped:
+            return
+        manager = self._order_safety_manager
+        if manager is None:
+            if self.config.recovery_state_dir is not None:
+                try:
+                    self._restore_order_safety()
+                except AccountLockUnavailable as exc:
+                    self.order_safety_reason_code = str(exc)
+                    return
+                except Exception:
+                    self.order_safety_reason_code = "ORDER_SAFETY_RECOVERY_FAILED"
+                    self.logger().exception("LIFE order-safety recovery failed")
+                    return
+                manager = self._order_safety_manager
+            else:
+                return
+        try:
+            # This safety-only adapter has no quote permissions. It must pause
+            # an active restored session until the later live gates are wired.
+            manager.tick(reference_ready=False, all_gates_ready=False)
+        except Exception:
+            self.order_safety_reason_code = "SESSION_SAFETY_TICK_FAILED"
+            self.logger().exception("LIFE safety session tick failed")
+            return
+        if self.order_safety_task is not None and not self.order_safety_task.done():
+            return
+        if manager.state not in ("PAUSED", "EXPIRED", "TRANSITIONING"):
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            self.order_safety_reason_code = "ORDER_SAFETY_LOOP_UNAVAILABLE"
+            return
+        self.order_safety_task = loop.create_task(self._cancel_and_reconcile_orders())
+        self.order_safety_task.add_done_callback(self._on_order_safety_done)
+
+    def _on_order_safety_done(self, task: asyncio.Task) -> None:
+        if self._release_account_lock_on_task_done:
+            self._release_account_lock()
+        if task.cancelled():
+            self.order_safety_reason_code = "ORDER_SAFETY_CANCELLED"
+            return
+        failure = task.exception()
+        if failure is not None:
+            self.order_safety_reason_code = "ORDER_SAFETY_FAILED"
+            self.logger().error("LIFE safety order task failed", exc_info=(
+                type(failure), failure, failure.__traceback__))
+
+    async def _cancel_and_reconcile_orders(self) -> None:
+        manager = self._order_safety_manager
+        gateway = self._order_safety_gateway
+        wal = self._order_safety_wal
+        if self._order_safety_account_lock is not None and not self._account_uid_verified:
+            try:
+                observed_uid = await gateway.connector.get_account_uid()
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                self.order_safety_reason_code = "ACCOUNT_UID_UNVERIFIED"
+                self.logger().exception("LIFE account UID verification failed")
+                return
+            if observed_uid != self.config.recovery_account_uid:
+                self.order_safety_reason_code = "ACCOUNT_UID_MISMATCH"
+                return
+            self._account_uid_verified = True
+        current = manager.current_session
+        scopes = {(record.session_id, record.epoch) for record in wal.all_records()
+                  if record.state != "TERMINAL"}
+        scopes.add((current.session_id, current.epoch))
+        primary_result = None
+        reason = "OLD_ORDERS_RECONCILED"
+        for session_id, epoch in sorted(scopes):
+            cancel_failed = False
+            try:
+                await gateway.request_cancel(session_id, epoch)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                cancel_failed = True
+                self.logger().exception("LIFE order cancellation failed")
+            try:
+                result = await gateway.reconcile(session_id, epoch)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                reason = "RECONCILIATION_FETCH_FAILED"
+                self.logger().exception("LIFE order reconciliation failed")
+                continue
+            if (manager.state == "TRANSITIONING" and session_id == current.session_id
+                    and epoch == current.epoch):
+                primary_result = result
+            if not result.scope_complete:
+                reason = "RECONCILIATION_INCOMPLETE"
+            elif not result.trade_events_reconciled:
+                reason = "OLD_FILLS_UNRECONCILED"
+            elif (result.open_order_ids or result.pending_cancel_ids
+                  or result.unknown_order_ids):
+                reason = "CANCEL_REQUEST_FAILED" if cancel_failed else "OLD_ORDERS_UNRESOLVED"
+        if manager.state == "TRANSITIONING" and primary_result is not None:
+            try:
+                manager.tick(reference_ready=False, all_gates_ready=False,
+                             reconciliation=primary_result,
+                             market_reference_ready=False)
+            except Exception:
+                reason = "SESSION_SAFETY_TICK_FAILED"
+                self.logger().exception("LIFE transition reconciliation failed")
+        if reason == "OLD_ORDERS_RECONCILED" and manager.state == "TRANSITIONING":
+            reason = manager.reason_code
+        self.order_safety_reason_code = reason
 
     def stop(self):
+        self._order_safety_stopped = True
         super().stop()
+        if self.order_safety_task is not None and not self.order_safety_task.done():
+            self._release_account_lock_on_task_done = True
+            self.order_safety_task.cancel()
+        else:
+            self._release_account_lock()
         if self._perpetual_poll_task is not None and not self._perpetual_poll_task.done():
             self._perpetual_poll_task.cancel()
+
+    def _release_account_lock(self) -> None:
+        if self._order_safety_account_lock is not None:
+            self._order_safety_account_lock.release()
+            self._order_safety_account_lock = None
+            self._account_uid_verified = False
+            self._release_account_lock_on_task_done = False
 
     def benchmark_connector(self):
         if self.benchmark_route is None:
@@ -315,6 +542,7 @@ class LifeLiquidityController(ControllerBase):
                                        if self.config.strategy.perpetual.enabled else None),
             "perpetual_reason_code": self.perpetual_contract_reason_code,
             "perpetual_quote_ready": False,
+            "order_safety_reason_code": self.order_safety_reason_code,
             "last_book_exchange_timestamp_ms": snapshot.exchange_timestamp_ms if snapshot else None,
             "last_book_received_monotonic": snapshot.received_monotonic if snapshot else None,
             "last_book_source": snapshot.data_source if snapshot else None,
@@ -331,4 +559,5 @@ class LifeLiquidityController(ControllerBase):
                 self._book_feed_health(), self.snapshot_gate):
             reason = self.continuity_gate.reason_code
         return [f"LIFE liquidity: {self.listing_gate.state} ({reason}); "
+                f"order safety: {self.order_safety_reason_code}; "
                 "trading is disabled pending P2–P9 gates."]

@@ -18,6 +18,7 @@ class IntentRecord:
     reservation_id: str
     state: str
     exchange_order_id: str | None = None
+    cancel_requested: bool = False
 
 
 class IntentWAL:
@@ -62,6 +63,43 @@ class IntentWAL:
         with self._lock:
             return self._records[intent_id]
 
+    def scoped_records(self, session_id: str, epoch: int) -> tuple[IntentRecord, ...]:
+        with self._lock:
+            return tuple(record for record in self._records.values()
+                         if record.session_id == session_id and record.epoch == epoch)
+
+    def all_records(self) -> tuple[IntentRecord, ...]:
+        with self._lock:
+            return tuple(self._records.values())
+
+    def find_by_client_order_id(self, client_order_id: str) -> IntentRecord:
+        with self._lock:
+            for record in self._records.values():
+                if record.client_order_id == client_order_id:
+                    return record
+        raise KeyError(client_order_id)
+
+    def mark_cancel_requested(self, intent_id: str) -> bool:
+        with self._lock:
+            record = self._records[intent_id]
+            if record.cancel_requested:
+                return False
+            self._commit(replace(record, cancel_requested=True))
+            return True
+
+    def mark_terminal(self, intent_id: str, exchange_order_id: str) -> bool:
+        if not isinstance(exchange_order_id, str) or not exchange_order_id:
+            raise ValueError("ORDER_EXCHANGE_ID_INVALID")
+        with self._lock:
+            record = self._records[intent_id]
+            if record.exchange_order_id not in (None, exchange_order_id):
+                raise ValueError("ORDER_EXCHANGE_ID_CONFLICT")
+            if record.state == "TERMINAL":
+                return False
+            self._commit(replace(record, state="TERMINAL",
+                                 exchange_order_id=exchange_order_id))
+            return True
+
     def pending_reconciliation(self, session_id: str, epoch: int) -> tuple[str, ...]:
         with self._lock:
             return tuple(record.client_order_id for record in self._records.values()
@@ -95,7 +133,7 @@ class IntentWAL:
             raise ValueError("ORDER_ACK_UNAVAILABLE")
         with self._lock:
             record = self._records[intent_id]
-            if record.state == "ACKED":
+            if record.state in ("ACKED", "TERMINAL"):
                 if record.exchange_order_id != exchange_order_id:
                     raise ValueError("ORDER_ACK_CONFLICT")
                 return False

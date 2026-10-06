@@ -52,12 +52,16 @@ OKX_ORDER_BOOK_PATH = '/api/v5/market/books'
 # Auth required
 OKX_PLACE_ORDER_PATH = "/api/v5/trade/order"
 OKX_ORDER_DETAILS_PATH = '/api/v5/trade/order'
+OKX_ORDERS_PENDING_PATH = '/api/v5/trade/orders-pending'
+OKX_ORDERS_HISTORY_PATH = '/api/v5/trade/orders-history'
 OKX_ORDER_CANCEL_PATH = '/api/v5/trade/cancel-order'
 OKX_BATCH_ORDER_CANCEL_PATH = '/api/v5/trade/cancel-batch-orders'
 OKX_BALANCE_PATH = '/api/v5/account/balance'
 OKX_ACCOUNT_CONFIG_PATH = '/api/v5/account/config'
+OKX_ACCOUNT_BILLS_ARCHIVE_PATH = '/api/v5/account/bills-archive'
 OKX_TRADE_FEE_PATH = '/api/v5/account/trade-fee'
 OKX_TRADE_FILLS_PATH = "/api/v5/trade/fills"
+OKX_TRADE_FILLS_HISTORY_PATH = "/api/v5/trade/fills-history"
 
 # WebSocket channels
 OKX_WS_ACCOUNT_CHANNEL = "account"
@@ -103,10 +107,14 @@ RATE_LIMITS = [
     RateLimit(limit_id=OKX_ORDER_BOOK_PATH, limit=20, time_interval=2),
     RateLimit(limit_id=OKX_PLACE_ORDER_PATH, limit=20, time_interval=2),
     RateLimit(limit_id=OKX_ORDER_DETAILS_PATH, limit=20, time_interval=2),
+    RateLimit(limit_id=OKX_ORDERS_PENDING_PATH, limit=20, time_interval=2),
+    RateLimit(limit_id=OKX_ORDERS_HISTORY_PATH, limit=40, time_interval=2),
     RateLimit(limit_id=OKX_ORDER_CANCEL_PATH, limit=20, time_interval=2),
     RateLimit(limit_id=OKX_BATCH_ORDER_CANCEL_PATH, limit=300, time_interval=2),
     RateLimit(limit_id=OKX_BALANCE_PATH, limit=10, time_interval=2),
     RateLimit(limit_id=OKX_ACCOUNT_CONFIG_PATH, limit=5, time_interval=2),
+    RateLimit(limit_id=OKX_ACCOUNT_BILLS_ARCHIVE_PATH, limit=5, time_interval=2),
     RateLimit(limit_id=OKX_TRADE_FEE_PATH, limit=5, time_interval=2),
     RateLimit(limit_id=OKX_TRADE_FILLS_PATH, limit=60, time_interval=2),
+    RateLimit(limit_id=OKX_TRADE_FILLS_HISTORY_PATH, limit=10, time_interval=2),
 ]

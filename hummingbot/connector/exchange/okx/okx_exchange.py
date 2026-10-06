@@ -278,6 +278,45 @@ class OkxExchange(ExchangePyBase):
 
         return final_result
 
+    async def cancel_by_client_id(self, trading_pair: str, client_order_id: str) -> bool:
+        """Request cancellation even when the in-memory order tracker was lost.
+
+        A successful response is a request ACK. Callers must fetch order status
+        and fills before treating the order as terminal.
+        """
+        response = await self._api_post(
+            path_url=CONSTANTS.OKX_ORDER_CANCEL_PATH,
+            data={"clOrdId": client_order_id,
+                  "instId": await self.exchange_symbol_associated_to_pair(trading_pair)},
+            is_auth_required=True)
+        if response.get("code") != "0":
+            raise IOError(f"Error cancelling order {client_order_id}: {response.get('msg', 'API error')}")
+        try:
+            result = response["data"][0]
+            code = result["sCode"]
+        except (KeyError, IndexError, TypeError):
+            raise IOError(f"Error cancelling order {client_order_id}: malformed response")
+        if code not in ("0", "51400", "51401"):
+            raise IOError(f"Error cancelling order {client_order_id}: {result.get('sMsg', code)}")
+        return True
+
+    async def cancel_by_exchange_order_id(self, trading_pair: str,
+                                          exchange_order_id: str) -> bool:
+        response = await self._api_post(
+            path_url=CONSTANTS.OKX_ORDER_CANCEL_PATH,
+            data={"ordId": exchange_order_id,
+                  "instId": await self.exchange_symbol_associated_to_pair(trading_pair)},
+            is_auth_required=True)
+        if response.get("code") != "0":
+            raise IOError(f"Error cancelling order {exchange_order_id}: API error")
+        try:
+            code = response["data"][0]["sCode"]
+        except (KeyError, IndexError, TypeError):
+            raise IOError(f"Error cancelling order {exchange_order_id}: malformed response")
+        if code not in ("0", "51400", "51401"):
+            raise IOError(f"Error cancelling order {exchange_order_id}: {code}")
+        return True
+
     async def get_last_traded_prices(self, trading_pairs: List[str] = None) -> Dict[str, float]:
         params = {"instType": "SPOT"}
 
@@ -317,6 +356,11 @@ class OkxExchange(ExchangePyBase):
 
         for balance in balances:
             self._update_balance_from_details(balance_details=balance)
+
+    async def get_spot_cash_balances(self) -> Dict[str, Any]:
+        """Fetch raw authenticated cash balances for recovery verification."""
+        return await self._api_get(path_url=CONSTANTS.OKX_BALANCE_PATH,
+                                   is_auth_required=True)
 
     def _update_balance_from_details(self, balance_details: Dict[str, Any]):
         equity_text = balance_details["eq"]
@@ -376,6 +420,93 @@ class OkxExchange(ExchangePyBase):
                 "instId": await self.exchange_symbol_associated_to_pair(order.trading_pair),
                 "clOrdId": order.client_order_id},
             is_auth_required=True)
+
+    async def get_order_by_client_id(self, trading_pair: str, client_order_id: str) -> Dict[str, Any]:
+        return await self._api_get(
+            path_url=CONSTANTS.OKX_ORDER_DETAILS_PATH,
+            params={"instId": await self.exchange_symbol_associated_to_pair(trading_pair),
+                    "clOrdId": client_order_id},
+            is_auth_required=True)
+
+    async def get_account_uid(self) -> str:
+        """Return the authenticated OKX UID used to bind local risk ownership."""
+        response = await self._api_get(path_url=CONSTANTS.OKX_ACCOUNT_CONFIG_PATH,
+                                       is_auth_required=True)
+        rows = response.get("data") if isinstance(response, dict) else None
+        if (not isinstance(response, dict) or response.get("code") != "0"
+                or not isinstance(rows, list)
+                or len(rows) != 1 or not isinstance(rows[0], dict)):
+            raise ValueError("ACCOUNT_UID_UNAVAILABLE")
+        uid = rows[0].get("uid")
+        if not isinstance(uid, str) or not uid.isascii() or not uid.isdecimal():
+            raise ValueError("ACCOUNT_UID_UNAVAILABLE")
+        return uid
+
+    async def get_account_bills_page(self, after: Optional[str] = None) -> Dict[str, Any]:
+        """Unfiltered trading-account bills for bounded recovery to a known anchor."""
+        params = {"limit": "100"}
+        if after is not None:
+            params["after"] = after
+        return await self._api_get(path_url=CONSTANTS.OKX_ACCOUNT_BILLS_ARCHIVE_PATH,
+                                   params=params, is_auth_required=True)
+
+    async def get_order_by_exchange_order_id(self, trading_pair: str,
+                                             exchange_order_id: str) -> Dict[str, Any]:
+        return await self._api_get(
+            path_url=CONSTANTS.OKX_ORDER_DETAILS_PATH,
+            params={"instId": await self.exchange_symbol_associated_to_pair(trading_pair),
+                    "ordId": exchange_order_id},
+            is_auth_required=True)
+
+    async def get_open_spot_orders_page(self, trading_pair: str,
+                                        after: Optional[str] = None) -> Dict[str, Any]:
+        params = {"instType": "SPOT",
+                  "instId": await self.exchange_symbol_associated_to_pair(trading_pair),
+                  "limit": "100"}
+        if after is not None:
+            params["after"] = after
+        return await self._api_get(
+            path_url=CONSTANTS.OKX_ORDERS_PENDING_PATH,
+            params=params, is_auth_required=True)
+
+    async def get_all_open_spot_orders_page(self,
+                                            after: Optional[str] = None) -> Dict[str, Any]:
+        """Account-wide regular SPOT orders, without an instrument filter."""
+        params = {"instType": "SPOT", "limit": "100"}
+        if after is not None:
+            params["after"] = after
+        return await self._api_get(path_url=CONSTANTS.OKX_ORDERS_PENDING_PATH,
+                                   params=params, is_auth_required=True)
+
+    async def get_spot_order_history_page(self, trading_pair: str,
+                                          after: Optional[str] = None) -> Dict[str, Any]:
+        params = {"instType": "SPOT",
+                  "instId": await self.exchange_symbol_associated_to_pair(trading_pair),
+                  "limit": "100"}
+        if after is not None:
+            params["after"] = after
+        return await self._api_get(path_url=CONSTANTS.OKX_ORDERS_HISTORY_PATH,
+                                   params=params, is_auth_required=True)
+
+    async def get_fills_by_exchange_order_id(self, trading_pair: str,
+                                             exchange_order_id: str) -> Dict[str, Any]:
+        return await self._api_get(
+            path_url=CONSTANTS.OKX_TRADE_FILLS_PATH,
+            params={"instType": "SPOT",
+                    "instId": await self.exchange_symbol_associated_to_pair(trading_pair),
+                    "ordId": exchange_order_id},
+            is_auth_required=True)
+
+    async def get_spot_fill_history_page(self, trading_pair: str,
+                                         exchange_order_id: str,
+                                         after: Optional[str] = None) -> Dict[str, Any]:
+        params = {"instType": "SPOT",
+                  "instId": await self.exchange_symbol_associated_to_pair(trading_pair),
+                  "ordId": exchange_order_id, "limit": "100"}
+        if after is not None:
+            params["after"] = after
+        return await self._api_get(path_url=CONSTANTS.OKX_TRADE_FILLS_HISTORY_PATH,
+                                   params=params, is_auth_required=True)
 
     async def _request_order_fills(self, order: InFlightOrder) -> Dict[str, Any]:
         return await self._api_request(
