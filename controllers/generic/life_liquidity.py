@@ -114,6 +114,7 @@ class LifeLiquidityController(ControllerBase):
         self._runner_orchestrator = None
         self._runner_halt_ok = False
         self._runner_wire_owners: dict[str, str] = {}
+        self._runner_stored_executor_ids: set[str] = set()
         self._runner_scope_invalid = False
         self._protected_spot_sender: ProtectedSpotExecutorSender | None = None
         self.order_safety_task: asyncio.Task | None = None
@@ -306,35 +307,98 @@ class LifeLiquidityController(ControllerBase):
         return safe
 
     def _runner_executor_scope_complete(self) -> bool:
-        """A tracked executor wire ID must belong to the persisted spot WAL."""
+        """Live and stored executor IDs must resolve to the persisted spot WAL."""
+        from hummingbot.strategy_v2.executors.order_executor.data_types import OrderExecutorConfig
         from hummingbot.strategy_v2.executors.order_executor.order_executor import OrderExecutor
+        from hummingbot.strategy_v2.models.executors_info import ExecutorInfo
 
         executors = self._runner_executors()
         if (not self._runner_halt_ok or self._runner_scope_invalid
                 or executors is None or self._order_safety_wal is None):
             return False
-        known = {record.client_order_id for record in self._order_safety_wal.all_records()}
-        if not self._runner_wire_owners.keys() <= known:
+
+        def reject() -> bool:
             self._runner_scope_invalid = True
             return False
-        seen = set()
+
+        records = self._order_safety_wal.all_records()
+        known = {record.client_order_id: record for record in records
+                 if record.state != "ABORTED_BEFORE_SEND"}
+        intent_records = {record.intent_id: record for record in records
+                          if record.state != "ABORTED_BEFORE_SEND"}
+        if not self._runner_wire_owners.keys() <= known.keys():
+            return reject()
+        wire_owners = dict(self._runner_wire_owners)
+        active_seen = set()
         try:
             for executor in executors:
                 if (not isinstance(executor, OrderExecutor)
+                        or not isinstance(executor.config.id, str)
+                        or not executor.config.id
                         or executor.config.controller_id != self.config.id
                         or executor.config.connector_name != self.config.strategy.spot.connector
                         or executor.config.trading_pair != self.config.strategy.spot.pair
                         or executor.status not in (RunnableStatus.SHUTTING_DOWN, RunnableStatus.TERMINATED)):
-                    self._runner_scope_invalid = True
-                    return False
+                    return reject()
                 for wire_id in executor.recovery_order_ids():
-                    if wire_id not in known or wire_id in seen:
-                        self._runner_scope_invalid = True
-                        return False
-                    seen.add(wire_id)
-        except (AttributeError, TypeError, ValueError):
-            self._runner_scope_invalid = True
-            return False
+                    record = known.get(wire_id)
+                    if (record is None or record.intent_id != executor.config.id
+                            or wire_id in active_seen
+                            or wire_owners.get(wire_id, executor.config.id) != executor.config.id):
+                        return reject()
+                    active_seen.add(wire_id)
+                    wire_owners[wire_id] = executor.config.id
+            read_stored = getattr(self._runner_orchestrator,
+                                  "get_stored_executors_by_controller", None)
+            if not callable(read_stored):
+                return reject()
+            stored = read_stored(self.config.id)
+            if not isinstance(stored, (tuple, list)):
+                return reject()
+            stored_ids = set()
+            for info in stored:
+                if (not isinstance(info, ExecutorInfo)
+                        or not isinstance(info.config, OrderExecutorConfig)
+                        or not isinstance(info.id, str) or not info.id
+                        or info.id in stored_ids or info.config.id != info.id
+                        or info.controller_id != self.config.id
+                        or info.config.controller_id != self.config.id
+                        or info.config.connector_name != self.config.strategy.spot.connector
+                        or info.config.trading_pair != self.config.strategy.spot.pair
+                        or info.status != RunnableStatus.TERMINATED
+                        or not isinstance(info.custom_info, dict)):
+                    return reject()
+                stored_ids.add(info.id)
+                wire_ids = info.custom_info.get("recovery_order_ids")
+                if (not isinstance(wire_ids, (tuple, list))
+                        or any(not isinstance(wire_id, str) or not wire_id
+                               for wire_id in wire_ids)
+                        or len(wire_ids) != len(set(wire_ids))):
+                    return reject()
+                current_id = info.custom_info.get("order_id")
+                if current_id is not None and current_id not in wire_ids:
+                    return reject()
+                held = info.custom_info.get("held_position_orders", [])
+                if (not isinstance(held, list)
+                        or any(not isinstance(order, dict)
+                               or order.get("client_order_id") not in wire_ids
+                               for order in held)):
+                    return reject()
+                persisted = intent_records.get(info.id)
+                if persisted is None or persisted.client_order_id not in wire_ids:
+                    return reject()
+                for wire_id in wire_ids:
+                    record = known.get(wire_id)
+                    if (record is None or record.intent_id != info.id
+                            or wire_owners.get(wire_id, info.id) != info.id):
+                        return reject()
+                    wire_owners[wire_id] = info.id
+            if not self._runner_stored_executor_ids <= stored_ids:
+                return reject()
+            self._runner_stored_executor_ids.update(stored_ids)
+            self._runner_wire_owners.update(wire_owners)
+        except Exception:
+            return reject()
         return True
 
     def on_runner_safety_tick(self, timestamp: float, orchestrator) -> None:

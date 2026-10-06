@@ -1,6 +1,7 @@
 """P5.7 safety checks at the actual V2 runner and OrderExecutor boundary."""
 
 import asyncio
+import json
 from decimal import Decimal
 from test.hummingbot.strategy_v2.life_liquidity.test_controller_order_safety import _controller, _install
 from test.hummingbot.strategy_v2.life_liquidity.test_order_gateway import FakeOkx
@@ -12,6 +13,7 @@ import pytest
 
 from hummingbot.core.data_type.common import TradeType
 from hummingbot.strategy.strategy_v2_base import StrategyV2Base
+from hummingbot.strategy_v2.executors.executor_orchestrator import ExecutorOrchestrator
 from hummingbot.strategy_v2.executors.order_executor.data_types import ExecutionStrategy, OrderExecutorConfig
 from hummingbot.strategy_v2.executors.order_executor.order_executor import OrderExecutor
 from hummingbot.strategy_v2.models.base import RunnableStatus
@@ -19,11 +21,11 @@ from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction
 from hummingbot.strategy_v2.models.executors import TrackedOrder
 
 
-def _executor(wire_id="wire-1"):
+def _executor(wire_id="wire-1", *, intent_id="i1"):
     strategy = MagicMock(spec=StrategyV2Base)
     strategy.connectors = {"okx": MagicMock()}
     config = OrderExecutorConfig(
-        id="executor-1", controller_id="life", side=TradeType.BUY,
+        id=intent_id, timestamp=1.0, controller_id="life", side=TradeType.BUY,
         connector_name="okx", trading_pair="LIFE-USDT", amount=Decimal("1"),
         price=Decimal("1"), execution_strategy=ExecutionStrategy.LIMIT_MAKER)
     executor = OrderExecutor(strategy, config)
@@ -32,7 +34,23 @@ def _executor(wire_id="wire-1"):
     return executor
 
 
-def _runner(controller, orchestrator):
+def _stored_info(wire_ids=("wire-1",), *, intent_id="i1", pair="LIFE-USDT",
+                 include_history=True):
+    executor = _executor(wire_ids[0] if wire_ids else None)
+    executor.config = executor.config.model_copy(update={"id": intent_id,
+                                                         "trading_pair": pair})
+    executor._status = RunnableStatus.TERMINATED
+    info = executor.executor_info
+    custom_info = dict(info.custom_info)
+    if include_history:
+        custom_info["recovery_order_ids"] = list(wire_ids)
+    else:
+        custom_info.pop("recovery_order_ids", None)
+    return info.model_copy(update={"id": intent_id, "custom_info": custom_info})
+
+
+def _runner(controller, orchestrator, *, stored=()):
+    orchestrator.get_stored_executors_by_controller = lambda _controller_id: stored
     runner = SimpleNamespace(controllers={"life": controller}, executor_orchestrator=orchestrator,
                              logger=lambda: MagicMock())
     runner._run_safety_callbacks = lambda timestamp: StrategyV2Base._run_safety_callbacks(runner, timestamp)
@@ -120,6 +138,7 @@ async def test_real_strategy_tick_halts_executor_while_market_is_unready(tmp_pat
     executor = _executor()
     orchestrator = MagicMock()
     orchestrator.active_executors = {"life": [executor]}
+    orchestrator.get_stored_executors_by_controller.return_value = ()
     with patch("hummingbot.strategy.strategy_v2_base._get_executor_orchestrator_class",
                return_value=lambda **kwargs: orchestrator):
         runner = StrategyV2Base({}, config=None)
@@ -155,6 +174,23 @@ async def test_runner_unknown_executor_order_blocks_terminal_release(tmp_path):
     assert controller.order_safety_reason_code == "RECONCILIATION_INCOMPLETE"
     assert wal.get("i1").state != "TERMINAL"
     assert reservations.requires_reconciliation("i1")
+    assert connector.cancels == [("LIFE-USDT", "wire-1")]
+
+
+@pytest.mark.asyncio
+async def test_runner_executor_id_must_match_wal_intent(tmp_path):
+    connector = FakeOkx()
+    connector.status["wire-1"] = {"clOrdId": "wire-1", "ordId": "exchange-1",
+                                  "state": "canceled", "accFillSz": "0"}
+    controller = _controller()
+    _, wal, _ = _install(controller, tmp_path, FakeClock(), connector)
+    runner = _runner(controller, SimpleNamespace(active_executors={
+        "life": [_executor(intent_id="wrong-intent")]}))
+
+    runner._run_safety_callbacks(10)
+    await controller.order_safety_task
+
+    assert wal.get("i1").state != "TERMINAL"
     assert connector.cancels == [("LIFE-USDT", "wire-1")]
 
 
@@ -208,6 +244,121 @@ async def test_runner_unsupported_executor_blocks_completion_but_still_cancels_w
     assert connector.cancels == [("LIFE-USDT", "wire-1")]
 
 
+@pytest.mark.asyncio
+async def test_stored_executor_scope_survives_empty_active_map_after_restart(tmp_path):
+    connector = FakeOkx()
+    connector.status["wire-1"] = {"clOrdId": "wire-1", "ordId": "exchange-1",
+                                  "state": "canceled", "accFillSz": "0"}
+    controller = _controller()
+    _, wal, _ = _install(controller, tmp_path, FakeClock(), connector)
+    runner = _runner(controller, SimpleNamespace(active_executors={"life": []}),
+                     stored=(_stored_info(),))
+
+    runner._run_safety_callbacks(10)
+    await controller.order_safety_task
+
+    assert wal.get("i1").state == "TERMINAL"
+    assert connector.cancels == [("LIFE-USDT", "wire-1")]
+
+
+@pytest.mark.asyncio
+async def test_real_strategy_tick_uses_stored_executor_scope_when_market_unready(tmp_path):
+    connector = FakeOkx()
+    connector.status["wire-1"] = {"clOrdId": "wire-1", "ordId": "exchange-1",
+                                  "state": "canceled", "accFillSz": "0"}
+    controller = _controller()
+    _, wal, _ = _install(controller, tmp_path, FakeClock(), connector)
+    orchestrator = MagicMock()
+    orchestrator.active_executors = {"life": []}
+    orchestrator.get_stored_executors_by_controller.return_value = (_stored_info(),)
+    with patch("hummingbot.strategy.strategy_v2_base._get_executor_orchestrator_class",
+               return_value=lambda **kwargs: orchestrator):
+        runner = StrategyV2Base({}, config=None)
+    runner.controllers = {"life": controller}
+    runner.connectors = {"okx": SimpleNamespace(ready=False, name="okx")}
+    runner.market_data_provider = SimpleNamespace(ready=False)
+    try:
+        runner.tick(10)
+        await controller.order_safety_task
+        assert wal.get("i1").state == "TERMINAL"
+        orchestrator.get_stored_executors_by_controller.assert_called_with("life")
+        assert connector.cancels == [("LIFE-USDT", "wire-1")]
+    finally:
+        runner.listen_to_executor_actions_task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await runner.listen_to_executor_actions_task
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stored", [
+    lambda: (_stored_info(("untracked",)),),
+    lambda: (_stored_info(include_history=False),),
+    lambda: (_stored_info(pair="OTHER-USDT"),),
+    lambda: (_stored_info(), _stored_info()),
+    lambda: (_stored_info((), intent_id="untracked-intent"),),
+])
+async def test_untrusted_stored_executor_blocks_release_but_cancels_wal(tmp_path, stored):
+    connector = FakeOkx()
+    connector.status["wire-1"] = {"clOrdId": "wire-1", "ordId": "exchange-1",
+                                  "state": "canceled", "accFillSz": "0"}
+    controller = _controller()
+    _, wal, reservations = _install(controller, tmp_path, FakeClock(), connector)
+    runner = _runner(controller, SimpleNamespace(active_executors={"life": []}),
+                     stored=stored())
+
+    runner._run_safety_callbacks(10)
+    await controller.order_safety_task
+
+    assert controller.order_safety_reason_code == "RECONCILIATION_INCOMPLETE"
+    assert wal.get("i1").state != "TERMINAL"
+    assert reservations.requires_reconciliation("i1")
+    assert connector.cancels == [("LIFE-USDT", "wire-1")]
+
+
+@pytest.mark.asyncio
+async def test_stored_executor_database_error_blocks_release(tmp_path):
+    connector = FakeOkx()
+    connector.status["wire-1"] = {"clOrdId": "wire-1", "ordId": "exchange-1",
+                                  "state": "canceled", "accFillSz": "0"}
+    controller = _controller()
+    _, wal, _ = _install(controller, tmp_path, FakeClock(), connector)
+    orchestrator = SimpleNamespace(active_executors={"life": []})
+    runner = _runner(controller, orchestrator)
+    orchestrator.get_stored_executors_by_controller = (
+        lambda _controller_id: (_ for _ in ()).throw(OSError("database unavailable")))
+
+    runner._run_safety_callbacks(10)
+    await controller.order_safety_task
+
+    assert wal.get("i1").state != "TERMINAL"
+    assert connector.cancels == [("LIFE-USDT", "wire-1")]
+
+
+@pytest.mark.asyncio
+async def test_stored_executor_disappearance_latches_incomplete_scope(tmp_path):
+    connector = FakeOkx()
+    connector.status["wire-1"] = {"clOrdId": "wire-1", "ordId": "exchange-1",
+                                  "state": "live", "accFillSz": "0"}
+    controller = _controller()
+    _, wal, _ = _install(controller, tmp_path, FakeClock(), connector)
+    stored_rows = [_stored_info()]
+    orchestrator = SimpleNamespace(active_executors={"life": []})
+    runner = _runner(controller, orchestrator)
+    orchestrator.get_stored_executors_by_controller = lambda _: tuple(stored_rows)
+
+    runner._run_safety_callbacks(10)
+    await controller.order_safety_task
+    assert wal.get("i1").state != "TERMINAL"
+
+    stored_rows.clear()
+    connector.status["wire-1"]["state"] = "canceled"
+    runner._run_safety_callbacks(11)
+    await controller.order_safety_task
+
+    assert controller.order_safety_reason_code == "RECONCILIATION_INCOMPLETE"
+    assert wal.get("i1").state != "TERMINAL"
+
+
 def test_order_executor_reports_current_renewed_and_held_wire_ids():
     executor = _executor("current")
     executor._partial_filled_orders = [TrackedOrder("renewed")]
@@ -217,6 +368,22 @@ def test_order_executor_reports_current_renewed_and_held_wire_ids():
 
     assert executor.recovery_order_ids() == (
         "current", "renewed", "canceled", "failed", "held")
+    assert executor.executor_info.custom_info["recovery_order_ids"] == [
+        "current", "renewed", "canceled", "failed", "held"]
+    stored = json.loads(executor.executor_info.model_dump_json())
+    assert stored["custom_info"]["recovery_order_ids"] == [
+        "current", "renewed", "canceled", "failed", "held"]
+
+
+def test_orchestrator_reads_stored_executor_snapshot_from_recorder():
+    stored = _stored_info()
+    recorder = MagicMock()
+    recorder.get_executors_by_controller.return_value = [stored]
+    with patch("hummingbot.strategy_v2.executors.executor_orchestrator.MarketsRecorder.get_instance",
+               return_value=recorder):
+        orchestrator = object.__new__(ExecutorOrchestrator)
+        assert orchestrator.get_stored_executors_by_controller("life") == (stored,)
+    recorder.get_executors_by_controller.assert_called_once_with("life")
 
 
 def test_direct_runner_tick_rechecks_create_permission_before_dispatch():

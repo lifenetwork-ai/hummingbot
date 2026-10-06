@@ -268,6 +268,10 @@ class ExecutorOrchestrator:
                 continue
             self._load_position_from_db(controller_id, position)
 
+    def get_stored_executors_by_controller(self, controller_id: str) -> tuple[ExecutorInfo, ...]:
+        """Read a fresh database snapshot for recovery; no cached PnL view is authoritative."""
+        return tuple(MarketsRecorder.get_instance().get_executors_by_controller(controller_id))
+
     def _update_cached_performance(self, controller_id: str, executor_info: ExecutorInfo):
         """
         Update the cached performance for a specific controller with an executor's information.

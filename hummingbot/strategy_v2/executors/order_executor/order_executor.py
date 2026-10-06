@@ -495,12 +495,19 @@ class OrderExecutor(ExecutorBase):
         :return: A dictionary containing custom information.
         """
         connector = self.connectors.get(self.config.connector_name)
+        try:
+            recovery_order_ids = list(self.recovery_order_ids())
+        except (AttributeError, TypeError, ValueError):
+            # Keep generic executor status available. LIFE recovery treats an
+            # unavailable ID history as incomplete rather than assuming none.
+            recovery_order_ids = None
         return {
             "side": self.config.side,
             "level_id": self.config.level_id,
             "current_retries": self._current_retries,
             "max_retries": self._max_retries,
             "order_id": self._order.order_id if self._order else None,
+            "recovery_order_ids": recovery_order_ids,
             "order_last_update": self._order.last_update_timestamp if self._order else None,
             "held_position_orders": self._held_position_orders,
             "executed_amount_base": self.executed_amount_base,
