@@ -298,6 +298,18 @@ class ReservationLedger:
         with self._lock:
             return frozenset(self._reservations)
 
+    def has_open_intent(self, intent_id: str) -> bool:
+        with self._lock:
+            item = self._reservations.get(intent_id)
+            return item is not None and item.state == "OPEN"
+
+    def matches_open_intent(self, intent: SpotIntent) -> bool:
+        with self._lock:
+            item = self._reservations.get(intent.intent_id)
+            return (item is not None and item.state == "OPEN" and item.intent == intent
+                    and item.remaining_base == intent.quantity_base
+                    and item.filled_base == 0)
+
     @property
     def reserved_life(self) -> Decimal:
         with self._lock:

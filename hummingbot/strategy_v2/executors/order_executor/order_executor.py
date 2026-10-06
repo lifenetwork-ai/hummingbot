@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from collections.abc import Mapping
 from decimal import Decimal
 from typing import Dict, List, Optional, Union
 
@@ -268,7 +269,15 @@ class OrderExecutor(ExecutorBase):
             self.stop()
             return
         connector = self.connectors[self.config.connector_name]
-        if isinstance(connector, GatewayBase):
+        controllers = getattr(self._strategy, "controllers", None)
+        controller = (controllers.get(self.config.controller_id)
+                      if isinstance(controllers, Mapping) else None)
+        protected_submit = getattr(controller, "submit_executor_spot_order", None)
+        if callable(protected_submit):
+            order_id = protected_submit(
+                self.config, amount=remaining, price=self.get_order_price(),
+                order_type=self.get_order_type())
+        elif isinstance(connector, GatewayBase):
             # Straight to the connector, because the strategy's buy/sell carries no
             # place for a slippage tolerance and a Gateway order is a swap against a
             # pool. Same call the LP executor's close-out swap makes.

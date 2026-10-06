@@ -19,6 +19,7 @@ from hummingbot.strategy_v2.life_liquidity import account_lock
 from hummingbot.strategy_v2.life_liquidity.account_bills import CashflowApprovals, SpotBillReconciler
 from hummingbot.strategy_v2.life_liquidity.account_lock import AccountLockUnavailable, AccountRiskPoolLock
 from hummingbot.strategy_v2.life_liquidity.config import ConfigUpdateState, StrategyConfig
+from hummingbot.strategy_v2.life_liquidity.executor_send import ProtectedSpotExecutorSender
 from hummingbot.strategy_v2.life_liquidity.market_data import (
     BenchmarkConnectorRoute,
     BookContinuityGate,
@@ -105,6 +106,7 @@ class LifeLiquidityController(ControllerBase):
         self._order_safety_manager: SessionManager | None = None
         self._order_safety_gateway: OkxSpotOrderGateway | None = None
         self._order_safety_wal: IntentWAL | None = None
+        self._order_safety_reservations: ReservationLedger | None = None
         self._order_safety_account_lock: AccountRiskPoolLock | None = None
         self._account_uid_verified = False
         self._release_account_lock_on_task_done = False
@@ -113,6 +115,7 @@ class LifeLiquidityController(ControllerBase):
         self._runner_halt_ok = False
         self._runner_wire_owners: dict[str, str] = {}
         self._runner_scope_invalid = False
+        self._protected_spot_sender: ProtectedSpotExecutorSender | None = None
         self.order_safety_task: asyncio.Task | None = None
         self.order_safety_reason_code = "ORDER_SAFETY_NOT_INSTALLED"
 
@@ -174,14 +177,14 @@ class LifeLiquidityController(ControllerBase):
             self.config.recovery_account_uid, account_lock.ACCOUNT_LOCK_ROOT)
         account_ownership.acquire()
         try:
-            self.install_order_safety(manager, gateway, wal)
+            self.install_order_safety(manager, gateway, wal, reservations=reservations)
         except BaseException:
             account_ownership.release()
             raise
         self._order_safety_account_lock = account_ownership
 
     def install_order_safety(self, manager: SessionManager, gateway: OkxSpotOrderGateway,
-                             wal: IntentWAL) -> None:
+                             wal: IntentWAL, *, reservations: ReservationLedger | None = None) -> None:
         """Attach restored spot order state; this never enables order creation."""
         if (manager.current_session is None or gateway.wal is not wal
                 or gateway.trading_pair != self.config.strategy.spot.pair
@@ -193,6 +196,7 @@ class LifeLiquidityController(ControllerBase):
         self._order_safety_manager = manager
         self._order_safety_gateway = gateway
         self._order_safety_wal = wal
+        self._order_safety_reservations = reservations
         self.order_safety_reason_code = "ORDER_SAFETY_READY_TO_RECONCILE"
 
     def update_config(self, new_config: LifeLiquidityConfig):
@@ -207,6 +211,25 @@ class LifeLiquidityController(ControllerBase):
     def trading_permissions_ready(self) -> bool:
         # P4 will replace this with the final order-permission checks.
         return False
+
+    def install_protected_spot_sender(self, sender: ProtectedSpotExecutorSender) -> None:
+        """Attach an explicitly configured sender; this does not grant quote permission."""
+        safety = self._order_safety_gateway
+        if (self._protected_spot_sender is not None or not isinstance(sender, ProtectedSpotExecutorSender)
+                or sender.controller is not self or sender.manager is not self._order_safety_manager
+                or safety is None or sender.gateway.wal is not self._order_safety_wal
+                or sender.reservations is not self._order_safety_reservations
+                or sender.gateway.connector is not safety.connector):
+            raise ValueError("PROTECTED_SENDER_RECOVERY_MISMATCH")
+        sender.gateway.arm_pair(self.config.strategy.spot.pair)
+        self._protected_spot_sender = sender
+
+    def submit_executor_spot_order(self, config, *, amount: Decimal,
+                                   price: Decimal, order_type) -> str:
+        sender = self._protected_spot_sender
+        if sender is None or self.allow_create_executor_actions() is not True:
+            raise PermissionError("LIFE_TRADING_DISABLED")
+        return sender.submit(config, amount=amount, price=price, order_type=order_type)
 
     def _runner_executors(self):
         active = getattr(self._runner_orchestrator, "active_executors", None)

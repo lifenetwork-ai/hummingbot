@@ -43,6 +43,16 @@ class ProtectedSpotGateway:
         def check_permission(wire_data: dict) -> None:
             # This function is re-evaluated inside RESTConnection after the
             # throttler, not captured as an earlier controller decision.
+            try:
+                record = self.wal.get(permit.intent_id)
+            except KeyError as exc:
+                raise PermissionError("INTENT_WAL_UNAVAILABLE") from exc
+            if (record.state != "SEND_UNKNOWN" or record.cancel_requested
+                    or record.client_order_id != permit.client_order_id
+                    or record.reservation_id != permit.reservation_id
+                    or record.session_id != permit.session_id
+                    or record.epoch != permit.epoch):
+                raise PermissionError("INTENT_WAL_UNAVAILABLE")
             expected = {"clOrdId": permit.client_order_id, "instId": trading_pair,
                         "side": side.lower(), "ordType": "post_only", "tdMode": "cash"}
             try:
