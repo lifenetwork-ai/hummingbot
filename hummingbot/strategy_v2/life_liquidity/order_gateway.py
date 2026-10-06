@@ -1,7 +1,7 @@
 """Conservative OKX spot cancellation and wire-ID reconciliation."""
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from inspect import isawaitable
 from typing import Callable
@@ -18,6 +18,26 @@ class SpotFill:
     price_usdt: Decimal
     fee_currency: str | None = None
     signed_fee: Decimal | None = None
+
+
+@dataclass(frozen=True)
+class CancelRetryPolicy:
+    retry_interval_ms: int
+    max_requests_per_cycle: int
+
+    def __post_init__(self):
+        if (not isinstance(self.retry_interval_ms, int) or isinstance(self.retry_interval_ms, bool)
+                or self.retry_interval_ms <= 0
+                or not isinstance(self.max_requests_per_cycle, int)
+                or isinstance(self.max_requests_per_cycle, bool)
+                or self.max_requests_per_cycle <= 0):
+            raise ValueError("CANCEL_RETRY_POLICY_INVALID")
+
+
+class CancelRequestError(IOError):
+    def __init__(self, requests_used: int):
+        super().__init__("CANCEL_ACK_UNAVAILABLE")
+        self.requests_used = requests_used
 
 
 class SpotReservationReconciler:
@@ -125,9 +145,12 @@ class OkxSpotOrderGateway:
                  on_unknown: Callable[[str], None] | None = None,
                  account_check: Callable[[], bool] | None = None,
                  scope_check: Callable[[str, int, tuple[str, ...]], bool] | None = None,
-                 runner_scope_check: Callable[[], bool] | None = None):
+                 runner_scope_check: Callable[[], bool] | None = None,
+                 cancel_retry_policy: CancelRetryPolicy | None = None):
         if not trading_pair:
             raise ValueError("trading pair required")
+        if cancel_retry_policy is not None and not isinstance(cancel_retry_policy, CancelRetryPolicy):
+            raise ValueError("CANCEL_RETRY_POLICY_INVALID")
         self.connector = connector
         self.wal = wal
         self.trading_pair = trading_pair
@@ -139,8 +162,15 @@ class OkxSpotOrderGateway:
         self.account_check = account_check
         self.scope_check = scope_check
         self.runner_scope_check = runner_scope_check
+        self.cancel_retry_policy = cancel_retry_policy
 
-    async def request_cancel(self, session_id: str, epoch: int) -> None:
+    async def request_cancel(self, session_id: str, epoch: int,
+                             *, max_requests: int | None = None) -> int | None:
+        if self.cancel_retry_policy is not None:
+            return await self._request_cancel_bounded(
+                self.wal.scoped_records(session_id, epoch), max_requests=max_requests)
+        if max_requests is not None:
+            raise ValueError("CANCEL_RETRY_POLICY_UNCONFIGURED")
         for record in self.wal.scoped_records(session_id, epoch):
             if record.state in ("TERMINAL", "PREPARED", "ABORTED_BEFORE_SEND"):
                 continue
@@ -157,6 +187,91 @@ class OkxSpotOrderGateway:
                     self.trading_pair, record.exchange_order_id)
             if acknowledged is not True:
                 raise IOError("CANCEL_ACK_UNAVAILABLE")
+
+    async def request_cancel_scopes(self, scopes: tuple[tuple[str, int], ...]) -> int:
+        """Share one bounded request budget across all recovered session scopes."""
+        if self.cancel_retry_policy is None:
+            raise ValueError("CANCEL_RETRY_POLICY_UNCONFIGURED")
+        scope_set = set(scopes)
+        records = tuple(record for record in self.wal.all_records()
+                        if (record.session_id, record.epoch) in scope_set)
+        return await self._request_cancel_bounded(records)
+
+    async def _retry_order_is_terminal(self, record) -> bool:
+        try:
+            if record.exchange_order_id is None:
+                response = await self.connector.get_order_by_client_id(
+                    self.trading_pair, record.client_order_id)
+            else:
+                response = await self.connector.get_order_by_exchange_order_id(
+                    self.trading_pair, record.exchange_order_id)
+            order = self._one_order(response, record.client_order_id)
+            cumulative = Decimal(order["accFillSz"])
+            if (not cumulative.is_finite() or cumulative < 0
+                    or order["state"] == "filled" and cumulative == 0):
+                return False
+        except (AttributeError, KeyError, TypeError, ValueError, InvalidOperation,
+                TimeoutError, OSError):
+            return False
+        if order["state"] in ("canceled", "filled"):
+            # Identity or WAL failures must stop this cycle; they cannot be
+            # converted into a new cancel against a conflicting exchange ID.
+            self.wal.mark_exchange_terminal_observed(record.intent_id, str(order["ordId"]))
+            return True
+        return False
+
+    async def _request_cancel_bounded(self, records: tuple,
+                                      *, max_requests: int | None = None) -> int:
+        policy = self.cancel_retry_policy
+        if max_requests is not None and (not isinstance(max_requests, int)
+                                         or isinstance(max_requests, bool) or max_requests < 0):
+            raise ValueError("CANCEL_REQUEST_CAP_INVALID")
+        limit = policy.max_requests_per_cycle if max_requests is None else min(
+            policy.max_requests_per_cycle, max_requests)
+        now = self.clock()
+        if not isinstance(now, datetime) or now.tzinfo is None or now.utcoffset() != timedelta(0):
+            raise ValueError("CANCEL_CLOCK_INVALID")
+        pending = [record for record in records
+                   if record.state not in ("TERMINAL", "PREPARED", "ABORTED_BEFORE_SEND")
+                   and not record.exchange_terminal_observed]
+        # A first cancellation is more urgent than retrying an acknowledged request.
+        pending.sort(key=lambda record: (record.cancel_requested, record.cancel_attempts,
+                                         record.intent_id))
+        used = 0
+        failed = False
+        for record in pending:
+            if used >= limit:
+                break
+            if record.last_cancel_attempt_at is not None:
+                last = self.wal._cancel_time(record.last_cancel_attempt_at)
+                if now < last:
+                    raise ValueError("CANCEL_CLOCK_ROLLBACK")
+                if now < last + timedelta(milliseconds=policy.retry_interval_ms):
+                    continue
+            if record.cancel_attempts > 0 and used + 2 <= limit:
+                used += 1  # Authenticated status consumes capacity too.
+                if await self._retry_order_is_terminal(record):
+                    continue
+            # A crash between this WAL write and REST is safe: the next attempt
+            # waits for the persisted retry deadline while risk stays reserved.
+            self.wal.mark_cancel_attempt(record.intent_id, at=now)
+            used += 1
+            try:
+                if self.on_cancel_requested is not None:
+                    self.on_cancel_requested(record.client_order_id)
+                if record.exchange_order_id is None:
+                    acknowledged = await self.connector.cancel_by_client_id(
+                        self.trading_pair, record.client_order_id)
+                else:
+                    acknowledged = await self.connector.cancel_by_exchange_order_id(
+                        self.trading_pair, record.exchange_order_id)
+                if acknowledged is not True:
+                    failed = True
+            except (KeyError, TypeError, ValueError, TimeoutError, OSError):
+                failed = True
+        if failed:
+            raise CancelRequestError(used)
+        return used
 
     async def _account_scope_complete(self, terminal_ids: set[str],
                                       observed_exchange_ids: dict[str, str]) -> bool:
@@ -349,6 +464,10 @@ class OkxSpotOrderGateway:
                 if order["state"] in ("partially_filled", "filled") and cumulative == 0:
                     raise ValueError("ORDER_STATUS_UNTRUSTED")
                 exchange_id = str(order["ordId"])
+                if order["state"] in ("canceled", "filled"):
+                    # Terminal exchange status is enough to stop retrying cancel,
+                    # but never enough to release the reservation by itself.
+                    self.wal.mark_exchange_terminal_observed(record.intent_id, exchange_id)
                 recent = await self.connector.get_fills_by_exchange_order_id(
                     self.trading_pair, exchange_id)
                 try:

@@ -357,39 +357,58 @@ class ReservationLedger:
             return sum((item.remaining_base for item in self._reservations.values()
                         if item.intent.side == "SELL"), Decimal("0"))
 
-    def reserve(self, intent: SpotIntent, *, reference_price: Decimal) -> RiskDecision:
+    @staticmethod
+    def _reserve_reason(intent: SpotIntent, reference_price: Decimal,
+                        reservations: dict[str, _Reservation], *,
+                        life_balance: Decimal, usdt_balance: Decimal,
+                        limits: RiskLimits) -> str | None:
         if not _finite(reference_price, positive=True):
-            return RiskDecision(False, "REFERENCE_UNAVAILABLE", None)
+            return "REFERENCE_UNAVAILABLE"
+        if intent.intent_id in reservations:
+            return "DUPLICATE_INTENT"
+        buy_base = sum((item.remaining_base for item in reservations.values()
+                        if item.intent.side == "BUY"), Decimal("0"))
+        sell_base = sum((item.remaining_base for item in reservations.values()
+                         if item.intent.side == "SELL"), Decimal("0"))
+        new_buy_base = buy_base + (intent.quantity_base if intent.side == "BUY" else 0)
+        new_sell_base = sell_base + (intent.quantity_base if intent.side == "SELL" else 0)
+        reserved_usdt = sum((item.remaining_base * item.intent.limit_price_usdt
+                             for item in reservations.values() if item.intent.side == "BUY"), Decimal("0"))
+        if intent.side == "BUY" and reserved_usdt + intent.quantity_base * intent.limit_price_usdt > usdt_balance:
+            return "INSUFFICIENT_USDT"
+        if intent.side == "SELL" and new_sell_base > life_balance:
+            return "INSUFFICIENT_LIFE"
+        if life_balance + new_buy_base > limits.max_inventory_base:
+            return "INVENTORY_MAX"
+        if life_balance - new_sell_base < limits.min_inventory_base:
+            return "INVENTORY_MIN"
+        if (life_balance * reference_price
+                + sum((item.remaining_base * item.intent.limit_price_usdt
+                       for item in reservations.values()), Decimal("0"))
+                + intent.quantity_base * intent.limit_price_usdt > limits.max_gross_quote):
+            return "GROSS_EXPOSURE_LIMIT"
+        if max(abs(life_balance + new_buy_base),
+               abs(life_balance - new_sell_base)) > limits.max_net_base:
+            return "NET_EXPOSURE_LIMIT"
+        return None
+
+    def preview(self) -> "ReservationPreview":
         with self._lock:
-            if intent.intent_id in self._reservations:
-                return RiskDecision(False, "DUPLICATE_INTENT", None)
-            buy_base = sum((item.remaining_base for item in self._reservations.values()
-                            if item.intent.side == "BUY"), Decimal("0"))
-            sell_base = self.reserved_life
-            new_buy_base = buy_base + (intent.quantity_base if intent.side == "BUY" else 0)
-            new_sell_base = sell_base + (intent.quantity_base if intent.side == "SELL" else 0)
-            if intent.side == "BUY" and self.reserved_usdt + intent.quantity_base * intent.limit_price_usdt > self.usdt_balance:
-                reason = "INSUFFICIENT_USDT"
-            elif intent.side == "SELL" and new_sell_base > self.life_balance:
-                reason = "INSUFFICIENT_LIFE"
-            elif self.life_balance + new_buy_base > self.limits.max_inventory_base:
-                reason = "INVENTORY_MAX"
-            elif self.life_balance - new_sell_base < self.limits.min_inventory_base:
-                reason = "INVENTORY_MIN"
-            elif (self.life_balance * reference_price
-                  + sum((item.remaining_base * item.intent.limit_price_usdt
-                         for item in self._reservations.values()), Decimal("0"))
-                  + intent.quantity_base * intent.limit_price_usdt > self.limits.max_gross_quote):
-                reason = "GROSS_EXPOSURE_LIMIT"
-            elif max(abs(self.life_balance + new_buy_base),
-                     abs(self.life_balance - new_sell_base)) > self.limits.max_net_base:
-                reason = "NET_EXPOSURE_LIMIT"
-            else:
-                updated = dict(self._reservations)
-                updated[intent.intent_id] = _Reservation(intent, intent.quantity_base)
-                self._commit(self.life_balance, self.usdt_balance, updated, self._trades)
-                return RiskDecision(True, "RESERVED", intent.intent_id)
-            return RiskDecision(False, reason, None)
+            return ReservationPreview(self.life_balance, self.usdt_balance,
+                                      self.limits, dict(self._reservations))
+
+    def reserve(self, intent: SpotIntent, *, reference_price: Decimal) -> RiskDecision:
+        with self._lock:
+            reason = self._reserve_reason(
+                intent, reference_price, self._reservations,
+                life_balance=self.life_balance, usdt_balance=self.usdt_balance,
+                limits=self.limits)
+            if reason is not None:
+                return RiskDecision(False, reason, None)
+            updated = dict(self._reservations)
+            updated[intent.intent_id] = _Reservation(intent, intent.quantity_base)
+            self._commit(self.life_balance, self.usdt_balance, updated, self._trades)
+            return RiskDecision(True, "RESERVED", intent.intent_id)
 
     def record_fill(self, intent_id: str, trade_id: str, quantity: Decimal, price: Decimal) -> bool:
         if not trade_id or not _finite(quantity, positive=True) or not _finite(price, positive=True):
@@ -455,6 +474,27 @@ class ReservationLedger:
             updated = dict(self._reservations)
             updated[intent_id] = replace(item, remaining_base=Decimal("0"), state="TERMINAL")
             self._commit(self.life_balance, self.usdt_balance, updated, self._trades)
+
+
+class ReservationPreview:
+    """An isolated snapshot for planning; accepted previews do not reserve funds."""
+
+    def __init__(self, life_balance: Decimal, usdt_balance: Decimal,
+                 limits: RiskLimits, reservations: dict[str, _Reservation]):
+        self.life_balance = life_balance
+        self.usdt_balance = usdt_balance
+        self.limits = limits
+        self._reservations = reservations
+
+    def check_and_hold(self, intent: SpotIntent, *, reference_price: Decimal) -> RiskDecision:
+        reason = ReservationLedger._reserve_reason(
+            intent, reference_price, self._reservations,
+            life_balance=self.life_balance, usdt_balance=self.usdt_balance,
+            limits=self.limits)
+        if reason is not None:
+            return RiskDecision(False, reason, None)
+        self._reservations[intent.intent_id] = _Reservation(intent, intent.quantity_base)
+        return RiskDecision(True, "PREVIEW_READY", None)
 
 
 class RollingFillLimiter:

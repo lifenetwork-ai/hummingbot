@@ -5,6 +5,7 @@ order, and release gates are implemented. Loading this module cannot place order
 """
 
 import asyncio
+import time
 from collections.abc import Mapping
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -32,6 +33,7 @@ from hummingbot.strategy_v2.life_liquidity.market_data import (
     is_order_book_ready,
 )
 from hummingbot.strategy_v2.life_liquidity.order_gateway import (
+    CancelRetryPolicy,
     OkxSpotOrderGateway,
     SpotAccountReconciler,
     SpotReservationReconciler,
@@ -76,6 +78,17 @@ class LifeLiquidityConfig(ControllerConfigBase):
     recovery_account_uid: str | None = Field(default=None, json_schema_extra={"is_updatable": False})
     recovery_reconciliation_max_age_ms: int | None = Field(
         default=None, json_schema_extra={"is_updatable": False})
+    safety_watchdog_interval_ms: int | None = Field(
+        default=None, gt=0,
+        description="Explicit safety polling interval; required before a recovery-enabled live deployment.",
+        json_schema_extra={"is_updatable": False})
+    cancel_retry_interval_ms: int | None = Field(
+        default=None, gt=0, description="Minimum UTC interval between cancel attempts for one order (ms).",
+        json_schema_extra={"is_updatable": False})
+    cancel_max_requests_per_cycle: int | None = Field(
+        default=None, gt=0,
+        description="Maximum cancel/status REST requests across all scopes in one safety cycle.",
+        json_schema_extra={"is_updatable": False})
 
     def update_markets(self, markets):
         # P2.9 bootstraps the public LIFE book after listing checks. Benchmarks
@@ -118,6 +131,7 @@ class LifeLiquidityController(ControllerBase):
         self._runner_scope_invalid = False
         self._protected_spot_sender: ProtectedSpotExecutorSender | None = None
         self.order_safety_task: asyncio.Task | None = None
+        self.order_safety_watchdog_task: asyncio.Task | None = None
         self.order_safety_reason_code = "ORDER_SAFETY_NOT_INSTALLED"
 
     def _restore_order_safety(self) -> None:
@@ -225,11 +239,80 @@ class LifeLiquidityController(ControllerBase):
                 or gateway.account_check is None
                 or gateway.scope_check is not None):
             raise ValueError("ORDER_SAFETY_RECOVERY_INCOMPLETE")
+        policy = self._configured_cancel_retry_policy()
+        if (self.order_safety_watchdog_task is not None
+                and not self.order_safety_watchdog_task.done() and policy is None):
+            raise ValueError("ORDER_SAFETY_CANCEL_POLICY_UNCONFIGURED")
+        if policy is not None:
+            if gateway.cancel_retry_policy not in (None, policy):
+                raise ValueError("ORDER_SAFETY_CANCEL_POLICY_MISMATCH")
+            gateway.cancel_retry_policy = policy
         self._order_safety_manager = manager
         self._order_safety_gateway = gateway
         self._order_safety_wal = wal
         self._order_safety_reservations = reservations
         self.order_safety_reason_code = "ORDER_SAFETY_READY_TO_RECONCILE"
+        if self.order_safety_watchdog_task is not None and not self.order_safety_watchdog_task.done():
+            gateway.runner_scope_check = self._runner_executor_scope_complete
+
+    def _configured_cancel_retry_policy(self) -> CancelRetryPolicy | None:
+        interval = self.config.cancel_retry_interval_ms
+        maximum = self.config.cancel_max_requests_per_cycle
+        if interval is None or maximum is None:
+            return None
+        return CancelRetryPolicy(interval, maximum)
+
+    def start(self):
+        """Schedule safety separately from the readiness-dependent controller loop."""
+        self._order_safety_stopped = False
+        super().start()
+        existing = self.order_safety_watchdog_task
+        if existing is not None and not existing.done() and not existing.cancelling():
+            return
+        interval_ms = self.config.safety_watchdog_interval_ms
+        if (not isinstance(interval_ms, int) or isinstance(interval_ms, bool)
+                or interval_ms <= 0):
+            if self._order_safety_manager is not None or self.config.recovery_state_dir is not None:
+                self.order_safety_reason_code = "ORDER_SAFETY_WATCHDOG_UNCONFIGURED"
+            return
+        try:
+            cancel_policy = self._configured_cancel_retry_policy()
+        except ValueError:
+            self.order_safety_reason_code = "ORDER_SAFETY_CANCEL_POLICY_INVALID"
+            return
+        if ((self._order_safety_manager is not None or self.config.recovery_state_dir is not None)
+                and cancel_policy is None):
+            self.order_safety_reason_code = "ORDER_SAFETY_CANCEL_POLICY_UNCONFIGURED"
+            return
+        try:
+            # ControllerBase.start also schedules its loop before the event
+            # loop is necessarily running; use that same loop for safety.
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            self.order_safety_reason_code = "ORDER_SAFETY_LOOP_UNAVAILABLE"
+            return
+        if self._order_safety_gateway is not None:
+            # Before the runner supplies its live/stored executor scope we may
+            # cancel known WAL orders, but cannot certify reconciliation.
+            self._order_safety_gateway.runner_scope_check = self._runner_executor_scope_complete
+        self.order_safety_watchdog_task = loop.create_task(
+            self._order_safety_watchdog(interval_ms / 1000))
+        self.order_safety_watchdog_task.add_done_callback(self._on_order_safety_watchdog_done)
+
+    async def _order_safety_watchdog(self, interval_seconds: float) -> None:
+        while not self._order_safety_stopped:
+            try:
+                self.on_safety_tick(time.monotonic())
+            except Exception:
+                self.order_safety_reason_code = "ORDER_SAFETY_WATCHDOG_TICK_FAILED"
+                self.logger().exception("LIFE order-safety watchdog tick failed")
+            await asyncio.sleep(interval_seconds)
+
+    def _on_order_safety_watchdog_done(self, task: asyncio.Task) -> None:
+        if (task is self.order_safety_watchdog_task and not self._order_safety_stopped
+                and (task.cancelled() or task.exception() is not None)):
+            self.order_safety_reason_code = "ORDER_SAFETY_WATCHDOG_FAILED"
+            self.logger().error("LIFE order-safety watchdog stopped unexpectedly")
 
     def update_config(self, new_config: LifeLiquidityConfig):
         if new_config.strategy != self.config.strategy:
@@ -496,15 +579,25 @@ class LifeLiquidityController(ControllerBase):
         scopes.add((current.session_id, current.epoch))
         primary_result = None
         reason = "OLD_ORDERS_RECONCILED"
-        for session_id, epoch in sorted(scopes):
-            cancel_failed = False
+        bounded_cancel_failed = False
+        if gateway.cancel_retry_policy is not None:
             try:
-                await gateway.request_cancel(session_id, epoch)
+                await gateway.request_cancel_scopes(tuple(sorted(scopes)))
             except asyncio.CancelledError:
                 raise
             except Exception:
-                cancel_failed = True
-                self.logger().exception("LIFE order cancellation failed")
+                bounded_cancel_failed = True
+                self.logger().exception("LIFE bounded order cancellation failed")
+        for session_id, epoch in sorted(scopes):
+            cancel_failed = bounded_cancel_failed
+            if gateway.cancel_retry_policy is None:
+                try:
+                    await gateway.request_cancel(session_id, epoch)
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    cancel_failed = True
+                    self.logger().exception("LIFE order cancellation failed")
             try:
                 result = await gateway.reconcile(session_id, epoch)
             except asyncio.CancelledError:
@@ -538,6 +631,8 @@ class LifeLiquidityController(ControllerBase):
     def stop(self):
         self._order_safety_stopped = True
         super().stop()
+        if self.order_safety_watchdog_task is not None and not self.order_safety_watchdog_task.done():
+            self.order_safety_watchdog_task.cancel()
         if self.order_safety_task is not None and not self.order_safety_task.done():
             self._release_account_lock_on_task_done = True
             self.order_safety_task.cancel()
@@ -559,6 +654,14 @@ class LifeLiquidityController(ControllerBase):
         return self.benchmark_route.resolve(self.market_data_provider)
 
     def allow_create_executor_actions(self) -> bool:
+        manager = self._order_safety_manager
+        if manager is not None:
+            watchdog = self.order_safety_watchdog_task
+            safety_cycle_pending = (self.order_safety_task is not None
+                                    and not self.order_safety_task.done())
+            if (manager.state != "ACTIVE" or watchdog is None or watchdog.done()
+                    or safety_cycle_pending):
+                return False
         return (self.config.strategy.spot.enabled and self.config_update_state.order_permission()
                 and self.listing_gate.metadata_ready
                 and self.book_ready and self._live_spot_book_ready()

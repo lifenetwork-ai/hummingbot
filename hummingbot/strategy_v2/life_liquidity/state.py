@@ -4,6 +4,7 @@ import json
 import os
 import tempfile
 from dataclasses import dataclass, replace
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from threading import RLock
 from typing import Callable
@@ -19,6 +20,9 @@ class IntentRecord:
     state: str
     exchange_order_id: str | None = None
     cancel_requested: bool = False
+    cancel_attempts: int = 0
+    last_cancel_attempt_at: str | None = None
+    exchange_terminal_observed: bool = False
 
 
 class IntentWAL:
@@ -32,6 +36,30 @@ class IntentWAL:
             if data.get("schema_version") != 1 or not isinstance(data.get("records"), dict):
                 raise ValueError("intent WAL invalid")
             self._records = {key: IntentRecord(**value) for key, value in data["records"].items()}
+            for record in self._records.values():
+                if (not isinstance(record.cancel_requested, bool)
+                        or not isinstance(record.exchange_terminal_observed, bool)
+                        or not isinstance(record.cancel_attempts, int)
+                        or isinstance(record.cancel_attempts, bool)
+                        or record.cancel_attempts < 0
+                        or (record.cancel_attempts > 0) != (record.last_cancel_attempt_at is not None)
+                        or record.cancel_attempts > 0 and not record.cancel_requested
+                        or record.exchange_terminal_observed and (
+                            not record.exchange_order_id
+                            or record.state not in ("ACKED", "TERMINAL"))):
+                    raise ValueError("intent WAL cancel state invalid")
+                if record.last_cancel_attempt_at is not None:
+                    try:
+                        self._cancel_time(record.last_cancel_attempt_at)
+                    except (TypeError, ValueError) as exc:
+                        raise ValueError("intent WAL cancel time invalid") from exc
+
+    @staticmethod
+    def _cancel_time(value: str) -> datetime:
+        timestamp = datetime.fromisoformat(value)
+        if timestamp.tzinfo is None or timestamp.utcoffset() != timedelta(0):
+            raise ValueError("cancel time must be UTC")
+        return timestamp.astimezone(timezone.utc)
 
     def _save(self, records: dict[str, IntentRecord]) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -87,6 +115,36 @@ class IntentWAL:
             self._commit(replace(record, cancel_requested=True))
             return True
 
+    def mark_cancel_attempt(self, intent_id: str, *, at: datetime) -> bool:
+        if not isinstance(at, datetime) or at.tzinfo is None or at.utcoffset() != timedelta(0):
+            raise ValueError("cancel attempt time must be UTC")
+        with self._lock:
+            record = self._records[intent_id]
+            if record.state in ("PREPARED", "ABORTED_BEFORE_SEND", "TERMINAL"):
+                raise ValueError("CANCEL_INTENT_NOT_OPEN")
+            if record.last_cancel_attempt_at is not None:
+                previous = self._cancel_time(record.last_cancel_attempt_at)
+                if at < previous:
+                    raise ValueError("CANCEL_CLOCK_ROLLBACK")
+            self._commit(replace(record, cancel_requested=True,
+                                 cancel_attempts=record.cancel_attempts + 1,
+                                 last_cancel_attempt_at=at.isoformat()))
+            return True
+
+    def mark_exchange_terminal_observed(self, intent_id: str, exchange_order_id: str) -> bool:
+        if not isinstance(exchange_order_id, str) or not exchange_order_id:
+            raise ValueError("ORDER_EXCHANGE_ID_INVALID")
+        with self._lock:
+            record = self._records[intent_id]
+            if (record.state in ("PREPARED", "ABORTED_BEFORE_SEND")
+                    or record.exchange_order_id not in (None, exchange_order_id)):
+                raise ValueError("ORDER_EXCHANGE_ID_CONFLICT")
+            if record.exchange_terminal_observed:
+                return False
+            self._commit(replace(record, state="ACKED" if record.state == "SEND_UNKNOWN" else record.state,
+                                 exchange_order_id=exchange_order_id, exchange_terminal_observed=True))
+            return True
+
     def mark_terminal(self, intent_id: str, exchange_order_id: str) -> bool:
         if not isinstance(exchange_order_id, str) or not exchange_order_id:
             raise ValueError("ORDER_EXCHANGE_ID_INVALID")
@@ -97,7 +155,8 @@ class IntentWAL:
             if record.state == "TERMINAL":
                 return False
             self._commit(replace(record, state="TERMINAL",
-                                 exchange_order_id=exchange_order_id))
+                                 exchange_order_id=exchange_order_id,
+                                 exchange_terminal_observed=True))
             return True
 
     def pending_reconciliation(self, session_id: str, epoch: int) -> tuple[str, ...]:
