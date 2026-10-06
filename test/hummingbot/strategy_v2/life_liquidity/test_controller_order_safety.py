@@ -107,6 +107,7 @@ async def test_expiry_cancels_and_reconciles_partial_fill_without_market_readine
     with patch("hummingbot.strategy.strategy_v2_base._get_executor_orchestrator_class",
                return_value=lambda **kwargs: MagicMock()):
         runner = StrategyV2Base({}, config=None)
+    runner.executor_orchestrator.active_executors = {"life": []}
     runner.controllers = {"life": controller}
     runner.connectors = {"okx": SimpleNamespace(ready=False, name="okx")}
     runner.market_data_provider = SimpleNamespace(ready=False)

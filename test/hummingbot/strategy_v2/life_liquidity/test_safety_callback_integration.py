@@ -29,6 +29,7 @@ def _runner(controllers):
     )
     runner.on_tick = lambda: StrategyV2Base.on_tick(runner)
     runner._run_safety_callbacks = lambda timestamp: StrategyV2Base._run_safety_callbacks(runner, timestamp)
+    runner._filter_authorized_actions = lambda actions: StrategyV2Base._filter_authorized_actions(runner, actions)
     return runner, connector, provider
 
 

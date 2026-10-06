@@ -124,7 +124,8 @@ class OkxSpotOrderGateway:
                  on_cancel_requested: Callable[[str], None] | None = None,
                  on_unknown: Callable[[str], None] | None = None,
                  account_check: Callable[[], bool] | None = None,
-                 scope_check: Callable[[str, int, tuple[str, ...]], bool] | None = None):
+                 scope_check: Callable[[str, int, tuple[str, ...]], bool] | None = None,
+                 runner_scope_check: Callable[[], bool] | None = None):
         if not trading_pair:
             raise ValueError("trading pair required")
         self.connector = connector
@@ -137,6 +138,7 @@ class OkxSpotOrderGateway:
         self.on_unknown = on_unknown
         self.account_check = account_check
         self.scope_check = scope_check
+        self.runner_scope_check = runner_scope_check
 
     async def request_cancel(self, session_id: str, epoch: int) -> None:
         for record in self.wal.scoped_records(session_id, epoch):
@@ -395,6 +397,15 @@ class OkxSpotOrderGateway:
                 scope_complete = False
         except Exception:
             scope_complete = False
+        if self.runner_scope_check is not None:
+            try:
+                runner_scope_ok = self.runner_scope_check()
+                if isawaitable(runner_scope_ok):
+                    runner_scope_ok = await runner_scope_ok
+                if runner_scope_ok is not True:
+                    scope_complete = False
+            except Exception:
+                scope_complete = False
         for intent_id, wire_id, state, cumulative, exchange_id, applied in terminal_candidates:
             if (not applied or not scope_complete or self.confirm_terminal is None):
                 fills_reconciled = False

@@ -5,6 +5,7 @@ order, and release gates are implemented. Loading this module cannot place order
 """
 
 import asyncio
+from collections.abc import Mapping
 from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -37,6 +38,7 @@ from hummingbot.strategy_v2.life_liquidity.order_gateway import (
 from hummingbot.strategy_v2.life_liquidity.risk import ReservationLedger, RiskLimits
 from hummingbot.strategy_v2.life_liquidity.session import SessionManager, SessionStore
 from hummingbot.strategy_v2.life_liquidity.state import IntentWAL
+from hummingbot.strategy_v2.models.base import RunnableStatus
 
 # Synthetic offline guard only. A separately calibrated live book TTL is a P9 decision.
 SYNTHETIC_BOOK_MAX_AGE_MS = 2000
@@ -107,6 +109,10 @@ class LifeLiquidityController(ControllerBase):
         self._account_uid_verified = False
         self._release_account_lock_on_task_done = False
         self._order_safety_stopped = False
+        self._runner_orchestrator = None
+        self._runner_halt_ok = False
+        self._runner_wire_owners: dict[str, str] = {}
+        self._runner_scope_invalid = False
         self.order_safety_task: asyncio.Task | None = None
         self.order_safety_reason_code = "ORDER_SAFETY_NOT_INSTALLED"
 
@@ -202,6 +208,97 @@ class LifeLiquidityController(ControllerBase):
         # P4 will replace this with the final order-permission checks.
         return False
 
+    def _runner_executors(self):
+        active = getattr(self._runner_orchestrator, "active_executors", None)
+        if not isinstance(active, Mapping):
+            return None
+        executors = active.get(self.config.id, [])
+        return tuple(executors) if isinstance(executors, (list, tuple)) else None
+
+    def _halt_runner_orders(self) -> bool:
+        """Revoke executor renewals before starting exchange-side cancellation."""
+        from hummingbot.strategy_v2.executors.order_executor.order_executor import OrderExecutor
+
+        executors = self._runner_executors()
+        if executors is None:
+            self._runner_scope_invalid = True
+            return False
+        safe = True
+        for executor in executors:
+            if not isinstance(executor, OrderExecutor):
+                safe = False
+                self._runner_scope_invalid = True
+                continue
+            try:
+                if executor.status in (RunnableStatus.NOT_STARTED, RunnableStatus.RUNNING):
+                    executor.early_stop()
+                if executor.status not in (RunnableStatus.SHUTTING_DOWN, RunnableStatus.TERMINATED):
+                    safe = False
+                if (not isinstance(executor.config.id, str) or not executor.config.id
+                        or executor.config.controller_id != self.config.id
+                        or executor.config.connector_name != self.config.strategy.spot.connector
+                        or executor.config.trading_pair != self.config.strategy.spot.pair):
+                    safe = False
+                for wire_id in executor.recovery_order_ids():
+                    owner = self._runner_wire_owners.get(wire_id)
+                    if owner is not None and owner != executor.config.id:
+                        safe = False
+                    self._runner_wire_owners[wire_id] = executor.config.id
+            except Exception:
+                safe = False
+                self.logger().exception("LIFE executor safety stop failed")
+        if not safe:
+            self._runner_scope_invalid = True
+        return safe
+
+    def _runner_executor_scope_complete(self) -> bool:
+        """A tracked executor wire ID must belong to the persisted spot WAL."""
+        from hummingbot.strategy_v2.executors.order_executor.order_executor import OrderExecutor
+
+        executors = self._runner_executors()
+        if (not self._runner_halt_ok or self._runner_scope_invalid
+                or executors is None or self._order_safety_wal is None):
+            return False
+        known = {record.client_order_id for record in self._order_safety_wal.all_records()}
+        if not self._runner_wire_owners.keys() <= known:
+            self._runner_scope_invalid = True
+            return False
+        seen = set()
+        try:
+            for executor in executors:
+                if (not isinstance(executor, OrderExecutor)
+                        or executor.config.controller_id != self.config.id
+                        or executor.config.connector_name != self.config.strategy.spot.connector
+                        or executor.config.trading_pair != self.config.strategy.spot.pair
+                        or executor.status not in (RunnableStatus.SHUTTING_DOWN, RunnableStatus.TERMINATED)):
+                    self._runner_scope_invalid = True
+                    return False
+                for wire_id in executor.recovery_order_ids():
+                    if wire_id not in known or wire_id in seen:
+                        self._runner_scope_invalid = True
+                        return False
+                    seen.add(wire_id)
+        except (AttributeError, TypeError, ValueError):
+            self._runner_scope_invalid = True
+            return False
+        return True
+
+    def on_runner_safety_tick(self, timestamp: float, orchestrator) -> None:
+        """Attach the real executor scope before the readiness-independent safety tick."""
+        self._runner_orchestrator = orchestrator
+        try:
+            permitted = self.trading_permissions_ready() is True
+        except Exception:
+            permitted = False
+        manager = self._order_safety_manager
+        self._runner_halt_ok = False
+        if (manager is None or self._order_safety_gateway is None
+                or manager.state != "ACTIVE" or not permitted):
+            self._runner_halt_ok = self._halt_runner_orders()
+        if self._order_safety_gateway is not None:
+            self._order_safety_gateway.runner_scope_check = self._runner_executor_scope_complete
+        self.on_safety_tick(timestamp)
+
     def on_safety_tick(self, timestamp: float) -> None:
         """Persist expiry and run order cancellation independent of quote readiness."""
         if self._order_safety_stopped:
@@ -229,6 +326,11 @@ class LifeLiquidityController(ControllerBase):
             self.order_safety_reason_code = "SESSION_SAFETY_TICK_FAILED"
             self.logger().exception("LIFE safety session tick failed")
             return
+        if (self._runner_orchestrator is not None and self._order_safety_gateway is not None
+                and manager.state in ("PAUSED", "EXPIRED", "TRANSITIONING")):
+            if not self._runner_halt_ok:
+                self._runner_halt_ok = self._halt_runner_orders()
+            self._order_safety_gateway.runner_scope_check = self._runner_executor_scope_complete
         if self.order_safety_task is not None and not self.order_safety_task.done():
             return
         if manager.state not in ("PAUSED", "EXPIRED", "TRANSITIONING"):

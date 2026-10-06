@@ -174,6 +174,29 @@ class OrderExecutor(ExecutorBase):
             )
         self._status = RunnableStatus.SHUTTING_DOWN
 
+    def recovery_order_ids(self) -> tuple[str, ...]:
+        """Return every client order ID retained by this executor after renewals.
+
+        Executor termination is not proof that any of these orders is terminal
+        on the exchange; the recovery gateway checks them against its WAL.
+        """
+        tracked = ([self._order] if self._order is not None else [])
+        tracked += self._partial_filled_orders + self._canceled_orders + self._failed_orders
+        wire_ids = []
+        for order in tracked:
+            wire_id = order.order_id
+            if not isinstance(wire_id, str) or not wire_id:
+                raise ValueError("EXECUTOR_ORDER_ID_UNAVAILABLE")
+            wire_ids.append(wire_id)
+        for held in self._held_position_orders:
+            if not isinstance(held, dict):
+                raise ValueError("EXECUTOR_HELD_ORDER_INVALID")
+            wire_id = held.get("client_order_id")
+            if not isinstance(wire_id, str) or not wire_id:
+                raise ValueError("EXECUTOR_HELD_ORDER_ID_UNAVAILABLE")
+            wire_ids.append(wire_id)
+        return tuple(dict.fromkeys(wire_ids))
+
     def _cancel_outstanding_orders(self):
         self.cancel_order()
 

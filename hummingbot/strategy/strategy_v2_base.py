@@ -316,7 +316,11 @@ class StrategyV2Base(StrategyPyBase):
         for controller in self.controllers.values():
             if callable(getattr(type(controller), "on_safety_tick", None)):
                 try:
-                    controller.on_safety_tick(timestamp)
+                    runner_safety = getattr(controller, "on_runner_safety_tick", None)
+                    if callable(runner_safety):
+                        runner_safety(timestamp, self.executor_orchestrator)
+                    else:
+                        controller.on_safety_tick(timestamp)
                 except Exception:
                     self.logger().error("Controller safety callback failed", exc_info=True)
 
@@ -329,7 +333,8 @@ class StrategyV2Base(StrategyPyBase):
             self.update_executors_info()
             self.update_controllers_configs()
             if self.market_data_provider.ready and not self._is_stop_triggered:
-                executor_actions: List[ExecutorAction] = self.determine_executor_actions()
+                executor_actions: List[ExecutorAction] = self._filter_authorized_actions(
+                    self.determine_executor_actions())
                 for action in executor_actions:
                     self.executor_orchestrator.execute_action(action)
 
