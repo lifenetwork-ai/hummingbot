@@ -450,6 +450,79 @@ class ReservationLedger:
             self._commit(life_balance, usdt_balance, updated_reservations, updated_trades)
             return True
 
+    def apply_fills_snapshot(
+            self, intent_id: str,
+            fills: tuple[tuple[str, Decimal, Decimal, str | None, Decimal | None], ...],
+            cumulative: Decimal, *, require_fees: bool = False) -> bool:
+        """Checkpoint a complete exchange fill snapshot and its fees together."""
+        if not _finite(cumulative):
+            raise ValueError("FILL_CUMULATIVE_INVALID")
+        with self._lock:
+            item = self._reservations[intent_id]
+            if cumulative < item.filled_base or cumulative > item.intent.quantity_base:
+                raise ValueError("FILL_CUMULATIVE_REGRESSION")
+            life, usdt = self.life_balance, self.usdt_balance
+            remaining, filled = item.remaining_base, item.filled_base
+            trades = dict(self._trades)
+            events = dict(self._account_events)
+            seen = set()
+            changed = False
+            snapshot_total = Decimal("0")
+            for trade_id, quantity, price, fee_currency, signed_fee in fills:
+                if (not isinstance(trade_id, str) or not trade_id or trade_id in seen
+                        or not _finite(quantity, positive=True)
+                        or not _finite(price, positive=True)):
+                    raise ValueError("FILL_INVALID")
+                seen.add(trade_id)
+                snapshot_total += quantity
+                trade = (intent_id, quantity, price)
+                previous = trades.get(trade_id)
+                if previous is not None and previous != trade:
+                    raise ValueError("FILL_ID_CONFLICT")
+                if previous is None:
+                    if (item.state == "TERMINAL" or quantity > remaining
+                            or item.intent.side == "BUY" and price > item.intent.limit_price_usdt
+                            or item.intent.side == "SELL" and price < item.intent.limit_price_usdt):
+                        raise ValueError("FILL_EXCEEDS_INTENT")
+                    if item.intent.side == "BUY":
+                        life += quantity
+                        usdt -= quantity * price
+                    else:
+                        life -= quantity
+                        usdt += quantity * price
+                    remaining -= quantity
+                    filled += quantity
+                    trades[trade_id] = trade
+                    changed = True
+                if fee_currency is None and signed_fee is None:
+                    if require_fees:
+                        raise ValueError("ORDER_FEE_UNTRUSTED")
+                else:
+                    if (fee_currency not in ("LIFE", "USDT")
+                            or not isinstance(signed_fee, Decimal)
+                            or not signed_fee.is_finite()):
+                        raise ValueError("ORDER_FEE_UNTRUSTED")
+                    event_id = f"FEE:{trade_id}"
+                    event = ("FEE", fee_currency, signed_fee)
+                    prior_fee = events.get(event_id)
+                    if prior_fee is not None and prior_fee != event:
+                        raise ValueError("ACCOUNT_EVENT_CONFLICT")
+                    if prior_fee is None:
+                        life += signed_fee if fee_currency == "LIFE" else Decimal("0")
+                        usdt += signed_fee if fee_currency == "USDT" else Decimal("0")
+                        events[event_id] = event
+                        changed = True
+            if snapshot_total != cumulative or filled != cumulative:
+                raise ValueError("FILL_CUMULATIVE_MISMATCH")
+            if life < 0 or usdt < 0:
+                raise ValueError("ACCOUNT_EVENT_EXCEEDS_BALANCE")
+            if changed:
+                reservations = dict(self._reservations)
+                reservations[intent_id] = replace(item, remaining_base=remaining,
+                                                  filled_base=filled)
+                self._commit(life, usdt, reservations, trades, events)
+            return changed
+
     def request_cancel(self, intent_id: str) -> None:
         with self._lock:
             item = self._reservations[intent_id]

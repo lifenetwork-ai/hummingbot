@@ -67,20 +67,14 @@ class SpotReservationReconciler:
     def apply_fills(self, wire_id: str, fills: tuple[SpotFill, ...],
                     cumulative: Decimal) -> bool:
         try:
-            if self.require_fees and any(
-                    fill.fee_currency not in ("LIFE", "USDT")
-                    or not isinstance(fill.signed_fee, Decimal)
-                    or not fill.signed_fee.is_finite() for fill in fills):
-                return False
             intent_id = self.wal.find_by_client_order_id(wire_id).intent_id
-            for fill in fills:
-                self.reservations.record_fill(intent_id, fill.trade_id,
-                                              fill.quantity_base, fill.price_usdt)
-                if fill.fee_currency is not None and fill.signed_fee is not None:
-                    self.reservations.record_fee(fill.trade_id, fill.fee_currency,
-                                                 fill.signed_fee)
+            self.reservations.apply_fills_snapshot(
+                intent_id,
+                tuple((fill.trade_id, fill.quantity_base, fill.price_usdt,
+                       fill.fee_currency, fill.signed_fee) for fill in fills),
+                cumulative, require_fees=self.require_fees)
             return True
-        except (KeyError, ValueError):
+        except (KeyError, TypeError, ValueError):
             return False
 
     def confirm_terminal(self, wire_id: str, state: str, cumulative: Decimal) -> bool:
@@ -496,8 +490,10 @@ class OkxSpotOrderGateway:
                     if str(exc) != "ORDER_FILL_CUMULATIVE_MISMATCH":
                         raise
                     fills = await self._historical_fills(exchange_id, cumulative)
-                applied = not fills or (self.apply_fills is not None
-                                        and self.apply_fills(wire_id, fills, cumulative))
+                # Even an empty exchange snapshot must be compared with the
+                # persisted ledger; an older zero cannot erase known fills.
+                applied = (self.apply_fills(wire_id, fills, cumulative)
+                           if self.apply_fills is not None else not fills)
                 if not applied:
                     fills_reconciled = False
                 state = order["state"]
