@@ -225,6 +225,15 @@ class ReservationLedger:
             event = self._account_events.get(f"FEE:{trade_id}")
             return None if event is None else (event[1], event[2])
 
+    def matches_recorded_fill(self, intent_id: str, trade_id: str,
+                              quantity: Decimal, price: Decimal,
+                              fee_currency: str, signed_fee: Decimal) -> bool:
+        """Compare a runner hint with the durable exchange-reconciled record."""
+        with self._lock:
+            return (self._trades.get(trade_id) == (intent_id, quantity, price)
+                    and self._account_events.get(f"FEE:{trade_id}") == (
+                        "FEE", fee_currency, signed_fee))
+
     @property
     def trade_ids(self) -> set[str]:
         with self._lock:

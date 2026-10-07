@@ -324,6 +324,26 @@ class StrategyV2Base(StrategyPyBase):
                 except Exception:
                     self.logger().error("Controller safety callback failed", exc_info=True)
 
+    def _forward_order_event_to_controllers(self, method_name: str, event) -> None:
+        for controller in self.controllers.values():
+            handler = getattr(controller, method_name, None)
+            if callable(handler):
+                try:
+                    handler(event)
+                except Exception:
+                    fail = getattr(controller, "on_runner_order_event_failure", None)
+                    if callable(fail):
+                        fail()
+                    self.logger().error("Controller order event callback failed", exc_info=True)
+
+    def did_fill_order(self, order_filled_event):
+        StrategyV2Base._forward_order_event_to_controllers(
+            self, "on_runner_order_filled", order_filled_event)
+
+    def did_cancel_order(self, cancelled_event):
+        StrategyV2Base._forward_order_event_to_controllers(
+            self, "on_runner_order_canceled", cancelled_event)
+
     def on_tick(self):
         """
         An event which is called on every tick. When controllers are configured, runs executor orchestration.

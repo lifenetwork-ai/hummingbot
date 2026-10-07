@@ -15,7 +15,9 @@ from typing import Literal
 from pydantic import Field
 
 from hummingbot.connector.exchange.okx.okx_book_health import BookFeedHealth
-from hummingbot.core.data_type.common import OrderType
+from hummingbot.core.data_type.common import OrderType, TradeType
+from hummingbot.core.data_type.trade_fee import TradeFeeBase
+from hummingbot.core.event.events import OrderCancelledEvent, OrderFilledEvent
 from hummingbot.strategy_v2.controllers.controller_base import ControllerBase, ControllerConfigBase
 from hummingbot.strategy_v2.life_liquidity import account_lock
 from hummingbot.strategy_v2.life_liquidity.account_bills import CashflowApprovals, SpotBillReconciler
@@ -136,6 +138,8 @@ class LifeLiquidityController(ControllerBase):
         self._runner_wire_owners: dict[str, str] = {}
         self._runner_stored_executor_ids: set[str] = set()
         self._runner_scope_invalid = False
+        self._runner_fill_observations: dict[str, tuple] = {}
+        self._runner_cancel_observations: dict[str, str | None] = {}
         self._protected_spot_sender: ProtectedSpotExecutorSender | None = None
         self._quote_action_planner: QuoteActionPlanner | None = None
         self._quote_action_recovery_ready = False
@@ -355,6 +359,110 @@ class LifeLiquidityController(ControllerBase):
         if self.order_safety_watchdog_task is not None and not self.order_safety_watchdog_task.done():
             gateway.runner_scope_check = self._runner_executor_scope_complete
 
+    def on_runner_order_event_failure(self) -> None:
+        self._runner_scope_invalid = True
+
+    def on_runner_order_filled(self, event: OrderFilledEvent) -> None:
+        """Hold runner evidence until authenticated exchange reconciliation agrees."""
+        if not isinstance(event, OrderFilledEvent):
+            self._runner_scope_invalid = True
+            return
+        if event.trading_pair != self.config.strategy.spot.pair:
+            return
+        wal = self._order_safety_wal
+        try:
+            record = wal.find_by_client_order_id(event.order_id)
+            fee = event.trade_fee
+            if (record.state == "ABORTED_BEFORE_SEND"
+                    or record.slot_market != event.trading_pair
+                    or record.slot_side != event.trade_type.name
+                    or event.trade_type not in (TradeType.BUY, TradeType.SELL)
+                    or event.order_type != OrderType.LIMIT_MAKER
+                    or not isinstance(event.exchange_trade_id, str)
+                    or not event.exchange_trade_id
+                    or not isinstance(event.exchange_order_id, str)
+                    or not event.exchange_order_id
+                    or (record.exchange_order_id is not None
+                        and record.exchange_order_id != event.exchange_order_id)
+                    or not isinstance(event.amount, Decimal)
+                    or not event.amount.is_finite() or event.amount <= 0
+                    or not isinstance(event.price, Decimal)
+                    or not event.price.is_finite() or event.price <= 0
+                    or not isinstance(fee, TradeFeeBase)
+                    or fee.percent != 0
+                    or len(fee.flat_fees) != 1):
+                raise ValueError("RUNNER_FILL_IDENTITY_INVALID")
+            flat_fee = fee.flat_fees[0]
+            if (flat_fee.token not in ("LIFE", "USDT")
+                    or fee.percent_token not in (None, flat_fee.token)
+                    or not isinstance(flat_fee.amount, Decimal)
+                    or not flat_fee.amount.is_finite()):
+                raise ValueError("RUNNER_FILL_FEE_INVALID")
+            observation = (record.intent_id, event.order_id, event.exchange_order_id,
+                           event.amount, event.price, flat_fee.token, -flat_fee.amount)
+            previous = self._runner_fill_observations.get(event.exchange_trade_id)
+            if previous is not None and previous != observation:
+                raise ValueError("RUNNER_FILL_CONFLICT")
+            self._runner_fill_observations[event.exchange_trade_id] = observation
+        except (AttributeError, KeyError, TypeError, ValueError):
+            self._runner_scope_invalid = True
+
+    def on_runner_order_canceled(self, event: OrderCancelledEvent) -> None:
+        """A tracker cancel event is a hint, never exchange terminal proof."""
+        if not isinstance(event, OrderCancelledEvent):
+            self._runner_scope_invalid = True
+            return
+        wal = self._order_safety_wal
+        if wal is None:
+            return
+        try:
+            record = wal.find_by_client_order_id(event.order_id)
+        except KeyError:
+            return  # Another market/controller can cancel on the same runner.
+        if (record.state == "ABORTED_BEFORE_SEND"
+                or record.slot_market != self.config.strategy.spot.pair
+                or event.exchange_order_id is not None
+                and record.exchange_order_id is not None
+                and event.exchange_order_id != record.exchange_order_id):
+            self._runner_scope_invalid = True
+            return
+        previous = self._runner_cancel_observations.get(event.order_id)
+        if previous is not None and event.exchange_order_id not in (None, previous):
+            self._runner_scope_invalid = True
+            return
+        self._runner_cancel_observations[event.order_id] = (
+            event.exchange_order_id or previous)
+
+    def has_unverified_runner_order_events(self) -> bool:
+        return (self._runner_scope_invalid or bool(self._runner_fill_observations)
+                or bool(self._runner_cancel_observations))
+
+    def verify_runner_fill_events(self) -> bool:
+        if self._runner_scope_invalid:
+            return False
+        wal = self._order_safety_wal
+        reservations = self._order_safety_reservations
+        if self._runner_fill_observations and (wal is None or reservations is None):
+            return False
+        try:
+            for trade_id, (intent_id, wire_id, exchange_id, quantity, price,
+                           fee_currency, signed_fee) in self._runner_fill_observations.items():
+                record = wal.find_by_client_order_id(wire_id)
+                if (record.intent_id != intent_id
+                        or record.exchange_order_id != exchange_id
+                        or not reservations.matches_recorded_fill(
+                            intent_id, trade_id, quantity, price, fee_currency, signed_fee)):
+                    return False
+            for wire_id, exchange_id in self._runner_cancel_observations.items():
+                record = wal.find_by_client_order_id(wire_id)
+                if (not record.exchange_order_id
+                        or exchange_id is not None
+                        and record.exchange_order_id != exchange_id):
+                    return False
+        except (AttributeError, KeyError, TypeError, ValueError):
+            return False
+        return True
+
     def _configured_cancel_retry_policy(self) -> CancelRetryPolicy | None:
         interval = self.config.cancel_retry_interval_ms
         maximum = self.config.cancel_max_requests_per_cycle
@@ -551,6 +659,8 @@ class LifeLiquidityController(ControllerBase):
         executors = self._runner_executors()
         if (not self._runner_halt_ok or self._runner_scope_invalid
                 or executors is None or self._order_safety_wal is None):
+            return False
+        if not self.verify_runner_fill_events():
             return False
 
         def reject() -> bool:
@@ -762,6 +872,20 @@ class LifeLiquidityController(ControllerBase):
             if (manager.state == "TRANSITIONING" and session_id == current.session_id
                     and epoch == current.epoch):
                 primary_result = result
+            if (result.scope_complete and result.trade_events_reconciled
+                    and self.verify_runner_fill_events()
+                    and not (result.open_order_ids or result.pending_cancel_ids
+                             or result.unknown_order_ids)):
+                scoped_wire_ids = {record.client_order_id for record in wal.scoped_records(
+                    session_id, epoch)}
+                self._runner_fill_observations = {
+                    trade_id: observation
+                    for trade_id, observation in self._runner_fill_observations.items()
+                    if observation[1] not in scoped_wire_ids}
+                self._runner_cancel_observations = {
+                    wire_id: exchange_id
+                    for wire_id, exchange_id in self._runner_cancel_observations.items()
+                    if wire_id not in scoped_wire_ids}
             if not result.scope_complete:
                 reason = "RECONCILIATION_INCOMPLETE"
             elif not result.trade_events_reconciled:
@@ -807,6 +931,8 @@ class LifeLiquidityController(ControllerBase):
         return self.benchmark_route.resolve(self.market_data_provider)
 
     def allow_create_executor_actions(self) -> bool:
+        if self.has_unverified_runner_order_events():
+            return False
         manager = self._order_safety_manager
         if manager is not None:
             watchdog = self.order_safety_watchdog_task
