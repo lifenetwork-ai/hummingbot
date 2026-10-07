@@ -23,7 +23,9 @@ from hummingbot.strategy_v2.life_liquidity.risk import SpotIntent
 from hummingbot.strategy_v2.life_liquidity.spot_quotes import QuoteCosts
 
 
-def _attach_quote_planner(controller, template, wal, ledger):
+def _attach_quote_planner(controller, template, wal, ledger, *,
+                          reference_engine=None, book_sequence_id=None,
+                          reference_model_version=None):
     quotes = QuotesConfig(spreads_bps=(Decimal("30"),), sizes_base=(Decimal("1"),))
     controller.config = controller.config.model_copy(update={
         "strategy": controller.config.strategy.model_copy(update={"quotes": quotes})})
@@ -39,11 +41,14 @@ def _attach_quote_planner(controller, template, wal, ledger):
         rules=InstrumentRules(Decimal("0.01"), Decimal("0.1"), Decimal("0.1")),
         costs=QuoteCosts(Decimal("0"), Decimal("0"), Decimal("0"), Decimal("0"),
                          Decimal("0"), Decimal("0")),
-        policy=EconomicPolicy("profit_mm", Decimal("0")))}
+        policy=EconomicPolicy("profit_mm", Decimal("0")),
+        book_sequence_id=book_sequence_id,
+        reference_model_version=reference_model_version)}
     planner = QuoteActionPlanner(
         controller, wal=wal, reservations=ledger,
         snapshot=lambda: state["snapshot"], monotonic_clock=lambda: state["now"],
-        intent_id_factory=lambda: "quote-1", max_actions_per_tick=1)
+        intent_id_factory=lambda: "quote-1", max_actions_per_tick=1,
+        reference_engine=reference_engine)
     controller.install_quote_action_planner(planner)
     config = controller.determine_executor_actions()[0].executor_config
     executor = OrderExecutor(template._strategy, config)

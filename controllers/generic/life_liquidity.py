@@ -14,6 +14,7 @@ from typing import Literal
 
 from pydantic import Field
 
+from hummingbot.connector.client_order_tracker import ClientOrderTracker
 from hummingbot.connector.exchange.okx.okx_book_health import BookFeedHealth
 from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.core.data_type.trade_fee import TradeFeeBase
@@ -42,7 +43,10 @@ from hummingbot.strategy_v2.life_liquidity.order_gateway import (
     SpotAccountReconciler,
     SpotReservationReconciler,
 )
-from hummingbot.strategy_v2.life_liquidity.quote_actions import QuoteActionPlanner
+from hummingbot.strategy_v2.life_liquidity.own_depth import OwnDepthDecision
+from hummingbot.strategy_v2.life_liquidity.own_depth_runner import separate_local_own_depth
+from hummingbot.strategy_v2.life_liquidity.quote_actions import QuoteActionPlanner, QuotePlanningSnapshot
+from hummingbot.strategy_v2.life_liquidity.reference import ReferenceEngine
 from hummingbot.strategy_v2.life_liquidity.risk import ReservationLedger, RiskLimits
 from hummingbot.strategy_v2.life_liquidity.session import SessionManager, SessionStore
 from hummingbot.strategy_v2.life_liquidity.state import IntentWAL
@@ -98,6 +102,12 @@ class LifeLiquidityConfig(ControllerConfigBase):
         default=None, gt=0,
         description="Maximum cancel/status REST requests across all scopes in one safety cycle.",
         json_schema_extra={"is_updatable": False})
+    own_depth_max_observation_skew_ms: int | None = Field(
+        default=None, gt=0, json_schema_extra={"is_updatable": False})
+    own_depth_max_book_age_ms: int | None = Field(
+        default=None, gt=0, json_schema_extra={"is_updatable": False})
+    own_depth_max_distance_bps: Decimal | None = Field(
+        default=None, ge=0, lt=10000, json_schema_extra={"is_updatable": False})
 
     def update_markets(self, markets):
         # P2.9 bootstraps the public LIFE book after listing checks. Benchmarks
@@ -140,6 +150,7 @@ class LifeLiquidityController(ControllerBase):
         self._runner_scope_invalid = False
         self._runner_fill_observations: dict[str, tuple] = {}
         self._runner_cancel_observations: dict[str, str | None] = {}
+        self._own_depth_decision = OwnDepthDecision(None, "OWN_DEPTH_NOT_EVALUATED")
         self._protected_spot_sender: ProtectedSpotExecutorSender | None = None
         self._quote_action_planner: QuoteActionPlanner | None = None
         self._quote_action_recovery_ready = False
@@ -1102,6 +1113,7 @@ class LifeLiquidityController(ControllerBase):
                     self.perpetual_contract_reason_code = "SWAP_METADATA_CONFIRMED"
 
     async def update_processed_data(self):
+        self._own_depth_decision = self._evaluate_local_own_depth()
         if not self.config.strategy.spot.enabled:
             reason = "SPOT_DISABLED"
         elif not self.listing_gate.metadata_ready:
@@ -1149,7 +1161,95 @@ class LifeLiquidityController(ControllerBase):
             "last_book_exchange_timestamp_ms": snapshot.exchange_timestamp_ms if snapshot else None,
             "last_book_received_monotonic": snapshot.received_monotonic if snapshot else None,
             "last_book_source": snapshot.data_source if snapshot else None,
+            "own_depth_reason_code": self._own_depth_decision.reason_code,
+            "independent_life_mid_usdt": (
+                str(self._own_depth_decision.evidence.mid_usdt)
+                if self._own_depth_decision.evidence is not None else None),
         }
+
+    def _evaluate_local_own_depth(self, *,
+                                  pre_send_intent_id: str | None = None) -> OwnDepthDecision:
+        """Surface local book independence; account-wide proof remains a live gate."""
+        def unavailable(reason: str) -> OwnDepthDecision:
+            return OwnDepthDecision(None, reason)
+
+        config = self.config
+        if any(value is None for value in (
+                config.own_depth_max_observation_skew_ms,
+                config.own_depth_max_book_age_ms,
+                config.own_depth_max_distance_bps)):
+            return unavailable("OWN_DEPTH_POLICY_UNCONFIGURED")
+        if not self.listing_gate.metadata_ready or not self.continuous_gate.ready:
+            return unavailable("LIFE_MARKET_NOT_READY")
+        book = self.snapshot_gate.snapshot
+        if book is None or not self.snapshot_gate.permit():
+            return unavailable("BOOK_SNAPSHOT_UNAVAILABLE")
+        gateway = self._order_safety_gateway
+        if (self._order_safety_wal is None or self._order_safety_reservations is None
+                or gateway is None or self._order_safety_account_lock is None
+                or not self._account_uid_verified):
+            return unavailable("OWN_ORDER_SCOPE_UNVERIFIED")
+        try:
+            connector = self.market_data_provider.get_connector_with_fallback(
+                config.strategy.spot.connector)
+            if connector is not gateway.connector:
+                return unavailable("OWN_ORDER_CONNECTOR_MISMATCH")
+            tracker = connector._order_tracker
+            if not isinstance(tracker, ClientOrderTracker):
+                return unavailable("OWN_ORDER_TRACKER_UNAVAILABLE")
+            return separate_local_own_depth(
+                book=book, wal=self._order_safety_wal,
+                reservations=self._order_safety_reservations, tracker=tracker,
+                orders_observed_monotonic=self.snapshot_gate.clock(),
+                max_observation_skew_ms=config.own_depth_max_observation_skew_ms,
+                max_book_age_ms=config.own_depth_max_book_age_ms,
+                max_depth_distance_bps=config.own_depth_max_distance_bps,
+                pre_send_intent_id=pre_send_intent_id)
+        except (AttributeError, KeyError, OSError, TypeError, ValueError):
+            return unavailable("OWN_ORDER_TRACKER_UNAVAILABLE")
+
+    def quote_reference_matches(self, observed: QuotePlanningSnapshot,
+                                engine: ReferenceEngine | None, *,
+                                pre_send_intent_id: str | None = None) -> bool:
+        """Recheck the independent market anchor for opt-in quote proposals."""
+        def reject(reason: str) -> bool:
+            self._own_depth_decision = OwnDepthDecision(None, reason)
+            return False
+
+        policy = self.config
+        strict = any(value is not None for value in (
+            policy.own_depth_max_observation_skew_ms,
+            policy.own_depth_max_book_age_ms,
+            policy.own_depth_max_distance_bps))
+        if not strict:
+            return engine is None  # Legacy synthetic action-path tests only.
+        if (not isinstance(observed, QuotePlanningSnapshot)
+                or not isinstance(engine, ReferenceEngine)
+                or engine.life_source_id != f"okx:{self.config.strategy.spot.pair}"
+                or observed.reference_model_version != engine.model_version
+                or self.config.strategy.reference.mode != "market"):
+            return reject("LIFE_REFERENCE_ENGINE_UNAVAILABLE")
+        book = self.snapshot_gate.snapshot
+        if (book is None or observed.book_sequence_id != book.sequence_id
+                or observed.best_bid_usdt != book.bid
+                or observed.best_ask_usdt != book.ask):
+            return reject("LIFE_REFERENCE_BOOK_CHANGED")
+        current = self._evaluate_local_own_depth(
+            pre_send_intent_id=pre_send_intent_id)
+        self._own_depth_decision = current
+        if current.evidence is None or self.snapshot_gate.snapshot is not book:
+            return reject(current.reason_code if current.evidence is None
+                          else "LIFE_REFERENCE_BOOK_CHANGED")
+        exchange_now_ms = self.continuous_gate.exchange_time_ms
+        if not isinstance(exchange_now_ms, int) or exchange_now_ms <= 0:
+            return reject("LIFE_REFERENCE_TIME_UNAVAILABLE")
+        decision = engine.evaluate(
+            "market", market=current.evidence, exchange_now_ms=exchange_now_ms)
+        if (decision.quality != "QUALIFIED"
+                or decision.price_usdt != observed.qualified_reference_usdt):
+            return reject(decision.reason_code if decision.price_usdt is None
+                          else "LIFE_REFERENCE_PRICE_CHANGED")
+        return True
 
     def determine_executor_actions(self):
         if self.config.recovery_state_dir is not None and not self._quote_action_recovery_ready:
@@ -1167,4 +1267,5 @@ class LifeLiquidityController(ControllerBase):
         return [f"LIFE liquidity: {self.listing_gate.state} ({reason}); "
                 f"order safety: {self.order_safety_reason_code}; "
                 f"quote action recovery: {self.quote_action_recovery_reason_code}; "
+                f"own depth: {self._own_depth_decision.reason_code}; "
                 "trading is disabled pending P2–P9 gates."]

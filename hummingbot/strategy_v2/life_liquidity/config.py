@@ -170,6 +170,8 @@ class ReferenceConfig(StrictConfig):
 class QuotesConfig(StrictConfig):
     spreads_bps: tuple[ExactDecimal, ...]
     sizes_base: tuple[ExactDecimal, ...]
+    buy_taper_start_base: Optional[ExactDecimal] = None
+    buy_block_base: Optional[ExactDecimal] = None
 
     @model_validator(mode="after")
     def validate_levels(self) -> "QuotesConfig":
@@ -179,6 +181,12 @@ class QuotesConfig(StrictConfig):
             raise ValueError("quote spreads must be positive")
         if any(size <= 0 for size in self.sizes_base):
             raise ValueError("quote sizes must be positive")
+        if (self.buy_taper_start_base is None) != (self.buy_block_base is None):
+            raise ValueError("buy inventory taper requires both start and block")
+        if self.buy_taper_start_base is not None and (
+                self.buy_taper_start_base < 0
+                or self.buy_block_base <= self.buy_taper_start_base):
+            raise ValueError("buy inventory block must exceed nonnegative taper start")
         return self
 
 

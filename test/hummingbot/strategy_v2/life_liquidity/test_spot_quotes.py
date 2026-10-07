@@ -2,6 +2,8 @@
 
 from decimal import Decimal
 
+import pytest
+
 from hummingbot.strategy_v2.life_liquidity.config import QuotesConfig
 from hummingbot.strategy_v2.life_liquidity.economics import EconomicPolicy
 from hummingbot.strategy_v2.life_liquidity.market_data import InstrumentRules
@@ -101,3 +103,61 @@ def test_preview_counts_existing_unresolved_reservations():
     assert result.candidates == ()
     assert all(item.reason_code == "GROSS_EXPOSURE_LIMIT" for item in result.rejections)
     assert reservations.reservation_ids == frozenset({"existing"})
+
+
+def test_buy_size_tapers_with_inventory_and_pending_buys():
+    reservations = ledger(life="14")
+    existing = SpotIntent("existing", "BUY", D("1"), D("0.99"), "old", 1)
+    assert reservations.reserve(existing, reference_price=D("1")).allowed
+    result = plan((D("0.98"), D("1.02")), reservations=reservations,
+                  quotes=QuotesConfig(
+                      spreads_bps=(D("30"),), sizes_base=(D("2"),),
+                      buy_taper_start_base=D("10"), buy_block_base=D("20")))
+    assert [(item.side, item.quantity_base) for item in result.candidates] == [
+        ("BUY", D("1")), ("SELL", D("2"))]
+    assert reservations.reservation_ids == frozenset({"existing"})
+
+
+def test_inventory_block_and_multiple_levels_preserve_hard_limits():
+    quotes = QuotesConfig(
+        spreads_bps=(D("30"), D("40")), sizes_base=(D("4"), D("4")),
+        buy_taper_start_base=D("10"), buy_block_base=D("16"))
+    blocked = plan((D("0.98"), D("1.02")), reservations=ledger(life="16"),
+                   quotes=quotes)
+    assert all(item.side == "SELL" for item in blocked.candidates)
+    assert [item.reason_code for item in blocked.rejections] == [
+        "INVENTORY_BUY_BLOCKED", "INVENTORY_BUY_BLOCKED"]
+    tapered = plan((D("0.98"), D("1.02")), reservations=ledger(life="10"),
+                   quotes=quotes)
+    assert sum((item.quantity_base for item in tapered.candidates
+                if item.side == "BUY"), D("0")) <= D("6")
+    hard = plan((D("0.98"), D("1.02")), reservations=ledger(life="10", gross="11"),
+                quotes=quotes)
+    assert not [item for item in hard.candidates if item.side == "BUY"]
+    assert any(item.reason_code == "GROSS_EXPOSURE_LIMIT" for item in hard.rejections)
+
+
+@pytest.mark.parametrize("start,block", [
+    (None, "20"), ("10", None), ("20", "20"), ("21", "20"), ("-1", "20")])
+def test_inventory_policy_requires_an_explicit_valid_pair(start, block):
+    with pytest.raises(ValueError):
+        QuotesConfig(spreads_bps=(D("30"),), sizes_base=(D("1"),),
+                     buy_taper_start_base=start, buy_block_base=block)
+
+
+def test_repeated_buy_fills_shrink_new_bids_without_resetting_inventory():
+    reservations = ledger(life="10")
+    quotes = QuotesConfig(
+        spreads_bps=(D("30"),), sizes_base=(D("4"),),
+        buy_taper_start_base=D("10"), buy_block_base=D("16"))
+    first = plan((D("0.98"), D("1.02")), reservations=reservations, quotes=quotes)
+    first_buy = next(item for item in first.candidates if item.side == "BUY")
+    assert first_buy.quantity_base == D("4")
+    intent = SpotIntent("filled-buy", "BUY", D("4"), D("0.99"), "s1", 1)
+    assert reservations.reserve(intent, reference_price=D("1")).allowed
+    assert reservations.record_fill("filled-buy", "trade-1", D("4"), D("0.99"))
+    reservations.confirm_terminal("filled-buy", cumulative_filled=D("4"),
+                                  fills_reconciled=True, exchange_state="FILLED")
+    second = plan((D("0.98"), D("1.02")), reservations=reservations, quotes=quotes)
+    assert next(item for item in second.candidates if item.side == "BUY").quantity_base == D("1")
+    assert reservations.life_balance == D("14")

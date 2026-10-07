@@ -17,6 +17,7 @@ from hummingbot.strategy_v2.life_liquidity.action_journal import QuoteActionJour
 from hummingbot.strategy_v2.life_liquidity.config import QuotesConfig
 from hummingbot.strategy_v2.life_liquidity.economics import EconomicPolicy
 from hummingbot.strategy_v2.life_liquidity.market_data import InstrumentRules
+from hummingbot.strategy_v2.life_liquidity.reference import ReferenceEngine
 from hummingbot.strategy_v2.life_liquidity.risk import ReservationLedger, SpotIntent
 from hummingbot.strategy_v2.life_liquidity.send_gate import SendPermit
 from hummingbot.strategy_v2.life_liquidity.slots import SpotQuoteSlots
@@ -45,13 +46,16 @@ class QuotePlanningSnapshot:
     policy: EconomicPolicy
     subsidy_remaining_quote: Decimal | None = None
     min_depth_base_per_side: Decimal | None = None
+    book_sequence_id: int | None = None
+    reference_model_version: str | None = None
 
 
 class QuoteActionPlanner:
     def __init__(self, controller, *, wal: IntentWAL, reservations: ReservationLedger,
                  snapshot: Callable[[], QuotePlanningSnapshot],
                  monotonic_clock: Callable[[], float],
-                 intent_id_factory: Callable[[], str], max_actions_per_tick: int):
+                 intent_id_factory: Callable[[], str], max_actions_per_tick: int,
+                 reference_engine: ReferenceEngine | None = None):
         if (not isinstance(max_actions_per_tick, int) or isinstance(max_actions_per_tick, bool)
                 or max_actions_per_tick <= 0):
             raise ValueError("QUOTE_ACTION_LIMIT_INVALID")
@@ -63,6 +67,7 @@ class QuoteActionPlanner:
         self.monotonic_clock = monotonic_clock
         self.intent_id_factory = intent_id_factory
         self.max_actions_per_tick = max_actions_per_tick
+        self.reference_engine = reference_engine
         self.slots = SpotQuoteSlots(wal, market=controller.config.strategy.spot.pair)
         self.action_journal = QuoteActionJournal(
             wal.path.with_name("quote_actions.json"),
@@ -243,8 +248,11 @@ class QuoteActionPlanner:
         try:
             level = int(config.level_id)
             quotes = self.controller.config.strategy.quotes
-            single_level = QuotesConfig(spreads_bps=(quotes.spreads_bps[level],),
-                                        sizes_base=(quotes.sizes_base[level],))
+            single_level = QuotesConfig(
+                spreads_bps=(quotes.spreads_bps[level],),
+                sizes_base=(quotes.sizes_base[level],),
+                buy_taper_start_base=quotes.buy_taper_start_base,
+                buy_block_base=quotes.buy_block_base)
             plan = self._plan(observed, current, quotes=single_level,
                               sides=(config.side.name,))
         except Exception:
@@ -279,14 +287,17 @@ class QuoteActionPlanner:
         if (permit.price_usdt != config.price or permit.quantity_base != config.amount
                 or config.side not in (TradeType.BUY, TradeType.SELL)):
             return False
-        observed = self._current_snapshot(current)
+        observed = self._current_snapshot(current, pre_send_intent_id=permit.intent_id)
         if observed is None:
             return False
         try:
             level = int(config.level_id)
             quotes = self.controller.config.strategy.quotes
-            single_level = QuotesConfig(spreads_bps=(quotes.spreads_bps[level],),
-                                        sizes_base=(quotes.sizes_base[level],))
+            single_level = QuotesConfig(
+                spreads_bps=(quotes.spreads_bps[level],),
+                sizes_base=(quotes.sizes_base[level],),
+                buy_taper_start_base=quotes.buy_taper_start_base,
+                buy_block_base=quotes.buy_block_base)
             intent = SpotIntent(config.id, config.side.name, config.amount,
                                 config.price, current.session_id, current.epoch)
             if not self.reservations.matches_open_intent(intent):
@@ -300,7 +311,8 @@ class QuoteActionPlanner:
                    and candidate.quantity_base == permit.quantity_base
                    for candidate in plan.candidates)
 
-    def _current_snapshot(self, current) -> QuotePlanningSnapshot | None:
+    def _current_snapshot(self, current, *,
+                          pre_send_intent_id: str | None = None) -> QuotePlanningSnapshot | None:
         try:
             observed = self.snapshot()
             now = self.monotonic_clock()
@@ -319,6 +331,9 @@ class QuoteActionPlanner:
                     or observed.policy.objective != self.controller.config.strategy.economics.objective
                     or not isinstance(observed.rules, InstrumentRules)
                     or not isinstance(observed.costs, QuoteCosts)
+                    or not self.controller.quote_reference_matches(
+                        observed, self.reference_engine,
+                        pre_send_intent_id=pre_send_intent_id)
                     or not self.manager.can_quote(
                         reference_ready=observed.reference_ready is True,
                         all_gates_ready=observed.all_gates_ready is True,

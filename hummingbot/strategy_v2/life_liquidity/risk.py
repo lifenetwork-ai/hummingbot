@@ -65,6 +65,14 @@ class _Reservation:
     state: str = "OPEN"
 
 
+@dataclass(frozen=True)
+class ReservationState:
+    intent: SpotIntent
+    remaining_base: Decimal
+    filled_base: Decimal
+    state: str
+
+
 class ReservationLedger:
     def __init__(self, *, life_balance: Decimal, usdt_balance: Decimal, limits: RiskLimits,
                  path: Path | None = None):
@@ -308,6 +316,14 @@ class ReservationLedger:
     def reservation_ids(self) -> frozenset[str]:
         with self._lock:
             return frozenset(self._reservations)
+
+    def reservation_snapshot(self) -> dict[str, ReservationState]:
+        """Return immutable values for a cross-journal read; no send permission follows."""
+        with self._lock:
+            return {
+                key: ReservationState(item.intent, item.remaining_base,
+                                      item.filled_base, item.state)
+                for key, item in self._reservations.items()}
 
     def has_open_intent(self, intent_id: str) -> bool:
         with self._lock:
@@ -578,6 +594,12 @@ class ReservationPreview:
         self.usdt_balance = usdt_balance
         self.limits = limits
         self._reservations = reservations
+
+    @property
+    def projected_inventory_after_buys(self) -> Decimal:
+        return self.life_balance + sum(
+            (item.remaining_base for item in self._reservations.values()
+             if item.intent.side == "BUY"), Decimal("0"))
 
     def check_and_hold(self, intent: SpotIntent, *, reference_price: Decimal) -> RiskDecision:
         reason = ReservationLedger._reserve_reason(

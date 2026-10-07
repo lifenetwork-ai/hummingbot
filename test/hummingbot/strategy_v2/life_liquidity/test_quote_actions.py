@@ -149,6 +149,20 @@ def test_controller_rechecks_exact_quote_before_sender(tmp_path):
             order_type=OrderType.LIMIT_MAKER)
 
 
+def test_buy_inventory_taper_is_rechecked_before_sender(tmp_path):
+    controller, planner, _, ledger, _ = _setup(tmp_path)
+    quotes = QuotesConfig(
+        spreads_bps=(Decimal("30"),), sizes_base=(Decimal("1"),),
+        buy_taper_start_base=Decimal("10"), buy_block_base=Decimal("16"))
+    controller.config = controller.config.model_copy(update={
+        "strategy": controller.config.strategy.model_copy(update={"quotes": quotes})})
+    controller.install_quote_action_planner(planner)
+    bid = next(action.executor_config for action in controller.determine_executor_actions()
+               if action.executor_config.side == TradeType.BUY)
+    assert ledger.record_cashflow("100001", "LIFE", Decimal("4"))
+    assert planner.authorizes_config(bid) is False
+
+
 def test_invalid_snapshot_type_fails_closed(tmp_path):
     controller, planner, _, _, snapshot = _setup(tmp_path)
     controller.install_quote_action_planner(planner)

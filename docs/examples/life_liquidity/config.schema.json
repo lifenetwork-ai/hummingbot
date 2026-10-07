@@ -350,6 +350,38 @@
     "QuotesConfig": {
       "additionalProperties": false,
       "properties": {
+        "buy_block_base": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Buy Block Base"
+        },
+        "buy_taper_start_base": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Buy Taper Start Base"
+        },
         "sizes_base": {
           "items": {
             "anyOf": [

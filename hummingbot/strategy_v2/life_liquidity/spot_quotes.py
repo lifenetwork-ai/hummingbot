@@ -96,11 +96,21 @@ def plan_spot_quotes(*, session_id: str, epoch: int,
     rejections = []
     for level, (spread_bps, size_base) in enumerate(zip(quotes.spreads_bps, quotes.sizes_base)):
         for side in sides:
+            proposed_size = size_base
+            if side == "BUY" and quotes.buy_block_base is not None:
+                projected = preview.projected_inventory_after_buys
+                if projected >= quotes.buy_block_base:
+                    rejections.append(QuoteRejection(side, level, "INVENTORY_BUY_BLOCKED"))
+                    continue
+                if projected > quotes.buy_taper_start_base:
+                    proposed_size *= (quotes.buy_block_base - projected) / (
+                        quotes.buy_block_base - quotes.buy_taper_start_base)
+                proposed_size = min(proposed_size, quotes.buy_block_base - projected)
             direction = Decimal("-1") if side == "BUY" else Decimal("1")
             raw_price = qualified_reference_usdt * (
                 Decimal("1") + direction * spread_bps / Decimal("10000"))
             decision = evaluate_quote(EconomicInputs(
-                side=side, price_usdt=raw_price, quantity_base=size_base,
+                side=side, price_usdt=raw_price, quantity_base=proposed_size,
                 value_usdt=qualified_exit_value_usdt,
                 tick_size=rules.tick_size, lot_size=rules.lot_size,
                 min_size_base=rules.min_size,
