@@ -5,7 +5,9 @@ from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from inspect import isawaitable
 from typing import Callable
+from uuid import uuid4
 
+from hummingbot.strategy_v2.life_liquidity.request_budget import AccountRequestBudget, RequestBudgetExceeded
 from hummingbot.strategy_v2.life_liquidity.risk import ReservationLedger
 from hummingbot.strategy_v2.life_liquidity.session import OrderReconciliation
 from hummingbot.strategy_v2.life_liquidity.state import IntentWAL
@@ -146,11 +148,14 @@ class OkxSpotOrderGateway:
                  account_check: Callable[[], bool] | None = None,
                  scope_check: Callable[[str, int, tuple[str, ...]], bool] | None = None,
                  runner_scope_check: Callable[[], bool] | None = None,
-                 cancel_retry_policy: CancelRetryPolicy | None = None):
+                 cancel_retry_policy: CancelRetryPolicy | None = None,
+                 request_budget: AccountRequestBudget | None = None):
         if not trading_pair:
             raise ValueError("trading pair required")
         if cancel_retry_policy is not None and not isinstance(cancel_retry_policy, CancelRetryPolicy):
             raise ValueError("CANCEL_RETRY_POLICY_INVALID")
+        if request_budget is not None and not isinstance(request_budget, AccountRequestBudget):
+            raise ValueError("REQUEST_BUDGET_INVALID")
         self.connector = connector
         self.wal = wal
         self.trading_pair = trading_pair
@@ -163,6 +168,11 @@ class OkxSpotOrderGateway:
         self.scope_check = scope_check
         self.runner_scope_check = runner_scope_check
         self.cancel_retry_policy = cancel_retry_policy
+        self.request_budget = request_budget
+
+    def _charge_request(self, kind: str) -> None:
+        if self.request_budget is not None:
+            self.request_budget.charge(kind, f"{kind.lower()}:{uuid4().hex}")
 
     async def request_cancel(self, session_id: str, epoch: int,
                              *, max_requests: int | None = None) -> int | None:
@@ -174,6 +184,7 @@ class OkxSpotOrderGateway:
         for record in self.wal.scoped_records(session_id, epoch):
             if record.state in ("TERMINAL", "PREPARED", "ABORTED_BEFORE_SEND"):
                 continue
+            self._charge_request("CANCEL")
             # Persist the cancel intent before invoking an asynchronous connector.
             # An ACK only proves receipt of the request, not terminal state.
             self.wal.mark_cancel_requested(record.intent_id)
@@ -249,9 +260,18 @@ class OkxSpotOrderGateway:
                 if now < last + timedelta(milliseconds=policy.retry_interval_ms):
                     continue
             if record.cancel_attempts > 0 and used + 2 <= limit:
-                used += 1  # Authenticated status consumes capacity too.
-                if await self._retry_order_is_terminal(record):
-                    continue
+                try:
+                    self._charge_request("STATUS")
+                except RequestBudgetExceeded:
+                    pass  # Preserve the reserved capacity for cancellation.
+                else:
+                    used += 1  # Authenticated status consumes capacity too.
+                    if await self._retry_order_is_terminal(record):
+                        continue
+            try:
+                self._charge_request("CANCEL")
+            except RequestBudgetExceeded:
+                break
             # A crash between this WAL write and REST is safe: the next attempt
             # waits for the persisted retry deadline while risk stays reserved.
             self.wal.mark_cancel_attempt(record.intent_id, at=now)

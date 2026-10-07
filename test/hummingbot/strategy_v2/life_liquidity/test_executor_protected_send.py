@@ -47,7 +47,8 @@ class Connector:
 
 
 def _setup(tmp_path, *, reserve=True, pre_reserve=False, connector=None,
-           level_id="0", quote_levels=1):
+           level_id="0", quote_levels=1, request_budget=None,
+           recovery_account_uid=None):
     clock = FakeClock()
     active = manager(tmp_path, clock)
     begin(active)
@@ -62,7 +63,8 @@ def _setup(tmp_path, *, reserve=True, pre_reserve=False, connector=None,
                                          session.session_id, session.epoch),
                               reference_price=Decimal("1")).allowed
     connector = connector or Connector()
-    controller_config = LifeLiquidityConfig.model_construct(id="life")
+    controller_config = LifeLiquidityConfig.model_construct(
+        id="life", recovery_account_uid=recovery_account_uid)
     if quote_levels != 1:
         quotes = QuotesConfig(spreads_bps=tuple(Decimal(30 + level) for level in range(quote_levels)),
                               sizes_base=tuple(Decimal("1") for _ in range(quote_levels)))
@@ -74,11 +76,12 @@ def _setup(tmp_path, *, reserve=True, pre_reserve=False, connector=None,
         connector, wal, trading_pair="LIFE-USDT", clock=lambda: clock.wall,
         apply_fills=lambda *_: True, confirm_terminal=lambda *_: True,
         on_cancel_requested=lambda *_: None, on_unknown=lambda *_: None,
-        account_check=lambda: True)
+        account_check=lambda: True, request_budget=request_budget)
     controller.install_order_safety(active, safety, wal, reservations=ledger)
     allowed = {"value": True, "risk_epoch": 1}
     controller.allow_create_executor_actions = lambda: allowed["value"]
-    gateway = ProtectedSpotGateway(connector, wal, authorize=lambda _: True)
+    gateway = ProtectedSpotGateway(
+        connector, wal, authorize=lambda _: True, request_budget=request_budget)
     sender = ProtectedSpotExecutorSender(
         controller, gateway, ledger, risk_epoch=lambda: allowed["risk_epoch"],
         authorize=lambda permit: allowed["value"],

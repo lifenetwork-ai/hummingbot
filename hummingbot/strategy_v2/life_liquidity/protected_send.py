@@ -5,16 +5,21 @@ from typing import Callable
 
 from hummingbot.connector.utils import get_new_client_order_id
 from hummingbot.core.data_type.common import OrderType, TradeType
+from hummingbot.strategy_v2.life_liquidity.request_budget import AccountRequestBudget
 from hummingbot.strategy_v2.life_liquidity.send_gate import SendPermit
 from hummingbot.strategy_v2.life_liquidity.state import IntentWAL
 
 
 class ProtectedSpotGateway:
     def __init__(self, connector, wal: IntentWAL,
-                 authorize: Callable[[SendPermit], bool]):
+                 authorize: Callable[[SendPermit], bool],
+                 request_budget: AccountRequestBudget | None = None):
+        if request_budget is not None and not isinstance(request_budget, AccountRequestBudget):
+            raise ValueError("REQUEST_BUDGET_INVALID")
         self.connector = connector
         self.wal = wal
         self.authorize = authorize
+        self.request_budget = request_budget
         self._allocated_ids: dict[str, tuple[str, str]] = {}
 
     def arm_pair(self, trading_pair: str) -> None:
@@ -31,7 +36,8 @@ class ProtectedSpotGateway:
         return wire_id
 
     def submit(self, permit: SendPermit, *, side: str, trading_pair: str,
-               order_type: OrderType):
+               order_type: OrderType,
+               on_unsent_budget_rejection: Callable[[], None] | None = None):
         if (side not in ("BUY", "SELL") or order_type != OrderType.LIMIT_MAKER
                 or self._allocated_ids.get(permit.client_order_id) != (side, trading_pair)):
             raise ValueError("PROTECTED_ORDER_INVALID")
@@ -67,6 +73,21 @@ class ProtectedSpotGateway:
                 raise PermissionError("ORDER_CHANGED")
             if not permitted():
                 raise PermissionError("SEND_PERMISSION_REVOKED")
+            if self.request_budget is not None:
+                if (record.slot_market != trading_pair or record.slot_side != side
+                        or not isinstance(record.slot_level, int)
+                        or isinstance(record.slot_level, bool) or record.slot_level < 0):
+                    raise PermissionError("REQUEST_BUDGET_SLOT_UNAVAILABLE")
+                slot = f"{trading_pair}:{side}:{record.slot_level}"
+                try:
+                    self.request_budget.charge(
+                        "CREATE", f"create:{permit.client_order_id}", slot=slot)
+                except Exception:
+                    # RESTConnection invokes this check before its first network
+                    # await. The sender may now persist proof of a rejected send.
+                    if on_unsent_budget_rejection is not None:
+                        on_unsent_budget_rejection()
+                    raise
 
         if not permitted():
             raise PermissionError("SEND_PERMISSION_REVOKED")

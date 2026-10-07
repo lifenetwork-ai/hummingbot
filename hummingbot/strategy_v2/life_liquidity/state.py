@@ -253,6 +253,26 @@ class IntentWAL:
             self._commit(replace(record, state="ABORTED_BEFORE_SEND"))
             return True
 
+    def abort_rejected_at_send_boundary(self, intent_id: str, *, client_order_id: str,
+                                        session_id: str, epoch: int) -> bool:
+        """Use only inside a REST pre-send callback that rejected before network I/O."""
+        with self._lock:
+            record = self._records[intent_id]
+            if (record.state != "SEND_UNKNOWN" or record.cancel_requested
+                    or record.cancel_attempts != 0 or record.exchange_order_id is not None
+                    or record.exchange_terminal_observed
+                    or (record.client_order_id, record.session_id, record.epoch) != (
+                        client_order_id, session_id, epoch)):
+                raise ValueError("ORDER_MAY_HAVE_BEEN_SENT")
+            try:
+                durable_records = IntentWAL(self.path)._records
+            except (OSError, TypeError, ValueError) as exc:
+                raise ValueError("WAL_STATE_UNCERTAIN") from exc
+            if durable_records != self._records:
+                raise ValueError("WAL_STATE_UNCERTAIN")
+            self._commit(replace(record, state="ABORTED_BEFORE_SEND"))
+            return True
+
     def prepare(self, intent_id: str, *, client_order_id: str, session_id: str,
                 epoch: int, reservation_id: str) -> None:
         self.begin(intent_id, client_order_id=client_order_id, session_id=session_id,

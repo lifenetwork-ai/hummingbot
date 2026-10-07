@@ -13,10 +13,12 @@ from typing import Callable
 
 from hummingbot.core.data_type.common import TradeType
 from hummingbot.strategy_v2.executors.order_executor.data_types import ExecutionStrategy, OrderExecutorConfig
+from hummingbot.strategy_v2.life_liquidity.action_journal import QuoteActionJournal, QuoteActionRecord
 from hummingbot.strategy_v2.life_liquidity.config import QuotesConfig
 from hummingbot.strategy_v2.life_liquidity.economics import EconomicPolicy
 from hummingbot.strategy_v2.life_liquidity.market_data import InstrumentRules
-from hummingbot.strategy_v2.life_liquidity.risk import ReservationLedger
+from hummingbot.strategy_v2.life_liquidity.risk import ReservationLedger, SpotIntent
+from hummingbot.strategy_v2.life_liquidity.send_gate import SendPermit
 from hummingbot.strategy_v2.life_liquidity.slots import SpotQuoteSlots
 from hummingbot.strategy_v2.life_liquidity.spot_quotes import QuoteCosts, SpotQuotePlan, plan_spot_quotes
 from hummingbot.strategy_v2.life_liquidity.state import IntentWAL
@@ -62,6 +64,9 @@ class QuoteActionPlanner:
         self.intent_id_factory = intent_id_factory
         self.max_actions_per_tick = max_actions_per_tick
         self.slots = SpotQuoteSlots(wal, market=controller.config.strategy.spot.pair)
+        self.action_journal = QuoteActionJournal(
+            wal.path.with_name("quote_actions.json"),
+            account_uid=controller.config.recovery_account_uid)
         self._proposed: dict[tuple[str, int, str, int], str] = {}
         self._issued: dict[str, tuple[str, int, int, OrderExecutorConfig]] = {}
         self.last_plan: SpotQuotePlan | None = None
@@ -122,7 +127,8 @@ class QuoteActionPlanner:
         return occupied
 
     def _release_reconciled_proposals(self) -> None:
-        for key, intent_id in tuple(self._proposed.items()):
+        for claim in self.action_journal.active_records():
+            intent_id = claim.intent_id
             try:
                 record = self.wal.get(intent_id)
             except KeyError:
@@ -131,8 +137,86 @@ class QuoteActionPlanner:
                     or record.state == "ABORTED_BEFORE_SEND"
                     and (intent_id not in self.reservations.reservation_ids
                          or self.reservations.is_terminal_intent(intent_id))):
-                del self._proposed[key]
+                self.action_journal.transition(intent_id, expected=claim.state, state="RECONCILED")
+                self._proposed.pop((claim.session_id, claim.epoch, claim.side, claim.level), None)
                 self._issued.pop(intent_id, None)
+
+    def _claim_matches_config(self, claim: QuoteActionRecord, config: OrderExecutorConfig,
+                              session_id: str, epoch: int, config_version: int) -> bool:
+        return (claim.controller_id == self.controller.config.id
+                and claim.market == self.slots.market
+                and (claim.session_id, claim.epoch, claim.config_version)
+                == (session_id, epoch, config_version)
+                and claim.side == config.side.name
+                and str(claim.level) == config.level_id)
+
+    def _claims_consistent(self, claims: tuple[QuoteActionRecord, ...]) -> bool:
+        wal_by_id = {record.intent_id: record for record in self.wal.all_records()}
+        reservation_ids = self.reservations.reservation_ids
+        for claim in claims:
+            if claim.controller_id != self.controller.config.id or claim.market != self.slots.market:
+                return False
+            record = wal_by_id.get(claim.intent_id)
+            if claim.state == "REJECTED" and (record is not None or claim.intent_id in reservation_ids):
+                return False
+            if record is not None and (record.session_id, record.epoch, record.reservation_id,
+                                       record.slot_market, record.slot_side, record.slot_level) != (
+                    claim.session_id, claim.epoch, claim.intent_id,
+                    claim.market, claim.side, claim.level):
+                return False
+            if claim.state == "RECONCILED" and record is not None and record.state not in (
+                    "TERMINAL", "ABORTED_BEFORE_SEND"):
+                return False
+        return True
+
+    def on_runner_action_rejected(self, action: CreateExecutorAction) -> bool:
+        """Release only an exact action discarded by the runner before creation."""
+        if not isinstance(action, CreateExecutorAction):
+            return False
+        config = action.executor_config
+        issued = self._issued.get(getattr(config, "id", None))
+        if issued is None or issued[3] != config or action.controller_id != self.controller.config.id:
+            return False
+        try:
+            claim = self.action_journal.verified_get(config.id)
+            executors = self.controller._runner_executors()
+            if (claim.state != "PROPOSED"
+                    or not self._claim_matches_config(claim, config, *issued[:3])
+                    or executors is None
+                    or self.controller._runner_scope_invalid
+                    or config.id in self.reservations.reservation_ids
+                    or any(record.intent_id == config.id for record in self.wal.all_records())
+                    or any(getattr(getattr(executor, "config", None), "id", None) == config.id
+                           for executor in executors)):
+                return False
+            self.action_journal.transition(config.id, expected="PROPOSED", state="REJECTED")
+        except (KeyError, OSError, ValueError):
+            return False
+        self._proposed.pop((claim.session_id, claim.epoch, claim.side, claim.level), None)
+        self._issued.pop(config.id, None)
+        return True
+
+    def on_runner_action_dispatched(self, action: CreateExecutorAction) -> bool:
+        """Record observed executor creation; uncertainty remains claimed."""
+        if not isinstance(action, CreateExecutorAction):
+            return False
+        config = action.executor_config
+        issued = self._issued.get(getattr(config, "id", None))
+        if issued is None or issued[3] != config or action.controller_id != self.controller.config.id:
+            return False
+        try:
+            executors = self.controller._runner_executors()
+            if (executors is None or self.controller._runner_scope_invalid
+                    or not any(getattr(getattr(executor, "config", None), "id", None) == config.id
+                               for executor in executors)):
+                return False
+            claim = self.action_journal.verified_get(config.id)
+            if not self._claim_matches_config(claim, config, *issued[:3]):
+                return False
+            self.action_journal.transition(config.id, expected="PROPOSED", state="DISPATCHED")
+            return True
+        except (KeyError, OSError, ValueError):
+            return False
 
     def authorizes_config(self, config: OrderExecutorConfig) -> bool:
         if not isinstance(config, OrderExecutorConfig):
@@ -143,6 +227,13 @@ class QuoteActionPlanner:
                 or issued != (current.session_id, current.epoch,
                               current.config_version, config)
                 or self.controller.allow_create_executor_actions() is not True):
+            return False
+        try:
+            claim = self.action_journal.verified_get(config.id)
+            if (claim.state not in ("PROPOSED", "DISPATCHED")
+                    or not self._claim_matches_config(claim, config, *issued[:3])):
+                return False
+        except (KeyError, OSError, ValueError):
             return False
         if any(record.intent_id == config.id for record in self.wal.all_records()):
             return False
@@ -163,6 +254,50 @@ class QuoteActionPlanner:
         return any(candidate.side == config.side.name
                    and candidate.price_usdt == config.price
                    and candidate.quantity_base == config.amount
+                   for candidate in plan.candidates)
+
+    def authorizes_permit(self, permit: SendPermit) -> bool:
+        """Reprice one already-reserved quote at the final network boundary."""
+        if not isinstance(permit, SendPermit):
+            return False
+        current = self.manager.current_session if self.manager is not None else None
+        issued = self._issued.get(permit.intent_id)
+        if (current is None or issued is None
+                or issued[:3] != (current.session_id, current.epoch,
+                                  current.config_version)
+                or (permit.session_id, permit.epoch, permit.config_version)
+                != issued[:3] or permit.reservation_id != permit.intent_id):
+            return False
+        try:
+            claim = self.action_journal.verified_get(permit.intent_id)
+            if (claim.state not in ("PROPOSED", "DISPATCHED")
+                    or not self._claim_matches_config(claim, issued[3], *issued[:3])):
+                return False
+        except (KeyError, OSError, ValueError):
+            return False
+        config = issued[3]
+        if (permit.price_usdt != config.price or permit.quantity_base != config.amount
+                or config.side not in (TradeType.BUY, TradeType.SELL)):
+            return False
+        observed = self._current_snapshot(current)
+        if observed is None:
+            return False
+        try:
+            level = int(config.level_id)
+            quotes = self.controller.config.strategy.quotes
+            single_level = QuotesConfig(spreads_bps=(quotes.spreads_bps[level],),
+                                        sizes_base=(quotes.sizes_base[level],))
+            intent = SpotIntent(config.id, config.side.name, config.amount,
+                                config.price, current.session_id, current.epoch)
+            if not self.reservations.matches_open_intent(intent):
+                return False
+            plan = self._plan(observed, current, quotes=single_level,
+                              sides=(config.side.name,), exclude_open_intent=intent)
+        except Exception:
+            return False
+        return any(candidate.side == config.side.name
+                   and candidate.price_usdt == permit.price_usdt
+                   and candidate.quantity_base == permit.quantity_base
                    for candidate in plan.candidates)
 
     def _current_snapshot(self, current) -> QuotePlanningSnapshot | None:
@@ -195,7 +330,8 @@ class QuoteActionPlanner:
 
     def _plan(self, observed: QuotePlanningSnapshot, current,
               *, quotes: QuotesConfig | None = None,
-              sides: tuple[str, ...] = ("BUY", "SELL")) -> SpotQuotePlan:
+              sides: tuple[str, ...] = ("BUY", "SELL"),
+              exclude_open_intent: SpotIntent | None = None) -> SpotQuotePlan:
         return plan_spot_quotes(
             session_id=current.session_id, epoch=current.epoch,
             qualified_reference_usdt=observed.qualified_reference_usdt,
@@ -206,7 +342,7 @@ class QuoteActionPlanner:
             reservations=self.reservations,
             subsidy_remaining_quote=observed.subsidy_remaining_quote,
             min_depth_base_per_side=observed.min_depth_base_per_side,
-            sides=sides)
+            sides=sides, exclude_open_intent=exclude_open_intent)
 
     def propose(self) -> list[CreateExecutorAction]:
         self.reason_code = "QUOTE_ACTION_PERMISSION_UNAVAILABLE"
@@ -216,16 +352,28 @@ class QuoteActionPlanner:
         current = self.manager.current_session
         if current is None:
             return []
-        for key, intent_id in tuple(self._proposed.items()):
-            if key[:2] != (current.session_id, current.epoch):
-                del self._proposed[key]
-                self._issued.pop(intent_id, None)
         observed = self._current_snapshot(current)
         if observed is None:
             self.reason_code = "QUOTE_ACTION_SNAPSHOT_INVALID"
             return []
         if not self._journal_consistent(current.session_id, current.epoch):
             self.reason_code = "QUOTE_ACTION_JOURNALS_DISAGREE"
+            return []
+        try:
+            self._release_reconciled_proposals()
+            claims = self.action_journal.verified_records()
+        except (OSError, ValueError, KeyError):
+            self.reason_code = "QUOTE_ACTION_JOURNAL_UNAVAILABLE"
+            return []
+        if not self._claims_consistent(claims):
+            self.reason_code = "QUOTE_ACTION_JOURNALS_DISAGREE"
+            return []
+        active_claims = tuple(claim for claim in claims
+                              if claim.state in ("PROPOSED", "DISPATCHED"))
+        if any((claim.session_id, claim.epoch, claim.config_version)
+               != (current.session_id, current.epoch, current.config_version)
+               for claim in active_claims):
+            self.reason_code = "QUOTE_ACTION_DISPATCH_UNRESOLVED"
             return []
         occupied = self._runner_occupied()
         if occupied is None:
@@ -236,13 +384,16 @@ class QuoteActionPlanner:
         except Exception:
             self.reason_code = "QUOTE_ACTION_PLAN_INVALID"
             return []
-        self._release_reconciled_proposals()
         actions = []
         proposed = {}
-        used_ids = {record.intent_id for record in self.wal.all_records()} | set(self._issued)
+        used_ids = ({record.intent_id for record in self.wal.all_records()}
+                    | {record.intent_id for record in claims}
+                    | set(self._issued))
+        active_slots = {claim.slot for claim in active_claims}
         for candidate in self.last_plan.candidates:
             slot = (current.session_id, current.epoch, candidate.side, candidate.level)
-            if slot in self._proposed or (candidate.side, candidate.level) in occupied:
+            if ((self.slots.market, candidate.side, candidate.level) in active_slots
+                    or (candidate.side, candidate.level) in occupied):
                 continue
             if self.slots.status(current.session_id, current.epoch,
                                  candidate.side, candidate.level).state != "FREE":
@@ -269,10 +420,22 @@ class QuoteActionPlanner:
             actions.append(CreateExecutorAction(controller_id=self.controller.config.id,
                                                 executor_config=config))
             proposed[slot] = intent_id
+        if actions:
+            claims = [QuoteActionRecord(
+                intent_id=action.executor_config.id, controller_id=self.controller.config.id,
+                session_id=current.session_id, epoch=current.epoch,
+                config_version=current.config_version, market=self.slots.market,
+                side=action.executor_config.side.name,
+                level=int(action.executor_config.level_id)) for action in actions]
+            try:
+                self.action_journal.claim_batch(claims)
+            except (OSError, ValueError):
+                self.reason_code = "QUOTE_ACTION_JOURNAL_UNAVAILABLE"
+                return []
         self._proposed.update(proposed)
         for action in actions:
             config = action.executor_config
             self._issued[config.id] = (current.session_id, current.epoch,
-                                       current.config_version, config)
+                                       current.config_version, config.model_copy(deep=True))
         self.reason_code = "QUOTE_ACTIONS_PROPOSED" if actions else "NO_NEW_QUOTE_ACTIONS"
         return actions

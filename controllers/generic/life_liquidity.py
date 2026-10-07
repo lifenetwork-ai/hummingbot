@@ -20,6 +20,7 @@ from hummingbot.strategy_v2.controllers.controller_base import ControllerBase, C
 from hummingbot.strategy_v2.life_liquidity import account_lock
 from hummingbot.strategy_v2.life_liquidity.account_bills import CashflowApprovals, SpotBillReconciler
 from hummingbot.strategy_v2.life_liquidity.account_lock import AccountLockUnavailable, AccountRiskPoolLock
+from hummingbot.strategy_v2.life_liquidity.action_journal import QuoteActionJournal
 from hummingbot.strategy_v2.life_liquidity.config import ConfigUpdateState, StrategyConfig
 from hummingbot.strategy_v2.life_liquidity.executor_send import ProtectedSpotExecutorSender
 from hummingbot.strategy_v2.life_liquidity.market_data import (
@@ -78,6 +79,10 @@ class LifeLiquidityConfig(ControllerConfigBase):
     )
     recovery_state_dir: str | None = Field(default=None, json_schema_extra={"is_updatable": False})
     recovery_account_uid: str | None = Field(default=None, json_schema_extra={"is_updatable": False})
+    require_quote_action_journal: bool = Field(
+        default=False,
+        description="Require the account-bound quote action journal during cold-start recovery.",
+        json_schema_extra={"is_updatable": False})
     recovery_reconciliation_max_age_ms: int | None = Field(
         default=None, json_schema_extra={"is_updatable": False})
     safety_watchdog_interval_ms: int | None = Field(
@@ -133,6 +138,9 @@ class LifeLiquidityController(ControllerBase):
         self._runner_scope_invalid = False
         self._protected_spot_sender: ProtectedSpotExecutorSender | None = None
         self._quote_action_planner: QuoteActionPlanner | None = None
+        self._quote_action_recovery_ready = False
+        self._quote_action_recovery_records = None
+        self.quote_action_recovery_reason_code = "QUOTE_ACTION_RECOVERY_NOT_CONFIGURED"
         self.order_safety_task: asyncio.Task | None = None
         self.order_safety_watchdog_task: asyncio.Task | None = None
         self.order_safety_reason_code = "ORDER_SAFETY_NOT_INSTALLED"
@@ -231,10 +239,99 @@ class LifeLiquidityController(ControllerBase):
                         record.reservation_id, session_id=record.session_id,
                         epoch=record.epoch, wal=wal)
         self.install_order_safety(manager, gateway, wal, reservations=reservations)
+        self._verify_quote_action_recovery(paths[0].parent, manager, wal, reservations)
+
+    def _verify_quote_action_recovery(self, directory: Path, manager: SessionManager,
+                                      wal: IntentWAL, reservations: ReservationLedger) -> None:
+        """Keep cancellation available while a bad action journal blocks quotes."""
+        self._quote_action_recovery_ready = False
+        self._quote_action_recovery_records = None
+        self.quote_action_recovery_reason_code = "QUOTE_ACTION_RECOVERY_NOT_CONFIGURED"
+        if self.config.require_quote_action_journal is not True:
+            return
+        path = directory / "quote_actions.json"
+        if not path.is_file() or path.is_symlink():
+            self.quote_action_recovery_reason_code = "QUOTE_ACTION_JOURNAL_MISSING"
+            return
+        try:
+            journal = QuoteActionJournal(path, account_uid=self.config.recovery_account_uid)
+            claims = journal.verified_records()
+        except (OSError, ValueError):
+            self.quote_action_recovery_reason_code = "QUOTE_ACTION_JOURNAL_INVALID"
+            return
+        wal_by_id = {record.intent_id: record for record in wal.all_records()}
+        reservation_ids = reservations.reservation_ids
+        claim_by_id = {claim.intent_id: claim for claim in claims}
+        active_slots = set()
+        unresolved_dispatch = False
+        reconciled_claims = []
+        current = manager.current_session
+        for claim in claims:
+            if (claim.controller_id != self.config.id
+                    or claim.market != self.config.strategy.spot.pair):
+                self.quote_action_recovery_reason_code = "QUOTE_ACTION_JOURNALS_DISAGREE"
+                return
+            if claim.state in ("PROPOSED", "DISPATCHED"):
+                if claim.slot in active_slots:
+                    self.quote_action_recovery_reason_code = "QUOTE_ACTION_JOURNALS_DISAGREE"
+                    return
+                active_slots.add(claim.slot)
+            record = wal_by_id.get(claim.intent_id)
+            if record is None:
+                if claim.state in ("PROPOSED", "DISPATCHED"):
+                    unresolved_dispatch = True
+                elif claim.state == "RECONCILED" or claim.intent_id in reservation_ids:
+                    self.quote_action_recovery_reason_code = "QUOTE_ACTION_JOURNALS_DISAGREE"
+                    return
+                continue
+            if (record.session_id, record.epoch, record.reservation_id,
+                    record.slot_market, record.slot_side, record.slot_level) != (
+                    claim.session_id, claim.epoch, claim.intent_id,
+                    claim.market, claim.side, claim.level):
+                self.quote_action_recovery_reason_code = "QUOTE_ACTION_JOURNALS_DISAGREE"
+                return
+            if claim.state == "REJECTED":
+                self.quote_action_recovery_reason_code = "QUOTE_ACTION_JOURNALS_DISAGREE"
+                return
+            if (claim.state == "RECONCILED"
+                    and record.state not in ("TERMINAL", "ABORTED_BEFORE_SEND")):
+                self.quote_action_recovery_reason_code = "QUOTE_ACTION_JOURNALS_DISAGREE"
+                return
+            if (record.state in ("TERMINAL", "ABORTED_BEFORE_SEND")
+                    and claim.intent_id in reservation_ids
+                    and not reservations.is_terminal_intent(claim.intent_id)):
+                self.quote_action_recovery_reason_code = "QUOTE_ACTION_JOURNALS_DISAGREE"
+                return
+            if claim.state in ("PROPOSED", "DISPATCHED"):
+                if record.state in ("TERMINAL", "ABORTED_BEFORE_SEND"):
+                    reconciled_claims.append(claim)
+                elif (current is None or (claim.session_id, claim.epoch, claim.config_version)
+                      != (current.session_id, current.epoch, current.config_version)):
+                    unresolved_dispatch = True
+        if any(record.slot_market is not None and record.intent_id not in claim_by_id
+               for record in wal_by_id.values()):
+            self.quote_action_recovery_reason_code = "QUOTE_ACTION_JOURNALS_DISAGREE"
+            return
+        try:
+            for claim in reconciled_claims:
+                journal.transition(claim.intent_id, expected=claim.state, state="RECONCILED")
+            claims = journal.verified_records()
+        except (OSError, ValueError):
+            self.quote_action_recovery_reason_code = "QUOTE_ACTION_JOURNAL_INVALID"
+            return
+        if unresolved_dispatch:
+            self.quote_action_recovery_reason_code = "QUOTE_ACTION_DISPATCH_UNRESOLVED"
+            return
+        self._quote_action_recovery_ready = True
+        self._quote_action_recovery_records = claims
+        self.quote_action_recovery_reason_code = "QUOTE_ACTION_JOURNAL_VERIFIED"
 
     def install_order_safety(self, manager: SessionManager, gateway: OkxSpotOrderGateway,
                              wal: IntentWAL, *, reservations: ReservationLedger | None = None) -> None:
         """Attach restored spot order state; this never enables order creation."""
+        if (gateway.request_budget is not None
+                and gateway.request_budget.account_uid != self.config.recovery_account_uid):
+            raise ValueError("ORDER_SAFETY_REQUEST_BUDGET_UID_MISMATCH")
         if (manager.current_session is None or gateway.wal is not wal
                 or gateway.trading_pair != self.config.strategy.spot.pair
                 or gateway.apply_fills is None or gateway.confirm_terminal is None
@@ -337,13 +434,30 @@ class LifeLiquidityController(ControllerBase):
                 or sender.controller is not self or sender.manager is not self._order_safety_manager
                 or safety is None or sender.gateway.wal is not self._order_safety_wal
                 or sender.reservations is not self._order_safety_reservations
-                or sender.gateway.connector is not safety.connector):
+                or sender.gateway.connector is not safety.connector
+                or sender.gateway.request_budget is not safety.request_budget):
             raise ValueError("PROTECTED_SENDER_RECOVERY_MISMATCH")
         sender.gateway.arm_pair(self.config.strategy.spot.pair)
         self._protected_spot_sender = sender
 
     def install_quote_action_planner(self, planner: QuoteActionPlanner) -> None:
         """Attach an explicit quote source; production create permission stays disabled."""
+        if not isinstance(planner, QuoteActionPlanner):
+            raise ValueError("QUOTE_ACTION_RECOVERY_MISMATCH")
+        if self.config.recovery_state_dir is not None:
+            if (self.config.require_quote_action_journal is not True
+                    or not self._quote_action_recovery_ready
+                    or self._quote_action_recovery_records is None
+                    or planner.action_journal.path != Path(self.config.recovery_state_dir) / "quote_actions.json"
+                    or planner.action_journal.account_uid != self.config.recovery_account_uid
+                    or not planner.action_journal.path.is_file()
+                    or planner.action_journal.path.is_symlink()):
+                raise ValueError("QUOTE_ACTION_RECOVERY_UNVERIFIED")
+            try:
+                if planner.action_journal.verified_records() != self._quote_action_recovery_records:
+                    raise ValueError("QUOTE_ACTION_RECOVERY_UNVERIFIED")
+            except (OSError, ValueError) as exc:
+                raise ValueError("QUOTE_ACTION_RECOVERY_UNVERIFIED") from exc
         sender = self._protected_spot_sender
         if (self._quote_action_planner is not None or not isinstance(planner, QuoteActionPlanner)
                 or planner.controller is not self or sender is None
@@ -356,11 +470,27 @@ class LifeLiquidityController(ControllerBase):
             raise ValueError("QUOTE_ACTION_RECOVERY_MISMATCH")
         self._quote_action_planner = planner
 
+    def authorize_runner_create_action(self, action) -> bool:
+        planner = self._quote_action_planner
+        if self.config.recovery_state_dir is not None and not self._quote_action_recovery_ready:
+            return False
+        return planner is None or planner.authorizes_config(action.executor_config)
+
+    def on_runner_create_action_rejected(self, action) -> bool:
+        planner = self._quote_action_planner
+        return planner.on_runner_action_rejected(action) if planner is not None else False
+
+    def on_runner_create_action_dispatched(self, action) -> bool:
+        planner = self._quote_action_planner
+        return planner.on_runner_action_dispatched(action) if planner is not None else False
+
     def submit_executor_spot_order(self, config, *, amount: Decimal,
                                    price: Decimal, order_type) -> str:
         sender = self._protected_spot_sender
         if sender is None or self.allow_create_executor_actions() is not True:
             raise PermissionError("LIFE_TRADING_DISABLED")
+        if self.config.recovery_state_dir is not None and not self._quote_action_recovery_ready:
+            raise PermissionError("QUOTE_ACTION_RECOVERY_UNVERIFIED")
         planner = self._quote_action_planner
         if (planner is not None
                 and (not planner.authorizes_config(config)
@@ -889,12 +1019,15 @@ class LifeLiquidityController(ControllerBase):
             "perpetual_reason_code": self.perpetual_contract_reason_code,
             "perpetual_quote_ready": False,
             "order_safety_reason_code": self.order_safety_reason_code,
+            "quote_action_recovery_reason_code": self.quote_action_recovery_reason_code,
             "last_book_exchange_timestamp_ms": snapshot.exchange_timestamp_ms if snapshot else None,
             "last_book_received_monotonic": snapshot.received_monotonic if snapshot else None,
             "last_book_source": snapshot.data_source if snapshot else None,
         }
 
     def determine_executor_actions(self):
+        if self.config.recovery_state_dir is not None and not self._quote_action_recovery_ready:
+            return []
         planner = self._quote_action_planner
         return planner.propose() if planner is not None else []
 
@@ -907,4 +1040,5 @@ class LifeLiquidityController(ControllerBase):
             reason = self.continuity_gate.reason_code
         return [f"LIFE liquidity: {self.listing_gate.state} ({reason}); "
                 f"order safety: {self.order_safety_reason_code}; "
+                f"quote action recovery: {self.quote_action_recovery_reason_code}; "
                 "trading is disabled pending P2–P9 gates."]

@@ -65,7 +65,8 @@ def plan_spot_quotes(*, session_id: str, epoch: int,
                      reservations: ReservationLedger,
                      subsidy_remaining_quote: Decimal | None = None,
                      min_depth_base_per_side: Decimal | None = None,
-                     sides: tuple[str, ...] = ("BUY", "SELL")) -> SpotQuotePlan:
+                     sides: tuple[str, ...] = ("BUY", "SELL"),
+                     exclude_open_intent: SpotIntent | None = None) -> SpotQuotePlan:
     """Return tentative levels; no WAL, ledger, connector, or exchange state is changed."""
     empty = SpotQuotePlan((), (), "QUOTE_MARKET_INPUT_UNAVAILABLE",
                           Decimal("0"), Decimal("0"), None, Decimal("0"))
@@ -89,7 +90,7 @@ def plan_spot_quotes(*, session_id: str, epoch: int,
             or (min_depth_base_per_side is not None
                 and not _positive(min_depth_base_per_side))):
         return empty
-    preview = reservations.preview()
+    preview = reservations.preview(exclude_open_intent=exclude_open_intent)
     remaining_subsidy = subsidy_remaining_quote
     candidates = []
     rejections = []

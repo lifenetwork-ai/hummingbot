@@ -337,6 +337,7 @@ class StrategyV2Base(StrategyPyBase):
                     self.determine_executor_actions())
                 for action in executor_actions:
                     self.executor_orchestrator.execute_action(action)
+                    StrategyV2Base._record_create_action_dispatch(self, action)
 
     async def on_stop(self):
         """
@@ -745,16 +746,35 @@ class StrategyV2Base(StrategyPyBase):
                     permitted.append(action)
                     continue
                 create_allowed = getattr(controller, "allow_create_executor_actions", None)
+                authorized = True
                 if callable(create_allowed):
                     try:
                         if not create_allowed():
                             self.logger().warning(f"Ignoring blocked create action for controller {action.controller_id}")
-                            continue
+                            authorized = False
                     except Exception:
                         self.logger().error("Controller create-permission check failed", exc_info=True)
-                        continue
+                        authorized = False
+                authorize_action = getattr(type(controller), "authorize_runner_create_action", None)
+                if authorized and callable(authorize_action):
+                    try:
+                        authorized = authorize_action(controller, action) is True
+                    except Exception:
+                        authorized = False
+                if not authorized:
+                    rejected = getattr(type(controller), "on_runner_create_action_rejected", None)
+                    if callable(rejected):
+                        rejected(controller, action)
+                    continue
             permitted.append(action)
         return permitted
+
+    def _record_create_action_dispatch(self, action: ExecutorAction) -> None:
+        if isinstance(action, CreateExecutorAction):
+            controller = self.controllers.get(action.controller_id)
+            dispatched = getattr(type(controller), "on_runner_create_action_dispatched", None)
+            if callable(dispatched):
+                dispatched(controller, action)
 
     async def listen_to_executor_actions(self):
         """
@@ -767,6 +787,8 @@ class StrategyV2Base(StrategyPyBase):
                 if not actions:
                     continue
                 self.executor_orchestrator.execute_actions(actions)
+                for action in actions:
+                    StrategyV2Base._record_create_action_dispatch(self, action)
                 self.update_executors_info()
                 controller_id = actions[0].controller_id
                 controller = self.controllers.get(controller_id)

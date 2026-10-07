@@ -212,3 +212,16 @@ def test_second_planned_side_rechecks_only_its_own_incremental_risk(tmp_path):
     wal.arm_send(buy.id, client_order_id="wire-1", session_id=current.session_id,
                  epoch=current.epoch, reservation_id=buy.id)
     assert planner.authorizes_config(sell)
+
+
+def test_mutating_proposed_level_cannot_rebind_action_to_another_slot(tmp_path):
+    controller, planner, _, _, _ = _setup(tmp_path)
+    quotes = QuotesConfig(spreads_bps=(Decimal("30"), Decimal("30")),
+                          sizes_base=(Decimal("1"), Decimal("1")))
+    controller.config = controller.config.model_copy(update={
+        "strategy": controller.config.strategy.model_copy(update={"quotes": quotes})})
+    controller.install_quote_action_planner(planner)
+    config = controller.determine_executor_actions()[0].executor_config
+    assert config.level_id == "0"
+    config.level_id = "1"
+    assert not planner.authorizes_config(config)

@@ -82,6 +82,9 @@ class ProtectedSpotExecutorSender:
                 or record.slot_side != intent.side
                 or record.slot_level != self._issued_slots.get(permit.intent_id)):
             return False
+        planner = self.controller._quote_action_planner
+        if planner is not None and not planner.authorizes_permit(permit):
+            return False
         decision = self.policy_authorize(permit)
         return decision is True or getattr(decision, "allowed", False) is True
 
@@ -144,9 +147,22 @@ class ProtectedSpotExecutorSender:
             raise PermissionError("RESERVATION_UNAVAILABLE")
         self._issued_intents[config.id] = intent
         self._issued_slots[config.id] = level
+
+        def release_rejected_send() -> None:
+            # Called only by the connector's final check before REST request I/O.
+            # If either durable transition fails, the slot remains unavailable
+            # until recovery can prove the complete journal state.
+            self.gateway.wal.abort_rejected_at_send_boundary(
+                config.id, client_order_id=wire_id,
+                session_id=current.session_id, epoch=current.epoch)
+            self.reservations.abort_unsent(
+                config.id, session_id=current.session_id,
+                epoch=current.epoch, wal=self.gateway.wal)
+
         try:
             return self.gateway.submit(permit, side=side, trading_pair=pair,
-                                       order_type=order_type)
+                                       order_type=order_type,
+                                       on_unsent_budget_rejection=release_rejected_send)
         except Exception:
             # The gateway arms SEND_UNKNOWN before touching the connector. Only
             # a durable PREPARED record proves that no request was enqueued.

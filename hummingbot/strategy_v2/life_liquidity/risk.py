@@ -392,10 +392,21 @@ class ReservationLedger:
             return "NET_EXPOSURE_LIMIT"
         return None
 
-    def preview(self) -> "ReservationPreview":
+    def preview(self, *, exclude_open_intent: SpotIntent | None = None) -> "ReservationPreview":
         with self._lock:
+            reservations = dict(self._reservations)
+            if exclude_open_intent is not None:
+                if not isinstance(exclude_open_intent, SpotIntent):
+                    raise ValueError("RESERVATION_EXCLUSION_UNSAFE")
+                item = reservations.get(exclude_open_intent.intent_id)
+                if (item is None or item.state != "OPEN"
+                        or item.intent != exclude_open_intent
+                        or item.remaining_base != item.intent.quantity_base
+                        or item.filled_base != 0):
+                    raise ValueError("RESERVATION_EXCLUSION_UNSAFE")
+                del reservations[exclude_open_intent.intent_id]
             return ReservationPreview(self.life_balance, self.usdt_balance,
-                                      self.limits, dict(self._reservations))
+                                      self.limits, reservations)
 
     def reserve(self, intent: SpotIntent, *, reference_price: Decimal) -> RiskDecision:
         with self._lock:
