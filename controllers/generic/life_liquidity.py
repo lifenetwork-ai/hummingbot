@@ -15,6 +15,7 @@ from typing import Literal
 from pydantic import Field
 
 from hummingbot.connector.exchange.okx.okx_book_health import BookFeedHealth
+from hummingbot.core.data_type.common import OrderType
 from hummingbot.strategy_v2.controllers.controller_base import ControllerBase, ControllerConfigBase
 from hummingbot.strategy_v2.life_liquidity import account_lock
 from hummingbot.strategy_v2.life_liquidity.account_bills import CashflowApprovals, SpotBillReconciler
@@ -38,6 +39,7 @@ from hummingbot.strategy_v2.life_liquidity.order_gateway import (
     SpotAccountReconciler,
     SpotReservationReconciler,
 )
+from hummingbot.strategy_v2.life_liquidity.quote_actions import QuoteActionPlanner
 from hummingbot.strategy_v2.life_liquidity.risk import ReservationLedger, RiskLimits
 from hummingbot.strategy_v2.life_liquidity.session import SessionManager, SessionStore
 from hummingbot.strategy_v2.life_liquidity.state import IntentWAL
@@ -130,6 +132,7 @@ class LifeLiquidityController(ControllerBase):
         self._runner_stored_executor_ids: set[str] = set()
         self._runner_scope_invalid = False
         self._protected_spot_sender: ProtectedSpotExecutorSender | None = None
+        self._quote_action_planner: QuoteActionPlanner | None = None
         self.order_safety_task: asyncio.Task | None = None
         self.order_safety_watchdog_task: asyncio.Task | None = None
         self.order_safety_reason_code = "ORDER_SAFETY_NOT_INSTALLED"
@@ -339,11 +342,31 @@ class LifeLiquidityController(ControllerBase):
         sender.gateway.arm_pair(self.config.strategy.spot.pair)
         self._protected_spot_sender = sender
 
+    def install_quote_action_planner(self, planner: QuoteActionPlanner) -> None:
+        """Attach an explicit quote source; production create permission stays disabled."""
+        sender = self._protected_spot_sender
+        if (self._quote_action_planner is not None or not isinstance(planner, QuoteActionPlanner)
+                or planner.controller is not self or sender is None
+                or planner.manager is not self._order_safety_manager
+                or planner.wal is not self._order_safety_wal
+                or planner.reservations is not self._order_safety_reservations
+                or sender.manager is not planner.manager
+                or sender.gateway.wal is not planner.wal
+                or sender.reservations is not planner.reservations):
+            raise ValueError("QUOTE_ACTION_RECOVERY_MISMATCH")
+        self._quote_action_planner = planner
+
     def submit_executor_spot_order(self, config, *, amount: Decimal,
                                    price: Decimal, order_type) -> str:
         sender = self._protected_spot_sender
         if sender is None or self.allow_create_executor_actions() is not True:
             raise PermissionError("LIFE_TRADING_DISABLED")
+        planner = self._quote_action_planner
+        if (planner is not None
+                and (not planner.authorizes_config(config)
+                     or amount != config.amount or price != config.price
+                     or order_type != OrderType.LIMIT_MAKER)):
+            raise PermissionError("QUOTE_ACTION_NOT_AUTHORIZED")
         return sender.submit(config, amount=amount, price=price, order_type=order_type)
 
     def _runner_executors(self):
@@ -872,7 +895,8 @@ class LifeLiquidityController(ControllerBase):
         }
 
     def determine_executor_actions(self):
-        return []
+        planner = self._quote_action_planner
+        return planner.propose() if planner is not None else []
 
     def to_format_status(self):
         reason = self.processed_data.get("reason_code", self.listing_gate.reason_code)

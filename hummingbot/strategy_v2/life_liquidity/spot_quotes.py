@@ -64,7 +64,8 @@ def plan_spot_quotes(*, session_id: str, epoch: int,
                      costs: QuoteCosts, policy: EconomicPolicy,
                      reservations: ReservationLedger,
                      subsidy_remaining_quote: Decimal | None = None,
-                     min_depth_base_per_side: Decimal | None = None) -> SpotQuotePlan:
+                     min_depth_base_per_side: Decimal | None = None,
+                     sides: tuple[str, ...] = ("BUY", "SELL")) -> SpotQuotePlan:
     """Return tentative levels; no WAL, ledger, connector, or exchange state is changed."""
     empty = SpotQuotePlan((), (), "QUOTE_MARKET_INPUT_UNAVAILABLE",
                           Decimal("0"), Decimal("0"), None, Decimal("0"))
@@ -81,6 +82,10 @@ def plan_spot_quotes(*, session_id: str, epoch: int,
             or not isinstance(costs, QuoteCosts)
             or not isinstance(policy, EconomicPolicy)
             or not isinstance(reservations, ReservationLedger)
+            or not isinstance(sides, tuple) or not sides
+            or any(not isinstance(side, str) for side in sides)
+            or len(set(sides)) != len(sides)
+            or any(side not in ("BUY", "SELL") for side in sides)
             or (min_depth_base_per_side is not None
                 and not _positive(min_depth_base_per_side))):
         return empty
@@ -89,7 +94,7 @@ def plan_spot_quotes(*, session_id: str, epoch: int,
     candidates = []
     rejections = []
     for level, (spread_bps, size_base) in enumerate(zip(quotes.spreads_bps, quotes.sizes_base)):
-        for side in ("BUY", "SELL"):
+        for side in sides:
             direction = Decimal("-1") if side == "BUY" else Decimal("1")
             raw_price = qualified_reference_usdt * (
                 Decimal("1") + direction * spread_bps / Decimal("10000"))
