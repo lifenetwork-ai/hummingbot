@@ -17,15 +17,17 @@ from hummingbot.core.web_assistant.rest_assistant import RESTAssistant
 from hummingbot.strategy_v2.executors.order_executor.order_executor import OrderExecutor
 from hummingbot.strategy_v2.life_liquidity.config import QuotesConfig
 from hummingbot.strategy_v2.life_liquidity.economics import EconomicPolicy
+from hummingbot.strategy_v2.life_liquidity.loss_budget import LossBudgetStatus
 from hummingbot.strategy_v2.life_liquidity.market_data import InstrumentRules
 from hummingbot.strategy_v2.life_liquidity.quote_actions import QuoteActionPlanner, QuotePlanningSnapshot
 from hummingbot.strategy_v2.life_liquidity.risk import SpotIntent
-from hummingbot.strategy_v2.life_liquidity.spot_quotes import QuoteCosts
+from hummingbot.strategy_v2.life_liquidity.spot_quotes import AdaptiveQuotePolicy, AdaptiveQuoteSignals, QuoteCosts
 
 
 def _attach_quote_planner(controller, template, wal, ledger, *,
                           reference_engine=None, book_sequence_id=None,
-                          reference_model_version=None):
+                          reference_model_version=None,
+                          adaptive_policy=None, adaptive_signals=None):
     quotes = QuotesConfig(spreads_bps=(Decimal("30"),), sizes_base=(Decimal("1"),))
     controller.config = controller.config.model_copy(update={
         "strategy": controller.config.strategy.model_copy(update={"quotes": quotes})})
@@ -42,6 +44,7 @@ def _attach_quote_planner(controller, template, wal, ledger, *,
         costs=QuoteCosts(Decimal("0"), Decimal("0"), Decimal("0"), Decimal("0"),
                          Decimal("0"), Decimal("0")),
         policy=EconomicPolicy("profit_mm", Decimal("0")),
+        adaptive_policy=adaptive_policy, adaptive_signals=adaptive_signals,
         book_sequence_id=book_sequence_id,
         reference_model_version=reference_model_version)}
     planner = QuoteActionPlanner(
@@ -56,9 +59,11 @@ def _attach_quote_planner(controller, template, wal, ledger, *,
     return state, executor
 
 
-def _queued_quote(tmp_path):
+def _queued_quote(tmp_path, *, adaptive_policy=None, adaptive_signals=None):
     controller, template, connector, wal, ledger, _ = _setup(tmp_path)
-    state, executor = _attach_quote_planner(controller, template, wal, ledger)
+    state, executor = _attach_quote_planner(
+        controller, template, wal, ledger,
+        adaptive_policy=adaptive_policy, adaptive_signals=adaptive_signals)
     executor.place_open_order()
     wire = {"clOrdId": executor._order.order_id, "instId": "LIFE-USDT",
             "side": "buy", "ordType": "post_only", "tdMode": "cash",
@@ -68,6 +73,24 @@ def _queued_quote(tmp_path):
 
 def test_fresh_queued_quote_passes_final_network_gate(tmp_path):
     _, check, wire, wal, ledger = _queued_quote(tmp_path)
+    check(wire)
+    assert wal.get("quote-1").state == "SEND_UNKNOWN"
+    assert ledger.has_open_intent("quote-1")
+
+
+def test_unchanged_adaptive_quote_passes_final_network_gate(tmp_path):
+    adaptive_policy = AdaptiveQuotePolicy(
+        max_spread_bps=Decimal("100"), max_depth_fraction=Decimal("0.5"),
+        target_inventory_base=Decimal("10"), inventory_band_base=Decimal("5"),
+        max_inventory_widen_bps=Decimal("0"))
+    adaptive_signals = AdaptiveQuoteSignals(
+        volatility_bps=Decimal("0"), buy_markout_loss_bps=Decimal("0"),
+        sell_markout_loss_bps=Decimal("0"),
+        buy_independent_depth_base=Decimal("2"),
+        sell_independent_depth_base=Decimal("2"))
+    _, check, wire, wal, ledger = _queued_quote(
+        tmp_path, adaptive_policy=adaptive_policy, adaptive_signals=adaptive_signals)
+
     check(wire)
     assert wal.get("quote-1").state == "SEND_UNKNOWN"
     assert ledger.has_open_intent("quote-1")
@@ -100,6 +123,43 @@ def test_queued_quote_is_revoked_when_market_economics_or_freshness_changes(tmp_
 def test_queued_quote_is_revoked_if_account_budget_shrinks_after_reservation(tmp_path):
     _, check, wire, wal, ledger = _queued_quote(tmp_path)
     ledger.record_cashflow("123", "USDT", Decimal("-9.5"))
+    with pytest.raises(PermissionError, match="SEND_PERMISSION_REVOKED"):
+        check(wire)
+    assert wal.get("quote-1").state == "SEND_UNKNOWN"
+    assert ledger.has_open_intent("quote-1")
+
+
+def test_queued_quote_is_revoked_when_independent_depth_shrinks(tmp_path):
+    state, check, wire, wal, ledger = _queued_quote(tmp_path)
+    state["snapshot"] = replace(
+        state["snapshot"],
+        adaptive_policy=AdaptiveQuotePolicy(
+            max_spread_bps=Decimal("100"), max_depth_fraction=Decimal("0.5"),
+            target_inventory_base=Decimal("10"), inventory_band_base=Decimal("5"),
+            max_inventory_widen_bps=Decimal("0")),
+        adaptive_signals=AdaptiveQuoteSignals(
+            volatility_bps=Decimal("0"), buy_markout_loss_bps=Decimal("0"),
+            sell_markout_loss_bps=Decimal("0"),
+            buy_independent_depth_base=Decimal("1"),
+            sell_independent_depth_base=Decimal("2")))
+
+    with pytest.raises(PermissionError, match="SEND_PERMISSION_REVOKED"):
+        check(wire)
+    assert wal.get("quote-1").state == "SEND_UNKNOWN"
+    assert ledger.has_open_intent("quote-1")
+
+
+@pytest.mark.parametrize("change", ["fill_capacity", "loss_budget"])
+def test_queued_quote_is_revoked_when_cumulative_capacity_expires(tmp_path, change):
+    state, check, wire, wal, ledger = _queued_quote(tmp_path)
+    if change == "fill_capacity":
+        state["snapshot"] = replace(state["snapshot"],
+                                    max_campaign_filled_base=Decimal("0.5"))
+    else:
+        state["snapshot"] = replace(state["snapshot"],
+                                    loss_budget_status=LossBudgetStatus(
+                                        Decimal("1"), Decimal("1"), Decimal("1"), True))
+
     with pytest.raises(PermissionError, match="SEND_PERMISSION_REVOKED"):
         check(wire)
     assert wal.get("quote-1").state == "SEND_UNKNOWN"

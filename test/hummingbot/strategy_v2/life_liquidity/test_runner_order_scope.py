@@ -359,6 +359,65 @@ async def test_stored_executor_disappearance_latches_incomplete_scope(tmp_path):
     assert wal.get("i1").state != "TERMINAL"
 
 
+@pytest.mark.asyncio
+async def test_forced_executor_stop_keeps_wire_reservation_until_exchange_terminal(tmp_path):
+    clock = FakeClock()
+    connector = FakeOkx()
+    connector.fail_status = True
+    controller = _controller()
+    _, wal, reservations = _install(controller, tmp_path, clock, connector)
+    executor = _executor()
+    executor._strategy.current_timestamp = 10.0
+    executor._sleep = AsyncMock()
+    executor.early_stop()
+
+    # No created event arrived: the executor gives up after its bounded wait.
+    # Its own TERMINATED/FAILED state says nothing about the exchange order.
+    for _ in range(executor.MAX_SHUTDOWN_TICKS):
+        await executor.control_task()
+    assert executor.status == RunnableStatus.TERMINATED
+    assert executor.executor_info.custom_info["recovery_order_ids"] == ["wire-1"]
+
+    runner = _runner(controller, SimpleNamespace(active_executors={"life": [executor]}))
+    runner._run_safety_callbacks(10)
+    await controller.order_safety_task
+    assert wal.get("i1").state != "TERMINAL"
+    assert reservations.requires_reconciliation("i1")
+    assert controller.order_safety_reason_code == "RECONCILIATION_INCOMPLETE"
+
+    # After a restart the executor exists only in the stored snapshot. A
+    # failed status lookup still cannot release the durable reservation.
+    restarted = _controller()
+    _, restored_wal, restored_reservations = _install(
+        restarted, tmp_path, clock, connector, restored=True)
+    restored_runner = _runner(
+        restarted, SimpleNamespace(active_executors={"life": []}),
+        stored=(executor.executor_info,))
+    restored_runner._run_safety_callbacks(11)
+    await restarted.order_safety_task
+    assert restored_wal.get("i1").state != "TERMINAL"
+    assert restored_reservations.requires_reconciliation("i1")
+
+    connector.fail_status = False
+    connector.status["wire-1"] = {"clOrdId": "wire-1", "ordId": "exchange-1",
+                                  "state": "live", "accFillSz": "0"}
+    connector.open_pages[None] = [{"clOrdId": "wire-1", "ordId": "exchange-1",
+                                   "instId": "LIFE-USDT", "state": "live"}]
+    restored_runner._run_safety_callbacks(12)
+    await restarted.order_safety_task
+    assert restored_wal.get("i1").state != "TERMINAL"
+    assert restored_reservations.requires_reconciliation("i1")
+    assert connector.cancels[0] == ("LIFE-USDT", "wire-1")
+
+    connector.status["wire-1"] = {"clOrdId": "wire-1", "ordId": "exchange-1",
+                                  "state": "canceled", "accFillSz": "0"}
+    connector.open_pages[None] = []
+    restored_runner._run_safety_callbacks(13)
+    await restarted.order_safety_task
+    assert restored_wal.get("i1").state == "TERMINAL"
+    assert not restored_reservations.requires_reconciliation("i1")
+
+
 def test_order_executor_reports_current_renewed_and_held_wire_ids():
     executor = _executor("current")
     executor._partial_filled_orders = [TrackedOrder("renewed")]

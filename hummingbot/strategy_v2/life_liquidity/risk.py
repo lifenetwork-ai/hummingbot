@@ -431,7 +431,9 @@ class ReservationLedger:
                     raise ValueError("RESERVATION_EXCLUSION_UNSAFE")
                 del reservations[exclude_open_intent.intent_id]
             return ReservationPreview(self.life_balance, self.usdt_balance,
-                                      self.limits, reservations)
+                                      self.limits, reservations,
+                                      sum((trade[1] for trade in self._trades.values()),
+                                          Decimal("0")))
 
     def reserve(self, intent: SpotIntent, *, reference_price: Decimal) -> RiskDecision:
         with self._lock:
@@ -589,17 +591,31 @@ class ReservationPreview:
     """An isolated snapshot for planning; accepted previews do not reserve funds."""
 
     def __init__(self, life_balance: Decimal, usdt_balance: Decimal,
-                 limits: RiskLimits, reservations: dict[str, _Reservation]):
+                 limits: RiskLimits, reservations: dict[str, _Reservation],
+                 filled_base_total: Decimal):
         self.life_balance = life_balance
         self.usdt_balance = usdt_balance
         self.limits = limits
         self._reservations = reservations
+        self.filled_base_total = filled_base_total
 
     @property
     def projected_inventory_after_buys(self) -> Decimal:
         return self.life_balance + sum(
             (item.remaining_base for item in self._reservations.values()
              if item.intent.side == "BUY"), Decimal("0"))
+
+    @property
+    def projected_inventory_after_sells(self) -> Decimal:
+        return self.life_balance - sum(
+            (item.remaining_base for item in self._reservations.values()
+             if item.intent.side == "SELL"), Decimal("0"))
+
+    def unresolved_quantity_base(self, side: str) -> Decimal:
+        if side not in ("BUY", "SELL"):
+            raise ValueError("RESERVATION_SIDE_INVALID")
+        return sum((item.remaining_base for item in self._reservations.values()
+                    if item.intent.side == side), Decimal("0"))
 
     def check_and_hold(self, intent: SpotIntent, *, reference_price: Decimal) -> RiskDecision:
         reason = ReservationLedger._reserve_reason(

@@ -16,12 +16,19 @@ from hummingbot.strategy_v2.executors.order_executor.data_types import Execution
 from hummingbot.strategy_v2.life_liquidity.action_journal import QuoteActionJournal, QuoteActionRecord
 from hummingbot.strategy_v2.life_liquidity.config import QuotesConfig
 from hummingbot.strategy_v2.life_liquidity.economics import EconomicPolicy
+from hummingbot.strategy_v2.life_liquidity.loss_budget import LossBudgetStatus
 from hummingbot.strategy_v2.life_liquidity.market_data import InstrumentRules
 from hummingbot.strategy_v2.life_liquidity.reference import ReferenceEngine
 from hummingbot.strategy_v2.life_liquidity.risk import ReservationLedger, SpotIntent
 from hummingbot.strategy_v2.life_liquidity.send_gate import SendPermit
 from hummingbot.strategy_v2.life_liquidity.slots import SpotQuoteSlots
-from hummingbot.strategy_v2.life_liquidity.spot_quotes import QuoteCosts, SpotQuotePlan, plan_spot_quotes
+from hummingbot.strategy_v2.life_liquidity.spot_quotes import (
+    AdaptiveQuotePolicy,
+    AdaptiveQuoteSignals,
+    QuoteCosts,
+    SpotQuotePlan,
+    plan_spot_quotes,
+)
 from hummingbot.strategy_v2.life_liquidity.state import IntentWAL
 from hummingbot.strategy_v2.models.base import RunnableStatus
 from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction
@@ -46,6 +53,10 @@ class QuotePlanningSnapshot:
     policy: EconomicPolicy
     subsidy_remaining_quote: Decimal | None = None
     min_depth_base_per_side: Decimal | None = None
+    adaptive_policy: AdaptiveQuotePolicy | None = None
+    adaptive_signals: AdaptiveQuoteSignals | None = None
+    max_campaign_filled_base: Decimal | None = None
+    loss_budget_status: LossBudgetStatus | None = None
     book_sequence_id: int | None = None
     reference_model_version: str | None = None
 
@@ -357,6 +368,10 @@ class QuoteActionPlanner:
             reservations=self.reservations,
             subsidy_remaining_quote=observed.subsidy_remaining_quote,
             min_depth_base_per_side=observed.min_depth_base_per_side,
+            adaptive_policy=observed.adaptive_policy,
+            adaptive_signals=observed.adaptive_signals,
+            max_campaign_filled_base=observed.max_campaign_filled_base,
+            loss_budget_status=observed.loss_budget_status,
             sides=sides, exclude_open_intent=exclude_open_intent)
 
     def propose(self) -> list[CreateExecutorAction]:
