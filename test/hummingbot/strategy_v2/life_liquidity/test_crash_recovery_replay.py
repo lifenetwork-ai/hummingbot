@@ -49,7 +49,8 @@ async def test_runner_send_unknown_cold_restart_requires_stored_executor_proof(
         tmp_path, monkeypatch, stored_history):
     monkeypatch.setattr(account_lock, "ACCOUNT_LOCK_ROOT", tmp_path / "locks")
     connector = FakeTradingOkx()
-    controller, template, _, wal, ledger, _ = _setup(tmp_path, connector=connector)
+    controller, template, _, wal, ledger, _ = _setup(
+        tmp_path, connector=connector, recovery_account_uid="12345")
     _, proposed = _attach_quote_planner(controller, template, wal, ledger)
     controller._spot_quote_gates_ready = lambda: True
     executors = []

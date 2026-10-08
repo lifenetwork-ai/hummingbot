@@ -48,6 +48,19 @@ class OrderExecutor(ExecutorBase):
         super().__init__(strategy=strategy, config=config, connectors=[config.connector_name],
                          update_interval=update_interval, max_retries=max_retries)
         self.config: OrderExecutorConfig = config
+        controllers = getattr(strategy, "controllers", None)
+        controller = (controllers.get(config.controller_id)
+                      if isinstance(controllers, Mapping) else None)
+        recovery_account_uid = getattr(getattr(controller, "config", None),
+                                       "recovery_account_uid", None)
+        # Recovery provenance belongs to the order when it is created. A later
+        # controller config replacement must not relabel the persisted executor.
+        self._recovery_account_uid = (
+            recovery_account_uid
+            if (isinstance(recovery_account_uid, str) and recovery_account_uid
+                and recovery_account_uid.isascii() and recovery_account_uid.isdecimal())
+            else None
+        )
 
         # Order tracking
         self._order: Optional[TrackedOrder] = None
@@ -501,7 +514,7 @@ class OrderExecutor(ExecutorBase):
             # Keep generic executor status available. LIFE recovery treats an
             # unavailable ID history as incomplete rather than assuming none.
             recovery_order_ids = None
-        return {
+        info = {
             "side": self.config.side,
             "level_id": self.config.level_id,
             "current_retries": self._current_retries,
@@ -534,6 +547,9 @@ class OrderExecutor(ExecutorBase):
             "swap_provider": getattr(connector, "swap_provider", None),
             "wallet_address": getattr(connector, "address", None),
         }
+        if self._recovery_account_uid is not None:
+            info["recovery_account_uid"] = self._recovery_account_uid
+        return info
 
     def to_format_status(self, scale=1.0):
         """

@@ -730,6 +730,10 @@ class LifeLiquidityController(ControllerBase):
                         or info.status != RunnableStatus.TERMINATED
                         or not isinstance(info.custom_info, dict)):
                     return reject()
+                if (self.config.recovery_account_uid is not None
+                        and info.custom_info.get("recovery_account_uid")
+                        != self.config.recovery_account_uid):
+                    return reject()
                 stored_ids.add(info.id)
                 wire_ids = info.custom_info.get("recovery_order_ids")
                 if (not isinstance(wire_ids, (tuple, list))

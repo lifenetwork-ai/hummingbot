@@ -135,6 +135,26 @@ class TestExecutorOrchestrator(unittest.TestCase):
         self.orchestrator.execute_actions(actions)
         self.assertEqual(len(self.orchestrator.active_executors["test"]), 0)
 
+    @patch.object(MarketsRecorder, "get_instance")
+    def test_failed_executor_checkpoint_keeps_executor_available_for_retry(self, markets_recorder_mock):
+        recorder = markets_recorder_mock.return_value
+        recorder.store_or_update_executor.side_effect = OSError("database unavailable")
+        executor = MagicMock(spec=PositionExecutor)
+        executor.is_active = False
+        executor.config = MagicMock(spec=PositionExecutorConfig)
+        executor.config.id = "executor-1"
+        executor.config.controller_id = "test"
+        self.orchestrator.active_executors["test"] = [executor]
+
+        action = StoreExecutorAction(executor_id="executor-1", controller_id="test")
+        self.orchestrator.store_executor(action)
+        self.assertEqual(self.orchestrator.active_executors["test"], [executor])
+
+        recorder.store_or_update_executor.side_effect = None
+        self.orchestrator.store_executor(action)
+        self.assertEqual(self.orchestrator.active_executors["test"], [])
+        self.assertEqual(recorder.store_or_update_executor.call_count, 2)
+
     @patch('hummingbot.connector.markets_recorder.MarketsRecorder.get_instance')
     def test_generate_performance_report(self, mock_get_instance):
         # Create a mock for MarketsRecorder and its get_executors_by_controller method
