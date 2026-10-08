@@ -176,7 +176,8 @@ class OkxSpotOrderGateway:
         if max_requests is not None:
             raise ValueError("CANCEL_RETRY_POLICY_UNCONFIGURED")
         for record in self.wal.scoped_records(session_id, epoch):
-            if record.state in ("TERMINAL", "PREPARED", "ABORTED_BEFORE_SEND"):
+            if (record.state in ("TERMINAL", "PREPARED", "ABORTED_BEFORE_SEND")
+                    or record.exchange_terminal_observed):
                 continue
             self._charge_request("CANCEL")
             # Persist the cancel intent before invoking an asynchronous connector.

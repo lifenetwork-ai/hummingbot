@@ -691,6 +691,7 @@ class LifeLiquidityController(ControllerBase):
             return reject()
         wire_owners = dict(self._runner_wire_owners)
         active_seen = set()
+        stored_seen = set()
         try:
             for executor in executors:
                 if (not isinstance(executor, OrderExecutor)
@@ -753,7 +754,15 @@ class LifeLiquidityController(ControllerBase):
                     if (record is None or record.intent_id != info.id
                             or wire_owners.get(wire_id, info.id) != info.id):
                         return reject()
+                    stored_seen.add(wire_id)
                     wire_owners[wire_id] = info.id
+            # A cold restart may have an intact WAL but an absent executor DB
+            # row. For protected quote slots, WAL identity alone cannot prove
+            # the runner did not submit another unrecorded order.
+            if any(record.slot_market is not None
+                   and record.client_order_id not in active_seen | stored_seen
+                   for record in records if record.state != "ABORTED_BEFORE_SEND"):
+                return reject()
             if not self._runner_stored_executor_ids <= stored_ids:
                 return reject()
             self._runner_stored_executor_ids.update(stored_ids)
