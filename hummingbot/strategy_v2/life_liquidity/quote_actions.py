@@ -86,6 +86,7 @@ class QuoteActionPlanner:
         self._proposed: dict[tuple[str, int, str, int], str] = {}
         self._issued: dict[str, tuple[str, int, int, OrderExecutorConfig]] = {}
         self.last_plan: SpotQuotePlan | None = None
+        self.last_qualified_snapshot: QuotePlanningSnapshot | None = None
         self.reason_code = "QUOTE_ACTIONS_NOT_EVALUATED"
 
     def _journal_consistent(self, session_id: str, epoch: int) -> bool:
@@ -322,8 +323,17 @@ class QuoteActionPlanner:
                    and candidate.quantity_base == permit.quantity_base
                    for candidate in plan.candidates)
 
-    def _current_snapshot(self, current, *,
-                          pre_send_intent_id: str | None = None) -> QuotePlanningSnapshot | None:
+    def session_snapshot(self) -> QuotePlanningSnapshot | None:
+        """Qualified snapshot for the safety tick, even after a reversible pause."""
+        current = self.manager.current_session if self.manager is not None else None
+        if current is None:
+            self.last_qualified_snapshot = None
+            return None
+        return self._current_snapshot(current, require_active=False)
+
+    def _current_snapshot(self, current, *, pre_send_intent_id: str | None = None,
+                          require_active: bool = True) -> QuotePlanningSnapshot | None:
+        self.last_qualified_snapshot = None
         try:
             observed = self.snapshot()
             now = self.monotonic_clock()
@@ -345,13 +355,15 @@ class QuoteActionPlanner:
                     or not self.controller.quote_reference_matches(
                         observed, self.reference_engine,
                         pre_send_intent_id=pre_send_intent_id)
-                    or not self.manager.can_quote(
-                        reference_ready=observed.reference_ready is True,
-                        all_gates_ready=observed.all_gates_ready is True,
-                        market_reference_ready=observed.market_reference_ready is True)):
+                    or observed.reference_ready is not True
+                    or observed.all_gates_ready is not True
+                    or (require_active and not self.manager.can_quote(
+                        reference_ready=True, all_gates_ready=True,
+                        market_reference_ready=observed.market_reference_ready is True))):
                 return None
         except Exception:
             return None
+        self.last_qualified_snapshot = observed
         return observed
 
     def _plan(self, observed: QuotePlanningSnapshot, current,

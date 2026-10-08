@@ -159,6 +159,8 @@ class LifeLiquidityController(ControllerBase):
         self.order_safety_task: asyncio.Task | None = None
         self.order_safety_watchdog_task: asyncio.Task | None = None
         self.order_safety_reason_code = "ORDER_SAFETY_NOT_INSTALLED"
+        self._pause_reconciliation_required = False
+        self._observed_session_state: str | None = None
 
     def _restore_order_safety(self) -> None:
         """Restore existing journals only; no synthetic session or balances are created."""
@@ -367,6 +369,8 @@ class LifeLiquidityController(ControllerBase):
         self._order_safety_wal = wal
         self._order_safety_reservations = reservations
         self.order_safety_reason_code = "ORDER_SAFETY_READY_TO_RECONCILE"
+        self._pause_reconciliation_required = manager.state == "PAUSED"
+        self._observed_session_state = manager.state
         if self.order_safety_watchdog_task is not None and not self.order_safety_watchdog_task.done():
             gateway.runner_scope_check = self._runner_executor_scope_complete
 
@@ -794,9 +798,20 @@ class LifeLiquidityController(ControllerBase):
             else:
                 return
         try:
-            # This safety-only adapter has no quote permissions. It must pause
-            # an active restored session until the later live gates are wired.
-            manager.tick(reference_ready=False, all_gates_ready=False)
+            if manager.state == "PAUSED" and self._observed_session_state != "PAUSED":
+                self._pause_reconciliation_required = True
+                self.order_safety_reason_code = "RECONCILIATION_REQUIRED"
+            planner = self._quote_action_planner
+            qualified = planner.session_snapshot() if planner is not None else None
+            ready = (qualified is not None and self._spot_quote_gates_ready()
+                     and not self._pause_reconciliation_required)
+            previous_state = manager.state
+            manager.tick(reference_ready=ready, all_gates_ready=ready,
+                         market_reference_ready=(ready and qualified.market_reference_ready is True))
+            if previous_state == "ACTIVE" and manager.state == "PAUSED":
+                self._pause_reconciliation_required = True
+                self.order_safety_reason_code = "RECONCILIATION_REQUIRED"
+            self._observed_session_state = manager.state
         except Exception:
             self.order_safety_reason_code = "SESSION_SAFETY_TICK_FAILED"
             self.logger().exception("LIFE safety session tick failed")
@@ -915,6 +930,8 @@ class LifeLiquidityController(ControllerBase):
         if reason == "OLD_ORDERS_RECONCILED" and manager.state == "TRANSITIONING":
             reason = manager.reason_code
         self.order_safety_reason_code = reason
+        if reason == "OLD_ORDERS_RECONCILED" and manager.state == "PAUSED":
+            self._pause_reconciliation_required = False
 
     def stop(self):
         self._order_safety_stopped = True
@@ -952,6 +969,9 @@ class LifeLiquidityController(ControllerBase):
             if (manager.state != "ACTIVE" or watchdog is None or watchdog.done()
                     or safety_cycle_pending):
                 return False
+        return self._spot_quote_gates_ready()
+
+    def _spot_quote_gates_ready(self) -> bool:
         return (self.config.strategy.spot.enabled and self.config_update_state.order_permission()
                 and self.listing_gate.metadata_ready
                 and self.book_ready and self._live_spot_book_ready()
@@ -1130,6 +1150,7 @@ class LifeLiquidityController(ControllerBase):
             reason = self.continuity_gate.reason_code
         snapshot = self.snapshot_gate.snapshot
         contract = self.perpetual_contract
+        session_status = self._session_status_fields()
         self.processed_data = {
             "state": self.listing_gate.state,
             "reason_code": reason,
@@ -1157,6 +1178,7 @@ class LifeLiquidityController(ControllerBase):
             "perpetual_reason_code": self.perpetual_contract_reason_code,
             "perpetual_quote_ready": False,
             "order_safety_reason_code": self.order_safety_reason_code,
+            **session_status,
             "quote_action_recovery_reason_code": self.quote_action_recovery_reason_code,
             "last_book_exchange_timestamp_ms": snapshot.exchange_timestamp_ms if snapshot else None,
             "last_book_received_monotonic": snapshot.received_monotonic if snapshot else None,
@@ -1257,6 +1279,25 @@ class LifeLiquidityController(ControllerBase):
         planner = self._quote_action_planner
         return planner.propose() if planner is not None else []
 
+    def _session_status_fields(self) -> dict:
+        manager = self._order_safety_manager
+        session = manager.current_session if manager is not None else None
+        state = manager.state if manager is not None else "WAITING_READY"
+        reason = manager.reason_code if manager is not None else "SESSION_NOT_STARTED"
+        planner = self._quote_action_planner
+        qualified = planner.last_qualified_snapshot if planner is not None else None
+        return {
+            "market": self.config.strategy.spot.pair,
+            "reference_price_usdt": (str(qualified.qualified_reference_usdt)
+                                     if qualified is not None else None),
+            "session_state": state,
+            "session_expires_at": session.expires_at.isoformat() if session is not None else None,
+            "session_reason_code": reason,
+            "pause_reason_code": reason if state == "PAUSED" else None,
+            "transition_reason_code": reason if state == "TRANSITIONING" else None,
+            "reconciliation_reason_code": self.order_safety_reason_code,
+        }
+
     def to_format_status(self):
         reason = self.processed_data.get("reason_code", self.listing_gate.reason_code)
         if self.snapshot_gate.ready and not self.snapshot_gate.permit():
@@ -1264,7 +1305,15 @@ class LifeLiquidityController(ControllerBase):
         elif self.snapshot_gate.permit() and not self.continuity_gate.permit(
                 self._book_feed_health(), self.snapshot_gate):
             reason = self.continuity_gate.reason_code
-        return [f"LIFE liquidity: {self.listing_gate.state} ({reason}); "
+        session = self._session_status_fields()
+        return [f"LIFE liquidity {session['market']}: {self.listing_gate.state} ({reason}); "
+                f"reference: {session['reference_price_usdt'] or 'unavailable'}; "
+                f"session: {session['session_state']} until "
+                f"{session['session_expires_at'] or 'unavailable'} "
+                f"({session['session_reason_code']}); "
+                f"pause: {session['pause_reason_code'] or 'none'}; "
+                f"transition/reconciliation: {session['transition_reason_code'] or 'none'}/"
+                f"{session['reconciliation_reason_code']}; "
                 f"order safety: {self.order_safety_reason_code}; "
                 f"quote action recovery: {self.quote_action_recovery_reason_code}; "
                 f"own depth: {self._own_depth_decision.reason_code}; "
