@@ -19,6 +19,7 @@ from hummingbot.core.web_assistant.rest_assistant import RESTAssistant
 from hummingbot.strategy.strategy_v2_base import StrategyV2Base
 from hummingbot.strategy_v2.executors.order_executor.data_types import ExecutionStrategy, OrderExecutorConfig
 from hummingbot.strategy_v2.executors.order_executor.order_executor import OrderExecutor
+from hummingbot.strategy_v2.life_liquidity import risk
 from hummingbot.strategy_v2.life_liquidity.config import QuotesConfig
 from hummingbot.strategy_v2.life_liquidity.executor_send import ProtectedSpotExecutorSender
 from hummingbot.strategy_v2.life_liquidity.order_gateway import OkxSpotOrderGateway
@@ -136,6 +137,30 @@ def test_executor_claims_durable_slot_before_reservation_and_blocks_duplicate(tm
     assert len(connector.sent) == 1
     assert "executor-2" not in {record.intent_id for record in wal.all_records()}
     assert ledger.reservation_ids == frozenset({"executor-1"})
+
+
+def test_uncertain_cashflow_checkpoint_blocks_before_wal_claim_or_network(tmp_path, monkeypatch):
+    _, executor, connector, wal, ledger, _ = _setup(tmp_path)
+    original_fsync = risk.os.fsync
+    calls = 0
+
+    def fail_directory_fsync(descriptor):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise OSError("crash after cashflow replacement")
+        return original_fsync(descriptor)
+
+    with monkeypatch.context() as patcher:
+        patcher.setattr(risk.os, "fsync", fail_directory_fsync)
+        with pytest.raises(OSError, match="crash after cashflow replacement"):
+            ledger.record_cashflow("101", "USDT", Decimal("1"))
+
+    with pytest.raises(ValueError, match="RISK_JOURNAL_UNCERTAIN"):
+        executor.place_open_order()
+    assert wal.all_records() == ()
+    assert connector.sent == []
+    assert ReservationLedger.restore(ledger.path, limits=ledger.limits).usdt_balance == Decimal("11")
 
 
 def test_executor_rejects_level_outside_configured_quote_count(tmp_path):

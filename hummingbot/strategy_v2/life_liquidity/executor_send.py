@@ -117,6 +117,7 @@ class ProtectedSpotExecutorSender:
         if (current is None or not self.manager.can_quote(
                 reference_ready=True, all_gates_ready=True, market_reference_ready=True)):
             raise PermissionError("SESSION_PERMISSION_REVOKED")
+        self.reservations.assert_healthy()
         reservation_path = self.reservations.path
         if (reservation_path is None or not reservation_path.is_file()
                 or reservation_path.is_symlink()):

@@ -88,6 +88,7 @@ class ReservationLedger:
         self._trades: dict[str, tuple[str, Decimal, Decimal]] = {}
         self._account_events: dict[str, tuple[str, str, Decimal]] = {}
         self._lock = RLock()
+        self._uncertain = False
         self._save(self.life_balance, self.usdt_balance, self._reservations, self._trades)
 
     def _save(self, life_balance: Decimal, usdt_balance: Decimal,
@@ -115,17 +116,25 @@ class ReservationLedger:
         }
         self.path.parent.mkdir(parents=True, exist_ok=True)
         descriptor, temporary = tempfile.mkstemp(prefix=f".{self.path.name}.", dir=self.path.parent)
+        replace_attempted = False
         try:
             with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
                 json.dump(data, handle, sort_keys=True)
                 handle.flush()
                 os.fsync(handle.fileno())
+            replace_attempted = True
             os.replace(temporary, self.path)
             directory_fd = os.open(self.path.parent, os.O_RDONLY)
             try:
                 os.fsync(directory_fd)
             finally:
                 os.close(directory_fd)
+        except OSError:
+            if replace_attempted:
+                # The disk may contain the new state while this instance still
+                # holds the old state. A later commit must not overwrite it.
+                self._uncertain = True
+            raise
         finally:
             if os.path.exists(temporary):
                 os.unlink(temporary)
@@ -134,6 +143,7 @@ class ReservationLedger:
                 reservations: dict[str, _Reservation],
                 trades: dict[str, tuple[str, Decimal, Decimal]],
                 account_events: dict[str, tuple[str, str, Decimal]] | None = None) -> None:
+        self._ensure_healthy()
         if account_events is None:
             account_events = self._account_events
         self._save(life_balance, usdt_balance, reservations, trades, account_events)
@@ -142,6 +152,15 @@ class ReservationLedger:
         self._reservations = reservations
         self._trades = trades
         self._account_events = account_events
+
+    def _ensure_healthy(self) -> None:
+        if self._uncertain:
+            raise ValueError("RISK_JOURNAL_UNCERTAIN")
+
+    def assert_healthy(self) -> None:
+        """Reject new risk while a checkpoint may be ahead of in-memory state."""
+        with self._lock:
+            self._ensure_healthy()
 
     @classmethod
     def restore(cls, path: Path, *, limits: RiskLimits) -> "ReservationLedger":
@@ -216,6 +235,7 @@ class ReservationLedger:
             book._trades = trades
             book._account_events = account_events
             book._lock = RLock()
+            book._uncertain = False
             return book
         except (KeyError, TypeError, ValueError, InvalidOperation,
                 json.JSONDecodeError, OSError) as exc:
@@ -332,6 +352,7 @@ class ReservationLedger:
 
     def matches_open_intent(self, intent: SpotIntent) -> bool:
         with self._lock:
+            self._ensure_healthy()
             item = self._reservations.get(intent.intent_id)
             return (item is not None and item.state == "OPEN" and item.intent == intent
                     and item.remaining_base == intent.quantity_base
@@ -419,6 +440,7 @@ class ReservationLedger:
 
     def preview(self, *, exclude_open_intent: SpotIntent | None = None) -> "ReservationPreview":
         with self._lock:
+            self._ensure_healthy()
             reservations = dict(self._reservations)
             if exclude_open_intent is not None:
                 if not isinstance(exclude_open_intent, SpotIntent):
