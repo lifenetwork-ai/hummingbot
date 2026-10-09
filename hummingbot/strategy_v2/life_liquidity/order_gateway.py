@@ -132,6 +132,10 @@ class OkxSpotOrderGateway:
     MAX_PENDING_PAGES = 6
     MAX_HISTORY_PAGES = 6
     MAX_FILL_HISTORY_PAGES = 6
+    # OKX requires ordType on this endpoint. conditional/oco may be queried
+    # together; chase applies to derivatives and is outside the SPOT scope.
+    SPOT_ALGO_TYPES = ("conditional,oco", "trigger", "move_order_stop",
+                       "iceberg", "twap", "smart_iceberg")
 
     def __init__(self, connector, wal: IntentWAL, *, trading_pair: str,
                  clock: Callable[[], datetime],
@@ -320,11 +324,31 @@ class OkxSpotOrderGateway:
                         return False
                     seen_exchange_ids.add(exchange_id)
                 if len(data) < 100:
-                    return True
+                    break
                 cursor = data[-1]["ordId"]
+            else:
+                return False
         except (KeyError, TypeError, ValueError, TimeoutError, OSError):
             return False
-        return False
+        return await self._pending_algo_scope_complete()
+
+    async def _pending_algo_scope_complete(self) -> bool:
+        read_page = getattr(self.connector, "get_all_pending_spot_algo_orders_page", None)
+        if not callable(read_page):
+            return False
+        try:
+            for ord_type in self.SPOT_ALGO_TYPES:
+                response = await read_page(ord_type)
+                if not isinstance(response, dict) or response.get("code") != "0":
+                    return False
+                data = response.get("data")
+                # This bot owns no algo orders. One row on the first page is
+                # already enough to block; never cancel an unowned algo order.
+                if not isinstance(data, list) or data:
+                    return False
+        except (AttributeError, KeyError, TypeError, ValueError, TimeoutError, OSError):
+            return False
+        return True
 
     @staticmethod
     def _one_order(response: dict, wire_id: str) -> dict:

@@ -231,6 +231,7 @@ class LifeLiquidityController(ControllerBase):
         required = ("cancel_by_client_id", "get_order_by_client_id",
                     "cancel_by_exchange_order_id", "get_order_by_exchange_order_id",
                     "get_fills_by_exchange_order_id", "get_all_open_spot_orders_page",
+                    "get_all_pending_spot_algo_orders_page",
                     "get_spot_order_history_page", "get_spot_fill_history_page",
                     "get_all_spot_fill_history_page",
                     "get_spot_cash_balances", "get_account_uid", "get_account_bills_page")

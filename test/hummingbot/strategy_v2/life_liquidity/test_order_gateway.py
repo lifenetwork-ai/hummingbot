@@ -32,6 +32,8 @@ class FakeOkx:
         self.fail_status = False
         self.open_pages = {None: []}
         self.account_open_queries = []
+        self.algo_pages = {}
+        self.algo_queries = []
         self.history_pages = {None: []}
         self.fill_history_pages = {None: []}
         self.all_fill_history_pages = {None: []}
@@ -74,6 +76,10 @@ class FakeOkx:
         self.account_open_queries.append(after)
         return {"code": "0", "data": [
             {"instType": "SPOT", **item} for item in self.open_pages[after]]}
+
+    async def get_all_pending_spot_algo_orders_page(self, ord_type, after=None):
+        self.algo_queries.append((ord_type, after))
+        return self.algo_pages.get(ord_type, {"code": "0", "data": []})
 
     async def get_spot_cash_balances(self):
         return {"code": "0", "data": [{"details": [
@@ -353,6 +359,61 @@ async def test_missing_account_wide_open_order_method_fails_closed(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_pending_spot_algo_blocks_scope_without_canceling_foreign_order(tmp_path):
+    _, wal = prepared(tmp_path)
+    connector = FakeOkx()
+    connector.status["wire-1"] = order("canceled")
+    connector.algo_pages["conditional,oco"] = {"code": "0", "data": [
+        {"algoId": "algo-1", "instType": "SPOT", "instId": "BTC-USDT"}]}
+    gateway = OkxSpotOrderGateway(connector, wal, trading_pair="LIFE-USDT",
+                                  clock=lambda: NOW, confirm_terminal=confirmed_terminal)
+    result = await gateway.reconcile("old-session", 1)
+    assert not result.scope_complete
+    assert wal.get("i1").state != "TERMINAL"
+    assert connector.cancels == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("response", [
+    {"code": "51000", "data": []},
+    {"code": "0", "data": None},
+    {"code": "0", "data": [{}]},
+])
+async def test_untrusted_pending_algo_result_fails_closed(tmp_path, response):
+    _, wal = prepared(tmp_path)
+    connector = FakeOkx()
+    connector.status["wire-1"] = order("canceled")
+    connector.algo_pages["trigger"] = response
+    gateway = OkxSpotOrderGateway(connector, wal, trading_pair="LIFE-USDT",
+                                  clock=lambda: NOW, confirm_terminal=confirmed_terminal)
+    assert not (await gateway.reconcile("old-session", 1)).scope_complete
+    assert wal.get("i1").state != "TERMINAL"
+
+
+@pytest.mark.asyncio
+async def test_empty_account_wide_algo_categories_are_all_checked(tmp_path):
+    _, wal = prepared(tmp_path)
+    connector = FakeOkx()
+    connector.status["wire-1"] = order("canceled")
+    gateway = OkxSpotOrderGateway(connector, wal, trading_pair="LIFE-USDT",
+                                  clock=lambda: NOW, confirm_terminal=confirmed_terminal)
+    assert (await gateway.reconcile("old-session", 1)).scope_complete
+    assert connector.algo_queries == [
+        (kind, None) for kind in gateway.SPOT_ALGO_TYPES]
+
+
+@pytest.mark.asyncio
+async def test_missing_pending_algo_adapter_fails_closed(tmp_path):
+    _, wal = prepared(tmp_path)
+    connector = FakeOkx()
+    connector.get_all_pending_spot_algo_orders_page = None
+    connector.status["wire-1"] = order("canceled")
+    gateway = OkxSpotOrderGateway(connector, wal, trading_pair="LIFE-USDT",
+                                  clock=lambda: NOW, confirm_terminal=confirmed_terminal)
+    assert not (await gateway.reconcile("old-session", 1)).scope_complete
+
+
+@pytest.mark.asyncio
 async def test_account_open_list_cannot_disagree_with_terminal_status(tmp_path):
     _, wal = prepared(tmp_path)
     connector = FakeOkx()
@@ -385,6 +446,18 @@ async def test_okx_account_wide_open_order_query_has_no_instrument_filter():
     kwargs = connector._api_request.await_args.kwargs
     assert kwargs["path_url"] == CONSTANTS.OKX_ORDERS_PENDING_PATH
     assert kwargs["params"] == {"instType": "SPOT", "limit": "100", "after": "123"}
+    assert kwargs["is_auth_required"]
+
+
+@pytest.mark.asyncio
+async def test_okx_account_wide_spot_algo_query_has_no_instrument_filter():
+    connector = OkxExchange("key", "secret", "passphrase", trading_pairs=[], trading_required=False)
+    connector._api_request = AsyncMock(return_value={"code": "0", "data": []})
+    await connector.get_all_pending_spot_algo_orders_page("conditional,oco", after="123")
+    kwargs = connector._api_request.await_args.kwargs
+    assert kwargs["path_url"] == CONSTANTS.OKX_ORDERS_ALGO_PENDING_PATH
+    assert kwargs["params"] == {"ordType": "conditional,oco", "instType": "SPOT",
+                                "limit": "100", "after": "123"}
     assert kwargs["is_auth_required"]
 
 

@@ -1,5 +1,5 @@
 import asyncio
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation, localcontext
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from bidict import bidict
@@ -278,8 +278,12 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
                 data["posSide"] = "long" if trade_type is TradeType.BUY else "short"
             else:
                 data["posSide"] = "short" if trade_type is TradeType.BUY else "long"
-        else:
+        elif self.position_mode == PositionMode.ONEWAY:
             data["posSide"] = "net"
+            if position_action == PositionAction.CLOSE:
+                data["reduceOnly"] = True
+        else:
+            raise ValueError("POSITION_MODE_UNAVAILABLE")
 
         exchange_order_id = await self._api_post(
             path_url=CONSTANTS.REST_PLACE_ACTIVE_ORDER[CONSTANTS.ENDPOINT],
@@ -631,10 +635,15 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
             position_side = self.get_position_side(data)
             unrealized_pnl = Decimal(data["upl"]) if bool(data["upl"]) else Decimal(str(0.0))
             entry_price = Decimal(data["avgPx"]) if bool(data["avgPx"]) else Decimal(str(0.0))
-            amount = self.get_position_amount(data)
+            amount = self.get_position_amount(data, hb_trading_pair)
             leverage = Decimal(data["lever"]) if bool(data["lever"]) else Decimal(str(0.0))
             pos_key = self._perpetual_trading.position_key(hb_trading_pair, position_side)
             if amount != s_decimal_0:
+                if data.get("posSide") == "net":
+                    opposite = (PositionSide.SHORT if position_side == PositionSide.LONG
+                                else PositionSide.LONG)
+                    self._perpetual_trading.remove_position(
+                        self._perpetual_trading.position_key(hb_trading_pair, opposite))
                 position = Position(
                     trading_pair=hb_trading_pair,
                     position_side=position_side,
@@ -646,24 +655,44 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
                 self._perpetual_trading.set_position(pos_key, position)
             else:
                 self._perpetual_trading.remove_position(pos_key)
+                if data.get("posSide") == "net":
+                    opposite = (PositionSide.SHORT if position_side == PositionSide.LONG
+                                else PositionSide.LONG)
+                    self._perpetual_trading.remove_position(
+                        self._perpetual_trading.position_key(hb_trading_pair, opposite))
 
     @staticmethod
     def get_position_side(position_msg: Dict[str, Any]) -> PositionSide:
         if position_msg.get("posSide") == "net":
-            position_side = PositionSide.LONG if int(position_msg["pos"]) > 0 else PositionSide.SHORT
+            try:
+                contracts = Decimal(position_msg["pos"])
+                if not contracts.is_finite():
+                    raise ValueError("POSITION_SIZE_INVALID")
+            except (KeyError, TypeError, InvalidOperation) as exc:
+                raise ValueError("POSITION_SIZE_INVALID") from exc
+            position_side = PositionSide.LONG if contracts >= 0 else PositionSide.SHORT
+        elif position_msg.get("posSide") == "long":
+            position_side = PositionSide.LONG
+        elif position_msg.get("posSide") == "short":
+            position_side = PositionSide.SHORT
         else:
-            position_side = PositionSide.LONG if position_msg.get("posSide") == "long" else PositionSide.SHORT
+            raise ValueError("POSITION_SIDE_INVALID")
         return position_side
 
-    @staticmethod
-    def get_position_amount(position_msg: Dict[str, Any]) -> Decimal:
-        if bool(position_msg["notionalUsd"]):
-            notional_usd = Decimal(position_msg["notionalUsd"])
-            avg_px = Decimal(position_msg["avgPx"])
-            amount = abs(notional_usd / avg_px) if notional_usd != s_decimal_0 else s_decimal_0
-            return max(amount, round(amount))
-        else:
-            return Decimal("0.0")
+    def get_position_amount(self, position_msg: Dict[str, Any], trading_pair: str) -> Decimal:
+        """Convert OKX contract count to base units without price-dependent rounding."""
+        try:
+            contracts = Decimal(position_msg["pos"])
+            contract_size = self._contract_sizes[trading_pair]
+            if (not contracts.is_finite() or not isinstance(contract_size, Decimal)
+                    or not contract_size.is_finite() or contract_size <= 0):
+                raise ValueError("POSITION_SIZE_INVALID")
+            with localcontext() as context:
+                context.prec = max(28, len(contracts.as_tuple().digits)
+                                   + len(contract_size.as_tuple().digits) + 2)
+                return abs(contracts) * contract_size
+        except (KeyError, TypeError, InvalidOperation) as exc:
+            raise ValueError("POSITION_SIZE_INVALID") from exc
 
     async def _process_account_position_event(self, position_msg: Dict[str, Any]):
         """
@@ -675,11 +704,16 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
             trading_pair = await self.trading_pair_associated_to_exchange_symbol(symbol=ex_trading_pair)
             position_side = self.get_position_side(position_msg)
             entry_price = Decimal(position_msg["avgPx"]) if bool(position_msg["avgPx"]) else Decimal("0")
-            amount = self.get_position_amount(position_msg)
+            amount = self.get_position_amount(position_msg, trading_pair)
             leverage = Decimal(position_msg["lever"]) if bool(position_msg["lever"]) else Decimal("0")
             unrealized_pnl = Decimal(position_msg["upl"]) if bool(position_msg["upl"]) else Decimal("0")
             pos_key = self._perpetual_trading.position_key(trading_pair, position_side)
             if amount != s_decimal_0:
+                if position_msg.get("posSide") == "net":
+                    opposite = (PositionSide.SHORT if position_side == PositionSide.LONG
+                                else PositionSide.LONG)
+                    self._perpetual_trading.remove_position(
+                        self._perpetual_trading.position_key(trading_pair, opposite))
                 position = Position(
                     trading_pair=trading_pair,
                     position_side=position_side,
@@ -691,6 +725,11 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
                 self._perpetual_trading.set_position(pos_key, position)
             else:
                 self._perpetual_trading.remove_position(pos_key)
+                if position_msg.get("posSide") == "net":
+                    opposite = (PositionSide.SHORT if position_side == PositionSide.LONG
+                                else PositionSide.LONG)
+                    self._perpetual_trading.remove_position(
+                        self._perpetual_trading.position_key(trading_pair, opposite))
             # safe_ensure_future(self._update_balances())
 
     def _process_trade_event_message(self, trade_msg: Dict[str, Any]):

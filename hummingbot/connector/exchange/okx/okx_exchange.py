@@ -478,6 +478,15 @@ class OkxExchange(ExchangePyBase):
         return await self._api_get(path_url=CONSTANTS.OKX_ORDERS_PENDING_PATH,
                                    params=params, is_auth_required=True)
 
+    async def get_all_pending_spot_algo_orders_page(self, ord_type: str,
+                                                    after: Optional[str] = None) -> Dict[str, Any]:
+        """Query one pending algo category across the authenticated SPOT account."""
+        params = {"ordType": ord_type, "instType": "SPOT", "limit": "100"}
+        if after is not None:
+            params["after"] = after
+        return await self._api_get(path_url=CONSTANTS.OKX_ORDERS_ALGO_PENDING_PATH,
+                                   params=params, is_auth_required=True)
+
     async def get_spot_order_history_page(self, trading_pair: str,
                                           after: Optional[str] = None) -> Dict[str, Any]:
         params = {"instType": "SPOT",

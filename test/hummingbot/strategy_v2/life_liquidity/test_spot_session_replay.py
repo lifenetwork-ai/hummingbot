@@ -216,7 +216,15 @@ async def test_partial_fill_cancel_and_terminal_reconciliation_stays_scoped(tmp_
 
         connector.status[wire_id]["state"] = "canceled"
         connector.open_pages[None] = []
+        connector.algo_pages["conditional,oco"] = {"code": "0", "data": [
+            {"algoId": "manual-1", "instType": "SPOT", "instId": "BTC-USDT"}]}
         runner.tick(3)
+        await controller.order_safety_task
+        assert wal.get(executors[0].config.id).state != "TERMINAL"
+        assert reservations.requires_reconciliation(executors[0].config.id)
+
+        connector.algo_pages["conditional,oco"] = {"code": "0", "data": []}
+        runner.tick(4)
         await controller.order_safety_task
         assert wal.get(executors[0].config.id).state == "TERMINAL"
         assert not reservations.requires_reconciliation(executors[0].config.id)
