@@ -2,6 +2,9 @@
 
 import asyncio
 import json
+import subprocess
+import sys
+from pathlib import Path
 from test.hummingbot.strategy_v2.life_liquidity.test_controller_order_safety import (
     _cashflows,
     _limits,
@@ -22,6 +25,7 @@ from hummingbot.connector.markets_recorder import MarketsRecorder
 from hummingbot.model.executors import Executors
 from hummingbot.model.sql_connection_manager import SQLConnectionManager, SQLConnectionType
 from hummingbot.strategy_v2.executors.executor_orchestrator import ExecutorOrchestrator
+from hummingbot.strategy_v2.executors.order_executor.data_types import OrderExecutorConfig
 from hummingbot.strategy_v2.life_liquidity import account_lock, action_journal
 from hummingbot.strategy_v2.life_liquidity.action_journal import QuoteActionJournal
 from hummingbot.strategy_v2.life_liquidity.risk import ReservationLedger
@@ -320,6 +324,129 @@ async def test_pre_send_journals_can_reconcile_without_late_executor_checkpoint(
             assert restored_wal.state != "TERMINAL"
             assert restored_ledger.requires_reconciliation("quote-1")
         assert len(connector.sent) == 1
+    finally:
+        restored_runner.listen_to_executor_actions_task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await restored_runner.listen_to_executor_actions_task
+        restored.stop()
+
+
+@pytest.mark.asyncio
+async def test_process_kill_inside_executor_insert_replays_pre_send_provenance(
+        tmp_path, monkeypatch):
+    """An INSERT visible only inside its transaction must not become recovery proof."""
+    monkeypatch.setattr(account_lock, "ACCOUNT_LOCK_ROOT", tmp_path / "locks")
+    db_path = tmp_path / "executors.sqlite"
+    marker_path = tmp_path / "sent.json"
+    child = """
+import asyncio
+import json
+import os
+import sys
+from pathlib import Path
+from sqlalchemy import event
+from test.hummingbot.strategy_v2.life_liquidity.test_executor_protected_send import _setup
+from test.hummingbot.strategy_v2.life_liquidity.test_final_quote_send import _attach_quote_planner
+from test.hummingbot.strategy_v2.life_liquidity.test_recorder_cold_restart import _recorder
+from test.hummingbot.strategy_v2.life_liquidity.test_spot_session_replay import FakeTradingOkx, _runner
+from hummingbot.connector.markets_recorder import MarketsRecorder
+from hummingbot.strategy_v2.executors.executor_orchestrator import ExecutorOrchestrator
+from hummingbot.strategy_v2.life_liquidity.action_journal import QuoteActionJournal
+from hummingbot.strategy_v2.life_liquidity.risk import ReservationLedger
+from hummingbot.strategy_v2.life_liquidity.state import IntentWAL
+from hummingbot.strategy_v2.models.base import RunnableStatus
+from hummingbot.strategy_v2.models.executor_actions import StoreExecutorAction
+
+directory, db_path, marker_path = map(Path, sys.argv[1:])
+
+async def main():
+    recorder = _recorder(db_path)
+    MarketsRecorder._shared_instance = recorder
+    connector = FakeTradingOkx()
+    controller, template, _, wal, ledger, _ = _setup(
+        directory, connector=connector, recovery_account_uid="12345")
+    _, proposed = _attach_quote_planner(controller, template, wal, ledger)
+    controller._spot_quote_gates_ready = lambda: True
+
+    def record_send(request):
+        assert QuoteActionJournal(directory / "quote_actions.json", account_uid="12345").get(
+            "quote-1").state == "PROPOSED"
+        assert IntentWAL(wal.path).get("quote-1").state == "SEND_UNKNOWN"
+        assert ReservationLedger.restore(ledger.path, limits=ledger.limits).has_open_intent("quote-1")
+        with marker_path.open("w", encoding="utf-8") as handle:
+            json.dump({"wire_id": request["order_id"],
+                       "config": proposed.config.model_dump_json()}, handle)
+            handle.flush()
+            os.fsync(handle.fileno())
+
+    connector.before_send = record_send
+    executors = []
+    runner = _runner(controller, connector, executors, proposed.config)
+    runner.tick(1)
+    assert len(connector.sent) == 1
+    executor = executors[0]
+    executor._status = RunnableStatus.TERMINATED
+    executor.config = executor.config.model_copy(update={"timestamp": 1.0})
+    checkpoint = ExecutorOrchestrator(strategy=runner)
+    checkpoint.active_executors["life"] = [executor]
+
+    @event.listens_for(recorder.sql_manager.engine, "after_cursor_execute")
+    def kill_after_insert(_connection, _cursor, statement, _parameters, _context, _executemany):
+        if 'INSERT INTO "Executors"' in statement:
+            os._exit(31)
+
+    checkpoint.store_executor(StoreExecutorAction(executor_id="quote-1", controller_id="life"))
+    raise AssertionError("executor INSERT did not interrupt the child")
+
+asyncio.run(main())
+"""
+    process = subprocess.run(
+        [sys.executable, "-c", child, str(tmp_path), str(db_path), str(marker_path)],
+        cwd=Path(__file__).resolve().parents[4], capture_output=True, text=True, timeout=30)
+    assert process.returncode == 31, process.stderr
+    with marker_path.open(encoding="utf-8") as handle:
+        sent = json.load(handle)
+    wire_id = sent["wire_id"]
+    assert IntentWAL(tmp_path / "intents.json").get("quote-1").client_order_id == wire_id
+    assert ReservationLedger.restore(tmp_path / "reservations.json", limits=_limits()).has_open_intent(
+        "quote-1")
+
+    reopened = _recorder(db_path)
+    monkeypatch.setattr(MarketsRecorder, "_shared_instance", reopened)
+    assert reopened.get_executors_by_controller("life") == []
+    _cashflows(tmp_path)
+    connector = FakeTradingOkx()
+    connector.status[wire_id] = {"clOrdId": wire_id, "ordId": "exchange-1",
+                                 "state": "live", "accFillSz": "0"}
+    connector.open_pages[None] = [{"clOrdId": wire_id, "ordId": "exchange-1",
+                                   "instId": "LIFE-USDT", "state": "live"}]
+    connector.bill_pages[None] = [{"billId": "100"}]
+    provider = MagicMock()
+    provider.get_connector_with_fallback.return_value = connector
+    config = _recovery_config(tmp_path).model_copy(update={"require_quote_action_journal": True})
+    restored = LifeLiquidityController(config, provider, MagicMock())
+    queued_config = OrderExecutorConfig.model_validate_json(sent["config"])
+    restored_runner = _runner(restored, connector, [], queued_config)
+    restored_runner.executor_orchestrator.get_stored_executors_by_controller.side_effect = (
+        lambda controller_id: ExecutorOrchestrator.get_stored_executors_by_controller(
+            restored_runner.executor_orchestrator, controller_id))
+    try:
+        restored_runner.tick(2)
+        await restored.order_safety_task
+        assert restored.quote_action_recovery_reason_code == "QUOTE_ACTION_JOURNAL_VERIFIED"
+        assert restored.order_safety_reason_code == "OLD_ORDERS_UNRESOLVED"
+        assert ReservationLedger.restore(tmp_path / "reservations.json", limits=_limits()).requires_reconciliation(
+            "quote-1")
+        assert connector.sent == []
+
+        connector.status[wire_id]["state"] = "canceled"
+        connector.open_pages[None] = []
+        restored_runner.tick(3)
+        await restored.order_safety_task
+        assert IntentWAL(tmp_path / "intents.json").get("quote-1").state == "TERMINAL"
+        assert ReservationLedger.restore(tmp_path / "reservations.json", limits=_limits()).is_terminal_intent(
+            "quote-1")
+        assert connector.sent == []
     finally:
         restored_runner.listen_to_executor_actions_task.cancel()
         with pytest.raises(asyncio.CancelledError):
