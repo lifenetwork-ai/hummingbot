@@ -21,7 +21,8 @@ from hummingbot.connector.markets_recorder import MarketsRecorder
 from hummingbot.model.executors import Executors
 from hummingbot.model.sql_connection_manager import SQLConnectionManager, SQLConnectionType
 from hummingbot.strategy_v2.executors.executor_orchestrator import ExecutorOrchestrator
-from hummingbot.strategy_v2.life_liquidity import account_lock
+from hummingbot.strategy_v2.life_liquidity import account_lock, action_journal
+from hummingbot.strategy_v2.life_liquidity.action_journal import QuoteActionJournal
 from hummingbot.strategy_v2.life_liquidity.risk import ReservationLedger
 from hummingbot.strategy_v2.life_liquidity.state import IntentWAL
 from hummingbot.strategy_v2.models.base import RunnableStatus
@@ -127,3 +128,106 @@ async def test_file_backed_executor_history_gates_cold_restart(tmp_path, monkeyp
         with pytest.raises(asyncio.CancelledError):
             await restored_runner.listen_to_executor_actions_task
         restored.stop()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stored_executor", [True, False])
+async def test_dispatch_fsync_failure_replays_across_action_wal_reservation_and_sqlite(
+        tmp_path, monkeypatch, stored_executor):
+    monkeypatch.setattr(account_lock, "ACCOUNT_LOCK_ROOT", tmp_path / "locks")
+    db_path = tmp_path / "executors.sqlite"
+    recorder = _recorder(db_path)
+    monkeypatch.setattr(MarketsRecorder, "_shared_instance", recorder)
+    connector = FakeTradingOkx()
+    controller, template, _, wal, ledger, _ = _setup(
+        tmp_path, connector=connector, recovery_account_uid="12345")
+    _, proposed = _attach_quote_planner(controller, template, wal, ledger)
+    controller._spot_quote_gates_ready = lambda: True
+    journal = controller._quote_action_planner.action_journal
+    original_save = journal._save
+    fsync_failed = False
+
+    def fail_dispatch_directory_fsync(records):
+        if records["quote-1"].state != "DISPATCHED":
+            return original_save(records)
+        original_fsync = action_journal.os.fsync
+        calls = 0
+
+        def fail_second_fsync(descriptor):
+            nonlocal calls, fsync_failed
+            calls += 1
+            if calls == 2:
+                fsync_failed = True
+                raise OSError("dispatch directory fsync failed")
+            return original_fsync(descriptor)
+
+        with monkeypatch.context() as patcher:
+            patcher.setattr(action_journal.os, "fsync", fail_second_fsync)
+            return original_save(records)
+
+    journal._save = fail_dispatch_directory_fsync
+    executors = []
+    runner = _runner(controller, connector, executors, proposed.config)
+    try:
+        runner.tick(1)
+        assert fsync_failed
+        assert len(connector.sent) == 1
+        wire_id = connector.sent[0]["order_id"]
+        assert journal.get("quote-1").state == "PROPOSED"
+        assert QuoteActionJournal(journal.path, account_uid="12345").get("quote-1").state == "DISPATCHED"
+        assert IntentWAL(wal.path).get("quote-1").state == "SEND_UNKNOWN"
+        assert ReservationLedger.restore(ledger.path, limits=_limits()).has_open_intent("quote-1")
+        if stored_executor:
+            executor = executors[0]
+            executor._status = RunnableStatus.TERMINATED
+            executor.config = executor.config.model_copy(update={"timestamp": 1.0})
+            checkpoint = ExecutorOrchestrator(strategy=runner)
+            checkpoint.active_executors["life"] = [executor]
+            checkpoint.store_executor(StoreExecutorAction(executor_id="quote-1", controller_id="life"))
+        assert [row.id for row in recorder.get_executors_by_controller("life")] == (
+            ["quote-1"] if stored_executor else [])
+    finally:
+        runner.listen_to_executor_actions_task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await runner.listen_to_executor_actions_task
+
+    monkeypatch.setattr(MarketsRecorder, "_shared_instance", _recorder(db_path))
+    _cashflows(tmp_path)
+    connector.status[wire_id] = {"clOrdId": wire_id, "ordId": "exchange-1",
+                                 "state": "canceled", "accFillSz": "0"}
+    connector.bill_pages[None] = [{"billId": "100"}]
+    provider = MagicMock()
+    provider.get_connector_with_fallback.return_value = connector
+    config = _recovery_config(tmp_path).model_copy(update={"require_quote_action_journal": True})
+    restored = LifeLiquidityController(config, provider, MagicMock())
+    restored_runner = _runner(restored, connector, [], proposed.config)
+    restored_runner.executor_orchestrator.get_stored_executors_by_controller.side_effect = (
+        lambda controller_id: ExecutorOrchestrator.get_stored_executors_by_controller(
+            restored_runner.executor_orchestrator, controller_id))
+    try:
+        restored_runner.tick(2)
+        await restored.order_safety_task
+        assert restored.quote_action_recovery_reason_code == "QUOTE_ACTION_JOURNAL_VERIFIED"
+        if stored_executor:
+            assert IntentWAL(wal.path).get("quote-1").state == "TERMINAL"
+            assert ReservationLedger.restore(ledger.path, limits=_limits()).is_terminal_intent("quote-1")
+        else:
+            assert restored.order_safety_reason_code == "RECONCILIATION_INCOMPLETE"
+            assert IntentWAL(wal.path).get("quote-1").state != "TERMINAL"
+            assert ReservationLedger.restore(ledger.path, limits=_limits()).requires_reconciliation("quote-1")
+        assert len(connector.sent) == 1
+    finally:
+        restored_runner.listen_to_executor_actions_task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await restored_runner.listen_to_executor_actions_task
+        restored.stop()
+
+    second = LifeLiquidityController(config, provider, MagicMock())
+    try:
+        second._restore_order_safety()
+        assert second.quote_action_recovery_reason_code == "QUOTE_ACTION_JOURNAL_VERIFIED"
+        assert QuoteActionJournal(journal.path, account_uid="12345").get("quote-1").state == (
+            "RECONCILED" if stored_executor else "DISPATCHED")
+        assert len(connector.sent) == 1
+    finally:
+        second.stop()
