@@ -155,13 +155,16 @@ class SubsidyBudgetLedger:
         for intent_id, entry in entries.items():
             if (not isinstance(intent_id, str) or not intent_id
                     or not isinstance(entry, dict)
-                    or set(entry) != {"day", "session_id", "reserved", "actual"}
+                    or set(entry) not in ({"day", "session_id", "reserved", "actual"},
+                                          {"day", "session_id", "reserved", "actual", "fill_floor"})
                     or not isinstance(entry["day"], str) or not entry["day"]
                     or not isinstance(entry["session_id"], str) or not entry["session_id"]):
                 raise ValueError("SUBSIDY_JOURNAL_UNAVAILABLE")
-            for field in ("reserved", "actual"):
-                value = entry[field]
+            for field in ("reserved", "actual", "fill_floor"):
+                value = entry.get(field)
                 if value is None and field == "actual":
+                    continue
+                if value is None and field == "fill_floor" and field not in entry:
                     continue
                 try:
                     parsed = Decimal(value) if isinstance(value, str) else None
@@ -213,7 +216,9 @@ class SubsidyBudgetLedger:
 
     @staticmethod
     def _committed(entry: dict[str, str | None]) -> Decimal:
-        return Decimal(entry["actual"] if entry["actual"] is not None else entry["reserved"])
+        if entry["actual"] is not None:
+            return Decimal(entry["actual"])
+        return max(Decimal(entry["reserved"]), Decimal(entry.get("fill_floor", "0")))
 
     @property
     def campaign_committed_quote(self) -> Decimal:
@@ -274,11 +279,19 @@ class SubsidyBudgetLedger:
             return True
 
     def reconcile(self, intent_id: str, *, actual_cost_quote: Decimal) -> bool:
+        return self._reconcile(intent_id, actual_cost_quote=actual_cost_quote, release_proven=False)
+
+    def _reconcile(self, intent_id: str, *, actual_cost_quote: Decimal,
+                   release_proven: bool) -> bool:
         if not _valid(actual_cost_quote):
             raise ValueError("actual subsidy cost invalid")
         with self._lock, self._file_lock():
             self._assert_disk_matches(required=True)
             entry = self._entries[intent_id]
+            if actual_cost_quote < Decimal(entry.get("fill_floor", "0")):
+                raise ValueError("SUBSIDY_RECONCILIATION_BELOW_FILLS")
+            if actual_cost_quote < Decimal(entry["reserved"]) and release_proven is not True:
+                raise ValueError("SUBSIDY_RELEASE_UNPROVEN")
             if entry["actual"] is not None:
                 if Decimal(entry["actual"]) != actual_cost_quote:
                     raise ValueError("subsidy reconciliation conflict")
@@ -288,6 +301,42 @@ class SubsidyBudgetLedger:
             self._save(updated)
             self._entries = updated
             return True
+
+    def record_fill_floor(self, intent_id: str, cumulative_cost_quote: Decimal) -> bool:
+        """Conservatively charge attributed fills while the quote hold remains open."""
+        if not _valid(cumulative_cost_quote):
+            raise ValueError("SUBSIDY_FILL_COST_INVALID")
+        with self._lock, self._file_lock():
+            self._assert_disk_matches(required=True)
+            entry = self._entries[intent_id]
+            if entry["actual"] is not None:
+                raise ValueError("SUBSIDY_ALREADY_SETTLED")
+            previous = Decimal(entry.get("fill_floor", "0"))
+            if cumulative_cost_quote < previous:
+                raise ValueError("SUBSIDY_FILL_COST_REGRESSION")
+            if cumulative_cost_quote == previous:
+                return False
+            updated = dict(self._entries)
+            updated[intent_id] = {**entry, "fill_floor": str(cumulative_cost_quote)}
+            self._save(updated)
+            self._entries = updated
+            return True
+
+    def matches_fill_floor(self, intent_id: str, cumulative_cost_quote: Decimal) -> bool:
+        if not _valid(cumulative_cost_quote):
+            return False
+        with self._lock, self._file_lock():
+            self._assert_disk_matches(required=True)
+            entry = self._entries.get(intent_id)
+            return (entry is not None and entry["actual"] is None
+                    and Decimal(entry.get("fill_floor", "0")) == cumulative_cost_quote)
+
+    def verified_fill_floors(self) -> dict[str, Decimal]:
+        with self._lock, self._file_lock():
+            self._assert_disk_matches(required=True)
+            return {intent_id: Decimal(entry["fill_floor"])
+                    for intent_id, entry in self._entries.items()
+                    if Decimal(entry.get("fill_floor", "0")) > 0}
 
     def _status(self, *, session_id: str, day: str) -> SubsidyBudgetStatus:
         campaign = sum((self._committed(entry) for entry in self._entries.values()), Decimal("0"))
@@ -335,10 +384,12 @@ class SubsidyBudgetLedger:
         if record.state != "ABORTED_BEFORE_SEND":
             raise ValueError("SUBSIDY_RELEASE_UNPROVEN")
         durable = ReservationLedger.restore(reservations.path, limits=reservations.limits)
-        if (intent_id in durable.reservation_ids
-                and not durable.is_terminal_intent(intent_id)):
+        if (record.reservation_id != intent_id
+                or not durable.is_terminal_intent(intent_id)
+                or not durable.can_abort_unsent(
+                    intent_id, record.session_id, record.epoch)):
             raise ValueError("SUBSIDY_RELEASE_UNPROVEN")
-        return self.reconcile(intent_id, actual_cost_quote=Decimal("0"))
+        return self._reconcile(intent_id, actual_cost_quote=Decimal("0"), release_proven=True)
 
 
 @dataclass(frozen=True)

@@ -8,6 +8,8 @@ from unittest.mock import patch
 
 import pytest
 
+from hummingbot.strategy_v2.life_liquidity.config import SubsidyBudgetConfig
+from hummingbot.strategy_v2.life_liquidity.economics import SubsidyBudgetLedger
 from hummingbot.strategy_v2.life_liquidity.fill_attribution import IndependentFillObservation, ReconciledFillAttributor
 from hummingbot.strategy_v2.life_liquidity.loss_budget import LossBudgetLedger
 from hummingbot.strategy_v2.life_liquidity.order_gateway import OkxSpotOrderGateway, SpotFill, SpotReservationReconciler
@@ -17,7 +19,8 @@ AT = datetime(2026, 10, 8, 12, tzinfo=timezone.utc)
 AT_MS = int(AT.timestamp() * 1000)
 
 
-def _attributor(tmp_path, wal, reservations, *, restore=False, loss_limit=Decimal("1"), approvals=None):
+def _attributor(tmp_path, wal, reservations, *, restore=False, loss_limit=Decimal("1"),
+                approvals=None, subsidy=None):
     session_id = wal.get("i1").session_id
     loss = LossBudgetLedger(
         tmp_path / "loss_budget.json", campaign_id="life", campaign_limit_quote=loss_limit,
@@ -31,7 +34,8 @@ def _attributor(tmp_path, wal, reservations, *, restore=False, loss_limit=Decima
         opening_independent_price_usdt=Decimal("1"),
         independent_value=lambda _: IndependentFillObservation(
             Decimal("0.9"), AT_MS, AT_MS + 100, "independent_market"),
-        max_reference_skew_ms=200, create=not restore, cashflow_approvals=approvals)
+        max_reference_skew_ms=200, create=not restore,
+        cashflow_approvals=approvals, subsidy_budget=subsidy)
     return attributor, loss
 
 
@@ -55,6 +59,104 @@ def test_reconciled_partial_fill_attributed_once_and_restored(tmp_path):
     restored, _ = _attributor(tmp_path, wal, restored_reservations, restore=True)
     assert restored.ready()
     assert restored.apply("wire-1", (fill,))
+
+
+def test_partial_fill_subsidy_overage_replays_after_interrupted_write(tmp_path):
+    _, _, wal, reservations = _setup(tmp_path)
+    session_id = wal.get("i1").session_id
+    subsidy_path = tmp_path / "subsidy_budget.json"
+    subsidy = SubsidyBudgetLedger(
+        subsidy_path, campaign_id="life", campaign_limit_quote=Decimal("1"),
+        day_limit_quote=Decimal("1"), session_limit_quote=Decimal("1"))
+    subsidy.initialize_empty()
+    assert subsidy.reserve("i1", Decimal("0.01"), session_id=session_id, at_utc=AT)
+    attribution, loss = _attributor(tmp_path, wal, reservations, subsidy=subsidy)
+    fill = SpotFill("trade-1", Decimal("0.4"), Decimal("1"), "USDT", Decimal("-0.01"), AT_MS)
+    assert SpotReservationReconciler(wal, reservations, require_fees=True).apply_fills(
+        "wire-1", (fill,), Decimal("0.4"))
+    with patch.object(subsidy, "record_fill_floor", side_effect=OSError("crash")):
+        assert not attribution.apply("wire-1", (fill,))
+    assert not attribution.ready()
+    assert subsidy.campaign_committed_quote == Decimal("0.01")
+    restored_reservations = type(reservations).restore(reservations.path, limits=reservations.limits)
+    restored_subsidy = SubsidyBudgetLedger(
+        subsidy_path, campaign_id="life", campaign_limit_quote=Decimal("1"),
+        day_limit_quote=Decimal("1"), session_limit_quote=Decimal("1"))
+    restored, _ = _attributor(
+        tmp_path, wal, restored_reservations, restore=True, subsidy=restored_subsidy)
+    assert restored.recover()
+    assert restored.ready()
+    assert restored_subsidy.matches_fill_floor("i1", Decimal("0.05"))
+    assert restored_subsidy.campaign_committed_quote == Decimal("0.05")
+    assert not restored_subsidy.record_fill_floor("i1", Decimal("0.05"))
+
+
+def test_service_controller_blocks_new_risk_until_fill_subsidy_is_replayed(tmp_path):
+    controller, _, wal, reservations = _setup(tmp_path)
+    economics = controller.config.strategy.economics.model_copy(update={
+        "objective": "liquidity_service",
+        "subsidy_budget_quote": SubsidyBudgetConfig(
+            campaign=Decimal("1"), day=Decimal("1"), session=Decimal("1"))})
+    controller.config = controller.config.model_copy(update={
+        "strategy": controller.config.strategy.model_copy(update={"economics": economics})})
+    subsidy = SubsidyBudgetLedger(
+        tmp_path / "subsidy_budget.json", campaign_id="life",
+        campaign_limit_quote=Decimal("1"), day_limit_quote=Decimal("1"),
+        session_limit_quote=Decimal("1"))
+    subsidy.initialize_empty()
+    assert subsidy.reserve("i1", Decimal("0.01"),
+                           session_id=wal.get("i1").session_id, at_utc=AT)
+    attribution, loss = _attributor(tmp_path, wal, reservations, subsidy=subsidy)
+    controller.install_execution_loss_budget(loss, utc_clock=lambda: AT)
+    controller.install_fill_attributor(attribution)
+    controller._spot_quote_gates_ready = lambda: True
+    controller.order_safety_watchdog_task = SimpleNamespace(done=lambda: False)
+    assert controller.allow_create_executor_actions()
+    fill = SpotFill("trade-1", Decimal("0.4"), Decimal("1"), "USDT", Decimal("-0.01"), AT_MS)
+    with patch.object(subsidy, "record_fill_floor", side_effect=OSError("crash")):
+        assert not controller._order_safety_gateway.apply_fills(
+            "wire-1", (fill,), Decimal("0.4"))
+    assert not controller.allow_create_executor_actions()
+    assert attribution.recover()
+    assert controller.allow_create_executor_actions()
+
+
+def test_service_controller_rejects_fill_attributor_without_subsidy_binding(tmp_path):
+    controller, _, wal, reservations = _setup(tmp_path)
+    economics = controller.config.strategy.economics.model_copy(update={
+        "objective": "liquidity_service",
+        "subsidy_budget_quote": SubsidyBudgetConfig(
+            campaign=Decimal("1"), day=Decimal("1"), session=Decimal("1"))})
+    controller.config = controller.config.model_copy(update={
+        "strategy": controller.config.strategy.model_copy(update={"economics": economics})})
+    attribution, loss = _attributor(tmp_path, wal, reservations)
+    controller.install_execution_loss_budget(loss, utc_clock=lambda: AT)
+    with pytest.raises(ValueError, match="FILL_SUBSIDY_BINDING_INVALID"):
+        controller.install_fill_attributor(attribution)
+
+
+def test_two_partial_fills_charge_subsidy_once_each_and_reject_phantom_floor(tmp_path):
+    _, _, wal, reservations = _setup(tmp_path)
+    subsidy = SubsidyBudgetLedger(
+        tmp_path / "subsidy_budget.json", campaign_id="life",
+        campaign_limit_quote=Decimal("1"), day_limit_quote=Decimal("1"),
+        session_limit_quote=Decimal("1"))
+    subsidy.initialize_empty()
+    assert subsidy.reserve("i1", Decimal("0.02"),
+                           session_id=wal.get("i1").session_id, at_utc=AT)
+    attribution, _ = _attributor(tmp_path, wal, reservations, subsidy=subsidy)
+    reconciler = SpotReservationReconciler(wal, reservations, require_fees=True)
+    first = SpotFill("trade-1", Decimal("0.4"), Decimal("1"), "USDT", Decimal("-0.01"), AT_MS)
+    second = SpotFill("trade-2", Decimal("0.3"), Decimal("1"), "USDT", Decimal("-0.01"), AT_MS)
+    assert reconciler.apply_fills("wire-1", (first,), Decimal("0.4"))
+    assert attribution.apply("wire-1", (first,))
+    assert subsidy.campaign_committed_quote == Decimal("0.05")
+    assert reconciler.apply_fills("wire-1", (first, second), Decimal("0.7"))
+    assert attribution.apply("wire-1", (first, second))
+    assert attribution.apply("wire-1", (first, second))
+    assert subsidy.campaign_committed_quote == Decimal("0.09")
+    assert subsidy.record_fill_floor("i1", Decimal("0.10"))
+    assert not attribution.ready()
 
 
 def test_missing_fee_or_independent_value_keeps_fill_unattributed(tmp_path):

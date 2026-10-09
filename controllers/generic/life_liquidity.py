@@ -605,6 +605,10 @@ class LifeLiquidityController(ControllerBase):
             except (OSError, ValueError) as exc:
                 raise ValueError("QUOTE_ACTION_RECOVERY_UNVERIFIED") from exc
         sender = self._protected_spot_sender
+        if (self.config.strategy.economics.objective == "liquidity_service"
+                and self._fill_attributor is not None
+                and planner.subsidy_budget is not self._fill_attributor.subsidy_budget):
+            raise ValueError("QUOTE_SUBSIDY_ATTRIBUTION_MISMATCH")
         if (self._quote_action_planner is not None or not isinstance(planner, QuoteActionPlanner)
                 or planner.controller is not self or sender is None
                 or planner.manager is not self._order_safety_manager
@@ -719,6 +723,19 @@ class LifeLiquidityController(ControllerBase):
                 attributor.path != Path(self.config.recovery_state_dir) / "fill_attribution.json"
                 or attributor.path.is_symlink()):
             raise ValueError("FILL_ATTRIBUTION_RECOVERY_MISMATCH")
+        if self.config.strategy.economics.objective == "liquidity_service":
+            subsidy = attributor.subsidy_budget
+            configured = self.config.strategy.economics.subsidy_budget_quote
+            planner = self._quote_action_planner
+            if (subsidy is None or configured is None
+                    or subsidy.campaign_limit_quote != configured.campaign
+                    or subsidy.day_limit_quote != (configured.day or configured.campaign)
+                    or subsidy.session_limit_quote != (
+                        configured.session or configured.day or configured.campaign)
+                    or planner is not None and planner.subsidy_budget is not subsidy
+                    or self.config.recovery_state_dir is not None
+                    and subsidy.path != Path(self.config.recovery_state_dir) / "subsidy_budget.json"):
+                raise ValueError("FILL_SUBSIDY_BINDING_INVALID")
         account = getattr(gateway.account_check, "__self__", None)
         bills = account.bills if isinstance(account, SpotAccountReconciler) else None
         if bills is None:
@@ -742,7 +759,11 @@ class LifeLiquidityController(ControllerBase):
 
     def _fill_attribution_ready(self) -> bool:
         if self._fill_attributor is None:
-            return True  # Production order permission remains disabled separately.
+            return self.config.strategy.economics.objective != "liquidity_service"
+        if (self.config.strategy.economics.objective == "liquidity_service"
+                and self._fill_attributor.subsidy_budget is None):
+            self.fill_attribution_reason_code = "FILL_SUBSIDY_BINDING_INVALID"
+            return False
         try:
             ready = self._fill_attributor.ready()
         except Exception:

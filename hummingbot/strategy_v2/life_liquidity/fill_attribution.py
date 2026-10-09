@@ -18,6 +18,7 @@ from typing import Callable
 
 from hummingbot.strategy_v2.life_liquidity.account_bills import CashflowApprovals
 from hummingbot.strategy_v2.life_liquidity.accounting import CapitalLedger
+from hummingbot.strategy_v2.life_liquidity.economics import SubsidyBudgetLedger
 from hummingbot.strategy_v2.life_liquidity.loss_budget import LossBudgetLedger
 from hummingbot.strategy_v2.life_liquidity.order_gateway import SpotFill
 from hummingbot.strategy_v2.life_liquidity.risk import ReservationLedger
@@ -65,10 +66,12 @@ class ReconciledFillAttributor:
                  opening_usdt: Decimal, opening_independent_price_usdt: Decimal,
                  independent_value: Callable[[SpotFill], IndependentFillObservation],
                  max_reference_skew_ms: int, create: bool,
-                 cashflow_approvals: CashflowApprovals | None = None):
+                 cashflow_approvals: CashflowApprovals | None = None,
+                 subsidy_budget: SubsidyBudgetLedger | None = None):
         if (not isinstance(max_reference_skew_ms, int) or isinstance(max_reference_skew_ms, bool)
                 or max_reference_skew_ms < 0 or not callable(independent_value)
                 or not isinstance(create, bool)
+                or subsidy_budget is not None and not isinstance(subsidy_budget, SubsidyBudgetLedger)
                 or cashflow_approvals is not None
                 and (not isinstance(cashflow_approvals, CashflowApprovals)
                      or not self._approvals_valid(cashflow_approvals))):
@@ -80,6 +83,7 @@ class ReconciledFillAttributor:
         self.wal = wal
         self.reservations = reservations
         self.loss_budget = loss_budget
+        self.subsidy_budget = subsidy_budget
         self.opening_life = opening_life
         self.opening_usdt = opening_usdt
         self.opening_independent_price_usdt = opening_independent_price_usdt
@@ -110,7 +114,16 @@ class ReconciledFillAttributor:
             policy["approved_cashflows"] = {
                 bill_id: [currency, str(amount)]
                 for bill_id, (currency, amount) in self.cashflow_approvals.approved.items()}
+        if self.subsidy_budget is not None:
+            policy["subsidy_campaign_id"] = self.subsidy_budget.campaign_id
         return policy
+
+    def _subsidy_costs_by_intent(self) -> dict[str, Decimal]:
+        costs = {}
+        for event in self._events.values():
+            intent_id = event["intent_id"]
+            costs[intent_id] = costs.get(intent_id, Decimal("0")) + Decimal(event["loss_quote"])
+        return costs
 
     @contextmanager
     def _file_lock(self):
@@ -286,6 +299,11 @@ class ReconciledFillAttributor:
                         f"fill:{trade_id}", Decimal(event["loss_quote"]),
                         session_id=event["session_id"], at_utc=self._at_utc(event)):
                     return False
+            if self.subsidy_budget is not None:
+                expected = {intent_id: cost for intent_id, cost in
+                            self._subsidy_costs_by_intent().items() if cost > 0}
+                if self.subsidy_budget.verified_fill_floors() != expected:
+                    return False
             return True
         except Exception:
             return False
@@ -311,6 +329,9 @@ class ReconciledFillAttributor:
                 self.loss_budget.record(
                     f"fill:{trade_id}", Decimal(event["loss_quote"]),
                     session_id=event["session_id"], at_utc=self._at_utc(event))
+            if self.subsidy_budget is not None:
+                for intent_id, cost in self._subsidy_costs_by_intent().items():
+                    self.subsidy_budget.record_fill_floor(intent_id, cost)
             return self.ready()
         except Exception:
             return False

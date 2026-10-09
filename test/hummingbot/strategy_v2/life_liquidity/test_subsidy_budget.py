@@ -79,3 +79,19 @@ def test_missing_journal_and_ambiguous_commit_block_subsidy_reuse(tmp_path):
     with pytest.raises(ValueError, match="SUBSIDY_JOURNAL_UNAVAILABLE"):
         restored.reserve("i2", Decimal("0.5"), session_id="s1", at_utc=START)
     assert ledger(path).campaign_committed_quote == Decimal("0.5")
+
+
+def test_partial_fill_cost_above_hold_charges_budget_without_releasing_remainder(tmp_path):
+    path = tmp_path / "subsidy.json"
+    book = ledger(path)
+    book.initialize_empty()
+    assert book.reserve("i1", Decimal("0.1"), session_id="s1", at_utc=START)
+    assert book.record_fill_floor("i1", Decimal("0.3"))
+    assert not book.record_fill_floor("i1", Decimal("0.3"))
+    assert book.verified_status(session_id="s1", at_utc=START).available_quote == Decimal("1.7")
+    restored = ledger(path)
+    assert restored.matches_fill_floor("i1", Decimal("0.3"))
+    with pytest.raises(ValueError, match="SUBSIDY_FILL_COST_REGRESSION"):
+        restored.record_fill_floor("i1", Decimal("0.2"))
+    with pytest.raises(ValueError, match="SUBSIDY_RECONCILIATION_BELOW_FILLS"):
+        restored.reconcile("i1", actual_cost_quote=Decimal("0.2"))
