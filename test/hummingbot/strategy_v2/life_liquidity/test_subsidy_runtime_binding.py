@@ -116,6 +116,36 @@ def test_unknown_send_keeps_subsidy_until_durable_no_send_proof(tmp_path):
     assert not book.release_unsent(intent_id, wal=wal, reservations=reservations)
 
 
+def test_zero_fill_terminal_releases_hold_only_after_both_journals_agree(tmp_path):
+    _, _, wal, reservations, book, _, executor, _ = _queue_service(tmp_path)
+    intent_id = executor.config.id
+    with pytest.raises(ValueError, match="SUBSIDY_RELEASE_UNPROVEN"):
+        book.settle_zero_fill_terminal(intent_id, wal=wal, reservations=reservations)
+    wal.mark_terminal(intent_id, "exchange-1")
+    with pytest.raises(ValueError, match="SUBSIDY_RELEASE_UNPROVEN"):
+        book.settle_zero_fill_terminal(intent_id, wal=wal, reservations=reservations)
+    reservations.confirm_terminal(intent_id, cumulative_filled=D("0"),
+                                  fills_reconciled=True, exchange_state="CANCELED")
+    assert book.settle_zero_fill_terminal(intent_id, wal=wal, reservations=reservations)
+    assert book.campaign_committed_quote == 0
+    restored = SubsidyBudgetLedger(
+        book.path, campaign_id="life-launch", campaign_limit_quote=D("1"),
+        day_limit_quote=D("0.1"), session_limit_quote=D("0.05"))
+    assert not restored.settle_zero_fill_terminal(intent_id, wal=wal, reservations=reservations)
+
+
+def test_zero_fill_terminal_cannot_release_a_partial_fill_hold(tmp_path):
+    _, _, wal, reservations, book, _, executor, _ = _queue_service(tmp_path)
+    intent_id = executor.config.id
+    book.record_fill_floor(intent_id, D("0.001"))
+    wal.mark_terminal(intent_id, "exchange-1")
+    reservations.confirm_terminal(intent_id, cumulative_filled=D("0"),
+                                  fills_reconciled=True, exchange_state="CANCELED")
+    with pytest.raises(ValueError, match="SUBSIDY_RELEASE_UNPROVEN"):
+        book.settle_zero_fill_terminal(intent_id, wal=wal, reservations=reservations)
+    assert book.campaign_committed_quote == D("0.0098")
+
+
 def test_changed_config_budget_revokes_queued_service_order(tmp_path):
     controller, connector, wal, reservations, _, _, executor, wire = _queue_service(tmp_path)
     economics = controller.config.strategy.economics.model_copy(update={

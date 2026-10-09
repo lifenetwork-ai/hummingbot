@@ -391,6 +391,33 @@ class SubsidyBudgetLedger:
             raise ValueError("SUBSIDY_RELEASE_UNPROVEN")
         return self._reconcile(intent_id, actual_cost_quote=Decimal("0"), release_proven=True)
 
+    def settle_zero_fill_terminal(self, intent_id: str, *, wal, reservations) -> bool:
+        """Release an unused hold after durable, zero-fill terminal proof.
+
+        A partial fill retains its hold until complete inventory/exit accounting;
+        merely ending the quote does not settle the economic subsidy.
+        """
+        from hummingbot.strategy_v2.life_liquidity.risk import ReservationLedger
+        from hummingbot.strategy_v2.life_liquidity.state import IntentWAL
+
+        record = IntentWAL(wal.path).get(intent_id)
+        durable = ReservationLedger.restore(reservations.path, limits=reservations.limits)
+        reservation = durable.reservation_snapshot().get(intent_id)
+        if (record.state != "TERMINAL" or not record.exchange_terminal_observed
+                or not record.exchange_order_id or record.reservation_id != intent_id
+                or reservation is None or reservation.state != "TERMINAL"
+                or reservation.filled_base != 0 or reservation.remaining_base != 0
+                or reservation.intent.session_id != record.session_id
+                or reservation.intent.epoch != record.epoch):
+            raise ValueError("SUBSIDY_RELEASE_UNPROVEN")
+        with self._lock, self._file_lock():
+            self._assert_disk_matches(required=True)
+            entry = self._entries.get(intent_id)
+            if (entry is None or entry["session_id"] != record.session_id
+                    or Decimal(entry.get("fill_floor", "0")) != 0):
+                raise ValueError("SUBSIDY_RELEASE_UNPROVEN")
+        return self._reconcile(intent_id, actual_cost_quote=Decimal("0"), release_proven=True)
+
 
 @dataclass(frozen=True)
 class ExitInputs:
