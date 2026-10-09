@@ -1,8 +1,10 @@
 """Persisted execution-loss limits with explicit session, UTC day, and campaign keys."""
 
+import fcntl
 import json
 import os
 import tempfile
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -40,10 +42,44 @@ class LossBudgetLedger:
         if self.path.exists():
             with self.path.open(encoding="utf-8") as handle:
                 data = json.load(handle)
-            if (data.get("schema_version") != 1 or data.get("campaign_id") != campaign_id
+            if data.get("schema_version") == 1:
+                raise ValueError("LOSS_BUDGET_MIGRATION_REQUIRED")
+            if (data.get("schema_version") != 2 or data.get("campaign_id") != campaign_id
                     or not isinstance(data.get("events"), dict)):
                 raise ValueError("loss journal invalid")
+            if data.get("policy") != self._policy():
+                raise ValueError("LOSS_BUDGET_POLICY_MISMATCH")
             self._events = data["events"]
+
+    def _policy(self) -> dict[str, str]:
+        return {"campaign_limit_quote": str(self.campaign_limit_quote),
+                "day_limit_quote": str(self.day_limit_quote),
+                "session_limit_quote": str(self.session_limit_quote)}
+
+    @contextmanager
+    def _file_lock(self):
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        lock_path = self.path.with_name(f"{self.path.name}.lock")
+        descriptor = os.open(lock_path, os.O_CREAT | os.O_RDWR | getattr(os, "O_NOFOLLOW", 0), 0o600)
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX)
+            yield
+        finally:
+            fcntl.flock(descriptor, fcntl.LOCK_UN)
+            os.close(descriptor)
+
+    def _assert_disk_matches(self, *, required: bool) -> None:
+        if self.path.is_symlink() or not self.path.is_file():
+            if not required and not self.path.exists() and not self._events:
+                return
+            raise ValueError("LOSS_BUDGET_JOURNAL_UNAVAILABLE")
+        with self.path.open(encoding="utf-8") as handle:
+            data = json.load(handle)
+        if (data.get("schema_version") != 2
+                or data.get("campaign_id") != self.campaign_id
+                or data.get("policy") != self._policy()
+                or data.get("events") != self._events):
+            raise ValueError("LOSS_BUDGET_JOURNAL_UNAVAILABLE")
 
     @staticmethod
     def _day(at_utc: datetime) -> str:
@@ -57,8 +93,8 @@ class LossBudgetLedger:
         descriptor, temporary = tempfile.mkstemp(prefix=f".{self.path.name}.", dir=self.path.parent)
         try:
             with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-                json.dump({"schema_version": 1, "campaign_id": self.campaign_id,
-                           "events": events}, handle, sort_keys=True)
+                json.dump({"schema_version": 2, "campaign_id": self.campaign_id,
+                           "policy": self._policy(), "events": events}, handle, sort_keys=True)
                 handle.flush()
                 os.fsync(handle.fileno())
             os.replace(temporary, self.path)
@@ -73,16 +109,18 @@ class LossBudgetLedger:
         event = {"session_id": session_id, "day": self._day(at_utc),
                  "loss_quote": str(loss_quote)}
         with self._lock:
-            previous = self._events.get(event_id)
-            if previous is not None:
-                if previous != event:
-                    raise ValueError("LOSS_EVENT_CONFLICT")
-                return False
-            updated = dict(self._events)
-            updated[event_id] = event
-            self._save(updated)
-            self._events = updated
-            return True
+            with self._file_lock():
+                self._assert_disk_matches(required=False)
+                previous = self._events.get(event_id)
+                if previous is not None:
+                    if previous != event:
+                        raise ValueError("LOSS_EVENT_CONFLICT")
+                    return False
+                updated = dict(self._events)
+                updated[event_id] = event
+                self._save(updated)
+                self._events = updated
+                return True
 
     def status(self, *, session_id: str, at_utc: datetime) -> LossBudgetStatus:
         if not session_id:
@@ -97,6 +135,13 @@ class LossBudgetLedger:
         exhausted = (campaign >= self.campaign_limit_quote or daily >= self.day_limit_quote
                      or session >= self.session_limit_quote)
         return LossBudgetStatus(session, daily, campaign, exhausted)
+
+    def verified_status(self, *, session_id: str, at_utc: datetime) -> LossBudgetStatus:
+        """Read the durable journal again before granting new risk."""
+        with self._lock:
+            with self._file_lock():
+                self._assert_disk_matches(required=True)
+                return self.status(session_id=session_id, at_utc=at_utc)
 
     def can_add_risk(self, *, session_id: str, at_utc: datetime) -> bool:
         return not self.status(session_id=session_id, at_utc=at_utc).exhausted

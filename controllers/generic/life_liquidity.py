@@ -26,6 +26,7 @@ from hummingbot.strategy_v2.life_liquidity.account_lock import AccountLockUnavai
 from hummingbot.strategy_v2.life_liquidity.action_journal import QuoteActionJournal
 from hummingbot.strategy_v2.life_liquidity.config import ConfigUpdateState, StrategyConfig
 from hummingbot.strategy_v2.life_liquidity.executor_send import ProtectedSpotExecutorSender
+from hummingbot.strategy_v2.life_liquidity.loss_budget import LossBudgetLedger, LossBudgetStatus
 from hummingbot.strategy_v2.life_liquidity.market_data import (
     BenchmarkConnectorRoute,
     BookContinuityGate,
@@ -159,6 +160,10 @@ class LifeLiquidityController(ControllerBase):
         self._runtime_risk_clock_ms: Callable[[], int] | None = None
         self._runtime_risk_max_age_ms: int | None = None
         self.runtime_risk_reason_code = "RUNTIME_RISK_NOT_INSTALLED"
+        self._execution_loss_budget: LossBudgetLedger | None = None
+        self._execution_loss_utc_clock: Callable[[], datetime] | None = None
+        self.execution_loss_status: LossBudgetStatus | None = None
+        self.execution_loss_reason_code = "EXECUTION_LOSS_BUDGET_NOT_INSTALLED"
         self._quote_action_recovery_ready = False
         self._quote_action_recovery_records = None
         self.quote_action_recovery_reason_code = "QUOTE_ACTION_RECOVERY_NOT_CONFIGURED"
@@ -645,6 +650,46 @@ class LifeLiquidityController(ControllerBase):
         # DEGRADED probe sizing is not wired into the runner yet. Stay blocked.
         return decision.state == "NORMAL"
 
+    def install_execution_loss_budget(self, ledger: LossBudgetLedger, *,
+                                      utc_clock: Callable[[], datetime]) -> None:
+        """Bind an explicit durable P4 loss budget to runner and send checks."""
+        configured_limit = self.config.strategy.risk.execution_loss_budget_quote
+        if (self._execution_loss_budget is not None
+                or not isinstance(ledger, LossBudgetLedger) or not callable(utc_clock)
+                or configured_limit is not None
+                and ledger.campaign_limit_quote != configured_limit):
+            raise ValueError("EXECUTION_LOSS_BINDING_INVALID")
+        if self.config.recovery_state_dir is not None and (
+                ledger.path != Path(self.config.recovery_state_dir) / "loss_budget.json"
+                or ledger.path.is_symlink()):
+            raise ValueError("EXECUTION_LOSS_RECOVERY_MISMATCH")
+        self._execution_loss_budget = ledger
+        self._execution_loss_utc_clock = utc_clock
+        self.execution_loss_status = None
+        self.execution_loss_reason_code = "EXECUTION_LOSS_BUDGET_STARTUP_REVALIDATION"
+
+    def _execution_loss_ready(self) -> bool:
+        ledger = self._execution_loss_budget
+        if ledger is None:
+            return True  # Production order permission remains disabled separately.
+        self.execution_loss_status = None
+        current = self._order_safety_manager.current_session if self._order_safety_manager else None
+        if current is None:
+            self.execution_loss_reason_code = "EXECUTION_LOSS_SESSION_UNAVAILABLE"
+            return False
+        try:
+            status = ledger.verified_status(
+                session_id=current.session_id, at_utc=self._execution_loss_utc_clock())
+        except Exception:
+            self.execution_loss_reason_code = "EXECUTION_LOSS_BUDGET_UNAVAILABLE"
+            return False
+        self.execution_loss_status = status
+        if status.exhausted:
+            self.execution_loss_reason_code = "EXECUTION_LOSS_BUDGET_EXHAUSTED"
+            return False
+        self.execution_loss_reason_code = "EXECUTION_LOSS_BUDGET_READY"
+        return True
+
     def authorize_runner_create_action(self, action) -> bool:
         planner = self._quote_action_planner
         if self.config.recovery_state_dir is not None and not self._quote_action_recovery_ready:
@@ -929,9 +974,10 @@ class LifeLiquidityController(ControllerBase):
                 self._pause_reconciliation_required = True
                 self.order_safety_reason_code = "RECONCILIATION_REQUIRED"
             risk_ready = self._runtime_risk_ready()
+            loss_ready = risk_ready and self._execution_loss_ready()
             planner = self._quote_action_planner
-            qualified = planner.session_snapshot() if risk_ready and planner is not None else None
-            ready = (risk_ready and qualified is not None and self._spot_quote_gates_ready()
+            qualified = planner.session_snapshot() if loss_ready and planner is not None else None
+            ready = (loss_ready and qualified is not None and self._spot_quote_gates_ready()
                      and not self._pause_reconciliation_required)
             previous_state = manager.state
             manager.tick(reference_ready=ready, all_gates_ready=ready,
@@ -1088,6 +1134,8 @@ class LifeLiquidityController(ControllerBase):
 
     def allow_create_executor_actions(self) -> bool:
         if not self._runtime_risk_ready():
+            return False
+        if not self._execution_loss_ready():
             return False
         if self.has_unverified_runner_order_events():
             return False

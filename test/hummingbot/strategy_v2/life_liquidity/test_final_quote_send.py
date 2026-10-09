@@ -27,7 +27,8 @@ from hummingbot.strategy_v2.life_liquidity.spot_quotes import AdaptiveQuotePolic
 def _attach_quote_planner(controller, template, wal, ledger, *,
                           reference_engine=None, book_sequence_id=None,
                           reference_model_version=None,
-                          adaptive_policy=None, adaptive_signals=None):
+                          adaptive_policy=None, adaptive_signals=None,
+                          loss_budget_status=None):
     quotes = QuotesConfig(spreads_bps=(Decimal("30"),), sizes_base=(Decimal("1"),))
     controller.config = controller.config.model_copy(update={
         "strategy": controller.config.strategy.model_copy(update={"quotes": quotes})})
@@ -45,6 +46,7 @@ def _attach_quote_planner(controller, template, wal, ledger, *,
                          Decimal("0"), Decimal("0")),
         policy=EconomicPolicy("profit_mm", Decimal("0")),
         adaptive_policy=adaptive_policy, adaptive_signals=adaptive_signals,
+        loss_budget_status=loss_budget_status,
         book_sequence_id=book_sequence_id,
         reference_model_version=reference_model_version)}
     planner = QuoteActionPlanner(

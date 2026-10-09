@@ -352,6 +352,8 @@ class QuoteActionPlanner:
                     or observed.policy.objective != self.controller.config.strategy.economics.objective
                     or not isinstance(observed.rules, InstrumentRules)
                     or not isinstance(observed.costs, QuoteCosts)
+                    or (self.controller._execution_loss_budget is not None
+                        and observed.loss_budget_status != self.controller.execution_loss_status)
                     or not self.controller.quote_reference_matches(
                         observed, self.reference_engine,
                         pre_send_intent_id=pre_send_intent_id)
