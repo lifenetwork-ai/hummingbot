@@ -49,3 +49,21 @@ def test_funding_cost_reduces_nav_and_duplicate_event_is_idempotent():
     assert ledger.record_funding("funding-1", D("2"))
     assert not ledger.record_funding("funding-1", D("2"))
     assert ledger.measure(D("1"), source_kind="independent_market").nav_quote == D("198")
+
+
+def test_100x_turnover_does_not_dilute_the_same_capital_loss():
+    def replay(cycles: int, buy_price: Decimal):
+        ledger = CapitalLedger(opening_life=D("100"), opening_usdt=D("1000"),
+                               opening_independent_price_usdt=D("1"))
+        for index in range(cycles):
+            ledger.record_fill(f"buy-{index}", "BUY", D("1"), buy_price, D("0"),
+                               independent_value_usdt=D("1"))
+            ledger.record_fill(f"sell-{index}", "SELL", D("1"), D("1"), D("0"),
+                               independent_value_usdt=D("1"))
+        return ledger.measure(D("1"), source_kind="independent_market")
+
+    low = replay(1, D("1.01"))
+    high = replay(100, D("1.0001"))
+    assert low.execution_loss_quote == high.execution_loss_quote == D("0.01")
+    assert low.adjusted_nav_quote == high.adjusted_nav_quote == D("1099.99")
+    assert low.drawdown_bps == high.drawdown_bps

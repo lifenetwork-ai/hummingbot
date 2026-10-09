@@ -178,7 +178,7 @@ def test_missing_nav_value_pauses_runtime_risk_even_if_base_observer_is_green(tm
 
 def test_persisted_nav_halt_revokes_final_wire_check(tmp_path):
     controller, template, connector, wal, reservations, _ = sender_setup(tmp_path)
-    wal._save({})  # The sender fixture has not created its startup WAL file yet.
+    wal.initialize_empty()
     del controller.allow_create_executor_actions
     controller._spot_quote_gates_ready = lambda: True
     controller.order_safety_watchdog_task = SimpleNamespace(done=lambda: False)
