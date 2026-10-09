@@ -62,6 +62,7 @@ class QuotePlanningSnapshot:
     loss_budget_status: LossBudgetStatus | None = None
     book_sequence_id: int | None = None
     reference_model_version: str | None = None
+    market_anchor_usdt: Decimal | None = None
 
 
 class QuoteActionPlanner:

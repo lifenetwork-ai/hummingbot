@@ -12,7 +12,7 @@ none are live defaults.
 | Gate | Current evidence | Still needed offline |
 | --- | --- | --- |
 | O.2 spot economics/risk | Actual V2 runner/fake OKX replay covers safety recovery, fee repricing at final send, queued service-action rejection after a subsidy change, reconciled partial fill and USDT fee, subsidy floor, stale snapshot, HALT and journal restore; proven zero-fill hold release | Complete spot-feed readiness and account-data binding, filled-inventory settlement, 100x-turnover, cross-batch priority and remaining A-cases |
-| O.3 spot lifecycle | Real V2 runner lost-ACK quote, terminal proof and new wire ID; a separate partial-fill/fee → expiry/cancel → terminal → journal-restart path refuses missing fees and foreign pending algo orders | One complete quote → fill/fee → replace → expiry/successor → restart replay with all account-wide scopes |
+| O.3 spot lifecycle | Real V2 runner lost-ACK replacement; a partial-fill/fee → expiry/cancel → successor quote → journal-restart path refuses foreign pending algo orders, foreign completed fills, and missing/non-finite successor anchors | Authenticated ACK and paginated account-history cases in one reviewed replay; production-qualified market anchor |
 | O.4 recovery | Existing process-kill/SQLite/WAL/reservation slices | Remaining recorder, quote-action, cashflow, kill-switch and clock fault matrix |
 | O.5 simulation/telemetry | Seeded queue-ahead and ACK/cancel latency fixture; candle touch and unattributed prints make no fills | Recorded adversarial scenario suite, complete quality-flagged telemetry, risk-event latency budgets and economic evaluation |
 | O.6 review | Scoped regression and changed-code coverage below | Full spot A01–A39 matrix, changed-code review, named reviewer and reproducible evidence bundle |
@@ -54,6 +54,23 @@ fee and matching balance permits terminal reconciliation. Reopened WAL,
 reservation, and session journals preserve the fee, trade ID, residual
 balances, and expired state. The lost-ACK replacement proof remains a separate
 path, so this is not the full O.3 acceptance session.
+
+A subsequent O.3 successor replay first failed with the controller left in
+`TRANSITIONING` after the old filled order and account had reconciled: its
+asynchronous transition passed `market_reference_ready=False` unconditionally.
+The controller now accepts an explicit finite market anchor from a
+planner-validated quote snapshot only after all risk/readiness gates and scoped
+order checks pass. The replay verifies that a foreign pending algo order,
+an unowned completed fill, absent/non-finite anchor, and unready market
+reference cannot activate a successor. A synthetic 1.02 USDT
+market anchor distinct from the old 1.00 USDT quote reference activates the
+persisted successor, whose new quote has another intent and wire ID. This
+does not establish a production-quality independent market source, full
+account history, or live order eligibility.
+
+After the account-wide completed-fill scope was added to that replay, the
+same five-suite regression passed **1,071 tests** with 27 warnings. The
+changed-line coverage figure below predates this extension.
 
 Coverage used the same regression scope at commit `8525624c0` and `origin/dev`
 as the available local comparison branch. `origin/development` is absent.

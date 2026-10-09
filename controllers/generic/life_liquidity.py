@@ -1354,9 +1354,23 @@ class LifeLiquidityController(ControllerBase):
                 reason = "CANCEL_REQUEST_FAILED" if cancel_failed else "OLD_ORDERS_UNRESOLVED"
         if manager.state == "TRANSITIONING" and primary_result is not None:
             try:
-                manager.tick(reference_ready=False, all_gates_ready=False,
+                qualified = None
+                if (reason == "OLD_ORDERS_RECONCILED"
+                        and self._runtime_risk_ready() and self._joint_risk_ready()
+                        and self._hedge_ready() and self._execution_loss_ready()
+                        and self._fill_attribution_ready() and self._markout_risk_ready()
+                        and not self.has_unverified_runner_order_events()
+                        and self._spot_quote_gates_ready()
+                        and self._quote_action_planner is not None):
+                    qualified = self._quote_action_planner.session_snapshot()
+                anchor = (qualified.market_anchor_usdt if qualified is not None
+                          and qualified.market_reference_ready is True else None)
+                market_ready = (isinstance(anchor, Decimal) and anchor.is_finite()
+                                and anchor > 0)
+                manager.tick(reference_ready=market_ready, all_gates_ready=market_ready,
                              reconciliation=primary_result,
-                             market_reference_ready=False)
+                             market_reference_ready=market_ready,
+                             market_anchor_usdt=anchor if market_ready else None)
             except Exception:
                 reason = "SESSION_SAFETY_TICK_FAILED"
                 self.logger().exception("LIFE transition reconciliation failed")

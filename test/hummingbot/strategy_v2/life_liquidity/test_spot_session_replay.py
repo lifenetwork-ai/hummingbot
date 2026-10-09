@@ -4,6 +4,7 @@ import asyncio
 from dataclasses import replace
 from datetime import timedelta
 from decimal import Decimal
+from test.hummingbot.strategy_v2.life_liquidity.test_account_bills import approval_file, bill
 from test.hummingbot.strategy_v2.life_liquidity.test_executor_protected_send import Connector, _setup
 from test.hummingbot.strategy_v2.life_liquidity.test_final_quote_send import _attach_quote_planner
 from test.hummingbot.strategy_v2.life_liquidity.test_order_gateway import FakeOkx
@@ -20,6 +21,7 @@ import pytest
 
 from hummingbot.strategy.strategy_v2_base import StrategyV2Base
 from hummingbot.strategy_v2.executors.order_executor.order_executor import OrderExecutor
+from hummingbot.strategy_v2.life_liquidity.account_bills import CashflowApprovals, SpotBillReconciler
 from hummingbot.strategy_v2.life_liquidity.order_gateway import (
     OkxSpotOrderGateway,
     SpotAccountReconciler,
@@ -311,6 +313,148 @@ async def test_partial_fill_fee_cancel_and_expiry_survive_journal_restart(tmp_pa
         assert restored_session.state == "EXPIRED"
         assert not restored_session.can_quote(reference_ready=True, all_gates_ready=True)
         assert len(connector.sent) == 1
+    finally:
+        runner.listen_to_executor_actions_task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await runner.listen_to_executor_actions_task
+
+
+@pytest.mark.asyncio
+async def test_filled_old_quote_reconciles_before_successor_quote(tmp_path):
+    connector = FakeTradingOkx()
+    controller, template, _, wal, reservations, _ = _setup(tmp_path, connector=connector)
+    connector.bill_pages[None] = [bill("100")]
+    bills = SpotBillReconciler(
+        connector, reservations, wal,
+        CashflowApprovals.load(approval_file(tmp_path)))
+    clock = FakeClock()
+    manager = transition_manager(tmp_path, clock)
+    primary = start(manager)
+    controller._protected_spot_sender.manager = manager
+    reconciler = SpotReservationReconciler(wal, reservations, require_fees=True)
+    gateway = OkxSpotOrderGateway(
+        connector, wal, trading_pair="LIFE-USDT", clock=lambda: clock.wall,
+        apply_fills=reconciler.apply_fills, confirm_terminal=reconciler.confirm_terminal,
+        on_cancel_requested=reconciler.request_cancel, on_unknown=reconciler.mark_unknown,
+        account_check=SpotAccountReconciler(connector, reservations, bills=bills).check)
+    controller.install_order_safety(manager, gateway, wal, reservations=reservations)
+    state, proposed = _attach_quote_planner(controller, template, wal, reservations)
+    controller._spot_quote_gates_ready = lambda: True
+    executors = []
+    runner = _runner(controller, connector, executors, proposed.config)
+    try:
+        runner.tick(1)
+        assert len(connector.sent) == 1
+        wire_id = connector.sent[0]["order_id"]
+        assert wal.get(proposed.config.id).state == "SEND_UNKNOWN"  # No create ACK.
+        connector.status[wire_id] = {"clOrdId": wire_id, "ordId": "exchange-1",
+                                     "state": "partially_filled", "accFillSz": "0.4"}
+        connector.fills["exchange-1"] = [
+            {"tradeId": "trade-1", "ordId": "exchange-1", "fillSz": "0.4",
+             "fillPx": "0.99", "fee": "-0.01", "feeCcy": "USDT",
+             "fillTime": str(int(clock.wall.timestamp() * 1000))}]
+        connector.bill_pages[None] = [
+            bill("101", kind="2", subtype="1", currency="USDT", change="-0.01",
+                 trade_id="trade-1", order_id="exchange-1", inst_id="LIFE-USDT",
+                 fee="-0.01"),
+            bill("100")]
+        owned_fill = {"billId": "101", "tradeId": "trade-1", "ordId": "exchange-1",
+                      "clOrdId": wire_id, "instType": "SPOT", "instId": "LIFE-USDT",
+                      "fillSz": "0.4", "fillPx": "0.99", "feeCcy": "USDT",
+                      "fee": "-0.01"}
+        connector.all_fill_history_pages[None] = [owned_fill]
+        connector.cash_balances = {"LIFE": "10.4", "USDT": "9.594"}
+        connector.open_pages[None] = [
+            {"clOrdId": wire_id, "ordId": "exchange-1", "instId": "LIFE-USDT",
+             "state": "partially_filled"}]
+        clock.advance(10)
+        state["now"] = 110
+        state["snapshot"] = replace(state["snapshot"], observed_monotonic=109,
+                                    expires_monotonic=111)
+        runner.tick(2)
+        await controller.order_safety_task
+        assert manager.state == "TRANSITIONING"
+        assert manager.current_session.session_id == primary.session_id
+        assert connector.cancels == [("LIFE-USDT", wire_id)]
+        assert reservations.requires_reconciliation(proposed.config.id)
+
+        connector.status[wire_id]["state"] = "canceled"
+        connector.open_pages[None] = []
+        connector.algo_pages["conditional,oco"] = {"code": "0", "data": [
+            {"algoId": "foreign-algo", "instType": "SPOT", "instId": "BTC-USDT"}]}
+        state["snapshot"] = replace(state["snapshot"], market_anchor_usdt=Decimal("1.02"))
+        runner.tick(3)
+        await controller.order_safety_task
+        assert manager.state == "TRANSITIONING"
+        assert wal.get(proposed.config.id).state != "TERMINAL"
+
+        connector.algo_pages["conditional,oco"] = {"code": "0", "data": []}
+        connector.all_fill_history_pages[None] = [
+            {**owned_fill, "billId": "102", "tradeId": "foreign-trade",
+             "ordId": "foreign-order", "clOrdId": "", "instId": "BTC-USDT"},
+            owned_fill]
+        runner.tick(4)
+        await controller.order_safety_task
+        assert manager.state == "TRANSITIONING"
+        assert wal.get(proposed.config.id).state != "TERMINAL"
+
+        connector.all_fill_history_pages[None] = [owned_fill]
+        state["snapshot"] = replace(state["snapshot"], market_anchor_usdt=None)
+        runner.tick(5)
+        await controller.order_safety_task
+        assert manager.state == "TRANSITIONING"
+        assert manager.reason_code == "MARKET_REFERENCE_UNAVAILABLE"
+        assert wal.get(proposed.config.id).state == "TERMINAL"
+
+        state["snapshot"] = replace(state["snapshot"], market_anchor_usdt=Decimal("NaN"))
+        runner.tick(6)
+        await controller.order_safety_task
+        assert manager.state == "TRANSITIONING"
+        assert manager.reason_code == "MARKET_REFERENCE_UNAVAILABLE"
+
+        state["snapshot"] = replace(
+            state["snapshot"], market_anchor_usdt=Decimal("1.02"), market_reference_ready=False)
+        runner.tick(7)
+        await controller.order_safety_task
+        assert manager.state == "TRANSITIONING"
+
+        state["snapshot"] = replace(state["snapshot"], market_reference_ready=True)
+        runner.tick(8)
+        await controller.order_safety_task
+        assert manager.state == "ACTIVE"
+        successor = manager.current_session
+        assert successor.session_id != primary.session_id
+        assert successor.epoch == primary.epoch + 1
+        assert successor.anchors["LIFE-USDT"] == Decimal("1.02")
+        assert reservations.fee_for_trade("trade-1") == ("USDT", Decimal("-0.01"))
+        assert reservations.life_balance == Decimal("10.4")
+        assert reservations.usdt_balance == Decimal("9.594")
+
+        state["snapshot"] = replace(
+            state["snapshot"], session_id=successor.session_id, epoch=successor.epoch,
+            qualified_reference_usdt=Decimal("1.02"),
+            qualified_exit_value_usdt=Decimal("1.02"),
+            best_bid_usdt=Decimal("1.00"), best_ask_usdt=Decimal("1.04"))
+        executors[0]._status = RunnableStatus.TERMINATED
+        controller._quote_action_planner.intent_id_factory = lambda: "successor-quote"
+        replacement = controller.determine_executor_actions()
+        assert len(replacement) == 1
+        runner.determine_executor_actions = lambda: replacement
+        runner.tick(9)
+        assert len(connector.sent) == 2
+        assert connector.sent[1]["order_id"] != wire_id
+        assert wal.get("successor-quote").session_id == successor.session_id
+        assert wal.get("successor-quote").state == "SEND_UNKNOWN"
+        assert reservations.has_open_intent("successor-quote")
+
+        restarted_clock = FakeClock()
+        restarted_clock.wall = clock.wall
+        restarted_clock.mono = clock.mono
+        assert transition_manager(tmp_path, restarted_clock).current_session == successor
+        restored = type(reservations).restore(reservations.path, limits=reservations.limits)
+        assert restored.fee_for_trade("trade-1") == ("USDT", Decimal("-0.01"))
+        assert restored.has_open_intent("successor-quote")
+        assert type(wal)(wal.path).get(proposed.config.id).state == "TERMINAL"
     finally:
         runner.listen_to_executor_actions_task.cancel()
         with pytest.raises(asyncio.CancelledError):
