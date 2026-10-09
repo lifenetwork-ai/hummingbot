@@ -83,3 +83,25 @@ def test_joint_gate_rejects_spot_observer_that_omits_new_reservation(tmp_path):
     assert controller.joint_risk_reason_code == "JOINT_SPOT_RESERVATION_MISMATCH"
     assert connector.sent == []
     assert wal.get(executor.config.id).state == "ABORTED_BEFORE_SEND"
+
+
+def test_joint_and_hedge_position_snapshots_must_agree_before_spot_permission(tmp_path):
+    controller, _, _, _, reservations = _enabled_controller(tmp_path)
+    contract = LinearLifeContractSpec(D("0.5"), D("0.1"))
+
+    def joint():
+        preview = reservations.preview()
+        return replace(_observation(), spot_life_base=reservations.life_balance,
+                       spot_buy_pending_base=preview.unresolved_quantity_base("BUY"),
+                       spot_sell_pending_base=preview.unresolved_quantity_base("SELL"),
+                       perp_contracts_signed=D("-16"))
+
+    state = {"hedge": hedge_observation(perp_contracts_signed=D("-20"))}
+    controller.install_joint_risk_gate(contract, _limits(), observation=joint)
+    controller.install_hedge_gate(hedge_policy(), observation=lambda: state["hedge"])
+    assert not controller.allow_create_executor_actions()
+    assert controller.hedge_reason_code == "HEDGE_JOINT_SNAPSHOT_MISMATCH"
+    state["hedge"] = hedge_observation(perp_contracts_signed=D("-16"),
+                                       spot_life_base=D("9"))
+    assert not controller.allow_create_executor_actions()
+    assert controller.hedge_reason_code == "HEDGE_JOINT_SNAPSHOT_MISMATCH"

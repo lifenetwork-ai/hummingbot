@@ -177,6 +177,7 @@ class LifeLiquidityController(ControllerBase):
         self.joint_risk_reason_code = "JOINT_RISK_NOT_INSTALLED"
         self._hedge_policy: HedgePolicy | None = None
         self._hedge_observation: Callable[[], HedgeObservation] | None = None
+        self._last_joint_observation: JointExposureObservation | None = None
         self.hedge_reason_code = "HEDGE_GATE_NOT_INSTALLED"
         self._execution_loss_budget: LossBudgetLedger | None = None
         self._execution_loss_utc_clock: Callable[[], datetime] | None = None
@@ -687,6 +688,7 @@ class LifeLiquidityController(ControllerBase):
         self._hedge_observation = observation
 
     def _joint_risk_ready(self) -> bool:
+        self._last_joint_observation = None
         if not self.config.strategy.perpetual.enabled:
             return True
         contract = self._joint_contract
@@ -714,6 +716,8 @@ class LifeLiquidityController(ControllerBase):
             decision = evaluate_joint_exposure(
                 contract, observed, self._joint_limits)
             self.joint_risk_reason_code = decision.reason_code
+            if decision.allowed:
+                self._last_joint_observation = observed
             return decision.allowed
         except Exception:
             self.joint_risk_reason_code = "JOINT_RISK_OBSERVATION_UNAVAILABLE"
@@ -727,8 +731,19 @@ class LifeLiquidityController(ControllerBase):
             self.hedge_reason_code = "HEDGE_GATE_NOT_INSTALLED"
             return False
         try:
+            observed = self._hedge_observation()
+            joint = self._last_joint_observation
+            if (not isinstance(observed, HedgeObservation) or joint is None
+                    or observed.spot_life_base != joint.spot_life_base
+                    or observed.perp_contracts_signed != joint.perp_contracts_signed
+                    or observed.mark_price_usdt != joint.mark_price_usdt
+                    or observed.index_price_usdt != joint.index_price_usdt
+                    or observed.mark_source != joint.mark_source
+                    or observed.index_source != joint.index_source):
+                self.hedge_reason_code = "HEDGE_JOINT_SNAPSHOT_MISMATCH"
+                return False
             decision = plan_life_hedge(
-                self._hedge_policy, self._hedge_observation(), self._joint_contract)
+                self._hedge_policy, observed, self._joint_contract)
             self.hedge_reason_code = decision.reason_code
             return decision.allow_spot_risk_increase
         except Exception:
