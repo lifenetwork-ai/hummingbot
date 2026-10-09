@@ -8,6 +8,8 @@ from test.hummingbot.strategy_v2.life_liquidity.test_account_bills import approv
 from test.hummingbot.strategy_v2.life_liquidity.test_executor_protected_send import Connector, _setup
 from test.hummingbot.strategy_v2.life_liquidity.test_final_quote_send import _attach_quote_planner
 from test.hummingbot.strategy_v2.life_liquidity.test_order_gateway import FakeOkx
+from test.hummingbot.strategy_v2.life_liquidity.test_own_depth import book
+from test.hummingbot.strategy_v2.life_liquidity.test_quote_reference_binding import market_engine
 from test.hummingbot.strategy_v2.life_liquidity.test_reference_transition import (
     manager as transition_manager,
     reconciled,
@@ -19,9 +21,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from hummingbot.connector.client_order_tracker import ClientOrderTracker
 from hummingbot.strategy.strategy_v2_base import StrategyV2Base
 from hummingbot.strategy_v2.executors.order_executor.order_executor import OrderExecutor
 from hummingbot.strategy_v2.life_liquidity.account_bills import CashflowApprovals, SpotBillReconciler
+from hummingbot.strategy_v2.life_liquidity.market_data import InstrumentRules
 from hummingbot.strategy_v2.life_liquidity.order_gateway import (
     OkxSpotOrderGateway,
     SpotAccountReconciler,
@@ -167,6 +171,46 @@ async def test_stale_qualified_snapshot_pauses_session_and_clears_status_referen
     finally:
         if controller.order_safety_task is not None and not controller.order_safety_task.done():
             controller.order_safety_task.cancel()
+
+
+@pytest.mark.asyncio
+async def test_runner_clock_rollback_cancels_unknown_quote_without_extending_session(tmp_path):
+    connector = FakeTradingOkx()
+    controller, template, _, wal, reservations, _ = _setup(tmp_path, connector=connector)
+    _, proposed = _attach_quote_planner(controller, template, wal, reservations)
+    controller._spot_quote_gates_ready = lambda: True
+    manager = controller._order_safety_manager
+    wall = [manager.wall_clock()]
+    manager.wall_clock = lambda: wall[0]
+    original_deadline = manager.current_session.expires_at
+    reconciler = SpotReservationReconciler(wal, reservations, require_fees=True)
+    gateway = OkxSpotOrderGateway(
+        connector, wal, trading_pair="LIFE-USDT", clock=lambda: wall[0],
+        apply_fills=reconciler.apply_fills, confirm_terminal=reconciler.confirm_terminal,
+        on_cancel_requested=reconciler.request_cancel, on_unknown=reconciler.mark_unknown,
+        account_check=SpotAccountReconciler(connector, reservations).check)
+    controller.install_order_safety(manager, gateway, wal, reservations=reservations)
+    runner = _runner(controller, connector, [], proposed.config)
+    try:
+        runner.tick(1)
+        wire_id = connector.sent[0]["order_id"]
+        connector.status[wire_id] = {"clOrdId": wire_id, "ordId": "exchange-1",
+                                     "state": "live", "accFillSz": "0"}
+        connector.open_pages[None] = [{"clOrdId": wire_id, "ordId": "exchange-1",
+                                       "instId": "LIFE-USDT", "state": "live"}]
+        wall[0] -= timedelta(seconds=2)
+        runner.tick(2)
+        await controller.order_safety_task
+        assert manager.state == "PAUSED"
+        assert manager.current_session.expires_at == original_deadline
+        assert connector.cancels == [("LIFE-USDT", wire_id)]
+        assert wal.get(proposed.config.id).state != "TERMINAL"
+        assert reservations.requires_reconciliation(proposed.config.id)
+        assert len(connector.sent) == 1
+    finally:
+        runner.listen_to_executor_actions_task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await runner.listen_to_executor_actions_task
 
 
 @pytest.mark.asyncio
@@ -379,47 +423,104 @@ async def test_filled_old_quote_reconciles_before_successor_quote(tmp_path):
         assert reservations.requires_reconciliation(proposed.config.id)
 
         connector.status[wire_id]["state"] = "canceled"
+        connector.open_pages = {}
+        runner.tick(3)
+        await controller.order_safety_task
+        assert manager.state == "TRANSITIONING"
+        assert wal.get(proposed.config.id).state != "TERMINAL"
+
+        connector.open_pages[None] = [{
+            "clOrdId": "manual-order", "ordId": "manual-exchange",
+            "instId": "BTC-USDT", "state": "live"}]
+        runner.tick(4)
+        await controller.order_safety_task
+        assert manager.state == "TRANSITIONING"
+        assert wal.get(proposed.config.id).state != "TERMINAL"
+
         connector.open_pages[None] = []
         connector.algo_pages["conditional,oco"] = {"code": "0", "data": [
             {"algoId": "foreign-algo", "instType": "SPOT", "instId": "BTC-USDT"}]}
         state["snapshot"] = replace(state["snapshot"], market_anchor_usdt=Decimal("1.02"))
-        runner.tick(3)
+        runner.tick(5)
         await controller.order_safety_task
         assert manager.state == "TRANSITIONING"
         assert wal.get(proposed.config.id).state != "TERMINAL"
 
         connector.algo_pages["conditional,oco"] = {"code": "0", "data": []}
         connector.all_fill_history_pages[None] = [
+            {**owned_fill, "billId": str(201 - index),
+             "tradeId": f"history-{index}"} for index in range(100)]
+        connector.all_fill_history_pages.pop("102", None)
+        runner.tick(6)
+        await controller.order_safety_task
+        assert manager.state == "TRANSITIONING"
+        assert wal.get(proposed.config.id).state != "TERMINAL"
+        assert connector.all_fill_history_queries[-2:] == [None, "102"]
+
+        connector.all_fill_history_pages[None] = [
             {**owned_fill, "billId": "102", "tradeId": "foreign-trade",
              "ordId": "foreign-order", "clOrdId": "", "instId": "BTC-USDT"},
             owned_fill]
-        runner.tick(4)
+        runner.tick(7)
         await controller.order_safety_task
         assert manager.state == "TRANSITIONING"
         assert wal.get(proposed.config.id).state != "TERMINAL"
 
         connector.all_fill_history_pages[None] = [owned_fill]
         state["snapshot"] = replace(state["snapshot"], market_anchor_usdt=None)
-        runner.tick(5)
+        runner.tick(8)
         await controller.order_safety_task
         assert manager.state == "TRANSITIONING"
         assert manager.reason_code == "MARKET_REFERENCE_UNAVAILABLE"
         assert wal.get(proposed.config.id).state == "TERMINAL"
 
+        controller.config = controller.config.model_copy(update={
+            "own_depth_max_observation_skew_ms": 100,
+            "own_depth_max_book_age_ms": 500,
+            "own_depth_max_distance_bps": Decimal("200")})
+        connector._order_tracker = ClientOrderTracker(connector)
+        controller.market_data_provider.get_connector_with_fallback.return_value = connector
+        controller._order_safety_account_lock = object()
+        controller._account_uid_verified = True
+        controller.listing_gate.instrument_found = True
+        controller.listing_gate.instrument_state = "live"
+        controller.listing_gate.instrument_rules = InstrumentRules(
+            Decimal("0.01"), Decimal("0.1"), Decimal("0.1"))
+        controller.continuous_gate.ready = True
+        controller.continuous_gate.exchange_time_ms = 1100
+        controller.snapshot_gate.clock = lambda: 2.05
+        controller.snapshot_gate.ready = True
+        controller.snapshot_gate.snapshot = book(
+            bids=[["1.00", "20"]], asks=[["1.04", "20"]])
+        controller._quote_action_planner.reference_engine = market_engine()
+        state["snapshot"] = replace(
+            state["snapshot"], qualified_reference_usdt=Decimal("1.02"),
+            qualified_exit_value_usdt=Decimal("1.02"),
+            best_bid_usdt=Decimal("1.00"), best_ask_usdt=Decimal("1.04"),
+            book_sequence_id=42, reference_model_version="test-v1")
+
         state["snapshot"] = replace(state["snapshot"], market_anchor_usdt=Decimal("NaN"))
-        runner.tick(6)
+        runner.tick(9)
         await controller.order_safety_task
         assert manager.state == "TRANSITIONING"
         assert manager.reason_code == "MARKET_REFERENCE_UNAVAILABLE"
 
         state["snapshot"] = replace(
             state["snapshot"], market_anchor_usdt=Decimal("1.02"), market_reference_ready=False)
-        runner.tick(7)
+        runner.tick(10)
         await controller.order_safety_task
         assert manager.state == "TRANSITIONING"
 
-        state["snapshot"] = replace(state["snapshot"], market_reference_ready=True)
-        runner.tick(8)
+        state["snapshot"] = replace(
+            state["snapshot"], market_reference_ready=True,
+            market_anchor_usdt=Decimal("1.03"))
+        runner.tick(11)
+        await controller.order_safety_task
+        assert manager.state == "TRANSITIONING"
+        assert controller._own_depth_decision.reason_code == "LIFE_MARKET_ANCHOR_CHANGED"
+
+        state["snapshot"] = replace(state["snapshot"], market_anchor_usdt=Decimal("1.02"))
+        runner.tick(12)
         await controller.order_safety_task
         assert manager.state == "ACTIVE"
         successor = manager.current_session
@@ -440,12 +541,25 @@ async def test_filled_old_quote_reconciles_before_successor_quote(tmp_path):
         replacement = controller.determine_executor_actions()
         assert len(replacement) == 1
         runner.determine_executor_actions = lambda: replacement
-        runner.tick(9)
+        runner.tick(13)
         assert len(connector.sent) == 2
         assert connector.sent[1]["order_id"] != wire_id
         assert wal.get("successor-quote").session_id == successor.session_id
         assert wal.get("successor-quote").state == "SEND_UNKNOWN"
         assert reservations.has_open_intent("successor-quote")
+
+        successor_wire = connector.sent[1]["order_id"]
+        connector.status[successor_wire] = {
+            "clOrdId": successor_wire, "ordId": "exchange-2",
+            "state": "live", "accFillSz": "0"}
+        connector.open_pages[None] = [{
+            "clOrdId": successor_wire, "ordId": "exchange-2",
+            "instId": "LIFE-USDT", "state": "live"}]
+        connector.fills["exchange-2"] = []
+        ack = await gateway.reconcile(successor.session_id, successor.epoch)
+        assert ack.open_order_ids == (successor_wire,)
+        assert wal.get("successor-quote").state == "ACKED"
+        assert wal.get("successor-quote").exchange_order_id == "exchange-2"
 
         restarted_clock = FakeClock()
         restarted_clock.wall = clock.wall
@@ -455,6 +569,7 @@ async def test_filled_old_quote_reconciles_before_successor_quote(tmp_path):
         assert restored.fee_for_trade("trade-1") == ("USDT", Decimal("-0.01"))
         assert restored.has_open_intent("successor-quote")
         assert type(wal)(wal.path).get(proposed.config.id).state == "TERMINAL"
+        assert type(wal)(wal.path).get("successor-quote").state == "ACKED"
     finally:
         runner.listen_to_executor_actions_task.cancel()
         with pytest.raises(asyncio.CancelledError):

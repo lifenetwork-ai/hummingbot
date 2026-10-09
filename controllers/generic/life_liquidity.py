@@ -656,6 +656,15 @@ class LifeLiquidityController(ControllerBase):
         self._runtime_risk_max_age_ms = max_observation_age_ms
         self.runtime_risk_reason_code = "RUNTIME_RISK_STARTUP_REVALIDATION"
 
+    def manual_kill_switch(self) -> None:
+        """Persist an operator HALT and start the existing cancel/reconcile loop."""
+        if self._runtime_risk_gate is None:
+            raise ValueError("RUNTIME_RISK_GATE_NOT_INSTALLED")
+        try:
+            self._runtime_risk_gate.halt("MANUAL_KILL_SWITCH")
+        finally:
+            self.on_safety_tick(time.monotonic())
+
     def install_joint_risk_gate(self, contract: LinearLifeContractSpec,
                                 limits: JointRiskLimits, *,
                                 observation: Callable[[], JointExposureObservation]) -> None:
@@ -1728,6 +1737,9 @@ class LifeLiquidityController(ControllerBase):
                 or decision.price_usdt != observed.qualified_reference_usdt):
             return reject(decision.reason_code if decision.price_usdt is None
                           else "LIFE_REFERENCE_PRICE_CHANGED")
+        if (observed.market_anchor_usdt is not None
+                and observed.market_anchor_usdt != decision.price_usdt):
+            return reject("LIFE_MARKET_ANCHOR_CHANGED")
         return True
 
     def determine_executor_actions(self):

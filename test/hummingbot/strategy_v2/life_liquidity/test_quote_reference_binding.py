@@ -96,6 +96,15 @@ def test_claimed_reference_price_must_match_recomputed_p3_market_reference(tmp_p
     assert controller.determine_executor_actions() == []
 
 
+def test_successor_anchor_must_match_independent_book_reference(tmp_path):
+    controller, planner, _, snapshot = strict_quote_source(tmp_path)
+    planner.snapshot = lambda: replace(snapshot, market_anchor_usdt=D("1.02"))
+    assert planner.session_snapshot() is None
+    assert controller._own_depth_decision.reason_code == "LIFE_MARKET_ANCHOR_CHANGED"
+    planner.snapshot = lambda: replace(snapshot, market_anchor_usdt=D("1"))
+    assert planner.session_snapshot() is not None
+
+
 def strict_queued_quote(tmp_path):
     controller, template, connector, wal, ledger, _ = sender_setup(tmp_path)
     controller.config = controller.config.model_copy(update={

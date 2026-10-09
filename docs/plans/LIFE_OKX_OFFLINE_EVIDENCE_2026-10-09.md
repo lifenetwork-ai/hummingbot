@@ -3,17 +3,18 @@
 ## Scope and verdict
 
 This checkpoint covers synthetic LIFE spot scenarios, selected joint spot/SWAP
-risk contracts, and an advisory inventory execution journal. It does **not**
-close O.2–O.7 in the [implementation plan](LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md).
+risk contracts, and an advisory inventory execution journal. It closes the
+**spot offline O.3 lifecycle replay**, while O.2 and O.4–O.7 remain open in
+the [implementation plan](LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md).
 No demo or production order was sent. All quoted balances, limits, prices,
 fees, latencies, and queue assumptions in these tests are simulation values;
 none are live defaults.
 
 | Gate | Current evidence | Still needed offline |
 | --- | --- | --- |
-| O.2 spot economics/risk | Actual V2 runner/fake OKX replay covers safety recovery, fee repricing at final send, queued service-action rejection after a subsidy change, reconciled partial fill and USDT fee, subsidy floor, stale snapshot, HALT and journal restore; proven zero-fill hold release; LIFE stop priority across batches already queued | Complete spot-feed readiness and account-data binding, filled-inventory settlement, 100x-turnover, late-arriving stop/cancellation stress and remaining A-cases |
-| O.3 spot lifecycle | Real V2 runner lost-ACK replacement; a partial-fill/fee → expiry/cancel → successor quote → journal-restart path refuses foreign pending algo orders, foreign completed fills, and missing/non-finite successor anchors | Authenticated ACK and paginated account-history cases in one reviewed replay; production-qualified market anchor |
-| O.4 recovery | Existing process-kill/SQLite/WAL/reservation slices | Remaining recorder, quote-action, cashflow, kill-switch and clock fault matrix |
+| O.2 spot economics/risk | Actual V2 runner/fake OKX replay covers safety recovery, fee repricing at final send, queued service-action rejection after a subsidy change, reconciled partial fill and USDT fee, subsidy floor, stale snapshot, HALT and journal restore; proven zero-fill hold release; LIFE stop priority across batches already queued; manual HALT rejects a queued create | Complete spot-feed readiness and account-data binding, filled-inventory settlement, 100x-turnover, late-arriving stop/cancellation stress and remaining A-cases |
+| O.3 spot lifecycle | **Offline complete.** One real V2 runner/fake OKX session covers lost ACK, partial fill/fee, expiry/cancel, missing/foreign regular orders, foreign algo order, incomplete paginated and foreign completed-fill history, own-depth-qualified successor anchor, replacement quote with status-backed ACK, residual inventory, and journal restore | Demo connector behavior and real-account history/reference qualification remain D/R work; production order permission stays disabled |
+| O.4 recovery | Existing process-kill/SQLite/WAL/reservation slices; runner cancel timeout and clock rollback; manual HALT persistence, queue rejection, and cancellation scheduling | Remaining recorder/quote-action/cashflow interruption matrix and restart after failed HALT checkpoint |
 | O.5 simulation/telemetry | Seeded queue-ahead and ACK/cancel latency fixture; candle touch and unattributed prints make no fills | Recorded adversarial scenario suite, complete quality-flagged telemetry, risk-event latency budgets and economic evaluation |
 | O.6 review | Scoped regression and changed-code coverage below | Full spot A01–A39 matrix, changed-code review, named reviewer and reproducible evidence bundle |
 | O.7 SWAP/inventory | Joint pending-fill stress, conservative hedge decision, inventory child/exit-cost journal | Protected SWAP order gateway, authenticated fills/funding/margin, shared coordinator, inventory runner route and mode transitions |
@@ -81,6 +82,25 @@ passed **1,075 tests** with 27 warnings after this change. This guarantee
 covers batches already queued when the listener wakes; a stop arriving after
 a create was dispatched depends on the separate safety/final-send gates.
 
+The subsequent O.3/O.4 slice rejects a successor anchor that differs from the
+fresh own-depth-separated LIFE book in the combined runner path. That replay
+refuses missing and foreign regular orders, a foreign algo order, an unavailable
+second page of account-wide fill history, and a foreign completed fill. It
+obtains a status-backed ACK for the successor after the old quote's lost ACK,
+fill, fee, and expiry. This closes O.3 for synthetic spot offline scope; the
+production trading switch and spot readiness remain deliberately disabled and
+the injected fake book is not live LIFE market evidence. A separate runner fault replay retains the
+reservation after a timed-out cancel, then releases it only after terminal
+exchange/account proof; a clock rollback pauses the session without extending
+its deadline. The manual HALT API persists a latch, rejects an already queued
+create, and schedules cancellation. A checkpoint error still blocks the
+current process, but restart after unavailable storage requires separate
+operational proof. These additions do not close O.2 or O.4.
+
+The final five-suite run for this checkpoint passed **1,082 tests** with 27
+warnings. Changed-line coverage was not rerun after this extension; the 88%
+figure below remains a prior checkpoint, and O.6 is still open.
+
 Coverage used the same regression scope at commit `8525624c0` and `origin/dev`
 as the available local comparison branch. `origin/development` is absent.
 NumPy and Pandas were
@@ -128,6 +148,6 @@ Some contain additional demo/real-account proof; that proof stays open after O.
 | P8.7–P8.13 | O.5; telemetry and adversarial scenarios | D latency behavior; R LIFE calibration; C economic release decision |
 | Spot A01–A39 applicability, regression and review | O.6 | D/R/C only for cases explicitly requiring those environments |
 
-The next offline priority is a complete O.3 runner session and its remaining
-O.4 crash boundaries; the SWAP send/recovery and inventory runner routes are
+The next offline priority is O.2 spot economic binding and the remaining O.4
+crash boundaries; the SWAP send/recovery and inventory runner routes are
 the largest O.7 gaps. Missing evidence must leave its checkbox open.

@@ -69,6 +69,11 @@ class SafetyGate:
                 handle.flush()
                 os.fsync(handle.fileno())
             os.replace(temporary, self.path)
+            directory_fd = os.open(self.path.parent, os.O_RDONLY)
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
         finally:
             if os.path.exists(temporary):
                 os.unlink(temporary)
@@ -85,6 +90,16 @@ class SafetyGate:
         if self.state != "HALTED":
             self.state, self.reason_code = "PAUSED", reason_code
             self._good_since_ms = None
+        return self._decision()
+
+    def halt(self, reason_code: str) -> SafetyDecision:
+        """Latch an operator stop before attempting its durable checkpoint."""
+        if not isinstance(reason_code, str) or not reason_code:
+            raise ValueError("HALT_REASON_REQUIRED")
+        if self.state != "HALTED":
+            self.state, self.reason_code = "HALTED", reason_code
+            self._good_since_ms = None
+        self._persist_halt(self.reason_code)
         return self._decision()
 
     def evaluate(self, observation: SafetyObservation) -> SafetyDecision:

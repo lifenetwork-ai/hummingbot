@@ -7,7 +7,7 @@ from test.hummingbot.strategy_v2.life_liquidity.test_final_quote_send import _at
 from test.hummingbot.strategy_v2.life_liquidity.test_protected_okx_send import PausedThrottler
 from test.hummingbot.strategy_v2.life_liquidity.test_quote_actions import _setup as planner_setup
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, Mock
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 
@@ -18,6 +18,7 @@ from hummingbot.core.web_assistant.rest_assistant import RESTAssistant
 from hummingbot.strategy.strategy_v2_base import StrategyV2Base
 from hummingbot.strategy_v2.life_liquidity.action_journal import QuoteActionJournal
 from hummingbot.strategy_v2.life_liquidity.safety import SafetyGate, SafetyObservation
+from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction
 
 
 def _observation(at, *, fresh=True, drawdown="0"):
@@ -113,6 +114,68 @@ async def test_runtime_risk_pause_starts_controller_cancel_reconciliation(tmp_pa
     assert controller.runtime_risk_reason_code == "MARKET_DATA_STALE"
     controller._quote_action_planner.snapshot.assert_not_called()
     controller._cancel_and_reconcile_orders.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_manual_kill_switch_latches_halt_and_schedules_cancel_across_reload(tmp_path):
+    controller, template, _, wal, ledger, _ = sender_setup(tmp_path)
+    state = {"now": 100, "observation": _observation(100)}
+    gate = _install(controller, tmp_path, state)
+    _attach_quote_planner(controller, template, wal, ledger)
+    controller._cancel_and_reconcile_orders = AsyncMock()
+
+    controller.manual_kill_switch()
+    await asyncio.sleep(0)
+
+    assert gate.state == "HALTED"
+    assert gate.reason_code == "MANUAL_KILL_SWITCH"
+    assert controller._order_safety_manager.state == "PAUSED"
+    assert controller._cancel_and_reconcile_orders.await_count == 1
+    assert not controller.allow_create_executor_actions()
+    restored = SafetyGate(gate.path, max_drawdown_bps=Decimal("500"),
+                          min_margin_buffer_quote=Decimal("10"), stable_data_ms=0,
+                          recovery_probe_base=Decimal("1"))
+    assert restored.state == "HALTED"
+    assert restored.evaluate(_observation(101)).allow_new_quotes is False
+    controller.update_config(controller.config)
+    assert not controller.allow_create_executor_actions()
+
+
+@pytest.mark.asyncio
+async def test_manual_kill_switch_checkpoint_error_still_blocks_and_schedules_cancel(tmp_path):
+    controller, template, _, wal, ledger, _ = sender_setup(tmp_path)
+    state = {"now": 100, "observation": _observation(100)}
+    gate = _install(controller, tmp_path, state)
+    _attach_quote_planner(controller, template, wal, ledger)
+    controller._cancel_and_reconcile_orders = AsyncMock()
+
+    with patch.object(gate, "_persist_halt", side_effect=OSError("disk unavailable")):
+        with pytest.raises(OSError, match="disk unavailable"):
+            controller.manual_kill_switch()
+    await asyncio.sleep(0)
+
+    assert gate.state == "HALTED"
+    assert not controller.allow_create_executor_actions()
+    assert controller._cancel_and_reconcile_orders.await_count == 1
+    controller.manual_kill_switch()
+    assert SafetyGate(gate.path, max_drawdown_bps=Decimal("500"),
+                      min_margin_buffer_quote=Decimal("10"), stable_data_ms=0,
+                      recovery_probe_base=Decimal("1")).state == "HALTED"
+
+
+def test_manual_kill_switch_rejects_queued_create_before_v2_dispatch(tmp_path):
+    controller, template, connector, wal, ledger, _ = sender_setup(tmp_path)
+    state = {"now": 100, "observation": _observation(100)}
+    _install(controller, tmp_path, state)
+    _, proposed = _attach_quote_planner(controller, template, wal, ledger)
+    queued = [CreateExecutorAction(controller_id="life", executor_config=proposed.config)]
+
+    controller.manual_kill_switch()
+    runner = SimpleNamespace(controllers={"life": controller}, logger=lambda: MagicMock())
+    assert StrategyV2Base._filter_authorized_actions(runner, queued) == []
+    assert controller._quote_action_planner.action_journal.get(
+        queued[0].executor_config.id).state == "REJECTED"
+    assert connector.sent == []
 
 
 @pytest.mark.asyncio

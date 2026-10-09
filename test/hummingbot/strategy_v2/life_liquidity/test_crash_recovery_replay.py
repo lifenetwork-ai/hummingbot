@@ -22,8 +22,13 @@ import pytest
 
 from controllers.generic.life_liquidity import LifeLiquidityController
 from hummingbot.strategy_v2.life_liquidity import account_lock
-from hummingbot.strategy_v2.life_liquidity.order_gateway import OkxSpotOrderGateway, SpotReservationReconciler
+from hummingbot.strategy_v2.life_liquidity.order_gateway import (
+    OkxSpotOrderGateway,
+    SpotAccountReconciler,
+    SpotReservationReconciler,
+)
 from hummingbot.strategy_v2.life_liquidity.risk import ReservationLedger
+from hummingbot.strategy_v2.life_liquidity.safety import SafetyGate
 from hummingbot.strategy_v2.life_liquidity.state import IntentWAL
 from hummingbot.strategy_v2.models.base import RunnableStatus
 
@@ -254,3 +259,94 @@ async def test_fill_checkpoint_failure_replays_exchange_trade_once_after_restart
     assert restored_ledger.trade_ids == {"trade-1"}
     assert restored_ledger.life_balance == Decimal("10.4")
     assert restored_ledger.usdt_balance == Decimal("9.6")
+
+
+@pytest.mark.asyncio
+async def test_runner_cancel_timeout_keeps_unknown_send_until_exchange_terminal_proof(
+        tmp_path, monkeypatch):
+    connector = FakeTradingOkx()
+    controller, template, _, wal, ledger, _ = _setup(tmp_path, connector=connector)
+    _, proposed = _attach_quote_planner(controller, template, wal, ledger)
+    controller._spot_quote_gates_ready = lambda: True
+    reconciler = SpotReservationReconciler(wal, ledger, require_fees=True)
+    gateway = OkxSpotOrderGateway(
+        connector, wal, trading_pair="LIFE-USDT",
+        clock=lambda: controller._order_safety_manager.wall_clock(),
+        apply_fills=reconciler.apply_fills, confirm_terminal=reconciler.confirm_terminal,
+        on_cancel_requested=reconciler.request_cancel, on_unknown=reconciler.mark_unknown,
+        account_check=SpotAccountReconciler(connector, ledger).check)
+    controller.install_order_safety(controller._order_safety_manager, gateway, wal,
+                                    reservations=ledger)
+    executors = []
+    runner = _runner(controller, connector, executors, proposed.config)
+    try:
+        runner.tick(1)
+        assert len(connector.sent) == 1
+        wire_id = connector.sent[0]["order_id"]
+        connector.status[wire_id] = {"clOrdId": wire_id, "ordId": "exchange-1",
+                                     "state": "live", "accFillSz": "0"}
+        connector.open_pages[None] = [{"clOrdId": wire_id, "ordId": "exchange-1",
+                                       "instId": "LIFE-USDT", "state": "live"}]
+
+        async def lost_cancel_ack(*_args):
+            raise TimeoutError("cancel result unknown")
+
+        with monkeypatch.context() as patcher:
+            patcher.setattr(connector, "cancel_by_client_id", lost_cancel_ack)
+            controller._spot_quote_gates_ready = lambda: False
+            runner.tick(2)
+            await controller.order_safety_task
+        assert wal.get(proposed.config.id).state != "TERMINAL"
+        assert ledger.requires_reconciliation(proposed.config.id)
+        assert len(connector.sent) == 1
+        assert IntentWAL(wal.path).get(proposed.config.id).state != "TERMINAL"
+        assert ReservationLedger.restore(ledger.path, limits=ledger.limits).requires_reconciliation(
+            proposed.config.id)
+
+        connector.status[wire_id]["state"] = "canceled"
+        connector.open_pages[None] = []
+        runner.tick(3)
+        await controller.order_safety_task
+        assert wal.get(proposed.config.id).state == "TERMINAL"
+        assert ledger.is_terminal_intent(proposed.config.id)
+        assert len(connector.sent) == 1
+    finally:
+        runner.listen_to_executor_actions_task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await runner.listen_to_executor_actions_task
+
+
+def test_process_kill_after_manual_halt_replace_restores_latched_state(tmp_path):
+    journal = tmp_path / "safety.json"
+    child = """
+import os
+import sys
+from decimal import Decimal
+from pathlib import Path
+from hummingbot.strategy_v2.life_liquidity import safety
+from hummingbot.strategy_v2.life_liquidity.safety import SafetyGate
+
+path = Path(sys.argv[1])
+gate = SafetyGate(path, max_drawdown_bps=Decimal("500"),
+                  min_margin_buffer_quote=Decimal("10"), stable_data_ms=0,
+                  recovery_probe_base=Decimal("1"))
+replace = safety.os.replace
+
+def replace_then_die(source, destination):
+    replace(source, destination)
+    if Path(destination) == path:
+        os._exit(29)
+
+safety.os.replace = replace_then_die
+gate.halt("MANUAL_KILL_SWITCH")
+raise AssertionError("child should stop after the HALT journal replacement")
+"""
+    process = subprocess.run(
+        [sys.executable, "-c", child, str(journal)],
+        cwd=Path(__file__).resolve().parents[4], capture_output=True, text=True, timeout=15)
+    assert process.returncode == 29, process.stderr
+    restored = SafetyGate(journal, max_drawdown_bps=Decimal("500"),
+                          min_margin_buffer_quote=Decimal("10"), stable_data_ms=0,
+                          recovery_probe_base=Decimal("1"))
+    assert restored.state == "HALTED"
+    assert restored.reason_code == "MANUAL_KILL_SWITCH"
