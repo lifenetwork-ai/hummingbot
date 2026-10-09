@@ -148,6 +148,14 @@ class ProtectedSpotExecutorSender:
             raise PermissionError("RESERVATION_UNAVAILABLE")
         self._issued_intents[config.id] = intent
         self._issued_slots[config.id] = level
+        planner = self.controller._quote_action_planner
+        if self.controller.config.strategy.economics.objective == "liquidity_service":
+            if planner is None or not planner.reserve_subsidy_for_config(config):
+                self.gateway.wal.abort_before_send(config.id)
+                self.reservations.abort_unsent(
+                    config.id, session_id=current.session_id,
+                    epoch=current.epoch, wal=self.gateway.wal)
+                raise PermissionError("SUBSIDY_RESERVATION_UNAVAILABLE")
 
         def release_rejected_send() -> None:
             # Called only by the connector's final check before REST request I/O.
@@ -159,6 +167,9 @@ class ProtectedSpotExecutorSender:
             self.reservations.abort_unsent(
                 config.id, session_id=current.session_id,
                 epoch=current.epoch, wal=self.gateway.wal)
+            if planner is not None and planner.subsidy_budget is not None:
+                planner.subsidy_budget.release_unsent(
+                    config.id, wal=self.gateway.wal, reservations=self.reservations)
 
         try:
             return self.gateway.submit(permit, side=side, trading_pair=pair,
@@ -175,6 +186,9 @@ class ProtectedSpotExecutorSender:
                     self.reservations.abort_unsent(
                         config.id, session_id=current.session_id,
                         epoch=current.epoch, wal=self.gateway.wal)
+                    if planner is not None and planner.subsidy_budget is not None:
+                        planner.subsidy_budget.release_unsent(
+                            config.id, wal=self.gateway.wal, reservations=self.reservations)
             except (KeyError, OSError, ValueError):
                 pass  # startup recovery retains or repairs uncertain exposure
             raise

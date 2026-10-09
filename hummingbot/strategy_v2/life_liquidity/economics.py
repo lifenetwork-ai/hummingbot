@@ -1,8 +1,10 @@
 """Per-order conservative economics in USDT and basis points."""
 
+import fcntl
 import json
 import os
 import tempfile
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal
@@ -103,6 +105,14 @@ def evaluate_quote(inputs: EconomicInputs, policy: EconomicPolicy,
                             subsidy if allowed else Decimal("0"))
 
 
+@dataclass(frozen=True)
+class SubsidyBudgetStatus:
+    session_committed_quote: Decimal
+    day_committed_quote: Decimal
+    campaign_committed_quote: Decimal
+    available_quote: Decimal
+
+
 class SubsidyBudgetLedger:
     def __init__(self, path: Path, *, campaign_id: str, campaign_limit_quote: Decimal,
                  day_limit_quote: Decimal, session_limit_quote: Decimal):
@@ -117,13 +127,89 @@ class SubsidyBudgetLedger:
         self.day_limit_quote = day_limit_quote
         self.session_limit_quote = session_limit_quote
         self._lock = RLock()
+        self._uncertain = False
+        self._must_exist = self.path.exists() or self.path.is_symlink()
         self._entries: dict[str, dict[str, str | None]] = {}
-        if self.path.exists():
+        if self._must_exist:
+            if self.path.is_symlink() or not self.path.is_file():
+                raise ValueError("SUBSIDY_JOURNAL_UNAVAILABLE")
             with self.path.open(encoding="utf-8") as handle:
                 data = json.load(handle)
-            if data.get("schema_version") != 1 or data.get("campaign_id") != campaign_id:
-                raise ValueError("subsidy journal campaign mismatch")
-            self._entries = data["entries"]
+            if data.get("schema_version") == 1:
+                raise ValueError("SUBSIDY_BUDGET_MIGRATION_REQUIRED")
+            if data.get("schema_version") != 2 or data.get("campaign_id") != campaign_id:
+                raise ValueError("SUBSIDY_JOURNAL_UNAVAILABLE")
+            if data.get("policy") != self._policy():
+                raise ValueError("SUBSIDY_BUDGET_POLICY_MISMATCH")
+            self._entries = self._validated_entries(data.get("entries"))
+
+    def _policy(self) -> dict[str, str]:
+        return {"campaign_limit_quote": str(self.campaign_limit_quote),
+                "day_limit_quote": str(self.day_limit_quote),
+                "session_limit_quote": str(self.session_limit_quote)}
+
+    @staticmethod
+    def _validated_entries(entries: object) -> dict[str, dict[str, str | None]]:
+        if not isinstance(entries, dict):
+            raise ValueError("SUBSIDY_JOURNAL_UNAVAILABLE")
+        for intent_id, entry in entries.items():
+            if (not isinstance(intent_id, str) or not intent_id
+                    or not isinstance(entry, dict)
+                    or set(entry) != {"day", "session_id", "reserved", "actual"}
+                    or not isinstance(entry["day"], str) or not entry["day"]
+                    or not isinstance(entry["session_id"], str) or not entry["session_id"]):
+                raise ValueError("SUBSIDY_JOURNAL_UNAVAILABLE")
+            for field in ("reserved", "actual"):
+                value = entry[field]
+                if value is None and field == "actual":
+                    continue
+                try:
+                    parsed = Decimal(value) if isinstance(value, str) else None
+                except Exception as exc:
+                    raise ValueError("SUBSIDY_JOURNAL_UNAVAILABLE") from exc
+                if parsed is None or not _valid(parsed):
+                    raise ValueError("SUBSIDY_JOURNAL_UNAVAILABLE")
+        return entries
+
+    @contextmanager
+    def _file_lock(self):
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        lock_path = self.path.with_name(f"{self.path.name}.lock")
+        descriptor = os.open(lock_path, os.O_CREAT | os.O_RDWR | getattr(os, "O_NOFOLLOW", 0), 0o600)
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX)
+            yield
+        finally:
+            fcntl.flock(descriptor, fcntl.LOCK_UN)
+            os.close(descriptor)
+
+    def _assert_disk_matches(self, *, required: bool) -> None:
+        if self._uncertain or self.path.is_symlink() or not self.path.is_file():
+            if (not self._uncertain and not required and not self._must_exist
+                    and not self.path.exists() and not self._entries):
+                return
+            raise ValueError("SUBSIDY_JOURNAL_UNAVAILABLE")
+        with self.path.open(encoding="utf-8") as handle:
+            data = json.load(handle)
+        if (data.get("schema_version") != 2 or data.get("campaign_id") != self.campaign_id
+                or data.get("policy") != self._policy()
+                or self._validated_entries(data.get("entries")) != self._entries):
+            raise ValueError("SUBSIDY_JOURNAL_UNAVAILABLE")
+
+    def initialize_empty(self) -> None:
+        """Create a verified zero-use journal before any service quote is approved."""
+        with self._lock, self._file_lock():
+            if self._must_exist or self.path.exists() or self.path.is_symlink() or self._entries:
+                raise ValueError("SUBSIDY_INITIALIZATION_UNSAFE")
+            self._save({})
+            self._must_exist = True
+
+    @staticmethod
+    def _day(at_utc: datetime) -> str:
+        if (not isinstance(at_utc, datetime) or at_utc.tzinfo is None
+                or at_utc.utcoffset() != timedelta(0)):
+            raise ValueError("UTC timestamp required")
+        return at_utc.date().isoformat()
 
     @staticmethod
     def _committed(entry: dict[str, str | None]) -> Decimal:
@@ -131,53 +217,67 @@ class SubsidyBudgetLedger:
 
     @property
     def campaign_committed_quote(self) -> Decimal:
-        with self._lock:
+        with self._lock, self._file_lock():
+            self._assert_disk_matches(required=True)
             return sum((self._committed(entry) for entry in self._entries.values()), Decimal("0"))
 
     def _save(self, entries: dict[str, dict[str, str | None]]) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         descriptor, temporary = tempfile.mkstemp(prefix=f".{self.path.name}.", dir=self.path.parent)
+        replace_attempted = False
         try:
             with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-                json.dump({"schema_version": 1, "campaign_id": self.campaign_id,
-                           "entries": entries}, handle, sort_keys=True)
+                json.dump({"schema_version": 2, "campaign_id": self.campaign_id,
+                           "policy": self._policy(), "entries": entries},
+                          handle, sort_keys=True)
                 handle.flush()
                 os.fsync(handle.fileno())
+            replace_attempted = True
             os.replace(temporary, self.path)
+            directory_fd = os.open(self.path.parent, os.O_RDONLY)
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
+        except OSError:
+            if replace_attempted:
+                self._uncertain = True
+            raise
         finally:
             if os.path.exists(temporary):
                 os.unlink(temporary)
 
     def reserve(self, intent_id: str, expected_cost_quote: Decimal, *,
                 session_id: str, at_utc: datetime) -> bool:
-        if (not intent_id or not session_id or not _valid(expected_cost_quote)
-                or not isinstance(at_utc, datetime) or at_utc.tzinfo is None
-                or at_utc.utcoffset() != timedelta(0)):
+        if (not isinstance(intent_id, str) or not intent_id
+                or not isinstance(session_id, str) or not session_id
+                or not _valid(expected_cost_quote)):
             raise ValueError("subsidy reservation invalid")
-        day = at_utc.date().isoformat()
-        with self._lock:
-            if intent_id in self._entries:
+        day = self._day(at_utc)
+        with self._lock, self._file_lock():
+            self._assert_disk_matches(required=True)
+            event = {"day": day, "session_id": session_id,
+                     "reserved": str(expected_cost_quote), "actual": None}
+            previous = self._entries.get(intent_id)
+            if previous is not None:
+                if previous != event:
+                    raise ValueError("SUBSIDY_RESERVATION_CONFLICT")
                 return False
-            if self.campaign_committed_quote + expected_cost_quote > self.campaign_limit_quote:
-                return False
-            day_used = sum((self._committed(entry) for entry in self._entries.values()
-                            if entry["day"] == day), Decimal("0"))
-            session_used = sum((self._committed(entry) for entry in self._entries.values()
-                                if entry["session_id"] == session_id), Decimal("0"))
-            if (day_used + expected_cost_quote > self.day_limit_quote
-                    or session_used + expected_cost_quote > self.session_limit_quote):
+            status = self._status(session_id=session_id, day=day)
+            if expected_cost_quote > status.available_quote:
                 return False
             updated = dict(self._entries)
-            updated[intent_id] = {"day": day, "session_id": session_id,
-                                  "reserved": str(expected_cost_quote), "actual": None}
+            updated[intent_id] = event
             self._save(updated)
             self._entries = updated
+            self._must_exist = True
             return True
 
     def reconcile(self, intent_id: str, *, actual_cost_quote: Decimal) -> bool:
         if not _valid(actual_cost_quote):
             raise ValueError("actual subsidy cost invalid")
-        with self._lock:
+        with self._lock, self._file_lock():
+            self._assert_disk_matches(required=True)
             entry = self._entries[intent_id]
             if entry["actual"] is not None:
                 if Decimal(entry["actual"]) != actual_cost_quote:
@@ -188,6 +288,57 @@ class SubsidyBudgetLedger:
             self._save(updated)
             self._entries = updated
             return True
+
+    def _status(self, *, session_id: str, day: str) -> SubsidyBudgetStatus:
+        campaign = sum((self._committed(entry) for entry in self._entries.values()), Decimal("0"))
+        daily = sum((self._committed(entry) for entry in self._entries.values()
+                     if entry["day"] == day), Decimal("0"))
+        session = sum((self._committed(entry) for entry in self._entries.values()
+                       if entry["session_id"] == session_id), Decimal("0"))
+        available = max(Decimal("0"), min(
+            self.campaign_limit_quote - campaign,
+            self.day_limit_quote - daily,
+            self.session_limit_quote - session))
+        return SubsidyBudgetStatus(session, daily, campaign, available)
+
+    def verified_status(self, *, session_id: str, at_utc: datetime) -> SubsidyBudgetStatus:
+        if not isinstance(session_id, str) or not session_id:
+            raise ValueError("session ID required")
+        day = self._day(at_utc)
+        with self._lock, self._file_lock():
+            self._assert_disk_matches(required=True)
+            return self._status(session_id=session_id, day=day)
+
+    def matches_reservation(self, intent_id: str, expected_cost_quote: Decimal, *,
+                            session_id: str, at_utc: datetime) -> bool:
+        day = self._day(at_utc)
+        expected = {"day": day, "session_id": session_id,
+                    "reserved": str(expected_cost_quote), "actual": None}
+        with self._lock, self._file_lock():
+            self._assert_disk_matches(required=True)
+            return self._entries.get(intent_id) == expected
+
+    def reserved_for(self, intent_id: str, *, session_id: str) -> Decimal | None:
+        with self._lock, self._file_lock():
+            self._assert_disk_matches(required=True)
+            entry = self._entries.get(intent_id)
+            if entry is None or entry["session_id"] != session_id or entry["actual"] is not None:
+                return None
+            return Decimal(entry["reserved"])
+
+    def release_unsent(self, intent_id: str, *, wal, reservations) -> bool:
+        """Credit back only after both order and capital journals prove no send."""
+        from hummingbot.strategy_v2.life_liquidity.risk import ReservationLedger
+        from hummingbot.strategy_v2.life_liquidity.state import IntentWAL
+
+        record = IntentWAL(wal.path).get(intent_id)
+        if record.state != "ABORTED_BEFORE_SEND":
+            raise ValueError("SUBSIDY_RELEASE_UNPROVEN")
+        durable = ReservationLedger.restore(reservations.path, limits=reservations.limits)
+        if (intent_id in durable.reservation_ids
+                and not durable.is_terminal_intent(intent_id)):
+            raise ValueError("SUBSIDY_RELEASE_UNPROVEN")
+        return self.reconcile(intent_id, actual_cost_quote=Decimal("0"))
 
 
 @dataclass(frozen=True)

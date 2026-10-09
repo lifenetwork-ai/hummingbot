@@ -8,14 +8,16 @@ creation. A proposal is advisory until the protected sender repeats its gates.
 import math
 import re
 from dataclasses import dataclass
+from datetime import datetime
 from decimal import Decimal
+from pathlib import Path
 from typing import Callable
 
 from hummingbot.core.data_type.common import TradeType
 from hummingbot.strategy_v2.executors.order_executor.data_types import ExecutionStrategy, OrderExecutorConfig
 from hummingbot.strategy_v2.life_liquidity.action_journal import QuoteActionJournal, QuoteActionRecord
 from hummingbot.strategy_v2.life_liquidity.config import QuotesConfig, parse_duration_seconds
-from hummingbot.strategy_v2.life_liquidity.economics import EconomicPolicy
+from hummingbot.strategy_v2.life_liquidity.economics import EconomicPolicy, SubsidyBudgetLedger
 from hummingbot.strategy_v2.life_liquidity.fees import FeeQuoteBinding
 from hummingbot.strategy_v2.life_liquidity.loss_budget import LossBudgetStatus
 from hummingbot.strategy_v2.life_liquidity.market_data import InstrumentRules
@@ -64,6 +66,19 @@ class QuotePlanningSnapshot:
 
 class QuoteActionPlanner:
     @staticmethod
+    def _subsidy_binding_matches_config(ledger: SubsidyBudgetLedger, config) -> bool:
+        configured = config.strategy.economics.subsidy_budget_quote
+        recovery = config.recovery_state_dir
+        return (isinstance(ledger, SubsidyBudgetLedger)
+                and config.strategy.economics.objective == "liquidity_service"
+                and configured is not None
+                and ledger.campaign_limit_quote == configured.campaign
+                and ledger.day_limit_quote == (configured.day or configured.campaign)
+                and ledger.session_limit_quote == (
+                    configured.session or configured.day or configured.campaign)
+                and (recovery is None or ledger.path == Path(recovery) / "subsidy_budget.json"))
+
+    @staticmethod
     def _fee_binding_matches_config(binding: FeeQuoteBinding, config) -> bool:
         if not isinstance(binding, FeeQuoteBinding):
             return False
@@ -85,7 +100,9 @@ class QuoteActionPlanner:
                  monotonic_clock: Callable[[], float],
                  intent_id_factory: Callable[[], str], max_actions_per_tick: int,
                  reference_engine: ReferenceEngine | None = None,
-                 fee_binding: FeeQuoteBinding | None = None):
+                 fee_binding: FeeQuoteBinding | None = None,
+                 subsidy_budget: SubsidyBudgetLedger | None = None,
+                 utc_clock: Callable[[], datetime] | None = None):
         if (not isinstance(max_actions_per_tick, int) or isinstance(max_actions_per_tick, bool)
                 or max_actions_per_tick <= 0):
             raise ValueError("QUOTE_ACTION_LIMIT_INVALID")
@@ -103,6 +120,14 @@ class QuoteActionPlanner:
         self.reference_engine = reference_engine
         self.fee_binding = fee_binding
         self.fee_reason_code = "FEE_BINDING_NOT_INSTALLED"
+        self.subsidy_budget = subsidy_budget
+        self.subsidy_utc_clock = utc_clock
+        self.subsidy_reason_code = "SUBSIDY_BUDGET_NOT_INSTALLED"
+        if subsidy_budget is not None:
+            if (not callable(utc_clock)
+                    or not self._subsidy_binding_matches_config(
+                        subsidy_budget, controller.config)):
+                raise ValueError("SUBSIDY_BUDGET_BINDING_INVALID")
         self.slots = SpotQuoteSlots(wal, market=controller.config.strategy.spot.pair)
         self.action_journal = QuoteActionJournal(
             wal.path.with_name("quote_actions.json"),
@@ -330,6 +355,60 @@ class QuoteActionPlanner:
         if observed is None:
             return False
         try:
+            held_subsidy = Decimal("0")
+            subsidy_available = None
+            if self.subsidy_budget is not None:
+                held_subsidy = self.subsidy_budget.reserved_for(
+                    permit.intent_id, session_id=current.session_id)
+                if held_subsidy is None:
+                    return False
+                subsidy_available = self.subsidy_budget.verified_status(
+                    session_id=current.session_id,
+                    at_utc=self.subsidy_utc_clock()).available_quote + held_subsidy
+            level = int(config.level_id)
+            quotes = self.controller.config.strategy.quotes
+            single_level = QuotesConfig(
+                spreads_bps=(quotes.spreads_bps[level],),
+                sizes_base=(quotes.sizes_base[level],),
+                buy_taper_start_base=quotes.buy_taper_start_base,
+                buy_block_base=quotes.buy_block_base)
+            intent = SpotIntent(config.id, config.side.name, config.amount,
+                                config.price, current.session_id, current.epoch)
+            if not self.reservations.matches_open_intent(intent):
+                return False
+            plan = self._plan(observed, current, quotes=single_level,
+                              sides=(config.side.name,), exclude_open_intent=intent,
+                              subsidy_override_quote=subsidy_available)
+        except Exception:
+            return False
+        matches = any(candidate.side == config.side.name
+                      and candidate.price_usdt == permit.price_usdt
+                      and candidate.quantity_base == permit.quantity_base
+                      and candidate.economics.subsidy_reserved_quote == held_subsidy
+                      for candidate in plan.candidates)
+        return (matches and (not self.controller.markout_probe_active()
+                             or self.controller.markout_probe_authorizes(
+                                 config.side.name, permit.quantity_base,
+                                 exclude_open_intent=intent)))
+
+    def reserve_subsidy_for_config(self, config: OrderExecutorConfig) -> bool:
+        """Commit the current service cost before the gateway can send."""
+        if self.subsidy_budget is None:
+            return self.controller.config.strategy.economics.objective == "profit_mm"
+        current = self.manager.current_session if self.manager is not None else None
+        if current is None or not isinstance(config, OrderExecutorConfig):
+            return False
+        observed = self._current_snapshot(current)
+        if observed is None:
+            return False
+        try:
+            claim = self.action_journal.verified_get(config.id)
+            issued = self._issued.get(config.id)
+            if (issued is None or issued != (current.session_id, current.epoch,
+                                             current.config_version, config)
+                    or claim.state not in ("PROPOSED", "DISPATCHED")
+                    or not self._claim_matches_config(claim, config, *issued[:3])):
+                return False
             level = int(config.level_id)
             quotes = self.controller.config.strategy.quotes
             single_level = QuotesConfig(
@@ -343,16 +422,18 @@ class QuoteActionPlanner:
                 return False
             plan = self._plan(observed, current, quotes=single_level,
                               sides=(config.side.name,), exclude_open_intent=intent)
-        except Exception:
+            candidate = next((item for item in plan.candidates
+                              if item.side == config.side.name
+                              and item.price_usdt == config.price
+                              and item.quantity_base == config.amount), None)
+            if candidate is None:
+                return False
+            return self.subsidy_budget.reserve(
+                config.id, candidate.economics.subsidy_reserved_quote,
+                session_id=current.session_id, at_utc=self.subsidy_utc_clock())
+        except (KeyError, OSError, TypeError, ValueError):
+            self.subsidy_reason_code = "SUBSIDY_RESERVATION_UNAVAILABLE"
             return False
-        matches = any(candidate.side == config.side.name
-                      and candidate.price_usdt == permit.price_usdt
-                      and candidate.quantity_base == permit.quantity_base
-                      for candidate in plan.candidates)
-        return (matches and (not self.controller.markout_probe_active()
-                             or self.controller.markout_probe_authorizes(
-                                 config.side.name, permit.quantity_base,
-                                 exclude_open_intent=intent)))
 
     def session_snapshot(self) -> QuotePlanningSnapshot | None:
         """Qualified snapshot for the safety tick, even after a reversible pause."""
@@ -403,9 +484,33 @@ class QuoteActionPlanner:
                 self.fee_reason_code = fee_decision.reason_code
                 if not fee_decision.allowed:
                     return None
+            if observed.policy.objective == "liquidity_service":
+                if self.subsidy_budget is None or self.subsidy_utc_clock is None:
+                    self.subsidy_reason_code = "SUBSIDY_BUDGET_NOT_INSTALLED"
+                    return None
+                if not self._subsidy_binding_matches_config(
+                        self.subsidy_budget, self.controller.config):
+                    self.subsidy_reason_code = "SUBSIDY_BUDGET_CONFIG_MISMATCH"
+                    return None
+                status = self.subsidy_budget.verified_status(
+                    session_id=current.session_id, at_utc=self.subsidy_utc_clock())
+                allowed = {status.available_quote}
+                if pre_send_intent_id is not None:
+                    held = self.subsidy_budget.reserved_for(
+                        pre_send_intent_id, session_id=current.session_id)
+                    if held is None:
+                        self.subsidy_reason_code = "SUBSIDY_RESERVATION_UNAVAILABLE"
+                        return None
+                    allowed.add(status.available_quote + held)
+                if observed.subsidy_remaining_quote not in allowed:
+                    self.subsidy_reason_code = "SUBSIDY_SNAPSHOT_MISMATCH"
+                    return None
+                self.subsidy_reason_code = "SUBSIDY_BUDGET_READY"
         except Exception:
             if self.fee_binding is not None:
                 self.fee_reason_code = "FEE_BINDING_UNAVAILABLE"
+            if self.subsidy_budget is not None:
+                self.subsidy_reason_code = "SUBSIDY_BUDGET_UNAVAILABLE"
             return None
         self.last_qualified_snapshot = observed
         return observed
@@ -413,7 +518,8 @@ class QuoteActionPlanner:
     def _plan(self, observed: QuotePlanningSnapshot, current,
               *, quotes: QuotesConfig | None = None,
               sides: tuple[str, ...] = ("BUY", "SELL"),
-              exclude_open_intent: SpotIntent | None = None) -> SpotQuotePlan:
+              exclude_open_intent: SpotIntent | None = None,
+              subsidy_override_quote: Decimal | None = None) -> SpotQuotePlan:
         return plan_spot_quotes(
             session_id=current.session_id, epoch=current.epoch,
             qualified_reference_usdt=observed.qualified_reference_usdt,
@@ -422,7 +528,8 @@ class QuoteActionPlanner:
             quotes=quotes or self.controller.config.strategy.quotes,
             rules=observed.rules, costs=observed.costs, policy=observed.policy,
             reservations=self.reservations,
-            subsidy_remaining_quote=observed.subsidy_remaining_quote,
+            subsidy_remaining_quote=(subsidy_override_quote if subsidy_override_quote is not None
+                                     else observed.subsidy_remaining_quote),
             min_depth_base_per_side=observed.min_depth_base_per_side,
             adaptive_policy=observed.adaptive_policy,
             adaptive_signals=observed.adaptive_signals,

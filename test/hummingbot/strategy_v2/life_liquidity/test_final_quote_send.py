@@ -28,7 +28,8 @@ def _attach_quote_planner(controller, template, wal, ledger, *,
                           reference_engine=None, book_sequence_id=None,
                           reference_model_version=None,
                           adaptive_policy=None, adaptive_signals=None,
-                          loss_budget_status=None, propose=True, fee_binding=None):
+                          loss_budget_status=None, propose=True, fee_binding=None,
+                          subsidy_budget=None, utc_clock=None):
     quotes = QuotesConfig(spreads_bps=(Decimal("30"),), sizes_base=(Decimal("1"),))
     controller.config = controller.config.model_copy(update={
         "strategy": controller.config.strategy.model_copy(update={"quotes": quotes})})
@@ -53,7 +54,8 @@ def _attach_quote_planner(controller, template, wal, ledger, *,
         controller, wal=wal, reservations=ledger,
         snapshot=lambda: state["snapshot"], monotonic_clock=lambda: state["now"],
         intent_id_factory=lambda: "quote-1", max_actions_per_tick=1,
-        reference_engine=reference_engine, fee_binding=fee_binding)
+        reference_engine=reference_engine, fee_binding=fee_binding,
+        subsidy_budget=subsidy_budget, utc_clock=utc_clock)
     controller.install_quote_action_planner(planner)
     if not propose:
         return state, None
