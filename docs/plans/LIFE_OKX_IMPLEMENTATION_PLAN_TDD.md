@@ -4,9 +4,9 @@ Created: 2026-10-01 (Asia/Ho_Chi_Minh)
 
 Source revision reviewed: `9af100d68`
 
-Status: **implementation plan; no new trading code has been implemented or run live**.
+Status: **offline implementation in progress; the production LIFE controller still denies order creation, and no LIFE orders have been run live**.
 
-Architecture and economics reviewed on 2026-10-01. All review findings are incorporated into this plan and mapped to implementation checklists and acceptance cases in Section 2.1. The controls below are **implementation and testing requirements**, not protections already available in the bot. All implementation checklists remain open.
+Architecture and economics reviewed on 2026-10-01. Review findings are mapped to implementation checklists and acceptance cases in Section 2.1. Checked subitems identify implemented offline contracts or adapters; unchecked subitems and parent requirements remain open in their stated scope. A passing fake-exchange test is not evidence of OKX demo or production behavior.
 
 ## 1. Objectives and Scope
 
@@ -59,7 +59,7 @@ These findings come from source inspection. They do not establish successful ope
 
 ### 2.1. Review-to-Implementation Traceability
 
-Each review finding below is addressed in this specification. Implementation and verification remain pending; editing the plan does not close a delivery checklist.
+Each review finding below is addressed in this specification. Completion is tracked by the checked subitems and the stage gates in Section 6; editing the plan does not close a delivery checklist.
 
 | Review finding | Required control | Implementation checklist | Acceptance cases |
 |---|---|---|---|
@@ -106,7 +106,7 @@ flowchart TD
 
 ### Module Boundaries
 
-The paths below are **proposed** and do not yet exist:
+These are the target module responsibilities. Some paths already exist; the remaining responsibilities are tracked in the phase checklists:
 
 | Path | Responsibility |
 |---|---|
@@ -140,7 +140,7 @@ Reuse existing executors and storage where their behavior satisfies the contract
 
 ## 4. Configuration and Time Rules
 
-The names below describe the intended schema. P1 will implement it and produce validated examples. This table is not a runnable configuration.
+The names below describe the intended schema and configuration contracts. P1 has implemented the offline validation subset; this table is not a runnable configuration or a source of live defaults.
 
 | Field | Rule |
 |---|---|
@@ -229,33 +229,57 @@ A phase may be marked complete only when:
 - [ ] Configuration, units, reason codes, and behavior changes are documented.
 - [ ] A reviewer can reproduce results using the recorded commands; known failures have classified causes.
 
-For a requirement that spans pure logic and the running bot, track those scopes as separate nested checkboxes. An `[x]` on an offline or connector-contract subtask means only that named behavior has been implemented and tested. The parent requirement stays `[ ]` until every subtask passes; the phase stays in progress until all parent requirements and the phase definition of done pass. Synthetic fixtures never count as live calibration or exchange evidence.
+For a requirement that spans pure logic, a fake-exchange runner, OKX demo, and production, track those scopes as separate nested checkboxes. An `[x]` means only the named scope passed. Parent P4/P5/P8 requirements may remain `[ ]` after **Spot Offline Complete** because demo and real-account proof are tracked later. Close the offline milestone using its own checklist in Section 6, with explicit evidence for each required spot behavior; do not mark a full parent requirement complete merely to make the offline milestone appear closed. Synthetic fixtures never count as live calibration or exchange evidence.
 
 ## 6. Roadmap and Status
 
-Foundation: `P0 → P1 → P2 → P3 → P4 → P5`. Minimum persistence, the safety loop, and audit records are required in P4/P5; P8 adds hardening and system tests.
+### Delivery order and stage gates
 
-Release in stages that allow separate economic validation:
+Keep P0–P9 as stable requirement IDs; the stage checklists below are the delivery order. First declare the feature scope, then **close every offline requirement for that scope**, demonstrate it with isolated OKX demo credentials, integrate read-only production-account evidence, and only then consider a separately approved budgeted live canary. The first deliverable is explicitly spot-only; if the deliverable includes perpetual hedging/MM or P7 inventory execution, its offline extension gate must close before its demo. To claim the entire planned product is offline complete, close all declared P6/P7 offline cases as well. A demo using a supported non-LIFE instrument proves connector behavior for that instrument; fake LIFE replay proves LIFE strategy logic. Neither is a live LIFE execution test. The production controller remains unable to create orders until the real-account and release gates pass.
 
-1. **Spot MVP:** spot MM using a qualified LIFE market reference, P0–P5, and the spot portions of P8/P9. A single explicitly selected bounded benchmark is optional and requires separate supporting evidence. Without sufficient LIFE data, remain in simulation/shadow.
-2. **Perpetual hedging:** add P6 after connector contract tests and funding, margin, and hedge economics pass their gates; an appropriate OKX contract must actually exist.
-3. **MM on both markets:** enable perpetual quotes only after separate evaluation; successful hedging does not establish that perpetual MM is viable.
-4. **Inventory execution/baskets:** P7 and benchmark baskets are extensions justified by validated needs. Stop/cancel/reconciliation behavior and residual-inventory policies remain mandatory from the MVP.
+```text
+O(scope): Offline Complete → D(scope): Demo Proven → R(scope): Real-Account Ready → C(scope): Live Canary Review
+                               ↘ if LIFE is absent in demo: connector demo + synthetic LIFE proof remain separate
+```
 
-Each stage must pass its applicable P8/P9 gates before live operation. Completing the spot stage does not complete the full R01–R12 scope.
-
-| Phase | Main deliverable | Status | Evidence/commit |
+| Gate | Scope and exit evidence | Status | Next dependency |
 |---|---|---|---|
-| P0 | Behavioral specification, baseline, and test harness | Complete for offline scope | P0 evidence below |
-| P1 | Schema, units, and configuration validation | Complete for offline/CLI scope; trading remains disabled | P1 evidence below |
-| P2 | Market data and listing gate | Complete for offline scope; live gates remain P9 | P2 verification below |
-| P3 | Reference engine and configurable sessions | Complete for offline scope; real order and market evidence gates remain P4/P5/P9 | P3 verification below |
-| P4 | Economics, risk, reservations, safety loop, and minimum WAL | In progress; offline components, protected send contract, safety callback, and configured watchdog verified; cancellation priority and order-capable integration open | P4 checklist and progress below |
-| P5 | Spot MM and order lifecycle | In progress; P5.1 offline planning and opt-in action proposals, P5.3 durable slot claims/protected sender binding, P5.4 atomic fill-snapshot accounting, P5.6 host-local dispatch claims, cold-start provenance checks, and request-budget contract, and P5.7 spot recovery contracts verified; production quote issuance open | P5 checklist and progress below |
-| P6 | Perpetuals, hedging, and shared risk | Not started | — |
-| P7 | Inventory execution and mode transitions | Not started | — |
-| P8 | Recovery, telemetry, and system tests | Not started | — |
-| P9 | Demo, runbook, and release gates | Not started | — |
+| O — Offline Complete for declared scope | Spot: P0–P5 and P8 spot replay on fake exchange/actual V2 runner, O.1–O.6; add O.7/P6/P7 when those features are declared | In progress for spot; extensions not started | None |
+| D — Demo Proven for declared scope | P9.1–P9.6 with demo REST/WS, isolated demo credentials, supported instruments, full session/restart/cancel evidence | Not started | Matching O scope closed |
+| R — Real-Account Ready | Read-only account/instrument/history/fee validation, verified opening balances and bill anchor, numeric budgets and qualified LIFE reference; P9.7 and P9.9–P9.12 | Not started | D closed; actual listing/data may still be unavailable |
+| C — Live Canary Review | Concrete operator evidence report and P9.13 canary plan; separate explicit decision before any production order | Not authorized | R closed |
+
+**O — Offline Complete for the declared scope.** O.1–O.6 close the spot offline milestone. Every unchecked item is actionable without a LIFE listing or production credentials. Tests use synthetic values labeled as such. An offline gate may close while a detailed parent P4/P5/P8 remains open for demo/production evidence. At the O review, classify each unchecked detailed item as an offline gap or a D/R/C proof with a reason and owner; no unclassified item may be silently skipped.
+
+- [x] O.1: P0–P3 spot foundations, validation, listing-state replay, reference qualification, and configurable sessions pass offline.
+- [ ] O.2: Bind the P4 spot capital, loss, risk-priority, markout, fee, and final-send contracts to the actual V2 action queue and fake connector. Exercise queued/retried orders, stale inputs, HALT, partial fills, and restart without overriding the safety gate in the acceptance replay (P4.1–P4.18; A06–A09, A21–A24, A27–A30, A35–A36).
+- [ ] O.3: Complete the P5 spot lifecycle in one reproducible fake-exchange session: quote, ACK/lost ACK, cancel/replace, fills/fees, expiry, successor decision, inventory residual, and restart. Account-wide regular/algo pending-order and completed-fill scopes must fail closed on missing, paginated, or foreign evidence (P5.1–P5.13; A04, A08–A09, A23, A25).
+- [ ] O.4: Finish P8 spot fault injection around remaining recorder commit boundaries, journal failures, clock faults, kill switch/reload, and cancel/replace; assert no unknown send is retried blindly and no reservation is released without proof (P8.1–P8.4; A03, A14, A18, A35, A39). A13's real exchange timer is D/R evidence.
+- [ ] O.5: Run P8.7–P8.13 spot telemetry and adversarial simulation with recorded seeds, cost assumptions, queue/latency models, and reason codes. Report insufficient evidence rather than synthesizing fills, liquidity, profitability, or missing values (A04, A27–A30, A38).
+- [ ] O.6: Pass the offline portions of applicable spot A01–A39 cases, changed-code coverage and affected connector/executor regression, document Red → Green evidence and remaining exchange-only assumptions, and review a replayable offline evidence report that maps open detailed items to O/D/R/C. No demo or production order is required to close O.
+
+- [ ] O.7 (only when declared): complete P6 perpetual/hedge and/or P7 inventory-execution fake-contract, shared-risk, and recovery acceptance cases for each enabled extension. Record the exact included features. O.7 is mandatory before demo of an included extension; it does not block a declared spot-only O/D milestone.
+
+**Full offline scope:** if the declared deliverable includes all R01–R12 capabilities, O is not complete until O.1–O.7 and every P6/P7 offline acceptance case pass. A spot-only O.1–O.6 result must be labeled **Spot Offline Complete**, never “all features offline complete.”
+
+**D — Demo Proven.** Close only after the matching O scope is complete. Use isolated demo endpoints and credentials; keep production keys and order routes unavailable to the demo runner. If LIFE is missing in demo, pair connector tests on a supported instrument with the frozen synthetic LIFE scenario and record both limitations. Complete a configured session, pause/expiry, restart, disconnect, cancel, fill/fee, and residual-inventory reconciliation; retain actual demo API responses and an evidence report (P9.1–P9.6). Demo outcomes cannot calibrate LIFE liquidity, fee tiers, economics, or live loss limits by themselves.
+
+**R — Real-Account Ready.** After D, use read-only production access first to verify the account UID/mode, instrument state, opening LIFE/USDT balances, bill anchor and retention coverage, actual fees, funding/margin when enabled, pending regular/algo orders, manual/out-of-scope activity, and independent LIFE reference quality. Freeze numeric capital, subsidy, execution-loss, stress, KPI, latency, and stop thresholds with owners and evidence (P0.6/P4.7/P5.7/P9.7/P9.9–P9.12). Missing LIFE history or an unresolved account event keeps R open. Wiring the production controller's send path is reviewed and tested under those gates; D does not enable it automatically.
+
+**C — Live Canary Review.** Present the R evidence, rollback procedure, and P9.13 spot canary budget/duration/stop criteria to the operator. Any production order requires a separate explicit decision. Perpetual hedging, dual-market MM, and P7 inventory execution require independent offline, demo, real-account, and canary reviews before activation or capital increase.
+
+| Phase | Main deliverable | Detailed status | Stage mapping |
+|---|---|---|---|
+| P0 | Behavioral specification, baseline, and test harness | Complete for offline scope | O; live values remain R |
+| P1 | Schema, units, and configuration validation | Complete for offline/CLI scope; trading remains disabled | O; live config R |
+| P2 | Market data and listing gate | Complete for offline scope | O; actual LIFE data R |
+| P3 | Reference engine and configurable sessions | Complete for offline scope | O; qualified LIFE evidence R |
+| P4 | Economics, risk, reservations, safety loop, and WAL | In progress; offline components and opt-in contracts verified, runner integration open | O then D/R |
+| P5 | Spot MM and order lifecycle | In progress; many opt-in spot/OKX adapter contracts verified, production quote issuance open | O then D/R |
+| P6 | Perpetuals, hedging, and shared risk | Not started | Optional separate offline → demo → real |
+| P7 | Inventory execution and mode transitions | Not started | Optional separate offline → demo → real |
+| P8 | Recovery, telemetry, and system tests | In progress for spot crash/recovery; broad simulation and live timers open | O then D/R |
+| P9 | Demo proof and later release decisions | Not started | P9.1–P9.6 D; P9.7–P9.13 R/C |
 
 ### P0 — Define behavioral contracts and establish the baseline
 
@@ -578,13 +602,14 @@ Run risk checks before creating/replacing orders, after every fill event, and at
   - [x] Local recovery ownership: require an explicit expected OKX `uid`, take one nonblocking process lock per UID before restoring the safety adapter, verify the authenticated `account/config` UID before any cancellation/reconciliation request, and hold the lock until the controller stops. Different strategy IDs and recovery directories on the same OS user contend for the same lock; mismatch, missing UID, and contention fail closed (`test_account_lock.py`, `test_controller_order_safety.py`, `test_okx_account_uid.py`). This is a local recovery guard, not a live multi-host sender authority.
   - [x] Spot fee/cashflow recovery adapter: persist signed fill fees by `tradeId` and LIFE/USDT transfer deltas by approved `billId` in the reservation journal. Fetch unfiltered authenticated account bills through a bounded three-month archive scan to a known anchor; compare trade IDs, order IDs, and fee amounts, reject unapproved transfers and unrelated bill types, then match exact `cashBal`. Duplicate restart events are idempotent; conflicting IDs, malformed pages, missing anchor, unsupported fee currency, or incomplete history block terminal release (`test_account_bills.py`, `test_controller_order_safety.py`, `test_okx_account_uid.py`). The recovery directory now requires `cashflows.json`; its anchor and approved IDs are operator-provided evidence, not inferred from a balance difference.
   - [x] Account-wide regular SPOT pending-order guard: query authenticated `orders-pending` with `instType=SPOT` and no `instId`, checking every bounded page against the WAL and observed `ordId`. A manual order on LIFE or any other spot pair, malformed/duplicate entry, missing page, or failed query blocks full-scope recovery. Terminal reservation release waits for this scan; the bot cancels only its own WAL orders (`test_order_gateway.py`, `test_controller_order_safety.py`). OKX algo orders use another endpoint and remain outside this guard.
+  - [ ] Offline algo-order scope: add a bounded account-wide pending-algo-order adapter and fake-connector tests. An unowned algo order, incomplete page, unsupported account/product scope, or failed query keeps reconciliation incomplete; the bot never cancels an unowned order. This is required for O.3. Confirm the endpoint/account-mode contract again during D/R before relying on it for live scope.
   - [x] Offline account-wide completed-fill cross-check: query authenticated `fills-history` with `instType=SPOT` and no instrument filter, scanning descending `billId` pages back to the configured bill anchor. Every observed newer fill must match the account bills and a durable WAL/reservation trade by trade ID, exchange/client order ID, instrument, quantity, price, and signed fee. Missing capability, API error, incomplete pagination, an unmatched fill, or a cross-source disagreement blocks terminal reservation release. A synthetic completed manual buy/sell roundtrip is rejected even when final LIFE/USDT balances equal their opening values (`test_account_bills.py`, `test_order_gateway.py`, `test_controller_order_safety.py`). This bounded offline scan does not prove exchange history coverage before the anchor or after API retention, and live anchor verification remains open.
   - [x] Runner executor safety slice: the real V2 safety callback hands its active executor map to LIFE before readiness checks. When safety revokes the session, LIFE moves current spot `OrderExecutor`s to shutdown before exchange cancellation so a cancel event cannot trigger replenishment; an authorized active session is not stopped. The gateway checks current, renewed, canceled, failed, and held executor wire IDs against the WAL before terminal reservation release. Observed IDs and invalid-scope evidence remain latched if an executor disappears from the active map. Missing/unsupported executor scope or an untracked/duplicate ID blocks completion while WAL cancellation continues (`test_runner_order_scope.py`). This active-executor check is supplemented by the stored snapshot check below; neither proves multi-host ownership.
   - [x] Protected spot executor path: an explicitly installed sender binds the real `OrderExecutor` call to the same reservation, WAL, wire ID, and OKX connector used by recovery; ordinary `strategy.buy/sell` is bypassed for LIFE. Connector ACK and post-only payload reach the tracker; lost ACK, throttler revocation, stale permit, WAL failure, and executor retry stay unresolved without duplicate send (`test_executor_protected_send.py`). The production LIFE controller does not install this sender or grant create permission.
   - [x] Stored executor history contract: `OrderExecutor` serializes current, renewed, canceled, failed, and held wire IDs into `custom_info.recovery_order_ids`; the real orchestrator reads a fresh `MarketsRecorder` snapshot by controller. Before terminal reservation release, LIFE checks stored executor identity, market, terminal status, current ID and held-order consistency, and every wire ID against its WAL intent. A missing legacy field, unexpected stored executor, duplicate/missing ID, database failure, or a row disappearing after this process observed it latches reconciliation incomplete while WAL cancellation continues (`test_runner_order_scope.py`). A missing cold-start row is eligible only for the separate pre-send provenance path below. This snapshot does not prove historical database completeness or authenticated account binding by itself.
   - [x] Offline crash/restart replay: slotted protected quotes normally require each WAL wire ID in the current active or freshly read stored executor snapshot. With no active executor after a cold restart, an absent row can instead use the account-bound action claim, durable WAL wire/slot identity, and matching durable reservation, all checked again after authenticated UID verification. Any missing/changed journal, failed recorder read, or disappeared previously observed row blocks terminal release. The gateway still rechecks fills, account, and terminal status; WAL terminal-observed state avoids a redundant unbounded cancel request (`test_crash_recovery_replay.py`, `test_recorder_cold_restart.py`). This is an offline spot fallback, not proof of historical account-wide order coverage.
   - [x] File-backed recorder replay: an actual `OrderExecutor` is sent through the V2 runner, checkpointed by `ExecutorOrchestrator.store_executor()` to SQLite via `MarketsRecorder`, then read through the orchestrator after reopening the database. The persisted row must match the WAL wire ID and configured recovery UID; wrong wire ID, missing/foreign UID, and database read failure keep reconciliation incomplete and the reservation held. A missing row is accepted only through the complete pre-send provenance path above; otherwise it remains unresolved. A failed executor checkpoint retains the in-memory executor for retry (`test_recorder_cold_restart.py`, `test_executor_orchestrator.py`). The UID field records configured ownership at executor construction, even if controller config is replaced before checkpoint; authenticated UID is separately checked by the recovery gateway. This does not prove that the database contains every historical executor.
-  - [ ] Exchange recovery: establish and independently verify a real initial bill anchor/opening balance, qualify operator approvals and capital-ledger cashflow attribution, reconcile other balance changes, pending algo/other-product orders, and completed manual/out-of-scope trades beyond the bounded, anchored offline check, and complete account-wide ownership for the actual send path (P4.7/P8.3/P9). The seven-day order-history window, three-month fill/bill-history window, and shorter retention of incomplete canceled orders can leave an order permanently unknown.
+  - [ ] Real-account exchange recovery (R): independently verify the actual initial bill anchor/opening balance, operator approvals and capital-ledger cashflow attribution, other balance changes, pending algo/other-product scope, completed manual/out-of-scope trades beyond bounded offline history, and ownership of the actual send path (P4.7/P8.3/P9). The seven-day order-history window, three-month fill/bill-history window, and shorter retention of incomplete canceled orders can leave an order permanently unknown. The O.3 fake-exchange result is not this proof.
   - [ ] Runner: complete quote/reservation issuance, durable cross-journal crash recovery, actual order-tracker fill/cancel event and successor transition contracts, legacy stored-executor migration and cold-restart database provenance, and enabled-product scope. Extend gateway to SWAP before enabling SWAP (P6.15).
 - [ ] P5.8: Integrate P3 reference/session permissions and the P5.7 gateway with the actual controller loader/runner; status displays the market, reference price, expiry, transition/reconciliation reason, and pause reason. The controller must not substitute the generic benchmark-ready flag for the successor's independent LIFE market-ready gate.
   - [x] Offline V2 runner slice: a manually installed qualified quote planner now supplies each safety tick with the same current session/reference snapshot required for a quote. The actual `StrategyV2Base` runner and `OrderExecutor` send an opt-in protected spot quote to a fake OKX, then expire the session, cancel a partially filled order, and reconcile the scoped fill, balances, WAL, and reservation before terminal release. Stale reference pauses the session; a recovered reference cannot resume quoting until the pause cancellation/reconciliation cycle completes. A successor with generic readiness but no independent LIFE market reference pauses. Controller status and processed data expose market, qualified reference, session deadline/state, pause reason, and transition/reconciliation reasons (`test_spot_session_replay.py`). Synthetic fixtures explicitly override quote gates; this does not grant production trading permission.
@@ -675,6 +700,8 @@ Execution targets inventory/quantity and a deadline, with risk and market-impact
 
 Minimum WAL/order identity is already required in P4/P5; this phase hardens crash recovery and system-wide reconciliation. Do not claim exactly-once delivery over the network: a timed-out request may have been accepted by the exchange. Reconcile by client order ID before resubmitting.
 
+For O, complete the **spot fake-exchange** P8.1–P8.4 and P8.7–P8.13 slices. P8.5–P8.6 require a demo/real-account exchange timer and are D/R gates; SWAP cases belong to the separate P6 extension. Keep these later proofs visible without making the offline spot milestone depend on actual OKX access.
+
 - [ ] P8.1: Inject crashes before send, after send but before ACK, after fill but before checkpoint, and during cancel/replace; no orders or exposure become untracked.
   - [x] Offline spot crash slice: existing pre-send WAL/reservation tests plus `test_crash_recovery_replay.py` cover an actual V2 runner/executor send left `SEND_UNKNOWN`, recovery with missing/present stored-executor evidence, a terminal reservation checkpoint before WAL terminal commit, a failed fill checkpoint followed by one deduplicated replay, and cancel-intent persistence before its reservation callback and REST request. Fake OKX responses and an injected stored row do not prove live database completeness or exchange-side order history.
   - [x] SQLite recorder slice: `test_recorder_cold_restart.py` reopens a file-backed database after a real orchestrator checkpoint and tests valid, absent, wrong-wire, wrong-UID, legacy-without-UID, and failed-read executor rows against the restored controller and fake OKX.
@@ -684,7 +711,8 @@ Minimum WAL/order identity is already required in P4/P5; this phase hardens cras
   - [x] Missing late executor checkpoint slice: the fake connector checks that action claim, WAL `SEND_UNKNOWN` wire ID, and reservation are already durable at the send boundary. A cold restart with no SQLite executor row can reconcile a canceled spot order only after the action journal, WAL, reservation, fresh recorder read, and authenticated account UID agree. Missing/foreign-UID claims, a changed journal after restore, and recorder read errors retain the reservation and prohibit duplicate sends (`test_recorder_cold_restart.py`). This models interruption before the late executor transaction; no real OKX or power-loss behavior is claimed.
   - [x] Recorder transaction process-kill slice: a child sends one protected spot quote through the actual V2 runner, verifies action/WAL/reservation evidence at the connector boundary, and exits immediately after SQLite executes the executor `INSERT` but before commit. A reopened `MarketsRecorder` has no executor row. Restored account-bound journals and authenticated-style UID permit reconciliation, but a reported live exchange order retains its reservation; only a later canceled status and complete account checks release it. No second send occurs (`test_recorder_cold_restart.py`). This proves the local SQLite rollback/recovery path under process termination, not power-loss durability or real OKX behavior.
   - [x] Killed-process checkpoint slice: separate child processes exit immediately after `os.replace` for a terminal reservation, a pre-WAL action claim, and a cashflow event. Fresh processes restore WAL/reservations/action claims, finish the terminal WAL transition without redundant cancellation, keep the unmatched claim blocked, and deduplicate the cashflow (`test_crash_recovery_replay.py`, `test_quote_action_recovery.py`, `test_reservation_persistence.py`). Exit after replacement does not simulate power loss before directory `fsync`; the real OKX order path remains outside this slice.
-  - [ ] Full crash proof: cover remaining recorder commit boundaries and adversarial interruption across quote-action and cashflow commits, prove database completeness and authenticated account binding, and cover all enabled products. Preserve exchange evidence for unknown sends and completed out-of-scope trades before declaring exposure complete.
+  - [ ] Offline spot crash matrix (O.4): cover remaining recorder commit boundaries and adversarial interruption across quote-action and cashflow commits in the fake-exchange runner; a verified failure must preserve unknown sends and reservations rather than reporting a clean account.
+  - [ ] Real-account and enabled-product proof (R/P6): confirm database/account ownership and authenticated exchange history, including completed out-of-scope trades; extend the matrix to SWAP only when P6 is enabled. Offline replay cannot establish this proof.
 - [ ] P8.2: Failed/corrupt storage or an untrusted clock enters `HALTED`/`RECONCILING`; do not start a new session from default state.
 - [ ] P8.3: The MVP uses one account/subaccount dedicated to the risk pool and one sender on one host. An account/risk-pool lock blocks two local runners, including different strategy IDs. Local locks do not protect across hosts; do not deploy active-active/hot standby until centralized send authority is verified. Detect manual/out-of-scope orders and handle them under reconciliation policy.
 - [ ] P8.4: The generic loader cannot automatically restart quoting after expiry/HALT; regression-test the manual kill switch and hot reload.
@@ -704,9 +732,13 @@ OKX [Cancel All After](https://www.okx.com/docs-v5/en/#order-book-trading-trade-
 
 **Done when:** all scenario replays pass without unexplained orders or exposure. If state cannot be verified, stop and report unresolved status rather than falsely reporting a clean account.
 
-### P9 — Demo, runbook, and release gates
+### P9 — Demo proof, then real-account integration and release gates
 
-**Tests first:** read-only smoke scripts and demo contract tests, excluded from offline CI by default.
+Keep P9 IDs stable for existing acceptance references. Finish O before beginning D; finish D before production-account validation or any canary decision. Demo and real-account tests are excluded from the default offline CI run and require an explicitly selected environment.
+
+#### D — Demo proof (P9.1–P9.6)
+
+**Tests first:** a shadow adapter with no place-order capability and isolated demo connector contract tests. Use demo credentials only for the explicit demo run.
 
 - [ ] P9.1: Provide a runbook covering installation, validation, simulation, shadow, demo, start, pause, resume, reconciliation, and rollback.
 - [ ] P9.2: Shadow consumes real market data but cannot submit orders by adapter design; tests prove the order-placement path is unavailable. Exercise P3.10 on actual qualified LIFE observations when available; missing history is recorded as insufficient evidence.
@@ -714,21 +746,31 @@ OKX [Cancel All After](https://www.okx.com/docs-v5/en/#order-book-trading-trade-
 - [ ] P9.4: If demo lacks LIFE, test the connector with a supported pair and LIFE logic with a fake instrument; document each test's representativeness limits.
 - [ ] P9.5: Run demo/soak through a complete configured session and expiry, one restart, disconnection, and cancellation. Record actual duration, test activity, and logs.
 - [ ] P9.6: Unit/integration/regression CI passes, diff coverage meets its gate, and no skips conceal failures in order submission/cancellation/accounting.
+
+[OKX demo trading](https://www.okx.com/docs-v5/en/#overview-demo-trading-services) has separate API configuration; verify demo product availability at execution time. Demo completion proves only the observed demo instrument/endpoint behavior plus separately replayed synthetic LIFE logic.
+
+#### R — Read-only real-account evidence and live configuration (P9.7, P9.9–P9.12)
+
+Begin after D. Verify the opening account and market evidence without order permission; use the observed account data to calibrate and freeze numeric live inputs. Production send-path wiring is tested under these gates but remains disabled until C.
+
 - [ ] P9.7: Live configuration includes the instrument, fees, risk budgets, qualified LIFE pricing, account mode, and position limits; missing mandatory inputs fail validation.
-- [ ] P9.8: The operator reviews a concrete evidence report and decides whether to enable live trading after the appropriate LIFE market opens; this plan does not authorize real-money trading.
 - [ ] P9.9: Rollback stops order creation, cancels/reconciles orders, confirms residual positions, and preserves state; reverting code alone cannot leave exchange orders unmanaged.
 - [ ] P9.10: Economic reports separate calibration/evaluation, disclose sample size and confidence/uncertainty, and assess sensitivity to fees/funding/latency/queue assumptions. Tuning on evaluation data invalidates that evaluation; sparse data or no fills yields insufficient evidence.
 - [ ] P9.11: Economic gates use numeric thresholds fixed in advance for net edge/cost, drawdown, stress loss, capital utilization, and liquidity KPIs. `profit_mm` must meet its conservative net-edge criterion; `liquidity_service` must meet KPIs within its subsidy/loss budgets. Actual costs that violate the selected objective's gate fail release even when software tests pass. Explicitly budgeted negative expected edge is permitted only in `liquidity_service`; all hard risk limits still apply.
 - [ ] P9.12: Compare against no-trading and no-benchmark MM baselines using the same capital, starting inventory, horizon, and risk constraints. Evaluate the frozen bounded-benchmark model on qualified independent LIFE data disjoint from calibration, report sample size and representativeness, and leave benchmark live eligibility unmet when data are sparse or unavailable. Separate market gains from strategy contribution; do not select a strategy solely on gross volume or rising account equity.
+
+#### C — Explicit live canary review (P9.8 and P9.13)
+
+- [ ] P9.8: The operator reviews a concrete evidence report and decides whether to enable live trading after the appropriate LIFE market opens; this plan does not authorize real-money trading.
 - [ ] P9.13: Define a staged rollout from small spot canary → hedging → dual MM, with a separate canary budget, observation duration/sample requirement, stop/scale criteria, and review for each stage. Simulation/demo/shadow cannot establish live execution economics; a small live canary only gathers evidence within its allocated budget and cannot automatically scale with insufficient samples. Record observed canary outcomes separately from approval of the rollout plan.
 
-[OKX demo trading](https://www.okx.com/docs-v5/en/#overview-demo-trading-services) has separate API configuration; verify demo product availability at execution time.
-
-**Full-scope software completion:** P0–P8 and P9.1–P9.6 pass. An MVP milestone covers only the implemented features/phases. **Eligibility for a budgeted live canary:** also satisfy P9.7–P9.12 for the enabled scope, approve the P9.13 canary plan, obtain sufficient offline economic evidence for that canary, and meet actual listing conditions. **Eligibility to increase capital:** observed live execution must additionally meet the P9.13 canary criteria. Insufficient LIFE validation data leaves the relevant gate unmet; a working demo does not establish strategy profitability.
+**Spot Offline Complete:** O.1–O.6 pass; demo and real-account evidence are not required. **Full Offline Complete:** O.1–O.7 and all P6/P7 offline cases pass when those features are declared. **Demo completion for a declared scope:** D/P9.1–P9.6 pass after its matching O gate. **Eligibility to request a budgeted live canary:** R/P9.7 and P9.9–P9.12 pass for the enabled scope, P9.13 has a concrete canary plan, actual listing conditions hold, and the operator makes the P9.8 decision. **Eligibility to increase capital:** observed live canary results separately meet P9.13 scale criteria. A spot-only milestone never claims full R01–R12 completion; a working demo does not establish LIFE strategy profitability.
 
 ## 7. Required Acceptance Matrix
 
 Perpetual and basket cases are required when the corresponding feature is enabled. If a feature has not been implemented, record its cases as deferred with the applicable scope; do not mark them as passed. Safety, economics, and accounting cases are mandatory from the spot MVP, within the enabled feature scope.
+
+Record evidence **per stage** for a case that crosses environments. O uses the fake LIFE instrument, actual V2 runner interfaces, and fault injection; D repeats connector/order lifecycle cases on the demo instrument and separately retains LIFE synthetic proof; R checks real account, market, fee, history, and calibration assumptions without an order-sending permit; C evaluates the operator decision and canary criteria. An O pass does not mark D/R evidence complete. A13's exchange timer and A15's real-data shadow are D/R checks; A38's economic release gate is R/C. P6/P7 and basket cases are deferred for a spot-only milestone with an explicit scope record.
 
 | Test ID | Given / When | Then | Phase |
 |---|---|---|---|
@@ -774,7 +816,7 @@ Perpetual and basket cases are required when the corresponding feature is enable
 
 ## 8. Test Commands and Delivery Evidence
 
-The `life_liquidity` paths will be created in their corresponding phases. The following commands are examples for a prepared `hummingbot` Conda environment:
+The offline `life_liquidity` paths exist. These commands are examples for a prepared `hummingbot` Conda environment and belong to O; they must not load demo or production credentials:
 
 ```bash
 # Run the Red/Green cycle for a specific behavior.
@@ -800,11 +842,14 @@ conda run -n hummingbot diff-cover coverage.xml --compare-branch=origin/developm
 
 Confirm that `origin/development` is the actual PR base before measuring diff coverage. If it differs, record the replacement base and use the same base in CI. `make test` has its own exclusion list: its result does not replace required regression tests if those exclusions omit changed areas. Do not use `make build` to prepare tests because that target currently runs `git clean -xdf`.
 
-Record at least the following evidence for each phase:
+For D, record the explicit demo configuration, endpoint/credential separation check, commands, instrument, request/response trace, session duration, restart and cancel results, and reconciliation report. For R, record read-only query commands and the source of each opening balance, bill anchor, fee, market state, and numeric threshold. Do not turn either command set into a default CI target or a production order submission path. C records the separately approved canary configuration and decision; it is not implied by a passing test command.
+
+Record at least the following evidence for each **stage and phase**; keep O, D, R, and C results separate even when they refer to the same A-case:
 
 | Field | Required information |
 |---|---|
 | Phase / requirement / test IDs | For example, `P3 / R04,R09 / A02,A03` |
+| Stage and environment | O fake/simulation, D demo account/instrument/endpoints, R read-only production UID/instrument/history, or C operator/canary decision; identify credentials only by nonsecret reference |
 | Commit and environment | SHA, Python, OS, dependency and environment versions |
 | Red evidence | Test command and failure demonstrating the missing behavior before implementation |
 | Green evidence | Command, pass/fail/skip counts, and report path |
@@ -816,7 +861,7 @@ Record at least the following evidence for each phase:
 
 ## 9. Decisions Required Before Enabling Live Trading
 
-These decisions do not block offline development and testing. Every assumed value must be labeled simulation-only.
+These decisions belong to R/C after D. They do not block O or D unless a demo-specific safety limit is needed; such a limit must be labeled demo-only. Every assumed offline value must be labeled simulation-only, and no synthetic number becomes a live default.
 
 - [ ] Actual spot pair and SWAP contract, trading phases, tick size, lot size, and minimum order size.
 - [ ] A justified LIFE valuation source; remain in shadow or simulation if no source meets quality requirements.
