@@ -187,6 +187,8 @@ class InventoryExecutionReport:
     filled_base: Decimal
     pending_base: Decimal
     remaining_base: Decimal
+    implementation_shortfall_quote: Decimal
+    fee_quote: Decimal
 
 
 class InventoryExecutionLedger:
@@ -237,7 +239,7 @@ class InventoryExecutionLedger:
             raise ValueError("INVENTORY_JOURNAL_UNAVAILABLE")
         with self.path.open(encoding="utf-8") as handle:
             data = json.load(handle)
-        if (data.get("schema_version") != 1
+        if (data.get("schema_version") != 2
                 or data.get("session_id") != self.session_id
                 or data.get("policy") != self._policy()
                 or not isinstance(data.get("entries"), dict)
@@ -254,23 +256,29 @@ class InventoryExecutionLedger:
         for intent_id, item in data["entries"].items():
             if (not isinstance(intent_id, str) or not intent_id
                     or not isinstance(item, dict)
-                    or set(item) != {"quantity", "price", "trades"}
+                    or set(item) != {"quantity", "price", "estimated_exit_loss", "trades"}
                     or not isinstance(item["trades"], dict)):
                 raise ValueError("INVENTORY_JOURNAL_UNAVAILABLE")
             try:
                 quantity, price = Decimal(item["quantity"]), Decimal(item["price"])
-                if not _positive(quantity) or not _positive(price):
+                estimated_exit_loss = Decimal(item["estimated_exit_loss"])
+                if (not _positive(quantity) or not _positive(price)
+                        or not _nonnegative(estimated_exit_loss)):
                     raise ValueError
                 filled = Decimal("0")
                 for trade_id, trade in item["trades"].items():
                     if (not isinstance(trade_id, str) or not trade_id
                             or trade_id in seen_trades
                             or not isinstance(trade, dict)
-                            or set(trade) != {"quantity", "price"}):
+                            or set(trade) != {"quantity", "price", "fee_quote"}):
                         raise ValueError
                     seen_trades.add(trade_id)
                     fill_qty, fill_price = Decimal(trade["quantity"]), Decimal(trade["price"])
-                    if not _positive(fill_qty) or not _positive(fill_price):
+                    fee_quote = Decimal(trade["fee_quote"])
+                    if (not _positive(fill_qty) or not _positive(fill_price)
+                            or not _nonnegative(fee_quote)
+                            or self.policy.side == "SELL" and fill_price < price
+                            or self.policy.side == "BUY" and fill_price > price):
                         raise ValueError
                     filled += fill_qty
                 if filled > quantity:
@@ -296,7 +304,7 @@ class InventoryExecutionLedger:
         replace_attempted = False
         try:
             with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-                json.dump({"schema_version": 1, "session_id": self.session_id,
+                json.dump({"schema_version": 2, "session_id": self.session_id,
                            "policy": self._policy(), "entries": entries,
                            "last_observed_utc": last_observed_utc}, handle, sort_keys=True)
                 handle.flush()
@@ -329,6 +337,24 @@ class InventoryExecutionLedger:
             pending_notional += (quantity - item_filled) * Decimal(item["price"])
         return filled, pending, filled_notional, pending_notional
 
+    def _exit_costs(self) -> tuple[Decimal, Decimal, Decimal]:
+        """Signed realized shortfall, explicit fees, and pending loss holds."""
+        shortfall = fee_total = pending_hold = Decimal("0")
+        for item in self._entries.values():
+            quantity = Decimal(item["quantity"])
+            item_filled = Decimal("0")
+            for trade in item["trades"].values():
+                fill_qty = Decimal(trade["quantity"])
+                fill_price = Decimal(trade["price"])
+                fee = Decimal(trade["fee_quote"])
+                side_sign = Decimal("1") if self.policy.side == "BUY" else Decimal("-1")
+                shortfall += (fill_price - self.policy.benchmark_price_usdt) * fill_qty * side_sign
+                fee_total += fee
+                item_filled += fill_qty
+            pending_hold += (Decimal(item["estimated_exit_loss"])
+                             * (quantity - item_filled) / quantity)
+        return shortfall, fee_total, pending_hold
+
     @property
     def filled_base(self) -> Decimal:
         with self._lock, self._file_lock():
@@ -357,10 +383,13 @@ class InventoryExecutionLedger:
                                               Decimal("0"), Decimal("0"),
                                               self.policy.target_base - self._totals()[0], Decimal("0"))
             filled, pending, filled_notional, pending_notional = self._totals()
+            shortfall, fee, pending_hold = self._exit_costs()
             adjusted = replace(
                 snapshot, filled_base=filled, pending_base=pending,
                 filled_notional_quote=filled_notional,
                 pending_notional_quote=pending_notional,
+                exit_loss_used_quote=max(snapshot.exit_loss_used_quote,
+                                         max(Decimal("0"), shortfall + fee) + pending_hold),
                 life_balance=max(Decimal("0"), snapshot.life_balance
                                  - (pending if self.policy.side == "SELL" else Decimal("0"))),
                 usdt_balance=max(Decimal("0"), snapshot.usdt_balance
@@ -370,7 +399,9 @@ class InventoryExecutionLedger:
             updated = dict(self._entries)
             if decision.allowed:
                 updated[intent_id] = {"quantity": str(decision.quantity_base),
-                                      "price": str(decision.price_usdt), "trades": {}}
+                                      "price": str(decision.price_usdt),
+                                      "estimated_exit_loss": str(decision.estimated_exit_loss_quote),
+                                      "trades": {}}
             if updated != self._entries or next_observed != self._last_observed_utc:
                 self._save(updated, next_observed)
                 self._entries = updated
@@ -378,17 +409,23 @@ class InventoryExecutionLedger:
             return decision
 
     def record_fill(self, intent_id: str, trade_id: str,
-                    quantity_base: Decimal, price_usdt: Decimal) -> bool:
+                    quantity_base: Decimal, price_usdt: Decimal,
+                    fee_quote: Decimal) -> bool:
         if (not isinstance(trade_id, str) or not trade_id
-                or not _positive(quantity_base) or not _positive(price_usdt)):
+                or not _positive(quantity_base) or not _positive(price_usdt)
+                or not _nonnegative(fee_quote)):
             raise ValueError("INVENTORY_FILL_INVALID")
         with self._lock, self._file_lock():
             self._verified()
             item = self._entries[intent_id]
+            if (self.policy.side == "SELL" and price_usdt < Decimal(item["price"])
+                    or self.policy.side == "BUY" and price_usdt > Decimal(item["price"])):
+                raise ValueError("INVENTORY_FILL_PRICE_INVALID")
             if any(trade_id in other["trades"] for key, other in self._entries.items()
                    if key != intent_id):
                 raise ValueError("INVENTORY_FILL_CONFLICT")
-            trade = {"quantity": str(quantity_base), "price": str(price_usdt)}
+            trade = {"quantity": str(quantity_base), "price": str(price_usdt),
+                     "fee_quote": str(fee_quote)}
             previous = item["trades"].get(trade_id)
             if previous is not None:
                 if previous != trade:
@@ -410,6 +447,7 @@ class InventoryExecutionLedger:
         with self._lock, self._file_lock():
             self._verified()
             filled, pending, _, _ = self._totals()
+            shortfall, fee, _ = self._exit_costs()
             remaining = max(Decimal("0"), self.policy.target_base - filled)
             if remaining == 0:
                 state = "COMPLETED"
@@ -417,4 +455,5 @@ class InventoryExecutionLedger:
                 state = "EXPIRED_PARTIAL" if filled > 0 else "EXPIRED_UNFILLED"
             else:
                 state = "ACTIVE"
-            return InventoryExecutionReport(state, filled, pending, remaining)
+            return InventoryExecutionReport(state, filled, pending, remaining,
+                                            shortfall + fee, fee)

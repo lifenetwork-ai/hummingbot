@@ -117,13 +117,15 @@ def test_inventory_fill_deduplicates_and_deadline_reports_residual(tmp_path):
         policy=_policy(target_base=D("4"), max_total_notional_quote=D("100")),
         create=True)
     assert book.reserve_child("child-1", _snapshot()).allowed
-    assert book.record_fill("child-1", "trade-1", D("2"), D("1.01"))
-    assert not book.record_fill("child-1", "trade-1", D("2"), D("1.01"))
+    assert book.record_fill("child-1", "trade-1", D("2"), D("1.01"), D("0.002"))
+    assert not book.record_fill("child-1", "trade-1", D("2"), D("1.01"), D("0.002"))
     assert book.filled_base == D("2") and book.pending_base == D("1")
     report = book.report(NOW + timedelta(hours=1))
     assert report.state == "EXPIRED_PARTIAL"
     assert report.remaining_base == D("2")
     assert report.pending_base == D("1")
+    assert report.implementation_shortfall_quote == D("-0.018")
+    assert report.fee_quote == D("0.002")
     assert not book.reserve_child("child-2", _snapshot(
         observed_utc=NOW + timedelta(hours=1))).allowed
 
@@ -161,10 +163,10 @@ def test_inventory_ambiguous_commit_requires_restore_and_fill_ids_are_unique(tmp
     restored = InventoryExecutionLedger(path, session_id="inventory-1",
                                         policy=book.policy, create=False)
     assert restored.pending_base == D("3")
-    assert restored.record_fill("child-1", "trade-1", D("1"), D("1.01"))
-    assert not restored.record_fill("child-1", "trade-1", D("1"), D("1.01"))
+    assert restored.record_fill("child-1", "trade-1", D("1"), D("1.01"), D("0.001"))
+    assert not restored.record_fill("child-1", "trade-1", D("1"), D("1.01"), D("0.001"))
     with pytest.raises(ValueError, match="INVENTORY_FILL_CONFLICT"):
-        restored.record_fill("child-1", "trade-1", D("1"), D("1.02"))
+        restored.record_fill("child-1", "trade-1", D("1"), D("1.02"), D("0.001"))
 
 
 def test_one_exchange_trade_id_cannot_count_for_two_children(tmp_path):
@@ -173,6 +175,47 @@ def test_one_exchange_trade_id_cannot_count_for_two_children(tmp_path):
         policy=_policy(max_total_notional_quote=D("100")), create=True)
     assert book.reserve_child("child-1", _snapshot()).allowed
     assert book.reserve_child("child-2", _snapshot()).allowed
-    assert book.record_fill("child-1", "trade-1", D("1"), D("1.01"))
+    assert book.record_fill("child-1", "trade-1", D("1"), D("1.01"), D("0.001"))
     with pytest.raises(ValueError, match="INVENTORY_FILL_CONFLICT"):
-        book.record_fill("child-2", "trade-1", D("1"), D("1.01"))
+        book.record_fill("child-2", "trade-1", D("1"), D("1.01"), D("0.001"))
+
+
+def test_fill_price_fee_and_fixed_benchmark_bound_actual_exit_budget(tmp_path):
+    book = InventoryExecutionLedger(
+        tmp_path / "inventory_execution.json", session_id="inventory-1",
+        policy=_policy(target_base=D("4"), max_total_notional_quote=D("100"),
+                       max_exit_loss_quote=D("0.02")), create=True)
+    assert book.reserve_child("child-1", _snapshot()).allowed
+    with pytest.raises(ValueError, match="INVENTORY_FILL_PRICE_INVALID"):
+        book.record_fill("child-1", "bad-price", D("1"), D("1"), D("0"))
+    with pytest.raises(ValueError, match="INVENTORY_FILL_INVALID"):
+        book.record_fill("child-1", "missing-fee", D("1"), D("1.01"), None)
+    assert book.record_fill("child-1", "trade-1", D("1"), D("1.01"), D("0.03"))
+    assert book.report(NOW).implementation_shortfall_quote == D("0.02")
+    assert book.reserve_child("child-2", _snapshot()).reason_code == "EXIT_BUDGET_EXHAUSTED"
+    restored = InventoryExecutionLedger(book.path, session_id="inventory-1",
+                                        policy=book.policy, create=False)
+    assert restored.report(NOW).implementation_shortfall_quote == D("0.02")
+
+
+def test_pending_exit_cost_is_reserved_across_children_and_restart(tmp_path):
+    book = InventoryExecutionLedger(
+        tmp_path / "inventory_execution.json", session_id="inventory-1",
+        policy=_policy(target_base=D("6"), max_total_notional_quote=D("100"),
+                       max_exit_loss_quote=D("0.015")), create=True)
+    assert book.reserve_child("child-1", _snapshot()).allowed
+    assert book.reserve_child("child-2", _snapshot()).reason_code == "EXIT_BUDGET_EXHAUSTED"
+    restored = InventoryExecutionLedger(book.path, session_id="inventory-1",
+                                        policy=book.policy, create=False)
+    assert restored.reserve_child("child-2", _snapshot()).reason_code == "EXIT_BUDGET_EXHAUSTED"
+
+
+def test_legacy_inventory_journal_cannot_silently_default_missing_fees(tmp_path):
+    path = tmp_path / "inventory_execution.json"
+    book = InventoryExecutionLedger(path, session_id="inventory-1",
+                                    policy=_policy(), create=True)
+    raw = path.read_text()
+    path.write_text(raw.replace('"schema_version": 2', '"schema_version": 1'))
+    with pytest.raises(ValueError, match="INVENTORY_JOURNAL_UNAVAILABLE"):
+        InventoryExecutionLedger(path, session_id="inventory-1",
+                                 policy=book.policy, create=False)
