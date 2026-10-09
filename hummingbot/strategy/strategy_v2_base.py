@@ -754,8 +754,7 @@ class StrategyV2Base(StrategyPyBase):
                 else:
                     self.add_controller(controller_config)
 
-    def _filter_authorized_actions(self, actions: List[ExecutorAction]) -> List[ExecutorAction]:
-        """Recheck controller create permission after actions leave their queue."""
+    def _stop_priority_controllers(self, actions: List[ExecutorAction]) -> Set[str]:
         stop_priority_controllers = set()
         for action in actions:
             if isinstance(action, StopExecutorAction):
@@ -767,6 +766,12 @@ class StrategyV2Base(StrategyPyBase):
                             stop_priority_controllers.add(action.controller_id)
                     except Exception:
                         stop_priority_controllers.add(action.controller_id)
+        return stop_priority_controllers
+
+    def _filter_authorized_actions(self, actions: List[ExecutorAction]) -> List[ExecutorAction]:
+        """Recheck controller create permission after actions leave their queue."""
+        stop_priority_controllers = set(getattr(self, "_pending_stop_controllers", ()))
+        stop_priority_controllers.update(StrategyV2Base._stop_priority_controllers(self, actions))
         permitted = []
         for action in actions:
             if isinstance(action, CreateExecutorAction):
@@ -823,18 +828,37 @@ class StrategyV2Base(StrategyPyBase):
         """
         while True:
             try:
-                actions = await self.actions_queue.get()
-                actions = self._filter_authorized_actions(actions)
-                if not actions:
-                    continue
-                self.executor_orchestrator.execute_actions(actions)
-                for action in actions:
-                    StrategyV2Base._record_create_action_dispatch(self, action)
-                self.update_executors_info()
-                controller_id = actions[0].controller_id
-                controller = self.controllers.get(controller_id)
-                controller.executors_info = self.get_executors_by_controller(controller_id)
-                controller.executors_update_event.set()
+                batches = [await self.actions_queue.get()]
+                if isinstance(self.actions_queue, asyncio.Queue):
+                    for _ in range(self.actions_queue.qsize()):
+                        try:
+                            batches.append(self.actions_queue.get_nowait())
+                        except asyncio.QueueEmpty:
+                            break
+                pending_actions = [action for batch in batches if isinstance(batch, (list, tuple))
+                                   for action in batch]
+                self._pending_stop_controllers = StrategyV2Base._stop_priority_controllers(
+                    self, pending_actions)
+                try:
+                    for actions in batches:
+                        try:
+                            actions = self._filter_authorized_actions(actions)
+                            if not actions:
+                                continue
+                            self.executor_orchestrator.execute_actions(actions)
+                            for action in actions:
+                                StrategyV2Base._record_create_action_dispatch(self, action)
+                            self.update_executors_info()
+                            controller_id = actions[0].controller_id
+                            controller = self.controllers.get(controller_id)
+                            controller.executors_info = self.get_executors_by_controller(controller_id)
+                            controller.executors_update_event.set()
+                        except asyncio.CancelledError:
+                            raise
+                        except Exception as e:
+                            self.logger().error(f"Error executing action: {e}", exc_info=True)
+                finally:
+                    self._pending_stop_controllers = set()
             except asyncio.CancelledError:
                 raise
             except Exception as e:

@@ -11,7 +11,7 @@ none are live defaults.
 
 | Gate | Current evidence | Still needed offline |
 | --- | --- | --- |
-| O.2 spot economics/risk | Actual V2 runner/fake OKX replay covers safety recovery, fee repricing at final send, queued service-action rejection after a subsidy change, reconciled partial fill and USDT fee, subsidy floor, stale snapshot, HALT and journal restore; proven zero-fill hold release | Complete spot-feed readiness and account-data binding, filled-inventory settlement, 100x-turnover, cross-batch priority and remaining A-cases |
+| O.2 spot economics/risk | Actual V2 runner/fake OKX replay covers safety recovery, fee repricing at final send, queued service-action rejection after a subsidy change, reconciled partial fill and USDT fee, subsidy floor, stale snapshot, HALT and journal restore; proven zero-fill hold release; LIFE stop priority across batches already queued | Complete spot-feed readiness and account-data binding, filled-inventory settlement, 100x-turnover, late-arriving stop/cancellation stress and remaining A-cases |
 | O.3 spot lifecycle | Real V2 runner lost-ACK replacement; a partial-fill/fee → expiry/cancel → successor quote → journal-restart path refuses foreign pending algo orders, foreign completed fills, and missing/non-finite successor anchors | Authenticated ACK and paginated account-history cases in one reviewed replay; production-qualified market anchor |
 | O.4 recovery | Existing process-kill/SQLite/WAL/reservation slices | Remaining recorder, quote-action, cashflow, kill-switch and clock fault matrix |
 | O.5 simulation/telemetry | Seeded queue-ahead and ACK/cancel latency fixture; candle touch and unattributed prints make no fills | Recorded adversarial scenario suite, complete quality-flagged telemetry, risk-event latency budgets and economic evaluation |
@@ -71,6 +71,15 @@ account history, or live order eligibility.
 After the account-wide completed-fill scope was added to that replay, the
 same five-suite regression passed **1,071 tests** with 27 warnings. The
 changed-line coverage figure below predates this extension.
+
+The async V2 listener then failed a cross-batch queue replay: it dispatched
+an earlier LIFE create before a LIFE stop already waiting in the next batch.
+It now checks pending batches for LIFE stops before dispatching any of them,
+rejects the conflicting create claim, and still dispatches the stop if claim
+rejection fails or an earlier batch is malformed. The five-suite regression
+passed **1,075 tests** with 27 warnings after this change. This guarantee
+covers batches already queued when the listener wakes; a stop arriving after
+a create was dispatched depends on the separate safety/final-send gates.
 
 Coverage used the same regression scope at commit `8525624c0` and `origin/dev`
 as the available local comparison branch. `origin/development` is absent.

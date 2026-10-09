@@ -1,6 +1,7 @@
 """Durable quote-action claims and runner rejection evidence (P5.6)."""
 
 import asyncio
+from contextlib import nullcontext
 from test.hummingbot.strategy_v2.life_liquidity.test_quote_actions import _setup
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -138,6 +139,45 @@ async def test_v2_async_queue_dispatches_stop_without_same_batch_life_create(tmp
             await asyncio.sleep(0.01)
         orchestrator.execute_actions.assert_called_once_with([stop])
         assert QuoteActionJournal(planner.action_journal.path).get(create.executor_config.id).state == "REJECTED"
+    finally:
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("rejection_write_fails", [False, True])
+@pytest.mark.parametrize("malformed_batch", [False, True])
+async def test_v2_async_queue_prioritizes_life_stop_across_pending_batches(
+        tmp_path, rejection_write_fails, malformed_batch):
+    controller, planner, _, _, _ = _setup(tmp_path, max_actions=1)
+    controller.install_quote_action_planner(planner)
+    create = planner.propose()[0]
+    stop = StopExecutorAction(controller_id="life", executor_id="old-order")
+    orchestrator = MagicMock()
+    runner = SimpleNamespace(
+        controllers={"life": controller}, actions_queue=asyncio.Queue(),
+        executor_orchestrator=orchestrator, update_executors_info=MagicMock(),
+        get_executors_by_controller=lambda _: [], logger=lambda: MagicMock())
+    runner._filter_authorized_actions = lambda actions: StrategyV2Base._filter_authorized_actions(runner, actions)
+    task = asyncio.create_task(StrategyV2Base.listen_to_executor_actions(runner))
+    try:
+        rejection = (patch.object(type(controller), "on_runner_create_action_rejected",
+                                  side_effect=OSError("journal unavailable"))
+                     if rejection_write_fails else nullcontext())
+        with rejection:
+            if malformed_batch:
+                await runner.actions_queue.put(None)
+            await runner.actions_queue.put([create])
+            await runner.actions_queue.put([stop])
+            for _ in range(100):
+                if orchestrator.execute_actions.called:
+                    break
+                await asyncio.sleep(0.01)
+        orchestrator.execute_actions.assert_called_once_with([stop])
+        assert runner._pending_stop_controllers == set()
+        expected = "PROPOSED" if rejection_write_fails else "REJECTED"
+        assert QuoteActionJournal(planner.action_journal.path).get(create.executor_config.id).state == expected
     finally:
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
