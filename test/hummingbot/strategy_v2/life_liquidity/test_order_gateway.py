@@ -34,6 +34,8 @@ class FakeOkx:
         self.account_open_queries = []
         self.history_pages = {None: []}
         self.fill_history_pages = {None: []}
+        self.all_fill_history_pages = {None: []}
+        self.all_fill_history_queries = []
         self.bill_pages = {None: []}
         self.cash_balances = {"LIFE": "10", "USDT": "10"}
 
@@ -83,6 +85,10 @@ class FakeOkx:
 
     async def get_spot_fill_history_page(self, pair, exchange_id, after=None):
         return {"code": "0", "data": self.fill_history_pages[after]}
+
+    async def get_all_spot_fill_history_page(self, after=None):
+        self.all_fill_history_queries.append(after)
+        return {"code": "0", "data": self.all_fill_history_pages[after]}
 
     async def get_account_bills_page(self, after=None):
         return {"code": "0", "data": self.bill_pages[after]}
@@ -378,6 +384,17 @@ async def test_okx_account_wide_open_order_query_has_no_instrument_filter():
     await connector.get_all_open_spot_orders_page(after="123")
     kwargs = connector._api_request.await_args.kwargs
     assert kwargs["path_url"] == CONSTANTS.OKX_ORDERS_PENDING_PATH
+    assert kwargs["params"] == {"instType": "SPOT", "limit": "100", "after": "123"}
+    assert kwargs["is_auth_required"]
+
+
+@pytest.mark.asyncio
+async def test_okx_account_wide_spot_fill_history_has_no_instrument_filter():
+    connector = OkxExchange("key", "secret", "passphrase", trading_pairs=[], trading_required=False)
+    connector._api_request = AsyncMock(return_value={"code": "0", "data": []})
+    await connector.get_all_spot_fill_history_page(after="123")
+    kwargs = connector._api_request.await_args.kwargs
+    assert kwargs["path_url"] == CONSTANTS.OKX_TRADE_FILLS_HISTORY_PATH
     assert kwargs["params"] == {"instType": "SPOT", "limit": "100", "after": "123"}
     assert kwargs["is_auth_required"]
 

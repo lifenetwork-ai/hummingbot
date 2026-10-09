@@ -508,6 +508,15 @@ class OkxExchange(ExchangePyBase):
         return await self._api_get(path_url=CONSTANTS.OKX_TRADE_FILLS_HISTORY_PATH,
                                    params=params, is_auth_required=True)
 
+    async def get_all_spot_fill_history_page(self,
+                                             after: Optional[str] = None) -> Dict[str, Any]:
+        """Account-wide SPOT fills for recovery against the approved bill anchor."""
+        params = {"instType": "SPOT", "limit": "100"}
+        if after is not None:
+            params["after"] = after
+        return await self._api_get(path_url=CONSTANTS.OKX_TRADE_FILLS_HISTORY_PATH,
+                                   params=params, is_auth_required=True)
+
     async def _request_order_fills(self, order: InFlightOrder) -> Dict[str, Any]:
         return await self._api_request(
             method=RESTMethod.GET,

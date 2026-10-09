@@ -257,6 +257,9 @@ async def test_controller_restores_journals_automatically_and_checks_account(
              "tradeId": "trade-1", "ordId": "exchange-1", "instId": "LIFE-USDT",
              "balChg": str(Decimal(filled) + Decimal(fee)), "fee": fee},
             {"billId": "100"}]
+        connector.all_fill_history_pages[None] = [
+            {**fill, "billId": "101", "instType": "SPOT", "instId": "LIFE-USDT",
+             "clOrdId": "wire-1"}]
     else:
         connector.bill_pages[None] = [{"billId": "100"}]
     connector.cash_balances = {

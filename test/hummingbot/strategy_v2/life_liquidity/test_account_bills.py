@@ -49,6 +49,89 @@ def bill(bill_id, *, kind="1", subtype="11", currency="USDT", change="2",
             "to": "18" if subtype == "11" else "6"}
 
 
+def spot_fill(bill_id, trade_id, order_id, *, wire_id="wire-1", pair="LIFE-USDT"):
+    return {"billId": bill_id, "tradeId": trade_id, "ordId": order_id,
+            "clOrdId": wire_id, "instType": "SPOT", "instId": pair,
+            "fillSz": "0.4", "fillPx": "1", "feeCcy": "LIFE", "fee": "0"}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("bills_include_roundtrip", [False, True])
+@pytest.mark.parametrize("pair", ["LIFE-USDT", "BTC-USDT"])
+async def test_completed_manual_roundtrip_blocks_even_with_unchanged_cash_balances(
+        tmp_path, bills_include_roundtrip, pair):
+    ledger = ReservationLedger(life_balance=Decimal("10"), usdt_balance=Decimal("10"),
+                               limits=LIMITS, path=tmp_path / "reservations.json")
+    wal = IntentWAL(tmp_path / "intents.json")
+    connector = FakeOkx()
+    bill_currency = "LIFE" if pair == "LIFE-USDT" else "BTC"
+    connector.bill_pages[None] = ([
+        bill("102", kind="2", subtype="1", currency=bill_currency, change="1",
+             trade_id="manual-buy", order_id="manual-order-1", inst_id=pair),
+        bill("101", kind="2", subtype="2", currency=bill_currency, change="-1",
+             trade_id="manual-sell", order_id="manual-order-2", inst_id=pair),
+        bill("100")
+    ] if bills_include_roundtrip else [bill("100")])
+    connector.all_fill_history_pages[None] = [
+        spot_fill("102", "manual-buy", "manual-order-1", wire_id="", pair=pair),
+        spot_fill("101", "manual-sell", "manual-order-2", wire_id="", pair=pair)]
+    bills = SpotBillReconciler(connector, ledger, wal,
+                               CashflowApprovals.load(approval_file(tmp_path)))
+    assert connector.cash_balances == {"LIFE": "10", "USDT": "10"}
+    assert not await SpotAccountReconciler(connector, ledger, bills=bills).check()
+    assert connector.all_fill_history_queries == ([] if bills_include_roundtrip else [None])
+    assert ledger.life_balance == Decimal("10")
+    assert ledger.usdt_balance == Decimal("10")
+
+
+@pytest.mark.asyncio
+async def test_owned_bill_requires_matching_account_wide_fill_history(tmp_path):
+    ledger, wal = seeded(tmp_path, fee=Decimal("0"))
+    connector = FakeOkx()
+    connector.bill_pages[None] = [
+        bill("101", kind="2", subtype="1", currency="LIFE", change="0.4",
+             trade_id="trade-1", order_id="exchange-1", inst_id="LIFE-USDT"),
+        bill("100")]
+    approvals = CashflowApprovals.load(approval_file(tmp_path))
+    reconciler = SpotBillReconciler(connector, ledger, wal, approvals)
+    assert not await reconciler.reconcile()
+    connector.all_fill_history_pages[None] = [spot_fill("101", "trade-1", "exchange-1")]
+    assert await reconciler.reconcile()
+    connector.all_fill_history_pages[None] = [spot_fill("101", "trade-1", "foreign-order")]
+    assert not await reconciler.reconcile()
+
+
+@pytest.mark.asyncio
+async def test_failed_account_wide_fill_history_blocks_reconciliation(tmp_path):
+    ledger = ReservationLedger(life_balance=Decimal("10"), usdt_balance=Decimal("10"),
+                               limits=LIMITS, path=tmp_path / "reservations.json")
+    connector = FakeOkx()
+    connector.bill_pages[None] = [bill("100")]
+
+    async def failed_history(after=None):
+        return {"code": "500", "data": []}
+
+    connector.get_all_spot_fill_history_page = failed_history
+    assert not await SpotBillReconciler(
+        connector, ledger, IntentWAL(tmp_path / "intents.json"),
+        CashflowApprovals.load(approval_file(tmp_path))).reconcile()
+
+
+@pytest.mark.asyncio
+async def test_full_account_wide_fill_page_requires_next_page(tmp_path):
+    ledger = ReservationLedger(life_balance=Decimal("10"), usdt_balance=Decimal("10"),
+                               limits=LIMITS, path=tmp_path / "reservations.json")
+    connector = FakeOkx()
+    connector.bill_pages[None] = [bill("100")]
+    connector.all_fill_history_pages[None] = [
+        spot_fill(str(bill_id), f"trade-{bill_id}", f"order-{bill_id}")
+        for bill_id in range(200, 100, -1)]
+    assert not await SpotBillReconciler(
+        connector, ledger, IntentWAL(tmp_path / "intents.json"),
+        CashflowApprovals.load(approval_file(tmp_path))).reconcile()
+    assert connector.all_fill_history_queries == [None, "101"]
+
+
 def test_fee_and_cashflow_are_durable_idempotent_and_conflict_checked(tmp_path):
     ledger, _ = seeded(tmp_path)
     assert ledger.record_fee("trade-1", "LIFE", Decimal("-0.01"))
@@ -84,6 +167,7 @@ async def test_complete_bills_apply_only_approved_transfer_and_survive_restart(t
         bill("101", kind="2", subtype="1", currency="LIFE", change="0.4",
              trade_id="trade-1", order_id="exchange-1", inst_id="LIFE-USDT"),
         bill("100")]
+    connector.all_fill_history_pages[None] = [spot_fill("101", "trade-1", "exchange-1")]
     approvals = CashflowApprovals.load(approval_file(tmp_path, approvals=[
         {"bill_id": "102", "currency": "USDT", "amount": "2"}]))
     reconciler = SpotBillReconciler(connector, ledger, wal, approvals)
@@ -123,6 +207,8 @@ async def test_trade_bill_fee_must_match_recorded_fill_fee(tmp_path):
              trade_id="trade-1", order_id="exchange-1", inst_id="LIFE-USDT",
              fee="-0.02"),
         bill("100")]
+    connector.all_fill_history_pages[None] = [
+        {**spot_fill("101", "trade-1", "exchange-1"), "fee": "-0.01"}]
     approvals = CashflowApprovals.load(approval_file(tmp_path))
     assert not await SpotBillReconciler(connector, ledger, wal, approvals).reconcile()
     connector.bill_pages[None][0]["fee"] = "-0.01"

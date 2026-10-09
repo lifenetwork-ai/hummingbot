@@ -50,6 +50,8 @@ class CashflowApprovals:
 
 class SpotBillReconciler:
     MAX_PAGES = 6
+    # Offline bound only; calibrate account history volume before live eligibility.
+    MAX_FILL_PAGES = 6
 
     def __init__(self, connector, reservations: ReservationLedger, wal: IntentWAL,
                  approvals: CashflowApprovals):
@@ -84,6 +86,40 @@ class SpotBillReconciler:
                 raise ValueError("ACCOUNT_BILL_ANCHOR_MISSING")
             cursor = page[-1]["billId"]
         raise ValueError("ACCOUNT_BILLS_INCOMPLETE")
+
+    async def _spot_fills_since_anchor(self) -> dict[str, dict]:
+        """Cross-check every account-wide SPOT fill newer than the bill anchor."""
+        read_page = getattr(self.connector, "get_all_spot_fill_history_page", None)
+        if not callable(read_page):
+            raise ValueError("ACCOUNT_FILL_HISTORY_UNAVAILABLE")
+        rows = {}
+        cursor = None
+        previous_id = None
+        anchor = int(self.approvals.anchor_bill_id)
+        for _ in range(self.MAX_FILL_PAGES):
+            response = await read_page(after=cursor)
+            if (not isinstance(response, dict) or response.get("code") != "0"
+                    or not isinstance(response.get("data"), list)
+                    or len(response["data"]) > 100):
+                raise ValueError("ACCOUNT_FILL_HISTORY_UNTRUSTED")
+            page = response["data"]
+            for row in page:
+                bill_id = row["billId"]
+                if (not _bill_id(bill_id) or previous_id is not None
+                        and int(bill_id) >= previous_id):
+                    raise ValueError("ACCOUNT_FILL_HISTORY_UNTRUSTED")
+                previous_id = int(bill_id)
+                if previous_id <= anchor:
+                    return rows
+                trade_id = row["tradeId"]
+                if (row["instType"] != "SPOT" or not isinstance(trade_id, str)
+                        or not trade_id or trade_id in rows):
+                    raise ValueError("ACCOUNT_FILL_HISTORY_UNTRUSTED")
+                rows[trade_id] = row
+            if len(page) < 100:
+                return rows
+            cursor = page[-1]["billId"]
+        raise ValueError("ACCOUNT_FILL_HISTORY_INCOMPLETE")
 
     async def reconcile(self) -> bool:
         try:
@@ -134,6 +170,19 @@ class SpotBillReconciler:
                 raise ValueError("ACCOUNT_CASHFLOW_MISSING")
             if seen_trades != self.reservations.trade_ids:
                 raise ValueError("ACCOUNT_TRADE_BILL_MISSING")
+            fills = await self._spot_fills_since_anchor()
+            if set(fills) != seen_trades:
+                raise ValueError("ACCOUNT_TRADE_FILL_HISTORY_MISMATCH")
+            for trade_id, row in fills.items():
+                intent_id = self.reservations.trade_intent_id(trade_id)
+                intent = self.wal.get(intent_id)
+                if (row["instId"] != "LIFE-USDT"
+                        or row["ordId"] != intent.exchange_order_id
+                        or row.get("clOrdId") not in (None, "", intent.client_order_id)
+                        or not self.reservations.matches_recorded_fill(
+                            intent_id, trade_id, Decimal(row["fillSz"]),
+                            Decimal(row["fillPx"]), row["feeCcy"], Decimal(row["fee"]))):
+                    raise ValueError("ACCOUNT_TRADE_FILL_HISTORY_MISMATCH")
             for trade_id, amounts in trade_fees.items():
                 actual = self.reservations.fee_for_trade(trade_id)
                 if (actual is None or amounts.get(actual[0], Decimal("0")) != actual[1]
