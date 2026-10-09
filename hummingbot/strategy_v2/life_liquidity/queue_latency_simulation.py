@@ -67,7 +67,7 @@ class QueueFillEvent:
     price_quote: Decimal
     quantity_base: Decimal
     aggressor: str | None = None
-    independent: bool = True
+    independent: bool = False
 
     def __post_init__(self):
         if (not _millis(self.observed_ms) or self.kind not in ("TRADE", "CANDLE_TOUCH")

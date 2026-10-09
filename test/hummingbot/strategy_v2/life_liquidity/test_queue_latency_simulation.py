@@ -29,7 +29,8 @@ def _order(**changes):
 
 def test_candle_touch_and_print_before_ack_cannot_fill():
     events = [QueueFillEvent(50, "CANDLE_TOUCH", D("1"), D("100")),
-              QueueFillEvent(90, "TRADE", D("1"), D("100"), aggressor="SELL")]
+              QueueFillEvent(90, "TRADE", D("1"), D("100"), aggressor="SELL",
+                             independent=True)]
     result = simulate_queue_fills(_assumptions(), _order(), events)
     assert result.filled_base == 0
     assert result.reason_code == "NO_ELIGIBLE_EXTERNAL_PRINT"
@@ -37,9 +38,12 @@ def test_candle_touch_and_print_before_ack_cannot_fill():
 
 
 def test_queue_ahead_then_partial_fill_and_fee_are_replayable():
-    events = [QueueFillEvent(100, "TRADE", D("1"), D("0.5"), aggressor="SELL"),
-              QueueFillEvent(110, "TRADE", D("1"), D("1"), aggressor="SELL"),
-              QueueFillEvent(120, "TRADE", D("1"), D("2"), aggressor="SELL")]
+    events = [QueueFillEvent(100, "TRADE", D("1"), D("0.5"), aggressor="SELL",
+                             independent=True),
+              QueueFillEvent(110, "TRADE", D("1"), D("1"), aggressor="SELL",
+                             independent=True),
+              QueueFillEvent(120, "TRADE", D("1"), D("2"), aggressor="SELL",
+                             independent=True)]
     first = simulate_queue_fills(_assumptions(), _order(), events)
     assert first == simulate_queue_fills(_assumptions(), _order(), events)
     assert first.filled_base == D("2.5")
@@ -51,8 +55,10 @@ def test_queue_ahead_then_partial_fill_and_fee_are_replayable():
 
 def test_cancel_latency_can_fill_but_later_print_cannot():
     order = _order(cancel_requested_ms=150)
-    events = [QueueFillEvent(160, "TRADE", D("1"), D("2"), aggressor="SELL"),
-              QueueFillEvent(350, "TRADE", D("1"), D("100"), aggressor="SELL")]
+    events = [QueueFillEvent(160, "TRADE", D("1"), D("2"), aggressor="SELL",
+                             independent=True),
+              QueueFillEvent(350, "TRADE", D("1"), D("100"), aggressor="SELL",
+                             independent=True)]
     result = simulate_queue_fills(_assumptions(), order, events)
     assert result.filled_base == D("1")
     assert result.remaining_base == D("2")
@@ -60,7 +66,8 @@ def test_cancel_latency_can_fill_but_later_print_cannot():
 
 
 def test_wrong_aggressor_nonexternal_and_stale_event_cannot_fill():
-    events = [QueueFillEvent(100, "TRADE", D("1"), D("100"), aggressor="BUY"),
+    events = [QueueFillEvent(100, "TRADE", D("1"), D("100"), aggressor="BUY",
+                             independent=True),
               QueueFillEvent(110, "TRADE", D("1"), D("100"), aggressor="SELL",
                              independent=False)]
     result = simulate_queue_fills(_assumptions(), _order(), events)
@@ -68,9 +75,18 @@ def test_wrong_aggressor_nonexternal_and_stale_event_cannot_fill():
     assert result.event_outcomes == ("WRONG_AGGRESSOR", "PRINT_UNQUALIFIED")
 
 
+def test_unattributed_print_is_unqualified_by_default():
+    event = QueueFillEvent(100, "TRADE", D("1"), D("100"), aggressor="SELL")
+    result = simulate_queue_fills(_assumptions(), _order(), [event])
+    assert result.filled_base == 0
+    assert result.reason_code == "NO_ELIGIBLE_EXTERNAL_PRINT"
+    assert result.event_outcomes == ("PRINT_UNQUALIFIED",)
+
+
 def test_seeded_queue_range_changes_only_ahead_not_hard_order_size():
     assumptions = _assumptions(queue_ahead_min_lots=0, queue_ahead_max_lots=3)
-    events = [QueueFillEvent(100, "TRADE", D("1"), D("100"), aggressor="SELL")]
+    events = [QueueFillEvent(100, "TRADE", D("1"), D("100"), aggressor="SELL",
+                             independent=True)]
     result = simulate_queue_fills(assumptions, _order(), events)
     assert result.queue_ahead_initial_base in (D("0"), D("1"), D("2"), D("3"))
     assert result.filled_base == D("3")
