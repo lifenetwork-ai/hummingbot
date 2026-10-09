@@ -3,6 +3,7 @@
 import asyncio
 from dataclasses import replace
 from decimal import Decimal
+from test.hummingbot.strategy_v2.life_liquidity.offline_market import install_market
 from test.hummingbot.strategy_v2.life_liquidity.test_capital_risk_binding import _nav
 from test.hummingbot.strategy_v2.life_liquidity.test_executor_protected_send import _setup as sender_setup
 from test.hummingbot.strategy_v2.life_liquidity.test_fee_quote_binding import _binding, _costs, _fee
@@ -33,7 +34,7 @@ async def test_service_budget_change_rejects_already_queued_v2_action(tmp_path):
     controller, _, _, wal, _, subsidy, quote_state = _service(tmp_path, connector=connector)
     wal.initialize_empty()
     del controller.allow_create_executor_actions
-    controller._spot_quote_gates_ready = lambda: True
+    await install_market(controller, connector, exchange_ms=NOW_MS)
     controller.order_safety_watchdog_task = SimpleNamespace(done=lambda: False)
     session = controller._order_safety_manager.current_session
     loss = LossBudgetLedger(tmp_path / "loss_budget.json", campaign_id="life",
@@ -86,7 +87,7 @@ async def test_service_budget_fill_and_halt_share_actual_v2_runner_gate(tmp_path
         tmp_path, connector=connector)
     wal.initialize_empty()
     del controller.allow_create_executor_actions
-    controller._spot_quote_gates_ready = lambda: True
+    await install_market(controller, connector, exchange_ms=NOW_MS)
     controller.order_safety_watchdog_task = SimpleNamespace(done=lambda: False)
     session = controller._order_safety_manager.current_session
     loss = LossBudgetLedger(tmp_path / "loss_budget.json", campaign_id="life",
@@ -199,7 +200,7 @@ async def test_probe_partial_fill_markout_and_nav_halt_on_v2_queue(tmp_path):
         "strategy": controller.config.strategy.model_copy(update={"economics": economics})})
     wal.initialize_empty()
     del controller.allow_create_executor_actions
-    controller._spot_quote_gates_ready = lambda: True
+    await install_market(controller, connector, exchange_ms=AT_MS)
     controller.order_safety_watchdog_task = SimpleNamespace(done=lambda: False)
     session = controller._order_safety_manager.current_session
     loss = LossBudgetLedger(tmp_path / "loss_budget.json", campaign_id="life",

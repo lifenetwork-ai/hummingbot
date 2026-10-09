@@ -129,7 +129,7 @@ class SubsidyBudgetLedger:
         self._lock = RLock()
         self._uncertain = False
         self._must_exist = self.path.exists() or self.path.is_symlink()
-        self._entries: dict[str, dict[str, str | None]] = {}
+        self._entries: dict[str, dict] = {}
         if self._must_exist:
             if self.path.is_symlink() or not self.path.is_file():
                 raise ValueError("SUBSIDY_JOURNAL_UNAVAILABLE")
@@ -149,14 +149,15 @@ class SubsidyBudgetLedger:
                 "session_limit_quote": str(self.session_limit_quote)}
 
     @staticmethod
-    def _validated_entries(entries: object) -> dict[str, dict[str, str | None]]:
+    def _validated_entries(entries: object) -> dict[str, dict]:
         if not isinstance(entries, dict):
             raise ValueError("SUBSIDY_JOURNAL_UNAVAILABLE")
+        cycles = {}
         for intent_id, entry in entries.items():
             if (not isinstance(intent_id, str) or not intent_id
                     or not isinstance(entry, dict)
-                    or set(entry) not in ({"day", "session_id", "reserved", "actual"},
-                                          {"day", "session_id", "reserved", "actual", "fill_floor"})
+                    or not {"day", "session_id", "reserved", "actual"} <= set(entry)
+                    or set(entry) - {"day", "session_id", "reserved", "actual", "fill_floor", "inventory_cycle"}
                     or not isinstance(entry["day"], str) or not entry["day"]
                     or not isinstance(entry["session_id"], str) or not entry["session_id"]):
                 raise ValueError("SUBSIDY_JOURNAL_UNAVAILABLE")
@@ -172,6 +173,30 @@ class SubsidyBudgetLedger:
                     raise ValueError("SUBSIDY_JOURNAL_UNAVAILABLE") from exc
                 if parsed is None or not _valid(parsed):
                     raise ValueError("SUBSIDY_JOURNAL_UNAVAILABLE")
+            if (entry["actual"] is not None
+                    and Decimal(entry["actual"]) < Decimal(entry.get("fill_floor", "0"))):
+                raise ValueError("SUBSIDY_JOURNAL_UNAVAILABLE")
+            cycle = entry.get("inventory_cycle")
+            if "inventory_cycle" in entry:
+                if (not isinstance(cycle, dict) or set(cycle) != {"id", "members", "proof", "actuals"}
+                        or not isinstance(cycle["id"], str) or not cycle["id"]
+                        or not isinstance(cycle["members"], list)
+                        or any(not isinstance(member, str) or not member for member in cycle["members"])
+                        or cycle["members"] != sorted(set(cycle["members"]))
+                        or intent_id not in cycle["members"]
+                        or not isinstance(cycle["proof"], str) or len(cycle["proof"]) != 64
+                        or any(char not in "0123456789abcdef" for char in cycle["proof"])
+                        or not isinstance(cycle["actuals"], dict)
+                        or set(cycle["actuals"]) != set(cycle["members"])):
+                    raise ValueError("SUBSIDY_JOURNAL_UNAVAILABLE")
+                if cycle["id"] in cycles and cycles[cycle["id"]] != cycle:
+                    raise ValueError("SUBSIDY_JOURNAL_UNAVAILABLE")
+                cycles[cycle["id"]] = cycle
+                for member in cycle["members"]:
+                    other = entries.get(member, {})
+                    if (other.get("inventory_cycle") != cycle or other.get("actual") is None
+                            or other["actual"] != cycle["actuals"][member]):
+                        raise ValueError("SUBSIDY_JOURNAL_UNAVAILABLE")
         return entries
 
     @contextmanager
@@ -215,7 +240,7 @@ class SubsidyBudgetLedger:
         return at_utc.date().isoformat()
 
     @staticmethod
-    def _committed(entry: dict[str, str | None]) -> Decimal:
+    def _committed(entry: dict) -> Decimal:
         if entry["actual"] is not None:
             return Decimal(entry["actual"])
         return max(Decimal(entry["reserved"]), Decimal(entry.get("fill_floor", "0")))
@@ -226,7 +251,7 @@ class SubsidyBudgetLedger:
             self._assert_disk_matches(required=True)
             return sum((self._committed(entry) for entry in self._entries.values()), Decimal("0"))
 
-    def _save(self, entries: dict[str, dict[str, str | None]]) -> None:
+    def _save(self, entries: dict[str, dict]) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         descriptor, temporary = tempfile.mkstemp(prefix=f".{self.path.name}.", dir=self.path.parent)
         replace_attempted = False
@@ -310,6 +335,8 @@ class SubsidyBudgetLedger:
             self._assert_disk_matches(required=True)
             entry = self._entries[intent_id]
             if entry["actual"] is not None:
+                if cumulative_cost_quote == Decimal(entry.get("fill_floor", "0")):
+                    return False
                 raise ValueError("SUBSIDY_ALREADY_SETTLED")
             previous = Decimal(entry.get("fill_floor", "0"))
             if cumulative_cost_quote < previous:
@@ -328,8 +355,53 @@ class SubsidyBudgetLedger:
         with self._lock, self._file_lock():
             self._assert_disk_matches(required=True)
             entry = self._entries.get(intent_id)
-            return (entry is not None and entry["actual"] is None
+            return (entry is not None
                     and Decimal(entry.get("fill_floor", "0")) == cumulative_cost_quote)
+
+    def matches_intent_session(self, intent_id: str, session_id: str) -> bool:
+        """Attribution cannot move a fill or released hold into another session."""
+        with self._lock, self._file_lock():
+            self._assert_disk_matches(required=True)
+            entry = self._entries.get(intent_id)
+            return entry is not None and entry["session_id"] == session_id
+
+    def verified_inventory_cycles(self) -> tuple[dict, ...]:
+        """Return detached durable proofs for independent attribution verification."""
+        with self._lock, self._file_lock():
+            self._assert_disk_matches(required=True)
+            cycles = {entry["inventory_cycle"]["id"]: entry["inventory_cycle"]
+                      for entry in self._entries.values() if "inventory_cycle" in entry}
+            return tuple(json.loads(json.dumps(cycles[key])) for key in sorted(cycles))
+
+    def _settle_inventory_cycle(self, cycle_id: str, *, proof: str,
+                                actuals: dict[str, Decimal]) -> bool:
+        """Commit all members together; the attributor verifies the fill proof."""
+        if (not isinstance(cycle_id, str) or not cycle_id or not actuals
+                or any(not isinstance(key, str) or not key or not _valid(value)
+                       for key, value in actuals.items())):
+            raise ValueError("SUBSIDY_CYCLE_INVALID")
+        cycle = {"id": cycle_id, "members": sorted(actuals), "proof": proof,
+                 "actuals": {key: str(actuals[key]) for key in sorted(actuals)}}
+        with self._lock, self._file_lock():
+            self._assert_disk_matches(required=True)
+            prior = [entry.get("inventory_cycle") for entry in self._entries.values()
+                     if entry.get("inventory_cycle", {}).get("id") == cycle_id]
+            if prior:
+                if any(record != cycle for record in prior):
+                    raise ValueError("SUBSIDY_CYCLE_CONFLICT")
+                return False
+            updated = dict(self._entries)
+            for intent_id, actual in actuals.items():
+                entry = self._entries[intent_id]
+                if entry["actual"] is not None:
+                    raise ValueError("SUBSIDY_CYCLE_ALREADY_SETTLED")
+                if actual < Decimal(entry.get("fill_floor", "0")):
+                    raise ValueError("SUBSIDY_RECONCILIATION_BELOW_FILLS")
+                updated[intent_id] = {**entry, "actual": str(actual), "inventory_cycle": cycle}
+            self._validated_entries(updated)
+            self._save(updated)
+            self._entries = updated
+            return True
 
     def verified_fill_floors(self) -> dict[str, Decimal]:
         with self._lock, self._file_lock():

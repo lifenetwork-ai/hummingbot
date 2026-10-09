@@ -5,6 +5,7 @@ execution-loss attribution. Missing or stale values keep fills unattributed.
 """
 
 import fcntl
+import hashlib
 import json
 import os
 import tempfile
@@ -314,13 +315,75 @@ class ReconciledFillAttributor:
                         session_id=event["session_id"], at_utc=self._at_utc(event)):
                     return False
             if self.subsidy_budget is not None:
+                if any(not self.subsidy_budget.matches_intent_session(
+                        event["intent_id"], event["session_id"]) for event in self._events.values()):
+                    return False
                 expected = {intent_id: cost for intent_id, cost in
                             self._subsidy_costs_by_intent().items() if cost > 0}
                 if self.subsidy_budget.verified_fill_floors() != expected:
                     return False
+                for cycle in self.subsidy_budget.verified_inventory_cycles():
+                    proof, actuals = self._inventory_cycle_evidence(tuple(cycle["members"]))
+                    if (proof != cycle["proof"] or cycle["actuals"] != {
+                            key: str(value) for key, value in actuals.items()}):
+                        return False
             return True
         except Exception:
             return False
+
+    def _inventory_cycle_evidence(self, intent_ids: tuple[str, ...]) -> tuple[str, dict[str, Decimal]]:
+        """Value a physically closed group from reconciled cash and asset flows.
+
+        Existing per-fill loss floors are never credited back. Any additional
+        realized inventory loss is charged to the chronologically last fill's
+        intent, where the cycle closes; gains cannot subsidize other cycles.
+        """
+        if (not isinstance(intent_ids, tuple) or not intent_ids
+                or any(not isinstance(key, str) or not key for key in intent_ids)
+                or len(set(intent_ids)) != len(intent_ids)):
+            raise ValueError("SUBSIDY_CYCLE_INVALID")
+        snapshots = self.reservations.reservation_snapshot()
+        identities = []
+        actuals = {key: Decimal("0") for key in sorted(intent_ids)}
+        for key in sorted(intent_ids):
+            record = self.wal.get(key)
+            held = snapshots.get(key)
+            if (record.state != "TERMINAL" or not record.exchange_terminal_observed
+                    or not record.exchange_order_id or record.reservation_id != key
+                    or held is None or held.state != "TERMINAL" or held.remaining_base != 0
+                    or held.filled_base <= 0 or held.intent.session_id != record.session_id
+                    or held.intent.epoch != record.epoch
+                    or sum((Decimal(event["quantity_base"]) for event in self._events.values()
+                            if event["intent_id"] == key), Decimal("0")) != held.filled_base):
+                raise ValueError("SUBSIDY_CYCLE_EVIDENCE_UNAVAILABLE")
+            identities.append([key, record.client_order_id, record.exchange_order_id,
+                               record.session_id, record.epoch])
+        selected = sorted(((trade_id, event) for trade_id, event in self._events.items()
+                           if event["intent_id"] in actuals),
+                          key=lambda item: (item[1]["fill_at_ms"], item[0]))
+        base = quote = Decimal("0")
+        for _, event in selected:
+            quantity, price = Decimal(event["quantity_base"]), Decimal(event["price_usdt"])
+            sign = Decimal("1") if event["side"] == "BUY" else Decimal("-1")
+            currency, signed_fee = self._fee_terms(event)
+            base += sign * quantity + (signed_fee if currency == "LIFE" else Decimal("0"))
+            quote += -sign * quantity * price + (signed_fee if currency == "USDT" else Decimal("0"))
+            actuals[event["intent_id"]] += Decimal(event["loss_quote"])
+        if base != 0:
+            raise ValueError("SUBSIDY_INVENTORY_NOT_FLAT")
+        extra = max(Decimal("0"), -quote - sum(actuals.values(), Decimal("0")))
+        actuals[selected[-1][1]["intent_id"]] += extra
+        payload = json.dumps({"identities": identities, "fills": selected}, sort_keys=True)
+        return hashlib.sha256(payload.encode()).hexdigest(), actuals
+
+    def settle_inventory_cycle(self, cycle_id: str, intent_ids: tuple[str, ...]) -> bool:
+        """Release holds only for terminal, fully attributed and net-flat inventory."""
+        with self._file_lock():
+            if self.subsidy_budget is None or not self.ready():
+                raise ValueError("SUBSIDY_CYCLE_EVIDENCE_UNAVAILABLE")
+            proof, actuals = self._inventory_cycle_evidence(intent_ids)
+            return self.subsidy_budget._settle_inventory_cycle(
+                cycle_id, proof=proof, actuals=actuals)
 
     def verified_fills(self) -> tuple[ReconciledFillRecord, ...] | None:
         """Expose only durable, fully attributed fill identities to diagnostics."""
@@ -358,6 +421,9 @@ class ReconciledFillAttributor:
                 record = self.wal.find_by_client_order_id(wire_id)
                 if (record.slot_market != "LIFE-USDT" or record.slot_side not in ("BUY", "SELL")
                         or not isinstance(fills, tuple)):
+                    return False
+                if self.subsidy_budget is not None and not self.subsidy_budget.matches_intent_session(
+                        record.intent_id, record.session_id):
                     return False
                 for fill in fills:
                     if (not isinstance(fill, SpotFill) or not isinstance(fill.fill_at_ms, int)

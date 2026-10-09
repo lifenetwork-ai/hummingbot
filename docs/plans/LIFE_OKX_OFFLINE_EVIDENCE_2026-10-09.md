@@ -123,6 +123,44 @@ clear journal, and confirms the gate cannot resume from healthy observations
 alone. The current rearm API accepts a caller-attested reconciliation flag;
 binding it to verified account and order evidence is still required for O.4.
 
+The subsequent O.2 checkpoint passes **1,126 tests** with 27 warnings across
+the same five suites. The integrated replay now evaluates the real listing,
+continuous-trading, snapshot-age, local book and WS continuity gates against
+synthetic observations. It replaces only the production release switch in the
+test harness; production LIFE order permission remains disabled. Sixteen new
+cases reject actual V2 queued actions or final-wire/executor retry attempts after
+disconnection, resync, stale book/risk observations, HALT, rejected config
+changes, quote expiry or session expiry. A healthy unknown send also remains
+ineligible for a blind retry.
+
+A controller settlement API requeries exchange/account/runner scope before
+releasing unused service holds for an explicitly selected group of terminal,
+fully attributed intents with exactly zero net physical LIFE flow. LIFE fees
+are included in that flow. Settlement charges the larger of realized USDT cash
+loss and the existing independent per-fill loss floors, preserving conservative
+charges even when other fills gain. Additional inventory loss belongs to the
+closing intent; each subsidy entry retains its reservation UTC day/session,
+while execution-loss events retain their fill UTC day. One atomic journal commit
+records all members and a fill/identity hash that attribution recomputes after
+restart. Unknown account scope, residual inventory, reused members, changed
+proof/cost, wrong session identity and uncertain writes cannot release capacity.
+Lot selection is explicit; no automatic matching or exit execution is supplied.
+
+The A29 runner replay sends two real `OrderExecutor` requests to fake OKX and
+reconciles one versus 100 matched partial-fill pairs of equal size. Filled volume
+increases exactly 100 times, while both runs finish at synthetic adjusted NAV
+19.99 USDT, 5 bps drawdown, 0.01 USDT execution loss and 0.01 USDT settled
+subsidy. A synthetic 4 bps drawdown threshold latches HALT in both runs. This
+proves the accounting invariant for those inputs, not 200 sequential order
+placements, order-rate performance, or profitability.
+
+**O.2 remains open.** The plan now lists its remaining offline gates explicitly:
+durable rolling-window replenishment, reservation-derived stress at final send,
+bounded exit routing/budgets, bounded degraded recovery, runtime fee refresh and
+independently valued LIFE transfers, and combined cancellation-load acceptance.
+Qualified live observations/calibration remain separate R evidence. Changed-line
+coverage was not rerun for this checkpoint.
+
 Coverage used the same regression scope at commit `8525624c0` and `origin/dev`
 as the available local comparison branch. `origin/development` is absent.
 NumPy and Pandas were
@@ -144,6 +182,8 @@ ephemeral and must be regenerated before review.
 | `test_inventory_execution.py::test_fill_price_fee_and_fixed_benchmark_bound_actual_exit_budget` | No explicit fee or shortfall journal entry | Fee/shortfall preserved across restart and further children blocked at budget |
 | `test_reconciled_fill_attribution.py::test_life_fee_uses_independent_fill_value_and_replays_physical_balance` | LIFE fee could not enter attributed capital/loss | Physical LIFE fee and independent quote cost replay after restart |
 | `test_risk_priority.py::test_halt_checkpoint_failure_latches_memory_and_revokes_permission` | Failed HALT checkpoint left `NORMAL` in memory | Current process remains HALTED and refuses quotes |
+| `test_inventory_subsidy_settlement.py::test_flat_cycle_settles_realized_inventory_loss_and_replays_once` | No closed-inventory settlement API | Net-flat, reconciled cycles settle once; residual inventory retains its hold |
+| `test_inventory_subsidy_settlement.py::test_inventory_settlement_cannot_charge_a_different_session_budget` | A restored subsidy entry with an unrelated session still passed attribution readiness | Mismatched session blocks attribution and settlement |
 
 ## Replay and economic limits
 

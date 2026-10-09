@@ -890,6 +890,24 @@ class LifeLiquidityController(ControllerBase):
         self._fill_attributor = attributor
         self.fill_attribution_reason_code = "FILL_ATTRIBUTION_REVALIDATION_REQUIRED"
 
+    async def settle_service_inventory(self, cycle_id: str, intent_ids: tuple[str, ...]) -> bool:
+        """Requery exchange/account scope before releasing a closed inventory hold."""
+        attributor, gateway = self._fill_attributor, self._order_safety_gateway
+        if (self.config.strategy.economics.objective != "liquidity_service"
+                or attributor is None or attributor.subsidy_budget is None or gateway is None
+                or not isinstance(intent_ids, tuple) or not intent_ids
+                or any(not isinstance(key, str) or not key for key in intent_ids)
+                or len(set(intent_ids)) != len(intent_ids)):
+            raise ValueError("SUBSIDY_CYCLE_EVIDENCE_UNAVAILABLE")
+        scopes = {(attributor.wal.get(key).session_id, attributor.wal.get(key).epoch)
+                  for key in intent_ids}
+        for session_id, epoch in sorted(scopes):
+            result = await gateway.reconcile(session_id, epoch)
+            if (not result.scope_complete or not result.trade_events_reconciled
+                    or result.open_order_ids or result.pending_cancel_ids or result.unknown_order_ids):
+                raise ValueError("SUBSIDY_ACCOUNT_SCOPE_UNAVAILABLE")
+        return attributor.settle_inventory_cycle(cycle_id, intent_ids)
+
     def _fill_attribution_ready(self) -> bool:
         if self._fill_attributor is None:
             return self.config.strategy.economics.objective != "liquidity_service"
