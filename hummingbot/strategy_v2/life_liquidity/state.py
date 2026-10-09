@@ -1,8 +1,10 @@
 """Durable intent identity before any network send."""
 
+import fcntl
 import json
 import os
 import tempfile
+from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -32,6 +34,8 @@ class IntentWAL:
     def __init__(self, path: Path):
         self.path = Path(path)
         self._lock = RLock()
+        self._uncertain = False
+        self._must_exist = self.path.exists() or self.path.is_symlink()
         self._records: dict[str, IntentRecord] = {}
         if self.path.exists():
             with self.path.open(encoding="utf-8") as handle:
@@ -71,9 +75,26 @@ class IntentWAL:
             raise ValueError("cancel time must be UTC")
         return timestamp.astimezone(timezone.utc)
 
+    @contextmanager
+    def _file_lock(self):
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        lock_path = self.path.with_name(f".{self.path.name}.lock")
+        if lock_path.is_symlink():
+            raise ValueError("WAL_STATE_UNCERTAIN")
+        descriptor = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(descriptor, fcntl.LOCK_UN)
+        finally:
+            os.close(descriptor)
+
     def _save(self, records: dict[str, IntentRecord]) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         descriptor, temporary = tempfile.mkstemp(prefix=f".{self.path.name}.", dir=self.path.parent)
+        replace_attempted = False
         try:
             with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
                 json.dump({"schema_version": 1,
@@ -81,21 +102,36 @@ class IntentWAL:
                           handle, sort_keys=True)
                 handle.flush()
                 os.fsync(handle.fileno())
+            replace_attempted = True
             os.replace(temporary, self.path)
             directory_fd = os.open(self.path.parent, os.O_RDONLY)
             try:
                 os.fsync(directory_fd)
             finally:
                 os.close(directory_fd)
+        except OSError:
+            if replace_attempted:
+                self._uncertain = True
+            raise
         finally:
             if os.path.exists(temporary):
                 os.unlink(temporary)
 
     def _commit(self, record: IntentRecord) -> None:
-        updated = dict(self._records)
-        updated[record.intent_id] = record
-        self._save(updated)
-        self._records = updated
+        with self._lock, self._file_lock():
+            if self._uncertain or self.path.is_symlink() or (self._must_exist and not self.path.is_file()):
+                raise ValueError("WAL_STATE_UNCERTAIN")
+            try:
+                durable_records = IntentWAL(self.path)._records if self.path.exists() else {}
+            except (OSError, TypeError, ValueError) as exc:
+                raise ValueError("WAL_STATE_UNCERTAIN") from exc
+            if durable_records != self._records:
+                raise ValueError("WAL_STATE_UNCERTAIN")
+            updated = dict(self._records)
+            updated[record.intent_id] = record
+            self._save(updated)
+            self._records = updated
+            self._must_exist = True
 
     def get(self, intent_id: str) -> IntentRecord:
         with self._lock:

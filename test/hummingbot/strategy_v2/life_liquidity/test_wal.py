@@ -2,6 +2,7 @@
 
 import pytest
 
+from hummingbot.strategy_v2.life_liquidity import state
 from hummingbot.strategy_v2.life_liquidity.state import IntentWAL
 
 
@@ -90,3 +91,97 @@ def test_aborting_one_intent_cannot_overwrite_another_armed_disk_record(tmp_path
         stale.abort_before_send("intent-1")
     assert IntentWAL(path).get("intent-1").state == "PREPARED"
     assert IntentWAL(path).get("intent-2").state == "SEND_UNKNOWN"
+
+
+def test_failed_directory_fsync_cannot_rewind_terminal_wal(tmp_path, monkeypatch):
+    path = tmp_path / "intents.json"
+    wal = IntentWAL(path)
+    wal.prepare("intent-1", client_order_id="life-0001", session_id="s1",
+                epoch=1, reservation_id="intent-1")
+    wal.acknowledge("intent-1", "exchange-1")
+    original_fsync = state.os.fsync
+    calls = 0
+
+    def fail_directory_fsync(descriptor):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise OSError("crash after WAL replacement")
+        return original_fsync(descriptor)
+
+    with monkeypatch.context() as patcher:
+        patcher.setattr(state.os, "fsync", fail_directory_fsync)
+        with pytest.raises(OSError, match="crash after WAL replacement"):
+            wal.mark_terminal("intent-1", "exchange-1")
+
+    assert calls == 2
+    assert wal.get("intent-1").state == "ACKED"
+    assert IntentWAL(path).get("intent-1").state == "TERMINAL"
+    with pytest.raises(ValueError, match="WAL_STATE_UNCERTAIN"):
+        wal.mark_cancel_requested("intent-1")
+    assert IntentWAL(path).get("intent-1").state == "TERMINAL"
+    assert IntentWAL(path).scoped_order_ids("s1", 1) == ()
+
+
+def test_stale_wal_instance_cannot_rewind_terminal_state(tmp_path):
+    path = tmp_path / "intents.json"
+    stale = IntentWAL(path)
+    stale.prepare("intent-1", client_order_id="life-0001", session_id="s1",
+                  epoch=1, reservation_id="intent-1")
+    stale.acknowledge("intent-1", "exchange-1")
+    newer = IntentWAL(path)
+    newer.mark_terminal("intent-1", "exchange-1")
+
+    with pytest.raises(ValueError, match="WAL_STATE_UNCERTAIN"):
+        stale.mark_cancel_requested("intent-1")
+    assert IntentWAL(path).get("intent-1").state == "TERMINAL"
+
+
+def test_failed_arm_send_checkpoint_remains_unknown_after_restart(tmp_path, monkeypatch):
+    path = tmp_path / "intents.json"
+    wal = IntentWAL(path)
+    wal.begin("intent-1", client_order_id="life-0001", session_id="s1",
+              epoch=1, reservation_id="intent-1")
+    original_fsync = state.os.fsync
+    calls = 0
+
+    def fail_directory_fsync(descriptor):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise OSError("arm commit uncertain")
+        return original_fsync(descriptor)
+
+    with monkeypatch.context() as patcher:
+        patcher.setattr(state.os, "fsync", fail_directory_fsync)
+        with pytest.raises(OSError, match="arm commit uncertain"):
+            wal.arm_send("intent-1", client_order_id="life-0001", session_id="s1",
+                         epoch=1, reservation_id="intent-1")
+
+    assert wal.get("intent-1").state == "PREPARED"
+    with pytest.raises(ValueError, match="WAL_STATE_UNCERTAIN"):
+        wal.abort_before_send("intent-1")
+    restarted = IntentWAL(path)
+    assert restarted.get("intent-1").state == "SEND_UNKNOWN"
+    assert restarted.pending_reconciliation("s1", 1) == ("life-0001",)
+
+
+def test_pre_replace_wal_failure_can_retry_without_claiming_a_send(tmp_path, monkeypatch):
+    path = tmp_path / "intents.json"
+    wal = IntentWAL(path)
+    wal.begin("intent-1", client_order_id="life-0001", session_id="s1",
+              epoch=1, reservation_id="intent-1")
+
+    def fail_before_replacement(_descriptor):
+        raise OSError("before WAL replacement")
+
+    with monkeypatch.context() as patcher:
+        patcher.setattr(state.os, "fsync", fail_before_replacement)
+        with pytest.raises(OSError, match="before WAL replacement"):
+            wal.arm_send("intent-1", client_order_id="life-0001", session_id="s1",
+                         epoch=1, reservation_id="intent-1")
+
+    assert IntentWAL(path).get("intent-1").state == "PREPARED"
+    assert wal.arm_send("intent-1", client_order_id="life-0001", session_id="s1",
+                        epoch=1, reservation_id="intent-1")
+    assert IntentWAL(path).get("intent-1").state == "SEND_UNKNOWN"
