@@ -25,6 +25,7 @@ from hummingbot.strategy_v2.life_liquidity.order_gateway import (
     SpotAccountReconciler,
     SpotReservationReconciler,
 )
+from hummingbot.strategy_v2.models.base import RunnableStatus
 from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction
 
 
@@ -32,6 +33,61 @@ class FakeTradingOkx(Connector, FakeOkx):
     def __init__(self):
         Connector.__init__(self)
         FakeOkx.__init__(self)
+
+
+@pytest.mark.asyncio
+async def test_lost_ack_terminal_proof_allows_one_fresh_quote_replacement(tmp_path):
+    connector = FakeTradingOkx()
+    controller, template, _, wal, reservations, _ = _setup(tmp_path, connector=connector)
+    _, first_executor = _attach_quote_planner(
+        controller, template, wal, reservations)
+    controller._spot_quote_gates_ready = lambda: True
+    reconciler = SpotReservationReconciler(wal, reservations, require_fees=True)
+    gateway = OkxSpotOrderGateway(
+        connector, wal, trading_pair="LIFE-USDT",
+        clock=lambda: controller._order_safety_manager.wall_clock(),
+        apply_fills=reconciler.apply_fills, confirm_terminal=reconciler.confirm_terminal,
+        on_cancel_requested=reconciler.request_cancel, on_unknown=reconciler.mark_unknown,
+        account_check=SpotAccountReconciler(connector, reservations).check)
+    controller.install_order_safety(controller._order_safety_manager, gateway, wal,
+                                    reservations=reservations)
+    executors = []
+    runner = _runner(controller, connector, executors, first_executor.config)
+    try:
+        runner.tick(1)
+        assert len(connector.sent) == 1
+        wire_id = connector.sent[0]["order_id"]
+        assert wal.get(first_executor.config.id).state == "SEND_UNKNOWN"  # Lost ACK.
+        connector.status[wire_id] = {"clOrdId": wire_id, "ordId": "exchange-1",
+                                     "state": "canceled", "accFillSz": "0"}
+        connector.fills["exchange-1"] = []
+        connector.open_pages[None] = []
+        connector.cash_balances = {"LIFE": "10", "USDT": "10"}
+        session = controller._order_safety_manager.current_session
+        assert await SpotAccountReconciler(connector, reservations).check()
+        assert await gateway._account_scope_complete({wire_id}, {wire_id: "exchange-1"})
+        assert reservations.has_open_intent(first_executor.config.id)
+        controller._runner_halt_ok = controller._halt_runner_orders()
+        assert controller._runner_halt_ok
+        result = await gateway.reconcile(session.session_id, session.epoch)
+        assert result.scope_complete and result.trade_events_reconciled
+        assert not result.open_order_ids and not result.unknown_order_ids
+        assert wal.get(first_executor.config.id).state == "TERMINAL"
+        assert reservations.is_terminal_intent(first_executor.config.id)
+        executors[0]._status = RunnableStatus.TERMINATED
+        controller._quote_action_planner.intent_id_factory = lambda: "quote-replacement"
+        replacement = controller.determine_executor_actions()
+        assert len(replacement) == 1
+        runner.determine_executor_actions = lambda: replacement
+        runner.tick(2)
+        assert len(connector.sent) == 2
+        assert connector.sent[1]["order_id"] != wire_id
+        assert wal.get("quote-replacement").state == "SEND_UNKNOWN"
+        assert reservations.has_open_intent("quote-replacement")
+    finally:
+        runner.listen_to_executor_actions_task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await runner.listen_to_executor_actions_task
 
 
 def _runner(controller, connector, executors, queued_config):

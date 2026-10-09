@@ -119,9 +119,11 @@ def plan_life_hedge(policy: HedgePolicy, observation: HedgeObservation,
     residual = (observation.spot_life_base - observation.target_inventory_base
                 + contract.base_from_contracts(observation.perp_contracts_signed))
     age_ms = observation.now_ms - observation.unhedged_since_ms
-    urgent = abs(residual) > policy.max_unhedged_base or age_ms > policy.max_unhedged_ms
     if not observation.connector_ready:
         return blocked("HEDGE_CONNECTOR_UNAVAILABLE")
+    if residual == 0:
+        return blocked("HEDGE_BALANCED", spot_allowed=True)
+    urgent = abs(residual) > policy.max_unhedged_base or age_ms > policy.max_unhedged_ms
     if abs(residual) <= policy.deadband_base and not urgent:
         return blocked("HEDGE_DEADBAND", spot_allowed=True)
     if observation.retry_attempts >= policy.max_retry_attempts:

@@ -53,6 +53,15 @@ def test_pending_hedge_or_small_residual_does_not_duplicate_orders():
     assert small.reason_code == "HEDGE_DEADBAND" and small.contracts == 0
 
 
+def test_zero_residual_does_not_create_an_urgent_hedge_after_elapsed_deadline():
+    contract = LinearLifeContractSpec(D("0.5"), D("0.1"))
+    balanced = plan_life_hedge(_policy(), _observation(
+        perp_contracts_signed=D("-20"), now_ms=1200), contract)
+    assert balanced.reason_code == "HEDGE_BALANCED"
+    assert balanced.contracts == 0
+    assert balanced.allow_spot_risk_increase
+
+
 def test_disconnect_timeout_retry_and_cost_block_new_spot_risk():
     contract = LinearLifeContractSpec(D("0.5"), D("0.1"))
     assert plan_life_hedge(_policy(), _observation(
