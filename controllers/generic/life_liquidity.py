@@ -10,7 +10,7 @@ from collections.abc import Mapping
 from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
-from typing import Literal
+from typing import Callable, Literal
 
 from pydantic import Field
 
@@ -48,6 +48,7 @@ from hummingbot.strategy_v2.life_liquidity.own_depth_runner import separate_loca
 from hummingbot.strategy_v2.life_liquidity.quote_actions import QuoteActionPlanner, QuotePlanningSnapshot
 from hummingbot.strategy_v2.life_liquidity.reference import ReferenceEngine
 from hummingbot.strategy_v2.life_liquidity.risk import ReservationLedger, RiskLimits
+from hummingbot.strategy_v2.life_liquidity.safety import SafetyGate, SafetyObservation
 from hummingbot.strategy_v2.life_liquidity.session import SessionManager, SessionStore
 from hummingbot.strategy_v2.life_liquidity.state import IntentWAL
 from hummingbot.strategy_v2.models.base import RunnableStatus
@@ -153,6 +154,11 @@ class LifeLiquidityController(ControllerBase):
         self._own_depth_decision = OwnDepthDecision(None, "OWN_DEPTH_NOT_EVALUATED")
         self._protected_spot_sender: ProtectedSpotExecutorSender | None = None
         self._quote_action_planner: QuoteActionPlanner | None = None
+        self._runtime_risk_gate: SafetyGate | None = None
+        self._runtime_risk_observation: Callable[[], SafetyObservation] | None = None
+        self._runtime_risk_clock_ms: Callable[[], int] | None = None
+        self._runtime_risk_max_age_ms: int | None = None
+        self.runtime_risk_reason_code = "RUNTIME_RISK_NOT_INSTALLED"
         self._quote_action_recovery_ready = False
         self._quote_action_recovery_records = None
         self.quote_action_recovery_reason_code = "QUOTE_ACTION_RECOVERY_NOT_CONFIGURED"
@@ -595,6 +601,50 @@ class LifeLiquidityController(ControllerBase):
             raise ValueError("QUOTE_ACTION_RECOVERY_MISMATCH")
         self._quote_action_planner = planner
 
+    def install_runtime_risk_gate(self, gate: SafetyGate, *,
+                                  observation: Callable[[], SafetyObservation],
+                                  monotonic_clock_ms: Callable[[], int],
+                                  max_observation_age_ms: int) -> None:
+        """Attach an explicit P4 observer to queue, session, and final-send checks."""
+        if (self._runtime_risk_gate is not None or not isinstance(gate, SafetyGate)
+                or not callable(observation) or not callable(monotonic_clock_ms)
+                or not isinstance(max_observation_age_ms, int)
+                or isinstance(max_observation_age_ms, bool)
+                or max_observation_age_ms <= 0):
+            raise ValueError("RUNTIME_RISK_BINDING_INVALID")
+        if self.config.recovery_state_dir is not None and (
+                gate.path != Path(self.config.recovery_state_dir) / "safety.json"
+                or gate.path.is_symlink()):
+            raise ValueError("RUNTIME_RISK_RECOVERY_MISMATCH")
+        self._runtime_risk_gate = gate
+        self._runtime_risk_observation = observation
+        self._runtime_risk_clock_ms = monotonic_clock_ms
+        self._runtime_risk_max_age_ms = max_observation_age_ms
+        self.runtime_risk_reason_code = "RUNTIME_RISK_STARTUP_REVALIDATION"
+
+    def _runtime_risk_ready(self) -> bool:
+        gate = self._runtime_risk_gate
+        if gate is None:
+            return True  # Production permission remains disabled separately.
+        try:
+            now = self._runtime_risk_clock_ms()
+            observed = self._runtime_risk_observation()
+            if (not isinstance(now, int) or isinstance(now, bool)
+                    or not isinstance(observed, SafetyObservation)
+                    or not isinstance(observed.observed_monotonic_ms, int)
+                    or isinstance(observed.observed_monotonic_ms, bool)):
+                decision = gate.invalidate("RISK_OBSERVATION_UNAVAILABLE")
+            elif (now < observed.observed_monotonic_ms
+                  or now - observed.observed_monotonic_ms > self._runtime_risk_max_age_ms):
+                decision = gate.invalidate("RISK_OBSERVATION_STALE")
+            else:
+                decision = gate.evaluate(observed)
+        except Exception:
+            decision = gate.invalidate("RISK_OBSERVATION_UNAVAILABLE")
+        self.runtime_risk_reason_code = decision.reason_code
+        # DEGRADED probe sizing is not wired into the runner yet. Stay blocked.
+        return decision.state == "NORMAL"
+
     def authorize_runner_create_action(self, action) -> bool:
         planner = self._quote_action_planner
         if self.config.recovery_state_dir is not None and not self._quote_action_recovery_ready:
@@ -878,9 +928,10 @@ class LifeLiquidityController(ControllerBase):
             if manager.state == "PAUSED" and self._observed_session_state != "PAUSED":
                 self._pause_reconciliation_required = True
                 self.order_safety_reason_code = "RECONCILIATION_REQUIRED"
+            risk_ready = self._runtime_risk_ready()
             planner = self._quote_action_planner
-            qualified = planner.session_snapshot() if planner is not None else None
-            ready = (qualified is not None and self._spot_quote_gates_ready()
+            qualified = planner.session_snapshot() if risk_ready and planner is not None else None
+            ready = (risk_ready and qualified is not None and self._spot_quote_gates_ready()
                      and not self._pause_reconciliation_required)
             previous_state = manager.state
             manager.tick(reference_ready=ready, all_gates_ready=ready,
@@ -1036,6 +1087,8 @@ class LifeLiquidityController(ControllerBase):
         return self.benchmark_route.resolve(self.market_data_provider)
 
     def allow_create_executor_actions(self) -> bool:
+        if not self._runtime_risk_ready():
+            return False
         if self.has_unverified_runner_order_events():
             return False
         manager = self._order_safety_manager

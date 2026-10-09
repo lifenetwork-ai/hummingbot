@@ -1,5 +1,6 @@
 """P4 priority: HALT, pause/cancel, limited reduction, then new quotes."""
 
+from dataclasses import replace
 from decimal import Decimal
 
 from hummingbot.strategy_v2.life_liquidity.safety import SafetyGate, SafetyObservation
@@ -48,3 +49,16 @@ def test_missing_account_or_low_margin_has_priority_over_new_quotes(tmp_path):
     assert missing.reason_code == "ACCOUNT_DATA_UNAVAILABLE" and missing.cancel_required
     low_margin = gate.evaluate(observe(at=1, margin="9"))
     assert low_margin.state == "HALTED" and low_margin.reason_code == "MARGIN_BUFFER_BREACHED"
+
+
+def test_non_boolean_readiness_never_grants_quote_permission(tmp_path):
+    gate = SafetyGate(tmp_path / "safety.json", max_drawdown_bps=Decimal("500"),
+                      min_margin_buffer_quote=Decimal("10"), stable_data_ms=0,
+                      recovery_probe_base=Decimal("1"))
+    invalid = replace(observe(at=100), account_ready=1)
+
+    decision = gate.evaluate(invalid)
+
+    assert decision.state == "PAUSED"
+    assert decision.reason_code == "RISK_DATA_UNAVAILABLE"
+    assert not decision.allow_new_quotes

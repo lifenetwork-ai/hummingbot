@@ -80,17 +80,27 @@ class SafetyGate:
                               (self.recovery_probe_base if self.state == "DEGRADED" else
                                None if self.state == "NORMAL" else Decimal("0")))
 
+    def invalidate(self, reason_code: str) -> SafetyDecision:
+        """Reset recovery after an unavailable runtime observation; retain a latched HALT."""
+        if self.state != "HALTED":
+            self.state, self.reason_code = "PAUSED", reason_code
+            self._good_since_ms = None
+        return self._decision()
+
     def evaluate(self, observation: SafetyObservation) -> SafetyDecision:
         if self.state == "HALTED":
             return self._decision()
         now = observation.observed_monotonic_ms
-        if not isinstance(now, int) or now < 0 or (
+        if not isinstance(now, int) or isinstance(now, bool) or now < 0 or (
                 self._last_seen_ms is not None and now < self._last_seen_ms):
             self.state, self.reason_code = "PAUSED", "SAFETY_CLOCK_INVALID"
             self._good_since_ms = None
             return self._decision()
         self._last_seen_ms = now
-        if not _valid(observation.drawdown_bps) or not _valid(observation.margin_buffer_quote):
+        if (not _valid(observation.drawdown_bps) or not _valid(observation.margin_buffer_quote)
+                or any(type(value) is not bool for value in (
+                    observation.market_data_fresh, observation.latency_ok,
+                    observation.account_ready, observation.model_ready))):
             self.state, self.reason_code = "PAUSED", "RISK_DATA_UNAVAILABLE"
             self._good_since_ms = None
             return self._decision()
