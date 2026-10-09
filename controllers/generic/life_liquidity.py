@@ -629,6 +629,63 @@ class LifeLiquidityController(ControllerBase):
         executors = active.get(self.config.id, [])
         return tuple(executors) if isinstance(executors, (list, tuple)) else None
 
+    def _pre_send_provenance_complete(self, missing_records) -> bool:
+        """Verify account-bound journals when the late executor checkpoint is absent."""
+        wal = self._order_safety_wal
+        reservations = self._order_safety_reservations
+        directory = self.config.recovery_state_dir
+        if (not missing_records or not directory or wal is None or reservations is None
+                or reservations.path is None or not self._account_uid_verified
+                or not self._quote_action_recovery_ready
+                or self._quote_action_recovery_records is None
+                or self.config.require_quote_action_journal is not True
+                or not self.config.recovery_account_uid):
+            return False
+        try:
+            path = Path(directory)
+            if (wal.path != path / "intents.json"
+                    or reservations.path != path / "reservations.json"
+                    or wal.path.is_symlink() or reservations.path.is_symlink()):
+                return False
+            claims = QuoteActionJournal(
+                path / "quote_actions.json",
+                account_uid=self.config.recovery_account_uid).verified_records()
+            if claims != self._quote_action_recovery_records:
+                return False
+            if IntentWAL(wal.path).all_records() != wal.all_records():
+                return False
+            snapshot = reservations.reservation_snapshot()
+            durable_reservations = ReservationLedger.restore(
+                reservations.path, limits=reservations.limits)
+            if durable_reservations.reservation_snapshot() != snapshot:
+                return False
+            by_intent = {claim.intent_id: claim for claim in claims}
+            if len(by_intent) != len(claims):
+                return False
+            for record in missing_records:
+                claim = by_intent.get(record.intent_id)
+                reservation = snapshot.get(record.reservation_id)
+                if (record.state not in ("SEND_UNKNOWN", "ACKED", "TERMINAL")
+                        or record.reservation_id != record.intent_id
+                        or record.slot_market != self.config.strategy.spot.pair
+                        or claim is None or claim.controller_id != self.config.id
+                        or claim.state not in ("PROPOSED", "DISPATCHED", "RECONCILED")
+                        or (claim.state == "RECONCILED" and record.state != "TERMINAL")
+                        or (claim.session_id, claim.epoch, claim.market,
+                            claim.side, claim.level) != (
+                            record.session_id, record.epoch, record.slot_market,
+                            record.slot_side, record.slot_level)
+                        or reservation is None
+                        or reservation.intent.intent_id != record.intent_id
+                        or reservation.intent.session_id != record.session_id
+                        or reservation.intent.epoch != record.epoch
+                        or reservation.intent.side != record.slot_side
+                        or (record.state == "TERMINAL") != (reservation.state == "TERMINAL")):
+                    return False
+            return True
+        except (OSError, TypeError, ValueError):
+            return False
+
     def _halt_runner_orders(self) -> bool:
         """Revoke executor renewals before starting exchange-side cancellation."""
         from hummingbot.strategy_v2.executors.order_executor.order_executor import OrderExecutor
@@ -760,14 +817,15 @@ class LifeLiquidityController(ControllerBase):
                         return reject()
                     stored_seen.add(wire_id)
                     wire_owners[wire_id] = info.id
-            # A cold restart may have an intact WAL but an absent executor DB
-            # row. For protected quote slots, WAL identity alone cannot prove
-            # the runner did not submit another unrecorded order.
-            if any(record.slot_market is not None
-                   and record.client_order_id not in active_seen | stored_seen
-                   for record in records if record.state != "ABORTED_BEFORE_SEND"):
-                return reject()
             if not self._runner_stored_executor_ids <= stored_ids:
+                return reject()
+            missing = tuple(record for record in records
+                            if record.slot_market is not None
+                            and record.state != "ABORTED_BEFORE_SEND"
+                            and record.client_order_id not in active_seen | stored_seen)
+            # The recorder row is written after the connector call. On a cold
+            # restart, accept only a complete pre-send journal chain instead.
+            if missing and (executors or not self._pre_send_provenance_complete(missing)):
                 return reject()
             self._runner_stored_executor_ids.update(stored_ids)
             self._runner_wire_owners.update(wire_owners)
