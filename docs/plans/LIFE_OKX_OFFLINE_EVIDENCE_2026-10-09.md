@@ -12,7 +12,7 @@ none are live defaults.
 | Gate | Current evidence | Still needed offline |
 | --- | --- | --- |
 | O.2 spot economics/risk | Actual V2 runner/fake OKX replay covers safety recovery, fee repricing at final send, queued service-action rejection after a subsidy change, reconciled partial fill and USDT fee, subsidy floor, stale snapshot, HALT and journal restore; proven zero-fill hold release | Complete spot-feed readiness and account-data binding, filled-inventory settlement, 100x-turnover, cross-batch priority and remaining A-cases |
-| O.3 spot lifecycle | Real V2 runner lost-ACK quote, terminal proof and new wire ID; separate partial-fill/expiry and cold-restart replays | One complete quote → fill/fee → replace → expiry/successor → restart replay with all account-wide scopes |
+| O.3 spot lifecycle | Real V2 runner lost-ACK quote, terminal proof and new wire ID; a separate partial-fill/fee → expiry/cancel → terminal → journal-restart path refuses missing fees and foreign pending algo orders | One complete quote → fill/fee → replace → expiry/successor → restart replay with all account-wide scopes |
 | O.4 recovery | Existing process-kill/SQLite/WAL/reservation slices | Remaining recorder, quote-action, cashflow, kill-switch and clock fault matrix |
 | O.5 simulation/telemetry | Seeded queue-ahead and ACK/cancel latency fixture; candle touch and unattributed prints make no fills | Recorded adversarial scenario suite, complete quality-flagged telemetry, risk-event latency budgets and economic evaluation |
 | O.6 review | Scoped regression and changed-code coverage below | Full spot A01–A39 matrix, changed-code review, named reviewer and reproducible evidence bundle |
@@ -46,6 +46,14 @@ rejects the obsolete subsidy snapshot, and blocks an executor resend under a
 latched drawdown HALT. A profit-mode path revokes a protected final send after
 the account fee rises. These are deterministic contract replays, not actual
 account fee, fill, value, or latency evidence.
+
+The same five suites still passed **1,070 tests** after the O.3 partial-fill
+expiry/restart extension (28 warnings). In this replay the fake account's
+missing USDT fee keeps the old order unresolved after cancel; supplying the
+fee and matching balance permits terminal reconciliation. Reopened WAL,
+reservation, and session journals preserve the fee, trade ID, residual
+balances, and expired state. The lost-ACK replacement proof remains a separate
+path, so this is not the full O.3 acceptance session.
 
 Coverage used the same regression scope at commit `8525624c0` and `origin/dev`
 as the available local comparison branch. `origin/development` is absent.

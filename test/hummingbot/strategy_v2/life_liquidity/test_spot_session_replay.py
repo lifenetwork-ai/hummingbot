@@ -12,7 +12,7 @@ from test.hummingbot.strategy_v2.life_liquidity.test_reference_transition import
     reconciled,
     start,
 )
-from test.hummingbot.strategy_v2.life_liquidity.test_session import FakeClock
+from test.hummingbot.strategy_v2.life_liquidity.test_session import FakeClock, manager as session_manager
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -228,7 +228,7 @@ async def test_successor_safety_tick_requires_independent_market_reference(tmp_p
 
 
 @pytest.mark.asyncio
-async def test_partial_fill_cancel_and_terminal_reconciliation_stays_scoped(tmp_path):
+async def test_partial_fill_fee_cancel_and_expiry_survive_journal_restart(tmp_path):
     connector = FakeTradingOkx()
     controller, template, _, wal, reservations, _ = _setup(tmp_path, connector=connector)
     manager = controller._order_safety_manager
@@ -238,7 +238,7 @@ async def test_partial_fill_cancel_and_terminal_reconciliation_stays_scoped(tmp_
     manager.monotonic_clock = lambda: monotonic_time[0]
     _, proposed = _attach_quote_planner(controller, template, wal, reservations)
     controller._spot_quote_gates_ready = lambda: True
-    reconciler = SpotReservationReconciler(wal, reservations)
+    reconciler = SpotReservationReconciler(wal, reservations, require_fees=True)
     gateway = OkxSpotOrderGateway(
         connector, wal, trading_pair="LIFE-USDT", clock=lambda: wall_time[0],
         apply_fills=reconciler.apply_fills, confirm_terminal=reconciler.confirm_terminal,
@@ -282,10 +282,34 @@ async def test_partial_fill_cancel_and_terminal_reconciliation_stays_scoped(tmp_
         connector.algo_pages["conditional,oco"] = {"code": "0", "data": []}
         runner.tick(4)
         await controller.order_safety_task
+        assert wal.get(executors[0].config.id).state != "TERMINAL"
+        assert reservations.requires_reconciliation(executors[0].config.id)
+        assert reservations.trade_intent_id("trade-1") is None
+
+        connector.fills["exchange-1"][0].update(
+            fee="-0.01", feeCcy="USDT",
+            fillTime=str(int(wall_time[0].timestamp() * 1000)))
+        connector.cash_balances["USDT"] = "9.594"
+        runner.tick(5)
+        await controller.order_safety_task
         assert wal.get(executors[0].config.id).state == "TERMINAL"
         assert not reservations.requires_reconciliation(executors[0].config.id)
+        assert reservations.is_terminal_intent(executors[0].config.id)
         assert reservations.life_balance == Decimal("10.4")
-        assert reservations.usdt_balance == Decimal("9.604")
+        assert reservations.usdt_balance == Decimal("9.594")
+        assert reservations.fee_for_trade("trade-1") == ("USDT", Decimal("-0.01"))
+        restarted = type(reservations).restore(reservations.path, limits=reservations.limits)
+        assert restarted.life_balance == Decimal("10.4")
+        assert restarted.usdt_balance == Decimal("9.594")
+        assert restarted.trade_intent_id("trade-1") == executors[0].config.id
+        assert restarted.fee_for_trade("trade-1") == ("USDT", Decimal("-0.01"))
+        assert type(wal)(wal.path).get(executors[0].config.id).state == "TERMINAL"
+        restarted_clock = FakeClock()
+        restarted_clock.wall = wall_time[0]
+        restarted_clock.mono = monotonic_time[0]
+        restored_session = session_manager(tmp_path, restarted_clock)
+        assert restored_session.state == "EXPIRED"
+        assert not restored_session.can_quote(reference_ready=True, all_gates_ready=True)
         assert len(connector.sent) == 1
     finally:
         runner.listen_to_executor_actions_task.cancel()
