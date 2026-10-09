@@ -116,6 +116,7 @@ async def test_service_budget_fill_and_halt_share_actual_v2_runner_gate(tmp_path
     gate = SafetyGate(tmp_path / "safety.json", max_drawdown_bps=Decimal("500"),
                       min_margin_buffer_quote=Decimal("10"), stable_data_ms=0,
                       recovery_probe_base=Decimal("1"))
+    gate.initialize_empty()
     controller.install_runtime_risk_gate(
         gate, observation=lambda: SafetyObservation(
             observations["risk_now"], True, True, True, True,
@@ -224,6 +225,7 @@ async def test_probe_partial_fill_markout_and_nav_halt_on_v2_queue(tmp_path):
     gate = SafetyGate(tmp_path / "safety.json", max_drawdown_bps=Decimal("500"),
                       min_margin_buffer_quote=Decimal("10"), stable_data_ms=0,
                       recovery_probe_base=Decimal("1"))
+    gate.initialize_empty()
     controller.install_runtime_risk_gate(
         gate, observation=lambda: SafetyObservation(
             observations["risk_now"], True, True, True, True,

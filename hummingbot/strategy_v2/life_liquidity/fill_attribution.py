@@ -1,8 +1,7 @@
 """Opt-in, replayable attribution of exchange-reconciled LIFE spot fills.
 
-Only USDT-denominated fill fees are accepted in this first offline slice.
-Missing independent fill-time values or unconverted LIFE fees retain the fill
-as unattributed and block additional risk.
+LIFE-denominated fees use the same independently qualified fill-time value as
+execution-loss attribution. Missing or stale values keep fills unattributed.
 """
 
 import fcntl
@@ -187,6 +186,18 @@ class ReconciledFillAttributor:
                 - Decimal(event["fee_cost_quote"]))
         return max(Decimal("0"), -edge)
 
+    @staticmethod
+    def _fee_terms(event: dict) -> tuple[str, Decimal]:
+        currency = event.get("fee_currency", "USDT")
+        if currency == "USDT" and "signed_fee" not in event:
+            return currency, -Decimal(event["fee_cost_quote"])
+        if currency not in ("USDT", "LIFE"):
+            raise ValueError("FILL_ATTRIBUTION_FEE_INVALID")
+        signed = Decimal(event["signed_fee"])
+        if not signed.is_finite():
+            raise ValueError("FILL_ATTRIBUTION_FEE_INVALID")
+        return currency, signed
+
     def capital(self) -> CapitalLedger:
         capital = CapitalLedger(
             opening_life=self.opening_life, opening_usdt=self.opening_usdt,
@@ -200,10 +211,12 @@ class ReconciledFillAttributor:
         for trade_id, event in sorted(
                 self._events.items(), key=lambda item: (item[1]["fill_at_ms"], item[0])):
             before = capital.execution_loss_quote
+            fee_currency, signed_fee = self._fee_terms(event)
             capital.record_fill(
                 trade_id, event["side"], Decimal(event["quantity_base"]),
                 Decimal(event["price_usdt"]), Decimal(event["fee_cost_quote"]),
-                independent_value_usdt=Decimal(event["independent_value_usdt"]))
+                independent_value_usdt=Decimal(event["independent_value_usdt"]),
+                fee_currency=fee_currency, signed_fee=signed_fee)
             if capital.execution_loss_quote - before != Decimal(event["loss_quote"]):
                 raise ValueError("FILL_ATTRIBUTION_LOSS_MISMATCH")
         for bill_id, event in sorted(self._cashflows.items()):
@@ -214,13 +227,14 @@ class ReconciledFillAttributor:
 
     def _record_matches(self, trade_id: str, event: dict) -> bool:
         record = self.wal.get(event["intent_id"])
+        fee_currency, signed_fee = self._fee_terms(event)
         return (record.client_order_id == event["wire_id"]
                 and record.slot_market == "LIFE-USDT"
                 and record.slot_side == event["side"]
                 and record.session_id == event["session_id"]
                 and self.reservations.matches_recorded_fill(
                     event["intent_id"], trade_id, Decimal(event["quantity_base"]),
-                    Decimal(event["price_usdt"]), "USDT", -Decimal(event["fee_cost_quote"])))
+                    Decimal(event["price_usdt"]), fee_currency, signed_fee))
 
     def _durable_sources_match(self, *, require_cashflows_attributed: bool = True) -> ReservationLedger | None:
         self.reservations.assert_healthy()
@@ -247,11 +261,11 @@ class ReconciledFillAttributor:
         if not self._verified() or durable.trade_ids != set(self._events):
             return None
         for trade_id, event in self._events.items():
+            fee_currency, signed_fee = self._fee_terms(event)
             if (not self._record_matches(trade_id, event)
                     or not durable.matches_recorded_fill(
                         event["intent_id"], trade_id, Decimal(event["quantity_base"]),
-                        Decimal(event["price_usdt"]), "USDT",
-                        -Decimal(event["fee_cost_quote"]))):
+                        Decimal(event["price_usdt"]), fee_currency, signed_fee)):
                 return None
         if require_cashflows_attributed:
             if (set(source_cashflows) != set(self._cashflows)
@@ -348,22 +362,27 @@ class ReconciledFillAttributor:
                 for fill in fills:
                     if (not isinstance(fill, SpotFill) or not isinstance(fill.fill_at_ms, int)
                             or isinstance(fill.fill_at_ms, bool) or fill.fill_at_ms <= 0
-                            or fill.fee_currency != "USDT" or not isinstance(fill.signed_fee, Decimal)
+                            or fill.fee_currency not in ("USDT", "LIFE")
+                            or not isinstance(fill.signed_fee, Decimal)
                             or not fill.signed_fee.is_finite()
                             or not self.reservations.matches_recorded_fill(
                                 record.intent_id, fill.trade_id, fill.quantity_base,
-                                fill.price_usdt, "USDT", fill.signed_fee)):
+                                fill.price_usdt, fill.fee_currency, fill.signed_fee)):
                         return False
                     stable = {"intent_id": record.intent_id, "wire_id": wire_id,
                               "session_id": record.session_id, "side": record.slot_side,
                               "quantity_base": str(fill.quantity_base),
                               "price_usdt": str(fill.price_usdt),
-                              "fee_cost_quote": str(-fill.signed_fee),
+                              "fee_currency": fill.fee_currency,
+                              "signed_fee": str(fill.signed_fee),
                               "fill_at_ms": fill.fill_at_ms}
                     self._at_utc(stable)
                     previous = self._events.get(fill.trade_id)
                     if previous is not None:
-                        if any(previous.get(key) != value for key, value in stable.items()):
+                        previous_fee = self._fee_terms(previous)
+                        if (any(previous.get(key) != value for key, value in stable.items()
+                                if key not in ("fee_currency", "signed_fee"))
+                                or previous_fee != (fill.fee_currency, fill.signed_fee)):
                             return False
                         continue
                     reference = self.independent_value(fill)
@@ -381,7 +400,10 @@ class ReconciledFillAttributor:
                             or abs(reference.observed_at_ms - fill.fill_at_ms)
                             > self.max_reference_skew_ms):
                         return False
-                    event = {**stable, "independent_value_usdt": str(reference.price_usdt)}
+                    fee_cost_quote = -fill.signed_fee * (
+                        reference.price_usdt if fill.fee_currency == "LIFE" else Decimal("1"))
+                    event = {**stable, "fee_cost_quote": str(fee_cost_quote),
+                             "independent_value_usdt": str(reference.price_usdt)}
                     event["loss_quote"] = str(self._loss(event))
                     updated = {**self._events, fill.trade_id: event}
                     self._save(updated)

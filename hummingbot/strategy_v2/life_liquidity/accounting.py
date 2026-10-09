@@ -41,13 +41,22 @@ class CapitalLedger:
         self._funding: dict[str, Decimal] = {}
 
     def record_fill(self, trade_id: str, side: str, quantity: Decimal, price_usdt: Decimal,
-                    fee_cost_quote: Decimal, *, independent_value_usdt: Decimal) -> bool:
+                    fee_cost_quote: Decimal, *, independent_value_usdt: Decimal,
+                    fee_currency: str = "USDT", signed_fee: Decimal | None = None) -> bool:
         if (not trade_id or side not in ("BUY", "SELL") or not _valid(quantity, positive=True)
                 or not _valid(price_usdt, positive=True)
                 or not _valid(independent_value_usdt, positive=True)
                 or not isinstance(fee_cost_quote, Decimal) or not fee_cost_quote.is_finite()):
             raise ValueError("fill accounting observation invalid")
-        event = (side, quantity, price_usdt, fee_cost_quote, independent_value_usdt)
+        if signed_fee is None and fee_currency == "USDT":
+            signed_fee = -fee_cost_quote
+        if (fee_currency not in ("LIFE", "USDT")
+                or not isinstance(signed_fee, Decimal) or not signed_fee.is_finite()
+                or fee_cost_quote != -signed_fee * (
+                    independent_value_usdt if fee_currency == "LIFE" else Decimal("1"))):
+            raise ValueError("fill fee conversion invalid")
+        event = (side, quantity, price_usdt, fee_cost_quote, independent_value_usdt,
+                 fee_currency, signed_fee)
         if trade_id in self._fills:
             if self._fills[trade_id] != event:
                 raise ValueError("fill accounting ID conflict")
@@ -55,10 +64,16 @@ class CapitalLedger:
         sign = Decimal("1") if side == "BUY" else Decimal("-1")
         if side == "SELL" and quantity > self.life_balance:
             raise ValueError("insufficient LIFE for accounted fill")
-        if side == "BUY" and quantity * price_usdt + fee_cost_quote > self.usdt_balance:
+        if side == "BUY" and quantity * price_usdt + (
+                fee_cost_quote if fee_currency == "USDT" else Decimal("0")) > self.usdt_balance:
             raise ValueError("insufficient USDT for accounted fill")
-        self.life_balance += sign * quantity
-        self.usdt_balance -= sign * quantity * price_usdt + fee_cost_quote
+        next_life = self.life_balance + sign * quantity + (
+            signed_fee if fee_currency == "LIFE" else Decimal("0"))
+        next_usdt = self.usdt_balance - sign * quantity * price_usdt - (
+            fee_cost_quote if fee_currency == "USDT" else Decimal("0"))
+        if next_life < 0 or next_usdt < 0:
+            raise ValueError("insufficient balance for accounted fee")
+        self.life_balance, self.usdt_balance = next_life, next_usdt
         edge = sign * (independent_value_usdt - price_usdt) * quantity - fee_cost_quote
         self.execution_loss_quote += max(Decimal("0"), -edge)
         if side == "SELL":
@@ -66,6 +81,11 @@ class CapitalLedger:
             self.opening_inventory_remaining -= sold_initial
             self.realized_starting_inventory_pnl_quote += (
                 sold_initial * (independent_value_usdt - self.opening_price_usdt))
+            if fee_currency == "LIFE" and signed_fee < 0:
+                fee_initial = min(self.opening_inventory_remaining, -signed_fee)
+                self.opening_inventory_remaining -= fee_initial
+                self.realized_starting_inventory_pnl_quote += (
+                    fee_initial * (independent_value_usdt - self.opening_price_usdt))
         self._fills[trade_id] = event
         return True
 

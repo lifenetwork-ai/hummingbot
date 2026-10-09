@@ -32,6 +32,7 @@ def _install(controller, tmp_path, state):
     gate = SafetyGate(tmp_path / "safety.json", max_drawdown_bps=Decimal("500"),
                       min_margin_buffer_quote=Decimal("10"), stable_data_ms=0,
                       recovery_probe_base=Decimal("1"))
+    gate.initialize_empty()
     controller.install_runtime_risk_gate(
         gate, observation=lambda: state["observation"],
         monotonic_clock_ms=lambda: state["now"], max_observation_age_ms=5)
@@ -53,6 +54,36 @@ def test_stale_runtime_risk_observation_rejects_queued_v2_create(tmp_path):
     assert gate.state == "PAUSED"
     assert controller.runtime_risk_reason_code == "RISK_OBSERVATION_STALE"
     assert QuoteActionJournal(planner.action_journal.path).get(create.executor_config.id).state == "REJECTED"
+
+
+def test_missing_safety_journal_blocks_queue_after_initial_recovery(tmp_path):
+    controller, _, _, _, _ = planner_setup(tmp_path)
+    state = {"now": 100, "observation": _observation(100)}
+    gate = _install(controller, tmp_path, state)
+    gate.path.unlink()
+
+    assert not controller.allow_create_executor_actions()
+    assert controller.runtime_risk_reason_code == "SAFETY_JOURNAL_UNAVAILABLE"
+    assert gate.state == "PAUSED"
+
+
+def test_deleted_safety_journal_revokes_already_queued_final_send(tmp_path):
+    controller, template, connector, wal, ledger, _ = sender_setup(tmp_path)
+    state = {"now": 100, "observation": _observation(100)}
+    gate = _install(controller, tmp_path, state)
+    _, executor = _attach_quote_planner(controller, template, wal, ledger)
+    executor.place_open_order()
+    check = connector.sent[0]["pre_send_check"]
+    wire = {"clOrdId": executor._order.order_id, "instId": "LIFE-USDT",
+            "side": "buy", "ordType": "post_only", "tdMode": "cash",
+            "px": str(executor.config.price), "sz": str(executor.config.amount)}
+    gate.path.unlink()
+
+    with pytest.raises(PermissionError, match="SEND_PERMISSION_REVOKED"):
+        check(wire)
+    assert controller.runtime_risk_reason_code == "SAFETY_JOURNAL_UNAVAILABLE"
+    assert wal.get(executor.config.id).state == "SEND_UNKNOWN"
+    assert ledger.has_open_intent(executor.config.id)
 
 
 def test_drawdown_halt_revokes_queued_quote_at_final_wire_check(tmp_path):

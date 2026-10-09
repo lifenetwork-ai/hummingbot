@@ -1,5 +1,6 @@
 """P4 economic attribution begins only after exchange fill reconciliation."""
 
+import json
 from datetime import datetime, timezone
 from decimal import Decimal
 from test.hummingbot.strategy_v2.life_liquidity.test_runner_fill_events import _setup
@@ -159,14 +160,89 @@ def test_two_partial_fills_charge_subsidy_once_each_and_reject_phantom_floor(tmp
     assert not attribution.ready()
 
 
-def test_missing_fee_or_independent_value_keeps_fill_unattributed(tmp_path):
+def test_life_fee_uses_independent_fill_value_and_replays_physical_balance(tmp_path):
     _, _, wal, reservations = _setup(tmp_path)
-    attribution, _ = _attributor(tmp_path, wal, reservations)
+    attribution, loss = _attributor(tmp_path, wal, reservations)
     fill = SpotFill("trade-1", Decimal("0.4"), Decimal("1"), "LIFE", Decimal("-0.01"), AT_MS)
     assert SpotReservationReconciler(wal, reservations, require_fees=True).apply_fills(
         "wire-1", (fill,), Decimal("0.4"))
+    assert attribution.apply("wire-1", (fill,))
+    assert attribution.ready()
+    assert attribution.capital().life_balance == reservations.life_balance == Decimal("10.39")
+    assert attribution.capital().usdt_balance == reservations.usdt_balance == Decimal("9.6")
+    assert loss.verified_status(session_id=wal.get("i1").session_id,
+                                at_utc=AT).session_loss_quote == Decimal("0.049")
+    restored_reservations = type(reservations).restore(reservations.path, limits=reservations.limits)
+    restored, _ = _attributor(tmp_path, wal, restored_reservations, restore=True)
+    assert restored.ready()
+    assert restored.apply("wire-1", (fill,))
+
+
+def test_life_fee_charges_service_subsidy_and_missing_value_stays_blocked(tmp_path):
+    _, _, wal, reservations = _setup(tmp_path)
+    subsidy = SubsidyBudgetLedger(
+        tmp_path / "subsidy_budget.json", campaign_id="life",
+        campaign_limit_quote=Decimal("1"), day_limit_quote=Decimal("1"),
+        session_limit_quote=Decimal("1"))
+    subsidy.initialize_empty()
+    session_id = wal.get("i1").session_id
+    assert subsidy.reserve("i1", Decimal("0.02"), session_id=session_id, at_utc=AT)
+    attribution, _ = _attributor(tmp_path, wal, reservations, subsidy=subsidy)
+    fill = SpotFill("trade-1", Decimal("0.4"), Decimal("1"), "LIFE", Decimal("-0.01"), AT_MS)
+    assert SpotReservationReconciler(wal, reservations, require_fees=True).apply_fills(
+        "wire-1", (fill,), Decimal("0.4"))
+    attribution.independent_value = lambda _: None
     assert not attribution.apply("wire-1", (fill,))
     assert not attribution.ready()
+    assert subsidy.campaign_committed_quote == Decimal("0.02")
+    attribution.independent_value = lambda _: IndependentFillObservation(
+        Decimal("0.9"), AT_MS, AT_MS + 100, "independent_market")
+    assert attribution.apply("wire-1", (fill,))
+    assert attribution.ready()
+    assert subsidy.campaign_committed_quote == Decimal("0.049")
+
+
+def test_existing_usdt_fee_journal_restores_without_new_fee_fields(tmp_path):
+    _, _, wal, reservations = _setup(tmp_path)
+    attribution, _ = _attributor(tmp_path, wal, reservations)
+    fill = SpotFill("trade-1", Decimal("0.4"), Decimal("1"), "USDT", Decimal("-0.01"), AT_MS)
+    assert SpotReservationReconciler(wal, reservations, require_fees=True).apply_fills(
+        "wire-1", (fill,), Decimal("0.4"))
+    assert attribution.apply("wire-1", (fill,))
+    journal = json.loads(attribution.path.read_text())
+    journal["events"]["trade-1"].pop("fee_currency")
+    journal["events"]["trade-1"].pop("signed_fee")
+    attribution.path.write_text(json.dumps(journal))
+    restored_reservations = type(reservations).restore(reservations.path, limits=reservations.limits)
+    restored, _ = _attributor(tmp_path, wal, restored_reservations, restore=True)
+    assert restored.ready()
+    assert restored.apply("wire-1", (fill,))
+
+
+@pytest.mark.asyncio
+async def test_fake_okx_life_fee_reconciles_through_gateway_into_capital(tmp_path):
+    controller, _, wal, reservations = _setup(tmp_path)
+    attribution, loss = _attributor(tmp_path, wal, reservations)
+    controller.install_execution_loss_budget(loss, utc_clock=lambda: AT)
+    controller.install_fill_attributor(attribution)
+    connector = controller._order_safety_gateway.connector
+    connector.status["wire-1"] = {
+        "clOrdId": "wire-1", "ordId": "exchange-1", "state": "partially_filled",
+        "accFillSz": "0.4"}
+    connector.fills["exchange-1"] = [{
+        "tradeId": "trade-1", "ordId": "exchange-1", "fillSz": "0.4",
+        "fillPx": "1", "feeCcy": "LIFE", "fee": "-0.01", "fillTime": str(AT_MS)}]
+    connector.cash_balances = {"LIFE": "10.39", "USDT": "9.6"}
+    session = controller._order_safety_manager.current_session
+
+    result = await controller._order_safety_gateway.reconcile(session.session_id, session.epoch)
+
+    assert result.trade_events_reconciled
+    assert attribution.ready()
+    assert attribution.capital().life_balance == Decimal("10.39")
+    assert attribution.capital().usdt_balance == Decimal("9.6")
+    assert loss.verified_status(session_id=session.session_id,
+                                at_utc=AT).session_loss_quote == Decimal("0.049")
 
 
 def test_missing_independent_value_after_reconciliation_keeps_risk_blocked(tmp_path):

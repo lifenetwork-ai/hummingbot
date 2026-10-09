@@ -12,9 +12,9 @@ none are live defaults.
 
 | Gate | Current evidence | Still needed offline |
 | --- | --- | --- |
-| O.2 spot economics/risk | Actual V2 runner/fake OKX replay covers safety recovery, fee repricing at final send, queued service-action rejection after a subsidy change, reconciled partial fill and USDT fee, subsidy floor, stale snapshot, HALT and journal restore; proven zero-fill hold release; LIFE stop priority across batches already queued; manual HALT rejects a queued create | Complete spot-feed readiness and account-data binding, filled-inventory settlement, 100x-turnover, late-arriving stop/cancellation stress and remaining A-cases |
+| O.2 spot economics/risk | Actual V2 runner/fake OKX replay covers safety recovery, fee repricing at final send, queued service-action rejection after a subsidy change, reconciled partial fill and USDT fee, subsidy floor, stale snapshot, HALT and journal restore; proven zero-fill hold release; LIFE stop priority across batches already queued; manual HALT rejects a queued create. A separate fake OKX gateway replay reconciles a LIFE-denominated fee using independent fill-time valuation into physical balances, loss, and subsidy | Complete spot-feed readiness and account-data binding, filled-inventory settlement, 100x-turnover, late-arriving stop/cancellation stress and remaining A-cases |
 | O.3 spot lifecycle | **Offline complete.** One real V2 runner/fake OKX session covers lost ACK, partial fill/fee, expiry/cancel, missing/foreign regular orders, foreign algo order, incomplete paginated and foreign completed-fill history, own-depth-qualified successor anchor, replacement quote with status-backed ACK, residual inventory, and journal restore | Demo connector behavior and real-account history/reference qualification remain D/R work; production order permission stays disabled |
-| O.4 recovery | Existing process-kill/SQLite/WAL/reservation slices; runner cancel timeout and clock rollback; manual HALT persistence, queue rejection, and cancellation scheduling | Remaining recorder/quote-action/cashflow interruption matrix and restart after failed HALT checkpoint |
+| O.4 recovery | Existing process-kill/SQLite/WAL/reservation slices; runner cancel timeout and clock rollback; manual HALT persistence, queue rejection, and cancellation scheduling. Missing/corrupt safety journal blocks recovery; deletion after quote approval revokes final send while retaining its reservation; HALT latches in memory before a failing checkpoint | Remaining recorder/quote-action/cashflow interruption matrix and startup after a HALT that could not be durably checkpointed |
 | O.5 simulation/telemetry | Seeded queue-ahead and ACK/cancel latency fixture; candle touch and unattributed prints make no fills | Recorded adversarial scenario suite, complete quality-flagged telemetry, risk-event latency budgets and economic evaluation |
 | O.6 review | Scoped regression and changed-code coverage below | Full spot A01–A39 matrix, changed-code review, named reviewer and reproducible evidence bundle |
 | O.7 SWAP/inventory | Joint pending-fill stress, conservative hedge decision, inventory child/exit-cost journal | Protected SWAP order gateway, authenticated fills/funding/margin, shared coordinator, inventory runner route and mode transitions |
@@ -101,6 +101,15 @@ The final five-suite run for this checkpoint passed **1,082 tests** with 27
 warnings. Changed-line coverage was not rerun after this extension; the 88%
 figure below remains a prior checkpoint, and O.6 is still open.
 
+A subsequent working-tree run passed **1,092 tests** with 28 warnings after
+independently valued LIFE-fee accounting, a fake OKX LIFE-fee gateway replay,
+and safety-journal fail-closed checks, including a stale gate after another
+gate persists HALT.
+The safety tests first failed on an unavailable strict-recovery API and on a
+drawdown checkpoint error that left the gate in `NORMAL`; both now pass.
+The fee tests first failed because attribution accepted only USDT fees.
+This remains an O.2/O.4 checkpoint, not acceptance of either gate.
+
 Coverage used the same regression scope at commit `8525624c0` and `origin/dev`
 as the available local comparison branch. `origin/development` is absent.
 NumPy and Pandas were
@@ -120,6 +129,8 @@ ephemeral and must be regenerated before review.
 | `test_queue_latency_simulation.py::test_unattributed_print_is_unqualified_by_default` | Default `TRADE` filled all 3 LIFE | Zero fill, `PRINT_UNQUALIFIED` |
 | `test_subsidy_runtime_binding.py::test_zero_fill_terminal_releases_hold_only_after_both_journals_agree` | No durable terminal settlement API | Hold released only after both restored journals agree |
 | `test_inventory_execution.py::test_fill_price_fee_and_fixed_benchmark_bound_actual_exit_budget` | No explicit fee or shortfall journal entry | Fee/shortfall preserved across restart and further children blocked at budget |
+| `test_reconciled_fill_attribution.py::test_life_fee_uses_independent_fill_value_and_replays_physical_balance` | LIFE fee could not enter attributed capital/loss | Physical LIFE fee and independent quote cost replay after restart |
+| `test_risk_priority.py::test_halt_checkpoint_failure_latches_memory_and_revokes_permission` | Failed HALT checkpoint left `NORMAL` in memory | Current process remains HALTED and refuses quotes |
 
 ## Replay and economic limits
 

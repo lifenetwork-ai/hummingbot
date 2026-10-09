@@ -135,6 +135,7 @@ def test_capital_drawdown_overrides_synthetic_risk_input_and_latches_halt(tmp_pa
     gate = SafetyGate(tmp_path / "safety.json", max_drawdown_bps=Decimal("500"),
                       min_margin_buffer_quote=Decimal("10"), stable_data_ms=0,
                       recovery_probe_base=Decimal("1"))
+    gate.initialize_empty()
     base = SafetyObservation(100, True, True, True, True, Decimal("0"), Decimal("100"))
     controller.install_runtime_risk_gate(
         gate, observation=lambda: replace(base, observed_monotonic_ms=state["risk_now"]),
@@ -166,6 +167,7 @@ def test_missing_nav_value_pauses_runtime_risk_even_if_base_observer_is_green(tm
     gate = SafetyGate(tmp_path / "safety.json", max_drawdown_bps=Decimal("500"),
                       min_margin_buffer_quote=Decimal("10"), stable_data_ms=0,
                       recovery_probe_base=Decimal("1"))
+    gate.initialize_empty()
     controller.install_runtime_risk_gate(
         gate, observation=lambda: SafetyObservation(
             100, True, True, True, True, Decimal("0"), Decimal("100")),
@@ -201,6 +203,7 @@ def test_persisted_nav_halt_revokes_final_wire_check(tmp_path):
     gate = SafetyGate(tmp_path / "safety.json", max_drawdown_bps=Decimal("500"),
                       min_margin_buffer_quote=Decimal("10"), stable_data_ms=0,
                       recovery_probe_base=Decimal("1"))
+    gate.initialize_empty()
     controller.install_runtime_risk_gate(
         gate, observation=lambda: SafetyObservation(
             state["risk_now"], True, True, True, True, Decimal("0"), Decimal("100")),

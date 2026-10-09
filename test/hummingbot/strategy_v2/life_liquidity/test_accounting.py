@@ -67,3 +67,16 @@ def test_100x_turnover_does_not_dilute_the_same_capital_loss():
     assert low.execution_loss_quote == high.execution_loss_quote == D("0.01")
     assert low.adjusted_nav_quote == high.adjusted_nav_quote == D("1099.99")
     assert low.drawdown_bps == high.drawdown_bps
+
+
+def test_life_fee_on_starting_inventory_sale_is_removed_from_future_exposure():
+    ledger = CapitalLedger(opening_life=D("10"), opening_usdt=D("10"),
+                           opening_independent_price_usdt=D("1"))
+    ledger.record_fill("sale", "SELL", D("1"), D("1"), D("0.011"),
+                       independent_value_usdt=D("1.1"),
+                       fee_currency="LIFE", signed_fee=D("-0.01"))
+    assert ledger.life_balance == D("8.99")
+    assert ledger.usdt_balance == D("11")
+    assert ledger.opening_inventory_remaining == D("8.99")
+    later = ledger.measure(D("1.2"), source_kind="independent_market")
+    assert later.starting_inventory_pnl_quote == D("1.899")

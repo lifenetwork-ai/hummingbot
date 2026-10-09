@@ -36,7 +36,7 @@ class SafetyDecision:
 class SafetyGate:
     def __init__(self, path: Path, *, max_drawdown_bps: Decimal,
                  min_margin_buffer_quote: Decimal, stable_data_ms: int,
-                 recovery_probe_base: Decimal):
+                 recovery_probe_base: Decimal, require_existing: bool = False):
         if (not _valid(max_drawdown_bps, positive=True)
                 or not _valid(min_margin_buffer_quote)
                 or not isinstance(stable_data_ms, int) or stable_data_ms < 0
@@ -51,14 +51,49 @@ class SafetyGate:
         self.reason_code = "STARTUP_REVALIDATION"
         self._good_since_ms: int | None = None
         self._last_seen_ms: int | None = None
+        if require_existing and (self.path.is_symlink() or not self.path.is_file()):
+            raise ValueError("SAFETY_JOURNAL_UNAVAILABLE")
         if self.path.exists():
             with self.path.open(encoding="utf-8") as handle:
                 data = json.load(handle)
-            if data.get("schema_version") != 1 or data.get("halted") not in (True, False):
+            if (data.get("schema_version") != 1
+                    or type(data.get("halted")) is not bool):
                 raise ValueError("safety journal invalid")
             if data["halted"]:
                 self.state = "HALTED"
                 self.reason_code = data.get("reason_code", "HALT_LATCHED")
+
+    def initialize_empty(self) -> None:
+        """Create the first journal explicitly; never replace a recovery journal."""
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            descriptor = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        except FileExistsError as exc:
+            raise ValueError("SAFETY_JOURNAL_ALREADY_EXISTS") from exc
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            json.dump({"schema_version": 1, "halted": False,
+                       "reason_code": "STARTUP_REVALIDATION"}, handle)
+            handle.flush()
+            os.fsync(handle.fileno())
+        directory_fd = os.open(self.path.parent, os.O_RDONLY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+
+    def journal_verified(self) -> bool:
+        """A missing, changed, or unreadable latch cannot authorize risk."""
+        try:
+            if not self.path.is_file() or self.path.is_symlink():
+                return False
+            with self.path.open(encoding="utf-8") as handle:
+                data = json.load(handle)
+            return (data.get("schema_version") == 1
+                    and type(data.get("halted")) is bool
+                    and data["halted"] == (self.state == "HALTED")
+                    and (not data["halted"] or data.get("reason_code") == self.reason_code))
+        except (OSError, ValueError, TypeError, AttributeError):
+            return False
 
     def _persist_halt(self, reason_code: str) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -105,6 +140,8 @@ class SafetyGate:
     def evaluate(self, observation: SafetyObservation) -> SafetyDecision:
         if self.state == "HALTED":
             return self._decision()
+        if not self.journal_verified():
+            return self.invalidate("SAFETY_JOURNAL_UNAVAILABLE")
         now = observation.observed_monotonic_ms
         if not isinstance(now, int) or isinstance(now, bool) or now < 0 or (
                 self._last_seen_ms is not None and now < self._last_seen_ms):
@@ -126,9 +163,7 @@ class SafetyGate:
         else:
             reason = None
         if reason is not None:
-            self._persist_halt(reason)
-            self.state, self.reason_code = "HALTED", reason
-            return self._decision()
+            return self.halt(reason)
         for ready, failure in (
             (observation.account_ready, "ACCOUNT_DATA_UNAVAILABLE"),
             (observation.market_data_fresh, "MARKET_DATA_STALE"),

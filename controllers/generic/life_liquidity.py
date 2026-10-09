@@ -764,6 +764,10 @@ class LifeLiquidityController(ControllerBase):
         if gate is None:
             return True  # Production permission remains disabled separately.
         try:
+            if not gate.journal_verified():
+                decision = gate.invalidate("SAFETY_JOURNAL_UNAVAILABLE")
+                self.runtime_risk_reason_code = decision.reason_code
+                return False
             now = self._runtime_risk_clock_ms()
             observed = self._runtime_risk_observation()
             if (not isinstance(now, int) or isinstance(now, bool)
