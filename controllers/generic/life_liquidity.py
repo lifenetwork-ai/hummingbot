@@ -601,6 +601,10 @@ class LifeLiquidityController(ControllerBase):
             return False
         return planner is None or planner.authorizes_config(action.executor_config)
 
+    def suppress_create_for_stop_batch(self) -> bool:
+        """A LIFE cancellation request takes priority over new risk in one runner batch."""
+        return True
+
     def on_runner_create_action_rejected(self, action) -> bool:
         planner = self._quote_action_planner
         return planner.on_runner_action_rejected(action) if planner is not None else False

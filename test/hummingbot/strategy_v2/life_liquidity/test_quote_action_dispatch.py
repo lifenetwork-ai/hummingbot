@@ -1,8 +1,9 @@
 """Durable quote-action claims and runner rejection evidence (P5.6)."""
 
+import asyncio
 from test.hummingbot.strategy_v2.life_liquidity.test_quote_actions import _setup
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -10,6 +11,7 @@ from hummingbot.strategy.strategy_v2_base import StrategyV2Base
 from hummingbot.strategy_v2.life_liquidity.action_journal import QuoteActionJournal
 from hummingbot.strategy_v2.life_liquidity.quote_actions import QuoteActionPlanner
 from hummingbot.strategy_v2.models.base import RunnableStatus
+from hummingbot.strategy_v2.models.executor_actions import StopExecutorAction
 
 
 def _restarted_planner(controller, planner):
@@ -48,6 +50,98 @@ def test_runner_rejection_is_durable_and_old_action_cannot_be_dispatched(tmp_pat
     assert StrategyV2Base._filter_authorized_actions(runner, [first]) == []
     replacement = planner.propose()
     assert replacement and replacement[0].executor_config.id != first.executor_config.id
+
+
+def test_life_cancel_in_same_batch_discards_new_quote_before_dispatch(tmp_path):
+    controller, planner, _, _, _ = _setup(tmp_path, max_actions=1)
+    controller.install_quote_action_planner(planner)
+    create = planner.propose()[0]
+    stop = StopExecutorAction(controller_id="life", executor_id="old-order")
+    runner = SimpleNamespace(controllers={"life": controller}, logger=lambda: MagicMock())
+
+    assert StrategyV2Base._filter_authorized_actions(runner, [create, stop]) == [stop]
+    assert QuoteActionJournal(planner.action_journal.path).get(create.executor_config.id).state == "REJECTED"
+
+
+def test_life_stop_survives_rejected_claim_persistence_failure(tmp_path):
+    controller, planner, _, _, _ = _setup(tmp_path, max_actions=1)
+    controller.install_quote_action_planner(planner)
+    create = planner.propose()[0]
+    stop = StopExecutorAction(controller_id="life", executor_id="old-order")
+    runner = SimpleNamespace(controllers={"life": controller}, logger=lambda: MagicMock())
+
+    with patch.object(type(controller), "on_runner_create_action_rejected", side_effect=OSError("journal unavailable")):
+        assert StrategyV2Base._filter_authorized_actions(runner, [create, stop]) == [stop]
+    assert QuoteActionJournal(planner.action_journal.path).get(create.executor_config.id).state == "PROPOSED"
+
+
+def test_life_rejection_persistence_failure_without_stop_still_fails_closed(tmp_path):
+    controller, planner, _, _, _ = _setup(tmp_path, max_actions=1)
+    controller.install_quote_action_planner(planner)
+    create = planner.propose()[0]
+    controller.allow_create_executor_actions = lambda: False
+    runner = SimpleNamespace(controllers={"life": controller}, logger=lambda: MagicMock())
+
+    with patch.object(type(controller), "on_runner_create_action_rejected", side_effect=OSError("journal unavailable")):
+        with pytest.raises(OSError, match="journal unavailable"):
+            StrategyV2Base._filter_authorized_actions(runner, [create])
+    assert QuoteActionJournal(planner.action_journal.path).get(create.executor_config.id).state == "PROPOSED"
+
+
+def test_unrelated_controller_keeps_existing_action_batch_order(tmp_path):
+    controller, planner, _, _, _ = _setup(tmp_path, max_actions=1)
+    controller.install_quote_action_planner(planner)
+    create = planner.propose()[0].model_copy(update={"controller_id": "other"})
+    stop = StopExecutorAction(controller_id="other", executor_id="old-order")
+    runner = SimpleNamespace(controllers={"other": object()}, logger=lambda: MagicMock())
+
+    assert StrategyV2Base._filter_authorized_actions(runner, [create, stop]) == [create, stop]
+
+
+def test_v2_tick_dispatches_stop_without_same_batch_life_create(tmp_path):
+    controller, planner, _, _, _ = _setup(tmp_path, max_actions=1)
+    controller.install_quote_action_planner(planner)
+    create = planner.propose()[0]
+    stop = StopExecutorAction(controller_id="life", executor_id="old-order")
+    orchestrator = MagicMock()
+    runner = SimpleNamespace(
+        controllers={"life": controller}, market_data_provider=SimpleNamespace(ready=True),
+        _is_stop_triggered=False, executor_orchestrator=orchestrator,
+        update_executors_info=MagicMock(), update_controllers_configs=MagicMock(),
+        determine_executor_actions=lambda: [create, stop], logger=lambda: MagicMock())
+    runner._filter_authorized_actions = lambda actions: StrategyV2Base._filter_authorized_actions(runner, actions)
+
+    StrategyV2Base.on_tick(runner)
+
+    orchestrator.execute_action.assert_called_once_with(stop)
+    assert QuoteActionJournal(planner.action_journal.path).get(create.executor_config.id).state == "REJECTED"
+
+
+@pytest.mark.asyncio
+async def test_v2_async_queue_dispatches_stop_without_same_batch_life_create(tmp_path):
+    controller, planner, _, _, _ = _setup(tmp_path, max_actions=1)
+    controller.install_quote_action_planner(planner)
+    create = planner.propose()[0]
+    stop = StopExecutorAction(controller_id="life", executor_id="old-order")
+    orchestrator = MagicMock()
+    runner = SimpleNamespace(
+        controllers={"life": controller}, actions_queue=asyncio.Queue(),
+        executor_orchestrator=orchestrator, update_executors_info=MagicMock(),
+        get_executors_by_controller=lambda _: [], logger=lambda: MagicMock())
+    runner._filter_authorized_actions = lambda actions: StrategyV2Base._filter_authorized_actions(runner, actions)
+    task = asyncio.create_task(StrategyV2Base.listen_to_executor_actions(runner))
+    try:
+        await runner.actions_queue.put([create, stop])
+        for _ in range(100):
+            if orchestrator.execute_actions.called:
+                break
+            await asyncio.sleep(0.01)
+        orchestrator.execute_actions.assert_called_once_with([stop])
+        assert QuoteActionJournal(planner.action_journal.path).get(create.executor_config.id).state == "REJECTED"
+    finally:
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
 
 
 def test_ambiguous_dispatch_keeps_durable_claim_across_restart(tmp_path):

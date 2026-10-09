@@ -756,6 +756,17 @@ class StrategyV2Base(StrategyPyBase):
 
     def _filter_authorized_actions(self, actions: List[ExecutorAction]) -> List[ExecutorAction]:
         """Recheck controller create permission after actions leave their queue."""
+        stop_priority_controllers = set()
+        for action in actions:
+            if isinstance(action, StopExecutorAction):
+                controller = self.controllers.get(action.controller_id)
+                opt_in = getattr(type(controller), "suppress_create_for_stop_batch", None)
+                if callable(opt_in):
+                    try:
+                        if opt_in(controller) is True:
+                            stop_priority_controllers.add(action.controller_id)
+                    except Exception:
+                        stop_priority_controllers.add(action.controller_id)
         permitted = []
         for action in actions:
             if isinstance(action, CreateExecutorAction):
@@ -766,8 +777,11 @@ class StrategyV2Base(StrategyPyBase):
                     permitted.append(action)
                     continue
                 create_allowed = getattr(controller, "allow_create_executor_actions", None)
-                authorized = True
-                if callable(create_allowed):
+                authorized = action.controller_id not in stop_priority_controllers
+                if not authorized:
+                    self.logger().warning(
+                        f"Ignoring create action while stop is pending for controller {action.controller_id}")
+                if authorized and callable(create_allowed):
                     try:
                         if not create_allowed():
                             self.logger().warning(f"Ignoring blocked create action for controller {action.controller_id}")
@@ -784,7 +798,14 @@ class StrategyV2Base(StrategyPyBase):
                 if not authorized:
                     rejected = getattr(type(controller), "on_runner_create_action_rejected", None)
                     if callable(rejected):
-                        rejected(controller, action)
+                        try:
+                            rejected(controller, action)
+                        except Exception:
+                            if action.controller_id not in stop_priority_controllers:
+                                raise
+                            # Cancellation must still run. A failed durable rejection
+                            # leaves the create claim unresolved for reconciliation.
+                            self.logger().error("Controller create-rejection hook failed", exc_info=True)
                     continue
             permitted.append(action)
         return permitted
