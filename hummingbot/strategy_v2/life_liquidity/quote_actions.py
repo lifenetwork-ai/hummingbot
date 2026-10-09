@@ -14,8 +14,9 @@ from typing import Callable
 from hummingbot.core.data_type.common import TradeType
 from hummingbot.strategy_v2.executors.order_executor.data_types import ExecutionStrategy, OrderExecutorConfig
 from hummingbot.strategy_v2.life_liquidity.action_journal import QuoteActionJournal, QuoteActionRecord
-from hummingbot.strategy_v2.life_liquidity.config import QuotesConfig
+from hummingbot.strategy_v2.life_liquidity.config import QuotesConfig, parse_duration_seconds
 from hummingbot.strategy_v2.life_liquidity.economics import EconomicPolicy
+from hummingbot.strategy_v2.life_liquidity.fees import FeeQuoteBinding
 from hummingbot.strategy_v2.life_liquidity.loss_budget import LossBudgetStatus
 from hummingbot.strategy_v2.life_liquidity.market_data import InstrumentRules
 from hummingbot.strategy_v2.life_liquidity.reference import ReferenceEngine
@@ -62,14 +63,35 @@ class QuotePlanningSnapshot:
 
 
 class QuoteActionPlanner:
+    @staticmethod
+    def _fee_binding_matches_config(binding: FeeQuoteBinding, config) -> bool:
+        if not isinstance(binding, FeeQuoteBinding):
+            return False
+        economics = config.strategy.economics
+        try:
+            age_matches = (Decimal(binding.max_age_ms)
+                           == parse_duration_seconds(economics.fee_max_age) * Decimal("1000"))
+        except (AttributeError, TypeError, ValueError):
+            return False
+        return (binding.account_id == config.recovery_account_uid
+                and binding.connector_name == config.strategy.spot.connector
+                and binding.instrument_id == config.strategy.spot.pair
+                and binding.fee_policy == economics.fee_policy
+                and binding.fee_ceiling_bps == economics.fee_ceiling_bps
+                and age_matches)
+
     def __init__(self, controller, *, wal: IntentWAL, reservations: ReservationLedger,
                  snapshot: Callable[[], QuotePlanningSnapshot],
                  monotonic_clock: Callable[[], float],
                  intent_id_factory: Callable[[], str], max_actions_per_tick: int,
-                 reference_engine: ReferenceEngine | None = None):
+                 reference_engine: ReferenceEngine | None = None,
+                 fee_binding: FeeQuoteBinding | None = None):
         if (not isinstance(max_actions_per_tick, int) or isinstance(max_actions_per_tick, bool)
                 or max_actions_per_tick <= 0):
             raise ValueError("QUOTE_ACTION_LIMIT_INVALID")
+        if fee_binding is not None and not self._fee_binding_matches_config(
+                fee_binding, controller.config):
+            raise ValueError("FEE_QUOTE_BINDING_INVALID")
         self.controller = controller
         self.manager = controller._order_safety_manager
         self.wal = wal
@@ -79,6 +101,8 @@ class QuoteActionPlanner:
         self.intent_id_factory = intent_id_factory
         self.max_actions_per_tick = max_actions_per_tick
         self.reference_engine = reference_engine
+        self.fee_binding = fee_binding
+        self.fee_reason_code = "FEE_BINDING_NOT_INSTALLED"
         self.slots = SpotQuoteSlots(wal, market=controller.config.strategy.spot.pair)
         self.action_journal = QuoteActionJournal(
             wal.path.with_name("quote_actions.json"),
@@ -370,7 +394,18 @@ class QuoteActionPlanner:
                         reference_ready=True, all_gates_ready=True,
                         market_reference_ready=observed.market_reference_ready is True))):
                 return None
+            if self.fee_binding is not None:
+                if not self._fee_binding_matches_config(
+                        self.fee_binding, self.controller.config):
+                    self.fee_reason_code = "FEE_BINDING_CONFIG_MISMATCH"
+                    return None
+                fee_decision = self.fee_binding.evaluate(observed.costs)
+                self.fee_reason_code = fee_decision.reason_code
+                if not fee_decision.allowed:
+                    return None
         except Exception:
+            if self.fee_binding is not None:
+                self.fee_reason_code = "FEE_BINDING_UNAVAILABLE"
             return None
         self.last_qualified_snapshot = observed
         return observed

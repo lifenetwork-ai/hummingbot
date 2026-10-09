@@ -7,7 +7,9 @@ trade-fee response, so only actual fills can establish a fee currency amount.
 import re
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
-from typing import Any
+from typing import Any, Callable
+
+from hummingbot.strategy_v2.life_liquidity.spot_quotes import QuoteCosts
 
 FEE_RATES_PATH = "/api/v5/account/trade-fee"
 
@@ -123,6 +125,101 @@ class FeeRateSnapshot:
         if liquidity == "taker":
             return max(self.taker_cost_rate, Decimal("0"))
         raise FeeDataError("FEE_LIQUIDITY_INVALID")
+
+
+@dataclass(frozen=True)
+class FeeQuoteDecision:
+    allowed: bool
+    reason_code: str
+    required_maker_rate: Decimal | None
+    required_exit_rate: Decimal | None
+
+
+class FeeQuoteBinding:
+    """Opt-in, account-bound fee check repeated at planning and final send."""
+
+    def __init__(self, *, snapshot: Callable[[], FeeRateSnapshot | None],
+                 exchange_now_ms: Callable[[], int], account_id: str,
+                 connector_name: str, instrument_id: str, group_id: str,
+                 max_age_ms: int, fee_policy: str,
+                 fee_ceiling_bps: Decimal | None = None):
+        if (not callable(snapshot) or not callable(exchange_now_ms)
+                or any(not isinstance(value, str) or not value for value in (
+                    account_id, connector_name, instrument_id, group_id))
+                or not isinstance(max_age_ms, int) or isinstance(max_age_ms, bool)
+                or max_age_ms <= 0 or fee_policy not in ("pause", "conservative_ceiling")
+                or fee_policy == "pause" and fee_ceiling_bps is not None
+                or fee_policy == "conservative_ceiling" and (
+                    not isinstance(fee_ceiling_bps, Decimal)
+                    or not fee_ceiling_bps.is_finite() or fee_ceiling_bps <= 0)):
+            raise FeeDataError("FEE_QUOTE_POLICY_INVALID")
+        self.snapshot = snapshot
+        self.exchange_now_ms = exchange_now_ms
+        self.account_id = account_id
+        self.connector_name = connector_name
+        self.instrument_id = instrument_id
+        self.group_id = group_id
+        self.max_age_ms = max_age_ms
+        self.fee_policy = fee_policy
+        self.fee_ceiling_bps = fee_ceiling_bps
+
+    @staticmethod
+    def _deny(reason: str) -> FeeQuoteDecision:
+        return FeeQuoteDecision(False, reason, None, None)
+
+    def evaluate(self, costs: QuoteCosts) -> FeeQuoteDecision:
+        if (not isinstance(costs, QuoteCosts)
+                or any(not isinstance(rate, Decimal) or not rate.is_finite() or rate < 0
+                       for rate in (costs.maker_fee_rate, costs.exit_fee_rate))):
+            return self._deny("FEE_COST_INPUT_INVALID")
+        try:
+            now = self.exchange_now_ms()
+        except Exception:
+            return self._deny("FEE_CLOCK_INVALID")
+        if not isinstance(now, int) or isinstance(now, bool) or now <= 0:
+            return self._deny("FEE_CLOCK_INVALID")
+        try:
+            observed = self.snapshot()
+        except Exception:
+            observed = None
+        if observed is not None:
+            if not isinstance(observed, FeeRateSnapshot):
+                return self._deny("FEE_SNAPSHOT_INVALID")
+            if (observed.account_id != self.account_id
+                    or observed.connector_name != self.connector_name
+                    or observed.inst_type != "SPOT"
+                    or observed.instrument_id != self.instrument_id
+                    or observed.group_id != self.group_id
+                    or observed.notional_currency != "USDT"
+                    or observed.fee_currency is not None):
+                return self._deny("FEE_IDENTITY_MISMATCH")
+            if any(not isinstance(rate, Decimal) or not rate.is_finite()
+                   for rate in (observed.maker_cost_rate, observed.taker_cost_rate)):
+                return self._deny("FEE_SNAPSHOT_INVALID")
+            if (not isinstance(observed.exchange_timestamp_ms, int)
+                    or isinstance(observed.exchange_timestamp_ms, bool)
+                    or observed.exchange_timestamp_ms <= 0):
+                return self._deny("FEE_SNAPSHOT_INVALID")
+            if observed.is_fresh(exchange_now_ms=now, max_age_ms=self.max_age_ms):
+                maker = observed.conservative_cost_rate("maker")
+                exit_rate = observed.conservative_cost_rate("taker")
+                if (self.fee_ceiling_bps is not None
+                        and max(maker, exit_rate) * Decimal("10000") > self.fee_ceiling_bps):
+                    return self._deny("FEE_CEILING_BREACHED")
+                reason = "FEE_ACCOUNT_RATE_READY"
+            else:
+                observed = None
+                reason = "FEE_RATE_STALE"
+        else:
+            reason = "FEE_RATE_UNAVAILABLE"
+        if observed is None:
+            if self.fee_policy != "conservative_ceiling":
+                return self._deny(reason)
+            maker = exit_rate = self.fee_ceiling_bps / Decimal("10000")
+            reason = "FEE_CEILING_FALLBACK"
+        if costs.maker_fee_rate < maker or costs.exit_fee_rate < exit_rate:
+            return self._deny("FEE_COST_UNDERSTATED")
+        return FeeQuoteDecision(True, reason, maker, exit_rate)
 
 
 class OkxFeeRateSource:
