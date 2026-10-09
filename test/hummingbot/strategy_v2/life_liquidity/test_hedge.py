@@ -57,6 +57,8 @@ def test_disconnect_timeout_retry_and_cost_block_new_spot_risk():
     contract = LinearLifeContractSpec(D("0.5"), D("0.1"))
     assert plan_life_hedge(_policy(), _observation(
         connector_ready=False), contract).reason_code == "HEDGE_CONNECTOR_UNAVAILABLE"
+    assert not plan_life_hedge(_policy(), _observation(
+        perp_contracts_signed=D("-20"), connector_ready=False), contract).allow_spot_risk_increase
     assert plan_life_hedge(_policy(), _observation(
         retry_attempts=2), contract).reason_code == "HEDGE_RETRY_CAP"
     assert plan_life_hedge(_policy(), _observation(

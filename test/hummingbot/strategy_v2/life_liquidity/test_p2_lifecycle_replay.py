@@ -24,6 +24,8 @@ async def test_unlisted_auction_live_disconnect_resync_and_stale_lifecycle():
     controller.market_data_provider.ready = False
     controller.market_data_provider.initialize_order_book = AsyncMock(return_value=True)
     controller.trading_permissions_ready = lambda: True  # Isolate P2 permits; the live P4 gate stays disabled.
+    controller._joint_risk_ready = lambda: True  # Isolate P2 from the new opt-in P6 risk gates.
+    controller._hedge_ready = lambda: True
     state = {"phase": "unlisted", "now": 0, "server_ms": 2000, "book_ms": 1900,
              "health": BookFeedHealth(reason_code="BOOK_FEED_UNAVAILABLE")}
     book = SimpleNamespace(get_price=lambda is_buy: 1.1 if is_buy else 1)

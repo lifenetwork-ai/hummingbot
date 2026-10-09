@@ -29,6 +29,13 @@ from hummingbot.strategy_v2.life_liquidity.capital_risk import CapitalRiskMonito
 from hummingbot.strategy_v2.life_liquidity.config import ConfigUpdateState, StrategyConfig
 from hummingbot.strategy_v2.life_liquidity.executor_send import ProtectedSpotExecutorSender
 from hummingbot.strategy_v2.life_liquidity.fill_attribution import ReconciledFillAttributor
+from hummingbot.strategy_v2.life_liquidity.hedge import HedgeObservation, HedgePolicy, plan_life_hedge
+from hummingbot.strategy_v2.life_liquidity.joint_exposure import (
+    JointExposureObservation,
+    JointRiskLimits,
+    LinearLifeContractSpec,
+    evaluate_joint_exposure,
+)
 from hummingbot.strategy_v2.life_liquidity.loss_budget import LossBudgetLedger, LossBudgetStatus
 from hummingbot.strategy_v2.life_liquidity.market_data import (
     BenchmarkConnectorRoute,
@@ -164,6 +171,13 @@ class LifeLiquidityController(ControllerBase):
         self._runtime_risk_clock_ms: Callable[[], int] | None = None
         self._runtime_risk_max_age_ms: int | None = None
         self.runtime_risk_reason_code = "RUNTIME_RISK_NOT_INSTALLED"
+        self._joint_contract: LinearLifeContractSpec | None = None
+        self._joint_limits: JointRiskLimits | None = None
+        self._joint_observation: Callable[[], JointExposureObservation] | None = None
+        self.joint_risk_reason_code = "JOINT_RISK_NOT_INSTALLED"
+        self._hedge_policy: HedgePolicy | None = None
+        self._hedge_observation: Callable[[], HedgeObservation] | None = None
+        self.hedge_reason_code = "HEDGE_GATE_NOT_INSTALLED"
         self._execution_loss_budget: LossBudgetLedger | None = None
         self._execution_loss_utc_clock: Callable[[], datetime] | None = None
         self.execution_loss_status: LossBudgetStatus | None = None
@@ -641,6 +655,86 @@ class LifeLiquidityController(ControllerBase):
         self._runtime_risk_max_age_ms = max_observation_age_ms
         self.runtime_risk_reason_code = "RUNTIME_RISK_STARTUP_REVALIDATION"
 
+    def install_joint_risk_gate(self, contract: LinearLifeContractSpec,
+                                limits: JointRiskLimits, *,
+                                observation: Callable[[], JointExposureObservation]) -> None:
+        metadata = self.perpetual_contract
+        if (not self.config.strategy.perpetual.enabled
+                or self._joint_contract is not None
+                or not isinstance(contract, LinearLifeContractSpec)
+                or not isinstance(limits, JointRiskLimits)
+                or not callable(observation)
+                or metadata is None
+                or metadata.instrument != f"{self.config.strategy.perpetual.pair}-SWAP"
+                or metadata.contract_value_life != contract.ct_val_base
+                or metadata.lot_size_contracts != contract.lot_contracts):
+            raise ValueError("JOINT_RISK_BINDING_INVALID")
+        self._joint_contract = contract
+        self._joint_limits = limits
+        self._joint_observation = observation
+
+    def install_hedge_gate(self, policy: HedgePolicy, *,
+                           observation: Callable[[], HedgeObservation]) -> None:
+        metadata = self.perpetual_contract
+        if (not self.config.strategy.perpetual.enabled
+                or self._hedge_policy is not None
+                or self._joint_contract is None
+                or not isinstance(policy, HedgePolicy)
+                or not callable(observation)
+                or metadata is None or policy.life_swap_instrument != metadata.instrument):
+            raise ValueError("HEDGE_GATE_BINDING_INVALID")
+        self._hedge_policy = policy
+        self._hedge_observation = observation
+
+    def _joint_risk_ready(self) -> bool:
+        if not self.config.strategy.perpetual.enabled:
+            return True
+        contract = self._joint_contract
+        metadata = self.perpetual_contract
+        if (contract is None or self._joint_limits is None
+                or self._joint_observation is None or metadata is None
+                or metadata.instrument != f"{self.config.strategy.perpetual.pair}-SWAP"
+                or metadata.contract_value_life != contract.ct_val_base
+                or metadata.lot_size_contracts != contract.lot_contracts):
+            self.joint_risk_reason_code = "JOINT_RISK_NOT_INSTALLED"
+            return False
+        try:
+            observed = self._joint_observation()
+            reservations = self._order_safety_reservations
+            if reservations is None:
+                self.joint_risk_reason_code = "JOINT_SPOT_RESERVATION_UNAVAILABLE"
+                return False
+            spot = reservations.preview()
+            if (not isinstance(observed, JointExposureObservation)
+                    or observed.spot_life_base != reservations.life_balance
+                    or observed.spot_buy_pending_base != spot.unresolved_quantity_base("BUY")
+                    or observed.spot_sell_pending_base != spot.unresolved_quantity_base("SELL")):
+                self.joint_risk_reason_code = "JOINT_SPOT_RESERVATION_MISMATCH"
+                return False
+            decision = evaluate_joint_exposure(
+                contract, observed, self._joint_limits)
+            self.joint_risk_reason_code = decision.reason_code
+            return decision.allowed
+        except Exception:
+            self.joint_risk_reason_code = "JOINT_RISK_OBSERVATION_UNAVAILABLE"
+            return False
+
+    def _hedge_ready(self) -> bool:
+        if not self.config.strategy.perpetual.enabled:
+            return True
+        if (self._joint_contract is None or self._hedge_policy is None
+                or self._hedge_observation is None):
+            self.hedge_reason_code = "HEDGE_GATE_NOT_INSTALLED"
+            return False
+        try:
+            decision = plan_life_hedge(
+                self._hedge_policy, self._hedge_observation(), self._joint_contract)
+            self.hedge_reason_code = decision.reason_code
+            return decision.allow_spot_risk_increase
+        except Exception:
+            self.hedge_reason_code = "HEDGE_OBSERVATION_UNAVAILABLE"
+            return False
+
     def _runtime_risk_ready(self) -> bool:
         gate = self._runtime_risk_gate
         if gate is None:
@@ -1109,7 +1203,8 @@ class LifeLiquidityController(ControllerBase):
             if manager.state == "PAUSED" and self._observed_session_state != "PAUSED":
                 self._pause_reconciliation_required = True
                 self.order_safety_reason_code = "RECONCILIATION_REQUIRED"
-            risk_ready = self._runtime_risk_ready()
+            risk_ready = (self._runtime_risk_ready() and self._joint_risk_ready()
+                          and self._hedge_ready())
             loss_ready = risk_ready and self._execution_loss_ready()
             accounting_ready = loss_ready and self._fill_attribution_ready()
             markout_ready = accounting_ready and self._markout_risk_ready()
@@ -1272,6 +1367,8 @@ class LifeLiquidityController(ControllerBase):
 
     def allow_create_executor_actions(self) -> bool:
         if not self._runtime_risk_ready():
+            return False
+        if not self._joint_risk_ready() or not self._hedge_ready():
             return False
         if not self._execution_loss_ready():
             return False
