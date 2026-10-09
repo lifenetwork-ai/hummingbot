@@ -7,6 +7,7 @@ order, and release gates are implemented. Loading this module cannot place order
 import asyncio
 import time
 from collections.abc import Mapping
+from dataclasses import replace
 from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -24,6 +25,7 @@ from hummingbot.strategy_v2.life_liquidity import account_lock
 from hummingbot.strategy_v2.life_liquidity.account_bills import CashflowApprovals, SpotBillReconciler
 from hummingbot.strategy_v2.life_liquidity.account_lock import AccountLockUnavailable, AccountRiskPoolLock
 from hummingbot.strategy_v2.life_liquidity.action_journal import QuoteActionJournal
+from hummingbot.strategy_v2.life_liquidity.capital_risk import CapitalRiskMonitor
 from hummingbot.strategy_v2.life_liquidity.config import ConfigUpdateState, StrategyConfig
 from hummingbot.strategy_v2.life_liquidity.executor_send import ProtectedSpotExecutorSender
 from hummingbot.strategy_v2.life_liquidity.fill_attribution import ReconciledFillAttributor
@@ -167,6 +169,7 @@ class LifeLiquidityController(ControllerBase):
         self.execution_loss_reason_code = "EXECUTION_LOSS_BUDGET_NOT_INSTALLED"
         self._fill_attributor: ReconciledFillAttributor | None = None
         self.fill_attribution_reason_code = "FILL_ATTRIBUTION_NOT_INSTALLED"
+        self._capital_risk_monitor: CapitalRiskMonitor | None = None
         self._quote_action_recovery_ready = False
         self._quote_action_recovery_records = None
         self.quote_action_recovery_reason_code = "QUOTE_ACTION_RECOVERY_NOT_CONFIGURED"
@@ -646,7 +649,13 @@ class LifeLiquidityController(ControllerBase):
                   or now - observed.observed_monotonic_ms > self._runtime_risk_max_age_ms):
                 decision = gate.invalidate("RISK_OBSERVATION_STALE")
             else:
-                decision = gate.evaluate(observed)
+                monitor = self._capital_risk_monitor
+                if monitor is None:
+                    decision = gate.evaluate(observed)
+                else:
+                    capital = monitor.measure()
+                    decision = (gate.invalidate("CAPITAL_VALUATION_UNAVAILABLE") if capital is None
+                                else gate.evaluate(replace(observed, drawdown_bps=capital.drawdown_bps)))
         except Exception:
             decision = gate.invalidate("RISK_OBSERVATION_UNAVAILABLE")
         self.runtime_risk_reason_code = decision.reason_code
@@ -737,6 +746,17 @@ class LifeLiquidityController(ControllerBase):
         self.fill_attribution_reason_code = (
             "FILL_ATTRIBUTION_READY" if ready else "FILL_ATTRIBUTION_UNRESOLVED")
         return ready
+
+    def install_capital_risk_monitor(self, monitor: CapitalRiskMonitor) -> None:
+        """Use qualified, cash-flow-adjusted NAV for the opt-in safety gate."""
+        if (self._capital_risk_monitor is not None or not isinstance(monitor, CapitalRiskMonitor)
+                or self._runtime_risk_gate is None or monitor.attributor is not self._fill_attributor):
+            raise ValueError("CAPITAL_RISK_BINDING_INVALID")
+        if self.config.recovery_state_dir is not None and (
+                monitor.path != Path(self.config.recovery_state_dir) / "capital_risk.json"
+                or monitor.path.is_symlink()):
+            raise ValueError("CAPITAL_RISK_RECOVERY_MISMATCH")
+        self._capital_risk_monitor = monitor
 
     def authorize_runner_create_action(self, action) -> bool:
         planner = self._quote_action_planner
