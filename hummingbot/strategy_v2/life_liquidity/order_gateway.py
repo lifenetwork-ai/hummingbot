@@ -148,7 +148,8 @@ class OkxSpotOrderGateway:
                  scope_check: Callable[[str, int, tuple[str, ...]], bool] | None = None,
                  runner_scope_check: Callable[[], bool] | None = None,
                  cancel_retry_policy: CancelRetryPolicy | None = None,
-                 request_budget: AccountRequestBudget | None = None):
+                 request_budget: AccountRequestBudget | None = None,
+                 on_terminal_reconciled: Callable[[str, Decimal], bool] | None = None):
         if not trading_pair:
             raise ValueError("trading pair required")
         if cancel_retry_policy is not None and not isinstance(cancel_retry_policy, CancelRetryPolicy):
@@ -168,6 +169,7 @@ class OkxSpotOrderGateway:
         self.runner_scope_check = runner_scope_check
         self.cancel_retry_policy = cancel_retry_policy
         self.request_budget = request_budget
+        self.on_terminal_reconciled = on_terminal_reconciled
 
     def _charge_request(self, kind: str) -> None:
         if self.request_budget is not None:
@@ -589,9 +591,15 @@ class OkxSpotOrderGateway:
             try:
                 if self.confirm_terminal(wire_id, state, cumulative):
                     self.wal.mark_terminal(intent_id, exchange_id)
+                    if self.on_terminal_reconciled is not None:
+                        completed = self.on_terminal_reconciled(intent_id, cumulative)
+                        if isawaitable(completed):
+                            completed = await completed
+                        if completed is not True:
+                            fills_reconciled = False
                 else:
                     fills_reconciled = False
-            except (KeyError, TypeError, ValueError, OSError):
+            except Exception:
                 fills_reconciled = False
         return OrderReconciliation(
             session_id=session_id, epoch=epoch, observed_at=self.clock(),

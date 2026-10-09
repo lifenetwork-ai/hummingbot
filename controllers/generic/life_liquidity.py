@@ -843,7 +843,8 @@ class LifeLiquidityController(ControllerBase):
                         configured.session or configured.day or configured.campaign)
                     or planner is not None and planner.subsidy_budget is not subsidy
                     or self.config.recovery_state_dir is not None
-                    and subsidy.path != Path(self.config.recovery_state_dir) / "subsidy_budget.json"):
+                    and subsidy.path != Path(self.config.recovery_state_dir) / "subsidy_budget.json"
+                    or gateway.on_terminal_reconciled is not None):
                 raise ValueError("FILL_SUBSIDY_BINDING_INVALID")
         account = getattr(gateway.account_check, "__self__", None)
         bills = account.bills if isinstance(account, SpotAccountReconciler) else None
@@ -861,6 +862,16 @@ class LifeLiquidityController(ControllerBase):
             return attributor.apply(wire_id, fills)
 
         gateway.apply_fills = apply_and_attribute
+        if self.config.strategy.economics.objective == "liquidity_service":
+            def settle_service_terminal(intent_id: str, cumulative: Decimal) -> bool:
+                if not attributor.ready():
+                    return False
+                if cumulative == 0:
+                    subsidy.settle_zero_fill_terminal(intent_id, wal=attributor.wal,
+                                                      reservations=attributor.reservations)
+                return True
+
+            gateway.on_terminal_reconciled = settle_service_terminal
         if bills is not None:
             bills.on_cashflows_applied = attributor.apply_approved_cashflows
         self._fill_attributor = attributor

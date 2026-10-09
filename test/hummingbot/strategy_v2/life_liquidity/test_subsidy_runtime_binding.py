@@ -3,8 +3,9 @@
 from dataclasses import replace
 from datetime import datetime, timezone
 from decimal import Decimal
-from test.hummingbot.strategy_v2.life_liquidity.test_executor_protected_send import _setup
+from test.hummingbot.strategy_v2.life_liquidity.test_executor_protected_send import Connector, _setup
 from test.hummingbot.strategy_v2.life_liquidity.test_final_quote_send import _attach_quote_planner
+from test.hummingbot.strategy_v2.life_liquidity.test_order_gateway import FakeOkx
 
 import pytest
 
@@ -14,7 +15,12 @@ from hummingbot.strategy_v2.life_liquidity.config import SubsidyBudgetConfig
 from hummingbot.strategy_v2.life_liquidity.economics import EconomicPolicy, SubsidyBudgetLedger
 from hummingbot.strategy_v2.life_liquidity.fill_attribution import IndependentFillObservation, ReconciledFillAttributor
 from hummingbot.strategy_v2.life_liquidity.loss_budget import LossBudgetLedger
-from hummingbot.strategy_v2.life_liquidity.order_gateway import SpotFill, SpotReservationReconciler
+from hummingbot.strategy_v2.life_liquidity.order_gateway import (
+    OkxSpotOrderGateway,
+    SpotAccountReconciler,
+    SpotFill,
+    SpotReservationReconciler,
+)
 from hummingbot.strategy_v2.life_liquidity.spot_quotes import QuoteCosts
 from hummingbot.strategy_v2.life_liquidity.state import IntentWAL
 
@@ -23,8 +29,22 @@ NOW_MS = int(NOW.timestamp() * 1000)
 D = Decimal
 
 
-def _service(tmp_path):
-    controller, template, connector, wal, reservations, _ = _setup(tmp_path)
+class FakeServiceOkx(Connector, FakeOkx):
+    def __init__(self):
+        Connector.__init__(self)
+        FakeOkx.__init__(self)
+
+    def enable_protected_trading_pair(self, pair):
+        self.armed.append(pair)
+
+    def submit_protected_order(self, **kwargs):
+        self.sent.append(kwargs)
+        return kwargs["order_id"]
+
+
+def _service(tmp_path, *, connector=None):
+    controller, template, connector, wal, reservations, _ = _setup(
+        tmp_path, connector=connector)
     limits = SubsidyBudgetConfig(campaign=D("1"), day=D("0.1"), session=D("0.05"))
     economics = controller.config.strategy.economics.model_copy(update={
         "objective": "liquidity_service", "subsidy_budget_quote": limits})
@@ -48,8 +68,9 @@ def _service(tmp_path):
     return controller, template, connector, wal, reservations, book, state
 
 
-def _queue_service(tmp_path):
-    controller, template, connector, wal, reservations, book, state = _service(tmp_path)
+def _queue_service(tmp_path, *, connector=None):
+    controller, template, connector, wal, reservations, book, state = _service(
+        tmp_path, connector=connector)
     actions = controller.determine_executor_actions()
     assert len(actions) == 1
     executor = OrderExecutor(template._strategy, actions[0].executor_config)
@@ -144,6 +165,62 @@ def test_zero_fill_terminal_cannot_release_a_partial_fill_hold(tmp_path):
     with pytest.raises(ValueError, match="SUBSIDY_RELEASE_UNPROVEN"):
         book.settle_zero_fill_terminal(intent_id, wal=wal, reservations=reservations)
     assert book.campaign_committed_quote == D("0.0098")
+
+
+@pytest.mark.asyncio
+async def test_gateway_terminal_reconciliation_settles_zero_fill_service_hold(tmp_path):
+    connector = FakeServiceOkx()
+    controller, _, wal, reservations, subsidy, _, executor, wire = _queue_service(
+        tmp_path, connector=connector)
+    session = controller._order_safety_manager.current_session
+    loss = LossBudgetLedger(
+        tmp_path / "loss_budget.json", campaign_id="life",
+        campaign_limit_quote=D("1"), day_limit_quote=D("1"), session_limit_quote=D("1"))
+    loss.record("opening", D("0"), session_id=session.session_id, at_utc=NOW)
+    reconciler = SpotReservationReconciler(wal, reservations, require_fees=True)
+    gateway = OkxSpotOrderGateway(
+        connector, wal, trading_pair="LIFE-USDT", clock=lambda: NOW,
+        apply_fills=reconciler.apply_fills, confirm_terminal=reconciler.confirm_terminal,
+        on_cancel_requested=reconciler.request_cancel, on_unknown=reconciler.mark_unknown,
+        account_check=SpotAccountReconciler(connector, reservations).check)
+    controller.install_order_safety(controller._order_safety_manager, gateway, wal,
+                                    reservations=reservations)
+    controller.install_execution_loss_budget(loss, utc_clock=lambda: NOW)
+    attributor = ReconciledFillAttributor(
+        tmp_path / "fill_attribution.json", wal=wal, reservations=reservations,
+        loss_budget=loss, subsidy_budget=subsidy,
+        opening_life=D("10"), opening_usdt=D("10"),
+        opening_independent_price_usdt=D("1"),
+        independent_value=lambda _: None, max_reference_skew_ms=200, create=True)
+    controller.install_fill_attributor(attributor)
+    wire_id = wire["clOrdId"]
+    connector.status[wire_id] = {"clOrdId": wire_id, "ordId": "exchange-1",
+                                 "state": "canceled", "accFillSz": "0"}
+    connector.fills["exchange-1"] = []
+    connector.open_pages[None] = [{"clOrdId": "manual", "ordId": "foreign",
+                                   "instId": "BTC-USDT", "state": "live"}]
+    incomplete = await gateway.reconcile(session.session_id, session.epoch)
+    assert not incomplete.scope_complete
+    assert subsidy.campaign_committed_quote == D("0.0098")
+    connector.open_pages[None] = []
+    settle = gateway.on_terminal_reconciled
+
+    def fail_settlement(*_):
+        raise OSError("subsidy journal unavailable")
+
+    gateway.on_terminal_reconciled = fail_settlement
+    unsettled = await gateway.reconcile(session.session_id, session.epoch)
+    assert unsettled.scope_complete and not unsettled.trade_events_reconciled
+    assert subsidy.campaign_committed_quote == D("0.0098")
+    gateway.on_terminal_reconciled = settle
+    complete = await gateway.reconcile(session.session_id, session.epoch)
+    assert complete.scope_complete and complete.trade_events_reconciled
+    assert wal.get(executor.config.id).state == "TERMINAL"
+    assert reservations.is_terminal_intent(executor.config.id)
+    assert subsidy.campaign_committed_quote == 0
+    again = await gateway.reconcile(session.session_id, session.epoch)
+    assert again.scope_complete and again.trade_events_reconciled
+    assert subsidy.campaign_committed_quote == 0
 
 
 def test_changed_config_budget_revokes_queued_service_order(tmp_path):
