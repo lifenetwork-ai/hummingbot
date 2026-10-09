@@ -1,8 +1,11 @@
 """Crash points across the spot runner, WAL, reservation journal, and gateway."""
 
 import asyncio
+import subprocess
+import sys
 from datetime import datetime, timezone
 from decimal import Decimal
+from pathlib import Path
 from test.hummingbot.strategy_v2.life_liquidity.test_controller_order_safety import (
     _cashflows,
     _limits,
@@ -130,6 +133,61 @@ async def test_restart_replays_terminal_reservation_when_wal_checkpoint_failed(t
         assert IntentWAL(wal.path).get("i1").state == "TERMINAL"
         assert ReservationLedger.restore(ledger.path, limits=_limits()).life_balance == Decimal("10")
         assert connector.cancels == []  # terminal status was already persisted before the crash
+    finally:
+        controller.stop()
+
+
+@pytest.mark.asyncio
+async def test_killed_process_after_reservation_replace_replays_terminal_wal(tmp_path, monkeypatch):
+    monkeypatch.setattr(account_lock, "ACCOUNT_LOCK_ROOT", tmp_path / "locks")
+    directory = tmp_path / "recovery"
+    _seed_recovery(directory)
+    wal = IntentWAL(directory / "intents.json")
+    assert wal.get("i1").state == "SEND_UNKNOWN"
+    wal.acknowledge("i1", "exchange-1")
+    ledger_path = directory / "reservations.json"
+    child = """
+import os
+import sys
+from decimal import Decimal
+from pathlib import Path
+from hummingbot.strategy_v2.life_liquidity import risk
+from hummingbot.strategy_v2.life_liquidity.risk import ReservationLedger, RiskLimits
+from hummingbot.strategy_v2.life_liquidity.state import IntentWAL
+
+wal_path, ledger_path = map(Path, sys.argv[1:])
+IntentWAL(wal_path).mark_exchange_terminal_observed("i1", "exchange-1")
+ledger = ReservationLedger.restore(
+    ledger_path, limits=RiskLimits(Decimal("0"), Decimal("20"), Decimal("20"), Decimal("20")))
+original_replace = risk.os.replace
+
+def replace_then_die(source, destination):
+    original_replace(source, destination)
+    if Path(destination) == ledger_path:
+        os._exit(23)
+
+risk.os.replace = replace_then_die
+ledger.confirm_terminal("i1", cumulative_filled=Decimal("0"),
+                        fills_reconciled=True, exchange_state="CANCELED")
+raise AssertionError("process should have exited during the reservation checkpoint")
+"""
+    process = subprocess.run(
+        [sys.executable, "-c", child, str(wal.path), str(ledger_path)],
+        cwd=Path(__file__).resolve().parents[4], capture_output=True, text=True, timeout=15)
+    assert process.returncode == 23, process.stderr
+    interrupted = IntentWAL(wal.path).get("i1")
+    assert interrupted.state == "ACKED" and interrupted.exchange_terminal_observed
+    assert ReservationLedger.restore(ledger_path, limits=_limits()).is_terminal_intent("i1")
+
+    connector = _connector(state="canceled")
+    controller = _controller(directory, connector)
+    try:
+        controller.on_safety_tick(1)
+        await controller.order_safety_task
+        assert IntentWAL(wal.path).get("i1").state == "TERMINAL"
+        assert ReservationLedger.restore(ledger_path, limits=_limits()).is_terminal_intent("i1")
+        assert connector.cancels == []
+        assert not controller.allow_create_executor_actions()
     finally:
         controller.stop()
 

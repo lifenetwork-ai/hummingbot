@@ -1,6 +1,8 @@
 """Cold-start quote action provenance is separate from safety cancellation."""
 
 import json
+import subprocess
+import sys
 from pathlib import Path
 from test.hummingbot.strategy_v2.life_liquidity.test_controller_order_safety import (
     _limits,
@@ -128,6 +130,54 @@ def test_pre_wal_claim_stays_unresolved_after_restart(tmp_path, old_session):
         assert controller._quote_action_recovery_ready is False
         assert controller.quote_action_recovery_reason_code == "QUOTE_ACTION_DISPATCH_UNRESOLVED"
         assert QuoteActionJournal(journal.path, account_uid="12345").get("claim-1").state == "PROPOSED"
+    finally:
+        controller.stop()
+
+
+def test_killed_process_after_action_claim_replace_blocks_reproposal(tmp_path):
+    directory = tmp_path / "recovery"
+    _seed_recovery(directory)
+    old = IntentWAL(directory / "intents.json").get("i1")
+    action_path = directory / "quote_actions.json"
+    child = """
+import os
+import sys
+from pathlib import Path
+from hummingbot.strategy_v2.life_liquidity import action_journal
+from hummingbot.strategy_v2.life_liquidity.action_journal import QuoteActionJournal, QuoteActionRecord
+
+path = Path(sys.argv[1])
+session_id = sys.argv[2]
+epoch = int(sys.argv[3])
+journal = QuoteActionJournal(path, account_uid="12345")
+original_replace = action_journal.os.replace
+
+def replace_then_die(source, destination):
+    original_replace(source, destination)
+    if Path(destination) == path:
+        os._exit(24)
+
+action_journal.os.replace = replace_then_die
+journal.claim_batch([QuoteActionRecord(
+    intent_id="claim-1", controller_id="life", session_id=session_id,
+    epoch=epoch, config_version=1, market="LIFE-USDT", side="SELL", level=0)])
+raise AssertionError("process should have exited during the action checkpoint")
+"""
+    process = subprocess.run(
+        [sys.executable, "-c", child, str(action_path), old.session_id, str(old.epoch)],
+        cwd=Path(__file__).resolve().parents[4], capture_output=True, text=True, timeout=15)
+    assert process.returncode == 24, process.stderr
+    assert QuoteActionJournal(action_path, account_uid="12345").get("claim-1").state == "PROPOSED"
+    assert all(record.intent_id != "claim-1" for record in IntentWAL(directory / "intents.json").all_records())
+    assert "claim-1" not in ReservationLedger.restore(
+        directory / "reservations.json", limits=_limits()).reservation_ids
+
+    controller = _restore(directory)
+    try:
+        assert controller._order_safety_manager is not None
+        assert controller._quote_action_recovery_ready is False
+        assert controller.quote_action_recovery_reason_code == "QUOTE_ACTION_DISPATCH_UNRESOLVED"
+        assert controller.determine_executor_actions() == []
     finally:
         controller.stop()
 

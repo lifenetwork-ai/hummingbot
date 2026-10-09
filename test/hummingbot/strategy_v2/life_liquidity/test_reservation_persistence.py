@@ -1,7 +1,10 @@
 """Persisted reservations and fills survive restart without double application."""
 
 import json
+import subprocess
+import sys
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 
@@ -91,6 +94,42 @@ def test_directory_fsync_failure_cannot_overwrite_committed_fill_with_cashflow(t
     assert recovered.fee_for_trade("trade-1") == ("USDT", Decimal("-0.01"))
     assert recovered.record_cashflow("101", "USDT", Decimal("1"))
     assert ReservationLedger.restore(path, limits=LIMITS).trade_ids == {"trade-1"}
+
+
+def test_killed_process_after_cashflow_replace_replays_once(tmp_path):
+    path = tmp_path / "reservations.json"
+    ReservationLedger(life_balance=Decimal("1"), usdt_balance=Decimal("5"),
+                      limits=LIMITS, path=path)
+    child = """
+import os
+import sys
+from decimal import Decimal
+from pathlib import Path
+from hummingbot.strategy_v2.life_liquidity import risk
+from hummingbot.strategy_v2.life_liquidity.risk import ReservationLedger, RiskLimits
+
+path = Path(sys.argv[1])
+ledger = ReservationLedger.restore(
+    path, limits=RiskLimits(Decimal("0"), Decimal("10"), Decimal("20"), Decimal("10")))
+original_replace = risk.os.replace
+
+def replace_then_die(source, destination):
+    original_replace(source, destination)
+    if Path(destination) == path:
+        os._exit(25)
+
+risk.os.replace = replace_then_die
+ledger.record_cashflow("101", "USDT", Decimal("2"))
+raise AssertionError("process should have exited during the cashflow checkpoint")
+"""
+    process = subprocess.run(
+        [sys.executable, "-c", child, str(path)],
+        cwd=Path(__file__).resolve().parents[4], capture_output=True, text=True, timeout=15)
+    assert process.returncode == 25, process.stderr
+    restarted = ReservationLedger.restore(path, limits=LIMITS)
+    assert restarted.usdt_balance == Decimal("7")
+    assert not restarted.record_cashflow("101", "USDT", Decimal("2"))
+    assert ReservationLedger.restore(path, limits=LIMITS).usdt_balance == Decimal("7")
 
 
 def test_corrupt_or_limit_mismatched_journal_refuses_restore(tmp_path):
