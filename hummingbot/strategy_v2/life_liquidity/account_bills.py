@@ -4,6 +4,7 @@ import json
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
+from typing import Callable
 
 from hummingbot.strategy_v2.life_liquidity.risk import ReservationLedger
 from hummingbot.strategy_v2.life_liquidity.state import IntentWAL
@@ -54,11 +55,13 @@ class SpotBillReconciler:
     MAX_FILL_PAGES = 6
 
     def __init__(self, connector, reservations: ReservationLedger, wal: IntentWAL,
-                 approvals: CashflowApprovals):
+                 approvals: CashflowApprovals,
+                 on_cashflows_applied: Callable[[], bool] | None = None):
         self.connector = connector
         self.reservations = reservations
         self.wal = wal
         self.approvals = approvals
+        self.on_cashflows_applied = on_cashflows_applied
 
     async def _since_anchor(self) -> list[dict]:
         rows = []
@@ -190,6 +193,8 @@ class SpotBillReconciler:
                                if currency != actual[0])):
                     raise ValueError("ACCOUNT_FEE_BILL_MISMATCH")
             self.reservations.record_cashflows_batch(tuple(reversed(transfers)))
+            if self.on_cashflows_applied is not None and self.on_cashflows_applied() is not True:
+                raise ValueError("ACCOUNT_CASHFLOW_ATTRIBUTION_UNRESOLVED")
             return True
         except (AttributeError, KeyError, TypeError, ValueError, InvalidOperation,
                 TimeoutError, OSError):

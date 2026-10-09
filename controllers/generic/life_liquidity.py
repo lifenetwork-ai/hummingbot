@@ -706,6 +706,14 @@ class LifeLiquidityController(ControllerBase):
                 attributor.path != Path(self.config.recovery_state_dir) / "fill_attribution.json"
                 or attributor.path.is_symlink()):
             raise ValueError("FILL_ATTRIBUTION_RECOVERY_MISMATCH")
+        account = getattr(gateway.account_check, "__self__", None)
+        bills = account.bills if isinstance(account, SpotAccountReconciler) else None
+        if bills is None:
+            if attributor.cashflow_approvals is not None:
+                raise ValueError("FILL_ATTRIBUTION_BILLS_UNAVAILABLE")
+        elif (attributor.cashflow_approvals != bills.approvals
+              or bills.on_cashflows_applied is not None):
+            raise ValueError("FILL_ATTRIBUTION_BILLS_MISMATCH")
         reservation_apply = gateway.apply_fills
 
         def apply_and_attribute(wire_id, fills, cumulative) -> bool:
@@ -714,6 +722,8 @@ class LifeLiquidityController(ControllerBase):
             return attributor.apply(wire_id, fills)
 
         gateway.apply_fills = apply_and_attribute
+        if bills is not None:
+            bills.on_cashflows_applied = attributor.apply_approved_cashflows
         self._fill_attributor = attributor
         self.fill_attribution_reason_code = "FILL_ATTRIBUTION_REVALIDATION_REQUIRED"
 

@@ -17,7 +17,7 @@ AT = datetime(2026, 10, 8, 12, tzinfo=timezone.utc)
 AT_MS = int(AT.timestamp() * 1000)
 
 
-def _attributor(tmp_path, wal, reservations, *, restore=False, loss_limit=Decimal("1")):
+def _attributor(tmp_path, wal, reservations, *, restore=False, loss_limit=Decimal("1"), approvals=None):
     session_id = wal.get("i1").session_id
     loss = LossBudgetLedger(
         tmp_path / "loss_budget.json", campaign_id="life", campaign_limit_quote=loss_limit,
@@ -31,7 +31,7 @@ def _attributor(tmp_path, wal, reservations, *, restore=False, loss_limit=Decima
         opening_independent_price_usdt=Decimal("1"),
         independent_value=lambda _: IndependentFillObservation(
             Decimal("0.9"), AT_MS, AT_MS + 100, "independent_market"),
-        max_reference_skew_ms=200, create=not restore)
+        max_reference_skew_ms=200, create=not restore, cashflow_approvals=approvals)
     return attributor, loss
 
 

@@ -267,6 +267,14 @@ class ReservationLedger:
         with self._lock:
             return set(self._trades)
 
+    @property
+    def cashflow_events(self) -> dict[str, tuple[str, Decimal]]:
+        """Return bill-ID keyed transfers for independent accounting reconciliation."""
+        with self._lock:
+            return {event_id[9:]: (currency, amount)
+                    for event_id, (kind, currency, amount) in self._account_events.items()
+                    if kind == "CASHFLOW"}
+
     def _record_account_event(self, event_id: str, kind: str, currency: str,
                               amount: Decimal) -> bool:
         if (currency not in ("LIFE", "USDT") or not isinstance(amount, Decimal)
