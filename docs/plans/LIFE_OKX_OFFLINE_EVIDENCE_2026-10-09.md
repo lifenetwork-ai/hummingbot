@@ -14,7 +14,7 @@ none are live defaults.
 | --- | --- | --- |
 | O.2 spot economics/risk | Actual V2 runner/fake OKX replay covers safety recovery, fee repricing at final send, queued service-action rejection after a subsidy change, reconciled partial fill and USDT fee, subsidy floor, stale snapshot, HALT and journal restore; proven zero-fill hold release; LIFE stop priority across batches already queued; manual HALT rejects a queued create. A separate fake OKX gateway replay reconciles a LIFE-denominated fee using independent fill-time valuation into physical balances, loss, and subsidy | Complete spot-feed readiness and account-data binding, filled-inventory settlement, 100x-turnover, late-arriving stop/cancellation stress and remaining A-cases |
 | O.3 spot lifecycle | **Offline complete.** One real V2 runner/fake OKX session covers lost ACK, partial fill/fee, expiry/cancel, missing/foreign regular orders, foreign algo order, incomplete paginated and foreign completed-fill history, own-depth-qualified successor anchor, replacement quote with status-backed ACK, residual inventory, and journal restore | Demo connector behavior and real-account history/reference qualification remain D/R work; production order permission stays disabled |
-| O.4 recovery | Existing process-kill/SQLite/WAL/reservation slices; runner cancel timeout and clock rollback; manual HALT persistence, queue rejection, and cancellation scheduling. Missing/corrupt safety journal blocks recovery; deletion after quote approval revokes final send while retaining its reservation; HALT latches in memory before a failing checkpoint | Remaining recorder/quote-action/cashflow interruption matrix and startup after a HALT that could not be durably checkpointed |
+| O.4 recovery | Existing process-kill/SQLite/WAL/reservation slices; runner cancel timeout and clock rollback; manual HALT persistence, queue rejection, and cancellation scheduling. Missing/corrupt safety journal blocks recovery; deletion after quote approval revokes final send while retaining its reservation; HALT latches in memory before a failing checkpoint. A V2/fake OKX send remains unknown and reserved after cashflow attribution fails before write or after replacement, then replays once on restart | Remaining combined recorder/quote-action/cashflow interruption matrix and startup after a HALT that could not be durably checkpointed |
 | O.5 simulation/telemetry | Seeded queue-ahead and ACK/cancel latency fixture; candle touch and unattributed prints make no fills | Recorded adversarial scenario suite, complete quality-flagged telemetry, risk-event latency budgets and economic evaluation |
 | O.6 review | Scoped regression and changed-code coverage below | Full spot A01–A39 matrix, changed-code review, named reviewer and reproducible evidence bundle |
 | O.7 SWAP/inventory | Joint pending-fill stress, conservative hedge decision, inventory child/exit-cost journal | Protected SWAP order gateway, authenticated fills/funding/margin, shared coordinator, inventory runner route and mode transitions |
@@ -109,6 +109,12 @@ The safety tests first failed on an unavailable strict-recovery API and on a
 drawdown checkpoint error that left the gate in `NORMAL`; both now pass.
 The fee tests first failed because attribution accepted only USDT fees.
 This remains an O.2/O.4 checkpoint, not acceptance of either gate.
+
+The next five-suite run passed **1,094 tests** with 27 warnings after adding
+two V2/fake OKX cashflow interruption replays. One fails before the attribution
+journal write; the other fails after replacement. Restoring the journals
+attributes the approved transfer once, while the original live order remains
+unknown/reconciling with its reservation and no second send.
 
 Coverage used the same regression scope at commit `8525624c0` and `origin/dev`
 as the available local comparison branch. `origin/development` is absent.
