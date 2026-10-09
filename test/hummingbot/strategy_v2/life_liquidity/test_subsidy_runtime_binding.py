@@ -12,9 +12,14 @@ from hummingbot.core.data_type.common import OrderType
 from hummingbot.strategy_v2.executors.order_executor.order_executor import OrderExecutor
 from hummingbot.strategy_v2.life_liquidity.config import SubsidyBudgetConfig
 from hummingbot.strategy_v2.life_liquidity.economics import EconomicPolicy, SubsidyBudgetLedger
+from hummingbot.strategy_v2.life_liquidity.fill_attribution import IndependentFillObservation, ReconciledFillAttributor
+from hummingbot.strategy_v2.life_liquidity.loss_budget import LossBudgetLedger
+from hummingbot.strategy_v2.life_liquidity.order_gateway import SpotFill, SpotReservationReconciler
 from hummingbot.strategy_v2.life_liquidity.spot_quotes import QuoteCosts
+from hummingbot.strategy_v2.life_liquidity.state import IntentWAL
 
 NOW = datetime(2026, 10, 9, 12, tzinfo=timezone.utc)
+NOW_MS = int(NOW.timestamp() * 1000)
 D = Decimal
 
 
@@ -133,3 +138,49 @@ def test_lost_ack_cannot_retry_and_spend_subsidy_twice(tmp_path):
             price=executor.config.price, order_type=OrderType.LIMIT_MAKER)
     assert wal.get(executor.config.id).state == "SEND_UNKNOWN"
     assert book.campaign_committed_quote == D("0.0098")
+
+
+def test_protected_service_send_partial_fill_charges_loss_and_subsidy_after_restart(tmp_path):
+    controller, _, wal, reservations, subsidy, state, executor, wire = _queue_service(tmp_path)
+    session_id = wal.get(executor.config.id).session_id
+    loss = LossBudgetLedger(
+        tmp_path / "loss_budget.json", campaign_id="life",
+        campaign_limit_quote=D("1"), day_limit_quote=D("1"), session_limit_quote=D("1"))
+    loss.record("opening", D("0"), session_id=session_id, at_utc=NOW)
+
+    def independent(_):
+        return IndependentFillObservation(
+            D("0.9"), NOW_MS, NOW_MS + 100, "independent_market")
+    attribution = ReconciledFillAttributor(
+        tmp_path / "fill_attribution.json", wal=wal, reservations=reservations,
+        loss_budget=loss, subsidy_budget=subsidy,
+        opening_life=D("10"), opening_usdt=D("10"),
+        opening_independent_price_usdt=D("1"), independent_value=independent,
+        max_reference_skew_ms=200, create=True)
+    controller._order_safety_gateway.apply_fills = SpotReservationReconciler(
+        wal, reservations, require_fees=True).apply_fills
+    controller.install_execution_loss_budget(loss, utc_clock=lambda: NOW)
+    controller.install_fill_attributor(attribution)
+    fill = SpotFill("trade-service", D("0.4"), executor.config.price,
+                    "USDT", D("-0.01"), NOW_MS)
+    assert controller._order_safety_gateway.apply_fills(wire["clOrdId"], (fill,), D("0.4"))
+    assert attribution.ready()
+    assert subsidy.campaign_committed_quote == D("0.046")
+    assert loss.verified_status(session_id=session_id, at_utc=NOW).campaign_loss_quote == D("0.046")
+    planner = controller._quote_action_planner
+    assert planner._current_snapshot(controller._order_safety_manager.current_session) is None
+    assert planner.subsidy_reason_code == "SUBSIDY_SNAPSHOT_MISMATCH"
+    restored_reservations = type(reservations).restore(
+        reservations.path, limits=reservations.limits)
+    restored_subsidy = SubsidyBudgetLedger(
+        subsidy.path, campaign_id="life-launch", campaign_limit_quote=D("1"),
+        day_limit_quote=D("0.1"), session_limit_quote=D("0.05"))
+    restored_attribution = ReconciledFillAttributor(
+        attribution.path, wal=IntentWAL(wal.path), reservations=restored_reservations,
+        loss_budget=LossBudgetLedger(
+            loss.path, campaign_id="life", campaign_limit_quote=D("1"),
+            day_limit_quote=D("1"), session_limit_quote=D("1")),
+        subsidy_budget=restored_subsidy, opening_life=D("10"),
+        opening_usdt=D("10"), opening_independent_price_usdt=D("1"),
+        independent_value=independent, max_reference_skew_ms=200, create=False)
+    assert restored_attribution.ready()
