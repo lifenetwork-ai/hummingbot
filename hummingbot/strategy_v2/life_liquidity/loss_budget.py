@@ -143,5 +143,15 @@ class LossBudgetLedger:
                 self._assert_disk_matches(required=True)
                 return self.status(session_id=session_id, at_utc=at_utc)
 
+    def matches_event(self, event_id: str, loss_quote: Decimal, *,
+                      session_id: str, at_utc: datetime) -> bool:
+        """Check an attributed loss against the durable journal without writing."""
+        expected = {"session_id": session_id, "day": self._day(at_utc),
+                    "loss_quote": str(loss_quote)}
+        with self._lock:
+            with self._file_lock():
+                self._assert_disk_matches(required=True)
+                return self._events.get(event_id) == expected
+
     def can_add_risk(self, *, session_id: str, at_utc: datetime) -> bool:
         return not self.status(session_id=session_id, at_utc=at_utc).exhausted

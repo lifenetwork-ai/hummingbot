@@ -26,6 +26,7 @@ from hummingbot.strategy_v2.life_liquidity.account_lock import AccountLockUnavai
 from hummingbot.strategy_v2.life_liquidity.action_journal import QuoteActionJournal
 from hummingbot.strategy_v2.life_liquidity.config import ConfigUpdateState, StrategyConfig
 from hummingbot.strategy_v2.life_liquidity.executor_send import ProtectedSpotExecutorSender
+from hummingbot.strategy_v2.life_liquidity.fill_attribution import ReconciledFillAttributor
 from hummingbot.strategy_v2.life_liquidity.loss_budget import LossBudgetLedger, LossBudgetStatus
 from hummingbot.strategy_v2.life_liquidity.market_data import (
     BenchmarkConnectorRoute,
@@ -164,6 +165,8 @@ class LifeLiquidityController(ControllerBase):
         self._execution_loss_utc_clock: Callable[[], datetime] | None = None
         self.execution_loss_status: LossBudgetStatus | None = None
         self.execution_loss_reason_code = "EXECUTION_LOSS_BUDGET_NOT_INSTALLED"
+        self._fill_attributor: ReconciledFillAttributor | None = None
+        self.fill_attribution_reason_code = "FILL_ATTRIBUTION_NOT_INSTALLED"
         self._quote_action_recovery_ready = False
         self._quote_action_recovery_records = None
         self.quote_action_recovery_reason_code = "QUOTE_ACTION_RECOVERY_NOT_CONFIGURED"
@@ -690,6 +693,41 @@ class LifeLiquidityController(ControllerBase):
         self.execution_loss_reason_code = "EXECUTION_LOSS_BUDGET_READY"
         return True
 
+    def install_fill_attributor(self, attributor: ReconciledFillAttributor) -> None:
+        """Attach economics only after the gateway has applied exchange fills."""
+        gateway = self._order_safety_gateway
+        if (self._fill_attributor is not None or not isinstance(attributor, ReconciledFillAttributor)
+                or gateway is None or gateway.apply_fills is None
+                or attributor.wal is not self._order_safety_wal
+                or attributor.reservations is not self._order_safety_reservations
+                or attributor.loss_budget is not self._execution_loss_budget):
+            raise ValueError("FILL_ATTRIBUTION_BINDING_INVALID")
+        if self.config.recovery_state_dir is not None and (
+                attributor.path != Path(self.config.recovery_state_dir) / "fill_attribution.json"
+                or attributor.path.is_symlink()):
+            raise ValueError("FILL_ATTRIBUTION_RECOVERY_MISMATCH")
+        reservation_apply = gateway.apply_fills
+
+        def apply_and_attribute(wire_id, fills, cumulative) -> bool:
+            if reservation_apply(wire_id, fills, cumulative) is not True:
+                return False
+            return attributor.apply(wire_id, fills)
+
+        gateway.apply_fills = apply_and_attribute
+        self._fill_attributor = attributor
+        self.fill_attribution_reason_code = "FILL_ATTRIBUTION_REVALIDATION_REQUIRED"
+
+    def _fill_attribution_ready(self) -> bool:
+        if self._fill_attributor is None:
+            return True  # Production order permission remains disabled separately.
+        try:
+            ready = self._fill_attributor.ready()
+        except Exception:
+            ready = False
+        self.fill_attribution_reason_code = (
+            "FILL_ATTRIBUTION_READY" if ready else "FILL_ATTRIBUTION_UNRESOLVED")
+        return ready
+
     def authorize_runner_create_action(self, action) -> bool:
         planner = self._quote_action_planner
         if self.config.recovery_state_dir is not None and not self._quote_action_recovery_ready:
@@ -975,9 +1013,10 @@ class LifeLiquidityController(ControllerBase):
                 self.order_safety_reason_code = "RECONCILIATION_REQUIRED"
             risk_ready = self._runtime_risk_ready()
             loss_ready = risk_ready and self._execution_loss_ready()
+            accounting_ready = loss_ready and self._fill_attribution_ready()
             planner = self._quote_action_planner
-            qualified = planner.session_snapshot() if loss_ready and planner is not None else None
-            ready = (loss_ready and qualified is not None and self._spot_quote_gates_ready()
+            qualified = planner.session_snapshot() if accounting_ready and planner is not None else None
+            ready = (accounting_ready and qualified is not None and self._spot_quote_gates_ready()
                      and not self._pause_reconciliation_required)
             previous_state = manager.state
             manager.tick(reference_ready=ready, all_gates_ready=ready,
@@ -1136,6 +1175,8 @@ class LifeLiquidityController(ControllerBase):
         if not self._runtime_risk_ready():
             return False
         if not self._execution_loss_ready():
+            return False
+        if not self._fill_attribution_ready():
             return False
         if self.has_unverified_runner_order_events():
             return False

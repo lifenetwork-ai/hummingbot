@@ -20,6 +20,7 @@ class SpotFill:
     price_usdt: Decimal
     fee_currency: str | None = None
     signed_fee: Decimal | None = None
+    fill_at_ms: int | None = None
 
 
 @dataclass(frozen=True)
@@ -428,7 +429,16 @@ class OkxSpotOrderGateway:
                 fee = Decimal(fee_value)
                 if not fee.is_finite():
                     raise ValueError("ORDER_FEE_UNTRUSTED")
-            fills.append(SpotFill(trade_id, quantity, price, fee_currency, fee))
+            fill_time = raw.get("fillTime")
+            if fill_time in (None, ""):
+                fill_at_ms = None
+            else:
+                if not isinstance(fill_time, str) or not fill_time.isdecimal():
+                    raise ValueError("ORDER_FILL_TIME_UNTRUSTED")
+                fill_at_ms = int(fill_time)
+                if fill_at_ms <= 0:
+                    raise ValueError("ORDER_FILL_TIME_UNTRUSTED")
+            fills.append(SpotFill(trade_id, quantity, price, fee_currency, fee, fill_at_ms))
         if sum((fill.quantity_base for fill in fills), Decimal("0")) != cumulative:
             raise ValueError("ORDER_FILL_CUMULATIVE_MISMATCH")
         return tuple(fills)
