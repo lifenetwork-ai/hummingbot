@@ -86,6 +86,28 @@ def test_deleted_safety_journal_revokes_already_queued_final_send(tmp_path):
     assert ledger.has_open_intent(executor.config.id)
 
 
+def test_restored_clear_journal_requires_manual_rearm_before_v2_queue(tmp_path):
+    controller, _, _, _, _ = planner_setup(tmp_path)
+    del controller.allow_create_executor_actions
+    controller._spot_quote_gates_ready = lambda: True
+    controller.order_safety_watchdog_task = SimpleNamespace(done=lambda: False)
+    settings = dict(max_drawdown_bps=Decimal("500"),
+                    min_margin_buffer_quote=Decimal("10"), stable_data_ms=0,
+                    recovery_probe_base=Decimal("1"))
+    path = tmp_path / "safety.json"
+    SafetyGate(path, **settings).initialize_empty()
+    gate = SafetyGate(path, require_existing=True, **settings)
+    controller.install_runtime_risk_gate(
+        gate, observation=lambda: _observation(100),
+        monotonic_clock_ms=lambda: 100, max_observation_age_ms=5)
+
+    assert not controller.allow_create_executor_actions()
+    assert controller.runtime_risk_reason_code == "MANUAL_REARM_REQUIRED"
+    gate.arm_after_reconciliation(reconciled=True, operator_id="operator")
+    assert not controller.allow_create_executor_actions()  # DEGRADED probe stays blocked.
+    assert controller.allow_create_executor_actions()
+
+
 def test_drawdown_halt_revokes_queued_quote_at_final_wire_check(tmp_path):
     controller, template, connector, wal, ledger, _ = sender_setup(tmp_path)
     state = {"now": 100, "observation": _observation(100)}

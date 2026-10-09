@@ -51,6 +51,7 @@ class SafetyGate:
         self.reason_code = "STARTUP_REVALIDATION"
         self._good_since_ms: int | None = None
         self._last_seen_ms: int | None = None
+        self._manual_rearm_required = False
         if require_existing and (self.path.is_symlink() or not self.path.is_file()):
             raise ValueError("SAFETY_JOURNAL_UNAVAILABLE")
         if self.path.exists():
@@ -62,6 +63,9 @@ class SafetyGate:
             if data["halted"]:
                 self.state = "HALTED"
                 self.reason_code = data.get("reason_code", "HALT_LATCHED")
+            else:
+                # A prior process may have latched HALT but failed its disk write.
+                self._manual_rearm_required = True
 
     def initialize_empty(self) -> None:
         """Create the first journal explicitly; never replace a recovery journal."""
@@ -94,6 +98,15 @@ class SafetyGate:
                     and (not data["halted"] or data.get("reason_code") == self.reason_code))
         except (OSError, ValueError, TypeError, AttributeError):
             return False
+
+    def arm_after_reconciliation(self, *, reconciled: bool, operator_id: str) -> None:
+        """Require an explicit operator decision after a clear-journal restart."""
+        if (reconciled is not True or not isinstance(operator_id, str)
+                or not operator_id.strip() or not self.journal_verified()
+                or self.state == "HALTED"):
+            raise ValueError("SAFETY_REARM_PROOF_REQUIRED")
+        self._manual_rearm_required = False
+        self.invalidate("STARTUP_REVALIDATION")
 
     def _persist_halt(self, reason_code: str) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -142,6 +155,8 @@ class SafetyGate:
             return self._decision()
         if not self.journal_verified():
             return self.invalidate("SAFETY_JOURNAL_UNAVAILABLE")
+        if self._manual_rearm_required:
+            return self.invalidate("MANUAL_REARM_REQUIRED")
         now = observation.observed_monotonic_ms
         if not isinstance(now, int) or isinstance(now, bool) or now < 0 or (
                 self._last_seen_ms is not None and now < self._last_seen_ms):

@@ -88,6 +88,11 @@ def test_recovery_requires_a_durable_safety_journal(tmp_path):
     recovered = SafetyGate(path, require_existing=True, **settings)
     assert recovered.state == "PAUSED"
     assert not recovered.evaluate(observe(at=1)).allow_new_quotes
+    assert recovered.reason_code == "MANUAL_REARM_REQUIRED"
+    with pytest.raises(ValueError, match="SAFETY_REARM_PROOF_REQUIRED"):
+        recovered.arm_after_reconciliation(reconciled=False, operator_id="operator")
+    recovered.arm_after_reconciliation(reconciled=True, operator_id="operator")
+    assert not recovered.evaluate(observe(at=2)).allow_new_quotes
 
     recovered.halt("MANUAL_KILL_SWITCH")
     assert SafetyGate(path, require_existing=True, **settings).state == "HALTED"
@@ -132,6 +137,7 @@ def test_stale_safety_gate_cannot_quote_after_another_gate_halts(tmp_path):
     first = SafetyGate(path, **settings)
     first.initialize_empty()
     stale = SafetyGate(path, require_existing=True, **settings)
+    stale.arm_after_reconciliation(reconciled=True, operator_id="operator")
     stale.evaluate(observe(at=1))
     assert stale.evaluate(observe(at=2)).state == "NORMAL"
 
@@ -141,3 +147,23 @@ def test_stale_safety_gate_cannot_quote_after_another_gate_halts(tmp_path):
     assert decision.state == "PAUSED"
     assert decision.reason_code == "SAFETY_JOURNAL_UNAVAILABLE"
     assert not decision.allow_new_quotes
+
+
+def test_failed_halt_cannot_auto_recover_from_the_previous_clear_journal(tmp_path):
+    path = tmp_path / "safety.json"
+    settings = dict(max_drawdown_bps=Decimal("500"),
+                    min_margin_buffer_quote=Decimal("10"), stable_data_ms=0,
+                    recovery_probe_base=Decimal("1"))
+    running = SafetyGate(path, **settings)
+    running.initialize_empty()
+    running.evaluate(observe(at=1))
+    assert running.evaluate(observe(at=2)).state == "NORMAL"
+    with patch.object(running, "_persist_halt", side_effect=OSError("disk unavailable")):
+        with pytest.raises(OSError, match="disk unavailable"):
+            running.halt("MANUAL_KILL_SWITCH")
+
+    recovered = SafetyGate(path, require_existing=True, **settings)
+    assert recovered.evaluate(observe(at=3)).reason_code == "MANUAL_REARM_REQUIRED"
+    assert not recovered.evaluate(observe(at=4)).allow_new_quotes
+    with pytest.raises(ValueError, match="SAFETY_REARM_PROOF_REQUIRED"):
+        recovered.arm_after_reconciliation(reconciled=True, operator_id="")
