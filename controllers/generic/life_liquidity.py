@@ -41,6 +41,7 @@ from hummingbot.strategy_v2.life_liquidity.market_data import (
     SnapshotQualityGate,
     is_order_book_ready,
 )
+from hummingbot.strategy_v2.life_liquidity.markout_risk import ReconciledMarkoutMonitor
 from hummingbot.strategy_v2.life_liquidity.order_gateway import (
     CancelRetryPolicy,
     OkxSpotOrderGateway,
@@ -170,6 +171,8 @@ class LifeLiquidityController(ControllerBase):
         self._fill_attributor: ReconciledFillAttributor | None = None
         self.fill_attribution_reason_code = "FILL_ATTRIBUTION_NOT_INSTALLED"
         self._capital_risk_monitor: CapitalRiskMonitor | None = None
+        self._markout_monitor: ReconciledMarkoutMonitor | None = None
+        self.markout_reason_code = "MARKOUT_NOT_INSTALLED"
         self._quote_action_recovery_ready = False
         self._quote_action_recovery_records = None
         self.quote_action_recovery_reason_code = "QUOTE_ACTION_RECOVERY_NOT_CONFIGURED"
@@ -758,6 +761,29 @@ class LifeLiquidityController(ControllerBase):
             raise ValueError("CAPITAL_RISK_RECOVERY_MISMATCH")
         self._capital_risk_monitor = monitor
 
+    def install_markout_monitor(self, monitor: ReconciledMarkoutMonitor) -> None:
+        """Bind independently observed markout cohorts to quote permissions."""
+        if (self._markout_monitor is not None or not isinstance(monitor, ReconciledMarkoutMonitor)
+                or monitor.attributor is not self._fill_attributor):
+            raise ValueError("MARKOUT_BINDING_INVALID")
+        if self.config.recovery_state_dir is not None and (
+                monitor.path != Path(self.config.recovery_state_dir) / "markout_risk.json"
+                or monitor.path.is_symlink()):
+            raise ValueError("MARKOUT_RECOVERY_MISMATCH")
+        self._markout_monitor = monitor
+        self.markout_reason_code = "MARKOUT_STARTUP_REVALIDATION"
+
+    def _markout_risk_ready(self) -> bool:
+        monitor = self._markout_monitor
+        if monitor is None:
+            return True  # Production order permission remains disabled separately.
+        try:
+            ready = monitor.evaluate()
+        except Exception:
+            ready = False
+        self.markout_reason_code = monitor.reason_code
+        return ready
+
     def authorize_runner_create_action(self, action) -> bool:
         planner = self._quote_action_planner
         if self.config.recovery_state_dir is not None and not self._quote_action_recovery_ready:
@@ -1044,9 +1070,10 @@ class LifeLiquidityController(ControllerBase):
             risk_ready = self._runtime_risk_ready()
             loss_ready = risk_ready and self._execution_loss_ready()
             accounting_ready = loss_ready and self._fill_attribution_ready()
+            markout_ready = accounting_ready and self._markout_risk_ready()
             planner = self._quote_action_planner
-            qualified = planner.session_snapshot() if accounting_ready and planner is not None else None
-            ready = (accounting_ready and qualified is not None and self._spot_quote_gates_ready()
+            qualified = planner.session_snapshot() if markout_ready and planner is not None else None
+            ready = (markout_ready and qualified is not None and self._spot_quote_gates_ready()
                      and not self._pause_reconciliation_required)
             previous_state = manager.state
             manager.tick(reference_ready=ready, all_gates_ready=ready,
@@ -1207,6 +1234,8 @@ class LifeLiquidityController(ControllerBase):
         if not self._execution_loss_ready():
             return False
         if not self._fill_attribution_ready():
+            return False
+        if not self._markout_risk_ready():
             return False
         if self.has_unverified_runner_order_events():
             return False

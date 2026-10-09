@@ -32,6 +32,15 @@ class IndependentFillObservation:
     source_kind: str
 
 
+@dataclass(frozen=True)
+class ReconciledFillRecord:
+    trade_id: str
+    side: str
+    quantity_base: Decimal
+    price_usdt: Decimal
+    fill_at_ms: int
+
+
 class ReconciledFillAttributor:
     @staticmethod
     def _approvals_valid(approvals: CashflowApprovals) -> bool:
@@ -280,6 +289,18 @@ class ReconciledFillAttributor:
             return True
         except Exception:
             return False
+
+    def verified_fills(self) -> tuple[ReconciledFillRecord, ...] | None:
+        """Expose only durable, fully attributed fill identities to diagnostics."""
+        if not self.ready():
+            return None
+        try:
+            return tuple(ReconciledFillRecord(
+                trade_id, event["side"], Decimal(event["quantity_base"]),
+                Decimal(event["price_usdt"]), event["fill_at_ms"])
+                for trade_id, event in sorted(self._events.items()))
+        except Exception:
+            return None
 
     def recover(self) -> bool:
         """Idempotently finish a loss write interrupted after attribution commit."""
