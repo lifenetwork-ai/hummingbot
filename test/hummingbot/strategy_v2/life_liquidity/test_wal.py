@@ -6,6 +6,20 @@ from hummingbot.strategy_v2.life_liquidity import state
 from hummingbot.strategy_v2.life_liquidity.state import IntentWAL
 
 
+def test_empty_wal_can_be_durably_initialized_only_once(tmp_path):
+    path = tmp_path / "intents.json"
+    wal = IntentWAL(path)
+    wal.initialize_empty()
+    assert IntentWAL(path).all_records() == ()
+    with pytest.raises(ValueError, match="WAL_INITIALIZATION_UNSAFE"):
+        wal.initialize_empty()
+    with pytest.raises(ValueError, match="WAL_INITIALIZATION_UNSAFE"):
+        IntentWAL(path).initialize_empty()
+    wal.begin("first", client_order_id="life-0001", session_id="s1",
+              epoch=1, reservation_id="first")
+    assert IntentWAL(path).get("first").state == "PREPARED"
+
+
 def test_wire_id_reservation_and_epoch_exist_on_disk_before_sender_runs(tmp_path):
     path = tmp_path / "intents.json"
     wal = IntentWAL(path)

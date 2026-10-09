@@ -133,6 +133,15 @@ class IntentWAL:
             self._records = updated
             self._must_exist = True
 
+    def initialize_empty(self) -> None:
+        """Durably anchor an empty WAL before first-order risk accounting."""
+        with self._lock, self._file_lock():
+            if (self._uncertain or self._must_exist or self._records
+                    or self.path.exists() or self.path.is_symlink()):
+                raise ValueError("WAL_INITIALIZATION_UNSAFE")
+            self._save({})
+            self._must_exist = True
+
     def get(self, intent_id: str) -> IntentRecord:
         with self._lock:
             return self._records[intent_id]

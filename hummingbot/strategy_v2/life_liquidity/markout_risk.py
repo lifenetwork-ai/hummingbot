@@ -12,6 +12,7 @@ from typing import Callable
 
 from hummingbot.strategy_v2.life_liquidity.fill_attribution import ReconciledFillAttributor
 from hummingbot.strategy_v2.life_liquidity.markout import MarkoutSummary, MarkoutTracker
+from hummingbot.strategy_v2.life_liquidity.risk import ReservationLedger, SpotIntent
 
 
 @dataclass(frozen=True)
@@ -255,16 +256,128 @@ class ReconciledMarkoutMonitor:
                                         else "MARKOUT_HORIZON_PENDING")
                     return False
                 tracker = self._tracker(updated, now)
+                insufficient = False
                 for side, size_bucket, horizon in self.monitored_cohorts:
                     result = tracker.summary(side, size_bucket, horizon, now_ms=now)
                     if result.reason_code != "MARKOUT_READY":
-                        self.reason_code = "MARKOUT_INSUFFICIENT_SAMPLES"
-                        return False
-                    if result.mean_markout_quote < self.min_mean_markout_quote:
+                        insufficient = True
+                    elif result.mean_markout_quote < self.min_mean_markout_quote:
                         self.reason_code = "MARKOUT_ADVERSE"
                         return False
+                if insufficient:
+                    self.reason_code = "MARKOUT_INSUFFICIENT_SAMPLES"
+                    return False
                 self.reason_code = "MARKOUT_READY"
                 return True
         except Exception:
             self.reason_code = "MARKOUT_JOURNAL_UNAVAILABLE"
+            return False
+
+
+class MarkoutProbeGuard:
+    """Bound sequential bootstrap quotes using the durable spot fill/reservation ledger.
+
+    This is opt-in. It cannot waive pending observations, adverse markout, or any
+    other risk gate. Every accepted quote consumes one explicit campaign cap.
+    """
+
+    def __init__(self, monitor: ReconciledMarkoutMonitor, reservations: ReservationLedger,
+                 *, max_quote_base: Decimal, max_campaign_base: Decimal, create: bool):
+        if (not isinstance(monitor, ReconciledMarkoutMonitor)
+                or not isinstance(reservations, ReservationLedger)
+                or monitor.attributor.reservations is not reservations
+                or reservations.path is None or reservations.path.is_symlink()
+                or any(not isinstance(value, Decimal) or not value.is_finite() or value <= 0
+                       for value in (max_quote_base, max_campaign_base))
+                or max_quote_base > max_campaign_base or not isinstance(create, bool)):
+            raise ValueError("MARKOUT_PROBE_POLICY_INVALID")
+        self.monitor = monitor
+        self.reservations = reservations
+        self.max_quote_base = max_quote_base
+        self.max_campaign_base = max_campaign_base
+        self.path = monitor.path.with_name("markout_probe.json")
+        with self._file_lock():
+            if create:
+                if self.path.exists() or self.path.is_symlink():
+                    raise ValueError("MARKOUT_PROBE_EXISTS_USE_RESTORE")
+                self._save_policy()
+            elif not self._policy_verified():
+                raise ValueError("MARKOUT_PROBE_POLICY_MISMATCH")
+
+    def _policy(self) -> dict:
+        return {"markout_path": str(self.monitor.path.resolve()),
+                "reservation_path": str(self.reservations.path.resolve()),
+                "markout_policy": self.monitor._policy(),
+                "max_quote_base": str(self.max_quote_base),
+                "max_campaign_base": str(self.max_campaign_base)}
+
+    @contextmanager
+    def _file_lock(self):
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        lock_path = self.path.with_name(f"{self.path.name}.lock")
+        descriptor = os.open(lock_path, os.O_CREAT | os.O_RDWR | getattr(os, "O_NOFOLLOW", 0), 0o600)
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX)
+            yield
+        finally:
+            fcntl.flock(descriptor, fcntl.LOCK_UN)
+            os.close(descriptor)
+
+    def _save_policy(self) -> None:
+        descriptor, temporary = tempfile.mkstemp(prefix=f".{self.path.name}.", dir=self.path.parent)
+        try:
+            with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+                json.dump({"schema_version": 1, "policy": self._policy()}, handle, sort_keys=True)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary, self.path)
+            directory_fd = os.open(self.path.parent, os.O_RDONLY)
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
+        finally:
+            if os.path.exists(temporary):
+                os.unlink(temporary)
+
+    def _policy_verified(self) -> bool:
+        try:
+            if not self.path.is_file() or self.path.is_symlink():
+                return False
+            with self.path.open(encoding="utf-8") as handle:
+                return json.load(handle) == {"schema_version": 1, "policy": self._policy()}
+        except Exception:
+            return False
+
+    def capacity_available(self) -> bool:
+        if self.monitor.reason_code != "MARKOUT_INSUFFICIENT_SAMPLES":
+            return False
+        try:
+            with self._file_lock():
+                if not self._policy_verified():
+                    return False
+            preview = self.reservations.preview()
+            return preview.filled_base_total < self.max_campaign_base
+        except Exception:
+            return False
+
+    def authorizes(self, side: str, quantity_base: Decimal, *,
+                   exclude_open_intent: SpotIntent | None = None) -> bool:
+        if (not self.capacity_available() or side not in ("BUY", "SELL")
+                or not isinstance(quantity_base, Decimal) or not quantity_base.is_finite()
+                or quantity_base <= 0 or quantity_base > self.max_quote_base):
+            return False
+        try:
+            bucket = ("small" if quantity_base <= self.monitor.size_cutoff_base else "large")
+            horizons = [horizon for cohort_side, cohort_bucket, horizon in self.monitor.monitored_cohorts
+                        if cohort_side == side and cohort_bucket == bucket]
+            if (not horizons or not any(self.monitor.summary(side, bucket, horizon).reason_code
+                                        == "INSUFFICIENT_SAMPLES" for horizon in horizons)):
+                return False
+            preview = self.reservations.preview(exclude_open_intent=exclude_open_intent)
+            unresolved = (preview.unresolved_quantity_base("BUY")
+                          + preview.unresolved_quantity_base("SELL"))
+            return (unresolved == 0
+                    and preview.filled_base_total + quantity_base <= self.max_campaign_base)
+        except Exception:
             return False

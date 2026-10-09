@@ -271,10 +271,13 @@ class QuoteActionPlanner:
             return False
         # Recheck this incremental order against reservations already held by
         # earlier actions, without previewing those same levels a second time.
-        return any(candidate.side == config.side.name
-                   and candidate.price_usdt == config.price
-                   and candidate.quantity_base == config.amount
-                   for candidate in plan.candidates)
+        matches = any(candidate.side == config.side.name
+                      and candidate.price_usdt == config.price
+                      and candidate.quantity_base == config.amount
+                      for candidate in plan.candidates)
+        return (matches and (not self.controller.markout_probe_active()
+                             or self.controller.markout_probe_authorizes(
+                                 config.side.name, config.amount)))
 
     def authorizes_permit(self, permit: SendPermit) -> bool:
         """Reprice one already-reserved quote at the final network boundary."""
@@ -318,10 +321,14 @@ class QuoteActionPlanner:
                               sides=(config.side.name,), exclude_open_intent=intent)
         except Exception:
             return False
-        return any(candidate.side == config.side.name
-                   and candidate.price_usdt == permit.price_usdt
-                   and candidate.quantity_base == permit.quantity_base
-                   for candidate in plan.candidates)
+        matches = any(candidate.side == config.side.name
+                      and candidate.price_usdt == permit.price_usdt
+                      and candidate.quantity_base == permit.quantity_base
+                      for candidate in plan.candidates)
+        return (matches and (not self.controller.markout_probe_active()
+                             or self.controller.markout_probe_authorizes(
+                                 config.side.name, permit.quantity_base,
+                                 exclude_open_intent=intent)))
 
     def session_snapshot(self) -> QuotePlanningSnapshot | None:
         """Qualified snapshot for the safety tick, even after a reversible pause."""
@@ -414,6 +421,10 @@ class QuoteActionPlanner:
             return []
         active_claims = tuple(claim for claim in claims
                               if claim.state in ("PROPOSED", "DISPATCHED"))
+        probe_mode = self.controller.markout_probe_active()
+        if probe_mode and active_claims:
+            self.reason_code = "MARKOUT_PROBE_IN_FLIGHT"
+            return []
         if any((claim.session_id, claim.epoch, claim.config_version)
                != (current.session_id, current.epoch, current.config_version)
                for claim in active_claims):
@@ -435,6 +446,9 @@ class QuoteActionPlanner:
                     | set(self._issued))
         active_slots = {claim.slot for claim in active_claims}
         for candidate in self.last_plan.candidates:
+            if probe_mode and (actions or not self.controller.markout_probe_authorizes(
+                    candidate.side, candidate.quantity_base)):
+                continue
             slot = (current.session_id, current.epoch, candidate.side, candidate.level)
             if ((self.slots.market, candidate.side, candidate.level) in active_slots
                     or (candidate.side, candidate.level) in occupied):

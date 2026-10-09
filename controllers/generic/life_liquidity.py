@@ -41,7 +41,7 @@ from hummingbot.strategy_v2.life_liquidity.market_data import (
     SnapshotQualityGate,
     is_order_book_ready,
 )
-from hummingbot.strategy_v2.life_liquidity.markout_risk import ReconciledMarkoutMonitor
+from hummingbot.strategy_v2.life_liquidity.markout_risk import MarkoutProbeGuard, ReconciledMarkoutMonitor
 from hummingbot.strategy_v2.life_liquidity.order_gateway import (
     CancelRetryPolicy,
     OkxSpotOrderGateway,
@@ -52,7 +52,7 @@ from hummingbot.strategy_v2.life_liquidity.own_depth import OwnDepthDecision
 from hummingbot.strategy_v2.life_liquidity.own_depth_runner import separate_local_own_depth
 from hummingbot.strategy_v2.life_liquidity.quote_actions import QuoteActionPlanner, QuotePlanningSnapshot
 from hummingbot.strategy_v2.life_liquidity.reference import ReferenceEngine
-from hummingbot.strategy_v2.life_liquidity.risk import ReservationLedger, RiskLimits
+from hummingbot.strategy_v2.life_liquidity.risk import ReservationLedger, RiskLimits, SpotIntent
 from hummingbot.strategy_v2.life_liquidity.safety import SafetyGate, SafetyObservation
 from hummingbot.strategy_v2.life_liquidity.session import SessionManager, SessionStore
 from hummingbot.strategy_v2.life_liquidity.state import IntentWAL
@@ -172,6 +172,7 @@ class LifeLiquidityController(ControllerBase):
         self.fill_attribution_reason_code = "FILL_ATTRIBUTION_NOT_INSTALLED"
         self._capital_risk_monitor: CapitalRiskMonitor | None = None
         self._markout_monitor: ReconciledMarkoutMonitor | None = None
+        self._markout_probe_guard: MarkoutProbeGuard | None = None
         self.markout_reason_code = "MARKOUT_NOT_INSTALLED"
         self._quote_action_recovery_ready = False
         self._quote_action_recovery_records = None
@@ -773,6 +774,26 @@ class LifeLiquidityController(ControllerBase):
         self._markout_monitor = monitor
         self.markout_reason_code = "MARKOUT_STARTUP_REVALIDATION"
 
+    def install_markout_probe_guard(self, guard: MarkoutProbeGuard) -> None:
+        """Opt into a capped bootstrap only after both journals and a planner exist."""
+        if (self._markout_probe_guard is not None or not isinstance(guard, MarkoutProbeGuard)
+                or guard.monitor is not self._markout_monitor
+                or guard.reservations is not self._order_safety_reservations
+                or self._quote_action_planner is None):
+            raise ValueError("MARKOUT_PROBE_BINDING_INVALID")
+        self._markout_probe_guard = guard
+
+    def markout_probe_active(self) -> bool:
+        guard = self._markout_probe_guard
+        return (guard is not None and self._quote_action_planner is not None
+                and guard.capacity_available())
+
+    def markout_probe_authorizes(self, side: str, quantity_base: Decimal, *,
+                                 exclude_open_intent: SpotIntent | None = None) -> bool:
+        guard = self._markout_probe_guard
+        return (guard is not None and guard.authorizes(
+            side, quantity_base, exclude_open_intent=exclude_open_intent))
+
     def _markout_risk_ready(self) -> bool:
         monitor = self._markout_monitor
         if monitor is None:
@@ -782,7 +803,7 @@ class LifeLiquidityController(ControllerBase):
         except Exception:
             ready = False
         self.markout_reason_code = monitor.reason_code
-        return ready
+        return ready or self.markout_probe_active()
 
     def authorize_runner_create_action(self, action) -> bool:
         planner = self._quote_action_planner

@@ -11,9 +11,14 @@ from unittest.mock import patch
 
 import pytest
 
+from hummingbot.strategy_v2.executors.order_executor.order_executor import OrderExecutor
 from hummingbot.strategy_v2.life_liquidity.fill_attribution import IndependentFillObservation, ReconciledFillAttributor
 from hummingbot.strategy_v2.life_liquidity.loss_budget import LossBudgetLedger
-from hummingbot.strategy_v2.life_liquidity.markout_risk import IndependentHorizonObservation, ReconciledMarkoutMonitor
+from hummingbot.strategy_v2.life_liquidity.markout_risk import (
+    IndependentHorizonObservation,
+    MarkoutProbeGuard,
+    ReconciledMarkoutMonitor,
+)
 from hummingbot.strategy_v2.life_liquidity.order_gateway import SpotFill, SpotReservationReconciler
 from hummingbot.strategy_v2.life_liquidity.risk import SpotIntent
 
@@ -225,6 +230,12 @@ def test_net_flat_buy_sell_fills_retain_separate_adverse_cohorts(tmp_path):
     assert loss.verified_status(session_id=session.session_id,
                                 at_utc=AT).session_loss_quote == Decimal("0.05")
 
+    # An empty cohort must not conceal an adverse cohort evaluated later.
+    mixed = _monitor(tmp_path / "mixed", attribution, state, cohorts=(
+        ("BUY", "large", 1000), ("SELL", "small", 1000)))
+    assert not mixed.evaluate()
+    assert mixed.reason_code == "MARKOUT_ADVERSE"
+
 
 def test_adverse_markout_revokes_queued_final_wire_check(tmp_path):
     controller, template, connector, wal, reservations, _ = sender_setup(tmp_path)
@@ -281,3 +292,87 @@ def test_adverse_markout_revokes_queued_final_wire_check(tmp_path):
     assert controller.markout_reason_code == "MARKOUT_ADVERSE"
     assert wal.get(executor.config.id).state == "SEND_UNKNOWN"
     assert reservations.has_open_intent(executor.config.id)
+
+
+def test_empty_history_permits_one_capped_probe_then_waits_for_horizon(tmp_path):
+    controller, template, connector, wal, reservations, _ = sender_setup(tmp_path)
+    wal.initialize_empty()
+    del controller.allow_create_executor_actions
+    controller._spot_quote_gates_ready = lambda: True
+    controller.order_safety_watchdog_task = SimpleNamespace(done=lambda: False)
+    session = controller._order_safety_manager.current_session
+    loss = LossBudgetLedger(tmp_path / "loss_budget.json", campaign_id="life",
+                            campaign_limit_quote=Decimal("1"), day_limit_quote=Decimal("1"),
+                            session_limit_quote=Decimal("1"))
+    loss.record("opening", Decimal("0"), session_id=session.session_id, at_utc=AT)
+    attribution = ReconciledFillAttributor(
+        tmp_path / "fill_attribution.json", wal=wal, reservations=reservations,
+        loss_budget=loss, opening_life=Decimal("10"), opening_usdt=Decimal("10"),
+        opening_independent_price_usdt=Decimal("1"),
+        independent_value=lambda _: IndependentFillObservation(
+            Decimal("0.9"), AT_MS, AT_MS + 100, "independent_market"),
+        max_reference_skew_ms=200, create=True)
+    controller._order_safety_gateway.apply_fills = SpotReservationReconciler(
+        wal, reservations, require_fees=True).apply_fills
+    controller.install_execution_loss_budget(loss, utc_clock=lambda: AT)
+    controller.install_fill_attributor(attribution)
+    _attach_quote_planner(
+        controller, template, wal, reservations,
+        loss_budget_status=loss.verified_status(session_id=session.session_id, at_utc=AT),
+        propose=False)
+    state = {"now": AT_MS + 1000, "observations": {}}
+    monitor = _monitor(tmp_path, attribution, state)
+    controller.install_markout_monitor(monitor)
+    guard = MarkoutProbeGuard(
+        monitor, reservations, max_quote_base=Decimal("1"),
+        max_campaign_base=Decimal("1"), create=True)
+    controller.install_markout_probe_guard(guard)
+
+    actions = controller.determine_executor_actions()
+    assert len(actions) == 1, (controller.markout_reason_code,
+                               controller._quote_action_planner.reason_code,
+                               controller.execution_loss_reason_code,
+                               controller.fill_attribution_reason_code)
+    assert actions[0].executor_config.side.name == "BUY"
+    assert controller.determine_executor_actions() == []
+    executor = OrderExecutor(template._strategy, actions[0].executor_config)
+    executor.get_order_price = lambda: executor.config.price
+    executor.place_open_order()
+    wire = {"clOrdId": executor._order.order_id, "instId": "LIFE-USDT",
+            "side": "buy", "ordType": "post_only", "tdMode": "cash",
+            "px": str(executor.config.price), "sz": str(executor.config.amount)}
+    connector.sent[0]["pre_send_check"](wire)
+    assert reservations.has_open_intent(executor.config.id)
+    fill = SpotFill("probe-fill", Decimal("1"), executor.config.price, "USDT",
+                    Decimal("-0.01"), AT_MS)
+    assert controller._order_safety_gateway.apply_fills(
+        executor._order.order_id, (fill,), Decimal("1"))
+    assert not controller.allow_create_executor_actions()
+    assert controller.markout_reason_code == "MARKOUT_OBSERVATION_MISSING"
+    assert reservations.preview().filled_base_total == Decimal("1")
+
+
+def test_probe_policy_is_bound_to_durable_cap_and_fails_on_change(tmp_path):
+    _, _, wal, reservations = _setup(tmp_path)
+    attribution, _ = _attributor(tmp_path, wal, reservations)
+    state = {"now": AT_MS + 1000, "observations": {}}
+    monitor = _monitor(tmp_path, attribution, state)
+    assert not monitor.evaluate()
+    guard = MarkoutProbeGuard(
+        monitor, reservations, max_quote_base=Decimal("0.5"),
+        max_campaign_base=Decimal("1"), create=True)
+    assert not guard.authorizes("BUY", Decimal("0.4"))  # Existing unresolved order.
+    restored_reservations = type(reservations).restore(reservations.path, limits=reservations.limits)
+    restored_attribution, _ = _attributor(
+        tmp_path, type(wal)(wal.path), restored_reservations, restore=True)
+    restored_monitor = _monitor(tmp_path, restored_attribution, state, restore=True)
+    assert not restored_monitor.evaluate()
+    restored = MarkoutProbeGuard(
+        restored_monitor, restored_reservations, max_quote_base=Decimal("0.5"),
+        max_campaign_base=Decimal("1"), create=False)
+    assert not restored.authorizes("BUY", Decimal("0.6"))
+    with pytest.raises(ValueError, match="MARKOUT_PROBE_POLICY_MISMATCH"):
+        MarkoutProbeGuard(monitor, reservations, max_quote_base=Decimal("0.5"),
+                          max_campaign_base=Decimal("2"), create=False)
+    guard.path.write_text("{}")
+    assert not guard.capacity_available()
