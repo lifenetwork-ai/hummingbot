@@ -11,7 +11,7 @@ none are live defaults.
 
 | Gate | Current evidence | Still needed offline |
 | --- | --- | --- |
-| O.2 spot economics/risk | Protected service quote, reconciled USDT-fee fill loss and subsidy floor, journal restart, proven zero-fill hold release | Full unmodified V2 replay, authenticated fee/valuation source binding, filled-inventory settlement, 100x-turnover and all A-cases |
+| O.2 spot economics/risk | Actual V2 runner/fake OKX replay covers safety recovery, fee repricing at final send, queued service-action rejection after a subsidy change, reconciled partial fill and USDT fee, subsidy floor, stale snapshot, HALT and journal restore; proven zero-fill hold release | Complete spot-feed readiness and account-data binding, filled-inventory settlement, 100x-turnover, cross-batch priority and remaining A-cases |
 | O.3 spot lifecycle | Real V2 runner lost-ACK quote, terminal proof and new wire ID; separate partial-fill/expiry and cold-restart replays | One complete quote → fill/fee → replace → expiry/successor → restart replay with all account-wide scopes |
 | O.4 recovery | Existing process-kill/SQLite/WAL/reservation slices | Remaining recorder, quote-action, cashflow, kill-switch and clock fault matrix |
 | O.5 simulation/telemetry | Seeded queue-ahead and ACK/cancel latency fixture; candle touch and unattributed prints make no fills | Recorded adversarial scenario suite, complete quality-flagged telemetry, risk-event latency budgets and economic evaluation |
@@ -33,6 +33,19 @@ conda run -n hummingbot --no-capture-output python -m pytest -q --disable-warnin
 
 The final 2026-10-09 run at commit `8525624c0` passed **1,066 tests** with
 27 warnings. Python was 3.13.15 on Darwin arm64.
+
+A later 2026-10-09 working-tree run of the same five suites after the O.2
+fee/service replay extension passed **1,070 tests** with 27 warnings. The new
+replay uses `LifeLiquidityController.allow_create_executor_actions()` and the
+actual V2 action filter and executor send, while its synthetic harness
+substitutes the spot-feed readiness check. The queued service action is
+rejected after an external durable subsidy reservation changes the available
+budget; no fake OKX request is sent. Another service path sends a quote, then
+attributes a partial fill and USDT fee to execution loss and subsidy usage,
+rejects the obsolete subsidy snapshot, and blocks an executor resend under a
+latched drawdown HALT. A profit-mode path revokes a protected final send after
+the account fee rises. These are deterministic contract replays, not actual
+account fee, fill, value, or latency evidence.
 
 Coverage used the same regression scope at commit `8525624c0` and `origin/dev`
 as the available local comparison branch. `origin/development` is absent.
