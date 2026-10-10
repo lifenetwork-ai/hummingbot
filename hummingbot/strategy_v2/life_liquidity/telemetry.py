@@ -46,6 +46,7 @@ INPUT_TYPES = {
 }
 GATES = ("runtime", "stops", "spot_risk", "joint", "hedge", "loss", "accounting", "markout",
          "runner_events", "session", "market", "telemetry")
+OPTIONAL_GATES = ("carry",)  # Preserve historical spot replay shape when the extension is absent.
 STAGES = ("RISK_EVENT", "PERMISSION", "FINAL_SEND", "QUEUE_REJECT", "QUEUE_DISPATCH",
           "CANCEL_REQUEST", "EXCHANGE_CONFIRM", "ACK", "SNAPSHOT")
 
@@ -147,7 +148,7 @@ class TelemetryRecorder:
                        for value in (epoch, config_version))
                 or not _ms(at_ms) or len(self._rows) >= self._policy["max_records"]
                 or self._rows and at_ms < self._rows[-1]["at_ms"]
-                or not isinstance(gates, dict) or not set(gates) <= set(GATES)
+                or not isinstance(gates, dict) or not set(gates) <= set(GATES + OPTIONAL_GATES)
                 or any(value is not None and type(value) is not bool for value in gates.values())
                 or not isinstance(inputs, dict) or not set(inputs) <= set(INPUT_TYPES)
                 or any((INPUT_TYPES[key] == "bool" and type(value) is not bool
@@ -170,7 +171,8 @@ class TelemetryRecorder:
         return dict(sequence=len(self._rows) + 1, at_ms=at_ms, stage=stage, allowed=allowed,
                     reason_code=reason_code, session_id=session_id, epoch=epoch, config_version=config_version,
                     intent_id=intent_id, wire_id=wire_id, event_id=event_id,
-                    gates={key: gates.get(key) for key in GATES}, inputs=dict(inputs),
+                    gates={**{key: gates.get(key) for key in GATES},
+                           **{key: gates[key] for key in OPTIONAL_GATES if key in gates}}, inputs=dict(inputs),
                     metrics={key: value.payload() for key, value in complete.items()},
                     markouts={key: value.payload() for key, value in markouts.items()})
 

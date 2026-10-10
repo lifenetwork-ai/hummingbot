@@ -113,6 +113,13 @@ class CapitalClaim:
                    permit.config_version, permit.risk_epoch, "SPOT", side, "OPEN",
                    permit.quantity_base, permit.price_usdt, 1)
 
+    @classmethod
+    def swap(cls, permit):
+        return cls(permit.intent_id, permit.client_order_id, permit.account_uid,
+                   permit.session_id, permit.epoch, permit.config_version, permit.risk_epoch,
+                   "SWAP", permit.side.name, permit.position_action.name,
+                   permit.quantity_base, permit.price_usdt, permit.leverage)
+
 
 @dataclass(frozen=True)
 class CapitalSnapshot:
@@ -439,10 +446,7 @@ Only reserve/authorize/check supply financial permission.
                     or permit.contract_value_life != self.policy.contract_value_life
                     or permit.contracts * permit.contract_value_life != permit.quantity_base):
                 raise ValueError("CAPITAL_SWAP_CONTRACT_MISMATCH")
-            claim = CapitalClaim(permit.intent_id, permit.client_order_id, permit.account_uid,
-                                 permit.session_id, permit.epoch, permit.config_version, permit.risk_epoch,
-                                 "SWAP", permit.side.name, permit.position_action.name,
-                                 permit.quantity_base, permit.price_usdt, permit.leverage)
+            claim = CapitalClaim.swap(permit)
             return self._operate(claim, reserve=reserve, swap_account=account)
         except Exception:
             return CapitalDecision(False, "CAPITAL_SWAP_INVALID")

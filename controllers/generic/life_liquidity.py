@@ -26,6 +26,7 @@ from hummingbot.strategy_v2.life_liquidity.account_bills import CashflowApproval
 from hummingbot.strategy_v2.life_liquidity.account_lock import AccountLockUnavailable, AccountRiskPoolLock
 from hummingbot.strategy_v2.life_liquidity.action_journal import QuoteActionJournal
 from hummingbot.strategy_v2.life_liquidity.capital_risk import CapitalRiskMonitor
+from hummingbot.strategy_v2.life_liquidity.carry_monitor import CarryMonitor
 from hummingbot.strategy_v2.life_liquidity.config import ConfigUpdateState, StrategyConfig, parse_duration_seconds
 from hummingbot.strategy_v2.life_liquidity.executor_send import ProtectedSpotExecutorSender
 from hummingbot.strategy_v2.life_liquidity.fees import CachedFeeRateSource, OkxFeeRateSource
@@ -66,12 +67,13 @@ from hummingbot.strategy_v2.life_liquidity.reference import ReferenceEngine
 from hummingbot.strategy_v2.life_liquidity.risk import ReservationLedger, RiskLimits, SpotIntent
 from hummingbot.strategy_v2.life_liquidity.safety import SafetyGate, SafetyObservation
 from hummingbot.strategy_v2.life_liquidity.session import SessionManager, SessionStore
-from hummingbot.strategy_v2.life_liquidity.shared_capital import SharedCapitalAuthority
+from hummingbot.strategy_v2.life_liquidity.shared_capital import CapitalClaim, SharedCapitalAuthority
 from hummingbot.strategy_v2.life_liquidity.spot_risk import SpotRiskBinding
 from hummingbot.strategy_v2.life_liquidity.spot_telemetry import collect_quote_inputs, collect_spot_metrics
 from hummingbot.strategy_v2.life_liquidity.state import IntentWAL
 from hummingbot.strategy_v2.life_liquidity.telemetry import Metric, TelemetryRecorder
 from hummingbot.strategy_v2.models.base import RunnableStatus
+from hummingbot.strategy_v2.models.executor_actions import StopExecutorAction
 
 # Synthetic offline guard only. A separately calibrated live book TTL is a P9 decision.
 SYNTHETIC_BOOK_MAX_AGE_MS = 2000
@@ -187,6 +189,8 @@ class LifeLiquidityController(ControllerBase):
         self._protected_spot_sender: ProtectedSpotExecutorSender | None = None
         self._protected_swap_sender: ProtectedSwapExecutorSender | None = None
         self._shared_capital_authority: SharedCapitalAuthority | None = None
+        self._carry_monitor: CarryMonitor | None = None
+        self.carry_reason_code = "CARRY_NOT_INSTALLED"
         self._hedge_coordinator: HedgeCoordinator | None = None
         self._quote_action_planner: QuoteActionPlanner | None = None
         self._runtime_risk_gate: SafetyGate | None = None
@@ -676,6 +680,33 @@ class LifeLiquidityController(ControllerBase):
 
     def _is_swap_config(self, config) -> bool:
         return getattr(config, "connector_name", None) == self.config.strategy.perpetual.connector
+
+    def install_carry_monitor(self, monitor: CarryMonitor) -> None:
+        """Attach qualified offline streams; joint recovery and live permission stay separate."""
+        if (self._carry_monitor is not None or not isinstance(monitor, CarryMonitor)
+                or not self.config.strategy.perpetual.enabled
+                or monitor.capital is not self._shared_capital_authority
+                or monitor.policy.account_uid != self.config.recovery_account_uid):
+            raise ValueError("CARRY_CONTROLLER_BINDING_INVALID")
+        if (self.config.recovery_state_dir is not None and monitor.journal.path.resolve()
+                != (Path(self.config.recovery_state_dir) / "carry.json").resolve()):
+            raise ValueError("CARRY_PATH_MISMATCH")
+        self._carry_monitor = monitor
+
+    def _carry_ready(self, prospective: CapitalClaim | None = None) -> bool:
+        if self._carry_monitor is None:
+            return True  # Legacy offline fixtures; production permission remains disabled.
+        decision = self._carry_monitor.check(prospective)
+        self.carry_reason_code = decision.reason_code
+        return decision.allowed
+
+    def _carry_stops(self):
+        """Request cancellation without inferring position closure or releasing any hold."""
+        records = self._order_safety_wal.all_records() if self._order_safety_wal is not None else ()
+        if self._protected_swap_sender is not None:
+            records += self._protected_swap_sender.wal.all_records()
+        return [StopExecutorAction(controller_id=self.config.id, executor_id=r.intent_id)
+                for r in records if r.state not in ("TERMINAL", "ABORTED_BEFORE_SEND") and not r.cancel_requested]
 
     def install_hedge_coordinator(self, coordinator: HedgeCoordinator) -> None:
         if (self._hedge_coordinator is not None or not isinstance(coordinator, HedgeCoordinator)
@@ -1614,6 +1645,8 @@ class LifeLiquidityController(ControllerBase):
         """Persist expiry and run order cancellation independent of quote readiness."""
         if self._order_safety_stopped:
             return
+        # Do not short-circuit this observation on quote readiness or session expiry.
+        carry_ready = self._carry_ready()
         if self._fee_rate_cache is not None and (
                 self._fee_refresh_task is None or self._fee_refresh_task.done()):
             try:
@@ -1641,7 +1674,7 @@ class LifeLiquidityController(ControllerBase):
                 self._pause_reconciliation_required = True
                 self.order_safety_reason_code = "RECONCILIATION_REQUIRED"
             risk_ready = (self._runtime_risk_ready() and self._spot_risk_ready() and self._joint_risk_ready()
-                          and self._hedge_ready())
+                          and self._hedge_ready() and carry_ready)
             loss_ready = risk_ready and self._execution_loss_ready()
             accounting_ready = loss_ready and self._fill_attribution_ready()
             markout_ready = accounting_ready and self._markout_risk_ready()
@@ -1930,6 +1963,8 @@ class LifeLiquidityController(ControllerBase):
             ("session", self._session_create_ready, "SESSION_OR_WATCHDOG_UNAVAILABLE"),
             ("market", self._spot_quote_gates_ready, "SPOT_DATA_UNAVAILABLE"),
         )
+        if self._carry_monitor is not None:
+            checks = (("carry", self._carry_ready, "CARRY_UNAVAILABLE"), *checks)
         self._permission_gates = {}
         for name, check, reason in checks:
             passed = check() is True
@@ -2247,6 +2282,8 @@ class LifeLiquidityController(ControllerBase):
         return True
 
     def determine_executor_actions(self):
+        if not self._carry_ready():
+            return self._carry_stops()
         if self.config.recovery_state_dir is not None and not self._quote_action_recovery_ready:
             return []
         planner = self._quote_action_planner
@@ -2296,5 +2333,6 @@ class LifeLiquidityController(ControllerBase):
                 f"quote action recovery: {self.quote_action_recovery_reason_code}; "
                 f"own depth: {self._own_depth_decision.reason_code}; "
                 f"telemetry: {self.telemetry_reason_code}; "
+                f"carry: {self.carry_reason_code}; "
                 f"residual risk: {self._spot_exit_planner.residual_reason_code if self._spot_exit_planner else 'unavailable'}; "
                 "trading is disabled pending P2–P9 gates."]

@@ -14,6 +14,7 @@ from hummingbot.strategy_v2.executors.order_executor.data_types import Execution
 from hummingbot.strategy_v2.life_liquidity.protected_send import ProtectedSpotGateway
 from hummingbot.strategy_v2.life_liquidity.risk import ReservationLedger, SpotIntent
 from hummingbot.strategy_v2.life_liquidity.send_gate import SendPermit
+from hummingbot.strategy_v2.life_liquidity.shared_capital import CapitalClaim
 from hummingbot.strategy_v2.life_liquidity.slots import SpotQuoteSlots
 
 
@@ -104,6 +105,9 @@ class ProtectedSpotExecutorSender:
         if coordinator is not None and not coordinator.allows_spot():
             return False
         capital = self.controller._shared_capital_authority
+        if capital is not None and not self.controller._carry_ready(
+                CapitalClaim.spot(permit, intent.side, capital.policy.account_uid)):
+            return False
         if capital is not None and not capital.spot(
                 permit, intent.side, (self.reservations.life_balance, self.reservations.usdt_balance)).allowed:
             return False
@@ -163,6 +167,10 @@ class ProtectedSpotExecutorSender:
         wire_id = self.gateway.allocate_client_order_id(side=side, trading_pair=pair)
         permit = SendPermit(config.id, wire_id, config.id, current.session_id, current.epoch,
                             current.config_version, self.risk_epoch(), price, amount)
+        capital = self.controller._shared_capital_authority
+        if capital is not None and not self.controller._carry_ready(
+                CapitalClaim.spot(permit, side, capital.policy.account_uid)):
+            raise PermissionError(self.controller.carry_reason_code)
         # A synchronous failure can occur after either journal commit.
         # Never infer from the exception that a connector request was absent.
         self._attempted_intents.add(config.id)

@@ -18,6 +18,7 @@ from hummingbot.strategy_v2.life_liquidity.market_data import LinearSwapContract
 from hummingbot.strategy_v2.life_liquidity.policy_state import PolicyState
 from hummingbot.strategy_v2.life_liquidity.request_budget import AccountRequestBudget
 from hummingbot.strategy_v2.life_liquidity.send_gate import SendPermit
+from hummingbot.strategy_v2.life_liquidity.shared_capital import CapitalClaim
 from hummingbot.strategy_v2.life_liquidity.state import IntentWAL
 from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction
 
@@ -180,6 +181,8 @@ class ProtectedSwapExecutorSender:
                 if contracts > available - pending - local:
                     raise ValueError("SWAP_CLOSE_EXCEEDS_POSITION")
             capital = self.controller._shared_capital_authority
+            if not self.controller._carry_ready(CapitalClaim.swap(permit)):
+                raise ValueError("SWAP_CARRY_REVOKED")
             coordinator = self.controller._hedge_coordinator
             if coordinator is not None and not coordinator.authorizes(config, issued=issued):
                 raise ValueError("SWAP_COORDINATOR_REVOKED")

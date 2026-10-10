@@ -238,7 +238,18 @@ class HedgeCoordinator:
             raise ValueError("HEDGE_BASIS_LIMIT")
         limit = m.asks[0][0] if side == TradeType.SELL else m.bids[0][0]
         fee = max(m.fee_rate, self.policy.hedge.maker_fee_rate)
-        cost = (adverse + basis) * base + max(limit, executable, mark) * base * fee + m.funding_cost_quote
+        funding_cost = m.funding_cost_quote
+        carry = self.controller._carry_monitor
+        if carry is not None:
+            decision = carry.check()
+            if not decision.allowed:
+                raise ValueError("HEDGE_CARRY_UNAVAILABLE")
+            fee = max(fee, decision.fee_rate)
+            # Reserve the child's own limit-price bound before publishing its claim.
+            # Otherwise that claim can raise the monitor's price floor and revoke itself.
+            funding_cost = max(funding_cost, base * decision.funding_cost_per_base * max(
+                Decimal(1), limit / decision.funding_reference_price_usdt))
+        cost = (adverse + basis) * base + max(limit, executable, mark) * base * fee + funding_cost
         if cost > self.policy.hedge.max_hedge_cost_quote or cost > m.available_edge_quote:
             raise ValueError("HEDGE_COST_OR_NET_EDGE_LIMIT")
         return limit, cost
