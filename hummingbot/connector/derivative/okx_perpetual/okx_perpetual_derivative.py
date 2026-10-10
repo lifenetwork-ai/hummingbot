@@ -1,6 +1,6 @@
 import asyncio
 from decimal import Decimal, InvalidOperation, localcontext
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from bidict import bidict
 
@@ -24,7 +24,7 @@ from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState,
 from hummingbot.core.data_type.order_book_tracker_data_source import OrderBookTrackerDataSource
 from hummingbot.core.data_type.trade_fee import TokenAmount, TradeFeeBase
 from hummingbot.core.data_type.user_stream_tracker_data_source import UserStreamTrackerDataSource
-from hummingbot.core.utils.async_utils import safe_gather
+from hummingbot.core.utils.async_utils import safe_ensure_future, safe_gather
 from hummingbot.core.utils.estimate_fee import build_perpetual_trade_fee
 from hummingbot.core.web_assistant.connections.data_types import RESTMethod
 from hummingbot.core.web_assistant.web_assistants_factory import WebAssistantsFactory
@@ -57,8 +57,29 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
         self._domain = domain
         self._last_trade_history_timestamp = None
         self._contract_sizes = {}
+        self._protected_trading_pairs = set()
 
         super().__init__(balance_asset_limit, rate_limits_share_pct)
+
+    def enable_protected_trading_pair(self, trading_pair: str) -> None:
+        if not isinstance(trading_pair, str) or not trading_pair:
+            raise ValueError("protected trading pair required")
+        self._protected_trading_pairs.add(trading_pair)
+
+    def submit_protected_order(self, *, order_id: str, trading_pair: str, amount: Decimal,
+                               trade_type: TradeType, order_type: OrderType, price: Decimal,
+                               position_action: PositionAction, pre_send_check, on_ack) -> str:
+        """Schedule an opt-in WAL-owned post-only SWAP order, without a retry fallback."""
+        if (not order_id or not callable(pre_send_check) or not callable(on_ack)
+                or trading_pair not in self._protected_trading_pairs
+                or order_type != OrderType.LIMIT_MAKER
+                or position_action not in (PositionAction.OPEN, PositionAction.CLOSE)):
+            raise ValueError("protected SWAP order requires ID, callbacks and post-only semantics")
+        safe_ensure_future(self._create_order(
+            trade_type=trade_type, order_id=order_id, trading_pair=trading_pair,
+            amount=amount, price=price, order_type=order_type, position_action=position_action,
+            pre_send_check=pre_send_check, on_ack=on_ack))
+        return order_id
 
     @property
     def authenticator(self) -> OkxPerpetualAuth:
@@ -260,6 +281,15 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
         position_action: PositionAction = PositionAction.NIL,
         **kwargs,
     ) -> Tuple[str, float]:
+        pre_send_check = kwargs.pop("pre_send_check", None)
+        on_ack = kwargs.pop("on_ack", None)
+        if (trading_pair in getattr(self, "_protected_trading_pairs", set())
+                and (not callable(pre_send_check) or not callable(on_ack))):
+            raise PermissionError("PROTECTED_ORDER_REQUIRED")
+        if pre_send_check is not None and (
+                not callable(pre_send_check) or not callable(on_ack) or order_type != OrderType.LIMIT_MAKER
+                or position_action not in (PositionAction.OPEN, PositionAction.CLOSE)):
+            raise ValueError("PROTECTED_SWAP_ORDER_INVALID")
         if position_action == PositionAction.NIL:
             raise NotImplementedError
         ex_trading_pair = await self.exchange_symbol_associated_to_pair(trading_pair)
@@ -291,13 +321,19 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
             is_auth_required=True,
             trading_pair=ex_trading_pair,
             headers={"referer": CONSTANTS.HBOT_BROKER_ID},
+            **({"pre_send_check": lambda: pre_send_check(data)} if pre_send_check is not None else {}),
             **kwargs,
         )
 
         data = exchange_order_id["data"][0]
         if data["sCode"] != "0":
             raise IOError(f"Error submitting order {order_id}: {data['sMsg']}")
-        return str(data["ordId"]), self.current_timestamp
+        exchange_id = data.get("ordId")
+        if not isinstance(exchange_id, str) or not exchange_id.strip():
+            raise IOError("ORDER_ACK_UNAVAILABLE")
+        if on_ack is not None:
+            on_ack(exchange_id)
+        return exchange_id, self.current_timestamp
 
     async def _place_cancel(self, order_id: str, tracked_order: InFlightOrder):
         data = {"instId": await self.exchange_symbol_associated_to_pair(tracked_order.trading_pair)}
@@ -924,6 +960,7 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
                            return_err: bool = False,
                            limit_id: Optional[str] = None,
                            trading_pair: Optional[str] = None,
+                           pre_send_check: Optional[Callable[[], None]] = None,
                            **kwargs) -> Dict[str, Any]:
 
         rest_assistant = await self._web_assistants_factory.get_rest_assistant()
@@ -942,6 +979,7 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
             is_auth_required=is_auth_required,
             return_err=return_err,
             throttler_limit_id=limit_id if limit_id else path_url,
+            **({"pre_send_check": pre_send_check} if pre_send_check is not None else {}),
         )
         return resp
 

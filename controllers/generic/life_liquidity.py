@@ -58,6 +58,7 @@ from hummingbot.strategy_v2.life_liquidity.order_gateway import (
 )
 from hummingbot.strategy_v2.life_liquidity.own_depth import OwnDepthDecision
 from hummingbot.strategy_v2.life_liquidity.own_depth_runner import separate_local_own_depth
+from hummingbot.strategy_v2.life_liquidity.protected_swap import ProtectedSwapExecutorSender
 from hummingbot.strategy_v2.life_liquidity.quote_actions import QuoteActionPlanner, QuotePlanningSnapshot
 from hummingbot.strategy_v2.life_liquidity.recovery_probe import RecoveryProbeGuard
 from hummingbot.strategy_v2.life_liquidity.reference import ReferenceEngine
@@ -182,6 +183,7 @@ class LifeLiquidityController(ControllerBase):
         self._runner_cancel_observations: dict[str, str | None] = {}
         self._own_depth_decision = OwnDepthDecision(None, "OWN_DEPTH_NOT_EVALUATED")
         self._protected_spot_sender: ProtectedSpotExecutorSender | None = None
+        self._protected_swap_sender: ProtectedSwapExecutorSender | None = None
         self._quote_action_planner: QuoteActionPlanner | None = None
         self._runtime_risk_gate: SafetyGate | None = None
         self._runtime_risk_observation: Callable[[], SafetyObservation] | None = None
@@ -623,6 +625,22 @@ class LifeLiquidityController(ControllerBase):
             raise ValueError("PROTECTED_SENDER_RECOVERY_MISMATCH")
         sender.gateway.arm_pair(self.config.strategy.spot.pair)
         self._protected_spot_sender = sender
+
+    def install_protected_swap_sender(self, sender: ProtectedSwapExecutorSender) -> None:
+        """Install an explicit SWAP boundary without granting production permission."""
+        spot_budget = getattr(self._order_safety_gateway, "request_budget", None)
+        if (self._protected_swap_sender is not None or not isinstance(sender, ProtectedSwapExecutorSender)
+                or sender.controller is not self or sender.manager is not self._order_safety_manager
+                or self.config.strategy.perpetual.enabled is not True
+                or sender.request_budget.account_uid != self.config.recovery_account_uid
+                or spot_budget is not None and sender.request_budget is not spot_budget
+                or self._order_safety_wal is not None and sender.wal.path == self._order_safety_wal.path):
+            raise ValueError("PROTECTED_SWAP_RECOVERY_MISMATCH")
+        sender.connector.enable_protected_trading_pair(sender.contract.trading_pair)
+        self._protected_swap_sender = sender
+
+    def _is_swap_config(self, config) -> bool:
+        return getattr(config, "connector_name", None) == self.config.strategy.perpetual.connector
 
     def install_quote_action_planner(self, planner: QuoteActionPlanner) -> None:
         """Attach an explicit quote source; production create permission stays disabled."""
@@ -1198,9 +1216,12 @@ class LifeLiquidityController(ControllerBase):
             return False
         if self._order_safety_wal is None:
             return True
+        records = self._order_safety_wal.all_records()
+        if self._protected_swap_sender is not None:
+            records += self._protected_swap_sender.wal.all_records()
         return any(record.intent_id in self._runner_stop_revoked_ids
                    and record.state not in ("TERMINAL", "ABORTED_BEFORE_SEND")
-                   for record in self._order_safety_wal.all_records())
+                   for record in records)
 
     def allow_risk_reduction_actions(self) -> bool:
         try:
@@ -1224,11 +1245,15 @@ class LifeLiquidityController(ControllerBase):
         config = action.executor_config
         if getattr(config, "id", None) in self._runner_stop_revoked_ids:
             return False
+        if self._is_swap_config(config):
+            return self._protected_swap_sender is not None and self._protected_swap_sender.authorizes_config(config)
         if self.is_risk_reducing_config(config):
             return self._spot_exit_planner.authorizes_config(config)
         return self.allow_create_executor_actions()
 
     def authorize_runner_create_action(self, action) -> bool:
+        if self._is_swap_config(action.executor_config):
+            return self._protected_swap_sender is not None and self._protected_swap_sender.authorizes_config(action.executor_config)
         if self.is_risk_reducing_config(action.executor_config):
             return self._spot_exit_planner.authorizes_config(action.executor_config)
         planner = self._quote_action_planner
@@ -1238,6 +1263,11 @@ class LifeLiquidityController(ControllerBase):
 
     def on_runner_stop_action(self, action) -> None:
         """Revoke an already dispatched intent before the runner stops its executor."""
+        sender = self._protected_swap_sender
+        if sender is not None and action.controller_id == self.config.id and sender.owns_intent(action.executor_id):
+            self._runner_stop_revoked_ids.add(action.executor_id)
+            sender.revoke(action.executor_id)
+            return
         wal = self._order_safety_wal
         if wal is None or action.controller_id != self.config.id:
             return
@@ -1258,6 +1288,10 @@ class LifeLiquidityController(ControllerBase):
     def on_runner_create_action_rejected(self, action) -> bool:
         self._record_telemetry("QUEUE_REJECT", allowed=False, reason_code="RUNNER_ACTION_REJECTED",
                                intent_id=getattr(action.executor_config, "id", None))
+        if self._is_swap_config(action.executor_config):
+            if self._protected_swap_sender is not None:
+                self._protected_swap_sender.revoke(action.executor_config.id)
+            return False
         if self.is_risk_reducing_config(action.executor_config):
             return self._spot_exit_planner.action_transition(action, "REJECTED")
         planner = self._quote_action_planner
@@ -1266,6 +1300,8 @@ class LifeLiquidityController(ControllerBase):
     def on_runner_create_action_dispatched(self, action) -> bool:
         self._record_telemetry("QUEUE_DISPATCH", allowed=True, reason_code="RUNNER_ACTION_DISPATCHED",
                                intent_id=getattr(action.executor_config, "id", None))
+        if self._is_swap_config(action.executor_config):
+            return self._protected_swap_sender is not None and self._protected_swap_sender.authorizes_config(action.executor_config)
         if self.is_risk_reducing_config(action.executor_config):
             return self._spot_exit_planner.action_transition(action, "DISPATCHED")
         planner = self._quote_action_planner
@@ -1273,6 +1309,11 @@ class LifeLiquidityController(ControllerBase):
 
     def submit_executor_spot_order(self, config, *, amount: Decimal,
                                    price: Decimal, order_type) -> str:
+        # Historical runner hook name; SWAP orders must use their own permit.
+        if self._is_swap_config(config):
+            if self._protected_swap_sender is None:
+                raise PermissionError("LIFE_SWAP_TRADING_DISABLED")
+            return self._protected_swap_sender.submit(config, amount=amount, price=price, order_type=order_type)
         sender = self._protected_spot_sender
         exit_order = self.is_risk_reducing_config(config)
         allowed = (self._spot_exit_planner.authorizes_config(config) if exit_order
