@@ -332,8 +332,12 @@ async def test_pre_send_journals_can_reconcile_without_late_executor_checkpoint(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("boundary", [
+    "before_insert", "after_insert", "before_commit", "after_commit",
+    "before_update", "after_update", "before_update_commit", "after_update_commit",
+])
 async def test_process_kill_inside_executor_insert_replays_pre_send_provenance(
-        tmp_path, monkeypatch):
+        tmp_path, monkeypatch, boundary):
     """An INSERT visible only inside its transaction must not become recovery proof."""
     monkeypatch.setattr(account_lock, "ACCOUNT_LOCK_ROOT", tmp_path / "locks")
     db_path = tmp_path / "executors.sqlite"
@@ -345,6 +349,7 @@ import os
 import sys
 from pathlib import Path
 from sqlalchemy import event
+from sqlalchemy.orm import Session
 from test.hummingbot.strategy_v2.life_liquidity.test_executor_protected_send import _setup
 from test.hummingbot.strategy_v2.life_liquidity.test_final_quote_send import _attach_quote_planner
 from test.hummingbot.strategy_v2.life_liquidity.test_recorder_cold_restart import _recorder
@@ -357,7 +362,8 @@ from hummingbot.strategy_v2.life_liquidity.state import IntentWAL
 from hummingbot.strategy_v2.models.base import RunnableStatus
 from hummingbot.strategy_v2.models.executor_actions import StoreExecutorAction
 
-directory, db_path, marker_path = map(Path, sys.argv[1:])
+directory, db_path, marker_path = map(Path, sys.argv[1:4])
+boundary = sys.argv[4]
 
 async def main():
     recorder = _recorder(db_path)
@@ -390,9 +396,22 @@ async def main():
     checkpoint = ExecutorOrchestrator(strategy=runner)
     checkpoint.active_executors["life"] = [executor]
 
-    @event.listens_for(recorder.sql_manager.engine, "after_cursor_execute")
-    def kill_after_insert(_connection, _cursor, statement, _parameters, _context, _executemany):
-        if 'INSERT INTO "Executors"' in statement:
+    updating = "update" in boundary
+    if updating:
+        checkpoint.store_executor(StoreExecutorAction(executor_id="quote-1", controller_id="life"))
+        checkpoint.active_executors["life"] = [executor]
+        executor.config = executor.config.model_copy(update={"timestamp": 2.0})
+    if boundary in ("before_insert", "after_insert", "before_update", "after_update"):
+        hook = "before_cursor_execute" if boundary.startswith("before") else "after_cursor_execute"
+        @event.listens_for(recorder.sql_manager.engine, hook)
+        def kill_at_insert(_connection, _cursor, statement, _parameters, _context, _executemany):
+            command = 'UPDATE "Executors"' if updating else 'INSERT INTO "Executors"'
+            if command in statement:
+                os._exit(31)
+    else:
+        hook = "before_commit" if boundary.startswith("before") else "after_commit"
+        @event.listens_for(Session, hook)
+        def kill_at_commit(_session):
             os._exit(31)
 
     checkpoint.store_executor(StoreExecutorAction(executor_id="quote-1", controller_id="life"))
@@ -401,7 +420,7 @@ async def main():
 asyncio.run(main())
 """
     process = subprocess.run(
-        [sys.executable, "-c", child, str(tmp_path), str(db_path), str(marker_path)],
+        [sys.executable, "-c", child, str(tmp_path), str(db_path), str(marker_path), boundary],
         cwd=Path(__file__).resolve().parents[4], capture_output=True, text=True, timeout=30)
     assert process.returncode == 31, process.stderr
     with marker_path.open(encoding="utf-8") as handle:
@@ -413,7 +432,10 @@ asyncio.run(main())
 
     reopened = _recorder(db_path)
     monkeypatch.setattr(MarketsRecorder, "_shared_instance", reopened)
-    assert reopened.get_executors_by_controller("life") == []
+    rows = reopened.get_executors_by_controller("life")
+    assert [row.id for row in rows] == (["quote-1"] if "update" in boundary or boundary == "after_commit" else [])
+    if rows:
+        assert rows[0].timestamp == (2.0 if boundary == "after_update_commit" else 1.0)
     _cashflows(tmp_path)
     connector = FakeTradingOkx()
     connector.status[wire_id] = {"clOrdId": wire_id, "ordId": "exchange-1",

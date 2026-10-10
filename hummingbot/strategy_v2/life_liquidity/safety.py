@@ -6,6 +6,7 @@ import tempfile
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
+from typing import Callable
 
 
 def _valid(value: Decimal, *, positive: bool = False) -> bool:
@@ -52,6 +53,7 @@ class SafetyGate:
         self._good_since_ms: int | None = None
         self._last_seen_ms: int | None = None
         self._manual_rearm_required = False
+        self._reconciliation_authority: Callable[[], bool] | None = None
         if require_existing and (self.path.is_symlink() or not self.path.is_file()):
             raise ValueError("SAFETY_JOURNAL_UNAVAILABLE")
         if self.path.exists():
@@ -99,11 +101,23 @@ class SafetyGate:
         except (OSError, ValueError, TypeError, AttributeError):
             return False
 
+    def bind_reconciliation_authority(self, authority: Callable[[], bool]) -> None:
+        """A controller-bound gate cannot accept caller-attested account proof."""
+        if self._reconciliation_authority is not None or not callable(authority):
+            raise ValueError("SAFETY_REARM_AUTHORITY_INVALID")
+        self._reconciliation_authority = authority
+
+    @property
+    def rearm_required(self) -> bool:
+        return self._manual_rearm_required
+
     def arm_after_reconciliation(self, *, reconciled: bool, operator_id: str) -> None:
         """Require an explicit operator decision after a clear-journal restart."""
         if (reconciled is not True or not isinstance(operator_id, str)
                 or not operator_id.strip() or not self.journal_verified()
-                or self.state == "HALTED"):
+                or self.state == "HALTED"
+                or (self._reconciliation_authority is not None
+                    and self._reconciliation_authority() is not True)):
             raise ValueError("SAFETY_REARM_PROOF_REQUIRED")
         self._manual_rearm_required = False
         self.invalidate("STARTUP_REVALIDATION")

@@ -159,6 +159,8 @@ class LifeLiquidityController(ControllerBase):
         self._account_uid_verified = False
         self._release_account_lock_on_task_done = False
         self._order_safety_stopped = False
+        self._safety_rearm_verified = False
+        self._safety_rearm_in_progress = False
         self._runner_orchestrator = None
         self._runner_halt_ok = False
         self._runner_wire_owners: dict[str, str] = {}
@@ -659,6 +661,7 @@ class LifeLiquidityController(ControllerBase):
                 gate.path != Path(self.config.recovery_state_dir) / "safety.json"
                 or gate.path.is_symlink()):
             raise ValueError("RUNTIME_RISK_RECOVERY_MISMATCH")
+        gate.bind_reconciliation_authority(lambda: self._safety_rearm_verified is True)
         self._runtime_risk_gate = gate
         self._runtime_risk_observation = observation
         self._runtime_risk_clock_ms = monotonic_clock_ms
@@ -709,6 +712,110 @@ class LifeLiquidityController(ControllerBase):
             self._runtime_risk_gate.halt("MANUAL_KILL_SWITCH")
         finally:
             self.on_safety_tick(time.monotonic())
+
+    async def manual_rearm(self, *, operator_id: str) -> None:
+        """Rearm a clear recovery latch only after fresh account and runner proof.
+
+        This does not clear HALT, resume a session, or enable production trading.
+        The existing observation hysteresis and all quote gates still apply.
+        """
+        gate = self._runtime_risk_gate
+        maximum = self.config.recovery_reconciliation_max_age_ms
+        if (gate is None or not gate.rearm_required or gate.state == "HALTED"
+                or not isinstance(operator_id, str) or not operator_id.strip()
+                or self._safety_rearm_in_progress or self._order_safety_stopped
+                or not isinstance(maximum, int) or isinstance(maximum, bool) or maximum <= 0
+                or self.order_safety_task is not None and not self.order_safety_task.done()):
+            raise ValueError("SAFETY_REARM_PROOF_REQUIRED")
+        self._safety_rearm_in_progress = True
+        try:
+            await asyncio.wait_for(self._reconcile_for_manual_rearm(), maximum / 1000)
+            self._safety_rearm_verified = True
+            gate.arm_after_reconciliation(reconciled=True, operator_id=operator_id)
+            self.runtime_risk_reason_code = "STARTUP_REVALIDATION"
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            raise ValueError("SAFETY_REARM_PROOF_REQUIRED") from exc
+        finally:
+            self._safety_rearm_verified = False
+            self._safety_rearm_in_progress = False
+
+    async def _reconcile_for_manual_rearm(self) -> None:
+        manager, gateway, wal, reservations = (self._order_safety_manager,
+                                               self._order_safety_gateway,
+                                               self._order_safety_wal,
+                                               self._order_safety_reservations)
+        directory = self.config.recovery_state_dir
+        uid = self.config.recovery_account_uid
+        config_snapshot = self.config.model_dump_json()
+        ownership = self._order_safety_account_lock
+        if (not directory or not uid or manager is None or gateway is None or wal is None
+                or reservations is None or ownership is None or ownership._fd is None
+                or ownership.path.name != f"okx-{uid}.lock"
+                or self.config.require_quote_action_journal is not True):
+            raise ValueError("REARM_RECOVERY_BINDING_UNAVAILABLE")
+        path = Path(directory)
+        account = getattr(gateway.account_check, "__self__", None)
+        if (not isinstance(account, SpotAccountReconciler)
+                or account.connector is not gateway.connector or account.reservations is not reservations
+                or not isinstance(account.bills, SpotBillReconciler)
+                or account.bills.wal is not wal or account.bills.reservations is not reservations
+                or account.bills.connector is not gateway.connector
+                or account.bills.approvals != CashflowApprovals.load(path / "cashflows.json")
+                or gateway.scope_check is not None):
+            raise ValueError("REARM_ACCOUNT_BINDING_UNAVAILABLE")
+        if await gateway.connector.get_account_uid() != uid:
+            raise ValueError("ACCOUNT_UID_MISMATCH")
+        self._account_uid_verified = True
+        reservations.assert_healthy()
+        if (wal.path != path / "intents.json" or reservations.path != path / "reservations.json"
+                or IntentWAL(wal.path).all_records() != wal.all_records()
+                or ReservationLedger.restore(reservations.path, limits=reservations.limits).reservation_snapshot()
+                != reservations.reservation_snapshot()):
+            raise ValueError("REARM_JOURNALS_DISAGREE")
+        self._verify_quote_action_recovery(path, manager, wal, reservations)
+        if not self._quote_action_recovery_ready:
+            raise ValueError("REARM_ACTION_SCOPE_UNAVAILABLE")
+        self._runner_halt_ok = self._halt_runner_orders()
+        gateway.runner_scope_check = self._runner_executor_scope_complete
+        current = manager.current_session
+        if current is None:
+            raise ValueError("REARM_SESSION_UNAVAILABLE")
+        scopes = {(record.session_id, record.epoch) for record in wal.all_records()}
+        scopes.add((current.session_id, current.epoch))
+        started = time.monotonic()
+        for session_id, epoch in sorted(scopes):
+            result = await gateway.reconcile(session_id, epoch)
+            age = (manager.wall_clock() - result.observed_at).total_seconds() * 1000
+            if (not result.scope_complete or not result.trade_events_reconciled
+                    or result.open_order_ids or result.pending_cancel_ids or result.unknown_order_ids
+                    or (result.session_id, result.epoch) != (session_id, epoch)
+                    or not 0 <= age <= manager.max_reconciliation_age_ms):
+                raise ValueError("REARM_ACCOUNT_UNRESOLVED")
+        if (await gateway.connector.get_account_uid() != uid
+                or self.config.recovery_account_uid != uid or self.config.recovery_state_dir != directory
+                or self.config.model_dump_json() != config_snapshot
+                or self._order_safety_gateway is not gateway or self._order_safety_manager is not manager
+                or self._order_safety_wal is not wal or self._order_safety_reservations is not reservations
+                or self._order_safety_stopped
+                or self.order_safety_task is not None and not self.order_safety_task.done()
+                or ownership._fd is None or not manager.can_reduce()
+                or account.bills.approvals != CashflowApprovals.load(path / "cashflows.json")
+                or manager.store.load() != manager._journal
+                or (time.monotonic() - started) * 1000 > manager.max_reconciliation_age_ms
+                or any(record.state not in ("TERMINAL", "ABORTED_BEFORE_SEND") for record in wal.all_records())
+                or any(not reservations.is_terminal_intent(key) for key in reservations.reservation_ids)
+                or not self.verify_runner_fill_events() or not self._fill_attribution_ready()):
+            raise ValueError("REARM_PROOF_INVALIDATED")
+        reservations.assert_healthy()
+        if (IntentWAL(wal.path).all_records() != wal.all_records()
+                or ReservationLedger.restore(reservations.path, limits=reservations.limits).reservation_snapshot()
+                != reservations.reservation_snapshot()):
+            raise ValueError("REARM_JOURNALS_DISAGREE")
+        self._verify_quote_action_recovery(path, manager, wal, reservations)
+        if not self._quote_action_recovery_ready or not self._runner_executor_scope_complete():
+            raise ValueError("REARM_RUNNER_SCOPE_UNAVAILABLE")
 
     def install_joint_risk_gate(self, contract: LinearLifeContractSpec,
                                 limits: JointRiskLimits, *,

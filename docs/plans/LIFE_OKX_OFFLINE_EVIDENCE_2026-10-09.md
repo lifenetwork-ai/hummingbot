@@ -3,8 +3,8 @@
 ## Scope and verdict
 
 This checkpoint covers synthetic LIFE spot scenarios, selected joint spot/SWAP
-risk contracts, and an advisory inventory execution journal. It closes **O.2 spot risk/economics** and **O.3 spot lifecycle** offline acceptance.
-O.4–O.7 remain open in
+risk contracts, and an advisory inventory execution journal. It closes **O.2 spot risk/economics**, **O.3 spot lifecycle**, and **O.4 spot recovery** offline acceptance.
+O.5–O.7 remain open in
 the [implementation plan](LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md).
 No demo or production order was sent. All quoted balances, limits, prices,
 fees, latencies, and queue assumptions in these tests are simulation values;
@@ -14,7 +14,7 @@ none are live defaults.
 | --- | --- | --- |
 | O.2 spot economics/risk | **Offline complete.** Real V2/executor/fake OKX acceptance now includes durable rolling capacity, reservation-derived stress, bounded degraded probes, protected exits with separate fee/loss budgets in both objectives, periodic authenticated-style fee refresh, independently valued LIFE transfers, late stop revocation, failed/saturated cancellation, capital/loss/markout and restart | No remaining O.2 spot offline requirement. D/R production installation, qualified observations and calibration remain; SWAP funding/basis/hedging remain O.7 |
 | O.3 spot lifecycle | **Offline complete.** One real V2 runner/fake OKX session covers lost ACK, partial fill/fee, expiry/cancel, missing/foreign regular orders, foreign algo order, incomplete paginated and foreign completed-fill history, own-depth-qualified successor anchor, replacement quote with status-backed ACK, residual inventory, and journal restore | Demo connector behavior and real-account history/reference qualification remain D/R work; production order permission stays disabled |
-| O.4 recovery | Existing process-kill/SQLite/WAL/reservation slices; runner cancel timeout and clock rollback; manual HALT persistence, queue rejection, and cancellation scheduling. Missing/corrupt safety journal blocks recovery; deletion after quote approval revokes final send while retaining its reservation; HALT latches in memory before a failing checkpoint. A recovered clear journal requires manual rearm, including when HALT failed before its write. A V2/fake OKX send remains unknown and reserved after cashflow attribution fails before write or after replacement, then replays once on restart | Remaining combined recorder/quote-action/cashflow interruption matrix and binding manual rearm to authoritative account reconciliation |
+| O.4 recovery | **Offline complete.** Eight child-process SQLite INSERT/UPDATE/commit boundaries, 16 combined runner action/recorder/cashflow/retirement interruptions, unknown-send retention, terminal proof, deduplicated transfer replay, and 22 account-bound manual-rearm cases complement the existing WAL/reservation/clock/HALT tests | D/R deployed storage/clock/account ownership and history completeness; physical power-loss behavior is an operating assumption; SWAP recovery remains O.7 |
 | O.5 simulation/telemetry | Seeded queue-ahead and ACK/cancel latency fixture; candle touch and unattributed prints make no fills | Recorded adversarial scenario suite, complete quality-flagged telemetry, risk-event latency budgets and economic evaluation |
 | O.6 review | Scoped regression and changed-code coverage below | Full spot A01–A39 matrix, changed-code review, named reviewer and reproducible evidence bundle |
 | O.7 SWAP/inventory | Joint pending-fill stress, conservative hedge decision, inventory child/exit-cost journal | Protected SWAP order gateway, authenticated fills/funding/margin, shared coordinator, inventory runner route and mode transitions |
@@ -71,6 +71,46 @@ All file names below are under `test/hummingbot/strategy_v2/life_liquidity/` unl
 | A35–A36 | `test_o2_revocation_replay.py`, `test_protected_okx_send.py`, `test_final_quote_send.py`, `test_request_budget.py`, `test_safety_watchdog.py`, `test_o2_integrated_replay.py` |
 
 Remaining D/R qualification owners: connector/operator owner for actual exchange/account behavior and source completeness; risk/project owner for independent LIFE valuation and numeric fee/exit/stress/recovery budgets. The separate O.4 recorder interruption, O.5 adversarial telemetry, O.6 full acceptance/coverage review and O.7 SWAP/inventory milestones remain open. Post-only exits can remain unfilled; this scope supplies explicit residual-risk reporting, not guaranteed liquidation. Host-local journals and account locks do not coordinate other hosts or external API clients.
+
+## O.4 spot offline closure
+
+Reviewed by Codex on 2026-10-09 against P8.1–P8.4 and spot A03, A14, A18, A35 and A39. This is repository/test review; deployment and real-account release remain D/R. **1,232 tests passed, 28 warnings** across the six suites below; all pre-commit checks pass. Changed-line coverage was not rerun; O.6 remains open.
+
+### Red → Green and interruption boundaries
+
+- The new rearm acceptance initially failed because a controller-bound gate accepted caller-supplied `reconciled=True`. The controller now installs a one-call reconciliation authority. `await controller.manual_rearm(operator_id="...")` performs fresh UID, account-wide orders/algos/fills/bills, balance, runner/recorder and journal checks under the held account lock. Every session scope must have terminal proof. The method has an explicit reconciliation timeout and rejects changed identity/configuration, lost ownership, stop/HALT, expiry/rollback and stale evidence. Cancellation retains the manual latch. Success resets observation hysteresis without resuming the session or enabling trading. A persisted HALT remains latched.
+- The 22 rearm cases include a successful verified path plus live/foreign activity, missing bill anchor, balance mismatch, recorder failure, missing/corrupt action state, deleted reservation state, changed WAL, HALT, expiry/rollback, stale or stopped fetch, HALT/config/ownership changes during fetch, timeout and cancellation. Standalone safety-unit tests retain their isolated primitive contract; installed controller gates cannot use caller attestation.
+- Eight killed-child recorder cases cover before/after executor INSERT, before/after its commit, before/after UPDATE and before/after its commit. Reopened SQLite rows are absent, old or updated exactly as the boundary requires. Both existing stored provenance and missing-row pre-send provenance retain live exposure; only later complete terminal exchange/account proof releases it. No restart sends another order.
+- The 16-case runner matrix combines action dispatch before write/after atomic replacement, recorder before/after commit, cashflow attribution before write/after replacement, and action retirement before write/after replacement. A recorder exception retains its in-memory executor even when the row committed. Restored action/WAL/reservation/recorder evidence retains the unknown send; a foreign algo blocks terminal release. The approved +2 USDT transfer replays once, and action retirement occurs only after both WAL and reservation terminal proof. The final restore has exactly 12 USDT and one original send.
+- Combined acceptance runs real spot listing/book/continuity and runtime safety gates before the original protected send; only the production release switch is replaced. Manual-rearm tests isolate recovery/account proof. Separate pre-existing tests cover process termination at WAL/action/reservation/cashflow/HALT boundaries, failed fill checkpoints, timed-out cancellation, queued/final-send revocation, corrupt storage and unchanged absolute session deadlines.
+
+### Requirement-to-evidence map
+
+All test names below are under `test/hummingbot/strategy_v2/life_liquidity/`.
+
+| Requirement / cases | Executable offline evidence | Remaining environment proof / owner |
+| --- | --- | --- |
+| P8.1 / A35 send/ACK/fill/cancel/replace crashes | `test_recorder_cold_restart.py`, `test_o4_commit_matrix.py`, `test_o4_cashflow_runner_replay.py`, `test_crash_recovery_replay.py`, `test_wal.py`, `test_executor_protected_send.py`, `test_o2_revocation_replay.py` | R/connector/operator: deployed DB/account and real exchange history; SWAP recovery O.7 |
+| P8.2 / A03 corrupt state and clock/deadline faults | `test_controller_order_safety.py`, `test_reservation_persistence.py`, `test_quote_action_recovery.py`, `test_risk_priority.py`, `test_session.py`, `test_spot_session_replay.py`, `test_o4_manual_rearm.py` | R/operator: deployed storage/clock monitoring; physical power loss is an operating assumption |
+| P8.3 / A39 one host/account ownership and foreign activity | `test_account_lock.py`, `test_controller_order_safety.py`, `test_account_bills.py`, `test_order_gateway.py`, `test_o4_manual_rearm.py` | R/operator: actual dedicated UID/host/API clients, history coverage; cross-host authority outside MVP |
+| P8.4 / A14 manual stop, reload and verified rearm | `test_runtime_risk_binding.py`, `test_risk_priority.py`, `test_o4_manual_rearm.py`, `test_session.py` | D/R/connector/operator: deployed stop/reload/rearm procedure |
+| A18 atomic/rejected configuration | `test_config_update.py`, `test_controller_config_adapter.py`, `test_o2_revocation_replay.py`, changed-config-during-fetch case in `test_o4_manual_rearm.py` | D/R/operator: approved immutable production configuration |
+
+Reproduce the closure regression without credentials:
+
+```bash
+conda run -n hummingbot --no-capture-output python -m pytest -q --disable-warnings \
+  test/hummingbot/strategy_v2/life_liquidity \
+  test/hummingbot/strategy/test_strategy_v2_base.py \
+  test/hummingbot/connector/exchange/okx \
+  test/hummingbot/connector/derivative/okx_perpetual \
+  test/hummingbot/strategy_v2/executors/test_executor_orchestrator.py \
+  test/hummingbot/connector/test_markets_recorder.py
+```
+
+Process termination and injected exceptions do not establish physical power-loss durability. Fake authenticated responses do not establish production history completeness. P8.5–P8.6 / A13 exchange cancellation timer verification remains D/R, owned by the connector/operator. O.5 telemetry/adversarial simulation, O.6 broad acceptance/coverage and O.7 SWAP/inventory remain open. Production order permission stays disabled.
+
+The checkpoint narratives below retain historical verdicts and counts; the current scope table and closure sections above are authoritative.
 
 ## Reproducible test and coverage commands
 
@@ -251,7 +291,7 @@ fixture can establish profitability or a live subsidy budget.
 
 ## Classification of remaining detailed items
 
-Mixed-stage parent checkboxes remain open for their explicitly classified D/R proof. O.2 spot offline acceptance is complete as mapped above; its remaining production inputs do not reopen the offline gate.
+Mixed-stage parent checkboxes remain open for their explicitly classified D/R proof. O.2–O.4 spot offline acceptance is complete as mapped above; its remaining production inputs do not reopen the offline gate.
 
 | Detailed items | Offline gate | Later proof |
 | --- | --- | --- |
@@ -264,5 +304,4 @@ Mixed-stage parent checkboxes remain open for their explicitly classified D/R pr
 | P8.7–P8.13 | O.5; telemetry and adversarial scenarios | D latency behavior; R LIFE calibration; C economic release decision |
 | Spot A01–A39 applicability, regression and review | O.6 | D/R/C only for cases explicitly requiring those environments |
 
-The next offline priority is the remaining O.4 crash boundaries; the SWAP send/recovery and inventory runner routes are
-the largest O.7 gaps. Missing evidence must leave its checkbox open.
+The next offline priority is O.5 telemetry/adversarial simulation, followed by the O.6 acceptance/coverage review. SWAP send/recovery and inventory runner routes remain the largest O.7 gaps. Missing evidence must leave its checkbox open.

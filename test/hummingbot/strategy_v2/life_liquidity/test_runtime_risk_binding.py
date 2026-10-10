@@ -103,9 +103,10 @@ def test_restored_clear_journal_requires_manual_rearm_before_v2_queue(tmp_path):
 
     assert not controller.allow_create_executor_actions()
     assert controller.runtime_risk_reason_code == "MANUAL_REARM_REQUIRED"
-    gate.arm_after_reconciliation(reconciled=True, operator_id="operator")
-    assert not controller.allow_create_executor_actions()  # DEGRADED probe stays blocked.
-    assert controller.allow_create_executor_actions()
+    with pytest.raises(ValueError, match="SAFETY_REARM_PROOF_REQUIRED"):
+        gate.arm_after_reconciliation(reconciled=True, operator_id="operator")
+    assert not controller.allow_create_executor_actions()
+    # The fresh gateway/recorder-bound success path is covered in test_o4_manual_rearm.
 
 
 def test_drawdown_halt_revokes_queued_quote_at_final_wire_check(tmp_path):
