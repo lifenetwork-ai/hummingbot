@@ -26,15 +26,17 @@ from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction
 D = Decimal
 
 
-def setup_shared(tmp_path, *, collateral="12", route=None, spot_route=None):
-    c, sender, swap, wal, clock, account, risk, config = setup_swap(tmp_path, action=PositionAction.OPEN, route=route, spot_route=spot_route)
+def setup_shared(tmp_path, *, collateral="12", route=None, spot_route=None, mode=PositionMode.ONEWAY):
+    c, sender, swap, wal, clock, account, risk, config = setup_swap(
+        tmp_path, mode=mode, action=PositionAction.OPEN, route=route, spot_route=spot_route)
     account["value"] = replace(account["value"], snapshot_sequence=1)
     now = int(clock.wall.timestamp() * 1000)
     state = {"snapshot": snapshot(
-        position_mode="ONEWAY", leverage=1, observed_at_ms=now,
-        spot_life_base=D("10"), long_base=D("1"), collateral_quote=D(collateral))}
+        position_mode=mode.name, leverage=1, observed_at_ms=now,
+        spot_life_base=D("10"), long_base=D("1"), short_base=D("1") if mode == PositionMode.HEDGE else D("0"),
+        collateral_quote=D(collateral))}
     capital = SharedCapitalAuthority(
-        tmp_path / "shared_capital.json", policy=policy(position_mode="ONEWAY", leverage=1),
+        tmp_path / "shared_capital.json", policy=policy(position_mode=mode.name, leverage=1),
         observation=lambda: state["snapshot"], clock_ms=lambda: int(clock.wall.timestamp() * 1000), create=True)
     c.install_shared_capital_authority(capital)
     # O.7.2 isolates financial allocation. O.6 tests qualify the spot feed/quote gates.

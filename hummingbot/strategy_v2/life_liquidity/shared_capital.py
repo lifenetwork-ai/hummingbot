@@ -400,6 +400,25 @@ class SharedCapitalAuthority:
     def check(self):
         return self._operate()
 
+    def qualified_snapshot(self):
+        """Read qualified facts even after a risk breach; this grants no allocation.
+
+Reconciliation needs actual post-fill positions when old holds exceed them.
+Only reserve/authorize/check supply financial permission.
+"""
+        if _json(asdict(self.policy)) != self.journal.policy:
+            raise ValueError("CAPITAL_POLICY_CHANGED")
+        with self.journal.locked() as state:
+            self._decode(state)
+            now = self.clock_ms()
+            if (type(now) is not int or now < 0
+                    or state["last_checked_ms"] is not None and now < state["last_checked_ms"]):
+                raise ValueError("CAPITAL_CLOCK_ROLLBACK")
+            state["last_checked_ms"] = now
+            obs = self._snapshot(state, now)
+            self.journal.commit(state)
+            return obs
+
     def reserve(self, claim: CapitalClaim):
         return self._operate(claim, reserve=True)
 

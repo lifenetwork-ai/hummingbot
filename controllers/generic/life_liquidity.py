@@ -31,6 +31,7 @@ from hummingbot.strategy_v2.life_liquidity.executor_send import ProtectedSpotExe
 from hummingbot.strategy_v2.life_liquidity.fees import CachedFeeRateSource, OkxFeeRateSource
 from hummingbot.strategy_v2.life_liquidity.fill_attribution import ReconciledFillAttributor
 from hummingbot.strategy_v2.life_liquidity.hedge import HedgeObservation, HedgePolicy, plan_life_hedge
+from hummingbot.strategy_v2.life_liquidity.hedge_coordinator import HedgeCoordinator
 from hummingbot.strategy_v2.life_liquidity.joint_exposure import (
     JointExposureObservation,
     JointRiskLimits,
@@ -186,6 +187,7 @@ class LifeLiquidityController(ControllerBase):
         self._protected_spot_sender: ProtectedSpotExecutorSender | None = None
         self._protected_swap_sender: ProtectedSwapExecutorSender | None = None
         self._shared_capital_authority: SharedCapitalAuthority | None = None
+        self._hedge_coordinator: HedgeCoordinator | None = None
         self._quote_action_planner: QuoteActionPlanner | None = None
         self._runtime_risk_gate: SafetyGate | None = None
         self._runtime_risk_observation: Callable[[], SafetyObservation] | None = None
@@ -675,6 +677,19 @@ class LifeLiquidityController(ControllerBase):
     def _is_swap_config(self, config) -> bool:
         return getattr(config, "connector_name", None) == self.config.strategy.perpetual.connector
 
+    def install_hedge_coordinator(self, coordinator: HedgeCoordinator) -> None:
+        if (self._hedge_coordinator is not None or not isinstance(coordinator, HedgeCoordinator)
+                or coordinator.controller is not self or self._shared_capital_authority is None
+                or coordinator.capital is not self._shared_capital_authority
+                or coordinator.sender is not self._protected_swap_sender):
+            raise ValueError("HEDGE_COORDINATOR_BINDING_INVALID")
+        if (self.config.recovery_state_dir is not None and coordinator.journal.path.resolve()
+                != (Path(self.config.recovery_state_dir) / "hedge_coordinator.json").resolve()):
+            raise ValueError("HEDGE_COORDINATOR_PATH_MISMATCH")
+        if coordinator.sender.unresolved_order_ids():
+            raise ValueError("HEDGE_COORDINATOR_RECOVERY_REQUIRED")
+        self._hedge_coordinator = coordinator
+
     def install_quote_action_planner(self, planner: QuoteActionPlanner) -> None:
         """Attach an explicit quote source; production create permission stays disabled."""
         if not isinstance(planner, QuoteActionPlanner):
@@ -950,6 +965,10 @@ class LifeLiquidityController(ControllerBase):
     def _hedge_ready(self) -> bool:
         if not self.config.strategy.perpetual.enabled:
             return True
+        if self._hedge_coordinator is not None:
+            ready = self._hedge_coordinator.allows_spot()
+            self.hedge_reason_code = self._hedge_coordinator.reason_code
+            return ready
         if (self._joint_contract is None or self._hedge_policy is None
                 or self._hedge_observation is None):
             self.hedge_reason_code = "HEDGE_GATE_NOT_INSTALLED"
@@ -2231,6 +2250,11 @@ class LifeLiquidityController(ControllerBase):
         if self.config.recovery_state_dir is not None and not self._quote_action_recovery_ready:
             return []
         planner = self._quote_action_planner
+        coordinator = self._hedge_coordinator
+        if coordinator is not None:
+            actions = coordinator.propose()
+            if actions or not coordinator.allows_spot():
+                return actions
         return planner.propose() if planner is not None else []
 
     def _session_status_fields(self) -> dict:

@@ -180,6 +180,9 @@ class ProtectedSwapExecutorSender:
                 if contracts > available - pending - local:
                     raise ValueError("SWAP_CLOSE_EXCEEDS_POSITION")
             capital = self.controller._shared_capital_authority
+            coordinator = self.controller._hedge_coordinator
+            if coordinator is not None and not coordinator.authorizes(config, issued=issued):
+                raise ValueError("SWAP_COORDINATOR_REVOKED")
             if issued and capital is not None and not capital.swap(permit, obs).allowed:
                 raise ValueError("SWAP_SHARED_CAPITAL_REVOKED")
             with self.journal.locked() as state:

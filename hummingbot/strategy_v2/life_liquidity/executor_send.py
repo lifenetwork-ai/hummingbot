@@ -100,6 +100,9 @@ class ProtectedSpotExecutorSender:
         elif planner is not None and not planner.authorizes_permit(permit):
             return False
         decision = self.policy_authorize(permit)
+        coordinator = self.controller._hedge_coordinator
+        if coordinator is not None and not coordinator.allows_spot():
+            return False
         capital = self.controller._shared_capital_authority
         if capital is not None and not capital.spot(
                 permit, intent.side, (self.reservations.life_balance, self.reservations.usdt_balance)).allowed:
@@ -134,6 +137,8 @@ class ProtectedSpotExecutorSender:
                    else self.controller.allow_create_executor_actions())
         if allowed is not True:
             raise PermissionError("LIFE_TRADING_DISABLED")
+        if self.controller._hedge_coordinator is not None and not self.controller._hedge_coordinator.allows_spot():
+            raise PermissionError("HEDGE_PAUSE_SPOT")
         current = self.manager.current_session
         session_ready = (self.manager.can_reduce() if exit_planner is not None else self.manager.can_quote(
             reference_ready=True, all_gates_ready=True, market_reference_ready=True))

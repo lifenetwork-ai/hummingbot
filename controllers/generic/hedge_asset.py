@@ -12,7 +12,7 @@ minimal noise and predictable hedge behavior.
 from decimal import Decimal
 from typing import List
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from hummingbot.core.data_type.common import MarketDict, PositionAction, PositionMode, TradeType
 from hummingbot.strategy_v2.controllers import ControllerBase, ControllerConfigBase
@@ -31,6 +31,7 @@ class HedgeAssetConfig(ControllerConfigBase):
     # Spot connector
     spot_connector_name: str = "binance"
     asset_to_hedge: str = "SOL"
+    spot_trading_pair: str = "SOL-USDC"
 
     # Perpetual connector
     hedge_connector_name: str = "binance_perpetual"
@@ -43,8 +44,15 @@ class HedgeAssetConfig(ControllerConfigBase):
     min_notional_size: float = Field(default=10, ge=0)
     cooldown_time: float = Field(default=10.0, ge=0)
 
+    @model_validator(mode="after")
+    def validate_spot_market(self):
+        parts = self.spot_trading_pair.split("-")
+        if len(parts) != 2 or parts[0] != self.asset_to_hedge or not parts[1]:
+            raise ValueError("Spot pair must match the hedged asset and an explicit quote currency")
+        return self
+
     def update_markets(self, markets: MarketDict) -> MarketDict:
-        markets.add_or_update(self.spot_connector_name, self.asset_to_hedge + "-USDC")
+        markets.add_or_update(self.spot_connector_name, self.spot_trading_pair)
         markets.add_or_update(self.hedge_connector_name, self.hedge_trading_pair)
         return markets
 
