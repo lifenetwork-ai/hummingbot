@@ -136,6 +136,7 @@ class QuoteActionPlanner:
         self._proposed: dict[tuple[str, int, str, int], str] = {}
         self._issued: dict[str, tuple[str, int, int, OrderExecutorConfig]] = {}
         self.last_plan: SpotQuotePlan | None = None
+        self.last_plan_snapshot: QuotePlanningSnapshot | None = None
         self.last_qualified_snapshot: QuotePlanningSnapshot | None = None
         self.reason_code = "QUOTE_ACTIONS_NOT_EVALUATED"
 
@@ -586,6 +587,7 @@ class QuoteActionPlanner:
             return []
         try:
             self.last_plan = self._plan(observed, current)
+            self.last_plan_snapshot = observed
         except Exception:
             self.reason_code = "QUOTE_ACTION_PLAN_INVALID"
             return []

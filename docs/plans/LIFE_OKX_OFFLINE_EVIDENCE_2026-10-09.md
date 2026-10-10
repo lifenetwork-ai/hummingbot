@@ -3,8 +3,8 @@
 ## Scope and verdict
 
 This checkpoint covers synthetic LIFE spot scenarios, selected joint spot/SWAP
-risk contracts, and an advisory inventory execution journal. It closes **O.2 spot risk/economics**, **O.3 spot lifecycle**, and **O.4 spot recovery** offline acceptance.
-O.5–O.7 remain open in
+risk contracts, and an advisory inventory execution journal. It closes **O.2 spot risk/economics**, **O.3 spot lifecycle**, **O.4 spot recovery**, and **O.5 spot telemetry/adversarial replay** offline acceptance.
+O.6–O.7 remain open in
 the [implementation plan](LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md).
 No demo or production order was sent. All quoted balances, limits, prices,
 fees, latencies, and queue assumptions in these tests are simulation values;
@@ -15,7 +15,7 @@ none are live defaults.
 | O.2 spot economics/risk | **Offline complete.** Real V2/executor/fake OKX acceptance now includes durable rolling capacity, reservation-derived stress, bounded degraded probes, protected exits with separate fee/loss budgets in both objectives, periodic authenticated-style fee refresh, independently valued LIFE transfers, late stop revocation, failed/saturated cancellation, capital/loss/markout and restart | No remaining O.2 spot offline requirement. D/R production installation, qualified observations and calibration remain; SWAP funding/basis/hedging remain O.7 |
 | O.3 spot lifecycle | **Offline complete.** One real V2 runner/fake OKX session covers lost ACK, partial fill/fee, expiry/cancel, missing/foreign regular orders, foreign algo order, incomplete paginated and foreign completed-fill history, own-depth-qualified successor anchor, replacement quote with status-backed ACK, residual inventory, and journal restore | Demo connector behavior and real-account history/reference qualification remain D/R work; production order permission stays disabled |
 | O.4 recovery | **Offline complete.** Eight child-process SQLite INSERT/UPDATE/commit boundaries, 16 combined runner action/recorder/cashflow/retirement interruptions, unknown-send retention, terminal proof, deduplicated transfer replay, and 22 account-bound manual-rearm cases complement the existing WAL/reservation/clock/HALT tests | D/R deployed storage/clock/account ownership and history completeness; physical power-loss behavior is an operating assumption; SWAP recovery remains O.7 |
-| O.5 simulation/telemetry | Seeded queue-ahead and ACK/cancel latency fixture; candle touch and unattributed prints make no fills | Recorded adversarial scenario suite, complete quality-flagged telemetry, risk-event latency budgets and economic evaluation |
+| O.5 simulation/telemetry | **Spot offline complete.** Bounded quality-flagged telemetry, 14 risk scenarios, 14 frozen-seed queue/fill cases, 100x turnover/net-flat loss replay and byte-reproducible normalized evidence | D/R actual observation, queue/cost/latency calibration and liquidity KPIs; O.7 SWAP telemetry/scenarios; economic viability remains insufficient evidence |
 | O.6 review | Scoped regression and changed-code coverage below | Full spot A01–A39 matrix, changed-code review, named reviewer and reproducible evidence bundle |
 | O.7 SWAP/inventory | Joint pending-fill stress, conservative hedge decision, inventory child/exit-cost journal | Protected SWAP order gateway, authenticated fills/funding/margin, shared coordinator, inventory runner route and mode transitions |
 
@@ -71,6 +71,49 @@ All file names below are under `test/hummingbot/strategy_v2/life_liquidity/` unl
 | A35–A36 | `test_o2_revocation_replay.py`, `test_protected_okx_send.py`, `test_final_quote_send.py`, `test_request_budget.py`, `test_safety_watchdog.py`, `test_o2_integrated_replay.py` |
 
 Remaining D/R qualification owners: connector/operator owner for actual exchange/account behavior and source completeness; risk/project owner for independent LIFE valuation and numeric fee/exit/stress/recovery budgets. The separate O.4 recorder interruption, O.5 adversarial telemetry, O.6 full acceptance/coverage review and O.7 SWAP/inventory milestones remain open. Post-only exits can remain unfilled; this scope supplies explicit residual-risk reporting, not guaranteed liquidation. Host-local journals and account locks do not coordinate other hosts or external API clients.
+
+## O.5 spot offline closure
+
+Reviewed by Codex on 2026-10-09 against P8.7–P8.13 and spot A04,A27–A30,A38. This is code/test review of synthetic contracts; O.6 still owns the complete acceptance matrix, changed-line coverage and broader review. Production order permission remains disabled. The telemetry adapter is opt-in and is explicitly installed by these fixtures.
+
+### Recorded scenarios and results
+
+The [frozen JSON bundle](evidence/life_o5_spot_replay.json) contains 14 risk scenarios, seven queue/fill scenarios at each of seeds **7** and **19**, and two net-flat turnover cases. Every trace carries scoped identities, reasons and snapshot indices. Resolve `event.snapshot` through `snapshots`; resolve its `metrics` index through `metric_snapshots`. Only the random session and wire identifiers are normalized, preserving equality within each case. The bundle records policies, cost rates, reference-model inputs, clock domains, queue assumptions and external-print inputs. `test_frozen_evidence_bundle_matches_fresh_replay` regenerates and compares the complete normalized report.
+
+| Requirement / cases | Executable evidence and outcome | Later proof / owner |
+| --- | --- | --- |
+| P8.7/P8.8 | `test_telemetry.py`, `test_controller_telemetry.py`, `test_o5_system_scenarios.py`: fixed units/quality, scoped versioned identities, captured gate/quote/WAL inputs, reconstructed permission results, actual ACK/cancel/account-proof hooks; invalid, stale-writer, truncated and capacity failures deny further risk | D/R operator: deployment, retention and flush scheduling; O.7 SWAP metrics |
+| P8.9 / A04 | `empty_book`, `stale_book`, `disconnect`, `resync`, `benchmark_spike`, `benchmark_stale`, `transient_depth`, `latency_spike`, `fee_regime`, `rate_limit`, `cancel_timeout`, `delayed_cancel`, `expiry_disconnected`, `crash_restart`; actual runner/final-send and reservation/reconciliation boundaries, complemented by the O.4 process/combined recovery tests | D/R connector/market-data owners: observed exchange behavior and source qualification; O.7 divergence/recovery |
+| P8.10 / A04 | Each seed runs `no_trades`, `candle_touch`, `unqualified_print`, `delayed_ack`, `one_sided`, `cancel_fill_race`, `slow_adverse`. Only explicit synthetic external prints after ACK, after queue-ahead consumption and before cancellation confirmation may fill. Accepted quantities enter the real fill/fee/attribution ledgers; no-print cases have zero fills | R market-data owner: empirical queue/latency calibration |
+| P8.11 | Final-check blocking at event +3 ms, explicit cancellation request at +9 ms, terminal proof at +40 ms against synthetic 5/10/50 ms budgets. The delayed case confirms at +60 ms and breaches its budget. Timeout, disconnected expiry and crash leave proof unknown; rate-limit never-sent rejection needs no cancellation. Stale BTC can fall back to independently qualified LIFE with zero influence, so it has no invented block/cancel delta | D/R risk/operator: actual numeric budgets and deployed timings |
+| P8.12 / A27,A28,A30 | Proposed candidate gross/net edge uses its exact plan snapshot and maker, exit, impact, carry, inventory and uncertainty costs. Changed inputs make old-plan cost telemetry unavailable. Actual converted fill fees, independent fill-time edge, cashflow-adjusted NAV, starting inventory PnL, persisted high-water drawdown, markouts, pending exposure and budgets remain separate. Physical spot liquidation estimate is USDT cash plus depth-qualified stressed LIFE sale proceeds after exit fee | R market-data/account/risk owners: actual independent values, depth, account fees and budgets; O.7 hedge/funding attribution |
+| P8.13 / A27–A30,A38 | Slow adverse fills, cancellation-window fills, withdrawn depth, latency and fee changes, net-flat loss and restart retention. One-versus-100 matched fill pairs produce **100x volume**, equal adjusted NAV **19.99 USDT**, drawdown **5 bps**, execution loss **0.01 USDT**, and settled service subsidy **0.01 USDT**. The separate turnover fixture uses a synthetic **4 bps** HALT threshold | O.7 funding/basis; R/C risk/project owners: empirical evaluation and release decision |
+
+**Timing and quality limits.** Event timing is driven by explicit frozen monotonic clocks. Cancellation is requested by the replay driver at the recorded boundary; these deltas do not establish a production scheduler bound or measured OKX latency. A cancellation ACK remains insufficient terminal proof. ACK journal depth is labeled as a journal observation, not independently executable liquidity. The replay has no qualified two-sided availability window, so availability remains null/insufficient evidence; duration-weighted full/eligible arithmetic including pauses is tested separately.
+
+**Economic limits.** The queue/telemetry fixture opens with synthetic 10 LIFE and 10 USDT at 1 USDT/LIFE. Maker cost is 0.0008, exit fee 0.001, impact/carry/inventory risk are 0.0001 USDT each per candidate, and uncertainty is 1 bp. Repeated fills use independent synthetic fill-time value 0.9 and horizon value 0.8 USDT/LIFE; no-trade inventory can lose value without inventing fills. The turnover fixture separately consumes explicit synthetic exchange history rather than queue-derived fills. Seeds 7/19 distinguish development/evaluation fixtures; they are not empirical calibration or out-of-sample LIFE data. The report states `INSUFFICIENT_EVIDENCE_UNCALIBRATED_SIMULATION`; passing this gate does not establish profitability, service KPIs, affordable live subsidy, or eligibility to scale capital.
+
+**PnL reconciliation.** Total spot inventory contribution equals independently marked, cashflow-adjusted NAV change minus net fill-time edge. Its starting-inventory portion is shown separately; the remainder is explicitly a derived nonstarting-inventory residual (including post-fill/transfer price movement), not a second independently observed PnL stream. Tests verify this residual against filled quantity times the subsequent independent price change and reconcile the components to NAV. Markouts remain separate diagnostic horizons.
+
+**Diagnostics and cancellation.** JSONL records are bounded, whitelist payload fields and exclude raw configuration, auth and exception payloads. Capture is buffered; cancellation, ACK and terminal-proof hooks only capture memory state and do not sample financial journals. Flush serializes disk work outside the capture lock. A stalled or failed telemetry flush cannot obstruct cancellation. Once detected, telemetry failure revokes new risk; the existing WAL/reservation/account proof remains authoritative. A process crash can lose unflushed diagnostic rows. This is not a second financial WAL or proof of exchange history.
+
+### Red → Green and reproduction
+
+The initial telemetry tests failed because the recorder module was absent. Integrated tests then exposed the wrong stress-observation age attribute and cumulative-fill input handling in the harness; the complete costs/markouts/partial-fill checks now pass. Broader regression caught a telemetry hook dereferencing the config of an intentionally malformed queued action; it now tolerates the missing ID while the existing rejection path runs. Cost telemetry additionally binds each plan to its original snapshot so a newly qualified cost update cannot be mixed with old candidate economics. A dedicated threaded test proves capture continues while flush is held at disk fsync.
+
+Reproduce without credentials or network calls:
+
+```sh
+conda run -n hummingbot --no-capture-output python -m test.hummingbot.strategy_v2.life_liquidity.o5_scenarios \
+  --output /tmp/life_o5_spot_replay.json
+cmp docs/plans/evidence/life_o5_spot_replay.json /tmp/life_o5_spot_replay.json
+conda run -n hummingbot --no-capture-output python -m pytest -q \
+  test/hummingbot/strategy_v2/life_liquidity/test_telemetry.py \
+  test/hummingbot/strategy_v2/life_liquidity/test_controller_telemetry.py \
+  test/hummingbot/strategy_v2/life_liquidity/test_o5_system_scenarios.py
+```
+
+Final O.5 closure regression: **1,277 passed, 27 warnings** across LIFE, V2 strategy base, OKX spot, OKX perpetual, executor orchestrator and MarketsRecorder (the six-suite command under O.4 below). This includes **45 new tests**. Pre-commit checks pass. Changed-line coverage is not rerun for O.5; O.6 remains open. SWAP funding/basis/hedge and inventory-execution extensions remain O.7.
 
 ## O.4 spot offline closure
 
@@ -291,7 +334,7 @@ fixture can establish profitability or a live subsidy budget.
 
 ## Classification of remaining detailed items
 
-Mixed-stage parent checkboxes remain open for their explicitly classified D/R proof. O.2–O.4 spot offline acceptance is complete as mapped above; its remaining production inputs do not reopen the offline gate.
+Mixed-stage parent checkboxes remain open for their explicitly classified D/R/O.7 proof. O.2–O.5 spot offline acceptance is complete as mapped above; its remaining production inputs do not reopen the offline gate.
 
 | Detailed items | Offline gate | Later proof |
 | --- | --- | --- |
@@ -304,4 +347,4 @@ Mixed-stage parent checkboxes remain open for their explicitly classified D/R pr
 | P8.7–P8.13 | O.5; telemetry and adversarial scenarios | D latency behavior; R LIFE calibration; C economic release decision |
 | Spot A01–A39 applicability, regression and review | O.6 | D/R/C only for cases explicitly requiring those environments |
 
-The next offline priority is O.5 telemetry/adversarial simulation, followed by the O.6 acceptance/coverage review. SWAP send/recovery and inventory runner routes remain the largest O.7 gaps. Missing evidence must leave its checkbox open.
+The next spot offline priority is the O.6 acceptance/coverage review; O.5 telemetry/adversarial replay is complete. SWAP send/recovery and inventory runner routes remain the largest O.7 gaps. Missing evidence must leave its checkbox open.

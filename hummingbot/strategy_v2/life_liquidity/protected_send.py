@@ -21,6 +21,7 @@ class ProtectedSpotGateway:
         self.authorize = authorize
         self.request_budget = request_budget
         self._allocated_ids: dict[str, tuple[str, str]] = {}
+        self.event_observer = None
 
     def arm_pair(self, trading_pair: str) -> None:
         self.connector.enable_protected_trading_pair(trading_pair)
@@ -46,7 +47,7 @@ class ProtectedSpotGateway:
             result = self.authorize(permit)
             return result if isinstance(result, bool) else getattr(result, "allowed", False)
 
-        def check_permission(wire_data: dict) -> None:
+        def validate_permission(wire_data: dict) -> None:
             # This function is re-evaluated inside RESTConnection after the
             # throttler, not captured as an earlier controller decision.
             try:
@@ -89,6 +90,20 @@ class ProtectedSpotGateway:
                         on_unsent_budget_rejection()
                     raise
 
+        def check_permission(wire_data: dict) -> None:
+            try:
+                validate_permission(wire_data)
+            except Exception as exc:
+                if self.event_observer is not None:
+                    reason = str(exc) if str(exc) in (
+                        "INTENT_WAL_UNAVAILABLE", "ORDER_CHANGED", "SEND_PERMISSION_REVOKED",
+                        "REQUEST_BUDGET_SLOT_UNAVAILABLE") else "FINAL_SEND_REJECTED"
+                    self.event_observer("FINAL_SEND", permit.client_order_id, False, reason)
+                raise
+            if self.event_observer is not None and self.event_observer(
+                    "FINAL_SEND", permit.client_order_id, True, "FINAL_SEND_AUTHORIZED") is not True:
+                raise PermissionError("TELEMETRY_UNAVAILABLE")
+
         if not permitted():
             raise PermissionError("SEND_PERMISSION_REVOKED")
         try:
@@ -101,10 +116,19 @@ class ProtectedSpotGateway:
             self.wal.arm_send(permit.intent_id, client_order_id=permit.client_order_id,
                               session_id=permit.session_id, epoch=permit.epoch,
                               reservation_id=permit.reservation_id)
+
+        def acknowledged(exchange_id):
+            self.wal.acknowledge(permit.intent_id, exchange_id)
+            if self.event_observer is not None:
+                try:
+                    self.event_observer("ACK", permit.client_order_id, None, "ORDER_ACKNOWLEDGED")
+                except Exception:
+                    pass  # Diagnostics cannot discard an exchange ACK.
+
         return self.connector.submit_protected_order(
             order_id=permit.client_order_id, trading_pair=trading_pair,
             amount=permit.quantity_base,
             trade_type=TradeType.BUY if side == "BUY" else TradeType.SELL,
             order_type=order_type, price=permit.price_usdt,
             pre_send_check=check_permission,
-            on_ack=lambda exchange_id: self.wal.acknowledge(permit.intent_id, exchange_id))
+            on_ack=acknowledged)

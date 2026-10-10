@@ -65,7 +65,9 @@ from hummingbot.strategy_v2.life_liquidity.risk import ReservationLedger, RiskLi
 from hummingbot.strategy_v2.life_liquidity.safety import SafetyGate, SafetyObservation
 from hummingbot.strategy_v2.life_liquidity.session import SessionManager, SessionStore
 from hummingbot.strategy_v2.life_liquidity.spot_risk import SpotRiskBinding
+from hummingbot.strategy_v2.life_liquidity.spot_telemetry import collect_quote_inputs, collect_spot_metrics
 from hummingbot.strategy_v2.life_liquidity.state import IntentWAL
+from hummingbot.strategy_v2.life_liquidity.telemetry import Metric, TelemetryRecorder
 from hummingbot.strategy_v2.models.base import RunnableStatus
 
 # Synthetic offline guard only. A separately calibrated live book TTL is a P9 decision.
@@ -159,6 +161,16 @@ class LifeLiquidityController(ControllerBase):
         self._account_uid_verified = False
         self._release_account_lock_on_task_done = False
         self._order_safety_stopped = False
+        self._telemetry = None
+        self._telemetry_value = None
+        self._telemetry_utc_ms = None
+        self._telemetry_max_value_age_ms = None
+        self._telemetry_rejects = 0
+        self._telemetry_sent_ms = {}
+        self._telemetry_cancel_ms = {}
+        self._telemetry_recording = False
+        self._permission_gates = {}
+        self.telemetry_reason_code = "TELEMETRY_NOT_INSTALLED"
         self._safety_rearm_verified = False
         self._safety_rearm_in_progress = False
         self._runner_orchestrator = None
@@ -1244,12 +1256,16 @@ class LifeLiquidityController(ControllerBase):
         return True
 
     def on_runner_create_action_rejected(self, action) -> bool:
+        self._record_telemetry("QUEUE_REJECT", allowed=False, reason_code="RUNNER_ACTION_REJECTED",
+                               intent_id=getattr(action.executor_config, "id", None))
         if self.is_risk_reducing_config(action.executor_config):
             return self._spot_exit_planner.action_transition(action, "REJECTED")
         planner = self._quote_action_planner
         return planner.on_runner_action_rejected(action) if planner is not None else False
 
     def on_runner_create_action_dispatched(self, action) -> bool:
+        self._record_telemetry("QUEUE_DISPATCH", allowed=True, reason_code="RUNNER_ACTION_DISPATCHED",
+                               intent_id=getattr(action.executor_config, "id", None))
         if self.is_risk_reducing_config(action.executor_config):
             return self._spot_exit_planner.action_transition(action, "DISPATCHED")
         planner = self._quote_action_planner
@@ -1712,30 +1728,125 @@ class LifeLiquidityController(ControllerBase):
             raise ValueError("BENCHMARK_SOURCE_NOT_CONFIGURED")
         return self.benchmark_route.resolve(self.market_data_provider)
 
-    def allow_create_executor_actions(self) -> bool:
-        if not self._runtime_risk_ready():
+    def install_telemetry(self, recorder: TelemetryRecorder, *, independent_value,
+                          utc_clock_ms, max_value_age_ms: int) -> None:
+        """Opt-in diagnostics with buffered writes and memory-only cancel events.
+
+        Permission snapshots read verified journals; cancel/ACK hooks never sample.
+        The adapter must flush outside the safety loop. Missing observations
+        stay explicit. Installing diagnostics never enables production orders.
+        """
+        sender, gateway = self._protected_spot_sender, self._order_safety_gateway
+        if (self._telemetry is not None or not isinstance(recorder, TelemetryRecorder)
+                or not recorder.healthy or not callable(independent_value) or not callable(utc_clock_ms)
+                or type(max_value_age_ms) is not int or max_value_age_ms < 0
+                or sender is None or gateway is None or gateway.event_observer is not None
+                or sender.gateway.event_observer is not None):
+            raise ValueError("TELEMETRY_BINDING_INVALID")
+        self._telemetry = recorder
+        self._telemetry_value = independent_value
+        self._telemetry_utc_ms = utc_clock_ms
+        self._telemetry_max_value_age_ms = max_value_age_ms
+        gateway.event_observer = self._record_telemetry
+        sender.gateway.event_observer = self._record_telemetry
+        self.telemetry_reason_code = "TELEMETRY_READY"
+
+    def _record_telemetry(self, stage, wire_id=None, allowed=None, reason_code="SNAPSHOT",
+                          *, intent_id=None) -> bool:
+        recorder = self._telemetry
+        if recorder is None:
+            return True
+        if self._telemetry_recording:
             return False
-        if self._runner_stops_pending() or not self._spot_risk_ready():
+        self._telemetry_recording = True
+        try:
+            if stage in ("QUEUE_REJECT", "FINAL_SEND") and allowed is False:
+                self._telemetry_rejects += 1
+            manager = self._order_safety_manager
+            current = manager.current_session if manager is not None else None
+            record = None
+            if wire_id is not None:
+                record = self._order_safety_wal.find_by_client_order_id(wire_id)
+                intent_id = record.intent_id
+            now = recorder.clock_ms()
+            metrics, markouts, inputs = {}, {}, {}
+            if stage not in ("CANCEL_REQUEST", "EXCHANGE_CONFIRM", "ACK"):
+                try:
+                    value = self._telemetry_value()
+                except Exception:
+                    value = None
+                metrics, markouts = collect_spot_metrics(
+                    self, utc_now_ms=self._telemetry_utc_ms(), independent_value=value,
+                    max_value_age_ms=self._telemetry_max_value_age_ms,
+                    synthetic=recorder.synthetic, monotonic_ms=now)
+                inputs = collect_quote_inputs(self)
+                if record is not None:
+                    inputs.update(wal_state=record.state, cancel_requested=record.cancel_requested)
+                    held = self._order_safety_reservations.reservation_snapshot().get(record.intent_id)
+                    if held is not None:
+                        inputs.update(intent_price_usdt=str(held.intent.limit_price_usdt),
+                                      intent_quantity_base=str(held.intent.quantity_base),
+                                      intent_remaining_base=str(held.remaining_base), intent_side=held.intent.side)
+            quality = "synthetic" if recorder.synthetic else "verified"
+            if stage == "FINAL_SEND" and allowed is True:
+                self._telemetry_sent_ms.setdefault(wire_id, now)
+            if stage == "CANCEL_REQUEST":
+                self._telemetry_cancel_ms.setdefault(wire_id, now)
+            if stage == "ACK" and wire_id in self._telemetry_sent_ms:
+                metrics["ack_latency_ms"] = Metric(
+                    Decimal(now - self._telemetry_sent_ms[wire_id]), "ms", quality, "FINAL_CHECK_TO_ACK")
+            if stage == "EXCHANGE_CONFIRM" and wire_id in self._telemetry_cancel_ms:
+                metrics["cancel_confirm_latency_ms"] = Metric(
+                    Decimal(now - self._telemetry_cancel_ms[wire_id]), "ms", quality, "CANCEL_TO_ACCOUNT_PROOF")
+            metrics["reject_count"] = Metric(Decimal(self._telemetry_rejects), "count",
+                                             "synthetic" if recorder.synthetic else "verified", "ACTION_REJECTIONS")
+            recorder.capture(stage=stage, allowed=allowed, reason_code=reason_code,
+                             session_id=record.session_id if record else current.session_id if current else None,
+                             epoch=record.epoch if record else current.epoch if current else None,
+                             config_version=current.config_version if current else None,
+                             intent_id=intent_id, wire_id=wire_id, event_id=recorder.active_event_id,
+                             gates=self._permission_gates, inputs=inputs, metrics=metrics, markouts=markouts)
+            return True
+        except Exception:
+            recorder.healthy = False
+            self.telemetry_reason_code = "TELEMETRY_UNAVAILABLE"
             return False
-        if not self._joint_risk_ready() or not self._hedge_ready():
-            return False
-        if not self._execution_loss_ready():
-            return False
-        if not self._fill_attribution_ready():
-            return False
-        if not self._markout_risk_ready():
-            return False
-        if self.has_unverified_runner_order_events():
-            return False
+        finally:
+            self._telemetry_recording = False
+
+    def _session_create_ready(self) -> bool:
         manager = self._order_safety_manager
-        if manager is not None:
-            watchdog = self.order_safety_watchdog_task
-            safety_cycle_pending = (self.order_safety_task is not None
-                                    and not self.order_safety_task.done())
-            if (manager.state != "ACTIVE" or watchdog is None or watchdog.done()
-                    or safety_cycle_pending):
+        if manager is None:
+            return True
+        watchdog = self.order_safety_watchdog_task
+        return bool(manager.state == "ACTIVE" and watchdog is not None and not watchdog.done()
+                    and not (self.order_safety_task is not None and not self.order_safety_task.done()))
+
+    def allow_create_executor_actions(self) -> bool:
+        checks = (
+            ("telemetry", lambda: self._telemetry is None or self._telemetry.healthy, "TELEMETRY_UNAVAILABLE"),
+            ("runtime", self._runtime_risk_ready, "RUNTIME_RISK_UNAVAILABLE"),
+            ("stops", lambda: not self._runner_stops_pending(), "RUNNER_STOP_PENDING"),
+            ("spot_risk", self._spot_risk_ready, "SPOT_RISK_UNAVAILABLE"),
+            ("joint", self._joint_risk_ready, "JOINT_RISK_UNAVAILABLE"),
+            ("hedge", self._hedge_ready, "HEDGE_UNAVAILABLE"),
+            ("loss", self._execution_loss_ready, "EXECUTION_LOSS_UNAVAILABLE"),
+            ("accounting", self._fill_attribution_ready, "ATTRIBUTION_UNAVAILABLE"),
+            ("markout", self._markout_risk_ready, "MARKOUT_UNAVAILABLE"),
+            ("runner_events", lambda: not self.has_unverified_runner_order_events(), "RUNNER_EVENTS_UNVERIFIED"),
+            ("session", self._session_create_ready, "SESSION_OR_WATCHDOG_UNAVAILABLE"),
+            ("market", self._spot_quote_gates_ready, "SPOT_DATA_UNAVAILABLE"),
+        )
+        self._permission_gates = {}
+        for name, check, reason in checks:
+            passed = check() is True
+            self._permission_gates[name] = passed
+            if not passed:
+                if name == "runtime":
+                    reason = self.runtime_risk_reason_code
+                self._record_telemetry("PERMISSION", allowed=False, reason_code=reason)
                 return False
-        return self._spot_quote_gates_ready()
+        return self._record_telemetry("PERMISSION", allowed=True, reason_code="QUOTE_PERMISSION_READY")
 
     def _spot_quote_gates_ready(self) -> bool:
         return (self.config.strategy.spot.enabled and self.config_update_state.order_permission()
@@ -2086,5 +2197,6 @@ class LifeLiquidityController(ControllerBase):
                 f"order safety: {self.order_safety_reason_code}; "
                 f"quote action recovery: {self.quote_action_recovery_reason_code}; "
                 f"own depth: {self._own_depth_decision.reason_code}; "
+                f"telemetry: {self.telemetry_reason_code}; "
                 f"residual risk: {self._spot_exit_planner.residual_reason_code if self._spot_exit_planner else 'unavailable'}; "
                 "trading is disabled pending P2–P9 gates."]

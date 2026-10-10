@@ -170,6 +170,14 @@ class OkxSpotOrderGateway:
         self.cancel_retry_policy = cancel_retry_policy
         self.request_budget = request_budget
         self.on_terminal_reconciled = on_terminal_reconciled
+        self.event_observer = None
+
+    def _observe(self, stage: str, wire_id: str) -> None:
+        if self.event_observer is not None:
+            try:
+                self.event_observer(stage, wire_id, None, stage)
+            except Exception:
+                pass  # Diagnostics cannot obstruct cancellation/reconciliation.
 
     def _charge_request(self, kind: str) -> None:
         if self.request_budget is not None:
@@ -192,6 +200,7 @@ class OkxSpotOrderGateway:
             self.wal.mark_cancel_requested(record.intent_id)
             if self.on_cancel_requested is not None:
                 self.on_cancel_requested(record.client_order_id)
+            self._observe("CANCEL_REQUEST", record.client_order_id)
             if record.exchange_order_id is None:
                 acknowledged = await self.connector.cancel_by_client_id(
                     self.trading_pair, record.client_order_id)
@@ -281,6 +290,7 @@ class OkxSpotOrderGateway:
             try:
                 if self.on_cancel_requested is not None:
                     self.on_cancel_requested(record.client_order_id)
+                self._observe("CANCEL_REQUEST", record.client_order_id)
                 if record.exchange_order_id is None:
                     acknowledged = await self.connector.cancel_by_client_id(
                         self.trading_pair, record.client_order_id)
@@ -597,6 +607,8 @@ class OkxSpotOrderGateway:
                             completed = await completed
                         if completed is not True:
                             fills_reconciled = False
+                    if fills_reconciled:
+                        self._observe("EXCHANGE_CONFIRM", wire_id)
                 else:
                     fills_reconciled = False
             except Exception:
