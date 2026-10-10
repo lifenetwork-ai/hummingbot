@@ -100,6 +100,10 @@ class ProtectedSpotExecutorSender:
         elif planner is not None and not planner.authorizes_permit(permit):
             return False
         decision = self.policy_authorize(permit)
+        capital = self.controller._shared_capital_authority
+        if capital is not None and not capital.spot(
+                permit, intent.side, (self.reservations.life_balance, self.reservations.usdt_balance)).allowed:
+            return False
         return decision is True or getattr(decision, "allowed", False) is True
 
     def submit(self, config: OrderExecutorConfig, *, amount: Decimal,
@@ -168,6 +172,14 @@ class ProtectedSpotExecutorSender:
             raise PermissionError("RESERVATION_UNAVAILABLE")
         self._issued_intents[config.id] = intent
         self._issued_slots[config.id] = level
+        capital = self.controller._shared_capital_authority
+        if capital is not None:
+            shared = capital.spot(permit, side, (self.reservations.life_balance, self.reservations.usdt_balance), reserve=True)
+            if not shared.allowed:
+                self.gateway.wal.abort_before_send(config.id)
+                self.reservations.abort_unsent(config.id, session_id=current.session_id,
+                                               epoch=current.epoch, wal=self.gateway.wal)
+                raise PermissionError(shared.reason_code)
         planner = self.controller._quote_action_planner
         if exit_planner is not None:
             if not exit_planner.reserve_budget(config, intent):

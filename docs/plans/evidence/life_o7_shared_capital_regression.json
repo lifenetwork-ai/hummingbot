@@ -1,0 +1,2216 @@
+{
+  "baseline_audit": {
+    "audit_sha256": "689cecb568edadc85d145e27d3ff989fa5b4ca15861cffaef64b92f55ebe6b5d",
+    "case_counts": {
+      "deferred": 10,
+      "verified": 29
+    },
+    "cases": {
+      "A01": {
+        "offline": "verified",
+        "passed_node_count": 1,
+        "passed_nodeids_sha256": "94e2dc46f1436d064f8f6579e627eb8ddf778b19eb9f04c74dc9899e36daa9ba",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A02": {
+        "offline": "verified",
+        "passed_node_count": 3,
+        "passed_nodeids_sha256": "a0695d069c5d4271ff752113b7cba9b35907106a97a867cea416c5f5cfc38acf",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A03": {
+        "offline": "verified",
+        "passed_node_count": 34,
+        "passed_nodeids_sha256": "a4bf8ea4df3e13191dc38a03e78eaf33920262be90bec708901a1aafeb9597b6",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A04": {
+        "offline": "verified",
+        "passed_node_count": 44,
+        "passed_nodeids_sha256": "9d056aeb0584343e604dffa9ebbb9d488a10a8d74a450a806af82caebf99b24d",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A05": {
+        "offline": "verified",
+        "passed_node_count": 1,
+        "passed_nodeids_sha256": "c470102a9b7e1ab432dbe653e5968d9a0fde3dec5046705692efcc7ffc719e0e",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A06": {
+        "offline": "verified",
+        "passed_node_count": 97,
+        "passed_nodeids_sha256": "d8106085b0d8f16dda8db9abe42f7ea4e6c4eddd1178d4a2fe5799dd7750d1ca",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A07": {
+        "offline": "verified",
+        "passed_node_count": 24,
+        "passed_nodeids_sha256": "b7a7bc09fa1d18feb8f40f842a0d9aa9694fc5b937fa135939fc8e7aa3977341",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A08": {
+        "offline": "verified",
+        "passed_node_count": 51,
+        "passed_nodeids_sha256": "62938fea5a54eec7544975ebcff669a9080b05573a4365ac9c2e8d395e77a739",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A09": {
+        "offline": "verified",
+        "passed_node_count": 34,
+        "passed_nodeids_sha256": "54e4669c03c2e03bdecb5791e97edb0ee6ea25785472efda918a70abd286af02",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A10": {
+        "offline": "deferred",
+        "passed_node_count": 0,
+        "passed_nodeids_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "remaining": [
+          "O.7",
+          "D",
+          "R"
+        ]
+      },
+      "A11": {
+        "offline": "verified",
+        "passed_node_count": 25,
+        "passed_nodeids_sha256": "080a244f3e451307f720eb8b9249f09f3afd58bfde534e93729fc4c03b342d3e",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A12": {
+        "offline": "deferred",
+        "passed_node_count": 0,
+        "passed_nodeids_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "remaining": [
+          "O.7",
+          "D",
+          "R"
+        ]
+      },
+      "A13": {
+        "offline": "deferred",
+        "passed_node_count": 0,
+        "passed_nodeids_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A14": {
+        "offline": "verified",
+        "passed_node_count": 47,
+        "passed_nodeids_sha256": "348cd68d890bfe557ddabee28dea21fb57d27cc87b7ddaad4c4ac3e4607b1ab9",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A15": {
+        "offline": "verified",
+        "passed_node_count": 44,
+        "passed_nodeids_sha256": "cb84be0d00c4d11bdb7c97cddd2e34b690638be70e92da364434f388ee0f4179",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A16": {
+        "offline": "deferred",
+        "passed_node_count": 0,
+        "passed_nodeids_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "remaining": [
+          "O.7",
+          "D",
+          "R"
+        ]
+      },
+      "A17": {
+        "offline": "deferred",
+        "passed_node_count": 0,
+        "passed_nodeids_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "remaining": [
+          "O.7"
+        ]
+      },
+      "A18": {
+        "offline": "verified",
+        "passed_node_count": 55,
+        "passed_nodeids_sha256": "4d767db06ccf340d1c13d2f919b015e848b7966973aeadd0a9ec9502cf463861",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A19": {
+        "offline": "verified",
+        "passed_node_count": 64,
+        "passed_nodeids_sha256": "120c4bc5d8ca1388d49cffdaa4cc38fe8dbe5f187b266b137204d52861a7eb84",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A20": {
+        "offline": "verified",
+        "passed_node_count": 2,
+        "passed_nodeids_sha256": "c6f26322bd81310b83ebef01ada37b8491e5db6f4292b1a42f22ef14bee0adda",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A21": {
+        "offline": "verified",
+        "passed_node_count": 54,
+        "passed_nodeids_sha256": "2cc92d1e657a1c8eed5e63cd03507c1350c95cbe74cee506a1e8bf7b67f52335",
+        "remaining": [
+          "O.7",
+          "D",
+          "R"
+        ]
+      },
+      "A22": {
+        "offline": "verified",
+        "passed_node_count": 57,
+        "passed_nodeids_sha256": "333dcf69b2b8d4004106a5ff4a2c9a573d54136113739dfbbe6017975c2efe5d",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A23": {
+        "offline": "verified",
+        "passed_node_count": 52,
+        "passed_nodeids_sha256": "f16603303471b9f6d2fccff27961baef739d9ab76fd71521b5288fd15d147753",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A24": {
+        "offline": "verified",
+        "passed_node_count": 60,
+        "passed_nodeids_sha256": "88045c5a5cfbe796e0bc61f0227993be978936aff7f101cab36916a7362c555d",
+        "remaining": [
+          "O.7",
+          "D",
+          "R"
+        ]
+      },
+      "A25": {
+        "offline": "verified",
+        "passed_node_count": 62,
+        "passed_nodeids_sha256": "175e46977c301d7366fcd0f8a3f805afacdd578e410adc2e666226541759a26d",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A26": {
+        "offline": "verified",
+        "passed_node_count": 49,
+        "passed_nodeids_sha256": "15b3a754a58932ff0e7d28274d330d5d8853944f4d219a7b87831c5c6d9af7df",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A27": {
+        "offline": "verified",
+        "passed_node_count": 46,
+        "passed_nodeids_sha256": "06bf0ce4b4d08e7968172d67dc6b4139ba0b3a135f16c15431ce953f5d263784",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A28": {
+        "offline": "verified",
+        "passed_node_count": 52,
+        "passed_nodeids_sha256": "5676001fe7e3e18b43e97df1e46b172b482bff74b31a678d8c83e45be8f92092",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A29": {
+        "offline": "verified",
+        "passed_node_count": 30,
+        "passed_nodeids_sha256": "15d2cb55331d11caff90d066076192b8899f46a0c90f2cc88e504b9f3ea528f4",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A30": {
+        "offline": "verified",
+        "passed_node_count": 52,
+        "passed_nodeids_sha256": "39d1a31fa2afd1020d5e3f6cca17cc783280d244baa8c8b11b14dc026e4f06d0",
+        "remaining": [
+          "O.7",
+          "D",
+          "R"
+        ]
+      },
+      "A31": {
+        "offline": "deferred",
+        "passed_node_count": 0,
+        "passed_nodeids_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "remaining": [
+          "O.7",
+          "D",
+          "R"
+        ]
+      },
+      "A32": {
+        "offline": "deferred",
+        "passed_node_count": 0,
+        "passed_nodeids_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "remaining": [
+          "O.7",
+          "D",
+          "R"
+        ]
+      },
+      "A33": {
+        "offline": "deferred",
+        "passed_node_count": 0,
+        "passed_nodeids_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "remaining": [
+          "O.7",
+          "D",
+          "R"
+        ]
+      },
+      "A34": {
+        "offline": "deferred",
+        "passed_node_count": 0,
+        "passed_nodeids_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "remaining": [
+          "O.7",
+          "D",
+          "R"
+        ]
+      },
+      "A35": {
+        "offline": "verified",
+        "passed_node_count": 113,
+        "passed_nodeids_sha256": "00d7d3c003ede33784268df8a7533793dbeb99ac83c09bd2feae45e77f8eda52",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A36": {
+        "offline": "verified",
+        "passed_node_count": 79,
+        "passed_nodeids_sha256": "52cb0a8dbb4bbef5c4419de638fff93a51b5c953e1bb022adca19aab2377cb03",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A37": {
+        "offline": "deferred",
+        "passed_node_count": 0,
+        "passed_nodeids_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "remaining": [
+          "O.7",
+          "D",
+          "R"
+        ]
+      },
+      "A38": {
+        "offline": "verified",
+        "passed_node_count": 44,
+        "passed_nodeids_sha256": "4f7a674a34ecc47291d3050ddb430abfd0c144948cb7874656391aa515a3e265",
+        "remaining": [
+          "R",
+          "C"
+        ]
+      },
+      "A39": {
+        "offline": "verified",
+        "passed_node_count": 69,
+        "passed_nodeids_sha256": "5351b9af7c12dfbb2bf29d663015881627763589f603ecc5755b5b4db584d29d",
+        "remaining": [
+          "O.7",
+          "D",
+          "R"
+        ]
+      }
+    },
+    "changed_source_files_measured": 61,
+    "classified_open_requirements": 118,
+    "coverage": {
+      "feature": {
+        "base_sha": "34432aadf809f3da4728f8d3117b0591fd132bdd",
+        "changed_executable_lines": 9908,
+        "files": {
+          "controllers/generic/life_liquidity.py": {
+            "missed_lines": [
+              238,
+              247,
+              291,
+              302,
+              354,
+              355,
+              358,
+              359,
+              365,
+              366,
+              367,
+              376,
+              377,
+              380,
+              381,
+              385,
+              386,
+              392,
+              423,
+              427,
+              430,
+              440,
+              443,
+              448,
+              449,
+              480,
+              493,
+              494,
+              497,
+              500,
+              501,
+              507,
+              508,
+              511,
+              512,
+              526,
+              542,
+              543,
+              559,
+              563,
+              564,
+              565,
+              568,
+              569,
+              570,
+              579,
+              580,
+              581,
+              594,
+              595,
+              596,
+              602,
+              603,
+              627,
+              640,
+              646,
+              660,
+              665,
+              681,
+              700,
+              709,
+              722,
+              726,
+              738,
+              756,
+              767,
+              768,
+              773,
+              820,
+              830,
+              847,
+              878,
+              881,
+              896,
+              910,
+              931,
+              932,
+              946,
+              947,
+              948,
+              955,
+              956,
+              973,
+              974,
+              975,
+              1004,
+              1005,
+              1014,
+              1017,
+              1018,
+              1027,
+              1028,
+              1053,
+              1057,
+              1070,
+              1071,
+              1093,
+              1097,
+              1116,
+              1119,
+              1122,
+              1127,
+              1134,
+              1157,
+              1172,
+              1173,
+              1176,
+              1177,
+              1186,
+              1190,
+              1197,
+              1201,
+              1211,
+              1231,
+              1232,
+              1241,
+              1251,
+              1274,
+              1275,
+              1280,
+              1294,
+              1306,
+              1325,
+              1326,
+              1327,
+              1329,
+              1337,
+              1348,
+              1357,
+              1390,
+              1397,
+              1402,
+              1405,
+              1427,
+              1428,
+              1448,
+              1453,
+              1457,
+              1459,
+              1460,
+              1461,
+              1517,
+              1550,
+              1558,
+              1582,
+              1583,
+              1597,
+              1603,
+              1604,
+              1622,
+              1623,
+              1643,
+              1644,
+              1645,
+              1646,
+              1672,
+              1673,
+              1683,
+              1684,
+              1685,
+              1686,
+              1687,
+              1688,
+              1704,
+              1714,
+              1720,
+              1721,
+              1722,
+              1723,
+              1724,
+              1725,
+              1746,
+              1769,
+              1770,
+              1771,
+              1780,
+              1791,
+              1802,
+              1834,
+              1939,
+              1940,
+              1958,
+              1959,
+              1968,
+              1969,
+              1970,
+              1971,
+              1995,
+              1996,
+              2006,
+              2012,
+              2053,
+              2054,
+              2055,
+              2056,
+              2057,
+              2058,
+              2059,
+              2061,
+              2062,
+              2063,
+              2068,
+              2069,
+              2089,
+              2169,
+              2181,
+              2182,
+              2218
+            ],
+            "percent_covered": 86.0215053763441
+          },
+          "hummingbot/connector/derivative/okx_perpetual/okx_perpetual_constants.py": {
+            "missed_lines": [],
+            "percent_covered": 100.0
+          },
+          "hummingbot/connector/derivative/okx_perpetual/okx_perpetual_derivative.py": {
+            "missed_lines": [
+              66,
+              292,
+              694,
+              695,
+              697,
+              706,
+              707,
+              708,
+              711
+            ],
+            "percent_covered": 86.36363636363636
+          },
+          "hummingbot/connector/exchange/okx/okx_api_order_book_data_source.py": {
+            "missed_lines": [],
+            "percent_covered": 100.0
+          },
+          "hummingbot/connector/exchange/okx/okx_book_health.py": {
+            "missed_lines": [
+              49,
+              60,
+              61,
+              63,
+              64,
+              82,
+              83
+            ],
+            "percent_covered": 88.52459016393442
+          },
+          "hummingbot/connector/exchange/okx/okx_constants.py": {
+            "missed_lines": [],
+            "percent_covered": 100.0
+          },
+          "hummingbot/connector/exchange/okx/okx_exchange.py": {
+            "missed_lines": [
+              109,
+              123,
+              293,
+              297,
+              298,
+              311,
+              314,
+              315,
+              317
+            ],
+            "percent_covered": 90.3225806451613
+          },
+          "hummingbot/core/web_assistant/connections/rest_connection.py": {
+            "missed_lines": [],
+            "percent_covered": 100.0
+          },
+          "hummingbot/core/web_assistant/rest_assistant.py": {
+            "missed_lines": [],
+            "percent_covered": 100.0
+          },
+          "hummingbot/data_feed/market_data_provider.py": {
+            "missed_lines": [
+              433
+            ],
+            "percent_covered": 87.5
+          },
+          "hummingbot/strategy/strategy_v2_base.py": {
+            "missed_lines": [
+              323,
+              333,
+              334,
+              335,
+              336,
+              337,
+              748,
+              749,
+              767,
+              768,
+              806,
+              807,
+              808,
+              813,
+              814,
+              848,
+              849,
+              869
+            ],
+            "percent_covered": 86.95652173913044
+          },
+          "hummingbot/strategy_v2/executors/executor_orchestrator.py": {
+            "missed_lines": [],
+            "percent_covered": 100.0
+          },
+          "hummingbot/strategy_v2/executors/order_executor/order_executor.py": {
+            "missed_lines": [
+              207,
+              210
+            ],
+            "percent_covered": 94.44444444444444
+          },
+          "hummingbot/strategy_v2/life_liquidity/account_bills.py": {
+            "missed_lines": [
+              29,
+              48,
+              49,
+              50,
+              51,
+              56,
+              82,
+              93,
+              97,
+              98,
+              104,
+              120,
+              123,
+              127,
+              132,
+              171,
+              175,
+              182,
+              184
+            ],
+            "percent_covered": 88.0503144654088
+          },
+          "hummingbot/strategy_v2/life_liquidity/account_data.py": {
+            "missed_lines": [
+              30,
+              36,
+              48,
+              49,
+              57,
+              78,
+              98,
+              102,
+              107,
+              109,
+              129,
+              133,
+              140,
+              146,
+              148,
+              152,
+              181,
+              184,
+              186,
+              189,
+              219,
+              228,
+              233,
+              250,
+              264,
+              266,
+              277,
+              338,
+              339,
+              340,
+              341
+            ],
+            "percent_covered": 87.6984126984127
+          },
+          "hummingbot/strategy_v2/life_liquidity/account_lock.py": {
+            "missed_lines": [
+              28,
+              34,
+              38,
+              47,
+              51,
+              52,
+              53,
+              54,
+              55,
+              56,
+              57
+            ],
+            "percent_covered": 80.35714285714286
+          },
+          "hummingbot/strategy_v2/life_liquidity/accounting.py": {
+            "missed_lines": [
+              27,
+              38,
+              50,
+              57,
+              61,
+              62,
+              63,
+              66,
+              69,
+              75,
+              98,
+              101,
+              102,
+              103,
+              106,
+              126,
+              129
+            ],
+            "percent_covered": 83.9622641509434
+          },
+          "hummingbot/strategy_v2/life_liquidity/action_journal.py": {
+            "missed_lines": [
+              40,
+              49,
+              74,
+              85,
+              112,
+              148,
+              161,
+              167,
+              175,
+              183,
+              187
+            ],
+            "percent_covered": 91.91176470588235
+          },
+          "hummingbot/strategy_v2/life_liquidity/capital_risk.py": {
+            "missed_lines": [
+              33,
+              48,
+              72,
+              78,
+              93,
+              94,
+              95,
+              118,
+              153
+            ],
+            "percent_covered": 91.81818181818181
+          },
+          "hummingbot/strategy_v2/life_liquidity/config.py": {
+            "missed_lines": [
+              28,
+              34,
+              43,
+              44,
+              74,
+              98,
+              99,
+              109,
+              130,
+              132,
+              155,
+              157,
+              162,
+              181,
+              223,
+              226,
+              229,
+              233,
+              251,
+              253,
+              265,
+              267,
+              297,
+              301,
+              316,
+              322,
+              324,
+              339,
+              345,
+              349,
+              384,
+              386,
+              388,
+              421
+            ],
+            "percent_covered": 90.58171745152355
+          },
+          "hummingbot/strategy_v2/life_liquidity/economics.py": {
+            "missed_lines": [
+              45,
+              71,
+              99,
+              123,
+              135,
+              139,
+              141,
+              154,
+              163,
+              172,
+              173,
+              175,
+              178,
+              193,
+              199,
+              218,
+              231,
+              239,
+              272,
+              273,
+              274,
+              275,
+              278,
+              285,
+              293,
+              294,
+              295,
+              312,
+              319,
+              322,
+              333,
+              354,
+              382,
+              391,
+              399,
+              427,
+              435,
+              436,
+              438,
+              439,
+              440,
+              519
+            ],
+            "percent_covered": 89.0625
+          },
+          "hummingbot/strategy_v2/life_liquidity/executor_send.py": {
+            "missed_lines": [
+              47,
+              53,
+              54,
+              55,
+              89,
+              122,
+              128,
+              129,
+              136,
+              141,
+              151,
+              186,
+              187,
+              189,
+              192,
+              193,
+              196,
+              209,
+              211
+            ],
+            "percent_covered": 87.16216216216216
+          },
+          "hummingbot/strategy_v2/life_liquidity/exit_actions.py": {
+            "missed_lines": [
+              44,
+              51,
+              55,
+              90,
+              125,
+              127,
+              129,
+              136,
+              148,
+              151,
+              152,
+              177,
+              178,
+              191,
+              192,
+              193,
+              199,
+              202,
+              217,
+              219,
+              220,
+              221,
+              226,
+              232,
+              242,
+              244,
+              255,
+              256,
+              260,
+              271,
+              275,
+              279,
+              298,
+              299,
+              300
+            ],
+            "percent_covered": 82.84313725490196
+          },
+          "hummingbot/strategy_v2/life_liquidity/fees.py": {
+            "missed_lines": [
+              25,
+              28,
+              29,
+              52,
+              55,
+              58,
+              62,
+              85,
+              87,
+              96,
+              104,
+              118,
+              127,
+              177,
+              178,
+              183,
+              184,
+              187,
+              198,
+              231,
+              236,
+              267,
+              308,
+              333,
+              335,
+              337,
+              339,
+              344,
+              348,
+              371,
+              373
+            ],
+            "percent_covered": 89.3103448275862
+          },
+          "hummingbot/strategy_v2/life_liquidity/fill_attribution.py": {
+            "missed_lines": [
+              52,
+              57,
+              61,
+              66,
+              88,
+              112,
+              197,
+              217,
+              220,
+              230,
+              251,
+              269,
+              294,
+              304,
+              307,
+              310,
+              328,
+              331,
+              334,
+              339,
+              376,
+              383,
+              388,
+              391,
+              396,
+              426,
+              440,
+              473,
+              479,
+              480,
+              507,
+              513,
+              541,
+              567,
+              568
+            ],
+            "percent_covered": 90.81364829396325
+          },
+          "hummingbot/strategy_v2/life_liquidity/hedge.py": {
+            "missed_lines": [
+              46,
+              109,
+              113,
+              134
+            ],
+            "percent_covered": 95.50561797752809
+          },
+          "hummingbot/strategy_v2/life_liquidity/inventory_execution.py": {
+            "missed_lines": [
+              61,
+              98,
+              104,
+              105,
+              125,
+              160,
+              164,
+              173,
+              202,
+              213,
+              252,
+              253,
+              254,
+              261,
+              267,
+              274,
+              282,
+              285,
+              286,
+              287,
+              290,
+              295,
+              319,
+              320,
+              321,
+              322,
+              325,
+              375,
+              379,
+              437,
+              446,
+              453
+            ],
+            "percent_covered": 89.80891719745223
+          },
+          "hummingbot/strategy_v2/life_liquidity/joint_exposure.py": {
+            "missed_lines": [
+              22,
+              26,
+              31,
+              68,
+              105
+            ],
+            "percent_covered": 94.04761904761905
+          },
+          "hummingbot/strategy_v2/life_liquidity/loss_budget.py": {
+            "missed_lines": [
+              34,
+              49,
+              88,
+              103,
+              108,
+              127
+            ],
+            "percent_covered": 94.82758620689656
+          },
+          "hummingbot/strategy_v2/life_liquidity/market_data.py": {
+            "missed_lines": [
+              36,
+              43,
+              93,
+              94,
+              106,
+              107,
+              231,
+              232,
+              255,
+              258,
+              259,
+              267,
+              271,
+              331,
+              351,
+              352,
+              355,
+              356,
+              406,
+              423,
+              457,
+              459,
+              461,
+              510
+            ],
+            "percent_covered": 94.1747572815534
+          },
+          "hummingbot/strategy_v2/life_liquidity/markout.py": {
+            "missed_lines": [
+              25,
+              37,
+              40,
+              41,
+              42,
+              49,
+              57,
+              58,
+              59,
+              65
+            ],
+            "percent_covered": 82.45614035087719
+          },
+          "hummingbot/strategy_v2/life_liquidity/markout_risk.py": {
+            "missed_lines": [
+              45,
+              56,
+              73,
+              102,
+              108,
+              115,
+              138,
+              152,
+              158,
+              162,
+              163,
+              186,
+              187,
+              192,
+              193,
+              201,
+              202,
+              205,
+              206,
+              209,
+              210,
+              214,
+              215,
+              252,
+              253,
+              293,
+              302,
+              341,
+              346,
+              349,
+              350,
+              361,
+              362,
+              376,
+              382,
+              383
+            ],
+            "percent_covered": 86.25954198473282
+          },
+          "hummingbot/strategy_v2/life_liquidity/order_gateway.py": {
+            "missed_lines": [
+              37,
+              88,
+              89,
+              110,
+              113,
+              128,
+              129,
+              154,
+              156,
+              158,
+              179,
+              180,
+              192,
+              216,
+              234,
+              235,
+              237,
+              250,
+              255,
+              276,
+              277,
+              298,
+              319,
+              322,
+              343,
+              363,
+              375,
+              381,
+              390,
+              393,
+              397,
+              403,
+              409,
+              412,
+              417,
+              420,
+              431,
+              439,
+              443,
+              452,
+              461,
+              470,
+              473,
+              485,
+              501,
+              502,
+              503,
+              504,
+              519,
+              524,
+              526,
+              558,
+              559,
+              570,
+              571,
+              583,
+              587,
+              592,
+              595,
+              596,
+              607,
+              609,
+              613
+            ],
+            "percent_covered": 86.45161290322581
+          },
+          "hummingbot/strategy_v2/life_liquidity/own_depth.py": {
+            "missed_lines": [
+              39,
+              44,
+              48,
+              98,
+              133
+            ],
+            "percent_covered": 92.85714285714286
+          },
+          "hummingbot/strategy_v2/life_liquidity/own_depth_runner.py": {
+            "missed_lines": [
+              31,
+              47,
+              55,
+              57,
+              70,
+              76,
+              81,
+              108,
+              109,
+              110,
+              111,
+              112,
+              115,
+              119,
+              150,
+              152,
+              153
+            ],
+            "percent_covered": 80.89887640449439
+          },
+          "hummingbot/strategy_v2/life_liquidity/policy_state.py": {
+            "missed_lines": [
+              14,
+              23,
+              56,
+              91
+            ],
+            "percent_covered": 94.87179487179488
+          },
+          "hummingbot/strategy_v2/life_liquidity/protected_send.py": {
+            "missed_lines": [
+              18,
+              31,
+              55,
+              56,
+              68,
+              69,
+              81,
+              105,
+              125,
+              126
+            ],
+            "percent_covered": 87.95180722891567
+          },
+          "hummingbot/strategy_v2/life_liquidity/protected_swap.py": {
+            "missed_lines": [
+              77,
+              189,
+              192,
+              194,
+              216,
+              228,
+              231,
+              234,
+              255,
+              290
+            ],
+            "percent_covered": 94.73684210526316
+          },
+          "hummingbot/strategy_v2/life_liquidity/queue_latency_simulation.py": {
+            "missed_lines": [
+              43,
+              60,
+              77,
+              107,
+              127,
+              134
+            ],
+            "percent_covered": 93.33333333333333
+          },
+          "hummingbot/strategy_v2/life_liquidity/quote_actions.py": {
+            "missed_lines": [
+              85,
+              90,
+              91,
+              109,
+              112,
+              131,
+              151,
+              153,
+              154,
+              155,
+              156,
+              160,
+              182,
+              185,
+              186,
+              192,
+              194,
+              226,
+              229,
+              234,
+              237,
+              243,
+              261,
+              262,
+              270,
+              274,
+              280,
+              283,
+              291,
+              303,
+              321,
+              322,
+              336,
+              344,
+              349,
+              350,
+              351,
+              355,
+              366,
+              380,
+              384,
+              385,
+              399,
+              402,
+              405,
+              413,
+              424,
+              432,
+              436,
+              437,
+              438,
+              444,
+              445,
+              491,
+              492,
+              504,
+              505,
+              513,
+              556,
+              571,
+              572,
+              582,
+              583,
+              591,
+              592,
+              593,
+              610,
+              615,
+              616,
+              617
+            ],
+            "percent_covered": 83.5680751173709
+          },
+          "hummingbot/strategy_v2/life_liquidity/recovery_probe.py": {
+            "missed_lines": [
+              17,
+              40,
+              46,
+              47
+            ],
+            "percent_covered": 85.71428571428572
+          },
+          "hummingbot/strategy_v2/life_liquidity/reference.py": {
+            "missed_lines": [
+              41,
+              93,
+              97,
+              118,
+              125,
+              131,
+              133,
+              138,
+              152,
+              172,
+              176,
+              199
+            ],
+            "percent_covered": 91.94630872483222
+          },
+          "hummingbot/strategy_v2/life_liquidity/reference_evaluation.py": {
+            "missed_lines": [
+              22
+            ],
+            "percent_covered": 98.0
+          },
+          "hummingbot/strategy_v2/life_liquidity/refresh_policy.py": {
+            "missed_lines": [
+              33,
+              73
+            ],
+            "percent_covered": 96.66666666666667
+          },
+          "hummingbot/strategy_v2/life_liquidity/request_budget.py": {
+            "missed_lines": [
+              47,
+              61,
+              84,
+              94,
+              100,
+              120,
+              125,
+              133,
+              137,
+              145
+            ],
+            "percent_covered": 91.45299145299145
+          },
+          "hummingbot/strategy_v2/life_liquidity/risk.py": {
+            "missed_lines": [
+              32,
+              50,
+              80,
+              86,
+              172,
+              180,
+              195,
+              204,
+              227,
+              282,
+              293,
+              301,
+              318,
+              398,
+              401,
+              420,
+              455,
+              502,
+              507,
+              513,
+              535,
+              551,
+              562,
+              585,
+              592,
+              633,
+              665,
+              688,
+              700,
+              705,
+              715
+            ],
+            "percent_covered": 93.83697813121272
+          },
+          "hummingbot/strategy_v2/life_liquidity/safety.py": {
+            "missed_lines": [
+              45,
+              101,
+              102,
+              107,
+              141,
+              160,
+              177,
+              178,
+              179
+            ],
+            "percent_covered": 94.19354838709677
+          },
+          "hummingbot/strategy_v2/life_liquidity/send_gate.py": {
+            "missed_lines": [
+              29,
+              64
+            ],
+            "percent_covered": 95.23809523809524
+          },
+          "hummingbot/strategy_v2/life_liquidity/session.py": {
+            "missed_lines": [
+              24,
+              31,
+              37,
+              42,
+              70,
+              85,
+              109,
+              112,
+              145,
+              212,
+              222,
+              267,
+              279,
+              312,
+              320,
+              362,
+              380,
+              401,
+              403,
+              409,
+              415,
+              420,
+              441
+            ],
+            "percent_covered": 91.32075471698113
+          },
+          "hummingbot/strategy_v2/life_liquidity/shared_capital.py": {
+            "missed_lines": [
+              45,
+              108,
+              164,
+              174,
+              177,
+              187,
+              194,
+              202,
+              204,
+              230,
+              263,
+              275,
+              280,
+              287,
+              347,
+              368,
+              381,
+              413,
+              414,
+              422,
+              428,
+              429
+            ],
+            "percent_covered": 92.88025889967638
+          },
+          "hummingbot/strategy_v2/life_liquidity/slots.py": {
+            "missed_lines": [
+              17,
+              27,
+              46,
+              55,
+              57
+            ],
+            "percent_covered": 86.84210526315789
+          },
+          "hummingbot/strategy_v2/life_liquidity/spot_quotes.py": {
+            "missed_lines": [
+              253
+            ],
+            "percent_covered": 99.30555555555556
+          },
+          "hummingbot/strategy_v2/life_liquidity/spot_risk.py": {
+            "missed_lines": [
+              40,
+              63,
+              64,
+              75
+            ],
+            "percent_covered": 94.5945945945946
+          },
+          "hummingbot/strategy_v2/life_liquidity/spot_telemetry.py": {
+            "missed_lines": [
+              25,
+              26,
+              53,
+              70,
+              120,
+              121,
+              125,
+              126,
+              127,
+              128,
+              129,
+              130,
+              165,
+              166,
+              183
+            ],
+            "percent_covered": 89.36170212765957
+          },
+          "hummingbot/strategy_v2/life_liquidity/state.py": {
+            "missed_lines": [
+              53,
+              68,
+              69,
+              75,
+              83,
+              126,
+              127,
+              175,
+              179,
+              183,
+              191,
+              196,
+              205,
+              209,
+              235,
+              242,
+              248,
+              249,
+              267,
+              292,
+              293,
+              311,
+              314,
+              315,
+              317,
+              330,
+              335,
+              338
+            ],
+            "percent_covered": 89.31297709923665
+          },
+          "hummingbot/strategy_v2/life_liquidity/stress.py": {
+            "missed_lines": [],
+            "percent_covered": 100.0
+          },
+          "hummingbot/strategy_v2/life_liquidity/telemetry.py": {
+            "missed_lines": [
+              90,
+              101,
+              116,
+              131,
+              135,
+              169,
+              196,
+              203,
+              255
+            ],
+            "percent_covered": 94.11764705882354
+          },
+          "hummingbot/strategy_v2/life_liquidity/transition.py": {
+            "missed_lines": [
+              40,
+              41,
+              42
+            ],
+            "percent_covered": 86.36363636363636
+          }
+        },
+        "missed_lines": 1031,
+        "percent_covered": 89.59426725878077
+      },
+      "recent": {
+        "base_sha": "4efb4ad6e0a595118e58c2d38b97f993d36ea41c",
+        "changed_executable_lines": 1074,
+        "files": {
+          "controllers/generic/life_liquidity.py": {
+            "missed_lines": [
+              640,
+              646,
+              660,
+              665,
+              756,
+              767,
+              768,
+              773,
+              820,
+              830,
+              847,
+              1294,
+              1780,
+              1791,
+              1802,
+              1834
+            ],
+            "percent_covered": 92.23300970873787
+          },
+          "hummingbot/connector/derivative/okx_perpetual/okx_perpetual_derivative.py": {
+            "missed_lines": [
+              66,
+              292
+            ],
+            "percent_covered": 91.66666666666667
+          },
+          "hummingbot/strategy_v2/life_liquidity/executor_send.py": {
+            "missed_lines": [],
+            "percent_covered": 100.0
+          },
+          "hummingbot/strategy_v2/life_liquidity/order_gateway.py": {
+            "missed_lines": [
+              179,
+              180
+            ],
+            "percent_covered": 81.81818181818181
+          },
+          "hummingbot/strategy_v2/life_liquidity/protected_send.py": {
+            "missed_lines": [
+              105,
+              125,
+              126
+            ],
+            "percent_covered": 84.21052631578948
+          },
+          "hummingbot/strategy_v2/life_liquidity/protected_swap.py": {
+            "missed_lines": [
+              77,
+              189,
+              192,
+              194,
+              216,
+              228,
+              231,
+              234,
+              255,
+              290
+            ],
+            "percent_covered": 94.73684210526316
+          },
+          "hummingbot/strategy_v2/life_liquidity/quote_actions.py": {
+            "missed_lines": [],
+            "percent_covered": 100.0
+          },
+          "hummingbot/strategy_v2/life_liquidity/safety.py": {
+            "missed_lines": [
+              107
+            ],
+            "percent_covered": 88.88888888888889
+          },
+          "hummingbot/strategy_v2/life_liquidity/shared_capital.py": {
+            "missed_lines": [
+              45,
+              108,
+              164,
+              174,
+              177,
+              187,
+              194,
+              202,
+              204,
+              230,
+              263,
+              275,
+              280,
+              287,
+              347,
+              368,
+              381,
+              413,
+              414,
+              422,
+              428,
+              429
+            ],
+            "percent_covered": 92.88025889967638
+          },
+          "hummingbot/strategy_v2/life_liquidity/spot_telemetry.py": {
+            "missed_lines": [
+              25,
+              26,
+              53,
+              70,
+              120,
+              121,
+              125,
+              126,
+              127,
+              128,
+              129,
+              130,
+              165,
+              166,
+              183
+            ],
+            "percent_covered": 89.36170212765957
+          },
+          "hummingbot/strategy_v2/life_liquidity/telemetry.py": {
+            "missed_lines": [
+              90,
+              101,
+              116,
+              131,
+              135,
+              169,
+              196,
+              203,
+              255
+            ],
+            "percent_covered": 94.11764705882354
+          }
+        },
+        "missed_lines": 80,
+        "percent_covered": 92.5512104283054
+      }
+    },
+    "failed": 0,
+    "generated_at_utc": "2026-10-10T12:06:57.156393+00:00",
+    "manifest_sha256": "f212fe3426c70e9075c0474e7fb7ac2b0740bf93c333f25c5014b79cd8504870",
+    "plan_sha256": "e0b2cce46a76b0fd197bc33e18f2106a7de3f18ae9fcddc07e4c9c0a7dae4128",
+    "production_permission": false,
+    "runtime": {
+      "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
+      "python": "3.13.15 | packaged by conda-forge | (main, Sep  2 2026, 21:53:23) [Clang 21.1.8 ]"
+    },
+    "scope": "SPOT_OFFLINE_COMPLETE",
+    "skipped": 0,
+    "source_head": "8888423e8c78750feead6b41baaa5e3ae79a02c3",
+    "test_count": 1676,
+    "test_results_sha256": "29b79f675b332cac4b1263c151448e05fca9d40aeffa3187a3d1fcb704c06d9b",
+    "versions": {
+      "coverage": "7.16.2",
+      "diff-cover": "10.5.1",
+      "pytest": "9.1.1"
+    },
+    "worktree_status": "M  controllers/generic/life_liquidity.py\nM  docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md\nA  docs/plans/LIFE_OKX_O7_SHARED_CAPITAL_EVIDENCE_2026-10-10.md\nM  hummingbot/strategy_v2/life_liquidity/executor_send.py\nM  hummingbot/strategy_v2/life_liquidity/protected_swap.py\nA  hummingbot/strategy_v2/life_liquidity/shared_capital.py\nM  test/hummingbot/strategy_v2/life_liquidity/test_executor_protected_send.py\nA  test/hummingbot/strategy_v2/life_liquidity/test_shared_capital.py\nA  test/hummingbot/strategy_v2/life_liquidity/test_shared_capital_runner.py\nM  test/hummingbot/strategy_v2/life_liquidity/test_swap_executor.py"
+  },
+  "focused_test_count": 66,
+  "focused_test_results": {
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital.py::test_basis_and_directional_stress_remain_when_delta_is_flat": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital.py::test_capital_policy_requires_explicit_consistent_units_and_conservative_tiers[updates0]": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital.py::test_capital_policy_requires_explicit_consistent_units_and_conservative_tiers[updates1]": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital.py::test_capital_policy_requires_explicit_consistent_units_and_conservative_tiers[updates2]": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital.py::test_capital_policy_requires_explicit_consistent_units_and_conservative_tiers[updates3]": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital.py::test_capital_policy_requires_explicit_consistent_units_and_conservative_tiers[updates4]": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital.py::test_capital_policy_requires_explicit_consistent_units_and_conservative_tiers[updates5]": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital.py::test_changed_intent_cannot_reuse_an_existing_capital_approval": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital.py::test_close_and_sale_reservations_cannot_spend_same_actual_holdings": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital.py::test_combined_stress_budget_applies_even_with_abundant_collateral": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital.py::test_concurrent_individually_valid_approvals_are_serialized": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital.py::test_corrupt_or_changed_checkpoint_cannot_be_restored[claim_identity]": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital.py::test_corrupt_or_changed_checkpoint_cannot_be_restored[claim_units]": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital.py::test_corrupt_or_changed_checkpoint_cannot_be_restored[policy]": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital.py::test_corrupt_or_changed_checkpoint_cannot_be_restored[sequence_pair]": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital.py::test_corrupt_or_changed_checkpoint_cannot_be_restored[snapshot]": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital.py::test_duplicate_pending_rows_and_changed_same_sequence_cannot_authorize": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital.py::test_failed_directory_fsync_keeps_possible_durable_claim_and_fences_writer": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital.py::test_fees_are_reserved_and_rebates_or_sale_proceeds_do_not_finance_orders": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital.py::test_hedge_mode_long_and_short_count_in_gross_and_tiers_despite_zero_delta": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital.py::test_identical_pending_identity_is_counted_once_and_mutations_are_rejected": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital.py::test_maintenance_observation_can_block_independently_of_model_initial_margin": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital.py::test_margin_counts_account_initial_requirement_once_and_preserves_other_positions": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital.py::test_new_session_cannot_ignore_old_capital_claims": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital.py::test_pending_hedge_does_not_net_away_one_sided_spot_fill": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital.py::test_process_contenders_cannot_overwrite_the_same_account_pool": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital.py::test_spot_and_swap_cannot_spend_the_same_cash_or_collateral": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital.py::test_two_writer_instances_cannot_overwrite_each_others_claims": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital.py::test_unmodeled_portfolio_margin_or_currency_conversion_is_blocked[changes0]": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital.py::test_unmodeled_portfolio_margin_or_currency_conversion_is_blocked[changes1]": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital.py::test_unmodeled_portfolio_margin_or_currency_conversion_is_blocked[changes2]": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital.py::test_unowned_pending_orders_consume_capacity_without_proceeds_credit": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital.py::test_unqualified_or_changed_account_evidence_revokes_existing_claim_without_release[funding]": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital.py::test_unqualified_or_changed_account_evidence_revokes_existing_claim_without_release[future]": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital.py::test_unqualified_or_changed_account_evidence_revokes_existing_claim_without_release[journal]": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital.py::test_unqualified_or_changed_account_evidence_revokes_existing_claim_without_release[leverage]": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital.py::test_unqualified_or_changed_account_evidence_revokes_existing_claim_without_release[mode]": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital.py::test_unqualified_or_changed_account_evidence_revokes_existing_claim_without_release[nan]": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital.py::test_unqualified_or_changed_account_evidence_revokes_existing_claim_without_release[rollback]": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital.py::test_unqualified_or_changed_account_evidence_revokes_existing_claim_without_release[scope]": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital.py::test_unqualified_or_changed_account_evidence_revokes_existing_claim_without_release[sequence]": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital.py::test_unqualified_or_changed_account_evidence_revokes_existing_claim_without_release[source]": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital.py::test_unqualified_or_changed_account_evidence_revokes_existing_claim_without_release[stale]": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital.py::test_unqualified_or_changed_account_evidence_revokes_existing_claim_without_release[tier]": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital.py::test_unqualified_or_changed_account_evidence_revokes_existing_claim_without_release[uid]": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital_runner.py::test_both_affordable_routes_send_and_ack_without_releasing_the_shared_pool": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital_runner.py::test_capital_revoked_inside_real_swap_rest_throttler_sends_zero_requests": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital_runner.py::test_real_executor_routes_cannot_overallocate_account_in_either_order[spot]": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital_runner.py::test_real_executor_routes_cannot_overallocate_account_in_either_order[swap]": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital_runner.py::test_shared_authority_cannot_be_replaced_or_installed_over_existing_orders": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital_runner.py::test_shared_authority_revokes_either_dispatched_route_and_keeps_claim[basis-spot]": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital_runner.py::test_shared_authority_revokes_either_dispatched_route_and_keeps_claim[basis-swap]": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital_runner.py::test_shared_authority_revokes_either_dispatched_route_and_keeps_claim[collateral-spot]": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital_runner.py::test_shared_authority_revokes_either_dispatched_route_and_keeps_claim[collateral-swap]": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital_runner.py::test_shared_authority_revokes_either_dispatched_route_and_keeps_claim[disk-spot]": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital_runner.py::test_shared_authority_revokes_either_dispatched_route_and_keeps_claim[disk-swap]": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital_runner.py::test_shared_authority_revokes_either_dispatched_route_and_keeps_claim[funding-spot]": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital_runner.py::test_shared_authority_revokes_either_dispatched_route_and_keeps_claim[funding-swap]": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital_runner.py::test_shared_authority_revokes_either_dispatched_route_and_keeps_claim[position-spot]": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital_runner.py::test_shared_authority_revokes_either_dispatched_route_and_keeps_claim[position-swap]": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital_runner.py::test_shared_authority_revokes_either_dispatched_route_and_keeps_claim[sequence-spot]": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital_runner.py::test_shared_authority_revokes_either_dispatched_route_and_keeps_claim[sequence-swap]": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital_runner.py::test_shared_authority_revokes_either_dispatched_route_and_keeps_claim[stale-spot]": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital_runner.py::test_shared_authority_revokes_either_dispatched_route_and_keeps_claim[stale-swap]": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital_runner.py::test_shared_capital_at_actual_spot_rest_boundary[False]": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    },
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital_runner.py::test_shared_capital_at_actual_spot_rest_boundary[True]": {
+      "call": "passed",
+      "setup": "passed",
+      "teardown": "passed"
+    }
+  },
+  "limitations": [
+    "Qualified snapshot provider contract is injected; authenticated feed assembly remains O.7.4/O.7.5 and D/R.",
+    "Only account mode 2, USDT-valued eligible collateral and cross margin are supported; portfolio margin and implicit USD conversion are rejected.",
+    "Host-local shared journal requires existing account UID ownership and canonical deployment path; different journals and multiple hosts do not coordinate.",
+    "Claims survive ACK, timeout, cancellation requests and restart; fill/cancel settlement, capital release and joint recovery remain O.7.5.",
+    "Hedge generation, target coordination and bounded urgent exits remain O.7.3; a breached cap currently blocks new close claims too.",
+    "No demo or real-account evidence; production trading remains disabled."
+  ],
+  "o7_complete": false,
+  "production_permission": false,
+  "scope": "O.7.2_SHARED_CAPITAL_VERIFIED",
+  "source_sha256": {
+    "controllers/generic/life_liquidity.py": "8b672f92d7500c44e547fc2d0aed1cc2ee69063f61045376b19f2c07335ee95c",
+    "docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md": "e0b2cce46a76b0fd197bc33e18f2106a7de3f18ae9fcddc07e4c9c0a7dae4128",
+    "docs/plans/LIFE_OKX_O7_SHARED_CAPITAL_EVIDENCE_2026-10-10.md": "b35b5b47b67b3ac15163610d523ce7d4a8564bd711ed21225d8cd4f056df2d31",
+    "hummingbot/strategy_v2/life_liquidity/executor_send.py": "38db38ebf114cb463a28b42809bf1371af2cf391656cfdd324bcf1f7bb6af27b",
+    "hummingbot/strategy_v2/life_liquidity/protected_swap.py": "35a0eb5228771057db9d6247ffce4f1c0f4d03b6bbc8e518c3cc07c6f3a46726",
+    "hummingbot/strategy_v2/life_liquidity/shared_capital.py": "222326774e6922aa98170a829e3b2a658cc19044fad6bf96d79eb3d89eee8516",
+    "test/hummingbot/strategy_v2/life_liquidity/test_executor_protected_send.py": "9d8d8e4d387a3eb7a8e6f24ab90ca5ccdc1bbc1ce94f9005e7df614e07f2d8e6",
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital.py": "6405f174eedda7f6864a39e70e6af5c56d2987de3683e1210ce4b46bc7749b4d",
+    "test/hummingbot/strategy_v2/life_liquidity/test_shared_capital_runner.py": "106ccc3f6e3934b19aff1b8a082068a987a8173274594e9bdec073ed30b7dcfd",
+    "test/hummingbot/strategy_v2/life_liquidity/test_swap_executor.py": "5eb93f881e2b2ecf7c2e27761104a9b912616f7edbb6968c54ce213c70d06f78"
+  }
+}

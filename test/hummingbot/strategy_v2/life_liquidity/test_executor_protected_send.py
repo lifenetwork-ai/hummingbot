@@ -49,8 +49,8 @@ class Connector:
 
 def _setup(tmp_path, *, reserve=True, pre_reserve=False, connector=None,
            level_id="0", quote_levels=1, request_budget=None,
-           recovery_account_uid=None):
-    clock = FakeClock()
+           recovery_account_uid=None, clock=None):
+    clock = clock or FakeClock()
     active = manager(tmp_path, clock)
     begin(active)
     session = active.current_session

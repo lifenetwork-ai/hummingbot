@@ -36,6 +36,7 @@ class SwapAccountObservation:
     pending_close_buy_contracts: Decimal
     pending_close_sell_contracts: Decimal
     connector_ready: bool
+    snapshot_sequence: int | None = None
 
 
 @dataclass(frozen=True)
@@ -178,6 +179,9 @@ class ProtectedSwapExecutorSender:
                 # the same set as the local WAL without authenticated identity.
                 if contracts > available - pending - local:
                     raise ValueError("SWAP_CLOSE_EXCEEDS_POSITION")
+            capital = self.controller._shared_capital_authority
+            if issued and capital is not None and not capital.swap(permit, obs).allowed:
+                raise ValueError("SWAP_SHARED_CAPITAL_REVOKED")
             with self.journal.locked() as state:
                 if (set(state) != {"last_checked_ms", "actions"}
                         or not isinstance(state["actions"], dict)
@@ -237,6 +241,11 @@ class ProtectedSwapExecutorSender:
             PositionMode[self.controller.config.strategy.perpetual.position_mode],
             config.leverage, self.controller.config.recovery_account_uid)
         self._check(config, permit, issued=False)
+        capital = self.controller._shared_capital_authority
+        if capital is not None:
+            decision = capital.swap(permit, self.account_observation(), reserve=True)
+            if not decision.allowed:
+                raise PermissionError(decision.reason_code)
         self.wal.begin(config.id, client_order_id=wire_id, session_id=permit.session_id,
                        epoch=permit.epoch, reservation_id=permit.reservation_id,
                        slot_market=self.contract.instrument, slot_side=config.side.name,

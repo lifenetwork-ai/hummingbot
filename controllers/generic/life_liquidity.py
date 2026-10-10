@@ -65,6 +65,7 @@ from hummingbot.strategy_v2.life_liquidity.reference import ReferenceEngine
 from hummingbot.strategy_v2.life_liquidity.risk import ReservationLedger, RiskLimits, SpotIntent
 from hummingbot.strategy_v2.life_liquidity.safety import SafetyGate, SafetyObservation
 from hummingbot.strategy_v2.life_liquidity.session import SessionManager, SessionStore
+from hummingbot.strategy_v2.life_liquidity.shared_capital import SharedCapitalAuthority
 from hummingbot.strategy_v2.life_liquidity.spot_risk import SpotRiskBinding
 from hummingbot.strategy_v2.life_liquidity.spot_telemetry import collect_quote_inputs, collect_spot_metrics
 from hummingbot.strategy_v2.life_liquidity.state import IntentWAL
@@ -184,6 +185,7 @@ class LifeLiquidityController(ControllerBase):
         self._own_depth_decision = OwnDepthDecision(None, "OWN_DEPTH_NOT_EVALUATED")
         self._protected_spot_sender: ProtectedSpotExecutorSender | None = None
         self._protected_swap_sender: ProtectedSwapExecutorSender | None = None
+        self._shared_capital_authority: SharedCapitalAuthority | None = None
         self._quote_action_planner: QuoteActionPlanner | None = None
         self._runtime_risk_gate: SafetyGate | None = None
         self._runtime_risk_observation: Callable[[], SafetyObservation] | None = None
@@ -636,8 +638,39 @@ class LifeLiquidityController(ControllerBase):
                 or spot_budget is not None and sender.request_budget is not spot_budget
                 or self._order_safety_wal is not None and sender.wal.path == self._order_safety_wal.path):
             raise ValueError("PROTECTED_SWAP_RECOVERY_MISMATCH")
+        capital = self._shared_capital_authority
+        if capital is not None and (
+                sender.contract.contract_value_life != capital.policy.contract_value_life
+                or sender.contract.lot_size_contracts != capital.policy.lot_contracts
+                or sender.account_mode != capital.policy.account_mode):
+            raise ValueError("SHARED_CAPITAL_CONTRACT_MISMATCH")
         sender.connector.enable_protected_trading_pair(sender.contract.trading_pair)
         self._protected_swap_sender = sender
+
+    def install_shared_capital_authority(self, authority: SharedCapitalAuthority) -> None:
+        """Opt into one capital journal for both routes; no production permission."""
+        perp = self.config.strategy.perpetual
+        if (self._shared_capital_authority is not None or not isinstance(authority, SharedCapitalAuthority)
+                or not perp.enabled or authority.policy.account_uid != self.config.recovery_account_uid
+                or authority.policy.position_mode != perp.position_mode or authority.policy.leverage != perp.leverage
+                or perp.margin_mode != "cross" or self._order_safety_reservations is None):
+            raise ValueError("SHARED_CAPITAL_BINDING_INVALID")
+        if (self.config.recovery_state_dir is not None
+                and authority.journal.path.resolve() != (Path(self.config.recovery_state_dir) / "shared_capital.json").resolve()):
+            raise ValueError("SHARED_CAPITAL_PATH_MISMATCH")
+        sender = self._protected_swap_sender
+        if sender is not None and (sender.contract.contract_value_life != authority.policy.contract_value_life
+                                   or sender.contract.lot_size_contracts != authority.policy.lot_contracts
+                                   or sender.account_mode != authority.policy.account_mode):
+            raise ValueError("SHARED_CAPITAL_CONTRACT_MISMATCH")
+        # Existing order/claim adoption needs the joint recovery proof in O.7.5.
+        records = self._order_safety_wal.all_records() if self._order_safety_wal is not None else ()
+        if sender is not None:
+            records += sender.wal.all_records()
+        if (authority.claim_ids() or self._order_safety_reservations.reservation_ids
+                or any(r.state not in ("TERMINAL", "ABORTED_BEFORE_SEND") for r in records)):
+            raise ValueError("SHARED_CAPITAL_RECOVERY_REQUIRED")
+        self._shared_capital_authority = authority
 
     def _is_swap_config(self, config) -> bool:
         return getattr(config, "connector_name", None) == self.config.strategy.perpetual.connector

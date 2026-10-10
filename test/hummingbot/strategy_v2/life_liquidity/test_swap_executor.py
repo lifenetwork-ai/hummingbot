@@ -7,7 +7,7 @@ from test.hummingbot.strategy_v2.life_liquidity.test_contract_spec import _life_
 from test.hummingbot.strategy_v2.life_liquidity.test_executor_protected_send import Connector, _setup
 from test.hummingbot.strategy_v2.life_liquidity.test_protected_swap_send import connector_with_transport
 from test.hummingbot.strategy_v2.life_liquidity.test_request_budget import _budget
-from test.hummingbot.strategy_v2.life_liquidity.test_session import FakeClock, manager
+from test.hummingbot.strategy_v2.life_liquidity.test_session import FakeClock
 from types import SimpleNamespace
 
 import pytest
@@ -27,10 +27,9 @@ from hummingbot.strategy_v2.models.executor_actions import StopExecutorAction
 D = Decimal
 
 
-def setup_swap(tmp_path, *, mode=PositionMode.ONEWAY, action=PositionAction.CLOSE, side=TradeType.SELL, route=None):
-    c, _, _, _, _, _ = _setup(tmp_path, recovery_account_uid="12345", quote_levels=3)
+def setup_swap(tmp_path, *, mode=PositionMode.ONEWAY, action=PositionAction.CLOSE, side=TradeType.SELL, route=None, spot_route=None):
     clock = FakeClock()
-    c._order_safety_manager = manager(tmp_path, clock)
+    c, _, _, _, _, _ = _setup(tmp_path, recovery_account_uid="12345", quote_levels=3, clock=clock, connector=spot_route)
     del c.allow_create_executor_actions
     cfg = PerpetualConfig(enabled=True, position_mode=mode.name, margin_mode="cross", leverage=1)
     c.config = c.config.model_copy(update={"strategy": c.config.strategy.model_copy(update={"perpetual": cfg})})
