@@ -1,7 +1,7 @@
 """Bounded OKX spot bill scan with explicitly approved cashflows."""
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Callable
@@ -19,6 +19,7 @@ def _bill_id(value: object) -> bool:
 class CashflowApprovals:
     anchor_bill_id: str
     approved: dict[str, tuple[str, Decimal]]
+    transfer_times_ms: dict[str, int] = field(default_factory=dict)
 
     @classmethod
     def load(cls, path: Path) -> "CashflowApprovals":
@@ -34,6 +35,7 @@ class CashflowApprovals:
                     or not isinstance(items, list)):
                 raise ValueError("CASHFLOW_APPROVAL_INVALID")
             approved = {}
+            times = {}
             for item in items:
                 bill_id = item["bill_id"]
                 currency = item["currency"]
@@ -42,8 +44,13 @@ class CashflowApprovals:
                         or bill_id in approved or currency not in ("LIFE", "USDT")
                         or not amount.is_finite() or amount == 0):
                     raise ValueError("CASHFLOW_APPROVAL_INVALID")
+                if "at_ms" in item:
+                    at_ms = item["at_ms"]
+                    if not isinstance(at_ms, int) or isinstance(at_ms, bool) or at_ms <= 0:
+                        raise ValueError("CASHFLOW_APPROVAL_INVALID")
+                    times[bill_id] = at_ms
                 approved[bill_id] = (currency, amount)
-            return cls(anchor, approved)
+            return cls(anchor, approved, times)
         except (AttributeError, KeyError, TypeError, OSError, InvalidOperation,
                 json.JSONDecodeError) as exc:
             raise ValueError("CASHFLOW_APPROVAL_INVALID") from exc
@@ -144,7 +151,9 @@ class SpotBillReconciler:
                             or row["subType"] == "11" and amount <= 0
                             or row["subType"] == "12" and amount >= 0
                             or self.approvals.approved.get(bill_id) != (currency, amount)
-                            or row.get("ordId") or row.get("tradeId")):
+                            or row.get("ordId") or row.get("tradeId")
+                            or bill_id in self.approvals.transfer_times_ms and row.get("ts")
+                            != str(self.approvals.transfer_times_ms[bill_id])):
                         raise ValueError("ACCOUNT_CASHFLOW_UNAPPROVED")
                     seen_approved.add(bill_id)
                     transfers.append((bill_id, currency, amount))

@@ -59,6 +59,11 @@ class ReconciledFillAttributor:
             if (currency not in ("LIFE", "USDT") or not isinstance(amount, Decimal)
                     or not amount.is_finite() or amount == 0):
                 return False
+        if (not isinstance(approvals.transfer_times_ms, dict)
+                or any(key not in approvals.approved or not isinstance(at, int)
+                       or isinstance(at, bool) or at <= 0
+                       for key, at in approvals.transfer_times_ms.items())):
+            return False
         return True
 
     def __init__(self, path: Path, *, wal: IntentWAL, reservations: ReservationLedger,
@@ -67,11 +72,16 @@ class ReconciledFillAttributor:
                  independent_value: Callable[[SpotFill], IndependentFillObservation],
                  max_reference_skew_ms: int, create: bool,
                  cashflow_approvals: CashflowApprovals | None = None,
-                 subsidy_budget: SubsidyBudgetLedger | None = None):
+                 subsidy_budget: SubsidyBudgetLedger | None = None,
+                 cashflow_value: Callable[[str], IndependentFillObservation] | None = None,
+                 exit_budget: SubsidyBudgetLedger | None = None):
         if (not isinstance(max_reference_skew_ms, int) or isinstance(max_reference_skew_ms, bool)
                 or max_reference_skew_ms < 0 or not callable(independent_value)
                 or not isinstance(create, bool)
+                or cashflow_value is not None and not callable(cashflow_value)
                 or subsidy_budget is not None and not isinstance(subsidy_budget, SubsidyBudgetLedger)
+                or exit_budget is not None and (not isinstance(exit_budget, SubsidyBudgetLedger)
+                                                or subsidy_budget is not None and exit_budget.path == subsidy_budget.path)
                 or cashflow_approvals is not None
                 and (not isinstance(cashflow_approvals, CashflowApprovals)
                      or not self._approvals_valid(cashflow_approvals))):
@@ -84,13 +94,16 @@ class ReconciledFillAttributor:
         self.reservations = reservations
         self.loss_budget = loss_budget
         self.subsidy_budget = subsidy_budget
+        self.exit_budget = exit_budget
         self.opening_life = opening_life
         self.opening_usdt = opening_usdt
         self.opening_independent_price_usdt = opening_independent_price_usdt
         self.independent_value = independent_value
+        self.cashflow_value = cashflow_value
         self.max_reference_skew_ms = max_reference_skew_ms
         self.cashflow_approvals = (None if cashflow_approvals is None else CashflowApprovals(
-            cashflow_approvals.anchor_bill_id, dict(cashflow_approvals.approved)))
+            cashflow_approvals.anchor_bill_id, dict(cashflow_approvals.approved),
+            dict(cashflow_approvals.transfer_times_ms)))
         self._events: dict[str, dict[str, str | int]] = {}
         self._cashflows: dict[str, dict[str, str]] = {}
         if create:
@@ -114,13 +127,21 @@ class ReconciledFillAttributor:
             policy["approved_cashflows"] = {
                 bill_id: [currency, str(amount)]
                 for bill_id, (currency, amount) in self.cashflow_approvals.approved.items()}
+            if self.cashflow_approvals.transfer_times_ms:
+                policy["transfer_times_ms"] = self.cashflow_approvals.transfer_times_ms
         if self.subsidy_budget is not None:
             policy["subsidy_campaign_id"] = self.subsidy_budget.campaign_id
+        if self.exit_budget is not None:
+            policy["exit_budget"] = {"path": str(self.exit_budget.path.resolve()),
+                                     "campaign_id": self.exit_budget.campaign_id,
+                                     "limits": self.exit_budget._policy()}
         return policy
 
-    def _subsidy_costs_by_intent(self) -> dict[str, Decimal]:
+    def _subsidy_costs_by_intent(self, *, exits: bool | None = False) -> dict[str, Decimal]:
         costs = {}
         for event in self._events.values():
+            if exits is not None and (event.get("purpose") == "risk_reduction") != exits:
+                continue
             intent_id = event["intent_id"]
             costs[intent_id] = costs.get(intent_id, Decimal("0")) + Decimal(event["loss_quote"])
         return costs
@@ -203,27 +224,31 @@ class ReconciledFillAttributor:
         capital = CapitalLedger(
             opening_life=self.opening_life, opening_usdt=self.opening_usdt,
             opening_independent_price_usdt=self.opening_independent_price_usdt)
-        for bill_id, event in sorted(self._cashflows.items()):
-            amount = Decimal(event["amount"])
-            if event["currency"] != "USDT":
+        timeline = []
+        for bill_id, event in self._cashflows.items():
+            if not self._cashflow_matches(bill_id, event):
                 raise ValueError("FILL_ATTRIBUTION_CASHFLOW_VALUE_UNAVAILABLE")
-            if amount > 0:
-                capital.record_cashflow(bill_id, amount)
-        for trade_id, event in sorted(
-                self._events.items(), key=lambda item: (item[1]["fill_at_ms"], item[0])):
+            # Legacy USDT approvals have no timestamp: retain their explicit
+            # deposit-before / withdrawal-after-fill replay contract.
+            at = event.get("at_ms", -1 if Decimal(event["amount"]) > 0 else 10**30)
+            timeline.append((at, 0, bill_id, event))
+        for trade_id, event in self._events.items():
+            timeline.append((event["fill_at_ms"], 1, trade_id, event))
+        for _, kind, event_id, event in sorted(timeline, key=lambda item: item[:3]):
+            if kind == 0:
+                capital.record_asset_cashflow(
+                    event_id, event["currency"], Decimal(event["amount"]),
+                    independent_value_usdt=Decimal(event.get("independent_value_usdt", "1")))
+                continue
             before = capital.execution_loss_quote
             fee_currency, signed_fee = self._fee_terms(event)
             capital.record_fill(
-                trade_id, event["side"], Decimal(event["quantity_base"]),
+                event_id, event["side"], Decimal(event["quantity_base"]),
                 Decimal(event["price_usdt"]), Decimal(event["fee_cost_quote"]),
                 independent_value_usdt=Decimal(event["independent_value_usdt"]),
                 fee_currency=fee_currency, signed_fee=signed_fee)
             if capital.execution_loss_quote - before != Decimal(event["loss_quote"]):
                 raise ValueError("FILL_ATTRIBUTION_LOSS_MISMATCH")
-        for bill_id, event in sorted(self._cashflows.items()):
-            amount = Decimal(event["amount"])
-            if amount < 0:
-                capital.record_cashflow(bill_id, amount)
         return capital
 
     def _record_matches(self, trade_id: str, event: dict) -> bool:
@@ -256,8 +281,7 @@ class ReconciledFillAttributor:
         source_cashflows = durable.cashflow_events
         if (self.cashflow_approvals is None and source_cashflows
                 or self.cashflow_approvals is not None
-                and source_cashflows != self.cashflow_approvals.approved
-                or any(currency != "USDT" for currency, _ in source_cashflows.values())):
+                and source_cashflows != self.cashflow_approvals.approved):
             return None
         if not self._verified() or durable.trade_ids != set(self._events):
             return None
@@ -270,11 +294,31 @@ class ReconciledFillAttributor:
                 return None
         if require_cashflows_attributed:
             if (set(source_cashflows) != set(self._cashflows)
-                    or any(self._cashflows[bill_id] != {
-                        "currency": currency, "amount": str(amount)}
-                        for bill_id, (currency, amount) in source_cashflows.items())):
+                    or any(not self._cashflow_matches(bill_id, event)
+                           for bill_id, event in self._cashflows.items())):
                 return None
         return durable
+
+    def _cashflow_matches(self, bill_id: str, event: dict) -> bool:
+        if self.cashflow_approvals is None:
+            return False
+        approved = self.cashflow_approvals.approved.get(bill_id)
+        if approved != (event["currency"], Decimal(event["amount"])):
+            return False
+        at = self.cashflow_approvals.transfer_times_ms.get(bill_id)
+        if at is not None and event.get("at_ms") != at:
+            return False
+        if event["currency"] == "USDT":
+            return event == {"currency": "USDT", "amount": str(approved[1]),
+                             **({"at_ms": at} if at is not None else {})}
+        if at is None or event.get("source_kind") != "independent_market":
+            return False
+        price = Decimal(event["independent_value_usdt"])
+        return (price.is_finite() and price > 0
+                and all(isinstance(event.get(key), int) and not isinstance(event[key], bool)
+                        and event[key] > 0 for key in ("value_at_ms", "observed_at_ms"))
+                and abs(event["value_at_ms"] - at) <= self.max_reference_skew_ms
+                and 0 <= event["observed_at_ms"] - event["value_at_ms"] <= self.max_reference_skew_ms)
 
     def apply_approved_cashflows(self) -> bool:
         """Complete a verified bill scan after its reservation checkpoint."""
@@ -286,20 +330,41 @@ class ReconciledFillAttributor:
                 if durable is None:
                     return False
                 source = durable.cashflow_events
-                if (source != self.cashflow_approvals.approved
-                        or any(currency != "USDT" for currency, _ in source.values())):
+                if source != self.cashflow_approvals.approved:
                     return False
-                updated = {bill_id: {"currency": currency, "amount": str(amount)}
-                           for bill_id, (currency, amount) in source.items()}
-                if any(updated.get(bill_id) != event
-                       for bill_id, event in self._cashflows.items()):
-                    return False
+                updated = dict(self._cashflows)
+                for bill_id, (currency, amount) in source.items():
+                    if bill_id in updated:
+                        if not self._cashflow_matches(bill_id, updated[bill_id]):
+                            return False
+                        continue
+                    event = {"currency": currency, "amount": str(amount)}
+                    at = self.cashflow_approvals.transfer_times_ms.get(bill_id)
+                    if at is not None:
+                        event["at_ms"] = at
+                    if currency == "LIFE":
+                        if self.cashflow_value is None or at is None:
+                            return False
+                        observed = self.cashflow_value(bill_id)
+                        if not isinstance(observed, IndependentFillObservation):
+                            return False
+                        event.update(independent_value_usdt=str(observed.price_usdt),
+                                     value_at_ms=observed.value_at_ms,
+                                     observed_at_ms=observed.observed_at_ms,
+                                     source_kind=observed.source_kind)
+                    if not self._cashflow_matches(bill_id, event):
+                        return False
+                    updated[bill_id] = event
                 if updated != self._cashflows:
                     self._save(self._events, updated)
                     self._cashflows = updated
             return self.recover()
         except Exception:
             return False
+
+    def verified_loss_by_intent(self) -> dict[str, Decimal] | None:
+        """Independent fill loss including actual converted fees, once per intent."""
+        return self._subsidy_costs_by_intent(exits=None) if self.ready() else None
 
     def ready(self) -> bool:
         try:
@@ -314,14 +379,31 @@ class ReconciledFillAttributor:
                         f"fill:{trade_id}", Decimal(event["loss_quote"]),
                         session_id=event["session_id"], at_utc=self._at_utc(event)):
                     return False
-            if self.subsidy_budget is not None:
-                if any(not self.subsidy_budget.matches_intent_session(
-                        event["intent_id"], event["session_id"]) for event in self._events.values()):
+            if any(event.get("purpose") not in (None, "risk_reduction") for event in self._events.values()):
+                return False
+            for event in self._events.values():
+                exit_hold = self.exit_budget is not None and self.exit_budget.matches_intent_session(
+                    event["intent_id"], event["session_id"])
+                if (event.get("purpose") == "risk_reduction") != exit_hold:
+                    return False
+                if exit_hold and self.subsidy_budget is not None and self.subsidy_budget.matches_intent_session(
+                        event["intent_id"], event["session_id"]):
+                    return False
+            for exits, budget in ((False, self.subsidy_budget), (True, self.exit_budget)):
+                selected = [event for event in self._events.values()
+                            if (event.get("purpose") == "risk_reduction") == exits]
+                if exits and selected and budget is None:
+                    return False
+                if budget is None:
+                    continue
+                if any(not budget.matches_intent_session(
+                        event["intent_id"], event["session_id"]) for event in selected):
                     return False
                 expected = {intent_id: cost for intent_id, cost in
-                            self._subsidy_costs_by_intent().items() if cost > 0}
-                if self.subsidy_budget.verified_fill_floors() != expected:
+                            self._subsidy_costs_by_intent(exits=exits).items() if cost > 0}
+                if budget.verified_fill_floors() != expected:
                     return False
+            if self.subsidy_budget is not None:
                 for cycle in self.subsidy_budget.verified_inventory_cycles():
                     proof, actuals = self._inventory_cycle_evidence(tuple(cycle["members"]))
                     if (proof != cycle["proof"] or cycle["actuals"] != {
@@ -406,9 +488,10 @@ class ReconciledFillAttributor:
                 self.loss_budget.record(
                     f"fill:{trade_id}", Decimal(event["loss_quote"]),
                     session_id=event["session_id"], at_utc=self._at_utc(event))
-            if self.subsidy_budget is not None:
-                for intent_id, cost in self._subsidy_costs_by_intent().items():
-                    self.subsidy_budget.record_fill_floor(intent_id, cost)
+            for exits, budget in ((False, self.subsidy_budget), (True, self.exit_budget)):
+                if budget is not None:
+                    for intent_id, cost in self._subsidy_costs_by_intent(exits=exits).items():
+                        budget.record_fill_floor(intent_id, cost)
             return self.ready()
         except Exception:
             return False
@@ -422,9 +505,13 @@ class ReconciledFillAttributor:
                 if (record.slot_market != "LIFE-USDT" or record.slot_side not in ("BUY", "SELL")
                         or not isinstance(fills, tuple)):
                     return False
-                if self.subsidy_budget is not None and not self.subsidy_budget.matches_intent_session(
-                        record.intent_id, record.session_id):
-                    return False
+                is_exit = self.exit_budget is not None and self.exit_budget.matches_intent_session(
+                    record.intent_id, record.session_id)
+                if self.subsidy_budget is not None:
+                    service = self.subsidy_budget.matches_intent_session(record.intent_id, record.session_id)
+                    if service == is_exit:
+                        return False  # Neither budget, or an ambiguous charge to both.
+
                 for fill in fills:
                     if (not isinstance(fill, SpotFill) or not isinstance(fill.fill_at_ms, int)
                             or isinstance(fill.fill_at_ms, bool) or fill.fill_at_ms <= 0
@@ -442,6 +529,8 @@ class ReconciledFillAttributor:
                               "fee_currency": fill.fee_currency,
                               "signed_fee": str(fill.signed_fee),
                               "fill_at_ms": fill.fill_at_ms}
+                    if is_exit:
+                        stable["purpose"] = "risk_reduction"
                     self._at_utc(stable)
                     previous = self._events.get(fill.trade_id)
                     if previous is not None:

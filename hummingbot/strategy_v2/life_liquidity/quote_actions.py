@@ -325,8 +325,8 @@ class QuoteActionPlanner:
                       and candidate.price_usdt == config.price
                       and candidate.quantity_base == config.amount
                       for candidate in plan.candidates)
-        return (matches and (not self.controller.markout_probe_active()
-                             or self.controller.markout_probe_authorizes(
+        return (matches and (not self.controller.bounded_probe_active()
+                             or self.controller.quote_probe_authorizes(
                                  config.side.name, config.amount)))
 
     def authorizes_permit(self, permit: SendPermit) -> bool:
@@ -387,8 +387,8 @@ class QuoteActionPlanner:
                       and candidate.quantity_base == permit.quantity_base
                       and candidate.economics.subsidy_reserved_quote == held_subsidy
                       for candidate in plan.candidates)
-        return (matches and (not self.controller.markout_probe_active()
-                             or self.controller.markout_probe_authorizes(
+        return (matches and (not self.controller.bounded_probe_active()
+                             or self.controller.quote_probe_authorizes(
                                  config.side.name, permit.quantity_base,
                                  exclude_open_intent=intent)))
 
@@ -521,12 +521,17 @@ class QuoteActionPlanner:
               sides: tuple[str, ...] = ("BUY", "SELL"),
               exclude_open_intent: SpotIntent | None = None,
               subsidy_override_quote: Decimal | None = None) -> SpotQuotePlan:
+        selected_quotes = quotes or self.controller.config.strategy.quotes
+        if self.controller.recovery_probe_active():
+            selected_quotes = selected_quotes.model_copy(update={
+                "sizes_base": tuple(min(size, self.controller._recovery_probe_guard.max_quote_base)
+                                    for size in selected_quotes.sizes_base)})
         return plan_spot_quotes(
             session_id=current.session_id, epoch=current.epoch,
             qualified_reference_usdt=observed.qualified_reference_usdt,
             qualified_exit_value_usdt=observed.qualified_exit_value_usdt,
             best_bid_usdt=observed.best_bid_usdt, best_ask_usdt=observed.best_ask_usdt,
-            quotes=quotes or self.controller.config.strategy.quotes,
+            quotes=selected_quotes,
             rules=observed.rules, costs=observed.costs, policy=observed.policy,
             reservations=self.reservations,
             subsidy_remaining_quote=(subsidy_override_quote if subsidy_override_quote is not None
@@ -536,7 +541,9 @@ class QuoteActionPlanner:
             adaptive_signals=observed.adaptive_signals,
             max_campaign_filled_base=observed.max_campaign_filled_base,
             loss_budget_status=observed.loss_budget_status,
-            sides=sides, exclude_open_intent=exclude_open_intent)
+            sides=sides, exclude_open_intent=exclude_open_intent,
+            risk_check=(self.controller._spot_risk_binding.check
+                        if self.controller._spot_risk_binding is not None else None))
 
     def propose(self) -> list[CreateExecutorAction]:
         self.reason_code = "QUOTE_ACTION_PERMISSION_UNAVAILABLE"
@@ -564,7 +571,7 @@ class QuoteActionPlanner:
             return []
         active_claims = tuple(claim for claim in claims
                               if claim.state in ("PROPOSED", "DISPATCHED"))
-        probe_mode = self.controller.markout_probe_active()
+        probe_mode = self.controller.bounded_probe_active()
         if probe_mode and active_claims:
             self.reason_code = "MARKOUT_PROBE_IN_FLIGHT"
             return []
@@ -589,7 +596,7 @@ class QuoteActionPlanner:
                     | set(self._issued))
         active_slots = {claim.slot for claim in active_claims}
         for candidate in self.last_plan.candidates:
-            if probe_mode and (actions or not self.controller.markout_probe_authorizes(
+            if probe_mode and (actions or not self.controller.quote_probe_authorizes(
                     candidate.side, candidate.quantity_base)):
                 continue
             slot = (current.session_id, current.epoch, candidate.side, candidate.level)

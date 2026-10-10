@@ -285,6 +285,17 @@ class SessionManager:
         self._commit(journal, reset_deadline=True)
         return record
 
+    def can_reduce(self) -> bool:
+        """Permit an explicitly bounded exit during a reconciled economic pause.
+
+        Expiry, transition, rollback and absent sessions revoke this permission.
+        The controller separately enforces HALT, feeds and account proof.
+        """
+        return bool(self._journal is not None and self.state in ("ACTIVE", "PAUSED")
+                    and not self._journal.clock_rollback_latched
+                    and _utc(self.wall_clock()) >= self._journal.last_seen_at
+                    and not self._deadline_reached())
+
     def can_quote(self, *, reference_ready: bool, all_gates_ready: bool,
                   market_reference_ready: bool = False) -> bool:
         if (self._journal is None or self.state != "ACTIVE" or self._journal.clock_rollback_latched

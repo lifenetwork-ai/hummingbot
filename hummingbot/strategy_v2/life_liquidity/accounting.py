@@ -37,7 +37,7 @@ class CapitalLedger:
         if self.highwater_quote <= 0:
             raise ValueError("opening capital must be positive")
         self._fills: dict[str, tuple] = {}
-        self._cashflows: dict[str, Decimal] = {}
+        self._cashflows: dict[str, tuple] = {}
         self._funding: dict[str, Decimal] = {}
 
     def record_fill(self, trade_id: str, side: str, quantity: Decimal, price_usdt: Decimal,
@@ -89,19 +89,37 @@ class CapitalLedger:
         self._fills[trade_id] = event
         return True
 
-    def record_cashflow(self, cashflow_id: str, amount_quote: Decimal) -> bool:
-        if not cashflow_id or not isinstance(amount_quote, Decimal) or not amount_quote.is_finite():
-            raise ValueError("cashflow invalid")
+    def record_asset_cashflow(self, cashflow_id: str, currency: str, quantity: Decimal,
+                              *, independent_value_usdt: Decimal) -> bool:
+        if (not cashflow_id or currency not in ("LIFE", "USDT")
+                or not isinstance(quantity, Decimal) or not quantity.is_finite()
+                or not _valid(independent_value_usdt, positive=True)
+                or currency == "USDT" and independent_value_usdt != 1):
+            raise ValueError("cashflow value invalid")
+        event = (currency, quantity, independent_value_usdt)
         if cashflow_id in self._cashflows:
-            if self._cashflows[cashflow_id] != amount_quote:
+            if self._cashflows[cashflow_id] != event:
                 raise ValueError("cashflow ID conflict")
             return False
-        if self.usdt_balance + amount_quote < 0:
-            raise ValueError("cashflow exceeds USDT balance")
-        self.usdt_balance += amount_quote
-        self.net_cashflows_quote += amount_quote
-        self._cashflows[cashflow_id] = amount_quote
+        balance = self.life_balance if currency == "LIFE" else self.usdt_balance
+        if balance + quantity < 0:
+            raise ValueError("cashflow exceeds asset balance")
+        if currency == "LIFE":
+            self.life_balance += quantity
+            if quantity < 0:
+                withdrawn = min(self.opening_inventory_remaining, -quantity)
+                self.opening_inventory_remaining -= withdrawn
+                self.realized_starting_inventory_pnl_quote += (
+                    withdrawn * (independent_value_usdt - self.opening_price_usdt))
+        else:
+            self.usdt_balance += quantity
+        self.net_cashflows_quote += quantity * independent_value_usdt
+        self._cashflows[cashflow_id] = event
         return True
+
+    def record_cashflow(self, cashflow_id: str, amount_quote: Decimal) -> bool:
+        return self.record_asset_cashflow(cashflow_id, "USDT", amount_quote,
+                                          independent_value_usdt=Decimal("1"))
 
     def record_funding(self, event_id: str, cost_quote: Decimal) -> bool:
         if not event_id or not isinstance(cost_quote, Decimal) or not cost_quote.is_finite():

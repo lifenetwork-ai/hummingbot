@@ -10,9 +10,11 @@ from test.hummingbot.strategy_v2.life_liquidity.test_fee_quote_binding import _b
 from test.hummingbot.strategy_v2.life_liquidity.test_final_quote_send import _attach_quote_planner
 from test.hummingbot.strategy_v2.life_liquidity.test_markout_runtime_binding import _horizon, _monitor
 from test.hummingbot.strategy_v2.life_liquidity.test_reconciled_fill_attribution import AT, AT_MS
+from test.hummingbot.strategy_v2.life_liquidity.test_request_budget import _budget
 from test.hummingbot.strategy_v2.life_liquidity.test_spot_session_replay import FakeTradingOkx, _runner
 from test.hummingbot.strategy_v2.life_liquidity.test_subsidy_runtime_binding import NOW, NOW_MS, _service
 from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -22,10 +24,11 @@ from hummingbot.strategy_v2.life_liquidity.economics import SubsidyBudgetLedger
 from hummingbot.strategy_v2.life_liquidity.fill_attribution import IndependentFillObservation, ReconciledFillAttributor
 from hummingbot.strategy_v2.life_liquidity.loss_budget import LossBudgetLedger
 from hummingbot.strategy_v2.life_liquidity.markout_risk import MarkoutProbeGuard
-from hummingbot.strategy_v2.life_liquidity.order_gateway import SpotFill, SpotReservationReconciler
+from hummingbot.strategy_v2.life_liquidity.order_gateway import CancelRetryPolicy, SpotFill, SpotReservationReconciler
 from hummingbot.strategy_v2.life_liquidity.safety import SafetyGate, SafetyObservation
+from hummingbot.strategy_v2.life_liquidity.spot_risk import SpotRiskBinding, SpotStressObservation
 from hummingbot.strategy_v2.life_liquidity.state import IntentWAL
-from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction
+from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction, StopExecutorAction
 
 
 @pytest.mark.asyncio
@@ -190,7 +193,8 @@ async def test_service_budget_fill_and_halt_share_actual_v2_runner_gate(tmp_path
 
 
 @pytest.mark.asyncio
-async def test_probe_partial_fill_markout_and_nav_halt_on_v2_queue(tmp_path):
+@pytest.mark.parametrize("cancel_fault", ["none", "failed", "saturated", "late_stop", "stop_disk"])
+async def test_probe_partial_fill_markout_and_nav_halt_on_v2_queue(tmp_path, cancel_fault):
     connector = FakeTradingOkx()
     controller, template, _, wal, reservations, _ = sender_setup(
         tmp_path, connector=connector, recovery_account_uid="12345")
@@ -218,7 +222,21 @@ async def test_probe_partial_fill_markout_and_nav_halt_on_v2_queue(tmp_path):
         wal, reservations, require_fees=True).apply_fills
     controller.install_execution_loss_budget(loss, utc_clock=lambda: AT)
     controller.install_fill_attributor(attribution)
+    risk_config = controller.config.strategy.risk.model_copy(update={
+        "rolling_fill_window": "1s", "max_filled_base_per_window": Decimal("1"),
+        "stress_loss_budget_quote": Decimal("0.5")})
+    controller.config = controller.config.model_copy(update={"strategy":
+                                                             controller.config.strategy.model_copy(update={"risk": risk_config})})
     observations = {"now": AT_MS, "nav": _nav("1"), "risk_now": 100, "horizons": {}}
+    stress = SpotRiskBinding(
+        tmp_path / "spot_risk.json", attributor=attribution,
+        utc_clock_ms=lambda: observations["now"], window_ms=1000, max_filled_base=Decimal("1"),
+        target_inventory_base=Decimal("10"), max_stress_loss_quote=Decimal("0.5"),
+        max_observation_age_ms=2000, create=True,
+        stress_observation=lambda: SpotStressObservation(
+            AT_MS, AT_MS, "independent_market", Decimal("1"), Decimal("0.99"), Decimal("1.01"),
+            Decimal("20"), Decimal("10"), Decimal("0.0008"), Decimal("0.001")))
+    controller.install_spot_risk_binding(stress)
     capital = CapitalRiskMonitor(
         tmp_path / "capital_risk.json", attributor=attribution,
         independent_value=lambda: observations["nav"],
@@ -262,7 +280,7 @@ async def test_probe_partial_fill_markout_and_nav_halt_on_v2_queue(tmp_path):
                 "px": str(config.price), "sz": str(config.amount)}
         connector.sent[0]["pre_send_check"](wire)
         assert wal.get(config.id).state == "SEND_UNKNOWN"
-        assert reservations.has_open_intent(config.id)
+        assert not reservations.is_terminal_intent(config.id)
         fee_state["fee"] = _fee(maker="-0.02")
         with pytest.raises(PermissionError, match="SEND_PERMISSION_REVOKED"):
             connector.sent[0]["pre_send_check"](wire)
@@ -286,12 +304,42 @@ async def test_probe_partial_fill_markout_and_nav_halt_on_v2_queue(tmp_path):
             controller_id="life", executor_config=config.model_copy(update={"id": "probe-retry"}))
         assert StrategyV2Base._filter_authorized_actions(runner, [queued_retry]) == []
         assert len(connector.sent) == 1
+        # Stop can arrive after executor dispatch and even after a partial fill.
+        # Its in-memory revocation precedes the WAL write and still survives an
+        # unavailable checkpoint for the remainder of this process.
+        if cancel_fault in ("late_stop", "stop_disk"):
+            stop = StopExecutorAction(controller_id="life", executor_id=config.id)
+            if cancel_fault == "stop_disk":
+                with patch.object(wal, "mark_cancel_requested", side_effect=OSError("disk unavailable")):
+                    assert StrategyV2Base._filter_authorized_actions(runner, [stop]) == [stop]
+            else:
+                assert StrategyV2Base._filter_authorized_actions(runner, [stop]) == [stop]
+            with pytest.raises(PermissionError):
+                connector.sent[0]["pre_send_check"](wire)
+        gateway = controller._order_safety_gateway
+        gateway.cancel_retry_policy = CancelRetryPolicy(retry_interval_ms=1000, max_requests_per_cycle=1)
+        if cancel_fault == "failed":
+            connector.cancel_by_client_id = AsyncMock(side_effect=TimeoutError("cancel ACK lost"))
+        elif cancel_fault == "saturated":
+            request_clock = [gateway.clock()]
+            budget = _budget(tmp_path, request_clock, capacity=2, reserve=1)
+            budget.charge("CANCEL", "already-cancel-1")
+            budget.charge("CANCEL", "already-cancel-2")
+            gateway.request_budget = budget
         connector.fail_status = True
         runner.tick(2)
         await controller.order_safety_task
         assert controller._order_safety_manager.state == "PAUSED"
-        assert connector.cancels == [("LIFE-USDT", wire["clOrdId"])]
-        assert reservations.has_open_intent(config.id)
+        if cancel_fault in ("none", "late_stop", "stop_disk"):
+            assert connector.cancels == [("LIFE-USDT", wire["clOrdId"])]
+        else:
+            assert connector.cancels == []
+        if cancel_fault == "failed":
+            assert wal.get(config.id).cancel_attempts == 1
+        elif cancel_fault == "saturated":
+            assert wal.get(config.id).cancel_attempts == 0
+        assert stress.check(None, reservations.preview()) is None
+        assert not reservations.is_terminal_intent(config.id)
 
         observations["now"] = AT_MS + 1000
         observations["nav"] = _nav("1", value_at=AT_MS + 1000,
@@ -299,6 +347,9 @@ async def test_probe_partial_fill_markout_and_nav_halt_on_v2_queue(tmp_path):
         observations["horizons"][("trade-probe", 1000)] = _horizon("0.8")
         markout_state["now"] = observations["now"]
         assert not controller.allow_create_executor_actions()
+        # A pending stop outranks quote evaluation. Evaluate the independent
+        # monitor explicitly to retain adverse-markout evidence under that stop.
+        assert not controller._markout_risk_ready()
         assert controller.markout_reason_code == "MARKOUT_ADVERSE"
         assert gate.state == "NORMAL"
 
@@ -314,7 +365,7 @@ async def test_probe_partial_fill_markout_and_nav_halt_on_v2_queue(tmp_path):
             executors[0].place_open_order()
         assert len(connector.sent) == 1
         assert wal.get(config.id).state == "SEND_UNKNOWN"
-        assert reservations.has_open_intent(config.id)
+        assert not reservations.is_terminal_intent(config.id)
 
         restarted_reservations = type(reservations).restore(
             reservations.path, limits=reservations.limits)
@@ -328,6 +379,13 @@ async def test_probe_partial_fill_markout_and_nav_halt_on_v2_queue(tmp_path):
             tmp_path, restarted_attribution, markout_state, restore=True)
         assert not restarted_markout.evaluate()
         assert restarted_markout.reason_code == "MARKOUT_ADVERSE"
+        restarted_stress = SpotRiskBinding(
+            stress.journal.path, attributor=restarted_attribution,
+            utc_clock_ms=stress.utc_clock_ms, stress_observation=stress.stress_observation,
+            window_ms=1000, max_filled_base=Decimal("1"), target_inventory_base=Decimal("10"),
+            max_stress_loss_quote=Decimal("0.5"), max_observation_age_ms=2000, create=False)
+        assert restarted_stress.check(None, restarted_reservations.preview()) is None
+        assert not restarted_reservations.is_terminal_intent(config.id)
         assert SafetyGate(gate.path, max_drawdown_bps=Decimal("500"),
                           min_margin_buffer_quote=Decimal("10"), stable_data_ms=0,
                           recovery_probe_base=Decimal("1")).state == "HALTED"

@@ -478,6 +478,25 @@ class ReservationLedger:
             self._commit(self.life_balance, self.usdt_balance, updated, self._trades)
             return RiskDecision(True, "RESERVED", intent.intent_id)
 
+    def reserve_risk_reduction(self, intent: SpotIntent, *, target_base: Decimal) -> RiskDecision:
+        """Hold an isolated SELL that reduces an already held spot position.
+
+        Existing inventory may already breach a new-risk limit. Exposure never
+        exceeds its starting value in either the unfilled or fully filled case.
+        No outstanding order may race this exit or offset its no-reversal proof.
+        """
+        with self._lock:
+            self._ensure_healthy()
+            if (not isinstance(intent, SpotIntent) or intent.side != "SELL"
+                    or not _finite(target_base) or intent.intent_id in self._reservations
+                    or any(item.remaining_base > 0 for item in self._reservations.values())
+                    or intent.quantity_base > self.life_balance - max(target_base, self.limits.min_inventory_base)):
+                return RiskDecision(False, "EXIT_WOULD_REVERSE_POSITION", None)
+            updated = dict(self._reservations)
+            updated[intent.intent_id] = _Reservation(intent, intent.quantity_base)
+            self._commit(self.life_balance, self.usdt_balance, updated, self._trades)
+            return RiskDecision(True, "EXIT_RESERVED", intent.intent_id)
+
     def record_fill(self, intent_id: str, trade_id: str, quantity: Decimal, price: Decimal) -> bool:
         if not trade_id or not _finite(quantity, positive=True) or not _finite(price, positive=True):
             raise ValueError("FILL_INVALID")
@@ -646,6 +665,10 @@ class ReservationPreview:
             raise ValueError("RESERVATION_SIDE_INVALID")
         return sum((item.remaining_base for item in self._reservations.values()
                     if item.intent.side == side), Decimal("0"))
+
+    def pending_orders(self) -> tuple[tuple[str, Decimal, Decimal], ...]:
+        return tuple((item.intent.side, item.remaining_base, item.intent.limit_price_usdt)
+                     for item in self._reservations.values() if item.remaining_base > 0)
 
     def check_and_hold(self, intent: SpotIntent, *, reference_price: Decimal) -> RiskDecision:
         reason = ReservationLedger._reserve_reason(

@@ -35,6 +35,10 @@ class ProtectedSpotExecutorSender:
         self._attempted_intents: set[str] = set()
         self.gateway.authorize = self._authorized
 
+    def _exit_planner(self, intent_id):
+        planner = self.controller._spot_exit_planner
+        return planner if planner is not None and intent_id in planner._configs else None
+
     def _journals_match(self, records, *, pending_intent_id: str | None = None) -> bool:
         reservation_ids = self.reservations.reservation_ids
         required_ids = set()
@@ -59,12 +63,18 @@ class ProtectedSpotExecutorSender:
 
     def _authorized(self, permit: SendPermit) -> bool:
         current = self.manager.current_session
-        if (self.controller.allow_create_executor_actions() is not True
+        if permit.intent_id in self.controller._runner_stop_revoked_ids:
+            return False
+        exit_planner = self._exit_planner(permit.intent_id)
+        allowed = (self.controller.allow_risk_reduction_actions() if exit_planner is not None
+                   else self.controller.allow_create_executor_actions())
+        session_ready = (self.manager.can_reduce() if exit_planner is not None else self.manager.can_quote(
+            reference_ready=True, all_gates_ready=True, market_reference_ready=True))
+        if (allowed is not True
                 or current is None or current.session_id != permit.session_id
                 or current.epoch != permit.epoch
                 or current.config_version != permit.config_version
-                or not self.manager.can_quote(reference_ready=True, all_gates_ready=True,
-                                              market_reference_ready=True)
+                or not session_ready
                 or self.risk_epoch() != permit.risk_epoch):
             return False
         intent = self._issued_intents.get(permit.intent_id)
@@ -83,7 +93,11 @@ class ProtectedSpotExecutorSender:
                 or record.slot_level != self._issued_slots.get(permit.intent_id)):
             return False
         planner = self.controller._quote_action_planner
-        if planner is not None and not planner.authorizes_permit(permit):
+        if exit_planner is not None:
+            if (not exit_planner.authorizes_permit(permit, intent)
+                    or exit_planner.budget.reserved_for(permit.intent_id, session_id=permit.session_id) is None):
+                return False
+        elif planner is not None and not planner.authorizes_permit(permit):
             return False
         decision = self.policy_authorize(permit)
         return decision is True or getattr(decision, "allowed", False) is True
@@ -111,11 +125,15 @@ class ProtectedSpotExecutorSender:
             raise ValueError("SLOT_LEVEL_INVALID") from exc
         if level >= len(self.controller.config.strategy.quotes.spreads_bps):
             raise ValueError("SLOT_LEVEL_UNCONFIGURED")
-        if self.controller.allow_create_executor_actions() is not True:
+        exit_planner = self._exit_planner(config.id)
+        allowed = (exit_planner.authorizes_config(config) if exit_planner is not None
+                   else self.controller.allow_create_executor_actions())
+        if allowed is not True:
             raise PermissionError("LIFE_TRADING_DISABLED")
         current = self.manager.current_session
-        if (current is None or not self.manager.can_quote(
-                reference_ready=True, all_gates_ready=True, market_reference_ready=True)):
+        session_ready = (self.manager.can_reduce() if exit_planner is not None else self.manager.can_quote(
+            reference_ready=True, all_gates_ready=True, market_reference_ready=True))
+        if current is None or not session_ready:
             raise PermissionError("SESSION_PERMISSION_REVOKED")
         self.reservations.assert_healthy()
         reservation_path = self.reservations.path
@@ -142,14 +160,22 @@ class ProtectedSpotExecutorSender:
         self.slots.claim(intent_id=config.id, client_order_id=wire_id,
                          reservation_id=config.id, session_id=current.session_id,
                          epoch=current.epoch, side=side, level=level)
-        decision = self.reservations.reserve(intent, reference_price=self.reference_price())
+        decision = (self.reservations.reserve_risk_reduction(intent, target_base=exit_planner.target_base)
+                    if exit_planner is not None else self.reservations.reserve(
+                        intent, reference_price=self.reference_price()))
         if not decision.allowed:
             self.gateway.wal.abort_before_send(config.id)
             raise PermissionError("RESERVATION_UNAVAILABLE")
         self._issued_intents[config.id] = intent
         self._issued_slots[config.id] = level
         planner = self.controller._quote_action_planner
-        if self.controller.config.strategy.economics.objective == "liquidity_service":
+        if exit_planner is not None:
+            if not exit_planner.reserve_budget(config, intent):
+                self.gateway.wal.abort_before_send(config.id)
+                self.reservations.abort_unsent(config.id, session_id=current.session_id,
+                                               epoch=current.epoch, wal=self.gateway.wal)
+                raise PermissionError("EXIT_BUDGET_UNAVAILABLE")
+        elif self.controller.config.strategy.economics.objective == "liquidity_service":
             if planner is None or not planner.reserve_subsidy_for_config(config):
                 self.gateway.wal.abort_before_send(config.id)
                 self.reservations.abort_unsent(
@@ -167,7 +193,9 @@ class ProtectedSpotExecutorSender:
             self.reservations.abort_unsent(
                 config.id, session_id=current.session_id,
                 epoch=current.epoch, wal=self.gateway.wal)
-            if planner is not None and planner.subsidy_budget is not None:
+            if exit_planner is not None:
+                exit_planner.budget.release_unsent(config.id, wal=self.gateway.wal, reservations=self.reservations)
+            elif planner is not None and planner.subsidy_budget is not None:
                 planner.subsidy_budget.release_unsent(
                     config.id, wal=self.gateway.wal, reservations=self.reservations)
 
@@ -186,7 +214,9 @@ class ProtectedSpotExecutorSender:
                     self.reservations.abort_unsent(
                         config.id, session_id=current.session_id,
                         epoch=current.epoch, wal=self.gateway.wal)
-                    if planner is not None and planner.subsidy_budget is not None:
+                    if exit_planner is not None:
+                        exit_planner.budget.release_unsent(config.id, wal=self.gateway.wal, reservations=self.reservations)
+                    elif planner is not None and planner.subsidy_budget is not None:
                         planner.subsidy_budget.release_unsent(
                             config.id, wal=self.gateway.wal, reservations=self.reservations)
             except (KeyError, OSError, ValueError):

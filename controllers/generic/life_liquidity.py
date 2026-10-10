@@ -26,8 +26,9 @@ from hummingbot.strategy_v2.life_liquidity.account_bills import CashflowApproval
 from hummingbot.strategy_v2.life_liquidity.account_lock import AccountLockUnavailable, AccountRiskPoolLock
 from hummingbot.strategy_v2.life_liquidity.action_journal import QuoteActionJournal
 from hummingbot.strategy_v2.life_liquidity.capital_risk import CapitalRiskMonitor
-from hummingbot.strategy_v2.life_liquidity.config import ConfigUpdateState, StrategyConfig
+from hummingbot.strategy_v2.life_liquidity.config import ConfigUpdateState, StrategyConfig, parse_duration_seconds
 from hummingbot.strategy_v2.life_liquidity.executor_send import ProtectedSpotExecutorSender
+from hummingbot.strategy_v2.life_liquidity.fees import CachedFeeRateSource, OkxFeeRateSource
 from hummingbot.strategy_v2.life_liquidity.fill_attribution import ReconciledFillAttributor
 from hummingbot.strategy_v2.life_liquidity.hedge import HedgeObservation, HedgePolicy, plan_life_hedge
 from hummingbot.strategy_v2.life_liquidity.joint_exposure import (
@@ -58,10 +59,12 @@ from hummingbot.strategy_v2.life_liquidity.order_gateway import (
 from hummingbot.strategy_v2.life_liquidity.own_depth import OwnDepthDecision
 from hummingbot.strategy_v2.life_liquidity.own_depth_runner import separate_local_own_depth
 from hummingbot.strategy_v2.life_liquidity.quote_actions import QuoteActionPlanner, QuotePlanningSnapshot
+from hummingbot.strategy_v2.life_liquidity.recovery_probe import RecoveryProbeGuard
 from hummingbot.strategy_v2.life_liquidity.reference import ReferenceEngine
 from hummingbot.strategy_v2.life_liquidity.risk import ReservationLedger, RiskLimits, SpotIntent
 from hummingbot.strategy_v2.life_liquidity.safety import SafetyGate, SafetyObservation
 from hummingbot.strategy_v2.life_liquidity.session import SessionManager, SessionStore
+from hummingbot.strategy_v2.life_liquidity.spot_risk import SpotRiskBinding
 from hummingbot.strategy_v2.life_liquidity.state import IntentWAL
 from hummingbot.strategy_v2.models.base import RunnableStatus
 
@@ -188,6 +191,12 @@ class LifeLiquidityController(ControllerBase):
         self._capital_risk_monitor: CapitalRiskMonitor | None = None
         self._markout_monitor: ReconciledMarkoutMonitor | None = None
         self._markout_probe_guard: MarkoutProbeGuard | None = None
+        self._spot_risk_binding: SpotRiskBinding | None = None
+        self._spot_exit_planner = None
+        self._runner_stop_revoked_ids: set[str] = set()
+        self._fee_rate_cache: CachedFeeRateSource | None = None
+        self._fee_refresh_task: asyncio.Task | None = None
+        self._recovery_probe_guard: RecoveryProbeGuard | None = None
         self.markout_reason_code = "MARKOUT_NOT_INSTALLED"
         self._quote_action_recovery_ready = False
         self._quote_action_recovery_records = None
@@ -656,6 +665,42 @@ class LifeLiquidityController(ControllerBase):
         self._runtime_risk_max_age_ms = max_observation_age_ms
         self.runtime_risk_reason_code = "RUNTIME_RISK_STARTUP_REVALIDATION"
 
+    def install_spot_risk_binding(self, binding: SpotRiskBinding) -> None:
+        if (self._spot_risk_binding is not None or not isinstance(binding, SpotRiskBinding)
+                or binding.attributor is not self._fill_attributor
+                or not binding.matches_config(self.config)):
+            raise ValueError("SPOT_RISK_BINDING_INVALID")
+        self._spot_risk_binding = binding
+
+    def install_fee_rate_source(self, cache: CachedFeeRateSource) -> None:
+        planner = self._quote_action_planner
+        binding = planner.fee_binding if planner is not None else None
+        if (self._fee_rate_cache is not None or not isinstance(cache, CachedFeeRateSource)
+                or not isinstance(cache.source, OkxFeeRateSource) or binding is None
+                or getattr(binding.snapshot, "__self__", None) is not cache
+                or not planner._fee_binding_matches_config(binding, self.config)
+                or cache.refresh_interval_ms > binding.max_age_ms
+                or cache.source.market_data_provider is not self.market_data_provider
+                or cache.source.account_id != binding.account_id
+                or cache.source.connector_name != binding.connector_name
+                or cache.source.instrument.get("instType") != "SPOT"
+                or cache.source.notional_currency != "USDT"
+                or cache.source.instrument.get("instId") != binding.instrument_id
+                or cache.source.instrument.get("groupId") != binding.group_id):
+            raise ValueError("FEE_REFRESH_BINDING_INVALID")
+        self._fee_rate_cache = cache
+
+    def _spot_risk_ready(self) -> bool:
+        binding = self._spot_risk_binding
+        configured = self.config.strategy.risk
+        if binding is None:
+            return configured.rolling_fill_window is None and configured.stress_loss_budget_quote is None
+        try:
+            return (binding.matches_config(self.config)
+                    and binding.check(None, binding.attributor.reservations.preview()) is None)
+        except Exception:
+            return False
+
     def manual_kill_switch(self) -> None:
         """Persist an operator HALT and start the existing cancel/reconcile loop."""
         if self._runtime_risk_gate is None:
@@ -789,8 +834,43 @@ class LifeLiquidityController(ControllerBase):
         except Exception:
             decision = gate.invalidate("RISK_OBSERVATION_UNAVAILABLE")
         self.runtime_risk_reason_code = decision.reason_code
-        # DEGRADED probe sizing is not wired into the runner yet. Stay blocked.
-        return decision.state == "NORMAL"
+        return decision.state == "NORMAL" or (
+            decision.state == "DEGRADED" and self.recovery_probe_active()
+            and self._recovery_probe_guard.capacity_available())
+
+    def install_recovery_probe_guard(self, guard: RecoveryProbeGuard) -> None:
+        if (self._recovery_probe_guard is not None or not isinstance(guard, RecoveryProbeGuard)
+                or guard.reservations is not self._order_safety_reservations):
+            raise ValueError("RECOVERY_PROBE_BINDING_INVALID")
+        self._recovery_probe_guard = guard
+        if not self._recovery_probe_policy_matches():
+            self._recovery_probe_guard = None
+            raise ValueError("RECOVERY_PROBE_BINDING_INVALID")
+
+    def _recovery_probe_policy_matches(self) -> bool:
+        guard, gate = self._recovery_probe_guard, self._runtime_risk_gate
+        try:
+            policy = self.config.strategy.risk.resume_policy
+            return (guard is not None and gate is not None
+                    and guard.max_quote_base == policy.probe_size_base == gate.recovery_probe_base
+                    and parse_duration_seconds(policy.stable_data_duration) * 1000 == gate.stable_data_ms)
+        except (ValueError, TypeError, AttributeError):
+            return False
+
+    def recovery_probe_active(self) -> bool:
+        return (self._runtime_risk_gate is not None and self._runtime_risk_gate.state == "DEGRADED"
+                and self._recovery_probe_policy_matches())
+
+    def bounded_probe_active(self) -> bool:
+        return self.recovery_probe_active() or self.markout_probe_active()
+
+    def quote_probe_authorizes(self, side: str, quantity: Decimal, *,
+                               exclude_open_intent: SpotIntent | None = None) -> bool:
+        recovery_allowed = (not self.recovery_probe_active() or self._recovery_probe_guard.authorizes(
+            side, quantity, exclude_open_intent=exclude_open_intent))
+        markout_allowed = (not self.markout_probe_active() or self.markout_probe_authorizes(
+            side, quantity, exclude_open_intent=exclude_open_intent))
+        return recovery_allowed and markout_allowed
 
     def install_execution_loss_budget(self, ledger: LossBudgetLedger, *,
                                       utc_clock: Callable[[], datetime]) -> None:
@@ -867,6 +947,9 @@ class LifeLiquidityController(ControllerBase):
         elif (attributor.cashflow_approvals != bills.approvals
               or bills.on_cashflows_applied is not None):
             raise ValueError("FILL_ATTRIBUTION_BILLS_MISMATCH")
+        if (self._spot_exit_planner is not None
+                and attributor.exit_budget is not self._spot_exit_planner.budget):
+            raise ValueError("FILL_EXIT_BINDING_INVALID")
         reservation_apply = gateway.apply_fills
 
         def apply_and_attribute(wire_id, fills, cumulative) -> bool:
@@ -880,8 +963,11 @@ class LifeLiquidityController(ControllerBase):
                 if not attributor.ready():
                     return False
                 if cumulative == 0:
-                    subsidy.settle_zero_fill_terminal(intent_id, wal=attributor.wal,
-                                                      reservations=attributor.reservations)
+                    selected = (attributor.exit_budget if attributor.exit_budget is not None
+                                and attributor.exit_budget.matches_intent_session(
+                                    intent_id, attributor.wal.get(intent_id).session_id) else subsidy)
+                    selected.settle_zero_fill_terminal(intent_id, wal=attributor.wal,
+                                                       reservations=attributor.reservations)
                 return True
 
             gateway.on_terminal_reconciled = settle_service_terminal
@@ -977,33 +1063,103 @@ class LifeLiquidityController(ControllerBase):
         self.markout_reason_code = monitor.reason_code
         return ready or self.markout_probe_active()
 
+    def install_spot_exit_planner(self, planner) -> None:
+        from hummingbot.strategy_v2.life_liquidity.exit_actions import SpotExitPlanner
+        if (self._spot_exit_planner is not None or not isinstance(planner, SpotExitPlanner)
+                or planner.controller is not self
+                or self._fill_attributor is not None and self._fill_attributor.exit_budget is not planner.budget):
+            raise ValueError("EXIT_BINDING_INVALID")
+        self._spot_exit_planner = planner
+
+    def is_risk_reducing_config(self, config) -> bool:
+        return self._spot_exit_planner is not None and self._spot_exit_planner.handles(config)
+
+    def _runner_stops_pending(self) -> bool:
+        if not self._runner_stop_revoked_ids:
+            return False
+        if self._order_safety_wal is None:
+            return True
+        return any(record.intent_id in self._runner_stop_revoked_ids
+                   and record.state not in ("TERMINAL", "ABORTED_BEFORE_SEND")
+                   for record in self._order_safety_wal.all_records())
+
+    def allow_risk_reduction_actions(self) -> bool:
+        try:
+            self._runtime_risk_ready()  # Revalidate observations/journal and latch any HALT.
+            gate = self._runtime_risk_gate
+            watchdog = self.order_safety_watchdog_task
+            return (not self._runner_stops_pending()
+                    and gate is not None and gate.state in ("NORMAL", "DEGRADED")
+                    and self._fill_attributor is not None and self._spot_exit_planner is not None
+                    and self._fill_attributor.exit_budget is self._spot_exit_planner.budget
+                    and self._spot_quote_gates_ready() and self._fill_attribution_ready()
+                    and self._joint_risk_ready() and self._hedge_ready()
+                    and not self.has_unverified_runner_order_events()
+                    and self._order_safety_manager.can_reduce()
+                    and watchdog is not None and not watchdog.done()
+                    and (self.order_safety_task is None or self.order_safety_task.done()))
+        except Exception:
+            return False
+
+    def allow_executor_action(self, action) -> bool:
+        config = action.executor_config
+        if getattr(config, "id", None) in self._runner_stop_revoked_ids:
+            return False
+        if self.is_risk_reducing_config(config):
+            return self._spot_exit_planner.authorizes_config(config)
+        return self.allow_create_executor_actions()
+
     def authorize_runner_create_action(self, action) -> bool:
+        if self.is_risk_reducing_config(action.executor_config):
+            return self._spot_exit_planner.authorizes_config(action.executor_config)
         planner = self._quote_action_planner
         if self.config.recovery_state_dir is not None and not self._quote_action_recovery_ready:
             return False
         return planner is None or planner.authorizes_config(action.executor_config)
+
+    def on_runner_stop_action(self, action) -> None:
+        """Revoke an already dispatched intent before the runner stops its executor."""
+        wal = self._order_safety_wal
+        if wal is None or action.controller_id != self.config.id:
+            return
+        try:
+            record = wal.get(action.executor_id)
+        except KeyError:
+            return
+        self._runner_stop_revoked_ids.add(record.intent_id)
+        # In-memory revocation precedes either potentially failing checkpoint.
+        wal.mark_cancel_requested(record.intent_id)
+        if self._order_safety_reservations is not None:
+            self._order_safety_reservations.request_cancel(record.intent_id)
 
     def suppress_create_for_stop_batch(self) -> bool:
         """A LIFE cancellation request takes priority over new risk in one runner batch."""
         return True
 
     def on_runner_create_action_rejected(self, action) -> bool:
+        if self.is_risk_reducing_config(action.executor_config):
+            return self._spot_exit_planner.action_transition(action, "REJECTED")
         planner = self._quote_action_planner
         return planner.on_runner_action_rejected(action) if planner is not None else False
 
     def on_runner_create_action_dispatched(self, action) -> bool:
+        if self.is_risk_reducing_config(action.executor_config):
+            return self._spot_exit_planner.action_transition(action, "DISPATCHED")
         planner = self._quote_action_planner
         return planner.on_runner_action_dispatched(action) if planner is not None else False
 
     def submit_executor_spot_order(self, config, *, amount: Decimal,
                                    price: Decimal, order_type) -> str:
         sender = self._protected_spot_sender
-        if sender is None or self.allow_create_executor_actions() is not True:
+        exit_order = self.is_risk_reducing_config(config)
+        allowed = (self._spot_exit_planner.authorizes_config(config) if exit_order
+                   else self.allow_create_executor_actions())
+        if sender is None or allowed is not True:
             raise PermissionError("LIFE_TRADING_DISABLED")
         if self.config.recovery_state_dir is not None and not self._quote_action_recovery_ready:
             raise PermissionError("QUOTE_ACTION_RECOVERY_UNVERIFIED")
         planner = self._quote_action_planner
-        if (planner is not None
+        if (planner is not None and not exit_order
                 and (not planner.authorizes_config(config)
                      or amount != config.amount or price != config.price
                      or order_type != OrderType.LIMIT_MAKER)):
@@ -1230,8 +1386,9 @@ class LifeLiquidityController(ControllerBase):
             permitted = False
         manager = self._order_safety_manager
         self._runner_halt_ok = False
+        exit_ready = self._spot_exit_planner is not None and self._spot_exit_planner.pending_exit_ready()
         if (manager is None or self._order_safety_gateway is None
-                or manager.state != "ACTIVE" or not permitted):
+                or manager.state != "ACTIVE" and not exit_ready or not permitted):
             self._runner_halt_ok = self._halt_runner_orders()
         if self._order_safety_gateway is not None:
             self._order_safety_gateway.runner_scope_check = self._runner_executor_scope_complete
@@ -1241,6 +1398,13 @@ class LifeLiquidityController(ControllerBase):
         """Persist expiry and run order cancellation independent of quote readiness."""
         if self._order_safety_stopped:
             return
+        if self._fee_rate_cache is not None and (
+                self._fee_refresh_task is None or self._fee_refresh_task.done()):
+            try:
+                self._fee_refresh_task = asyncio.get_running_loop().create_task(
+                    self._fee_rate_cache.refresh_if_due())
+            except RuntimeError:
+                pass  # An unavailable/overdue cache remains unqualified.
         manager = self._order_safety_manager
         if manager is None:
             if self.config.recovery_state_dir is not None:
@@ -1260,18 +1424,21 @@ class LifeLiquidityController(ControllerBase):
             if manager.state == "PAUSED" and self._observed_session_state != "PAUSED":
                 self._pause_reconciliation_required = True
                 self.order_safety_reason_code = "RECONCILIATION_REQUIRED"
-            risk_ready = (self._runtime_risk_ready() and self._joint_risk_ready()
+            risk_ready = (self._runtime_risk_ready() and self._spot_risk_ready() and self._joint_risk_ready()
                           and self._hedge_ready())
             loss_ready = risk_ready and self._execution_loss_ready()
             accounting_ready = loss_ready and self._fill_attribution_ready()
             markout_ready = accounting_ready and self._markout_risk_ready()
             planner = self._quote_action_planner
             qualified = planner.session_snapshot() if markout_ready and planner is not None else None
-            ready = (markout_ready and qualified is not None and self._spot_quote_gates_ready()
+            stop_pending = self._runner_stops_pending()
+            ready = (not stop_pending and markout_ready and qualified is not None and self._spot_quote_gates_ready()
                      and not self._pause_reconciliation_required)
+            exit_ready = (not stop_pending and self._spot_exit_planner is not None
+                          and self._spot_exit_planner.pending_exit_ready())
             previous_state = manager.state
-            manager.tick(reference_ready=ready, all_gates_ready=ready,
-                         market_reference_ready=(ready and qualified.market_reference_ready is True))
+            manager.tick(reference_ready=ready or exit_ready, all_gates_ready=ready or exit_ready,
+                         market_reference_ready=(exit_ready or ready and qualified.market_reference_ready is True))
             if previous_state == "ACTIVE" and manager.state == "PAUSED":
                 self._pause_reconciliation_required = True
                 self.order_safety_reason_code = "RECONCILIATION_REQUIRED"
@@ -1412,6 +1579,8 @@ class LifeLiquidityController(ControllerBase):
             self._pause_reconciliation_required = False
 
     def stop(self):
+        if self._fee_refresh_task is not None:
+            self._fee_refresh_task.cancel()
         self._order_safety_stopped = True
         super().stop()
         if self.order_safety_watchdog_task is not None and not self.order_safety_watchdog_task.done():
@@ -1438,6 +1607,8 @@ class LifeLiquidityController(ControllerBase):
 
     def allow_create_executor_actions(self) -> bool:
         if not self._runtime_risk_ready():
+            return False
+        if self._runner_stops_pending() or not self._spot_risk_ready():
             return False
         if not self._joint_risk_ready() or not self._hedge_ready():
             return False
@@ -1808,4 +1979,5 @@ class LifeLiquidityController(ControllerBase):
                 f"order safety: {self.order_safety_reason_code}; "
                 f"quote action recovery: {self.quote_action_recovery_reason_code}; "
                 f"own depth: {self._own_depth_decision.reason_code}; "
+                f"residual risk: {self._spot_exit_planner.residual_reason_code if self._spot_exit_planner else 'unavailable'}; "
                 "trading is disabled pending P2–P9 gates."]

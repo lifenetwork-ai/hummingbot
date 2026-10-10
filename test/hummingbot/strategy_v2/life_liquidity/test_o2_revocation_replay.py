@@ -117,3 +117,32 @@ async def test_revocation_rejects_final_wire_and_actual_executor_retry(tmp_path,
         watchdog.cancel()
         runner.listen_to_executor_actions_task.cancel()
         await asyncio.gather(watchdog, runner.listen_to_executor_actions_task, return_exceptions=True)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("disk_failure", [False, True])
+async def test_late_stop_revokes_healthy_already_dispatched_final_send(tmp_path, disk_failure):
+    from unittest.mock import patch
+
+    from hummingbot.strategy_v2.models.executor_actions import StopExecutorAction
+    c, connector, wal, ledger, _, _, _, _, executor, watchdog = await setup(tmp_path)
+    try:
+        executor.place_open_order()
+        wire = {"clOrdId": executor._order.order_id, "instId": "LIFE-USDT", "side": "buy",
+                "ordType": "post_only", "tdMode": "cash", "px": str(executor.config.price), "sz": "1"}
+        connector.sent[0]["pre_send_check"](wire)
+        assert c.allow_create_executor_actions()
+        stop = StopExecutorAction(controller_id="life", executor_id=executor.config.id)
+        runner = type("Runner", (), {"controllers": {"life": c}, "logger": c.logger})()
+        if disk_failure:
+            with patch.object(wal, "mark_cancel_requested", side_effect=OSError("checkpoint failed")):
+                assert StrategyV2Base._filter_authorized_actions(runner, [stop]) == [stop]
+        else:
+            assert StrategyV2Base._filter_authorized_actions(runner, [stop]) == [stop]
+        with pytest.raises(PermissionError):
+            connector.sent[0]["pre_send_check"](wire)
+        assert not ledger.is_terminal_intent(executor.config.id)
+        assert not c.allow_create_executor_actions()
+        assert len(connector.sent) == 1
+    finally:
+        watchdog.cancel()

@@ -258,6 +258,63 @@ class OkxFeeRateSource:
             instrument=self.instrument, notional_currency=self.notional_currency)
 
 
+class CachedFeeRateSource:
+    """Explicit refresh cadence; invalidate before I/O and never reuse failed data."""
+
+    def __init__(self, source: OkxFeeRateSource, *, utc_clock_ms: Callable[[], int], refresh_interval_ms: int):
+        if (not callable(getattr(source, "fetch", None)) or not callable(utc_clock_ms)
+                or type(refresh_interval_ms) is not int or refresh_interval_ms <= 0):
+            raise ValueError("FEE_REFRESH_POLICY_INVALID")
+        self.source, self.utc_clock_ms = source, utc_clock_ms
+        self.refresh_interval_ms = refresh_interval_ms
+        self._snapshot = None
+        self._due_ms = 0
+        self._last_now = None
+        self._refreshing = False
+        self._clock_invalid = False
+
+    def _now(self):
+        now = self.utc_clock_ms()
+        if (self._clock_invalid or type(now) is not int or now <= 0
+                or self._last_now is not None and now < self._last_now):
+            self._clock_invalid = True
+            self._snapshot = None
+            raise ValueError("FEE_REFRESH_CLOCK_INVALID")
+        self._last_now = now
+        return now
+
+    def snapshot(self) -> FeeRateSnapshot | None:
+        try:
+            now = self._now()
+            return self._snapshot if not self._refreshing and now < self._due_ms else None
+        except Exception:
+            return None
+
+    async def refresh_if_due(self) -> bool:
+        try:
+            now = self._now()
+            if self._refreshing or now < self._due_ms:
+                return False
+            self._refreshing = True
+            self._snapshot = None
+            self._due_ms = now + self.refresh_interval_ms
+            try:
+                observed = await self.source.fetch()
+                finished = self._now()
+                if (not isinstance(observed, FeeRateSnapshot)
+                        or type(observed.exchange_timestamp_ms) is not int
+                        or not 0 < observed.exchange_timestamp_ms <= finished
+                        or finished >= self._due_ms):
+                    return False
+                self._snapshot = observed
+                return True
+            finally:
+                self._refreshing = False
+        except Exception:
+            self._snapshot = None
+            return False
+
+
 @dataclass(frozen=True)
 class ActualFillFee:
     account_id: str

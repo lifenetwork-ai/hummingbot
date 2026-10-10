@@ -774,6 +774,16 @@ class StrategyV2Base(StrategyPyBase):
         stop_priority_controllers.update(StrategyV2Base._stop_priority_controllers(self, actions))
         permitted = []
         for action in actions:
+            if isinstance(action, StopExecutorAction):
+                controller = self.controllers.get(action.controller_id)
+                revoke = getattr(type(controller), "on_runner_stop_action", None)
+                if callable(revoke):
+                    try:
+                        revoke(controller, action)
+                    except Exception:
+                        # The controller latches revocation first. Still dispatch
+                        # the stop when its durable checkpoint is unavailable.
+                        self.logger().error("Controller stop checkpoint failed", exc_info=True)
             if isinstance(action, CreateExecutorAction):
                 controller = self.controllers.get(action.controller_id)
                 if controller is None:
@@ -788,7 +798,9 @@ class StrategyV2Base(StrategyPyBase):
                         f"Ignoring create action while stop is pending for controller {action.controller_id}")
                 if authorized and callable(create_allowed):
                     try:
-                        if not create_allowed():
+                        action_gate = getattr(type(controller), "allow_executor_action", None)
+                        allowed = (action_gate(controller, action) if callable(action_gate) else create_allowed())
+                        if not allowed:
                             self.logger().warning(f"Ignoring blocked create action for controller {action.controller_id}")
                             authorized = False
                     except Exception:

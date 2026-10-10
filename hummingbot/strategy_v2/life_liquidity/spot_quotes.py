@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from decimal import Decimal
+from typing import Callable
 
 from hummingbot.strategy_v2.life_liquidity.config import QuotesConfig
 from hummingbot.strategy_v2.life_liquidity.economics import (
@@ -12,7 +13,7 @@ from hummingbot.strategy_v2.life_liquidity.economics import (
 )
 from hummingbot.strategy_v2.life_liquidity.loss_budget import LossBudgetStatus
 from hummingbot.strategy_v2.life_liquidity.market_data import InstrumentRules
-from hummingbot.strategy_v2.life_liquidity.risk import ReservationLedger, SpotIntent
+from hummingbot.strategy_v2.life_liquidity.risk import ReservationLedger, ReservationPreview, SpotIntent
 
 
 @dataclass(frozen=True)
@@ -122,7 +123,8 @@ def plan_spot_quotes(*, session_id: str, epoch: int,
                      max_campaign_filled_base: Decimal | None = None,
                      loss_budget_status: LossBudgetStatus | None = None,
                      sides: tuple[str, ...] = ("BUY", "SELL"),
-                     exclude_open_intent: SpotIntent | None = None) -> SpotQuotePlan:
+                     exclude_open_intent: SpotIntent | None = None,
+                     risk_check: Callable[[SpotIntent, ReservationPreview], str | None] | None = None) -> SpotQuotePlan:
     """Return tentative levels; no WAL, ledger, connector, or exchange state is changed."""
     empty = SpotQuotePlan((), (), "QUOTE_MARKET_INPUT_UNAVAILABLE",
                           Decimal("0"), Decimal("0"), None, Decimal("0"))
@@ -264,8 +266,10 @@ def plan_spot_quotes(*, session_id: str, epoch: int,
                     f"preview:{session_id}:{epoch}:{side}:{level}", side,
                     decision.final_quantity_base, decision.final_price_usdt,
                     session_id, epoch)
-                risk = preview.check_and_hold(intent, reference_price=qualified_reference_usdt)
-                reason = None if risk.allowed else risk.reason_code
+                reason = risk_check(intent, preview) if risk_check is not None else None
+                if reason is None:
+                    risk = preview.check_and_hold(intent, reference_price=qualified_reference_usdt)
+                    reason = None if risk.allowed else risk.reason_code
             if reason is not None:
                 rejections.append(QuoteRejection(side, level, reason))
                 continue
