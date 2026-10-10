@@ -49,6 +49,23 @@ def test_session_is_persisted_before_permission_and_restart_keeps_anchor(tmp_pat
     assert restarted.can_quote(reference_ready=True, all_gates_ready=True)
 
 
+@pytest.mark.parametrize("duration, seconds", [("30m", 1800), ("4h", 14400), ("12h", 43200)])
+def test_configured_duration_survives_restart_and_expires_at_exact_boundary(tmp_path, duration, seconds):
+    clock = FakeClock()
+    active = manager(tmp_path, clock)
+    record = begin(active, SessionConfig(duration=duration))
+    assert record.expires_at == record.started_at + timedelta(seconds=seconds)
+    clock.advance(seconds - 1)
+    restarted = manager(tmp_path, clock)
+    restored = begin(restarted, SessionConfig(duration=duration), anchor="999")
+    assert restored == record
+    assert restarted.can_quote(reference_ready=True, all_gates_ready=True)
+    clock.advance(1)
+    assert not restarted.can_quote(reference_ready=True, all_gates_ready=True)
+    assert restarted.tick(reference_ready=True, all_gates_ready=True) == "EXPIRED"
+    assert manager(tmp_path, clock).current_session.expires_at == record.expires_at
+
+
 def test_short_session_expires_at_deadline_even_before_next_tick_and_cannot_revive(tmp_path):
     clock = FakeClock()
     active = manager(tmp_path, clock)

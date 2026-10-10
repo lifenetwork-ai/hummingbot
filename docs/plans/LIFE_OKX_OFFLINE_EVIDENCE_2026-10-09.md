@@ -1,5 +1,7 @@
 # LIFE/OKX offline evidence checkpoint — 2026-10-09
 
+**Historical checkpoint.** The [2026-10-10 O.6 report](LIFE_OKX_OFFLINE_EVIDENCE_2026-10-10.md) supersedes the spot acceptance/coverage verdict below. Stage statements and test counts in this file describe their dated checkpoints; O.7 and D/R/C remain open.
+
 ## Scope and verdict
 
 This checkpoint covers synthetic LIFE spot scenarios, selected joint spot/SWAP
