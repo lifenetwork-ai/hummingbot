@@ -170,15 +170,27 @@ class SharedCapitalAuthority:
         if not isinstance(policy, CapitalPolicy) or not callable(observation) or not callable(clock_ms):
             raise ValueError("CAPITAL_AUTHORITY_INVALID")
         self.policy, self.observation, self.clock_ms = policy, observation, clock_ms
+        self._recovery = None
         self.journal = PolicyState(path, policy=_json(asdict(policy)),
-                                   initial={"claims": {}, "last_checked_ms": None,
+                                   initial={"claims": {}, "settled": {}, "last_checked_ms": None,
                                             "snapshot_sequence": None, "snapshot": None}, create=create)
         with self.journal.locked() as state:
             self._retained = self._decode(state)
+            self.journal.commit(state)
 
     def _decode(self, state):
-        if set(state) != {"claims", "last_checked_ms", "snapshot_sequence", "snapshot"}:
+        # Earlier allocation-only journals contain no releases. Upgrade under
+        # the same atomic writer lock; never discard existing claims.
+        if set(state) == {"claims", "last_checked_ms", "snapshot_sequence", "snapshot"}:
+            state["settled"] = {}
+        if set(state) != {"claims", "settled", "last_checked_ms", "snapshot_sequence", "snapshot"}:
             raise ValueError("CAPITAL_JOURNAL_INVALID")
+        for key, entry in state["settled"].items():
+            claim = self._read_claim(entry["claim"])
+            if (set(entry) != {"claim", "proof_id"} or key != claim.intent_id
+                    or key in state["claims"] or not isinstance(entry["proof_id"], str)
+                    or len(entry["proof_id"]) != 64):
+                raise ValueError("CAPITAL_SETTLEMENT_INVALID")
         for field in ("last_checked_ms", "snapshot_sequence"):
             if state[field] is not None and (type(state[field]) is not int or state[field] < 0):
                 raise ValueError("CAPITAL_JOURNAL_INVALID")
@@ -205,7 +217,8 @@ class SharedCapitalAuthority:
             if key != claim.intent_id:
                 raise ValueError("CAPITAL_JOURNAL_INVALID")
             claims[key] = claim
-        if len({c.wire_id for c in claims.values()}) != len(claims):
+        wires = [c.wire_id for c in claims.values()] + [e["claim"]["wire_id"] for e in state["settled"].values()]
+        if len(set(wires)) != len(wires):
             raise ValueError("CAPITAL_WIRE_ID_DUPLICATE")
         if claims and raw_snapshot is None:
             raise ValueError("CAPITAL_JOURNAL_INVALID")
@@ -228,6 +241,42 @@ class SharedCapitalAuthority:
     def claim_ids(self):
         with self.journal.locked() as state:
             return tuple(sorted(self._decode(state)))
+
+    def claims(self, *, include_settled=False):
+        with self.journal.locked() as state:
+            claims = self._decode(state)
+            if include_settled:
+                claims.update({k: self._read_claim(e["claim"]) for k, e in state["settled"].items()})
+            return claims
+
+    def bind_recovery(self, recovery):
+        if self._recovery is not None or recovery.capital is not self:
+            raise ValueError("CAPITAL_RECOVERY_BINDING_INVALID")
+        self._recovery = recovery
+
+    def settle(self, claim, proof_id, *, authority):
+        """Release only under the bound coordinator's durable APPLYING proof.
+
+        ACK, terminal WAL alone, cancellation and callers' booleans cannot
+        release funds. A tombstone forbids subsequent intent/wire reuse.
+        """
+        if (authority is not self._recovery or authority is None
+                or not authority.authorizes_release(claim, proof_id)):
+            raise ValueError("CAPITAL_RELEASE_UNPROVEN")
+        with self.journal.locked() as state:
+            claims = self._decode(state)
+            entry = {"claim": _json(asdict(claim)), "proof_id": proof_id}
+            old = state["settled"].get(claim.intent_id)
+            if old is not None:
+                if old["claim"] != entry["claim"]:
+                    raise ValueError("CAPITAL_SETTLEMENT_CONFLICT")
+                return
+            if claims.get(claim.intent_id) != claim:
+                raise ValueError("CAPITAL_RELEASE_CLAIM_MISMATCH")
+            del state["claims"][claim.intent_id]
+            state["settled"][claim.intent_id] = entry
+            self.journal.commit(state)
+            self._retained = self._decode(state)
 
     def _validate_claim(self, claim):
         if (not isinstance(claim, CapitalClaim) or claim.account_uid != self.policy.account_uid
@@ -350,6 +399,8 @@ class SharedCapitalAuthority:
 
     def _operate(self, claim=None, *, reserve=False, spot_balances=None, swap_account=None):
         try:
+            if self._recovery is not None and not self._recovery.allocation_ready():
+                return CapitalDecision(False, "CAPITAL_JOINT_RECOVERY_REQUIRED")
             if _json(asdict(self.policy)) != self.journal.policy:
                 raise ValueError("CAPITAL_POLICY_CHANGED")
             with self.journal.locked() as state:
@@ -380,6 +431,9 @@ class SharedCapitalAuthority:
                             raise ValueError("CAPITAL_SWAP_POSITION_MISMATCH")
                     if claim is not None:
                         self._validate_claim(claim)
+                        if (claim.intent_id in state["settled"]
+                                or any(e["claim"]["wire_id"] == claim.wire_id for e in state["settled"].values())):
+                            raise ValueError("CAPITAL_INTENT_ALREADY_SETTLED")
                         if claim.intent_id in claims and claims[claim.intent_id] != claim:
                             raise ValueError("CAPITAL_CLAIM_CHANGED")
                         if not reserve and claim.intent_id not in claims:

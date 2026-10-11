@@ -39,6 +39,7 @@ from hummingbot.strategy_v2.life_liquidity.joint_exposure import (
     LinearLifeContractSpec,
     evaluate_joint_exposure,
 )
+from hummingbot.strategy_v2.life_liquidity.joint_recovery import JointRecovery
 from hummingbot.strategy_v2.life_liquidity.loss_budget import LossBudgetLedger, LossBudgetStatus
 from hummingbot.strategy_v2.life_liquidity.market_data import (
     BenchmarkConnectorRoute,
@@ -190,6 +191,9 @@ class LifeLiquidityController(ControllerBase):
         self._protected_swap_sender: ProtectedSwapExecutorSender | None = None
         self._shared_capital_authority: SharedCapitalAuthority | None = None
         self._carry_monitor: CarryMonitor | None = None
+        self._joint_recovery: JointRecovery | None = None
+        self._joint_recovery_restore_required = False
+        self._joint_reconciliation_task: asyncio.Task | None = None
         self.carry_reason_code = "CARRY_NOT_INSTALLED"
         self._hedge_coordinator: HedgeCoordinator | None = None
         self._quote_action_planner: QuoteActionPlanner | None = None
@@ -455,6 +459,17 @@ class LifeLiquidityController(ControllerBase):
             return
         if event.trading_pair != self.config.strategy.spot.pair:
             return
+        if self._joint_recovery is not None:
+            try:
+                self._protected_swap_sender.wal.find_by_client_order_id(event.order_id)
+            except KeyError:
+                pass
+            else:
+                try:
+                    self._joint_recovery.observe_runner_fill(event)
+                except Exception:
+                    self._runner_scope_invalid = True
+                return
         wal = self._order_safety_wal
         try:
             record = wal.find_by_client_order_id(event.order_id)
@@ -498,6 +513,17 @@ class LifeLiquidityController(ControllerBase):
         if not isinstance(event, OrderCancelledEvent):
             self._runner_scope_invalid = True
             return
+        if self._joint_recovery is not None:
+            try:
+                self._protected_swap_sender.wal.find_by_client_order_id(event.order_id)
+            except KeyError:
+                pass
+            else:
+                try:
+                    self._joint_recovery.observe_runner_cancel(event)
+                except Exception:
+                    self._runner_scope_invalid = True
+                return
         wal = self._order_safety_wal
         if wal is None:
             return
@@ -653,7 +679,7 @@ class LifeLiquidityController(ControllerBase):
         sender.connector.enable_protected_trading_pair(sender.contract.trading_pair)
         self._protected_swap_sender = sender
 
-    def install_shared_capital_authority(self, authority: SharedCapitalAuthority) -> None:
+    def install_shared_capital_authority(self, authority: SharedCapitalAuthority, *, recover: bool = False) -> None:
         """Opt into one capital journal for both routes; no production permission."""
         perp = self.config.strategy.perpetual
         if (self._shared_capital_authority is not None or not isinstance(authority, SharedCapitalAuthority)
@@ -673,10 +699,37 @@ class LifeLiquidityController(ControllerBase):
         records = self._order_safety_wal.all_records() if self._order_safety_wal is not None else ()
         if sender is not None:
             records += sender.wal.all_records()
-        if (authority.claim_ids() or self._order_safety_reservations.reservation_ids
-                or any(r.state not in ("TERMINAL", "ABORTED_BEFORE_SEND") for r in records)):
+        if type(recover) is not bool:
+            raise ValueError("SHARED_CAPITAL_RECOVERY_MODE_INVALID")
+        if not recover and (authority.claim_ids() or self._order_safety_reservations.reservation_ids
+                            or any(r.state not in ("TERMINAL", "ABORTED_BEFORE_SEND") for r in records)):
             raise ValueError("SHARED_CAPITAL_RECOVERY_REQUIRED")
         self._shared_capital_authority = authority
+        self._joint_recovery_restore_required = recover
+        if recover and self._order_safety_manager._joint_reconciliation is None:
+            self._order_safety_manager.bind_joint_reconciliation(self._joint_successor_ready)
+
+    def _joint_successor_ready(self, session_id, epoch):
+        return self._joint_recovery is not None and self._joint_recovery.successor_ready(session_id, epoch)
+
+    def install_joint_recovery(self, recovery: JointRecovery) -> None:
+        if (self._joint_recovery is not None or not isinstance(recovery, JointRecovery)
+                or recovery.controller is not self or recovery.capital is not self._shared_capital_authority
+                or recovery.sender is not self._protected_swap_sender
+                or self._order_safety_manager is None):
+            raise ValueError("JOINT_RECOVERY_CONTROLLER_BINDING_INVALID")
+        if (self.config.recovery_state_dir is not None and recovery.journal.path.resolve()
+                != (Path(self.config.recovery_state_dir) / "joint_recovery.json").resolve()):
+            raise ValueError("JOINT_RECOVERY_PATH_MISMATCH")
+        if self._order_safety_manager._joint_reconciliation != self._joint_successor_ready:
+            self._order_safety_manager.bind_joint_reconciliation(self._joint_successor_ready)
+        recovery.capital.bind_recovery(recovery)
+        self._joint_recovery = recovery
+
+    def _joint_recovery_ready(self):
+        if self._joint_recovery is not None:
+            return self._joint_recovery.allocation_ready()
+        return not self._joint_recovery_restore_required
 
     def _is_swap_config(self, config) -> bool:
         return getattr(config, "connector_name", None) == self.config.strategy.perpetual.connector
@@ -717,7 +770,7 @@ class LifeLiquidityController(ControllerBase):
         if (self.config.recovery_state_dir is not None and coordinator.journal.path.resolve()
                 != (Path(self.config.recovery_state_dir) / "hedge_coordinator.json").resolve()):
             raise ValueError("HEDGE_COORDINATOR_PATH_MISMATCH")
-        if coordinator.sender.unresolved_order_ids():
+        if coordinator.sender.unresolved_order_ids() and not self._joint_recovery_restore_required:
             raise ValueError("HEDGE_COORDINATOR_RECOVERY_REQUIRED")
         self._hedge_coordinator = coordinator
 
@@ -839,6 +892,10 @@ class LifeLiquidityController(ControllerBase):
         self._safety_rearm_in_progress = True
         try:
             await asyncio.wait_for(self._reconcile_for_manual_rearm(), maximum / 1000)
+            if self._joint_recovery is not None:
+                if not await self._joint_recovery.reconcile():
+                    raise ValueError("JOINT_REARM_PROOF_REQUIRED")
+                self._joint_recovery.manual_rearm(operator_id=operator_id)
             self._safety_rearm_verified = True
             gate.arm_after_reconciliation(reconciled=True, operator_id=operator_id)
             self.runtime_risk_reason_code = "STARTUP_REVALIDATION"
@@ -1044,7 +1101,7 @@ class LifeLiquidityController(ControllerBase):
                   or now - observed.observed_monotonic_ms > self._runtime_risk_max_age_ms):
                 decision = gate.invalidate("RISK_OBSERVATION_STALE")
             else:
-                monitor = self._capital_risk_monitor
+                monitor = self._joint_recovery or self._capital_risk_monitor
                 if monitor is None:
                     decision = gate.evaluate(observed)
                 else:
@@ -1498,8 +1555,7 @@ class LifeLiquidityController(ControllerBase):
                     safe = False
                 if (not isinstance(executor.config.id, str) or not executor.config.id
                         or executor.config.controller_id != self.config.id
-                        or executor.config.connector_name != self.config.strategy.spot.connector
-                        or executor.config.trading_pair != self.config.strategy.spot.pair):
+                        or not self._runner_product_config_valid(executor.config)):
                     safe = False
                 for wire_id in executor.recovery_order_ids():
                     owner = self._runner_wire_owners.get(wire_id)
@@ -1513,8 +1569,21 @@ class LifeLiquidityController(ControllerBase):
             self._runner_scope_invalid = True
         return safe
 
+    def _runner_product_config_valid(self, config):
+        if (config.connector_name == self.config.strategy.spot.connector
+                and config.trading_pair == self.config.strategy.spot.pair):
+            return True
+        if self._joint_recovery is None or self._protected_swap_sender is None:
+            return False
+        try:
+            self._protected_swap_sender._validate(config)
+            with self._protected_swap_sender.journal.locked() as state:
+                return state["actions"][config.id]["config"] == config.model_dump(mode="json")
+        except Exception:
+            return False
+
     def _runner_executor_scope_complete(self) -> bool:
-        """Live and stored executor IDs must resolve to the persisted spot WAL."""
+        """Live and stored children must resolve to their protected product WAL."""
         from hummingbot.strategy_v2.executors.order_executor.data_types import OrderExecutorConfig
         from hummingbot.strategy_v2.executors.order_executor.order_executor import OrderExecutor
         from hummingbot.strategy_v2.models.executors_info import ExecutorInfo
@@ -1531,6 +1600,8 @@ class LifeLiquidityController(ControllerBase):
             return False
 
         records = self._order_safety_wal.all_records()
+        if self._joint_recovery is not None:
+            records += self._protected_swap_sender.wal.all_records()
         known = {record.client_order_id: record for record in records
                  if record.state != "ABORTED_BEFORE_SEND"}
         intent_records = {record.intent_id: record for record in records
@@ -1546,8 +1617,7 @@ class LifeLiquidityController(ControllerBase):
                         or not isinstance(executor.config.id, str)
                         or not executor.config.id
                         or executor.config.controller_id != self.config.id
-                        or executor.config.connector_name != self.config.strategy.spot.connector
-                        or executor.config.trading_pair != self.config.strategy.spot.pair
+                        or not self._runner_product_config_valid(executor.config)
                         or executor.status not in (RunnableStatus.SHUTTING_DOWN, RunnableStatus.TERMINATED)):
                     return reject()
                 for wire_id in executor.recovery_order_ids():
@@ -1573,8 +1643,7 @@ class LifeLiquidityController(ControllerBase):
                         or info.id in stored_ids or info.config.id != info.id
                         or info.controller_id != self.config.id
                         or info.config.controller_id != self.config.id
-                        or info.config.connector_name != self.config.strategy.spot.connector
-                        or info.config.trading_pair != self.config.strategy.spot.pair
+                        or not self._runner_product_config_valid(info.config)
                         or info.status != RunnableStatus.TERMINATED
                         or not isinstance(info.custom_info, dict)):
                     return reject()
@@ -1616,8 +1685,14 @@ class LifeLiquidityController(ControllerBase):
                             and record.client_order_id not in active_seen | stored_seen)
             # The recorder row is written after the connector call. On a cold
             # restart, accept only a complete pre-send journal chain instead.
-            if missing and (executors or not self._pre_send_provenance_complete(missing)):
-                return reject()
+            if missing:
+                spot_missing = tuple(r for r in missing if r.slot_market == self.config.strategy.spot.pair)
+                swap_missing = tuple(r for r in missing if r.slot_market == "LIFE-USDT-SWAP")
+                if (executors or len(spot_missing) + len(swap_missing) != len(missing)
+                        or spot_missing and not self._pre_send_provenance_complete(spot_missing)
+                        or swap_missing and (self._joint_recovery is None
+                                             or not self._joint_recovery.runner_provenance_complete(swap_missing))):
+                    return reject()
             self._runner_stored_executor_ids.update(stored_ids)
             self._runner_wire_owners.update(wire_owners)
         except Exception:
@@ -1647,6 +1722,13 @@ class LifeLiquidityController(ControllerBase):
             return
         # Do not short-circuit this observation on quote readiness or session expiry.
         carry_ready = self._carry_ready()
+        if (self._joint_recovery is not None and self._joint_recovery.reconciliation_due()
+                and (self.order_safety_task is None or self.order_safety_task.done())
+                and (self._joint_reconciliation_task is None or self._joint_reconciliation_task.done())):
+            try:
+                self._joint_reconciliation_task = asyncio.get_running_loop().create_task(self._joint_recovery.reconcile())
+            except RuntimeError:
+                pass  # Allocation still requires a fresh completed joint receipt.
         if self._fee_rate_cache is not None and (
                 self._fee_refresh_task is None or self._fee_refresh_task.done()):
             try:
@@ -1714,8 +1796,7 @@ class LifeLiquidityController(ControllerBase):
         self.order_safety_task.add_done_callback(self._on_order_safety_done)
 
     def _on_order_safety_done(self, task: asyncio.Task) -> None:
-        if self._release_account_lock_on_task_done:
-            self._release_account_lock()
+        self._release_account_lock_when_quiescent()
         if task.cancelled():
             self.order_safety_reason_code = "ORDER_SAFETY_CANCELLED"
             return
@@ -1729,6 +1810,17 @@ class LifeLiquidityController(ControllerBase):
         manager = self._order_safety_manager
         gateway = self._order_safety_gateway
         wal = self._order_safety_wal
+        joint_ready = True
+        if self._joint_recovery is not None:
+            try:
+                await self._joint_recovery.cancel_working_swaps()
+                joint_ready = await self._joint_recovery.reconcile()
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                joint_ready = False
+            if not joint_ready:
+                self.order_safety_reason_code = "JOINT_RECONCILIATION_UNAVAILABLE"
         if self._order_safety_account_lock is not None and not self._account_uid_verified:
             try:
                 observed_uid = await gateway.connector.get_account_uid()
@@ -1747,7 +1839,7 @@ class LifeLiquidityController(ControllerBase):
                   if record.state not in ("TERMINAL", "ABORTED_BEFORE_SEND")}
         scopes.add((current.session_id, current.epoch))
         primary_result = None
-        reason = "OLD_ORDERS_RECONCILED"
+        reason = "OLD_ORDERS_RECONCILED" if joint_ready else "JOINT_RECONCILIATION_UNAVAILABLE"
         bounded_cancel_failed = False
         if gateway.cancel_retry_policy is not None:
             try:
@@ -1828,19 +1920,28 @@ class LifeLiquidityController(ControllerBase):
             self._pause_reconciliation_required = False
 
     def stop(self):
+        self._order_safety_stopped = True
+        if self._joint_reconciliation_task is not None:
+            self._joint_reconciliation_task.add_done_callback(
+                lambda _: self._release_account_lock_when_quiescent())
+            self._joint_reconciliation_task.cancel()
         if self._fee_refresh_task is not None:
             self._fee_refresh_task.cancel()
-        self._order_safety_stopped = True
         super().stop()
         if self.order_safety_watchdog_task is not None and not self.order_safety_watchdog_task.done():
             self.order_safety_watchdog_task.cancel()
         if self.order_safety_task is not None and not self.order_safety_task.done():
-            self._release_account_lock_on_task_done = True
             self.order_safety_task.cancel()
-        else:
-            self._release_account_lock()
+        self._release_account_lock_on_task_done = True
+        self._release_account_lock_when_quiescent()
         if self._perpetual_poll_task is not None and not self._perpetual_poll_task.done():
             self._perpetual_poll_task.cancel()
+
+    def _release_account_lock_when_quiescent(self) -> None:
+        if (self._release_account_lock_on_task_done
+                and all(task is None or task.done() for task in (
+                    self.order_safety_task, self._joint_reconciliation_task))):
+            self._release_account_lock()
 
     def _release_account_lock(self) -> None:
         if self._order_safety_account_lock is not None:
@@ -1949,6 +2050,8 @@ class LifeLiquidityController(ControllerBase):
                     and not (self.order_safety_task is not None and not self.order_safety_task.done()))
 
     def allow_create_executor_actions(self) -> bool:
+        if not self._joint_recovery_ready():
+            return False
         checks = (
             ("telemetry", lambda: self._telemetry is None or self._telemetry.healthy, "TELEMETRY_UNAVAILABLE"),
             ("runtime", self._runtime_risk_ready, "RUNTIME_RISK_UNAVAILABLE"),

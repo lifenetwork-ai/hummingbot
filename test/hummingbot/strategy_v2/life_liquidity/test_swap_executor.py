@@ -27,7 +27,7 @@ from hummingbot.strategy_v2.models.executor_actions import StopExecutorAction
 D = Decimal
 
 
-def setup_swap(tmp_path, *, mode=PositionMode.ONEWAY, action=PositionAction.CLOSE, side=TradeType.SELL, route=None, spot_route=None):
+def setup_swap(tmp_path, *, mode=PositionMode.ONEWAY, action=PositionAction.CLOSE, side=TradeType.SELL, route=None, spot_route=None, budget_capacity=5):
     clock = FakeClock()
     c, _, _, _, _, _ = _setup(tmp_path, recovery_account_uid="12345", quote_levels=3, clock=clock, connector=spot_route)
     del c.allow_create_executor_actions
@@ -45,7 +45,7 @@ def setup_swap(tmp_path, *, mode=PositionMode.ONEWAY, action=PositionAction.CLOS
         route._contract_sizes = {"LIFE-USDT": D("0.25")}
         route.get_leverage = lambda _: 1
     now = [clock.wall]
-    budget = _budget(tmp_path, now, capacity=5)
+    budget = _budget(tmp_path, now, capacity=budget_capacity)
     risk = {"allowed": True, "epoch": 1}
     wal = IntentWAL(tmp_path / "swap_wal.json")
     wal.initialize_empty()

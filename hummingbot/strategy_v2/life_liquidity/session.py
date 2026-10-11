@@ -224,6 +224,7 @@ class SessionManager:
         self.wall_clock = wall_clock
         self.monotonic_clock = monotonic_clock
         self.max_reconciliation_age_ms = max_reconciliation_age_ms
+        self._joint_reconciliation = None
         self._journal = store.load()
         self._monotonic_deadline: float | None = None
         if self._journal is not None:
@@ -394,7 +395,20 @@ class SessionManager:
             return "OLD_ORDERS_UNRESOLVED"
         if not evidence.trade_events_reconciled:
             return "OLD_FILLS_UNRECONCILED"
+        if not self._joint_scope_ready(parent.session_id, parent.epoch):
+            return "JOINT_ORDERS_UNRECONCILED"
         return None
+
+    def bind_joint_reconciliation(self, guard) -> None:
+        if self._joint_reconciliation is not None or not callable(guard):
+            raise ValueError("JOINT_RECONCILIATION_BINDING_INVALID")
+        self._joint_reconciliation = guard
+
+    def _joint_scope_ready(self, session_id, epoch):
+        try:
+            return self._joint_reconciliation is None or self._joint_reconciliation(session_id, epoch) is True
+        except Exception:
+            return False
 
     def record_transition_failure(self, reason_code: str) -> None:
         if self._journal is None or self.state != "TRANSITIONING":
@@ -437,6 +451,8 @@ class SessionManager:
             raise ValueError("SESSION_DEADLINE_REACHED")
         if not old_orders_reconciled:
             raise ValueError("OLD_ORDERS_UNRESOLVED")
+        if not self._joint_scope_ready(self._journal.primary.session_id, self._journal.primary.epoch):
+            raise ValueError("JOINT_ORDERS_UNRECONCILED")
         if config_version <= self._journal.primary.config_version or not model_version:
             raise ValueError("CONFIG_VERSION_NOT_ADVANCED")
         changed = replace(self._journal.primary, anchors=_anchors(anchors),

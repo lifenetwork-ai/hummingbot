@@ -19,8 +19,8 @@ from hummingbot.strategy_v2.life_liquidity.hedge_coordinator import (
 D = Decimal
 
 
-def setup_coordinator(tmp_path, *, route=None, mode=PositionMode.ONEWAY, **changes):
-    values = setup_shared(tmp_path, collateral="1000", route=route, mode=mode)
+def setup_coordinator(tmp_path, *, route=None, mode=PositionMode.ONEWAY, budget_capacity=5, **changes):
+    values = setup_shared(tmp_path, collateral="1000", route=route, mode=mode, budget_capacity=budget_capacity)
     c, cap, sender, spot, swap, wal, clock, account, capital, strategy, sc, pc = values
     c._order_safety_wal.initialize_empty()
     hp = HedgePolicy("LIFE-USDT-SWAP", D("0.1"), D("0.25"), D("2"), D("3"), 1000, 3,

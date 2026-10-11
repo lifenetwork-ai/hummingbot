@@ -83,6 +83,7 @@ class ProtectedSwapExecutorSender:
         self._revoked = set()
         self._boundary_attempts = set()
         self._authorized_sends = set()
+        self._runtime_enabled = create
 
     def _policy(self):
         return {"controller_id": self.controller.config.id,
@@ -100,10 +101,24 @@ class ProtectedSwapExecutorSender:
     def owns_intent(self, intent_id):
         return intent_id in self._permits
 
+    def reconcile_unsent(self, order, *, authority, proof_id):
+        if (authority is not self.controller._joint_recovery
+                or not authority.authorizes_order(order, proof_id) or order.state != "unsent"):
+            raise ValueError("SWAP_UNSENT_RECOVERY_UNPROVEN")
+        records = {r.intent_id: r for r in self.wal.all_records()}
+        if order.claim.intent_id in records:
+            if records[order.claim.intent_id].state != "ABORTED_BEFORE_SEND":
+                raise ValueError("SWAP_UNSENT_RECOVERY_UNPROVEN")
+            with self.journal.locked() as state:
+                state["actions"].setdefault(order.claim.intent_id, {"recovered_unsent": order.claim.wire_id})
+                self.journal.commit(state)
+
     def _check(self, config, permit, *, issued=True):
         try:
             self._validate(config)
             if (self.controller.trading_permissions_ready() is not True
+                    or not self._runtime_enabled
+                    or not self.controller._joint_recovery_ready()
                     or self.controller.config_update_state.order_permission() is not True
                     or self.controller._order_safety_stopped
                     or self.controller._safety_rearm_in_progress

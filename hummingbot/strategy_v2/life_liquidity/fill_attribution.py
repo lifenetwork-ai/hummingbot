@@ -234,7 +234,12 @@ class ReconciledFillAttributor:
             timeline.append((at, 0, bill_id, event))
         for trade_id, event in self._events.items():
             timeline.append((event["fill_at_ms"], 1, trade_id, event))
+        for event_id, amount in self.reservations.joint_cash_events.items():
+            timeline.append((int(event_id.split(":")[1]), 2, event_id, amount))
         for _, kind, event_id, event in sorted(timeline, key=lambda item: item[:3]):
+            if kind == 2:
+                capital.record_funding(event_id, -event)
+                continue
             if kind == 0:
                 capital.record_asset_cashflow(
                     event_id, event["currency"], Decimal(event["amount"]),
@@ -272,6 +277,7 @@ class ReconciledFillAttributor:
                 or durable.life_balance != self.reservations.life_balance
                 or durable.usdt_balance != self.reservations.usdt_balance
                 or durable.cashflow_events != self.reservations.cashflow_events
+                or durable.joint_cash_events != self.reservations.joint_cash_events
                 or self.wal.path.is_symlink() or not self.wal.path.is_file()):
             return None
         durable_wal = IntentWAL(self.wal.path)

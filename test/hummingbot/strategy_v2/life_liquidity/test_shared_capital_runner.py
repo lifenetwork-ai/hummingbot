@@ -26,9 +26,9 @@ from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction
 D = Decimal
 
 
-def setup_shared(tmp_path, *, collateral="12", route=None, spot_route=None, mode=PositionMode.ONEWAY):
+def setup_shared(tmp_path, *, collateral="12", route=None, spot_route=None, mode=PositionMode.ONEWAY, budget_capacity=5):
     c, sender, swap, wal, clock, account, risk, config = setup_swap(
-        tmp_path, mode=mode, action=PositionAction.OPEN, route=route, spot_route=spot_route)
+        tmp_path, mode=mode, action=PositionAction.OPEN, route=route, spot_route=spot_route, budget_capacity=budget_capacity)
     account["value"] = replace(account["value"], snapshot_sequence=1)
     now = int(clock.wall.timestamp() * 1000)
     state = {"snapshot": snapshot(

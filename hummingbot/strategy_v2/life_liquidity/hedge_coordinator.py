@@ -311,6 +311,8 @@ class HedgeCoordinator:
                 if r.state not in ("TERMINAL", "ABORTED_BEFORE_SEND") and not r.cancel_requested]
 
     def _poll_settlements(self):
+        if self.controller._joint_recovery is not None:
+            return  # One joint authority applies complete history and account facts.
         with self.journal.locked() as state:
             self._clock(state)
             pending = tuple(key for key, o in state["orders"].items() if o["status"] == "ISSUED")
@@ -496,3 +498,67 @@ class HedgeCoordinator:
                 pass  # Missing/uncertain storage already fences further actions.
             self.reason_code = "HEDGE_RECONCILIATION_REQUIRED"
             return False
+
+    def reconcile_joint_order(self, order, *, authority, proof_id):
+        """Use a complete joint-history proof; preserve retry/cost/target history."""
+        if not authority.authorizes_order(order, proof_id) or authority.controller is not self.controller:
+            raise ValueError("HEDGE_JOINT_PROOF_REQUIRED")
+        with self.journal.locked() as state:
+            self._validate_state(state)
+            entry = state["orders"].get(order.claim.intent_id)
+            if entry is None:
+                raise ValueError("HEDGE_JOINT_OWNERSHIP_MISSING")
+            cfg = OrderExecutorConfig.model_validate(entry["config"])
+            c = order.claim
+            if (cfg.amount, cfg.price, cfg.side.name, cfg.position_action.name) != (
+                    c.quantity_base, c.price_usdt, c.side, c.position_action):
+                raise ValueError("HEDGE_JOINT_ORDER_CHANGED")
+            trades, cost = {}, ZERO
+            for t in order.trades:
+                blob = _json(asdict(HedgeTrade(t.trade_id, t.quantity_base, t.price_usdt, max(ZERO, -t.signed_fee))))
+                key = "SWAP:" + t.trade_id
+                stable = {"intent": cfg.id, "trade": blob}
+                if key in state["trades"] and state["trades"][key] != stable:
+                    raise ValueError("HEDGE_JOINT_TRADE_CHANGED")
+                trades[t.trade_id] = blob
+                mark = Decimal(entry["mark"])
+                adverse = mark - t.price_usdt if c.side == "SELL" else t.price_usdt - mark
+                cost += max(ZERO, adverse) * t.quantity_base + max(ZERO, -t.signed_fee)
+                state["trades"][key] = stable
+            if any(trades.get(k) != v for k, v in entry["trades"].items()):
+                raise ValueError("HEDGE_JOINT_FILL_MISSING")
+            entry["trades"] = trades
+            entry["filled"] = str(sum((t.quantity_base for t in order.trades), ZERO))
+            if order.state in ("filled", "canceled", "unsent"):
+                entry["status"] = "TERMINAL"
+            if cost > Decimal(entry["cost"]):
+                state["fault"] = "HEDGE_REALIZED_COST_BREACH"
+                self._runtime_enabled = False
+            self.journal.commit(state)
+
+    def rearm_joint(self, *, authority):
+        if authority is not self.controller._joint_recovery or authority._fresh() is None:
+            raise ValueError("HEDGE_JOINT_REARM_REQUIRED")
+        with self.journal.locked() as state:
+            self._validate_state(state)
+            if (state["fault"] not in (None, "HEDGE_RECONCILIATION_REQUIRED")
+                    or any(o["status"] != "TERMINAL" for o in state["orders"].values())):
+                raise ValueError("HEDGE_JOINT_REARM_REQUIRED")
+            state["fault"] = None
+            self.journal.commit(state)
+        self._faulted = False
+        self._runtime_enabled = True
+
+    def reconcile_joint_preparations(self, *, authority, proof_id):
+        if (authority is not self.controller._joint_recovery or not authority._busy
+                or authority.journal._state["proof_id"] != proof_id
+                or authority.journal._state["phase"] != "APPLYING"):
+            raise ValueError("HEDGE_JOINT_PROOF_REQUIRED")
+        claims = self.capital.claims(include_settled=True)
+        wal_ids = {r.intent_id for r in self.sender.wal.all_records()}
+        with self.journal.locked() as state:
+            self._validate_state(state)
+            for key, entry in state["orders"].items():
+                if entry["status"] == "PREPARING" and key not in claims and key not in wal_ids:
+                    entry["status"] = "TERMINAL"  # No allocation/armed WAL; preserve attempt/cost holds.
+            self.journal.commit(state)

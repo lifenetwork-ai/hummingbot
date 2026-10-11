@@ -63,6 +63,8 @@ class ProtectedSpotExecutorSender:
         return reservation_ids == required_ids
 
     def _authorized(self, permit: SendPermit) -> bool:
+        if not self.controller._joint_recovery_ready():
+            return False
         current = self.manager.current_session
         if permit.intent_id in self.controller._runner_stop_revoked_ids:
             return False

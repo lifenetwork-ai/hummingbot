@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 import tempfile
 from dataclasses import dataclass, replace
 from decimal import Decimal, InvalidOperation
@@ -14,6 +15,10 @@ from hummingbot.strategy_v2.life_liquidity.state import IntentWAL
 def _finite(value: Decimal, *, positive: bool = False) -> bool:
     return (isinstance(value, Decimal) and value.is_finite()
             and (value > 0 if positive else value >= 0))
+
+
+def _joint_cash_key(value):
+    return isinstance(value, str) and re.fullmatch(r"JOINT:[0-9]+:(TRADE|FUNDING):[^:]+", value) is not None
 
 
 @dataclass(frozen=True)
@@ -220,10 +225,11 @@ class ReservationLedger:
                                             (not event_id.startswith("CASHFLOW:")
                                              or not event_id[9:].isdigit() or amount == 0))
                     if (not isinstance(event_id, str) or not event_id
-                            or kind not in ("FEE", "CASHFLOW")
+                            or kind not in ("FEE", "CASHFLOW", "JOINT")
                             or currency not in ("LIFE", "USDT")
                             or not amount.is_finite()
-                            or fee_key_invalid or cashflow_key_invalid):
+                            or fee_key_invalid or cashflow_key_invalid
+                            or kind == "JOINT" and (currency != "USDT" or not _joint_cash_key(event_id))):
                         raise ValueError("RISK_JOURNAL_INVALID")
                     account_events[event_id] = (kind, currency, amount)
             book = cls.__new__(cls)
@@ -295,6 +301,62 @@ class ReservationLedger:
             updated[event_id] = event
             self._commit(life, usdt, self._reservations, self._trades, updated)
             return True
+
+    @property
+    def joint_cash_events(self):
+        with self._lock:
+            return {key: amount for key, (kind, _, amount) in self._account_events.items() if kind == "JOINT"}
+
+    def record_joint_cash(self, event_id: str, amount: Decimal) -> bool:
+        """USDT settled SWAP PnL/fee/funding, never an external cash flow.
+
+        IDs embed the source timestamp for chronological accounting replay.
+        The joint recovery authority validates complete source/account evidence
+        before invoking this idempotent checkpoint.
+        """
+        if not _joint_cash_key(event_id):
+            raise ValueError("JOINT_CASH_ID_INVALID")
+        return self._record_account_event(event_id, "JOINT", "USDT", amount)
+
+    def apply_joint_snapshot(self, spot_snapshots, cash_events):
+        """Atomically checkpoint a qualified joint cut in chronological order.
+
+        Use an isolated in-memory ledger so no cross-product debit is written
+        ahead of earlier verified proceeds. Existing trade/fee/terminal rules
+        still apply. A failed replay cannot leave a partly adjusted wallet.
+        """
+        with self._lock:
+            self._ensure_healthy()
+            staged = ReservationLedger(life_balance=self.life_balance, usdt_balance=self.usdt_balance,
+                                       limits=self.limits)
+            staged._reservations = dict(self._reservations)
+            staged._trades = dict(self._trades)
+            staged._account_events = dict(self._account_events)
+            timeline = []
+            for key, fills in spot_snapshots:
+                prefix, cumulative = [], Decimal("0")
+                for trade_id, quantity, price, currency, fee, at_ms in sorted(fills, key=lambda f: (f[5], f[0])):
+                    prefix.append((trade_id, quantity, price, currency, fee))
+                    cumulative += quantity
+                    timeline.append((at_ms, 0, trade_id, key, tuple(prefix), cumulative))
+            for event_id, amount in cash_events.items():
+                if not _joint_cash_key(event_id):
+                    raise ValueError("JOINT_CASH_ID_INVALID")
+                timeline.append((int(event_id.split(":")[1]), 1, event_id, amount))
+            for item in sorted(timeline, key=lambda v: v[:3]):
+                if item[1] == 1:
+                    staged.record_joint_cash(item[2], item[3])
+                else:
+                    _, _, _, key, fills, cumulative = item
+                    if cumulative >= staged._reservations[key].filled_base:
+                        staged.apply_fills_snapshot(key, fills, cumulative, require_fees=True)
+            for key, fills in spot_snapshots:
+                staged.apply_fills_snapshot(key, tuple(f[:5] for f in fills),
+                                            sum((f[1] for f in fills), Decimal("0")), require_fees=True)
+            if (staged.life_balance, staged.usdt_balance, staged._reservations, staged._trades, staged._account_events) != (
+                    self.life_balance, self.usdt_balance, self._reservations, self._trades, self._account_events):
+                self._commit(staged.life_balance, staged.usdt_balance, staged._reservations,
+                             staged._trades, staged._account_events)
 
     def record_fee(self, trade_id: str, currency: str, signed_amount: Decimal) -> bool:
         if not isinstance(trade_id, str) or not trade_id or self.trade_intent_id(trade_id) is None:
