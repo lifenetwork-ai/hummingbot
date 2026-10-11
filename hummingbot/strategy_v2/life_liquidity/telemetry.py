@@ -32,6 +32,11 @@ METRIC_UNITS = {
     "drawdown_bps": "bps", "quoted_spread_bps": "bps", "reject_count": "count",
     "two_sided_availability_session_ratio": "ratio", "two_sided_availability_eligible_ratio": "ratio",
 }
+OPTIONAL_METRIC_UNITS = {
+    **dict.fromkeys(("swap_unrealized_pnl_quote", "swap_realized_pnl_quote", "swap_fees_quote",
+                     "spot_fees_quote", "shared_collateral_quote"), "USDT"),
+    "swap_long_base": "LIFE", "swap_short_base": "LIFE",
+}
 INPUT_TYPES = {
     **dict.fromkeys(("reference_usdt", "exit_value_usdt", "best_bid_usdt", "best_ask_usdt",
                      "maker_fee_rate", "exit_fee_rate", "impact_cost_usdt", "carry_cost_usdt",
@@ -156,7 +161,7 @@ class TelemetryRecorder:
                         or INPUT_TYPES[key] == "decimal" and (
                             not isinstance(value, str) or len(value) > 96
                             or not Decimal(value).is_finite())) for key, value in inputs.items())
-                or not isinstance(metrics, dict) or not set(metrics) <= set(METRIC_UNITS)
+                or not isinstance(metrics, dict) or not set(metrics) <= set(METRIC_UNITS) | set(OPTIONAL_METRIC_UNITS)
                 or not isinstance(markouts, dict)
                 or any(not isinstance(key, str) or re.fullmatch(r"(BUY|SELL):(small|large):[1-9][0-9]*", key) is None
                        for key in markouts)):
@@ -164,7 +169,7 @@ class TelemetryRecorder:
         complete = {key: Metric(None, unit, "missing", "NOT_OBSERVED") for key, unit in METRIC_UNITS.items()}
         complete.update(metrics)
         for key, metric in {**complete, **markouts}.items():
-            if (not isinstance(metric, Metric) or metric.unit != METRIC_UNITS.get(key, "USDT")
+            if (not isinstance(metric, Metric) or metric.unit != {**METRIC_UNITS, **OPTIONAL_METRIC_UNITS}.get(key, "USDT")
                     or self.synthetic and metric.quality == "verified"
                     or not self.synthetic and metric.quality == "synthetic"):
                 raise ValueError("TELEMETRY_METRIC_SCOPE_INVALID")

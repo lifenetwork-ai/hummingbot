@@ -1,0 +1,90 @@
+{
+  "assumptions": [
+    "Explicit install APIs, synthetic upstream policy/risk-epoch callbacks and a fixture-only production release override; mandatory financial gates use actual implementations.",
+    "Injected complete normalized order, fill, account, funding, volume and fee observations; no authenticated OKX access.",
+    "Partial/complete fills are scheduled inputs, not a queue model or evidence of external demand.",
+    "Child events advance by one millisecond; funding input order is seeded. Prices, collateral, deadlines and all limits are synthetic."
+  ],
+  "result": {
+    "events": [
+      {
+        "action": "OPEN",
+        "filled_base": "0.5",
+        "price_usdt": "0.99",
+        "product": "SPOT",
+        "realized_pnl_quote": "0",
+        "requested_base": "1",
+        "role": "mm",
+        "side": "BUY",
+        "signed_fee_quote": "-0.001"
+      },
+      {
+        "action": "CLOSE",
+        "filled_base": "0.5",
+        "price_usdt": "1.001",
+        "product": "SWAP",
+        "realized_pnl_quote": "0.0005",
+        "requested_base": "0.5",
+        "role": "hedge",
+        "side": "SELL",
+        "signed_fee_quote": "-0.001"
+      },
+      {
+        "action": "OPEN",
+        "filled_base": "0.5",
+        "price_usdt": "0.99",
+        "product": "SPOT",
+        "realized_pnl_quote": "0",
+        "requested_base": "0.5",
+        "role": "inventory",
+        "side": "SELL",
+        "signed_fee_quote": "-0.001"
+      },
+      {
+        "action": "OPEN",
+        "filled_base": "0.5",
+        "price_usdt": "0.999",
+        "product": "SWAP",
+        "realized_pnl_quote": "0",
+        "requested_base": "0.5",
+        "role": "rebalance",
+        "side": "BUY",
+        "signed_fee_quote": "-0.001"
+      }
+    ],
+    "funding": [
+      {
+        "bill_id": "101",
+        "signed_quote": "-0.01"
+      },
+      {
+        "bill_id": "102",
+        "signed_quote": "0.004"
+      }
+    ],
+    "metrics": {
+      "drawdown_bps": "6.498700259948010397920415917",
+      "fees_quote": "0.004",
+      "funding_quote": "-0.006",
+      "inventory_pnl_quote": "0.001",
+      "nav_quote": "19.991",
+      "net_pnl_quote": "-0.009",
+      "shared_collateral_quote": "1E+2",
+      "swap_long_base": "1",
+      "swap_realized_pnl_quote": "0.0005",
+      "swap_short_base": "0",
+      "swap_unrealized_pnl_quote": "0.0005"
+    },
+    "modes": [
+      "MM",
+      "INVENTORY",
+      "MM"
+    ],
+    "remaining_capital_claims": []
+  },
+  "scope": "synthetic_combined_spot_swap_hedge_carry_inventory",
+  "seeds": [
+    7,
+    19
+  ]
+}

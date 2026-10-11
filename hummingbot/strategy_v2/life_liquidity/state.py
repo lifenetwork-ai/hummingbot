@@ -152,8 +152,9 @@ class IntentWAL:
                          if record.session_id == session_id and record.epoch == epoch)
 
     def all_records(self) -> tuple[IntentRecord, ...]:
+        """Canonical identity order matches a reopened, key-sorted journal."""
         with self._lock:
-            return tuple(self._records.values())
+            return tuple(self._records[key] for key in sorted(self._records))
 
     def find_by_client_order_id(self, client_order_id: str) -> IntentRecord:
         with self._lock:

@@ -81,9 +81,9 @@ class TestResults:
         self.reports.setdefault(report.nodeid, {})[report.when] = report.outcome
 
 
-def acceptance_results(manifest, results):
+def acceptance_results(manifest, results, *, include_extensions=False):
     evidence = {}
-    rows = {**manifest["cases"], **manifest["open_requirements"]}
+    rows = {**manifest["cases"], **manifest["open_requirements"], **manifest.get("extension_evidence", {})}
     for key, case in rows.items():
         nodes = set()
         for selector in case["tests"]:
@@ -95,24 +95,21 @@ def acceptance_results(manifest, results):
         for node in nodes:
             if results.reports.get(node) != {"setup": "passed", "call": "passed", "teardown": "passed"}:
                 raise ValueError(f"Incomplete, skipped or failed evidence: {key}: {node}")
-        if key in manifest["cases"]:
-            evidence[key] = {"offline": case["offline"], "passed_node_count": len(nodes),
+        if key in manifest["cases"] or include_extensions and key in manifest.get("extension_evidence", {}):
+            evidence[key] = {"offline": case.get("offline", "verified"), "passed_node_count": len(nodes),
                              "passed_nodeids_sha256": hashlib.sha256("\n".join(sorted(nodes)).encode()).hexdigest(),
-                             "remaining": case["remaining"]}
+                             "remaining": case.get("remaining", [])}
     return evidence
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output-dir", type=Path, required=True)
-    args = parser.parse_args()
-    output = args.output_dir.resolve()
+def run_audit(output, *, manifest_path=MANIFEST, scope="SPOT_OFFLINE_COMPLETE", validator=validate_manifest, entrypoint=None):
+    output = output.resolve()
     output.mkdir(parents=True, exist_ok=True)
     (output / "summary.json").unlink(missing_ok=True)
     if Path.cwd().resolve() != ROOT:
         raise SystemExit("Run this audit from the repository root")
-    manifest = json.loads(MANIFEST.read_text())
-    validate_manifest(manifest)
+    manifest = json.loads(manifest_path.read_text())
+    validator(manifest)
     # Load binary extensions before tracing (local Python 3.13 first-import issue).
     import coverage
     import numpy  # noqa: F401
@@ -133,7 +130,8 @@ def main():
     if any(report != {"setup": "passed", "call": "passed", "teardown": "passed"}
            for report in results.reports.values()):
         raise SystemExit("Regression contains skipped, failed or incomplete tests")
-    cases = acceptance_results(manifest, results)
+    mapped = acceptance_results(manifest, results, include_extensions=True)
+    cases = {key: row for key, row in mapped.items() if key in manifest["cases"]}
     from diff_cover.diff_cover_tool import main as diff_main
     coverage_results = {}
     for label, base in manifest["coverage_bases"].items():
@@ -155,22 +153,31 @@ def main():
     if missing:
         raise SystemExit(f"Changed source files omitted from coverage: {sorted(missing)}")
     summary = {
-        "scope": "SPOT_OFFLINE_COMPLETE", "production_permission": False,
+        "scope": scope, "production_permission": False,
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "source_head": git("rev-parse", "HEAD"), "worktree_status": git("status", "--short"),
-        "manifest_sha256": hashlib.sha256(MANIFEST.read_bytes()).hexdigest(),
+        "manifest_sha256": hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
         "plan_sha256": hashlib.sha256(PLAN.read_bytes()).hexdigest(),
         "test_results_sha256": hashlib.sha256((output / "tests.json").read_bytes()).hexdigest(),
         "versions": {name: version(name) for name in ("pytest", "coverage", "diff-cover")},
         "runtime": {"python": sys.version, "platform": platform.platform()},
         "audit_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        "entrypoint_sha256": hashlib.sha256(Path(entrypoint or __file__).read_bytes()).hexdigest(),
+        "extension_evidence": {key: row for key, row in mapped.items() if key in manifest.get("extension_evidence", {})},
         "test_count": len(results.collected), "skipped": 0, "failed": 0,
         "case_counts": dict(Counter(row["offline"] for row in cases.values())),
         "cases": cases, "classified_open_requirements": len(manifest["open_requirements"]),
         "changed_source_files_measured": len(changed), "coverage": coverage_results,
     }
     (output / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
-    print(f"O.6 spot gate passed: {summary['test_count']} tests; full offline O.7 remains open.")
+    print(f"{scope} gate passed: {summary['test_count']} tests; production permission remains false.")
+    return summary
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--output-dir", type=Path, required=True)
+    run_audit(parser.parse_args().output_dir)
 
 
 if __name__ == "__main__":

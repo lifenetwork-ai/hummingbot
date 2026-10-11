@@ -29,6 +29,7 @@ from hummingbot.strategy_v2.life_liquidity.capital_risk import CapitalRiskMonito
 from hummingbot.strategy_v2.life_liquidity.carry_monitor import CarryMonitor
 from hummingbot.strategy_v2.life_liquidity.config import ConfigUpdateState, StrategyConfig, parse_duration_seconds
 from hummingbot.strategy_v2.life_liquidity.executor_send import ProtectedSpotExecutorSender
+from hummingbot.strategy_v2.life_liquidity.extension_telemetry import collect_extension_metrics
 from hummingbot.strategy_v2.life_liquidity.fees import CachedFeeRateSource, OkxFeeRateSource
 from hummingbot.strategy_v2.life_liquidity.fill_attribution import ReconciledFillAttributor
 from hummingbot.strategy_v2.life_liquidity.hedge import HedgeObservation, HedgePolicy, plan_life_hedge
@@ -2069,6 +2070,8 @@ class LifeLiquidityController(ControllerBase):
                     self, utc_now_ms=self._telemetry_utc_ms(), independent_value=value,
                     max_value_age_ms=self._telemetry_max_value_age_ms,
                     synthetic=recorder.synthetic, monotonic_ms=now)
+                if self.config.strategy.perpetual.enabled:
+                    metrics.update(collect_extension_metrics(self, synthetic=recorder.synthetic))
                 inputs = collect_quote_inputs(self)
                 if record is not None:
                     inputs.update(wal_state=record.state, cancel_requested=record.cancel_requested)

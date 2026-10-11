@@ -171,6 +171,30 @@ class QuoteActionPlanner:
         for executor in executors:
             config = getattr(executor, "config", None)
             status = getattr(executor, "status", None)
+            if (isinstance(config, OrderExecutorConfig)
+                    and config.connector_name == self.controller.config.strategy.perpetual.connector):
+                # Protected SWAP children share this runner, not spot quote slots.
+                # Require their own durable sender/WAL/capital provenance before ignoring them.
+                from hummingbot.strategy_v2.executors.order_executor.order_executor import OrderExecutor
+                joint = self.controller._joint_recovery
+                sender = self.controller._protected_swap_sender
+                if (not isinstance(executor, OrderExecutor) or joint is None or sender is None
+                        or status not in tuple(RunnableStatus)
+                        or config.controller_id != self.controller.config.id
+                        or not self.controller._runner_product_config_valid(config)):
+                    return None
+                try:
+                    swap_record = sender.wal.get(config.id)
+                    wire_ids = executor.recovery_order_ids()
+                    if swap_record.state == "ABORTED_BEFORE_SEND":
+                        if wire_ids or config.id in joint.capital.claims():
+                            return None
+                    elif (not joint.runner_provenance_complete((swap_record,))
+                          or any(wire_id != swap_record.client_order_id for wire_id in wire_ids)):
+                        return None
+                except Exception:
+                    return None
+                continue
             if (not isinstance(config, OrderExecutorConfig)
                     or config.controller_id != self.controller.config.id
                     or config.connector_name != self.controller.config.strategy.spot.connector

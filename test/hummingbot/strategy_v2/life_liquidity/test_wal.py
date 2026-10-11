@@ -199,3 +199,11 @@ def test_pre_replace_wal_failure_can_retry_without_claiming_a_send(tmp_path, mon
     assert wal.arm_send("intent-1", client_order_id="life-0001", session_id="s1",
                         epoch=1, reservation_id="intent-1")
     assert IntentWAL(path).get("intent-1").state == "SEND_UNKNOWN"
+
+
+def test_durable_record_comparison_is_independent_of_intent_insertion_order(tmp_path):
+    wal = IntentWAL(tmp_path / "intents.json")
+    for identity in ("mm-primary", "inventory-child", "rebalance"):
+        wal.begin(identity, client_order_id="wire-" + identity, session_id="s1", epoch=1,
+                  reservation_id=identity)
+    assert wal.all_records() == IntentWAL(wal.path).all_records()
