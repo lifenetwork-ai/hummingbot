@@ -1753,10 +1753,11 @@ class LifeLiquidityController(ControllerBase):
                     wire_owners[wire_id] = info.id
             if not self._runner_stored_executor_ids <= stored_ids:
                 return reject()
+            seen_wires = active_seen | stored_seen
             missing = tuple(record for record in records
                             if record.slot_market is not None
                             and record.state != "ABORTED_BEFORE_SEND"
-                            and record.client_order_id not in active_seen | stored_seen)
+                            and record.client_order_id not in seen_wires)
             # The recorder row is written after the connector call. On a cold
             # restart, accept only a complete pre-send journal chain instead.
             if missing:
@@ -1917,11 +1918,10 @@ class LifeLiquidityController(ControllerBase):
                 for session_id, epoch in sorted(scopes):
                     await gateway.request_cancel(session_id, epoch)
 
-        async def cancel_joint():
+        async def cancel_swaps():
             if not spot_only:
                 await asyncio.wait_for(self._joint_recovery.cancel_working_swaps(),
                                        self._joint_recovery.max_age_ms / 1000)
-            return await self._joint_recovery.reconcile()
 
         joint_ready = True
         if self._joint_recovery is not None:
@@ -1931,8 +1931,11 @@ class LifeLiquidityController(ControllerBase):
                 async with asyncio.timeout(self._joint_recovery.max_age_ms / 1000):
                     await cancel_spot()
 
-            canceled, joint_result = await asyncio.gather(bounded_spot(), cancel_joint(), return_exceptions=True)
-            joint_ready = joint_result is True
+            canceled, swap_result = await asyncio.gather(bounded_spot(), cancel_swaps(), return_exceptions=True)
+            # Full history qualification is synchronous work. Start both
+            # products' cancel transports before it can occupy the event loop.
+            joint_ready = (not isinstance(swap_result, BaseException)
+                           and await self._joint_recovery.reconcile() is True)
         else:
             try:
                 await cancel_spot()
@@ -2058,7 +2061,7 @@ class LifeLiquidityController(ControllerBase):
                           utc_clock_ms, max_value_age_ms: int) -> None:
         """Opt-in diagnostics with buffered writes and memory-only cancel events.
 
-        Permission snapshots read verified journals; cancel/ACK hooks never sample.
+        Explicit SNAPSHOT events read financial journals; order hooks record decision facts.
         The adapter must flush outside the safety loop. Missing observations
         stay explicit. Installing diagnostics never enables production orders.
         """
@@ -2096,7 +2099,7 @@ class LifeLiquidityController(ControllerBase):
                 intent_id = record.intent_id
             now = recorder.clock_ms()
             metrics, markouts, inputs = {}, {}, {}
-            if stage not in ("CANCEL_REQUEST", "EXCHANGE_CONFIRM", "ACK"):
+            if stage == "SNAPSHOT":
                 try:
                     value = self._telemetry_value()
                 except Exception:
@@ -2107,6 +2110,7 @@ class LifeLiquidityController(ControllerBase):
                     synthetic=recorder.synthetic, monotonic_ms=now)
                 if self.config.strategy.perpetual.enabled:
                     metrics.update(collect_extension_metrics(self, synthetic=recorder.synthetic))
+            if stage not in ("CANCEL_REQUEST", "EXCHANGE_CONFIRM", "ACK"):
                 inputs = collect_quote_inputs(self)
                 if record is not None:
                     inputs.update(wal_state=record.state, cancel_requested=record.cancel_requested)

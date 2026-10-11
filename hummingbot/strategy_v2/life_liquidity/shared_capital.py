@@ -5,13 +5,14 @@ are stressed independently; quoted hedge proceeds never finance another order.
 PolicyState supplies host-local locking, atomic checkpoints and writer fencing.
 """
 
+import json
 from dataclasses import asdict, dataclass
 from decimal import Decimal
 from itertools import product
 from pathlib import Path
 
 from hummingbot.strategy_v2.life_liquidity.joint_exposure import JointRiskLimits
-from hummingbot.strategy_v2.life_liquidity.policy_state import PolicyState
+from hummingbot.strategy_v2.life_liquidity.policy_state import PolicyState, _FrozenDict
 
 ZERO = Decimal("0")
 BPS = Decimal("10000")
@@ -185,12 +186,26 @@ class SharedCapitalAuthority:
             state["settled"] = {}
         if set(state) != {"claims", "settled", "last_checked_ms", "snapshot_sequence", "snapshot"}:
             raise ValueError("CAPITAL_JOURNAL_INVALID")
-        for key, entry in state["settled"].items():
-            claim = self._read_claim(entry["claim"])
-            if (set(entry) != {"claim", "proof_id"} or key != claim.intent_id
-                    or key in state["claims"] or not isinstance(entry["proof_id"], str)
-                    or len(entry["proof_id"]) != 64):
-                raise ValueError("CAPITAL_SETTLEMENT_INVALID")
+        cached = getattr(self, "_verified_settled", None)
+        if cached is None or cached != state["settled"] or getattr(self, "_settled_policy", None) != self.policy:
+            decoded_settled = {}
+            for key, entry in state["settled"].items():
+                claim = self._read_claim(entry["claim"])
+                if (set(entry) != {"claim", "proof_id"} or key != claim.intent_id
+                        or not isinstance(entry["proof_id"], str) or len(entry["proof_id"]) != 64):
+                    raise ValueError("CAPITAL_SETTLEMENT_INVALID")
+                decoded_settled[key] = claim
+            self._settled_claims = decoded_settled
+            self._settled_wires = frozenset(c.wire_id for c in decoded_settled.values())
+            if len(self._settled_wires) != len(decoded_settled):
+                raise ValueError("CAPITAL_WIRE_ID_DUPLICATE")
+            self._verified_settled = (state["settled"] if isinstance(state["settled"], _FrozenDict)
+                                      else json.loads(json.dumps(state["settled"])))
+            self._settled_policy = self.policy
+        if isinstance(state["settled"], _FrozenDict):
+            self._verified_settled = state["settled"]
+        if state["claims"].keys() & state["settled"].keys():
+            raise ValueError("CAPITAL_SETTLEMENT_INVALID")
         for field in ("last_checked_ms", "snapshot_sequence"):
             if state[field] is not None and (type(state[field]) is not int or state[field] < 0):
                 raise ValueError("CAPITAL_JOURNAL_INVALID")
@@ -217,8 +232,8 @@ class SharedCapitalAuthority:
             if key != claim.intent_id:
                 raise ValueError("CAPITAL_JOURNAL_INVALID")
             claims[key] = claim
-        wires = [c.wire_id for c in claims.values()] + [e["claim"]["wire_id"] for e in state["settled"].values()]
-        if len(set(wires)) != len(wires):
+        wires = [c.wire_id for c in claims.values()]
+        if len(set(wires)) != len(wires) or self._settled_wires.intersection(wires):
             raise ValueError("CAPITAL_WIRE_ID_DUPLICATE")
         if claims and raw_snapshot is None:
             raise ValueError("CAPITAL_JOURNAL_INVALID")
@@ -239,14 +254,14 @@ class SharedCapitalAuthority:
         return tuple(sorted(self._retained))
 
     def claim_ids(self):
-        with self.journal.locked() as state:
+        with self.journal.inspect() as state:
             return tuple(sorted(self._decode(state)))
 
     def claims(self, *, include_settled=False):
-        with self.journal.locked() as state:
+        with self.journal.inspect() as state:
             claims = self._decode(state)
             if include_settled:
-                claims.update({k: self._read_claim(e["claim"]) for k, e in state["settled"].items()})
+                claims.update(self._settled_claims)
             return claims
 
     def bind_recovery(self, recovery):
@@ -403,7 +418,7 @@ class SharedCapitalAuthority:
                 return CapitalDecision(False, "CAPITAL_JOINT_RECOVERY_REQUIRED")
             if _json(asdict(self.policy)) != self.journal.policy:
                 raise ValueError("CAPITAL_POLICY_CHANGED")
-            with self.journal.locked() as state:
+            with self.journal.locked(shallow=True) as state:
                 claims = self._decode(state)
                 self._retained = claims
                 now = self.clock_ms()
@@ -432,7 +447,7 @@ class SharedCapitalAuthority:
                     if claim is not None:
                         self._validate_claim(claim)
                         if (claim.intent_id in state["settled"]
-                                or any(e["claim"]["wire_id"] == claim.wire_id for e in state["settled"].values())):
+                                or claim.wire_id in self._settled_wires):
                             raise ValueError("CAPITAL_INTENT_ALREADY_SETTLED")
                         if claim.intent_id in claims and claims[claim.intent_id] != claim:
                             raise ValueError("CAPITAL_CLAIM_CHANGED")
@@ -469,7 +484,16 @@ Only reserve/authorize/check supply financial permission.
 """
         if _json(asdict(self.policy)) != self.journal.policy:
             raise ValueError("CAPITAL_POLICY_CHANGED")
-        with self.journal.locked() as state:
+        with self.journal.inspect() as state:
+            self._decode(state)
+            now = self.clock_ms()
+            if type(now) is not int or now < 0 or state["last_checked_ms"] is not None and now < state["last_checked_ms"]:
+                raise ValueError("CAPITAL_CLOCK_ROLLBACK")
+            obs = self.observation()
+            self._validate_snapshot(obs, now)
+            if now == state["last_checked_ms"] and _json(asdict(obs)) == state["snapshot"]:
+                return obs
+        with self.journal.locked(shallow=True) as state:
             self._decode(state)
             now = self.clock_ms()
             if (type(now) is not int or now < 0

@@ -153,7 +153,8 @@
         "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_stuck_swap_cancel_cannot_delay_spot_cancel",
         "test/hummingbot/strategy_v2/life_liquidity/test_o8_continuous.py",
         "test/hummingbot/strategy_v2/life_liquidity/test_o8_acceptance.py",
-        "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_inflight_joint_collection_cannot_block_either_product_cancel"
+        "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_inflight_joint_collection_cannot_block_either_product_cancel",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o8_verified_state.py::test_cancel_transports_start_before_full_joint_qualification"
       ]
     },
     "A10": {
@@ -414,7 +415,10 @@
         "test/hummingbot/strategy_v2/life_liquidity/test_o8_acceptance.py",
         "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_verified_ledger_cache_does_not_hide_corruption",
         "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_action_cache_keeps_independent_verified_image",
-        "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_inflight_joint_collection_cannot_block_either_product_cancel"
+        "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_inflight_joint_collection_cannot_block_either_product_cancel",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o8_settled_history.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o8_verified_state.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o8_verified_state.py::test_cancel_transports_start_before_full_joint_qualification"
       ]
     },
     "A25": {
@@ -628,7 +632,10 @@
         "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_tied_swap_history_release_and_cold_restart",
         "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_same_direction_swap_ties_also_require_valid_causal_evidence",
         "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_active_unarmed_spot_child_requires_a_captured_proposal",
-        "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_inflight_joint_collection_cannot_block_either_product_cancel"
+        "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_inflight_joint_collection_cannot_block_either_product_cancel",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o8_settled_history.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o8_verified_state.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o8_verified_state.py::test_cancel_transports_start_before_full_joint_qualification"
       ]
     },
     "A36": {
@@ -654,7 +661,10 @@
         "test/hummingbot/strategy_v2/life_liquidity/test_o8_acceptance.py",
         "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_verified_ledger_cache_does_not_hide_corruption",
         "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_action_cache_keeps_independent_verified_image",
-        "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_inflight_joint_collection_cannot_block_either_product_cancel"
+        "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_inflight_joint_collection_cannot_block_either_product_cancel",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o8_settled_history.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o8_verified_state.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o8_verified_state.py::test_cancel_transports_start_before_full_joint_qualification"
       ]
     },
     "A37": {
@@ -2924,7 +2934,7 @@
       ],
       "owner": "strategy/executor maintainer",
       "remaining": [
-        "Growing completed joint/account fill history through the entire authorization path; bounded retention/checkpoint decision; growing-history cancel latency."
+        "The mandatory complete 10k settled-history replay still breaches the frozen final-send, event-loop lag and cancel-start limits. Implement bounded checkpoints/retention without losing deduplication or financial evidence, then rerun all history sizes."
       ],
       "requirements": [
         "P4.14",
@@ -2938,7 +2948,9 @@
         "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_ten_thousand_terminal_reservations_restore_within_offline_budget",
         "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_many_fills_qualification_restart_and_page_order",
         "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_verified_ledger_cache_does_not_hide_corruption",
-        "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_action_cache_keeps_independent_verified_image"
+        "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_action_cache_keeps_independent_verified_image",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o8_settled_history.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o8_verified_state.py"
       ]
     },
     "O.8.5": {
@@ -2959,7 +2971,8 @@
       "tests": [
         "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_cancel_isolation_in_both_directions",
         "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_stuck_swap_cancel_cannot_delay_spot_cancel",
-        "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_inflight_joint_collection_cannot_block_either_product_cancel"
+        "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_inflight_joint_collection_cannot_block_either_product_cancel",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o8_verified_state.py::test_cancel_transports_start_before_full_joint_qualification"
       ]
     },
     "O.8.6": {

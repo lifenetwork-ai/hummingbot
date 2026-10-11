@@ -4,6 +4,7 @@ LIFE-denominated fees use the same independently qualified fill-time value as
 execution-loss attribution. Missing or stale values keep fills unattributed.
 """
 
+import copy
 import fcntl
 import hashlib
 import json
@@ -181,9 +182,9 @@ class ReconciledFillAttributor:
         descriptor, temporary = tempfile.mkstemp(prefix=f".{self.path.name}.", dir=self.path.parent)
         try:
             with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-                json.dump({"schema_version": 1, "policy": self._policy(),
-                           "events": events, "cashflows": cashflows},
-                          handle, sort_keys=True)
+                handle.write(json.dumps({"schema_version": 1, "policy": self._policy(),
+                                         "events": events, "cashflows": cashflows},
+                                        sort_keys=True, separators=(",", ":")))
                 handle.flush()
                 os.fsync(handle.fileno())
             os.replace(temporary, self.path)
@@ -372,28 +373,64 @@ class ReconciledFillAttributor:
         """Independent fill loss including actual converted fees, once per intent."""
         return self._subsidy_costs_by_intent(exits=None) if self.ready() else None
 
+    def _readiness_cut(self, *, detach=False):
+        """Independently compare exact disk bytes and every mutable financial input.
+
+        This is a single-image cache, never an mtime or caller-supplied
+        revision cache. A miss runs the full cross-journal validation below.
+        """
+        self.reservations.assert_healthy()
+        if self.wal._uncertain:
+            raise ValueError("FILL_ATTRIBUTION_WAL_UNCERTAIN")
+        budgets = [b for b in (self.loss_budget, self.subsidy_budget, self.exit_budget) if b is not None]
+        files = [self.path, self.wal.path, self.reservations.path, *(b.path for b in budgets)]
+        if any(p is None or p.is_symlink() or not p.is_file() for p in files):
+            raise ValueError("FILL_ATTRIBUTION_JOURNAL_UNAVAILABLE")
+        if any(getattr(b, "_uncertain", False) for b in budgets):
+            raise ValueError("FILL_ATTRIBUTION_BUDGET_UNCERTAIN")
+        disk = tuple((str(p.absolute()), p.read_bytes()) for p in files)
+        memory = (self._policy(), self._events, self._cashflows, self.wal._records,
+                  self.reservations.limits, self.reservations.life_balance, self.reservations.usdt_balance,
+                  self.reservations._reservations, self.reservations._trades, self.reservations._account_events,
+                  tuple((b._policy(), getattr(b, "campaign_id", None),
+                         b._events if b is self.loss_budget else b._entries) for b in budgets))
+        if detach:
+            memory = (memory[0], {k: dict(v) for k, v in self._events.items()},
+                      {k: dict(v) for k, v in self._cashflows.items()}, dict(self.wal._records),
+                      *memory[4:7], dict(self.reservations._reservations),
+                      dict(self.reservations._trades), dict(self.reservations._account_events),
+                      tuple((policy, campaign, {k: dict(v) for k, v in entries.items()}
+                             if budget is self.loss_budget else copy.deepcopy(entries))
+                            for budget, (policy, campaign, entries) in zip(budgets, memory[-1])))
+        return disk, memory
+
     def ready(self) -> bool:
         try:
+            cut = self._readiness_cut()
+            cached = getattr(self, "_ready_cut", None)
+            if cached is not None and cached == cut:
+                return True
             if self._durable_sources_match() is None:
                 return False
             capital = self.capital()
             if (capital.life_balance != self.reservations.life_balance
                     or capital.usdt_balance != self.reservations.usdt_balance):
                 return False
+            losses = self.loss_budget.verified_events()
             for trade_id, event in self._events.items():
-                if not self.loss_budget.matches_event(
-                        f"fill:{trade_id}", Decimal(event["loss_quote"]),
-                        session_id=event["session_id"], at_utc=self._at_utc(event)):
+                if losses.get(f"fill:{trade_id}") != {
+                        "loss_quote": event["loss_quote"], "session_id": event["session_id"],
+                        "day": self._at_utc(event).date().isoformat()}:
                     return False
             if any(event.get("purpose") not in (None, "risk_reduction", "inventory_execution") for event in self._events.values()):
                 return False
+            exit_sessions = {} if self.exit_budget is None else self.exit_budget.verified_intent_sessions()
+            service = {} if self.subsidy_budget is None else self.subsidy_budget.verified_intent_sessions()
             for event in self._events.values():
-                exit_hold = self.exit_budget is not None and self.exit_budget.matches_intent_session(
-                    event["intent_id"], event["session_id"])
+                exit_hold = exit_sessions.get(event["intent_id"]) == event["session_id"]
                 if (event.get("purpose") in ("risk_reduction", "inventory_execution")) != exit_hold:
                     return False
-                if exit_hold and self.subsidy_budget is not None and self.subsidy_budget.matches_intent_session(
-                        event["intent_id"], event["session_id"]):
+                if exit_hold and service.get(event["intent_id"]) == event["session_id"]:
                     return False
             for exits, budget in ((False, self.subsidy_budget), (True, self.exit_budget)):
                 selected = [event for event in self._events.values()
@@ -402,8 +439,8 @@ class ReconciledFillAttributor:
                     return False
                 if budget is None:
                     continue
-                if any(not budget.matches_intent_session(
-                        event["intent_id"], event["session_id"]) for event in selected):
+                sessions = exit_sessions if budget is self.exit_budget else service
+                if any(sessions.get(event["intent_id"]) != event["session_id"] for event in selected):
                     return False
                 expected = {intent_id: cost for intent_id, cost in
                             self._subsidy_costs_by_intent(exits=exits).items() if cost > 0}
@@ -415,6 +452,11 @@ class ReconciledFillAttributor:
                     if (proof != cycle["proof"] or cycle["actuals"] != {
                             key: str(value) for key, value in actuals.items()}):
                         return False
+            # Only a completed validation can populate the detached cache.
+            detached = self._readiness_cut(detach=True)
+            if detached != cut:
+                return False
+            self._ready_cut = detached
             return True
         except Exception:
             return False
@@ -490,7 +532,13 @@ class ReconciledFillAttributor:
         try:
             if self._durable_sources_match() is None:
                 return False
+            losses = self.loss_budget.verified_events()
             for trade_id, event in self._events.items():
+                prior = losses.get(f"fill:{trade_id}")
+                expected = {"loss_quote": event["loss_quote"], "session_id": event["session_id"],
+                            "day": self._at_utc(event).date().isoformat()}
+                if prior == expected:
+                    continue
                 self.loss_budget.record(
                     f"fill:{trade_id}", Decimal(event["loss_quote"]),
                     session_id=event["session_id"], at_utc=self._at_utc(event))

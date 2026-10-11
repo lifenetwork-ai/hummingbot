@@ -19,9 +19,8 @@ from hummingbot.core.data_type.common import OrderType
 from hummingbot.core.data_type.trade_fee import TradeFeeBase
 from hummingbot.strategy_v2.executors.order_executor.data_types import OrderExecutorConfig
 from hummingbot.strategy_v2.life_liquidity.order_gateway import SpotFill
-from hummingbot.strategy_v2.life_liquidity.policy_state import PolicyState
+from hummingbot.strategy_v2.life_liquidity.policy_state import PolicyState, _FrozenDict
 from hummingbot.strategy_v2.life_liquidity.shared_capital import CapitalClaim, _json
-from hummingbot.strategy_v2.life_liquidity.state import IntentWAL
 
 ZERO = Decimal("0")
 TERMINAL = ("filled", "canceled", "unsent")
@@ -36,10 +35,14 @@ def digest(v):
 
 
 def encode_order(order):
-    value = _json(asdict(order))
-    # Page arrival order is not financial chronology. The qualified sequence
-    # below supplies chronology; identity supplies stable checkpoint encoding.
-    value["trades"].sort(key=lambda t: t["trade_id"])
+    # Facts are frozen scalar dataclasses; asdict needlessly deep-copies every
+    # Decimal and nested trade on each complete history poll.
+    def scalars(fact):
+        return {key: str(value) if isinstance(value, Decimal) else value
+                for key, value in vars(fact).items()}
+    value = scalars(order)
+    value["claim"] = scalars(order.claim)
+    value["trades"] = sorted((scalars(t) for t in order.trades), key=lambda t: t["trade_id"])
     return value
 
 
@@ -164,6 +167,17 @@ class JointRecovery:
             raise ValueError("JOINT_RISK_EPOCH_INVALID")
         return (session.session_id, session.epoch, session.config_version, risk_epoch)
 
+    def _bundle_matches(self, bundle, proof_id):
+        cached = getattr(self, "_verified_bundle", None)
+        if cached is not None and cached[0] == proof_id and cached[1] == bundle:
+            if isinstance(bundle, _FrozenDict):
+                self._verified_bundle = (proof_id, bundle)
+            return True
+        if digest(bundle) != proof_id:
+            return False
+        self._verified_bundle = (proof_id, bundle if isinstance(bundle, _FrozenDict) else json.loads(json.dumps(bundle)))
+        return True
+
     def _validate_state(self, state):
         if (set(state) != {"anchor", "excluded", "opening_cashflows", "opening_joint", "last_ms", "last_poll_ms", "sequence",
                            "bundle", "proof_id", "phase", "rearms", "valuation", "highwater", "runner_fills", "runner_cancels"}
@@ -177,7 +191,7 @@ class JointRecovery:
                 or any(state[k] is not None and (type(state[k]) is not int or state[k] < 0)
                        for k in ("last_ms", "last_poll_ms", "sequence"))
                 or (state["bundle"] is None) != (state["proof_id"] is None)
-                or state["bundle"] is not None and digest(state["bundle"]) != state["proof_id"]):
+                or state["bundle"] is not None and not self._bundle_matches(state["bundle"], state["proof_id"])):
             raise ValueError("JOINT_RECOVERY_STATE_INVALID")
         if not finite(Decimal(state["highwater"]), positive=True):
             raise ValueError("JOINT_HIGHWATER_INVALID")
@@ -189,17 +203,8 @@ class JointRecovery:
 
     def _verify_storage(self):
         for wal in (self.spot_wal, self.sender.wal):
-            if (wal._uncertain or not wal.path.is_file() or wal.path.is_symlink()
-                    or wal.all_records() != IntentWAL(wal.path).all_records()):
-                raise ValueError("JOINT_WAL_UNVERIFIED")
-        self.reservations.assert_healthy()
-        disk = self.reservations.verified_disk()
-        if (disk.life_balance != self.reservations.life_balance or disk.usdt_balance != self.reservations.usdt_balance
-                or disk._trades != self.reservations._trades
-                or disk.reservation_snapshot() != self.reservations.reservation_snapshot()
-                or disk.joint_cash_events != self.reservations.joint_cash_events
-                or disk.cashflow_events != self.reservations.cashflow_events):
-            raise ValueError("JOINT_RESERVATIONS_UNVERIFIED")
+            wal.assert_verified()
+        self.reservations.verify_memory()
         ownership = self.controller._order_safety_account_lock
         if self.controller.config.recovery_state_dir is not None and (
                 ownership is None or ownership._fd is None
@@ -300,7 +305,7 @@ class JointRecovery:
             encoded_order = encoded_orders[id(order)]
             encoded_trades = {t["trade_id"]: t for t in encoded_order["trades"]}
             if prior is not None and (
-                    prior["claim"] != _json(asdict(c))
+                    prior["claim"] != encoded_order["claim"]
                     or prior["exchange_order_id"] != order.exchange_order_id
                     or prior["state"] in TERMINAL and prior != encoded_order
                     or any(encoded_trades.get(t["trade_id"]) != t for t in prior["trades"])):
@@ -492,7 +497,7 @@ class JointRecovery:
                 self._verify_storage()
                 context = self._context()
                 now = self.clock_ms()
-                with self.journal.locked() as state:
+                with self.journal.locked(shallow=True) as state:
                     self._validate_state(state)
                     if type(now) is not int or now < 0 or state["last_ms"] is not None and now < state["last_ms"]:
                         raise ValueError("JOINT_CLOCK_ROLLBACK")
@@ -503,18 +508,34 @@ class JointRecovery:
                 if context != self._context():
                     raise ValueError("JOINT_CONTEXT_CHANGED_DURING_REFRESH")
                 now = self.clock_ms()
-                with self.journal.locked() as state:
+                with self.journal.locked(shallow=True) as state:
                     self._validate_state(state)
                     if type(now) is not int or now < state["last_ms"]:
                         raise ValueError("JOINT_CLOCK_ROLLBACK")
                     state["last_ms"] = now
                     obs, orders, events, encoded, valuation = self._qualify(bundle, state, now)
-                    state.update(sequence=obs.sequence, bundle=encoded, proof_id=digest(encoded), phase="APPLYING",
+                    # A COMMITTED immutable terminal cut has already completed
+                    # all cross-journal checkpoints. Re-qualify all facts, but
+                    # do not replay durable financial writes for settled orders.
+                    completed = self._completed_orders(state, orders)
+                    coordinator = self.controller._hedge_coordinator
+                    hedge_idle = coordinator is None
+                    if coordinator is not None:
+                        with coordinator.journal.inspect() as hedge:
+                            coordinator._validate_state(hedge)
+                            hedge_idle = all(e["status"] == "TERMINAL" for e in hedge["orders"].values())
+                    known_cash = self.reservations.joint_cash_events
+                    no_settlement = (state["phase"] == "COMMITTED" and len(completed) == len(orders)
+                                     and hedge_idle and all(known_cash.get(k) == v
+                                                            for k, v in events.items()))
+                    state.update(sequence=obs.sequence, bundle=encoded, proof_id=digest(encoded),
+                                 phase="COMMITTED" if no_settlement else "APPLYING",
                                  valuation=valuation, highwater=valuation["highwater_quote"])
                     self.journal.commit(state)  # Intent-to-settle precedes every financial/WAL checkpoint.
-                    self._apply(orders, events, state["proof_id"])
-                    if self.controller._hedge_coordinator is not None:
-                        self.controller._hedge_coordinator.reconcile_joint_preparations(authority=self, proof_id=state["proof_id"])
+                    if not no_settlement:
+                        self._apply({k: o for k, o in orders.items() if k not in completed}, events, state["proof_id"])
+                        if coordinator is not None:
+                            coordinator.reconcile_joint_preparations(authority=self, proof_id=state["proof_id"])
                     if (self.reservations.life_balance, self.reservations.usdt_balance) != (
                             obs.spot_life_base, obs.spot_cash_quote):
                         raise ValueError("JOINT_LEDGER_ACCOUNT_MISMATCH")
@@ -537,6 +558,40 @@ class JointRecovery:
                 return False
             finally:
                 self._busy = False
+
+    def _completed_orders(self, state, orders):
+        if state["phase"] != "COMMITTED":
+            return set()  # Every interrupted APPLYING cut must finish recovery.
+        attributor = self.controller._fill_attributor
+        if attributor is not None and not attributor.ready():
+            return set()
+        active = self.capital.claims()
+        records = {r.intent_id: r for r in self._records()}
+        previous = {o["claim"]["intent_id"] for o in state["bundle"]["orders"] if o["state"] in TERMINAL}
+        loss = self.controller._execution_loss_budget
+        losses = {} if loss is None else loss.verified_events()
+        reservations = self.reservations.reservation_snapshot()
+        completed = set()
+        for key in previous:
+            order = orders[key]  # _qualify has checked immutable identity/history.
+            record = records.get(key)
+            if key in active or record is None or record.state not in ("TERMINAL", "ABORTED_BEFORE_SEND"):
+                continue
+            if order.claim.product == "SPOT" and order.state != "unsent":
+                if order.trades and attributor is None:
+                    continue
+                item = reservations.get(key)
+                if item is None or item.state != "TERMINAL" or item.filled_base != sum((t.quantity_base for t in order.trades), ZERO):
+                    continue
+            if order.claim.product == "SWAP" and loss is not None:
+                if any(losses.get("swap:" + t.trade_id) != {
+                        "session_id": order.claim.session_id,
+                        "day": datetime.fromtimestamp(t.at_ms / 1000, timezone.utc).date().isoformat(),
+                        "loss_quote": str(max(ZERO, -t.realized_pnl_quote) + max(ZERO, -t.signed_fee))}
+                       for t in order.trades):
+                    continue
+            completed.add(key)
+        return completed
 
     def _apply(self, orders, events, proof_id):
         records_by_product = {"SPOT": {r.intent_id: r for r in self.spot_wal.all_records()},
@@ -618,23 +673,34 @@ class JointRecovery:
         except Exception:
             return False
 
+    def _check_receipt(self, state, now):
+        if self._receipt_context != self._context() or self.controller._runner_scope_invalid:
+            raise ValueError("JOINT_RUNNER_CONTEXT_UNVERIFIED")
+        if (not self._healthy or state["phase"] != "COMMITTED"
+                or state["runner_fills"] or state["runner_cancels"]
+                or not 0 <= now - state["bundle"]["observed_at_ms"] <= self.max_age_ms
+                or self.capital.qualified_snapshot().sequence != state["sequence"]):
+            raise ValueError("JOINT_FRESH_PROOF_REQUIRED")
+        return state
+
     def _fresh(self):
         self._verify_storage()
-        with self.journal.locked() as state:
+        with self.journal.inspect() as state:
+            self._validate_state(state)
+            now = self.clock_ms()
+            if type(now) is not int or now < 0 or state["last_ms"] is not None and now < state["last_ms"]:
+                raise ValueError("JOINT_CLOCK_ROLLBACK")
+            if now == state["last_ms"]:
+                return self._check_receipt(state, now)
+        with self.journal.locked(shallow=True) as state:
             self._validate_state(state)
             now = self.clock_ms()
             if type(now) is not int or now < 0 or state["last_ms"] is not None and now < state["last_ms"]:
                 raise ValueError("JOINT_CLOCK_ROLLBACK")
             state["last_ms"] = now
-            self.journal.commit(state)  # An observation failure must not erase an observed clock advance.
-            if self._receipt_context != self._context() or self.controller._runner_scope_invalid:
-                raise ValueError("JOINT_RUNNER_CONTEXT_UNVERIFIED")
-            if (not self._healthy or state["phase"] != "COMMITTED"
-                    or state["runner_fills"] or state["runner_cancels"]
-                    or not 0 <= now - state["bundle"]["observed_at_ms"] <= self.max_age_ms
-                    or self.capital.qualified_snapshot().sequence != state["sequence"]):
-                raise ValueError("JOINT_FRESH_PROOF_REQUIRED")
-            return state
+            self.journal.commit(state)  # Persist observed advances even if subsequent observation fails.
+        with self.journal.inspect() as state:
+            return self._check_receipt(state, now)
 
     def observe_runner_fill(self, event):
         """Persist tracker hints; only complete exchange evidence may consume them."""

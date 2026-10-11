@@ -8,6 +8,34 @@ from contextlib import contextmanager
 from pathlib import Path
 
 
+class _FrozenDict(dict):
+    def _deny(self, *args, **kwargs):
+        raise TypeError("verified state is read-only")
+    __setitem__ = __delitem__ = clear = pop = popitem = setdefault = update = __ior__ = _deny
+
+    def __deepcopy__(self, memo):
+        import copy
+        return {key: copy.deepcopy(value, memo) for key, value in self.items()}
+
+
+class _FrozenList(list):
+    def _deny(self, *args, **kwargs):
+        raise TypeError("verified state is read-only")
+    __setitem__ = __delitem__ = append = clear = extend = insert = pop = remove = reverse = sort = __iadd__ = __imul__ = _deny
+
+    def __deepcopy__(self, memo):
+        import copy
+        return [copy.deepcopy(value, memo) for value in self]
+
+
+def _freeze(value):
+    if isinstance(value, dict):
+        return _FrozenDict({key: _freeze(item) for key, item in value.items()})
+    if isinstance(value, list):
+        return _FrozenList(_freeze(item) for item in value)
+    return value
+
+
 class PolicyState:
     def __init__(self, path: Path, *, policy: dict, initial: dict, create: bool):
         if type(create) is not bool or not isinstance(policy, dict) or not isinstance(initial, dict):
@@ -23,7 +51,7 @@ class PolicyState:
                     raise ValueError("RISK_STATE_EXISTS_USE_RESTORE")
                 self._write(self._state)
             else:
-                self._state = self._read()
+                self._state = _freeze(self._read())
 
     @property
     def policy(self):
@@ -50,16 +78,53 @@ class PolicyState:
             raise ValueError("RISK_STATE_POLICY_MISMATCH")
         return data["state"]
 
+    def _verified(self):
+        if self._uncertain or not self.path.is_file() or self.path.is_symlink():
+            raise ValueError("RISK_STATE_STALE_OR_UNCERTAIN")
+        raw = self.path.read_bytes()
+        cache = getattr(self, "_verified_image", None)
+        if cache is None or cache[0] != raw or cache[2] != self._policy_blob:
+            durable = _freeze(self._read())
+            if self.path.read_bytes() != raw:
+                raise ValueError("RISK_STATE_STALE_OR_UNCERTAIN")
+            cache = (raw, durable, self._policy_blob)
+            self._verified_image = cache
+        if cache[1] != self._state:
+            raise ValueError("RISK_STATE_STALE_OR_UNCERTAIN")
+        return cache
+
     @contextmanager
-    def locked(self):
+    def inspect(self):
+        """Exact-byte checked, immutable view; cannot commit or change a checkpoint."""
         if self._locked:
             raise ValueError("RISK_STATE_NESTED_LOCK")
         with self._file_lock():
-            if self._uncertain or self._read() != self._state or self._locked:
-                raise ValueError("RISK_STATE_STALE_OR_UNCERTAIN")
+            cache = self._verified()
+            if getattr(self, "_frozen_image", (None,))[0] is not cache:
+                self._frozen_image = (cache, cache[1] if isinstance(cache[1], _FrozenDict) else _freeze(cache[1]))
+            self._locked = True
+            self._read_only = True
+            try:
+                yield self._frozen_image[1]
+            finally:
+                self._read_only = False
+                self._locked = False
+
+    @contextmanager
+    def locked(self, *, shallow=False):
+        if self._locked:
+            raise ValueError("RISK_STATE_NESTED_LOCK")
+        with self._file_lock():
+            self._verified()
             self._locked = True
             try:
-                yield json.loads(json.dumps(self._state))
+                if shallow:
+                    cache = self._verified_image
+                    if getattr(self, "_frozen_image", (None,))[0] is not cache:
+                        self._frozen_image = (cache, cache[1] if isinstance(cache[1], _FrozenDict) else _freeze(cache[1]))
+                    yield dict(self._frozen_image[1])
+                else:
+                    yield json.loads(json.dumps(self._state))
             finally:
                 self._locked = False
 
@@ -68,7 +133,9 @@ class PolicyState:
         replace_attempted = False
         try:
             with os.fdopen(descriptor, "w") as handle:
-                json.dump({"schema_version": 1, "policy": self.policy, "state": state}, handle, sort_keys=True)
+                payload = json.dumps({"schema_version": 1, "policy": self.policy, "state": state},
+                                     sort_keys=True, separators=(",", ":"))
+                handle.write(payload)
                 handle.flush()
                 os.fsync(handle.fileno())
             replace_attempted = True
@@ -78,6 +145,8 @@ class PolicyState:
                 os.fsync(directory)
             finally:
                 os.close(directory)
+            # Independent decoded image: caller mutations cannot poison it.
+            self._verified_image = (payload.encode(), _freeze(json.loads(payload)["state"]), self._policy_blob)
         except OSError:
             if replace_attempted:
                 self._uncertain = True
@@ -87,9 +156,10 @@ class PolicyState:
                 os.unlink(temporary)
 
     def commit(self, state: dict):
-        if not self._locked:
+        if not self._locked or getattr(self, "_read_only", False):
             raise ValueError("RISK_STATE_LOCK_REQUIRED")
         if state != self._state:
-            copied = json.loads(json.dumps(state))
-            self._write(copied)
-            self._state = copied
+            self._write(state)
+            # Sharing is safe only because the independently decoded image is
+            # recursively immutable, including nested lists and dictionaries.
+            self._state = self._verified_image[1]

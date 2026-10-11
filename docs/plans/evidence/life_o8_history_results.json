@@ -1,0 +1,233 @@
+{
+  "acceptance_manifest_sha256": "892871ea91bb16ce13758c88ce4fecb2bbc3ab6f248b223ddd3d676e6c774464",
+  "budgets_sha256": "e1be70f238efdaad68086e3ae43fdc8ca4447a4c6da6dc36c03260ca7e6be5c3",
+  "checks": {
+    "applying_phase_replay": "passed",
+    "cancel_transport_before_qualification": "passed",
+    "clock_switch_fence": "passed",
+    "focused_hardening": "69 passed, 6 warnings",
+    "no_hidden_skips": true,
+    "pre_commit": "passed",
+    "same_stat_and_memory_tampering": "passed",
+    "terminal_recheckpoint_red": "One failed test before the committed-history shortcut; interrupted initial 1k diagnostic exceeded 124s and is not a timing pass."
+  },
+  "coverage": {
+    "bases": {
+      "feature": {
+        "report": {
+          "total_num_lines": 11997,
+          "total_num_violations": 1185,
+          "total_percent_covered": 90
+        },
+        "report_file": "life_o8_history_diff_feature.json",
+        "revision": "34432aadf809f3da4728f8d3117b0591fd132bdd"
+      },
+      "recent": {
+        "report": {
+          "total_num_lines": 3337,
+          "total_num_violations": 257,
+          "total_percent_covered": 92
+        },
+        "report_file": "life_o8_history_diff_recent.json",
+        "revision": "4efb4ad6e0a595118e58c2d38b97f993d36ea41c"
+      }
+    },
+    "commands": [
+      "conda run -n hummingbot diff-cover /tmp/life-o8-history-observed-audit/coverage.xml --compare-branch=34432aadf809f3da4728f8d3117b0591fd132bdd --fail-under=80 --format=json:/tmp/life-o8-history-observed-audit/diff-feature.json",
+      "conda run -n hummingbot diff-cover /tmp/life-o8-history-observed-audit/coverage.xml --compare-branch=4efb4ad6e0a595118e58c2d38b97f993d36ea41c --fail-under=80 --format=json:/tmp/life-o8-history-observed-audit/diff-recent.json"
+    ],
+    "diagnostic_only": true,
+    "gate_percent": 80,
+    "note": "Passing changed-line coverage cannot override the failed mandatory scale test."
+  },
+  "current_o5_replay_sha256": "eff08e3de1b687723eeeb99f38a6efa52585317ee640d2ed403a3337ecc88998",
+  "environment": "macOS arm64, local APFS, conda hummingbot Python 3.13; isolated process",
+  "git_revision": "f492a41a2b2d2c22a407a0f82f618fd429843283",
+  "isolated_scale": {
+    "command": "conda run -n hummingbot python -m pytest -q test/hummingbot/strategy_v2/life_liquidity/test_o8_settled_history.py -s --tb=short",
+    "exit_code": 1,
+    "failed": 1,
+    "financial_mode": "profit_mm",
+    "instrumentation_headroom": 1,
+    "passed": 3,
+    "quality": "synthetic",
+    "ratio_10000_to_1000_single_samples": {
+      "cancel_start_ms": 9.564438658912144,
+      "event_loop_lag_ms": 13.959134767698192,
+      "joint_poll_ms": 13.717256073112093,
+      "propose_filter_final_send_ms": 12.60401609041011
+    },
+    "sample_count_note": "One joint/propose-send/cancel sample per dataset; five repeated permission checks; heartbeat includes first watchdog iteration. Cancel timestamp is captured at connector callback entry.",
+    "samples": [
+      {
+        "breaches": {},
+        "cancel_start_ms": 17.2444159979932,
+        "event_loop_lag": {
+          "max_ms": 55.021665999665856,
+          "median_ms": 5.805041999556124,
+          "p95_ms": 55.021665999665856,
+          "samples_ms": [
+            0.1980839972384274,
+            55.021665999665856,
+            5.854958997806534,
+            6.058708017226309,
+            4.1730000032112,
+            7.861457978142425,
+            6.0995420010294765,
+            5.352957998402417,
+            3.98195797810331,
+            5.755125001305714,
+            6.541084012715146,
+            3.2900410098955035
+          ]
+        },
+        "history": 0,
+        "joint_poll_ms": 4.53729199944064,
+        "propose_filter_final_send_ms": 48.94933401374146,
+        "repeated_permission": {
+          "max_ms": 4.6099159808363765,
+          "median_ms": 4.399875004310161,
+          "p95_ms": 4.6099159808363765,
+          "samples_ms": [
+            4.399875004310161,
+            4.114915995160118,
+            4.6099159808363765,
+            4.484500008402392,
+            4.316042002756149
+          ]
+        }
+      },
+      {
+        "breaches": {},
+        "cancel_start_ms": 76.76712499232963,
+        "event_loop_lag": {
+          "max_ms": 309.68562499969266,
+          "median_ms": 34.770625012461096,
+          "p95_ms": 309.68562499969266,
+          "samples_ms": [
+            120.04724998609163,
+            309.68562499969266,
+            34.60624998318963,
+            34.770625012461096,
+            33.8850829959847,
+            34.037582993041724,
+            33.75541699118912,
+            56.44462500116788,
+            137.16920797945932
+          ]
+        },
+        "history": 1000,
+        "joint_poll_ms": 101.97933300514705,
+        "propose_filter_final_send_ms": 291.0893749794923,
+        "repeated_permission": {
+          "max_ms": 18.243500002427027,
+          "median_ms": 17.566916008945554,
+          "p95_ms": 18.243500002427027,
+          "samples_ms": [
+            17.745499993907288,
+            18.243500002427027,
+            17.28825000463985,
+            17.566916008945554,
+            17.229040997335687
+          ]
+        }
+      },
+      {
+        "breaches": {
+          "cancel_start_ms": {
+            "ceiling_ms": 250,
+            "observed_ms": 734.2344580101781
+          },
+          "event_loop_lag_ms": {
+            "ceiling_ms": 500,
+            "observed_ms": 4322.943374989554
+          },
+          "propose_filter_final_send_ms": {
+            "ceiling_ms": 1000,
+            "observed_ms": 3668.8951659889426
+          }
+        },
+        "cancel_start_ms": 734.2344580101781,
+        "event_loop_lag": {
+          "max_ms": 4322.943374989554,
+          "median_ms": 440.25454202550463,
+          "p95_ms": 4322.943374989554,
+          "samples_ms": [
+            1657.2691669955384,
+            3939.549000011757,
+            421.282374978764,
+            417.9065000009723,
+            419.25024998839945,
+            440.25454202550463,
+            433.8319170149043,
+            604.8318750201724,
+            4322.943374989554
+          ]
+        },
+        "history": 10000,
+        "joint_poll_ms": 1398.876624996774,
+        "propose_filter_final_send_ms": 3668.8951659889426,
+        "repeated_permission": {
+          "max_ms": 170.77200001222081,
+          "median_ms": 166.69370801537298,
+          "p95_ms": 170.77200001222081,
+          "samples_ms": [
+            164.7350830025971,
+            164.51970802154392,
+            166.69370801537298,
+            170.77200001222081,
+            167.7332090039272
+          ]
+        }
+      }
+    ],
+    "skipped": 0
+  },
+  "offline_complete": false,
+  "open_review_items": [
+    "O.8.4",
+    "O.8.7"
+  ],
+  "production_order_permission": false,
+  "regression": {
+    "archive": "life_o8_history_regression.json",
+    "collected": 2063,
+    "command": "conda run -n hummingbot python -m test.hummingbot.strategy_v2.life_liquidity.o8_acceptance --candidate --output-dir /tmp/life-o8-history-observed-audit",
+    "completion_summary_issued": false,
+    "coverage_instrumentation_headroom": 5,
+    "exit_code": 1,
+    "failed": [
+      "test/hummingbot/strategy_v2/life_liquidity/test_o8_settled_history.py::test_complete_settled_history_send_poll_and_cancel[10000]"
+    ],
+    "outcomes": {
+      "failed": 1,
+      "passed": 2062
+    }
+  },
+  "retention": {
+    "campaign_archive_capacity_bound_implemented": false,
+    "financial_or_dedup_history_removed": false,
+    "remaining": "Versioned settled-history/active-state checkpoints, explicit capacities, cooperative validation and cold restore/migration/deduplication proof.",
+    "wal_cache_max_files": 8,
+    "wal_cache_max_raw_bytes": 33554432
+  },
+  "schema_version": 1,
+  "scope": "OFFLINE_REVIEW_HISTORY_CHECKPOINT",
+  "source_sha256": {
+    "controllers/generic/life_liquidity.py": "6b0c034a6c5071e5b6883f79003b0c29b854672051ce28716a2c14dd6be29dc2",
+    "hummingbot/strategy_v2/life_liquidity/economics.py": "ee99b974787ab417d7373acf2814cee5675ff530f5c341f1a31de637065959e3",
+    "hummingbot/strategy_v2/life_liquidity/fill_attribution.py": "03f10a2130dc874d4d6fb66b958aa3c47795d728f3ae42bd4c833563e806d536",
+    "hummingbot/strategy_v2/life_liquidity/joint_recovery.py": "70ec50fb1ace8d93b454cbfbc92f9c32e0b60baceb28e5dfe19ab241ab2d5393",
+    "hummingbot/strategy_v2/life_liquidity/loss_budget.py": "3db445c5b22aa6dd26d2861324da645e472ed59a93039d13d0744fc7b70b69f5",
+    "hummingbot/strategy_v2/life_liquidity/policy_state.py": "71f7f1c0778e6f95c577580fcb512ff7045ae4f20710f8ad8301c8919222fe33",
+    "hummingbot/strategy_v2/life_liquidity/risk.py": "d5495f505555d63f69df7bd123220d480e8fd6b196ca9c9afada059037b4cfd5",
+    "hummingbot/strategy_v2/life_liquidity/shared_capital.py": "5c355bac0003a601b40c941b6eae4fc40ac04cda7761e681cb4786b42a2a2b22",
+    "hummingbot/strategy_v2/life_liquidity/state.py": "5a1db4dac618266f06d0e36b1395e95247a34e5b51ed5619093c8bb97df5330b",
+    "test/hummingbot/strategy_v2/life_liquidity/o8_acceptance.py": "cc5c80079dfa80e7f9b2fa3a35c1469136bb4f02ea0f217400c532f26bcb8985",
+    "test/hummingbot/strategy_v2/life_liquidity/o8_history.py": "0e37a75edf97c0447748cf867ba93dbf126729451509835c927845e4091c0ba8",
+    "test/hummingbot/strategy_v2/life_liquidity/test_o5_system_scenarios.py": "5903e2d015fa18693330f05bf3f5e476f1652d8190208a91a801abd9b650918d",
+    "test/hummingbot/strategy_v2/life_liquidity/test_o8_settled_history.py": "2e794b341db78c9dbd547389da20115b01c8b0146c055f91664f12a625d9361c",
+    "test/hummingbot/strategy_v2/life_liquidity/test_o8_verified_state.py": "b58bc9f0f70b9b10687a547f6671bffbefee53a5defbeccc738342b8f65384d4"
+  },
+  "workspace_dirty": true
+}

@@ -153,5 +153,11 @@ class LossBudgetLedger:
                 self._assert_disk_matches(required=True)
                 return self._events.get(event_id) == expected
 
+    def verified_events(self) -> dict[str, dict[str, str]]:
+        """One independently verified, detached cut for batch attribution checks."""
+        with self._lock, self._file_lock():
+            self._assert_disk_matches(required=True)
+            return {key: dict(value) for key, value in self._events.items()}
+
     def can_add_risk(self, *, session_id: str, at_utc: datetime) -> bool:
         return not self.status(session_id=session_id, at_utc=at_utc).exhausted

@@ -365,6 +365,12 @@ class SubsidyBudgetLedger:
             entry = self._entries.get(intent_id)
             return entry is not None and entry["session_id"] == session_id
 
+    def verified_intent_sessions(self) -> dict[str, str]:
+        """Verify once when attribution checks many historical fills."""
+        with self._lock, self._file_lock():
+            self._assert_disk_matches(required=True)
+            return {key: entry["session_id"] for key, entry in self._entries.items()}
+
     def verified_inventory_cycles(self) -> tuple[dict, ...]:
         """Return detached durable proofs for independent attribution verification."""
         with self._lock, self._file_lock():

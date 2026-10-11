@@ -4,11 +4,13 @@ import fcntl
 import json
 import os
 import tempfile
+from collections import OrderedDict
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from threading import RLock
+from types import MappingProxyType
 from typing import Callable
 
 
@@ -31,6 +33,24 @@ class IntentRecord:
 
 
 class IntentWAL:
+    # Resource cache only: exact bytes are reread on every construction. Frozen
+    # records and detached maps retain validation without stat-based trust.
+    _verified_images = OrderedDict()
+    _image_lock = RLock()
+    _cache_bytes = 32 * 1024 * 1024
+    _cache_files = 8
+
+    @classmethod
+    def _remember(cls, path, raw, records):
+        with cls._image_lock:
+            key = str(path.absolute())
+            cls._verified_images.pop(key, None)
+            if len(raw) <= cls._cache_bytes:
+                cls._verified_images[key] = (raw, MappingProxyType(dict(records)))
+            while (len(cls._verified_images) > cls._cache_files
+                   or sum(len(v[0]) for v in cls._verified_images.values()) > cls._cache_bytes):
+                cls._verified_images.popitem(last=False)
+
     def __init__(self, path: Path):
         self.path = Path(path)
         self._lock = RLock()
@@ -38,8 +58,13 @@ class IntentWAL:
         self._must_exist = self.path.exists() or self.path.is_symlink()
         self._records: dict[str, IntentRecord] = {}
         if self.path.exists():
-            with self.path.open(encoding="utf-8") as handle:
-                data = json.load(handle)
+            raw = self.path.read_bytes()
+            with self._image_lock:
+                cached = self._verified_images.get(str(self.path.absolute()))
+                if cached is not None and cached[0] == raw:
+                    self._records = cached[1]
+                    return
+            data = json.loads(raw)
             if data.get("schema_version") != 1 or not isinstance(data.get("records"), dict):
                 raise ValueError("intent WAL invalid")
             self._records = {key: IntentRecord(**value) for key, value in data["records"].items()}
@@ -67,6 +92,18 @@ class IntentWAL:
                         self._cancel_time(record.last_cancel_attempt_at)
                     except (TypeError, ValueError) as exc:
                         raise ValueError("intent WAL cancel time invalid") from exc
+            self._remember(self.path, raw, self._records)
+            self._records = MappingProxyType(self._records)
+
+    def assert_verified(self):
+        if self._uncertain or not self.path.is_file() or self.path.is_symlink():
+            raise ValueError("WAL_STATE_UNCERTAIN")
+        disk = type(self)(self.path)
+        if self._records != disk._records:
+            raise ValueError("WAL_STATE_UNCERTAIN")
+        # Frozen records behind a detached immutable map can share the verified
+        # image. Every subsequent check still reads the exact on-disk bytes.
+        self._records = disk._records
 
     @staticmethod
     def _cancel_time(value: str) -> datetime:
@@ -97,9 +134,10 @@ class IntentWAL:
         replace_attempted = False
         try:
             with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-                json.dump({"schema_version": 1,
-                           "records": {key: value.__dict__ for key, value in records.items()}},
-                          handle, sort_keys=True)
+                payload = json.dumps({"schema_version": 1,
+                                      "records": {key: value.__dict__ for key, value in records.items()}},
+                                     sort_keys=True, separators=(",", ":"))
+                handle.write(payload)
                 handle.flush()
                 os.fsync(handle.fileno())
             replace_attempted = True
@@ -109,6 +147,8 @@ class IntentWAL:
                 os.fsync(directory_fd)
             finally:
                 os.close(directory_fd)
+            # _save's callers can include malformed records in tests; cache
+            # only images that have actually passed constructor validation.
         except OSError:
             if replace_attempted:
                 self._uncertain = True
@@ -130,7 +170,7 @@ class IntentWAL:
             updated = dict(self._records)
             updated[record.intent_id] = record
             self._save(updated)
-            self._records = updated
+            self._records = MappingProxyType(updated)
             self._must_exist = True
 
     def initialize_empty(self) -> None:

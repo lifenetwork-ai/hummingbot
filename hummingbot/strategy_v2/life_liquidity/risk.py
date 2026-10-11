@@ -8,6 +8,7 @@ from dataclasses import dataclass, replace
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from threading import RLock
+from types import MappingProxyType
 
 from hummingbot.strategy_v2.life_liquidity.state import IntentWAL
 
@@ -62,7 +63,7 @@ class RiskDecision:
     reservation_id: str | None
 
 
-@dataclass
+@dataclass(frozen=True)
 class _Reservation:
     intent: SpotIntent
     remaining_base: Decimal
@@ -79,6 +80,11 @@ class ReservationState:
 
 
 class ReservationLedger:
+    def __setattr__(self, name, value):
+        if getattr(self, "_sealed_evidence", False):
+            raise TypeError("verified reservation evidence is read-only")
+        super().__setattr__(name, value)
+
     def __init__(self, *, life_balance: Decimal, usdt_balance: Decimal, limits: RiskLimits,
                  path: Path | None = None):
         if not _finite(life_balance) or not _finite(usdt_balance):
@@ -124,7 +130,7 @@ class ReservationLedger:
         replace_attempted = False
         try:
             with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-                json.dump(data, handle, sort_keys=True)
+                handle.write(json.dumps(data, sort_keys=True, separators=(",", ":")))
                 handle.flush()
                 os.fsync(handle.fileno())
             replace_attempted = True
@@ -154,9 +160,9 @@ class ReservationLedger:
         self._save(life_balance, usdt_balance, reservations, trades, account_events)
         self.life_balance = life_balance
         self.usdt_balance = usdt_balance
-        self._reservations = reservations
-        self._trades = trades
-        self._account_events = account_events
+        self._reservations = MappingProxyType(dict(reservations))
+        self._trades = MappingProxyType(dict(trades))
+        self._account_events = MappingProxyType(dict(account_events))
 
     def _ensure_healthy(self) -> None:
         if self._uncertain:
@@ -182,9 +188,27 @@ class ReservationLedger:
             disk = type(self).restore(self.path, limits=self.limits)
             if self.path.read_bytes() != raw:
                 raise ValueError("RISK_JOURNAL_CHANGED_DURING_VERIFY")
+            disk._sealed_evidence = True
             cached = (raw, disk)
             self._verified_disk_cache = cached
         return cached[1]
+
+    def verify_memory(self):
+        """Verify an immutable financial cut without rebuilding historical rows."""
+        disk = self.verified_disk()
+        maps = (self._reservations, self._trades, self._account_events,
+                disk._reservations, disk._trades, disk._account_events)
+        key = (tuple(id(m) for m in maps), self.life_balance, self.usdt_balance,
+               disk.life_balance, disk.usdt_balance, self.limits, disk.limits)
+        cached = getattr(self, "_verified_memory", None)
+        if cached is not None and cached[0] == key and all(isinstance(m, MappingProxyType) for m in maps):
+            return disk
+        if (self.life_balance != disk.life_balance or self.usdt_balance != disk.usdt_balance
+                or any(left != right for left, right in zip(maps[:3], maps[3:]))):
+            raise ValueError("RISK_MEMORY_UNVERIFIED")
+        if all(isinstance(m, MappingProxyType) for m in maps):
+            self._verified_memory = (key, maps)  # Retain objects to fence Python id reuse.
+        return disk
 
     @classmethod
     def restore(cls, path: Path, *, limits: RiskLimits) -> "ReservationLedger":
@@ -257,9 +281,9 @@ class ReservationLedger:
             book.usdt_balance = usdt_balance
             book.limits = limits
             book.path = path
-            book._reservations = reservations
-            book._trades = trades
-            book._account_events = account_events
+            book._reservations = MappingProxyType(reservations)
+            book._trades = MappingProxyType(trades)
+            book._account_events = MappingProxyType(account_events)
             book._lock = RLock()
             book._uncertain = False
             return book
