@@ -272,7 +272,7 @@ class ReconciledFillAttributor:
         path = self.reservations.path
         if path is None or not path.is_file() or path.is_symlink():
             return None
-        durable = ReservationLedger.restore(path, limits=self.reservations.limits)
+        durable = self.reservations.verified_disk()
         if (durable.trade_ids != self.reservations.trade_ids
                 or durable.life_balance != self.reservations.life_balance
                 or durable.usdt_balance != self.reservations.usdt_balance

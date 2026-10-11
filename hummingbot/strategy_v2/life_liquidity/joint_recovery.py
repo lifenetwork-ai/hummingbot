@@ -10,7 +10,7 @@ import asyncio
 import hashlib
 import json
 import uuid
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -20,7 +20,6 @@ from hummingbot.core.data_type.trade_fee import TradeFeeBase
 from hummingbot.strategy_v2.executors.order_executor.data_types import OrderExecutorConfig
 from hummingbot.strategy_v2.life_liquidity.order_gateway import SpotFill
 from hummingbot.strategy_v2.life_liquidity.policy_state import PolicyState
-from hummingbot.strategy_v2.life_liquidity.risk import ReservationLedger
 from hummingbot.strategy_v2.life_liquidity.shared_capital import CapitalClaim, _json
 from hummingbot.strategy_v2.life_liquidity.state import IntentWAL
 
@@ -36,6 +35,14 @@ def digest(v):
     return hashlib.sha256(json.dumps(v, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
+def encode_order(order):
+    value = _json(asdict(order))
+    # Page arrival order is not financial chronology. The qualified sequence
+    # below supplies chronology; identity supplies stable checkpoint encoding.
+    value["trades"].sort(key=lambda t: t["trade_id"])
+    return value
+
+
 @dataclass(frozen=True)
 class RecoveryTrade:
     trade_id: str
@@ -45,6 +52,9 @@ class RecoveryTrade:
     signed_fee: Decimal
     realized_pnl_quote: Decimal
     at_ms: int
+    # Collector-qualified causal sequence within a product timestamp. Opaque
+    # exchange trade IDs are identity, not an execution ordering guarantee.
+    sequence: int | None = None
 
 
 @dataclass(frozen=True)
@@ -135,13 +145,24 @@ class JointRecovery:
                 raise ValueError("JOINT_OPENING_NAV_INVALID")
         self.journal = PolicyState(path, policy=self._binding, initial=initial, create=create)
         self._armed, self._healthy, self._busy = create, False, False
+        self._receipt_context = None
         self.reason_code = "JOINT_RECOVERY_REQUIRED"
         self._mutex = asyncio.Lock()
+        # Cancellation must not wait for a collector holding the recovery lock.
+        # Each checkpoint section is synchronous; only transport yields here.
+        self._cancel_mutex = asyncio.Lock()
         with self.journal.locked() as state:
             self._validate_state(state)
 
     def _records(self):
         return self.spot_wal.all_records() + self.sender.wal.all_records()
+
+    def _context(self):
+        session = self.controller._order_safety_manager.current_session
+        risk_epoch = self.sender.risk_epoch()
+        if type(risk_epoch) is not int or risk_epoch < 1:
+            raise ValueError("JOINT_RISK_EPOCH_INVALID")
+        return (session.session_id, session.epoch, session.config_version, risk_epoch)
 
     def _validate_state(self, state):
         if (set(state) != {"anchor", "excluded", "opening_cashflows", "opening_joint", "last_ms", "last_poll_ms", "sequence",
@@ -172,7 +193,7 @@ class JointRecovery:
                     or wal.all_records() != IntentWAL(wal.path).all_records()):
                 raise ValueError("JOINT_WAL_UNVERIFIED")
         self.reservations.assert_healthy()
-        disk = ReservationLedger.restore(self.reservations.path, limits=self.reservations.limits)
+        disk = self.reservations.verified_disk()
         if (disk.life_balance != self.reservations.life_balance or disk.usdt_balance != self.reservations.usdt_balance
                 or disk._trades != self.reservations._trades
                 or disk.reservation_snapshot() != self.reservations.reservation_snapshot()
@@ -201,9 +222,11 @@ class JointRecovery:
             raise ValueError("JOINT_SCOPE_UNQUALIFIED")
         if (self.controller._runner_scope_invalid
                 or self.controller._runner_orchestrator is not None
-                and not self.controller._runner_executor_scope_complete()):
+                and not self.controller._runner_executor_scope_complete(quiescent=False)):
             raise ValueError("JOINT_RUNNER_SCOPE_UNVERIFIED")
-        encoded = _json(asdict(bundle))
+        encoded = _json(asdict(replace(bundle, orders=())))
+        encoded_orders = {id(o): encode_order(o) for o in bundle.orders}
+        encoded["orders"] = sorted(encoded_orders.values(), key=lambda o: o["claim"]["intent_id"])
         if state["sequence"] is not None and (
                 bundle.snapshot_sequence < state["sequence"]
                 or bundle.snapshot_sequence == state["sequence"] and encoded != state["bundle"]
@@ -274,11 +297,13 @@ class JointRecovery:
             if total > c.quantity_base or order.state == "filled" and total != c.quantity_base:
                 raise ValueError("JOINT_CUMULATIVE_INVALID")
             prior = old.get(c.intent_id)
+            encoded_order = encoded_orders[id(order)]
+            encoded_trades = {t["trade_id"]: t for t in encoded_order["trades"]}
             if prior is not None and (
                     prior["claim"] != _json(asdict(c))
                     or prior["exchange_order_id"] != order.exchange_order_id
-                    or prior["state"] in TERMINAL and prior != _json(asdict(order))
-                    or any(t not in _json(asdict(order))["trades"] for t in prior["trades"])):
+                    or prior["state"] in TERMINAL and prior != encoded_order
+                    or any(encoded_trades.get(t["trade_id"]) != t for t in prior["trades"])):
                 raise ValueError("JOINT_FILL_HISTORY_CHANGED")
             orders[c.intent_id] = order
         if set(orders) != set(claims) or set(records) - set(orders) or set(old) - set(orders):
@@ -350,7 +375,25 @@ class JointRecovery:
         long, short = Decimal(anchor["long_base"]), Decimal(anchor["short_base"])
         entries = {"long": Decimal(self._binding["opening_long_entry"]), "short": Decimal(self._binding["opening_short_entry"])}
         events = {}
-        for c, t in sorted(trades.values(), key=lambda v: (v[1].at_ms, v[0].product, v[1].trade_id)):
+        groups = {}
+        for c, t in trades.values():
+            if t.sequence is not None and (type(t.sequence) is not int or t.sequence < 0):
+                raise ValueError("JOINT_TRADE_SEQUENCE_INVALID")
+            groups.setdefault((t.at_ms, c.product), []).append((c, t))
+        ordered = []
+        for (_, product), group in sorted(groups.items()):
+            # Even same-direction opens can change rounded weighted entry if
+            # their prices differ. Never infer SWAP chronology from opaque IDs.
+            causal = product == "SWAP" and len(group) > 1
+            if causal or any(t.sequence is not None for _, t in group):
+                sequences = [t.sequence for _, t in group]
+                if None in sequences or len(set(sequences)) != len(sequences):
+                    raise ValueError("JOINT_TRADE_ORDER_AMBIGUOUS")
+                group.sort(key=lambda pair: pair[1].sequence)
+            else:
+                group.sort(key=lambda pair: pair[1].trade_id)
+            ordered.extend(group)
+        for c, t in ordered:
             if c.product == "SPOT":
                 sign = 1 if c.side == "BUY" else -1
                 life += sign * t.quantity_base + (t.signed_fee if t.fee_currency == "LIFE" else ZERO)
@@ -445,9 +488,9 @@ class JointRecovery:
     async def reconcile(self):
         async with self._mutex:
             self._busy = True
-            self._healthy = False
             try:
                 self._verify_storage()
+                context = self._context()
                 now = self.clock_ms()
                 with self.journal.locked() as state:
                     self._validate_state(state)
@@ -457,6 +500,8 @@ class JointRecovery:
                     self.journal.commit(state)
                 self.sender.request_budget.charge("STATUS", "joint:" + uuid.uuid4().hex)
                 bundle = await asyncio.wait_for(self.collect(), self.max_age_ms / 1000)
+                if context != self._context():
+                    raise ValueError("JOINT_CONTEXT_CHANGED_DURING_REFRESH")
                 now = self.clock_ms()
                 with self.journal.locked() as state:
                     self._validate_state(state)
@@ -477,13 +522,16 @@ class JointRecovery:
                     state["runner_fills"], state["runner_cancels"] = {}, {}
                     self.journal.commit(state)  # Cross-journal completion is last.
                 self._healthy = True
+                self._receipt_context = context
                 self.reason_code = "JOINT_RECONCILED" if self._armed else "JOINT_OPERATOR_REARM_REQUIRED"
                 return True
             except asyncio.CancelledError:
+                self._healthy = False
                 self._armed = False
                 self.reason_code = "JOINT_RECONCILIATION_INTERRUPTED"
                 raise
             except Exception as exc:
+                self._healthy = False
                 self._armed = False
                 self.reason_code = str(exc) if str(exc).startswith("JOINT_") else "JOINT_RECONCILIATION_UNAVAILABLE"
                 return False
@@ -491,6 +539,8 @@ class JointRecovery:
                 self._busy = False
 
     def _apply(self, orders, events, proof_id):
+        records_by_product = {"SPOT": {r.intent_id: r for r in self.spot_wal.all_records()},
+                              "SWAP": {r.intent_id: r for r in self.sender.wal.all_records()}}
         spot = tuple((o.claim.intent_id, tuple((t.trade_id, t.quantity_base, t.price_usdt,
                                                 t.fee_currency, t.signed_fee, t.at_ms) for t in o.trades))
                      for o in orders.values() if o.claim.product == "SPOT" and o.state != "unsent")
@@ -513,7 +563,7 @@ class JointRecovery:
         for order in orders.values():
             c = order.claim
             wal = self.spot_wal if c.product == "SPOT" else self.sender.wal
-            records = {r.intent_id: r for r in wal.all_records()}
+            records = records_by_product[c.product]
             total = sum((t.quantity_base for t in order.trades), ZERO)
             if order.state == "unsent":
                 if c.intent_id in records:
@@ -564,7 +614,7 @@ class JointRecovery:
         try:
             state = self.journal._read()
             return (self._busy and state == self.journal._state and state["phase"] == "APPLYING"
-                    and state["proof_id"] == proof_id and _json(asdict(order)) in state["bundle"]["orders"])
+                    and state["proof_id"] == proof_id and encode_order(order) in state["bundle"]["orders"])
         except Exception:
             return False
 
@@ -577,7 +627,9 @@ class JointRecovery:
                 raise ValueError("JOINT_CLOCK_ROLLBACK")
             state["last_ms"] = now
             self.journal.commit(state)  # An observation failure must not erase an observed clock advance.
-            if (not self._healthy or self._busy or state["phase"] != "COMMITTED"
+            if self._receipt_context != self._context() or self.controller._runner_scope_invalid:
+                raise ValueError("JOINT_RUNNER_CONTEXT_UNVERIFIED")
+            if (not self._healthy or state["phase"] != "COMMITTED"
                     or state["runner_fills"] or state["runner_cancels"]
                     or not 0 <= now - state["bundle"]["observed_at_ms"] <= self.max_age_ms
                     or self.capital.qualified_snapshot().sequence != state["sequence"]):
@@ -689,7 +741,7 @@ class JointRecovery:
 
     async def _cancel_working_swaps(self):
         """Persist attempts before transport; retry ACKs do not release claims."""
-        async with self._mutex:
+        async with self._cancel_mutex:
             self._verify_storage()
             now = self.clock_ms()
             with self.journal.locked() as state:
@@ -701,6 +753,7 @@ class JointRecovery:
             count = 0
             claims = self.capital.claims()
             for r in self.sender.wal.all_records():
+                r = self.sender.wal.get(r.intent_id)  # Collection may settle it during prior cancel I/O.
                 if r.state not in ("SEND_UNKNOWN", "ACKED"):
                     continue
                 if r.last_cancel_attempt_at is not None:
@@ -716,4 +769,4 @@ class JointRecovery:
                 self.sender._revoked.add(r.intent_id)
                 self.sender.request_budget.charge("CANCEL", f"joint:{r.client_order_id}:{r.cancel_attempts + 1}")
                 count += 1
-                await self.cancel_swap(c)
+                await asyncio.wait_for(self.cancel_swap(c), self.max_age_ms / 1000)

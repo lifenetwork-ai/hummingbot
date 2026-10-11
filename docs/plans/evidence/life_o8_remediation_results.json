@@ -1,0 +1,2905 @@
+{
+  "audit": {
+    "audit_sha256": "5e00dc9921852415a47606ca1ddfccd006c439c9f65281b095e3794a87b12b6b",
+    "case_counts": {
+      "deferred": 2,
+      "verified": 37
+    },
+    "cases": {
+      "A01": {
+        "offline": "verified",
+        "passed_node_count": 10,
+        "passed_nodeids_sha256": "2e45eeeb702821f831b459d27a76d96ef30480f0b3b0b5cdc23268af11fe3c3d",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A02": {
+        "offline": "verified",
+        "passed_node_count": 12,
+        "passed_nodeids_sha256": "ead3376239e6b2bfe963e210033752ef13c335e5958e096f8622baffbf62c5d8",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A03": {
+        "offline": "verified",
+        "passed_node_count": 108,
+        "passed_nodeids_sha256": "f2322fce589deeaa895eb0116fc7adb015ab8ed56463b16ab183cea1531453ff",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A04": {
+        "offline": "verified",
+        "passed_node_count": 53,
+        "passed_nodeids_sha256": "1578a45f8c421b71a5e6704fd57eb538d80eb7acdd2ebf8155393cea8eefe825",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A05": {
+        "offline": "verified",
+        "passed_node_count": 10,
+        "passed_nodeids_sha256": "059b1e5a85daeba6758d6e0a316a58ce8bc601c16b92badef5557f10cdfcad7a",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A06": {
+        "offline": "verified",
+        "passed_node_count": 106,
+        "passed_nodeids_sha256": "c1de1739160efe2102c07e47b99dcac29dc84f79b457c42e20f33d1ac98a2b48",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A07": {
+        "offline": "verified",
+        "passed_node_count": 33,
+        "passed_nodeids_sha256": "4da209ff81365d4a24eb6199ec9543e10a02a5b0f7a532abd1087056b500a1d5",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A08": {
+        "offline": "verified",
+        "passed_node_count": 90,
+        "passed_nodeids_sha256": "352e16b36fcc2b5aaa032353a9c28562569178975ce243dd7824f68fd691feb3",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A09": {
+        "offline": "verified",
+        "passed_node_count": 49,
+        "passed_nodeids_sha256": "4139f00337603d90727edbf438b4dfd4d932d96517e629f3447782bc92b51d8b",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A10": {
+        "offline": "verified",
+        "passed_node_count": 98,
+        "passed_nodeids_sha256": "cbf6889d85fdba7982c7617cacedf5ad6f7179a36213804524987261d7c1ae2f",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A11": {
+        "offline": "verified",
+        "passed_node_count": 90,
+        "passed_nodeids_sha256": "f09df8cc16acc0881866393427cc48d76e505f24577ed53ddaecc7a3ddd4984a",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A12": {
+        "offline": "verified",
+        "passed_node_count": 64,
+        "passed_nodeids_sha256": "df380794f8d120cbec9f225b165297e21e9c3224bc4527420536c2aaf28e762d",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A13": {
+        "offline": "deferred",
+        "passed_node_count": 0,
+        "passed_nodeids_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A14": {
+        "offline": "verified",
+        "passed_node_count": 166,
+        "passed_nodeids_sha256": "61a3e06565e632c9f07dda7d5b51bef9be907359dfb77949a7b244a47b14285a",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A15": {
+        "offline": "verified",
+        "passed_node_count": 53,
+        "passed_nodeids_sha256": "2052c8531f7514abd48e88df1456cebc660328be794dba0bfba7fb1d940d8da1",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A16": {
+        "offline": "verified",
+        "passed_node_count": 140,
+        "passed_nodeids_sha256": "f513bdd406d52aaf60a1f94ef6e5507398d4e1944842b1aa3ba96afbc795e001",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A17": {
+        "offline": "deferred",
+        "passed_node_count": 1,
+        "passed_nodeids_sha256": "bb3e2574e8abedc1ed3a3347ff14de5618d553fc2bbc35c3f8425022f142f7b5",
+        "remaining": [
+          "C"
+        ]
+      },
+      "A18": {
+        "offline": "verified",
+        "passed_node_count": 119,
+        "passed_nodeids_sha256": "df7fa5e37b9bcc65fd993a02c78db35598060d1fc7eaf04cac32c99e0f53acb8",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A19": {
+        "offline": "verified",
+        "passed_node_count": 73,
+        "passed_nodeids_sha256": "a3aea6f248dc0fc1c4f58c72d214da0e58350594f57917ef3d92a30ecea47d3a",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A20": {
+        "offline": "verified",
+        "passed_node_count": 11,
+        "passed_nodeids_sha256": "89208cefafa8be92cf8cd1a6ab4572fbedb264acf2f8f7cab8c60967290469be",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A21": {
+        "offline": "verified",
+        "passed_node_count": 192,
+        "passed_nodeids_sha256": "4c7721b9e75aa4670188e73bdee6a384108127d8af889355bb441f52ed457311",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A22": {
+        "offline": "verified",
+        "passed_node_count": 66,
+        "passed_nodeids_sha256": "3ce4ba339396129902752bf6e93981152e1a146e597101867501e7ab72046f64",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A23": {
+        "offline": "verified",
+        "passed_node_count": 72,
+        "passed_nodeids_sha256": "e875dc291e304f9051bc992e12cd20f3c14c4102af651f3801fe8697a34b3a0a",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A24": {
+        "offline": "verified",
+        "passed_node_count": 176,
+        "passed_nodeids_sha256": "2ae8df5b91117c1bd4653ef2b7c8ddefef646304bfbcb6c2db664aa37b1ba21b",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A25": {
+        "offline": "verified",
+        "passed_node_count": 71,
+        "passed_nodeids_sha256": "d6e591af7d570187c8b6c5fcbdb1d72146963ad4feda500bf3f46c94048f8bad",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A26": {
+        "offline": "verified",
+        "passed_node_count": 58,
+        "passed_nodeids_sha256": "790e9753b0defc91df52129c004f2b85039e6a7936bd6d5910fd2ac0bfbf9926",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A27": {
+        "offline": "verified",
+        "passed_node_count": 55,
+        "passed_nodeids_sha256": "33bd1599183ff34d164877574df71b73cd07a082db63b21c5a0fe0bcc2687797",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A28": {
+        "offline": "verified",
+        "passed_node_count": 61,
+        "passed_nodeids_sha256": "301a084b613df57f79b3c4594c2e6916f3f91d787695a48301d4f12adf4b849e",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A29": {
+        "offline": "verified",
+        "passed_node_count": 102,
+        "passed_nodeids_sha256": "d99b64cafc835f0a6bbe3b8454abcd9ea35bfce36b9efacb3cdf4bfca7e3462f",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A30": {
+        "offline": "verified",
+        "passed_node_count": 105,
+        "passed_nodeids_sha256": "c632281c14077992f6d15e56746b5befe8415741c42c7efb62d4d1335e09d829",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A31": {
+        "offline": "verified",
+        "passed_node_count": 117,
+        "passed_nodeids_sha256": "27445879946473ed686510e0484d82abb353bcfbcf8c18f17cfbe35dba292226",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A32": {
+        "offline": "verified",
+        "passed_node_count": 72,
+        "passed_nodeids_sha256": "0141d69007bf99b760d84e6abb8ca8c49dccbb7652af941a75978cb3744d65ec",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A33": {
+        "offline": "verified",
+        "passed_node_count": 172,
+        "passed_nodeids_sha256": "e5e18d6a21824a538839312b08b771b56f146c87cbbf7ff2b06ef921edae9be6",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A34": {
+        "offline": "verified",
+        "passed_node_count": 188,
+        "passed_nodeids_sha256": "b8a9a604d0feb1aa75b56a3b617f2a14b46d14878b3e0ca2727192c048f97117",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A35": {
+        "offline": "verified",
+        "passed_node_count": 282,
+        "passed_nodeids_sha256": "67120273f8e63ce3cfa9035e581610f4d581ce69df79c8f9e999a868d2d02e8e",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A36": {
+        "offline": "verified",
+        "passed_node_count": 107,
+        "passed_nodeids_sha256": "18f31e555488c3e18349d05515131c85fa8a19cba0a97431dec1c1a28e1e4496",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A37": {
+        "offline": "verified",
+        "passed_node_count": 64,
+        "passed_nodeids_sha256": "df380794f8d120cbec9f225b165297e21e9c3224bc4527420536c2aaf28e762d",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      },
+      "A38": {
+        "offline": "verified",
+        "passed_node_count": 53,
+        "passed_nodeids_sha256": "04b58a899d322462bd6d2239f06636cc910de716d060253caa5aabe27016f682",
+        "remaining": [
+          "R",
+          "C"
+        ]
+      },
+      "A39": {
+        "offline": "verified",
+        "passed_node_count": 251,
+        "passed_nodeids_sha256": "fa73ef8ea66dac658643b18f7faa37a29b523084839d21a1e69779a3fdff88ee",
+        "remaining": [
+          "D",
+          "R"
+        ]
+      }
+    },
+    "changed_source_files_measured": 67,
+    "classified_open_requirements": 118,
+    "coverage": {
+      "feature": {
+        "base_sha": "34432aadf809f3da4728f8d3117b0591fd132bdd",
+        "changed_executable_lines": 11858,
+        "files": {
+          "controllers/generic/hedge_asset.py": {
+            "missed_lines": [],
+            "percent_covered": 100.0
+          },
+          "controllers/generic/life_liquidity.py": {
+            "missed_lines": [
+              250,
+              259,
+              303,
+              314,
+              366,
+              367,
+              370,
+              371,
+              377,
+              378,
+              379,
+              388,
+              389,
+              392,
+              393,
+              397,
+              398,
+              404,
+              435,
+              439,
+              442,
+              452,
+              455,
+              460,
+              461,
+              467,
+              468,
+              472,
+              473,
+              503,
+              516,
+              517,
+              521,
+              522,
+              526,
+              527,
+              531,
+              534,
+              535,
+              541,
+              542,
+              545,
+              546,
+              560,
+              576,
+              577,
+              593,
+              597,
+              598,
+              599,
+              602,
+              603,
+              604,
+              613,
+              614,
+              615,
+              628,
+              629,
+              630,
+              636,
+              637,
+              661,
+              674,
+              680,
+              694,
+              699,
+              705,
+              722,
+              725,
+              771,
+              774,
+              776,
+              782,
+              801,
+              810,
+              823,
+              827,
+              839,
+              857,
+              868,
+              869,
+              874,
+              898,
+              899,
+              900,
+              925,
+              935,
+              952,
+              983,
+              986,
+              1001,
+              1015,
+              1036,
+              1037,
+              1051,
+              1052,
+              1053,
+              1082,
+              1083,
+              1084,
+              1113,
+              1114,
+              1123,
+              1126,
+              1127,
+              1136,
+              1137,
+              1162,
+              1166,
+              1179,
+              1180,
+              1202,
+              1206,
+              1225,
+              1228,
+              1231,
+              1236,
+              1243,
+              1266,
+              1281,
+              1282,
+              1285,
+              1286,
+              1295,
+              1299,
+              1306,
+              1310,
+              1320,
+              1340,
+              1341,
+              1350,
+              1353,
+              1395,
+              1396,
+              1403,
+              1407,
+              1413,
+              1436,
+              1437,
+              1442,
+              1456,
+              1468,
+              1487,
+              1488,
+              1489,
+              1510,
+              1519,
+              1552,
+              1559,
+              1564,
+              1567,
+              1589,
+              1590,
+              1612,
+              1616,
+              1620,
+              1622,
+              1623,
+              1624,
+              1687,
+              1696,
+              1711,
+              1743,
+              1751,
+              1781,
+              1782,
+              1796,
+              1806,
+              1807,
+              1813,
+              1814,
+              1832,
+              1833,
+              1855,
+              1856,
+              1857,
+              1858,
+              1887,
+              1888,
+              1941,
+              1958,
+              1959,
+              1960,
+              1981,
+              2006,
+              2007,
+              2008,
+              2027,
+              2036,
+              2054,
+              2086,
+              2197,
+              2198,
+              2216,
+              2217,
+              2226,
+              2227,
+              2228,
+              2229,
+              2253,
+              2254,
+              2264,
+              2270,
+              2311,
+              2312,
+              2313,
+              2314,
+              2315,
+              2316,
+              2317,
+              2319,
+              2320,
+              2321,
+              2326,
+              2327,
+              2347,
+              2427,
+              2439,
+              2440,
+              2476
+            ],
+            "percent_covered": 86.78678678678679
+          },
+          "hummingbot/connector/derivative/okx_perpetual/okx_perpetual_constants.py": {
+            "missed_lines": [],
+            "percent_covered": 100.0
+          },
+          "hummingbot/connector/derivative/okx_perpetual/okx_perpetual_derivative.py": {
+            "missed_lines": [
+              66,
+              292,
+              694,
+              695,
+              697,
+              706,
+              707,
+              708,
+              711
+            ],
+            "percent_covered": 86.36363636363636
+          },
+          "hummingbot/connector/exchange/okx/okx_api_order_book_data_source.py": {
+            "missed_lines": [],
+            "percent_covered": 100.0
+          },
+          "hummingbot/connector/exchange/okx/okx_book_health.py": {
+            "missed_lines": [
+              49,
+              60,
+              61,
+              63,
+              64,
+              82,
+              83
+            ],
+            "percent_covered": 88.52459016393442
+          },
+          "hummingbot/connector/exchange/okx/okx_constants.py": {
+            "missed_lines": [],
+            "percent_covered": 100.0
+          },
+          "hummingbot/connector/exchange/okx/okx_exchange.py": {
+            "missed_lines": [
+              109,
+              123,
+              293,
+              297,
+              298,
+              311,
+              314,
+              315,
+              317
+            ],
+            "percent_covered": 90.3225806451613
+          },
+          "hummingbot/core/web_assistant/connections/rest_connection.py": {
+            "missed_lines": [],
+            "percent_covered": 100.0
+          },
+          "hummingbot/core/web_assistant/rest_assistant.py": {
+            "missed_lines": [],
+            "percent_covered": 100.0
+          },
+          "hummingbot/data_feed/market_data_provider.py": {
+            "missed_lines": [
+              433
+            ],
+            "percent_covered": 87.5
+          },
+          "hummingbot/strategy/strategy_v2_base.py": {
+            "missed_lines": [
+              323,
+              333,
+              334,
+              335,
+              336,
+              337,
+              748,
+              749,
+              767,
+              768,
+              806,
+              807,
+              808,
+              813,
+              814,
+              848,
+              849,
+              869
+            ],
+            "percent_covered": 86.95652173913044
+          },
+          "hummingbot/strategy_v2/executors/executor_orchestrator.py": {
+            "missed_lines": [],
+            "percent_covered": 100.0
+          },
+          "hummingbot/strategy_v2/executors/order_executor/order_executor.py": {
+            "missed_lines": [
+              207,
+              210
+            ],
+            "percent_covered": 94.44444444444444
+          },
+          "hummingbot/strategy_v2/life_liquidity/account_bills.py": {
+            "missed_lines": [
+              29,
+              48,
+              49,
+              50,
+              51,
+              56,
+              82,
+              93,
+              97,
+              98,
+              104,
+              120,
+              123,
+              127,
+              132,
+              171,
+              175,
+              182,
+              184
+            ],
+            "percent_covered": 88.0503144654088
+          },
+          "hummingbot/strategy_v2/life_liquidity/account_data.py": {
+            "missed_lines": [
+              30,
+              36,
+              48,
+              49,
+              57,
+              78,
+              98,
+              102,
+              107,
+              109,
+              129,
+              133,
+              140,
+              146,
+              148,
+              152,
+              181,
+              184,
+              186,
+              189,
+              219,
+              228,
+              233,
+              250,
+              264,
+              266,
+              277,
+              338,
+              339,
+              340,
+              341
+            ],
+            "percent_covered": 87.6984126984127
+          },
+          "hummingbot/strategy_v2/life_liquidity/account_lock.py": {
+            "missed_lines": [
+              28,
+              34,
+              38,
+              47,
+              51,
+              52,
+              53,
+              54,
+              55,
+              56,
+              57
+            ],
+            "percent_covered": 80.35714285714286
+          },
+          "hummingbot/strategy_v2/life_liquidity/accounting.py": {
+            "missed_lines": [
+              27,
+              38,
+              50,
+              57,
+              61,
+              62,
+              63,
+              66,
+              69,
+              75,
+              98,
+              101,
+              102,
+              103,
+              106,
+              126,
+              129
+            ],
+            "percent_covered": 83.9622641509434
+          },
+          "hummingbot/strategy_v2/life_liquidity/action_journal.py": {
+            "missed_lines": [
+              40,
+              49,
+              95,
+              123,
+              177,
+              183
+            ],
+            "percent_covered": 95.5223880597015
+          },
+          "hummingbot/strategy_v2/life_liquidity/capital_risk.py": {
+            "missed_lines": [
+              33,
+              48,
+              72,
+              78,
+              93,
+              94,
+              95,
+              118,
+              153
+            ],
+            "percent_covered": 91.81818181818181
+          },
+          "hummingbot/strategy_v2/life_liquidity/carry_monitor.py": {
+            "missed_lines": [
+              136,
+              163,
+              167,
+              172,
+              174,
+              193
+            ],
+            "percent_covered": 97.28506787330316
+          },
+          "hummingbot/strategy_v2/life_liquidity/config.py": {
+            "missed_lines": [
+              28,
+              34,
+              43,
+              44,
+              74,
+              98,
+              99,
+              109,
+              130,
+              132,
+              155,
+              157,
+              162,
+              181,
+              223,
+              226,
+              229,
+              233,
+              251,
+              253,
+              265,
+              267,
+              297,
+              301,
+              316,
+              322,
+              324,
+              339,
+              345,
+              349,
+              384,
+              386,
+              388,
+              421
+            ],
+            "percent_covered": 90.58171745152355
+          },
+          "hummingbot/strategy_v2/life_liquidity/economics.py": {
+            "missed_lines": [
+              45,
+              71,
+              99,
+              123,
+              135,
+              139,
+              141,
+              154,
+              163,
+              172,
+              173,
+              175,
+              178,
+              193,
+              199,
+              218,
+              231,
+              239,
+              272,
+              273,
+              274,
+              275,
+              278,
+              285,
+              293,
+              294,
+              295,
+              312,
+              319,
+              322,
+              333,
+              354,
+              382,
+              391,
+              399,
+              427,
+              435,
+              436,
+              438,
+              439,
+              440,
+              519
+            ],
+            "percent_covered": 89.0625
+          },
+          "hummingbot/strategy_v2/life_liquidity/executor_send.py": {
+            "missed_lines": [
+              51,
+              57,
+              58,
+              59,
+              96,
+              112,
+              135,
+              141,
+              142,
+              149,
+              156,
+              166,
+              205,
+              206,
+              208,
+              211,
+              212,
+              215,
+              228,
+              230,
+              249,
+              251
+            ],
+            "percent_covered": 87.28323699421965
+          },
+          "hummingbot/strategy_v2/life_liquidity/exit_actions.py": {
+            "missed_lines": [
+              44,
+              51,
+              55,
+              90,
+              125,
+              127,
+              129,
+              136,
+              148,
+              151,
+              152,
+              177,
+              178,
+              191,
+              192,
+              193,
+              199,
+              202,
+              217,
+              219,
+              220,
+              221,
+              226,
+              232,
+              242,
+              244,
+              255,
+              256,
+              260,
+              271,
+              275,
+              279,
+              298,
+              299,
+              300
+            ],
+            "percent_covered": 82.84313725490196
+          },
+          "hummingbot/strategy_v2/life_liquidity/extension_telemetry.py": {
+            "missed_lines": [],
+            "percent_covered": 100.0
+          },
+          "hummingbot/strategy_v2/life_liquidity/fees.py": {
+            "missed_lines": [
+              25,
+              28,
+              29,
+              52,
+              55,
+              58,
+              62,
+              85,
+              87,
+              96,
+              104,
+              118,
+              127,
+              177,
+              178,
+              183,
+              184,
+              187,
+              198,
+              231,
+              236,
+              267,
+              308,
+              333,
+              335,
+              337,
+              339,
+              344,
+              348,
+              371,
+              373
+            ],
+            "percent_covered": 89.3103448275862
+          },
+          "hummingbot/strategy_v2/life_liquidity/fill_attribution.py": {
+            "missed_lines": [
+              52,
+              57,
+              61,
+              66,
+              88,
+              112,
+              197,
+              217,
+              220,
+              230,
+              256,
+              274,
+              300,
+              310,
+              313,
+              316,
+              334,
+              337,
+              340,
+              345,
+              382,
+              389,
+              394,
+              397,
+              402,
+              432,
+              446,
+              479,
+              485,
+              486,
+              513,
+              519,
+              548,
+              574,
+              575
+            ],
+            "percent_covered": 90.93264248704664
+          },
+          "hummingbot/strategy_v2/life_liquidity/hedge.py": {
+            "missed_lines": [
+              46,
+              109,
+              113,
+              134
+            ],
+            "percent_covered": 95.50561797752809
+          },
+          "hummingbot/strategy_v2/life_liquidity/hedge_coordinator.py": {
+            "missed_lines": [
+              41,
+              90,
+              152,
+              159,
+              169,
+              194,
+              203,
+              237,
+              245,
+              260,
+              327,
+              352,
+              421,
+              467,
+              482,
+              488,
+              503,
+              504,
+              511,
+              516,
+              521,
+              528,
+              535,
+              547,
+              562
+            ],
+            "percent_covered": 94.03341288782816
+          },
+          "hummingbot/strategy_v2/life_liquidity/inventory_execution.py": {
+            "missed_lines": [
+              61,
+              99,
+              105,
+              106,
+              127,
+              162,
+              166,
+              204,
+              216,
+              255,
+              256,
+              257,
+              267,
+              273,
+              280,
+              288,
+              291,
+              292,
+              293,
+              297,
+              302,
+              326,
+              327,
+              328,
+              329,
+              332,
+              376,
+              409,
+              413,
+              441,
+              481,
+              490
+            ],
+            "percent_covered": 90.83094555873926
+          },
+          "hummingbot/strategy_v2/life_liquidity/inventory_runner.py": {
+            "missed_lines": [
+              61,
+              115,
+              120,
+              134,
+              135,
+              143,
+              144,
+              174,
+              190,
+              199,
+              207,
+              212,
+              225,
+              233,
+              239,
+              243,
+              246,
+              251,
+              339,
+              340,
+              355,
+              357,
+              359,
+              379,
+              380,
+              385,
+              398,
+              448,
+              449,
+              480,
+              481
+            ],
+            "percent_covered": 91.34078212290503
+          },
+          "hummingbot/strategy_v2/life_liquidity/joint_exposure.py": {
+            "missed_lines": [
+              22,
+              26,
+              31,
+              68,
+              105
+            ],
+            "percent_covered": 94.04761904761905
+          },
+          "hummingbot/strategy_v2/life_liquidity/joint_recovery.py": {
+            "missed_lines": [
+              115,
+              135,
+              145,
+              183,
+              188,
+              194,
+              202,
+              254,
+              260,
+              281,
+              298,
+              314,
+              326,
+              330,
+              340,
+              367,
+              369,
+              370,
+              408,
+              414,
+              421,
+              430,
+              436,
+              448,
+              451,
+              452,
+              453,
+              454,
+              455,
+              456,
+              457,
+              458,
+              459,
+              461,
+              462,
+              463,
+              464,
+              466,
+              467,
+              468,
+              469,
+              470,
+              471,
+              473,
+              478,
+              504,
+              509,
+              520,
+              559,
+              562,
+              572,
+              593,
+              605,
+              610,
+              611,
+              618,
+              619,
+              652,
+              659,
+              667,
+              672,
+              708
+            ],
+            "percent_covered": 87.5251509054326
+          },
+          "hummingbot/strategy_v2/life_liquidity/loss_budget.py": {
+            "missed_lines": [
+              34,
+              49,
+              88,
+              103,
+              108,
+              127
+            ],
+            "percent_covered": 94.82758620689656
+          },
+          "hummingbot/strategy_v2/life_liquidity/market_data.py": {
+            "missed_lines": [
+              36,
+              43,
+              93,
+              94,
+              106,
+              107,
+              231,
+              232,
+              255,
+              258,
+              259,
+              267,
+              271,
+              331,
+              351,
+              352,
+              355,
+              356,
+              406,
+              423,
+              457,
+              459,
+              461,
+              510
+            ],
+            "percent_covered": 94.1747572815534
+          },
+          "hummingbot/strategy_v2/life_liquidity/markout.py": {
+            "missed_lines": [
+              25,
+              37,
+              40,
+              41,
+              42,
+              49,
+              57,
+              58,
+              59,
+              65
+            ],
+            "percent_covered": 82.45614035087719
+          },
+          "hummingbot/strategy_v2/life_liquidity/markout_risk.py": {
+            "missed_lines": [
+              45,
+              56,
+              73,
+              102,
+              108,
+              115,
+              138,
+              152,
+              158,
+              162,
+              163,
+              186,
+              187,
+              192,
+              193,
+              201,
+              202,
+              205,
+              206,
+              209,
+              210,
+              214,
+              215,
+              252,
+              253,
+              293,
+              302,
+              341,
+              346,
+              349,
+              350,
+              361,
+              362,
+              376,
+              382,
+              383
+            ],
+            "percent_covered": 86.25954198473282
+          },
+          "hummingbot/strategy_v2/life_liquidity/order_gateway.py": {
+            "missed_lines": [
+              37,
+              88,
+              89,
+              110,
+              113,
+              128,
+              129,
+              154,
+              156,
+              158,
+              179,
+              180,
+              192,
+              216,
+              234,
+              235,
+              237,
+              250,
+              255,
+              276,
+              277,
+              298,
+              319,
+              322,
+              343,
+              363,
+              375,
+              381,
+              390,
+              393,
+              397,
+              403,
+              409,
+              412,
+              417,
+              420,
+              431,
+              443,
+              452,
+              461,
+              470,
+              473,
+              485,
+              501,
+              502,
+              503,
+              504,
+              519,
+              524,
+              558,
+              559,
+              570,
+              571,
+              583,
+              587,
+              592,
+              595,
+              596,
+              607,
+              609,
+              613
+            ],
+            "percent_covered": 86.88172043010752
+          },
+          "hummingbot/strategy_v2/life_liquidity/own_depth.py": {
+            "missed_lines": [
+              39,
+              44,
+              48,
+              98,
+              133
+            ],
+            "percent_covered": 92.85714285714286
+          },
+          "hummingbot/strategy_v2/life_liquidity/own_depth_runner.py": {
+            "missed_lines": [
+              31,
+              47,
+              55,
+              57,
+              70,
+              76,
+              81,
+              108,
+              109,
+              110,
+              111,
+              112,
+              115,
+              119,
+              150,
+              152,
+              153
+            ],
+            "percent_covered": 80.89887640449439
+          },
+          "hummingbot/strategy_v2/life_liquidity/policy_state.py": {
+            "missed_lines": [
+              14,
+              23,
+              56,
+              91
+            ],
+            "percent_covered": 94.87179487179488
+          },
+          "hummingbot/strategy_v2/life_liquidity/protected_send.py": {
+            "missed_lines": [
+              18,
+              31,
+              55,
+              56,
+              68,
+              69,
+              81,
+              105,
+              125,
+              126
+            ],
+            "percent_covered": 87.95180722891567
+          },
+          "hummingbot/strategy_v2/life_liquidity/protected_swap.py": {
+            "missed_lines": [
+              78,
+              107,
+              111,
+              211,
+              214,
+              216,
+              238,
+              250,
+              253,
+              256,
+              277,
+              312
+            ],
+            "percent_covered": 94.31279620853081
+          },
+          "hummingbot/strategy_v2/life_liquidity/queue_latency_simulation.py": {
+            "missed_lines": [
+              43,
+              60,
+              77,
+              107,
+              127,
+              134
+            ],
+            "percent_covered": 93.33333333333333
+          },
+          "hummingbot/strategy_v2/life_liquidity/quote_actions.py": {
+            "missed_lines": [
+              85,
+              90,
+              91,
+              109,
+              112,
+              131,
+              151,
+              153,
+              154,
+              155,
+              156,
+              160,
+              190,
+              191,
+              195,
+              196,
+              206,
+              209,
+              210,
+              216,
+              250,
+              253,
+              258,
+              261,
+              267,
+              285,
+              286,
+              294,
+              298,
+              304,
+              307,
+              315,
+              327,
+              345,
+              346,
+              360,
+              368,
+              373,
+              374,
+              375,
+              379,
+              390,
+              404,
+              408,
+              409,
+              423,
+              426,
+              429,
+              437,
+              448,
+              456,
+              460,
+              461,
+              462,
+              468,
+              469,
+              515,
+              516,
+              528,
+              529,
+              537,
+              580,
+              595,
+              596,
+              606,
+              607,
+              615,
+              616,
+              617,
+              634,
+              639,
+              640,
+              641
+            ],
+            "percent_covered": 83.52144469525959
+          },
+          "hummingbot/strategy_v2/life_liquidity/recovery_probe.py": {
+            "missed_lines": [
+              17,
+              40,
+              46,
+              47
+            ],
+            "percent_covered": 85.71428571428572
+          },
+          "hummingbot/strategy_v2/life_liquidity/reference.py": {
+            "missed_lines": [
+              41,
+              93,
+              97,
+              118,
+              125,
+              131,
+              133,
+              138,
+              152,
+              172,
+              176,
+              199
+            ],
+            "percent_covered": 91.94630872483222
+          },
+          "hummingbot/strategy_v2/life_liquidity/reference_evaluation.py": {
+            "missed_lines": [
+              22
+            ],
+            "percent_covered": 98.0
+          },
+          "hummingbot/strategy_v2/life_liquidity/refresh_policy.py": {
+            "missed_lines": [
+              33,
+              73
+            ],
+            "percent_covered": 96.66666666666667
+          },
+          "hummingbot/strategy_v2/life_liquidity/request_budget.py": {
+            "missed_lines": [
+              47,
+              61,
+              84,
+              94,
+              100,
+              120,
+              125,
+              133,
+              137,
+              145
+            ],
+            "percent_covered": 91.45299145299145
+          },
+          "hummingbot/strategy_v2/life_liquidity/risk.py": {
+            "missed_lines": [
+              37,
+              55,
+              85,
+              91,
+              184,
+              196,
+              204,
+              219,
+              229,
+              253,
+              308,
+              319,
+              338,
+              364,
+              383,
+              400,
+              480,
+              483,
+              502,
+              537,
+              584,
+              589,
+              595,
+              617,
+              633,
+              644,
+              667,
+              674,
+              715,
+              747,
+              770,
+              782,
+              787
+            ],
+            "percent_covered": 93.93382352941177
+          },
+          "hummingbot/strategy_v2/life_liquidity/safety.py": {
+            "missed_lines": [
+              45,
+              101,
+              102,
+              107,
+              141,
+              160,
+              177,
+              178,
+              179
+            ],
+            "percent_covered": 94.19354838709677
+          },
+          "hummingbot/strategy_v2/life_liquidity/send_gate.py": {
+            "missed_lines": [
+              29,
+              64
+            ],
+            "percent_covered": 95.23809523809524
+          },
+          "hummingbot/strategy_v2/life_liquidity/session.py": {
+            "missed_lines": [
+              24,
+              31,
+              37,
+              42,
+              70,
+              85,
+              109,
+              112,
+              145,
+              212,
+              222,
+              269,
+              281,
+              314,
+              322,
+              364,
+              382,
+              407,
+              413,
+              414,
+              429,
+              431,
+              437,
+              443,
+              448,
+              473
+            ],
+            "percent_covered": 91.12627986348123
+          },
+          "hummingbot/strategy_v2/life_liquidity/shared_capital.py": {
+            "missed_lines": [
+              45,
+              108,
+              171,
+              185,
+              187,
+              193,
+              196,
+              206,
+              213,
+              222,
+              224,
+              254,
+              272,
+              275,
+              286,
+              319,
+              336,
+              343,
+              405,
+              426,
+              442,
+              471,
+              477,
+              493,
+              494,
+              502,
+              505,
+              506
+            ],
+            "percent_covered": 92.3076923076923
+          },
+          "hummingbot/strategy_v2/life_liquidity/slots.py": {
+            "missed_lines": [
+              17,
+              27,
+              46,
+              55,
+              57
+            ],
+            "percent_covered": 86.84210526315789
+          },
+          "hummingbot/strategy_v2/life_liquidity/spot_quotes.py": {
+            "missed_lines": [
+              253
+            ],
+            "percent_covered": 99.30555555555556
+          },
+          "hummingbot/strategy_v2/life_liquidity/spot_risk.py": {
+            "missed_lines": [
+              40,
+              63,
+              64,
+              75
+            ],
+            "percent_covered": 94.5945945945946
+          },
+          "hummingbot/strategy_v2/life_liquidity/spot_telemetry.py": {
+            "missed_lines": [
+              53,
+              70,
+              120,
+              121,
+              125,
+              126,
+              127,
+              128,
+              129,
+              130,
+              165,
+              166
+            ],
+            "percent_covered": 91.48936170212767
+          },
+          "hummingbot/strategy_v2/life_liquidity/state.py": {
+            "missed_lines": [
+              53,
+              68,
+              69,
+              75,
+              83,
+              126,
+              127,
+              176,
+              180,
+              184,
+              192,
+              197,
+              206,
+              210,
+              236,
+              243,
+              249,
+              250,
+              268,
+              293,
+              294,
+              312,
+              315,
+              316,
+              318,
+              331,
+              336,
+              339
+            ],
+            "percent_covered": 89.31297709923665
+          },
+          "hummingbot/strategy_v2/life_liquidity/stress.py": {
+            "missed_lines": [],
+            "percent_covered": 100.0
+          },
+          "hummingbot/strategy_v2/life_liquidity/telemetry.py": {
+            "missed_lines": [
+              96,
+              107,
+              122,
+              137,
+              141,
+              175,
+              203,
+              210,
+              262
+            ],
+            "percent_covered": 94.19354838709677
+          },
+          "hummingbot/strategy_v2/life_liquidity/transition.py": {
+            "missed_lines": [
+              40,
+              41,
+              42
+            ],
+            "percent_covered": 86.36363636363636
+          }
+        },
+        "missed_lines": 1176,
+        "percent_covered": 90.08264462809917
+      },
+      "recent": {
+        "base_sha": "4efb4ad6e0a595118e58c2d38b97f993d36ea41c",
+        "changed_executable_lines": 3145,
+        "files": {
+          "controllers/generic/hedge_asset.py": {
+            "missed_lines": [],
+            "percent_covered": 100.0
+          },
+          "controllers/generic/life_liquidity.py": {
+            "missed_lines": [
+              467,
+              468,
+              472,
+              473,
+              521,
+              522,
+              526,
+              527,
+              674,
+              680,
+              694,
+              699,
+              705,
+              722,
+              725,
+              771,
+              774,
+              776,
+              898,
+              899,
+              900,
+              925,
+              935,
+              952,
+              983,
+              986,
+              1350,
+              1353,
+              1395,
+              1396,
+              1407,
+              1487,
+              1488,
+              1489,
+              1510,
+              1687,
+              1696,
+              1743,
+              1781,
+              1782,
+              1855,
+              1981,
+              2006,
+              2007,
+              2008,
+              2027,
+              2036,
+              2054,
+              2086
+            ],
+            "percent_covered": 89.27789934354486
+          },
+          "hummingbot/connector/derivative/okx_perpetual/okx_perpetual_derivative.py": {
+            "missed_lines": [
+              66,
+              292
+            ],
+            "percent_covered": 91.66666666666667
+          },
+          "hummingbot/strategy_v2/life_liquidity/action_journal.py": {
+            "missed_lines": [],
+            "percent_covered": 100.0
+          },
+          "hummingbot/strategy_v2/life_liquidity/carry_monitor.py": {
+            "missed_lines": [
+              136,
+              163,
+              167,
+              172,
+              174,
+              193
+            ],
+            "percent_covered": 97.28506787330316
+          },
+          "hummingbot/strategy_v2/life_liquidity/executor_send.py": {
+            "missed_lines": [
+              112
+            ],
+            "percent_covered": 96.29629629629629
+          },
+          "hummingbot/strategy_v2/life_liquidity/extension_telemetry.py": {
+            "missed_lines": [],
+            "percent_covered": 100.0
+          },
+          "hummingbot/strategy_v2/life_liquidity/fill_attribution.py": {
+            "missed_lines": [],
+            "percent_covered": 100.0
+          },
+          "hummingbot/strategy_v2/life_liquidity/hedge_coordinator.py": {
+            "missed_lines": [
+              41,
+              90,
+              152,
+              159,
+              169,
+              194,
+              203,
+              237,
+              245,
+              260,
+              327,
+              352,
+              421,
+              467,
+              482,
+              488,
+              503,
+              504,
+              511,
+              516,
+              521,
+              528,
+              535,
+              547,
+              562
+            ],
+            "percent_covered": 94.03341288782816
+          },
+          "hummingbot/strategy_v2/life_liquidity/inventory_execution.py": {
+            "missed_lines": [
+              376,
+              441
+            ],
+            "percent_covered": 95.55555555555556
+          },
+          "hummingbot/strategy_v2/life_liquidity/inventory_runner.py": {
+            "missed_lines": [
+              61,
+              115,
+              120,
+              134,
+              135,
+              143,
+              144,
+              174,
+              190,
+              199,
+              207,
+              212,
+              225,
+              233,
+              239,
+              243,
+              246,
+              251,
+              339,
+              340,
+              355,
+              357,
+              359,
+              379,
+              380,
+              385,
+              398,
+              448,
+              449,
+              480,
+              481
+            ],
+            "percent_covered": 91.34078212290503
+          },
+          "hummingbot/strategy_v2/life_liquidity/joint_recovery.py": {
+            "missed_lines": [
+              115,
+              135,
+              145,
+              183,
+              188,
+              194,
+              202,
+              254,
+              260,
+              281,
+              298,
+              314,
+              326,
+              330,
+              340,
+              367,
+              369,
+              370,
+              408,
+              414,
+              421,
+              430,
+              436,
+              448,
+              451,
+              452,
+              453,
+              454,
+              455,
+              456,
+              457,
+              458,
+              459,
+              461,
+              462,
+              463,
+              464,
+              466,
+              467,
+              468,
+              469,
+              470,
+              471,
+              473,
+              478,
+              504,
+              509,
+              520,
+              559,
+              562,
+              572,
+              593,
+              605,
+              610,
+              611,
+              618,
+              619,
+              652,
+              659,
+              667,
+              672,
+              708
+            ],
+            "percent_covered": 87.5251509054326
+          },
+          "hummingbot/strategy_v2/life_liquidity/order_gateway.py": {
+            "missed_lines": [
+              179,
+              180
+            ],
+            "percent_covered": 81.81818181818181
+          },
+          "hummingbot/strategy_v2/life_liquidity/protected_send.py": {
+            "missed_lines": [
+              105,
+              125,
+              126
+            ],
+            "percent_covered": 84.21052631578948
+          },
+          "hummingbot/strategy_v2/life_liquidity/protected_swap.py": {
+            "missed_lines": [
+              78,
+              107,
+              111,
+              211,
+              214,
+              216,
+              238,
+              250,
+              253,
+              256,
+              277,
+              312
+            ],
+            "percent_covered": 94.31279620853081
+          },
+          "hummingbot/strategy_v2/life_liquidity/quote_actions.py": {
+            "missed_lines": [
+              190,
+              191,
+              195,
+              196
+            ],
+            "percent_covered": 78.94736842105263
+          },
+          "hummingbot/strategy_v2/life_liquidity/risk.py": {
+            "missed_lines": [
+              184,
+              308,
+              319,
+              338
+            ],
+            "percent_covered": 93.10344827586206
+          },
+          "hummingbot/strategy_v2/life_liquidity/safety.py": {
+            "missed_lines": [
+              107
+            ],
+            "percent_covered": 88.88888888888889
+          },
+          "hummingbot/strategy_v2/life_liquidity/session.py": {
+            "missed_lines": [
+              407,
+              413,
+              414
+            ],
+            "percent_covered": 89.28571428571429
+          },
+          "hummingbot/strategy_v2/life_liquidity/shared_capital.py": {
+            "missed_lines": [
+              45,
+              108,
+              171,
+              185,
+              187,
+              193,
+              196,
+              206,
+              213,
+              222,
+              224,
+              254,
+              272,
+              275,
+              286,
+              319,
+              336,
+              343,
+              405,
+              426,
+              442,
+              471,
+              477,
+              493,
+              494,
+              502,
+              505,
+              506
+            ],
+            "percent_covered": 92.3076923076923
+          },
+          "hummingbot/strategy_v2/life_liquidity/spot_telemetry.py": {
+            "missed_lines": [
+              53,
+              70,
+              120,
+              121,
+              125,
+              126,
+              127,
+              128,
+              129,
+              130,
+              165,
+              166
+            ],
+            "percent_covered": 91.48936170212767
+          },
+          "hummingbot/strategy_v2/life_liquidity/state.py": {
+            "missed_lines": [],
+            "percent_covered": 100.0
+          },
+          "hummingbot/strategy_v2/life_liquidity/telemetry.py": {
+            "missed_lines": [
+              96,
+              107,
+              122,
+              137,
+              141,
+              175,
+              203,
+              210,
+              262
+            ],
+            "percent_covered": 94.19354838709677
+          }
+        },
+        "missed_lines": 256,
+        "percent_covered": 91.86009538950715
+      }
+    },
+    "entrypoint_sha256": "b9f5ee1284bdb74e879c7706d987161d121b852299df0b4ce442d73654a562f1",
+    "extension_evidence": {
+      "carry": {
+        "offline": "verified",
+        "passed_node_count": 81,
+        "passed_nodeids_sha256": "4de26b06f3a49c9513fd222f0988e2bd7b890a1f9c40826b3f94a370adfcc5dc",
+        "remaining": []
+      },
+      "carry_runner": {
+        "offline": "verified",
+        "passed_node_count": 18,
+        "passed_nodeids_sha256": "f3c1ce23eba00b079730f35f00ede3f01e22fa4cdc1c6cd745b04195044d46d2",
+        "remaining": []
+      },
+      "combined": {
+        "offline": "verified",
+        "passed_node_count": 15,
+        "passed_nodeids_sha256": "31191bfefb68e9c91c745f41d4cd74e04d09f89328bd5611021013e16a0c0c3f",
+        "remaining": []
+      },
+      "extension_telemetry": {
+        "offline": "verified",
+        "passed_node_count": 8,
+        "passed_nodeids_sha256": "b9f74bcade86278699e0c83a475dc3caa13d6f413027f5e63d2c1700e8198ae0",
+        "remaining": []
+      },
+      "hedge": {
+        "offline": "verified",
+        "passed_node_count": 56,
+        "passed_nodeids_sha256": "f71082afe6ef67d6c048c5b5601e2c10d2b0e136c74817b84e81d1c85356d0c9",
+        "remaining": []
+      },
+      "inventory": {
+        "offline": "verified",
+        "passed_node_count": 55,
+        "passed_nodeids_sha256": "968bc4b236dfb0090297816c02e15a885f24dcce4eef1af43c684ac93d649aed",
+        "remaining": []
+      },
+      "joint_recovery": {
+        "offline": "verified",
+        "passed_node_count": 55,
+        "passed_nodeids_sha256": "e70993fc2cba60c6717465c28b5714e1e210a177f24c1d0d32b3b1e2772530f9",
+        "remaining": []
+      },
+      "shared_capital": {
+        "offline": "verified",
+        "passed_node_count": 45,
+        "passed_nodeids_sha256": "c302c3a906740fab3a11eded1bd782c2df91804d7777c11a827b329f6d6d204a",
+        "remaining": []
+      },
+      "shared_runner": {
+        "offline": "verified",
+        "passed_node_count": 21,
+        "passed_nodeids_sha256": "bb6b87bb6d452249686cb3c70a6f5fd7bdfbe77b25d5a8c952b5a44c6744cc69",
+        "remaining": []
+      },
+      "swap_connector": {
+        "offline": "verified",
+        "passed_node_count": 10,
+        "passed_nodeids_sha256": "7d59563238682e2ac61f6158212b61a0f743ab81e89704d511b21d3665df6503",
+        "remaining": []
+      },
+      "swap_send": {
+        "offline": "verified",
+        "passed_node_count": 53,
+        "passed_nodeids_sha256": "b03580bb0dae31aaf9b695719c04090f5c24736a7a7c9041c070eb077dc2b251",
+        "remaining": []
+      }
+    },
+    "failed": 0,
+    "generated_at_utc": "2026-10-11T14:55:09.952996+00:00",
+    "manifest_sha256": "45b7871a15c52c081a4fe0c5cffb4b9355c57ef31d2bd42c47003e8f5b987d96",
+    "offline_complete": false,
+    "plan_sha256": "99206916343a70f43d6732ab94c3378a4a6c4610ef353ad03632d57cc3da8546",
+    "production_permission": false,
+    "review_evidence": {
+      "O.8.1": {
+        "offline": "verified",
+        "passed_node_count": 10,
+        "passed_nodeids_sha256": "ab259b839bf5ce9063e1bc3344cc4e4218c898e9443a5007e8da48e8c1e696f7",
+        "remaining": []
+      },
+      "O.8.2": {
+        "offline": "verified",
+        "passed_node_count": 3,
+        "passed_nodeids_sha256": "46580228eac1f6f9f1e871789d0df4005438983f236b653ddf301eeed7892f52",
+        "remaining": []
+      },
+      "O.8.3": {
+        "offline": "verified",
+        "passed_node_count": 8,
+        "passed_nodeids_sha256": "cbb93cb40fdb57f487cf025a721cb4fc98b82c49bb470fa3c1af1a6507bbfd11",
+        "remaining": []
+      },
+      "O.8.4": {
+        "offline": "verified",
+        "passed_node_count": 13,
+        "passed_nodeids_sha256": "367f3d0d8a03a662648f9fabf8a1128c2f5dd047bf6bd4e4eb099d18ff810107",
+        "remaining": [
+          "Growing completed joint/account fill history through the entire authorization path; bounded retention/checkpoint decision; growing-history cancel latency."
+        ]
+      },
+      "O.8.5": {
+        "offline": "verified",
+        "passed_node_count": 6,
+        "passed_nodeids_sha256": "859ee808f24fce6843c9433340033bfc4bbf82a92096f304a94f8e9f1d9336ff",
+        "remaining": []
+      },
+      "O.8.6": {
+        "offline": "verified",
+        "passed_node_count": 22,
+        "passed_nodeids_sha256": "7fd9ee0340be2a591ca41d18e417db49bbabc35e3877812b5dd722aa5ca0109b",
+        "remaining": []
+      },
+      "O.8.7": {
+        "offline": "verified",
+        "passed_node_count": 9,
+        "passed_nodeids_sha256": "f629fb8132092064ab75f283488bbfa6a8c90dbd4443f4f7e7c8bebb5c828d30",
+        "remaining": "Close O.8.4 complete growing settled-history/retention proof and rerun the completion gate. Continuous full-assembly expiry/restart passes for both maker sides; automatic rearm is not claimed."
+      }
+    },
+    "runtime": {
+      "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
+      "python": "3.13.15 | packaged by conda-forge | (main, Sep  2 2026, 21:53:23) [Clang 21.1.8 ]"
+    },
+    "scope": "OFFLINE_REVIEW_CANDIDATE",
+    "skipped": 0,
+    "source_head": "912bd276df0dc9b3b0b4fae97bd579a772340927",
+    "test_count": 2045,
+    "test_results_sha256": "95978dfdeac2cfdc07434533c960104015c575b2e8e53fd14134d18feaec7f6c",
+    "unresolved_review": [
+      "O.8.4",
+      "O.8.7"
+    ],
+    "versions": {
+      "coverage": "7.16.2",
+      "diff-cover": "10.5.1",
+      "pytest": "9.1.1"
+    },
+    "worktree_status": "M controllers/generic/life_liquidity.py\n M docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md\n M hummingbot/strategy_v2/life_liquidity/action_journal.py\n M hummingbot/strategy_v2/life_liquidity/fill_attribution.py\n M hummingbot/strategy_v2/life_liquidity/hedge_coordinator.py\n M hummingbot/strategy_v2/life_liquidity/joint_recovery.py\n M hummingbot/strategy_v2/life_liquidity/risk.py\n M test/hummingbot/strategy_v2/life_liquidity/o7_scenarios.py\n?? docs/plans/LIFE_OKX_O8_REMEDIATION_EVIDENCE_2026-10-11.md\n?? docs/plans/evidence/life_o8_acceptance_manifest.json\n?? docs/plans/evidence/life_o8_offline_budgets.json\n?? test/hummingbot/strategy_v2/life_liquidity/o8_acceptance.py\n?? test/hummingbot/strategy_v2/life_liquidity/o8_restart.py\n?? test/hummingbot/strategy_v2/life_liquidity/test_o8_acceptance.py\n?? test/hummingbot/strategy_v2/life_liquidity/test_o8_continuous.py\n?? test/hummingbot/strategy_v2/life_liquidity/test_o8_performance.py\n?? test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py"
+  },
+  "audit_source_snapshot_sha256": {
+    "controllers/generic/life_liquidity.py": "b672df2cf4dd20de056e5f7db532997a884753c06a731527072fab7dbbddd39e",
+    "hummingbot/strategy_v2/life_liquidity/action_journal.py": "2037880a23a5f875abf8ec15d572e579e1e78749c9e831bca6969d6ba305e519",
+    "hummingbot/strategy_v2/life_liquidity/fill_attribution.py": "abbd6e7db451bd4df2ff002c751d7c1a335cfb10c808852416df0b433e34ce47",
+    "hummingbot/strategy_v2/life_liquidity/hedge_coordinator.py": "4180d650163f9022e526472cd448e34a30ed0bd5d5ae4cc1c9ec1cba9e2cca32",
+    "hummingbot/strategy_v2/life_liquidity/joint_recovery.py": "634284ce836eed4d8a51810cdfd213ea01c55c049e369778711374ffa4254d3b",
+    "hummingbot/strategy_v2/life_liquidity/risk.py": "4adaa424c16d9271f042c9143c4a41e23171a5e904e5c464e467de7c85623ca4",
+    "test/hummingbot/strategy_v2/life_liquidity/o7_scenarios.py": "2cec6746bfd4cd8a124673681e04bf7d3cb63165e2858b6c98602cb5e08b8f2a",
+    "test/hummingbot/strategy_v2/life_liquidity/o8_acceptance.py": "b9f5ee1284bdb74e879c7706d987161d121b852299df0b4ce442d73654a562f1",
+    "test/hummingbot/strategy_v2/life_liquidity/o8_restart.py": "9e39e8197faae13bde16b39db7ebcf27f9bc9117941d0500f80bec1ef914d5f9",
+    "test/hummingbot/strategy_v2/life_liquidity/test_o8_acceptance.py": "27c5dc45582e2f0da2021d82d4ae8d5e84ef76651c8b39c7ff25198a7cdbf2cc",
+    "test/hummingbot/strategy_v2/life_liquidity/test_o8_continuous.py": "b2e8a0b4e9c249914a38f99820801281d5fc56e18517e0ce4334154c12699115",
+    "test/hummingbot/strategy_v2/life_liquidity/test_o8_performance.py": "68e22a77f9eb9fde68ca442e1538e3b40d7c64e4a2ebec39317c64eef2c645b0",
+    "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py": "28ece5aec0486ab09c533cb490e09db87b9da47a30f409bac12642f9d10a705d"
+  },
+  "focused": {
+    "command": "conda run -n hummingbot pytest -q -s test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py test/hummingbot/strategy_v2/life_liquidity/test_o8_continuous.py test/hummingbot/strategy_v2/life_liquidity/test_o8_performance.py test/hummingbot/strategy_v2/life_liquidity/test_o8_acceptance.py",
+    "elapsed_seconds": 15.39,
+    "measurements": {
+      "O8_CONTINUOUS": [
+        {
+          "full_assembly_cold_restart": "expired_no_rearm_no_orders",
+          "inventory_covered": true,
+          "maker_side": "BUY",
+          "production_permission": false,
+          "spot_wires": 2,
+          "swap_wires": 2,
+          "trace": [
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              []
+            ],
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              []
+            ],
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              [
+                "continuous-0"
+              ]
+            ],
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              [
+                "continuous-0"
+              ]
+            ],
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              [
+                "continuous-0"
+              ]
+            ],
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              [
+                "continuous-0"
+              ]
+            ],
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              [
+                "continuous-0"
+              ]
+            ],
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              []
+            ],
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              []
+            ],
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              []
+            ],
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              []
+            ],
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              []
+            ],
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              [
+                "hedge-780105382ed84457a718860603a603e3"
+              ]
+            ],
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              []
+            ],
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              []
+            ],
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              []
+            ],
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              []
+            ],
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              []
+            ],
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              [
+                "continuous-inventory"
+              ]
+            ],
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              []
+            ],
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              []
+            ],
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              []
+            ],
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              []
+            ],
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              []
+            ],
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              [
+                "hedge-a8ef9ad695a246ab8b52f0c7232bee08"
+              ]
+            ],
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              []
+            ],
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              []
+            ],
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              []
+            ],
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              []
+            ],
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              []
+            ],
+            [
+              "PAUSED",
+              "JOINT_RECONCILED",
+              []
+            ],
+            [
+              "EXPIRED",
+              "JOINT_RECONCILIATION_UNAVAILABLE",
+              []
+            ]
+          ]
+        },
+        {
+          "full_assembly_cold_restart": "expired_no_rearm_no_orders",
+          "inventory_covered": false,
+          "maker_side": "SELL",
+          "production_permission": false,
+          "spot_wires": 1,
+          "swap_wires": 1,
+          "trace": [
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              []
+            ],
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              []
+            ],
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              [
+                "continuous-1"
+              ]
+            ],
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              [
+                "continuous-1"
+              ]
+            ],
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              [
+                "continuous-1"
+              ]
+            ],
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              [
+                "continuous-1"
+              ]
+            ],
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              [
+                "continuous-1"
+              ]
+            ],
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              []
+            ],
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              []
+            ],
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              []
+            ],
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              []
+            ],
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              []
+            ],
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              [
+                "hedge-4ef3b5ccf96b45ba985030181d5f4e19"
+              ]
+            ],
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              []
+            ],
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              []
+            ],
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              []
+            ],
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              []
+            ],
+            [
+              "ACTIVE",
+              "JOINT_RECONCILED",
+              []
+            ],
+            [
+              "PAUSED",
+              "JOINT_RECONCILED",
+              []
+            ],
+            [
+              "EXPIRED",
+              "JOINT_RECONCILIATION_UNAVAILABLE",
+              []
+            ]
+          ]
+        }
+      ],
+      "O8_SCALE": [
+        {
+          "action_journal_bytes": 259,
+          "history": 0,
+          "journal_bytes": 251,
+          "loop_lag_upper_bound": {
+            "max_ms": 80.15679199364968,
+            "median_ms": 10.035709021613002,
+            "p95_ms": 80.15679199364968,
+            "samples_ms": [
+              80.15679199364968,
+              8.382540991296992,
+              8.322874995646998,
+              10.035709021613002,
+              10.277000003261492
+            ]
+          },
+          "propose_filter_final_send": {
+            "max_ms": 79.38533299602568,
+            "median_ms": 79.38533299602568,
+            "p95_ms": 79.38533299602568,
+            "samples_ms": [
+              79.38533299602568
+            ]
+          },
+          "repeated_allow_create": {
+            "max_ms": 9.494166995864362,
+            "median_ms": 8.376645491807722,
+            "p95_ms": 9.494166995864362,
+            "samples_ms": [
+              7.603915990330279,
+              7.477167004253715,
+              9.149374993285164,
+              9.494166995864362
+            ]
+          },
+          "restore": {
+            "max_ms": 0.1719169958960265,
+            "median_ms": 0.08450000314041972,
+            "p95_ms": 0.1719169958960265,
+            "samples_ms": [
+              0.08450000314041972,
+              0.08395800250582397,
+              0.08391699520871043,
+              0.1719169958960265,
+              0.15287499991245568
+            ]
+          }
+        },
+        {
+          "action_journal_bytes": 203039,
+          "history": 1000,
+          "journal_bytes": 226807,
+          "loop_lag_upper_bound": {
+            "max_ms": 101.98637500638142,
+            "median_ms": 17.87350001744926,
+            "p95_ms": 101.98637500638142,
+            "samples_ms": [
+              101.98637500638142,
+              17.29445800650865,
+              17.87350001744926,
+              17.01924997381866,
+              18.47341599408537
+            ]
+          },
+          "propose_filter_final_send": {
+            "max_ms": 93.61612499924377,
+            "median_ms": 93.61612499924377,
+            "p95_ms": 93.61612499924377,
+            "samples_ms": [
+              93.61612499924377
+            ]
+          },
+          "repeated_allow_create": {
+            "max_ms": 8.853167004417628,
+            "median_ms": 8.50743701448664,
+            "p95_ms": 8.853167004417628,
+            "samples_ms": [
+              8.490708016324788,
+              8.48033299553208,
+              8.524166012648493,
+              8.853167004417628
+            ]
+          },
+          "restore": {
+            "max_ms": 8.948875009082258,
+            "median_ms": 8.131500013405457,
+            "p95_ms": 8.948875009082258,
+            "samples_ms": [
+              7.715042011113837,
+              8.131500013405457,
+              8.711041999049485,
+              7.858415978262201,
+              8.948875009082258
+            ]
+          }
+        },
+        {
+          "action_journal_bytes": 2048039,
+          "history": 10000,
+          "journal_bytes": 2305807,
+          "loop_lag_upper_bound": {
+            "max_ms": 240.3608749830164,
+            "median_ms": 199.70287499949336,
+            "p95_ms": 240.3608749830164,
+            "samples_ms": [
+              240.3608749830164,
+              95.63791700406,
+              199.70287499949336,
+              93.95729201263748,
+              217.7350420190487
+            ]
+          },
+          "propose_filter_final_send": {
+            "max_ms": 159.98212501290254,
+            "median_ms": 159.98212501290254,
+            "p95_ms": 159.98212501290254,
+            "samples_ms": [
+              159.98212501290254
+            ]
+          },
+          "repeated_allow_create": {
+            "max_ms": 8.699541998794302,
+            "median_ms": 8.334208498126827,
+            "p95_ms": 8.699541998794302,
+            "samples_ms": [
+              8.36712500313297,
+              8.699541998794302,
+              8.1121250113938,
+              8.301291993120685
+            ]
+          },
+          "restore": {
+            "max_ms": 208.79891701042652,
+            "median_ms": 86.68983398820274,
+            "p95_ms": 208.79891701042652,
+            "samples_ms": [
+              79.7216669889167,
+              86.68983398820274,
+              190.41087498771958,
+              85.20629201666452,
+              208.79891701042652
+            ]
+          }
+        }
+      ]
+    },
+    "passed": 67,
+    "process_policy": "Run serially after the full coverage audit, without instrumentation or concurrent test processes.",
+    "warnings": 6
+  },
+  "implementation_base": "912bd276df0dc9b3b0b4fae97bd579a772340927",
+  "offline_complete": false,
+  "post_hook_verification": {
+    "change": "Import order and one blank line only in two test files; full regression archive retains the audit snapshot hashes above.",
+    "command": "conda run -n hummingbot pytest -q test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py test/hummingbot/strategy_v2/life_liquidity/test_o8_continuous.py test/hummingbot/strategy_v2/life_liquidity/test_o8_performance.py test/hummingbot/strategy_v2/life_liquidity/test_o8_acceptance.py",
+    "elapsed_seconds": 15.34,
+    "failed": 0,
+    "files": [
+      "test/hummingbot/strategy_v2/life_liquidity/test_o8_continuous.py",
+      "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py"
+    ],
+    "passed": 67,
+    "skipped": 0,
+    "tool": "Repository pre-commit isort hook",
+    "warnings": 6
+  },
+  "production_permission": false,
+  "red": {
+    "additional_mutex_red_log": "ERROR conda.cli.main_run:execute(148): `conda run pytest -xq --tb=short test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_inflight_joint_collection_cannot_block_either_product_cancel` failed. (See above for error)\nF\n=================================== FAILURES ===================================\n______ test_inflight_joint_collection_cannot_block_either_product_cancel _______\ntest/hummingbot/strategy_v2/life_liquidity/test_o8_review.py:456: in test_inflight_joint_collection_cannot_block_either_product_cancel\n    assert canceled  # SWAP cancel must not queue behind the collector mutex.\n    ^^^^^^^^^^^^^^^\nE   assert []\n=============================== warnings summary ===============================\nhummingbot/connector/exchange/foxbit/foxbit_utils.py:132\n  /Users/deeznuts/hummingbot/hummingbot/connector/exchange/foxbit/foxbit_utils.py:132: PydanticDeprecatedSince20: Using extra keyword arguments on `Field` is deprecated and will be removed. Use `json_schema_extra` instead. (Extra keys: 'client_data'). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/\n    connector: str = Field(default=\"foxbit\", client_data=None)\n\nhummingbot/connector/exchange/foxbit/foxbit_utils.py:131\n  /Users/deeznuts/hummingbot/hummingbot/connector/exchange/foxbit/foxbit_utils.py:131: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/\n    class FoxbitConfigMap(BaseConnectorConfigMap):\n\nhummingbot/connector/exchange/foxbit/foxbit_utils.py:165\n  /Users/deeznuts/hummingbot/hummingbot/connector/exchange/foxbit/foxbit_utils.py:165: PydanticDeprecatedSince20: The `construct` method is deprecated; use `model_construct` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/\n    KEYS = FoxbitConfigMap.construct()\n\nhummingbot/strategy_v2/executors/data_types.py:40\n  /Users/deeznuts/hummingbot/hummingbot/strategy_v2/executors/data_types.py:40: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/\n    class ConnectorPair(BaseModel):\n\n../../../opt/homebrew/Caskroom/miniforge/base/envs/hummingbot/lib/python3.13/site-packages/pydantic/_internal/_generate_schema.py:325\n../../../opt/homebrew/Caskroom/miniforge/base/envs/hummingbot/lib/python3.13/site-packages/pydantic/_internal/_generate_schema.py:325\n  /opt/homebrew/Caskroom/miniforge/base/envs/hummingbot/lib/python3.13/site-packages/pydantic/_internal/_generate_schema.py:325: PydanticDeprecatedSince20: `json_encoders` is deprecated. See https://docs.pydantic.dev/2.13/concepts/serialization/#custom-serializers for alternatives. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/\n    warnings.warn(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ============================\nFAILED test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_inflight_joint_collection_cannot_block_either_product_cancel\n!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!\n1 failed, 6 warnings in 3.48s\n",
+    "additional_unarmed_child_red": "The new unknown-child regression failed before the captured-proposal check: assert True is False. No separate baseline log retained.",
+    "baseline_test_sha256": "a58131f0a9891a1e6e32e2bf85bf8bf074c083ecc46d1be3676c549cbd8019fb",
+    "command": "conda run -n hummingbot pytest -q --tb=short test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py -k 'active_runner_poll or healthy_refresh or owned_pending_maker or spot_sell_fill or stuck_swap_cancel or same_millisecond or ten_thousand'",
+    "cwd": "/tmp/life-o8-red-3a2e33aad",
+    "deselected": 18,
+    "failed": 21,
+    "log": "ERROR conda.cli.main_run:execute(148): `conda run pytest -q --tb=short test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py -k active_runner_poll or healthy_refresh or owned_pending_maker or spot_sell_fill or stuck_swap_cancel or same_millisecond or ten_thousand` failed. (See above for error)\nFFFFFFFFFFFFFFFFFFFFF                                                    [100%]\n=================================== FAILURES ===================================\n______________ test_active_runner_poll_preserves_joint_authority _______________\ntest/hummingbot/strategy_v2/life_liquidity/test_o8_review.py:28: in test_active_runner_poll_preserves_joint_authority\n    assert await c._joint_reconciliation_task, f.joint.reason_code\nE   AssertionError: JOINT_RUNNER_SCOPE_UNVERIFIED\nE   assert False\n___________ test_healthy_refresh_does_not_revoke_still_fresh_receipt ___________\ntest/hummingbot/strategy_v2/life_liquidity/test_o8_review.py:47: in test_healthy_refresh_does_not_revoke_still_fresh_receipt\n    assert f.joint.allocation_ready()\nE   AssertionError: assert False\nE    +  where False = allocation_ready()\nE    +    where allocation_ready = <hummingbot.strategy_v2.life_liquidity.joint_recovery.JointRecovery object at 0x15a504b90>.allocation_ready\nE    +      where <hummingbot.strategy_v2.life_liquidity.joint_recovery.JointRecovery object at 0x15a504b90> = namespace(c=<controllers.generic.life_liquidity.LifeLiquidityController object at 0x15a743250>, v=(<controllers.generi...ventory')}, log=<hummingbot.strategy_v2.life_liquidity.telemetry.TelemetryRecorder object at 0x15a506d50>, canceled=[]).joint\n________ test_owned_pending_maker_does_not_pause_balanced_hedge[1-BUY] _________\ntest/hummingbot/strategy_v2/life_liquidity/test_o8_review.py:76: in test_owned_pending_maker_does_not_pause_balanced_hedge\n    assert h.allows_spot(), h.reason_code\nE   AssertionError: HEDGE_PAUSE_SPOT\nE   assert False\nE    +  where False = allows_spot()\nE    +    where allows_spot = <hummingbot.strategy_v2.life_liquidity.hedge_coordinator.HedgeCoordinator object at 0x15a554b90>.allows_spot\n________ test_owned_pending_maker_does_not_pause_balanced_hedge[1-SELL] ________\ntest/hummingbot/strategy_v2/life_liquidity/test_o8_review.py:76: in test_owned_pending_maker_does_not_pause_balanced_hedge\n    assert h.allows_spot(), h.reason_code\nE   AssertionError: HEDGE_PAUSE_SPOT\nE   assert False\nE    +  where False = allows_spot()\nE    +    where allows_spot = <hummingbot.strategy_v2.life_liquidity.hedge_coordinator.HedgeCoordinator object at 0x15a51a8b0>.allows_spot\n________ test_owned_pending_maker_does_not_pause_balanced_hedge[3-BUY] _________\ntest/hummingbot/strategy_v2/life_liquidity/test_o8_review.py:76: in test_owned_pending_maker_does_not_pause_balanced_hedge\n    assert h.allows_spot(), h.reason_code\nE   AssertionError: HEDGE_PAUSE_SPOT\nE   assert False\nE    +  where False = allows_spot()\nE    +    where allows_spot = <hummingbot.strategy_v2.life_liquidity.hedge_coordinator.HedgeCoordinator object at 0x15a5f09d0>.allows_spot\n________ test_owned_pending_maker_does_not_pause_balanced_hedge[3-SELL] ________\ntest/hummingbot/strategy_v2/life_liquidity/test_o8_review.py:76: in test_owned_pending_maker_does_not_pause_balanced_hedge\n    assert h.allows_spot(), h.reason_code\nE   AssertionError: HEDGE_PAUSE_SPOT\nE   assert False\nE    +  where False = allows_spot()\nE    +    where allows_spot = <hummingbot.strategy_v2.life_liquidity.hedge_coordinator.HedgeCoordinator object at 0x15a580ef0>.allows_spot\n________ test_spot_sell_fill_then_safety_tick_allows_bounded_open_hedge ________\ntest/hummingbot/strategy_v2/life_liquidity/test_o8_review.py:102: in test_spot_sell_fill_then_safety_tick_allows_bounded_open_hedge\n    assert len(hedges) == 1, f.hedge.reason_code\nE   AssertionError: HEDGE_COORDINATOR_UNAVAILABLE\nE   assert 0 == 1\nE    +  where 0 = len([])\n_______________ test_stuck_swap_cancel_cannot_delay_spot_cancel ________________\ntest/hummingbot/strategy_v2/life_liquidity/test_o8_review.py:128: in test_stuck_swap_cancel_cannot_delay_spot_cancel\n    assert spot.cancels  # Must start while SWAP transport is still blocked.\n    ^^^^^^^^^^^^^^^^^^^\nE   assert []\nE    +  where [] = <test.hummingbot.strategy_v2.life_liquidity.test_spot_session_replay.FakeTradingOkx object at 0x15a51be10>.cancels\n________ test_same_millisecond_causal_close_open_history[False-False-9] ________\ntest/hummingbot/strategy_v2/life_liquidity/test_o8_review.py:147: in test_same_millisecond_causal_close_open_history\n    tc = RecoveryTrade(close_id, D(\".25\"), D(\"2\"), \"USDT\", D(\"0\"), D(\".25\"), ms, sequence=1)\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE   TypeError: RecoveryTrade.__init__() got an unexpected keyword argument 'sequence'\n_______ test_same_millisecond_causal_close_open_history[False-False-09] ________\ntest/hummingbot/strategy_v2/life_liquidity/test_o8_review.py:147: in test_same_millisecond_causal_close_open_history\n    tc = RecoveryTrade(close_id, D(\".25\"), D(\"2\"), \"USDT\", D(\"0\"), D(\".25\"), ms, sequence=1)\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE   TypeError: RecoveryTrade.__init__() got an unexpected keyword argument 'sequence'\n__ test_same_millisecond_causal_close_open_history[False-False-opaque-close] ___\ntest/hummingbot/strategy_v2/life_liquidity/test_o8_review.py:147: in test_same_millisecond_causal_close_open_history\n    tc = RecoveryTrade(close_id, D(\".25\"), D(\"2\"), \"USDT\", D(\"0\"), D(\".25\"), ms, sequence=1)\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE   TypeError: RecoveryTrade.__init__() got an unexpected keyword argument 'sequence'\n________ test_same_millisecond_causal_close_open_history[False-True-9] _________\ntest/hummingbot/strategy_v2/life_liquidity/test_o8_review.py:147: in test_same_millisecond_causal_close_open_history\n    tc = RecoveryTrade(close_id, D(\".25\"), D(\"2\"), \"USDT\", D(\"0\"), D(\".25\"), ms, sequence=1)\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE   TypeError: RecoveryTrade.__init__() got an unexpected keyword argument 'sequence'\n________ test_same_millisecond_causal_close_open_history[False-True-09] ________\ntest/hummingbot/strategy_v2/life_liquidity/test_o8_review.py:147: in test_same_millisecond_causal_close_open_history\n    tc = RecoveryTrade(close_id, D(\".25\"), D(\"2\"), \"USDT\", D(\"0\"), D(\".25\"), ms, sequence=1)\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE   TypeError: RecoveryTrade.__init__() got an unexpected keyword argument 'sequence'\n___ test_same_millisecond_causal_close_open_history[False-True-opaque-close] ___\ntest/hummingbot/strategy_v2/life_liquidity/test_o8_review.py:147: in test_same_millisecond_causal_close_open_history\n    tc = RecoveryTrade(close_id, D(\".25\"), D(\"2\"), \"USDT\", D(\"0\"), D(\".25\"), ms, sequence=1)\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE   TypeError: RecoveryTrade.__init__() got an unexpected keyword argument 'sequence'\n________ test_same_millisecond_causal_close_open_history[True-False-9] _________\ntest/hummingbot/strategy_v2/life_liquidity/test_o8_review.py:147: in test_same_millisecond_causal_close_open_history\n    tc = RecoveryTrade(close_id, D(\".25\"), D(\"2\"), \"USDT\", D(\"0\"), D(\".25\"), ms, sequence=1)\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE   TypeError: RecoveryTrade.__init__() got an unexpected keyword argument 'sequence'\n________ test_same_millisecond_causal_close_open_history[True-False-09] ________\ntest/hummingbot/strategy_v2/life_liquidity/test_o8_review.py:147: in test_same_millisecond_causal_close_open_history\n    tc = RecoveryTrade(close_id, D(\".25\"), D(\"2\"), \"USDT\", D(\"0\"), D(\".25\"), ms, sequence=1)\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE   TypeError: RecoveryTrade.__init__() got an unexpected keyword argument 'sequence'\n___ test_same_millisecond_causal_close_open_history[True-False-opaque-close] ___\ntest/hummingbot/strategy_v2/life_liquidity/test_o8_review.py:147: in test_same_millisecond_causal_close_open_history\n    tc = RecoveryTrade(close_id, D(\".25\"), D(\"2\"), \"USDT\", D(\"0\"), D(\".25\"), ms, sequence=1)\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE   TypeError: RecoveryTrade.__init__() got an unexpected keyword argument 'sequence'\n_________ test_same_millisecond_causal_close_open_history[True-True-9] _________\ntest/hummingbot/strategy_v2/life_liquidity/test_o8_review.py:147: in test_same_millisecond_causal_close_open_history\n    tc = RecoveryTrade(close_id, D(\".25\"), D(\"2\"), \"USDT\", D(\"0\"), D(\".25\"), ms, sequence=1)\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE   TypeError: RecoveryTrade.__init__() got an unexpected keyword argument 'sequence'\n________ test_same_millisecond_causal_close_open_history[True-True-09] _________\ntest/hummingbot/strategy_v2/life_liquidity/test_o8_review.py:147: in test_same_millisecond_causal_close_open_history\n    tc = RecoveryTrade(close_id, D(\".25\"), D(\"2\"), \"USDT\", D(\"0\"), D(\".25\"), ms, sequence=1)\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE   TypeError: RecoveryTrade.__init__() got an unexpected keyword argument 'sequence'\n___ test_same_millisecond_causal_close_open_history[True-True-opaque-close] ____\ntest/hummingbot/strategy_v2/life_liquidity/test_o8_review.py:147: in test_same_millisecond_causal_close_open_history\n    tc = RecoveryTrade(close_id, D(\".25\"), D(\"2\"), \"USDT\", D(\"0\"), D(\".25\"), ms, sequence=1)\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE   TypeError: RecoveryTrade.__init__() got an unexpected keyword argument 'sequence'\n____ test_ten_thousand_terminal_reservations_restore_within_offline_budget _____\ntest/hummingbot/strategy_v2/life_liquidity/test_o8_review.py:177: in test_ten_thousand_terminal_reservations_restore_within_offline_budget\n    assert elapsed < 1.0, f\"offline restore exceeded 1000 ms: {elapsed:.3f}s\"\nE   AssertionError: offline restore exceeded 1000 ms: 3.993s\nE   assert 3.993341458000941 < 1.0\n=============================== warnings summary ===============================\nhummingbot/connector/exchange/foxbit/foxbit_utils.py:132\n  /private/tmp/life-o8-red-3a2e33aad/hummingbot/connector/exchange/foxbit/foxbit_utils.py:132: PydanticDeprecatedSince20: Using extra keyword arguments on `Field` is deprecated and will be removed. Use `json_schema_extra` instead. (Extra keys: 'client_data'). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/\n    connector: str = Field(default=\"foxbit\", client_data=None)\n\nhummingbot/connector/exchange/foxbit/foxbit_utils.py:131\n  /private/tmp/life-o8-red-3a2e33aad/hummingbot/connector/exchange/foxbit/foxbit_utils.py:131: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/\n    class FoxbitConfigMap(BaseConnectorConfigMap):\n\nhummingbot/connector/exchange/foxbit/foxbit_utils.py:165\n  /private/tmp/life-o8-red-3a2e33aad/hummingbot/connector/exchange/foxbit/foxbit_utils.py:165: PydanticDeprecatedSince20: The `construct` method is deprecated; use `model_construct` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/\n    KEYS = FoxbitConfigMap.construct()\n\nhummingbot/strategy_v2/executors/data_types.py:40\n  /private/tmp/life-o8-red-3a2e33aad/hummingbot/strategy_v2/executors/data_types.py:40: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/\n    class ConnectorPair(BaseModel):\n\n../../../opt/homebrew/Caskroom/miniforge/base/envs/hummingbot/lib/python3.13/site-packages/pydantic/_internal/_generate_schema.py:325\n../../../opt/homebrew/Caskroom/miniforge/base/envs/hummingbot/lib/python3.13/site-packages/pydantic/_internal/_generate_schema.py:325\n  /opt/homebrew/Caskroom/miniforge/base/envs/hummingbot/lib/python3.13/site-packages/pydantic/_internal/_generate_schema.py:325: PydanticDeprecatedSince20: `json_encoders` is deprecated. See https://docs.pydantic.dev/2.13/concepts/serialization/#custom-serializers for alternatives. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/\n    warnings.warn(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ============================\nFAILED test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_active_runner_poll_preserves_joint_authority\nFAILED test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_healthy_refresh_does_not_revoke_still_fresh_receipt\nFAILED test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_owned_pending_maker_does_not_pause_balanced_hedge[1-BUY]\nFAILED test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_owned_pending_maker_does_not_pause_balanced_hedge[1-SELL]\nFAILED test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_owned_pending_maker_does_not_pause_balanced_hedge[3-BUY]\nFAILED test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_owned_pending_maker_does_not_pause_balanced_hedge[3-SELL]\nFAILED test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_spot_sell_fill_then_safety_tick_allows_bounded_open_hedge\nFAILED test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_stuck_swap_cancel_cannot_delay_spot_cancel\nFAILED test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_same_millisecond_causal_close_open_history[False-False-9]\nFAILED test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_same_millisecond_causal_close_open_history[False-False-09]\nFAILED test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_same_millisecond_causal_close_open_history[False-False-opaque-close]\nFAILED test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_same_millisecond_causal_close_open_history[False-True-9]\nFAILED test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_same_millisecond_causal_close_open_history[False-True-09]\nFAILED test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_same_millisecond_causal_close_open_history[False-True-opaque-close]\nFAILED test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_same_millisecond_causal_close_open_history[True-False-9]\nFAILED test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_same_millisecond_causal_close_open_history[True-False-09]\nFAILED test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_same_millisecond_causal_close_open_history[True-False-opaque-close]\nFAILED test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_same_millisecond_causal_close_open_history[True-True-9]\nFAILED test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_same_millisecond_causal_close_open_history[True-True-09]\nFAILED test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_same_millisecond_causal_close_open_history[True-True-opaque-close]\nFAILED test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_ten_thousand_terminal_reservations_restore_within_offline_budget\n21 failed, 18 deselected, 6 warnings in 10.34s\n",
+    "qualification": "Chronology selectors fail on the missing sequence API at the baseline; the earlier review separately reproduced JOINT_CLOSE_PNL_INVALID."
+  },
+  "remaining": {
+    "O.8.4": "Complete growing settled joint/account histories through all authorization/cancel gates; bounded retention/checkpoint policy with preserved dedup and financial proof.",
+    "O.8.7": "Close O.8.4 and rerun the completion gate. Continuous full-assembly expired recovery is verified; automatic rearm is not claimed."
+  },
+  "reproduce_audit": "conda run -n hummingbot python -m test.hummingbot.strategy_v2.life_liquidity.o8_acceptance --candidate --output-dir /tmp/life-o8-audit",
+  "review_baseline": "3a2e33aad",
+  "schema_version": 1,
+  "scope": "OFFLINE_REVIEW_CANDIDATE",
+  "source_snapshot_sha256": {
+    "controllers/generic/life_liquidity.py": "b672df2cf4dd20de056e5f7db532997a884753c06a731527072fab7dbbddd39e",
+    "hummingbot/strategy_v2/life_liquidity/action_journal.py": "2037880a23a5f875abf8ec15d572e579e1e78749c9e831bca6969d6ba305e519",
+    "hummingbot/strategy_v2/life_liquidity/fill_attribution.py": "abbd6e7db451bd4df2ff002c751d7c1a335cfb10c808852416df0b433e34ce47",
+    "hummingbot/strategy_v2/life_liquidity/hedge_coordinator.py": "4180d650163f9022e526472cd448e34a30ed0bd5d5ae4cc1c9ec1cba9e2cca32",
+    "hummingbot/strategy_v2/life_liquidity/joint_recovery.py": "634284ce836eed4d8a51810cdfd213ea01c55c049e369778711374ffa4254d3b",
+    "hummingbot/strategy_v2/life_liquidity/risk.py": "4adaa424c16d9271f042c9143c4a41e23171a5e904e5c464e467de7c85623ca4",
+    "test/hummingbot/strategy_v2/life_liquidity/o7_scenarios.py": "2cec6746bfd4cd8a124673681e04bf7d3cb63165e2858b6c98602cb5e08b8f2a",
+    "test/hummingbot/strategy_v2/life_liquidity/o8_acceptance.py": "b9f5ee1284bdb74e879c7706d987161d121b852299df0b4ce442d73654a562f1",
+    "test/hummingbot/strategy_v2/life_liquidity/o8_restart.py": "9e39e8197faae13bde16b39db7ebcf27f9bc9117941d0500f80bec1ef914d5f9",
+    "test/hummingbot/strategy_v2/life_liquidity/test_o8_acceptance.py": "27c5dc45582e2f0da2021d82d4ae8d5e84ef76651c8b39c7ff25198a7cdbf2cc",
+    "test/hummingbot/strategy_v2/life_liquidity/test_o8_continuous.py": "8d2d6768f64959746fe21760222f176c34783d2cae5a556b880091a4cf7bfcc1",
+    "test/hummingbot/strategy_v2/life_liquidity/test_o8_performance.py": "68e22a77f9eb9fde68ca442e1538e3b40d7c64e4a2ebec39317c64eef2c645b0",
+    "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py": "2fd269b9eebcfd342e6cf9ba20a314487319b644f71734918e2081f3bb6d8afa"
+  }
+}

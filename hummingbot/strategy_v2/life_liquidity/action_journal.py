@@ -50,8 +50,13 @@ class QuoteActionJournal:
         if not self.path.exists():
             return {}
         try:
-            with self.path.open(encoding="utf-8") as handle:
-                data = json.load(handle)
+            raw = self.path.read_bytes()
+            cached = getattr(self, "_verified_image", None)
+            if cached is not None and cached[0] == raw and cached[2] == self.account_uid:
+                # Records are frozen; copy the mapping to keep cache ownership.
+                # Read the exact file bytes on every check, including same-stat edits.
+                return dict(cached[1])
+            data = json.loads(raw)
             if (not isinstance(data, dict) or data.get("schema_version") != 1
                     or not isinstance(data.get("records"), dict)
                     or data.get("account_uid") != self.account_uid):
@@ -59,23 +64,28 @@ class QuoteActionJournal:
             records = {}
             for key, value in data["records"].items():
                 record = QuoteActionRecord(**value)
-                if (not isinstance(key, str) or key != record.intent_id or not key
-                        or not isinstance(record.controller_id, str) or not record.controller_id
-                        or not isinstance(record.session_id, str) or not record.session_id
-                        or not isinstance(record.epoch, int) or isinstance(record.epoch, bool)
-                        or record.epoch < 1
-                        or not isinstance(record.config_version, int)
-                        or isinstance(record.config_version, bool) or record.config_version < 1
-                        or not isinstance(record.market, str) or not record.market
-                        or record.side not in ("BUY", "SELL")
-                        or not isinstance(record.level, int) or isinstance(record.level, bool)
-                        or record.level < 0
-                        or record.state not in ("PROPOSED", "DISPATCHED", "REJECTED", "RECONCILED")):
-                    raise ValueError("ACTION_JOURNAL_INVALID")
+                self._validate_record(key, record)
                 records[key] = record
+            self._verified_image = (raw, dict(records), self.account_uid)
             return records
         except (OSError, TypeError, KeyError, ValueError) as exc:
             raise ValueError("ACTION_JOURNAL_INVALID") from exc
+
+    @staticmethod
+    def _validate_record(key, record):
+        if (not isinstance(key, str) or key != record.intent_id or not key
+                or not isinstance(record.controller_id, str) or not record.controller_id
+                or not isinstance(record.session_id, str) or not record.session_id
+                or not isinstance(record.epoch, int) or isinstance(record.epoch, bool)
+                or record.epoch < 1
+                or not isinstance(record.config_version, int)
+                or isinstance(record.config_version, bool) or record.config_version < 1
+                or not isinstance(record.market, str) or not record.market
+                or record.side not in ("BUY", "SELL")
+                or not isinstance(record.level, int) or isinstance(record.level, bool)
+                or record.level < 0
+                or record.state not in ("PROPOSED", "DISPATCHED", "REJECTED", "RECONCILED")):
+            raise ValueError("ACTION_JOURNAL_INVALID")
 
     @contextmanager
     def _file_lock(self):
@@ -91,14 +101,15 @@ class QuoteActionJournal:
             fcntl.flock(descriptor, fcntl.LOCK_UN)
             os.close(descriptor)
 
-    def _save(self, records: dict[str, QuoteActionRecord]) -> None:
+    def _save(self, records: dict[str, QuoteActionRecord]) -> bytes:
         descriptor, temporary = tempfile.mkstemp(prefix=f".{self.path.name}.", dir=self.path.parent)
         try:
             with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-                json.dump({"schema_version": 1,
-                           "account_uid": self.account_uid,
-                           "records": {key: value.__dict__ for key, value in records.items()}},
-                          handle, sort_keys=True)
+                payload = json.dumps({"schema_version": 1,
+                                      "account_uid": self.account_uid,
+                                      "records": {key: value.__dict__ for key, value in records.items()}},
+                                     sort_keys=True, separators=(",", ":"))
+                handle.write(payload)
                 handle.flush()
                 os.fsync(handle.fileno())
             os.replace(temporary, self.path)
@@ -110,6 +121,7 @@ class QuoteActionJournal:
         finally:
             if os.path.exists(temporary):
                 os.unlink(temporary)
+        return payload.encode("utf-8")
 
     def _commit(self, records: dict[str, QuoteActionRecord]) -> None:
         with self._lock, self._file_lock():
@@ -121,7 +133,11 @@ class QuoteActionJournal:
                 raise ValueError("ACTION_JOURNAL_UNCERTAIN") from exc
             if durable != self._records:
                 raise ValueError("ACTION_JOURNAL_UNCERTAIN")
-            self._save(records)
+            for key, record in records.items():
+                if durable.get(key) != record:
+                    self._validate_record(key, record)
+            raw = self._save(records)
+            self._verified_image = (raw, dict(records), self.account_uid)
             self._records = records
             self._must_exist = True
 

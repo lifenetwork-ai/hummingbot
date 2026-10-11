@@ -1589,7 +1589,7 @@ class LifeLiquidityController(ControllerBase):
         except (OSError, TypeError, ValueError):
             return False
 
-    def _halt_runner_orders(self) -> bool:
+    def _halt_runner_orders(self, *, spot_only=False) -> bool:
         """Revoke executor renewals before starting exchange-side cancellation."""
         from hummingbot.strategy_v2.executors.order_executor.order_executor import OrderExecutor
 
@@ -1602,6 +1602,8 @@ class LifeLiquidityController(ControllerBase):
             if not isinstance(executor, OrderExecutor):
                 safe = False
                 self._runner_scope_invalid = True
+                continue
+            if spot_only and self._is_swap_config(executor.config):
                 continue
             try:
                 if executor.status in (RunnableStatus.NOT_STARTED, RunnableStatus.RUNNING):
@@ -1637,14 +1639,14 @@ class LifeLiquidityController(ControllerBase):
         except Exception:
             return False
 
-    def _runner_executor_scope_complete(self) -> bool:
+    def _runner_executor_scope_complete(self, *, quiescent=True) -> bool:
         """Live and stored children must resolve to their protected product WAL."""
         from hummingbot.strategy_v2.executors.order_executor.data_types import OrderExecutorConfig
         from hummingbot.strategy_v2.executors.order_executor.order_executor import OrderExecutor
         from hummingbot.strategy_v2.models.executors_info import ExecutorInfo
 
         executors = self._runner_executors()
-        if (not self._runner_halt_ok or self._runner_scope_invalid
+        if (quiescent and not self._runner_halt_ok or self._runner_scope_invalid
                 or executors is None or self._order_safety_wal is None):
             return False
         if not self.verify_runner_fill_events():
@@ -1673,9 +1675,26 @@ class LifeLiquidityController(ControllerBase):
                         or not executor.config.id
                         or executor.config.controller_id != self.config.id
                         or not self._runner_product_config_valid(executor.config)
-                        or executor.status not in (RunnableStatus.SHUTTING_DOWN, RunnableStatus.TERMINATED)):
+                        or executor.status not in ((RunnableStatus.SHUTTING_DOWN, RunnableStatus.TERMINATED)
+                                                   if quiescent else tuple(RunnableStatus))):
                     return reject()
-                for wire_id in executor.recovery_order_ids():
+                wire_ids = executor.recovery_order_ids()
+                if (not quiescent and not wire_ids
+                        and executor.config.connector_name == self.config.strategy.spot.connector):
+                    planner = self._quote_action_planner
+                    current = self._order_safety_manager.current_session
+                    if planner is None or current is None:
+                        return reject()
+                    issued = planner._issued.get(executor.config.id)
+                    bounded = self.bounded_spot_planner(executor.config)
+                    captured = (issued == (current.session_id, current.epoch, current.config_version, executor.config)
+                                or bounded is not None and bounded._configs.get(executor.config.id) == executor.config)
+                    claim = planner.action_journal.verified_get(executor.config.id)
+                    if (not captured or claim.state not in ("PROPOSED", "DISPATCHED")
+                            or not planner._claim_matches_config(claim, executor.config,
+                                                                 current.session_id, current.epoch, current.config_version)):
+                        return reject()
+                for wire_id in wire_ids:
                     record = known.get(wire_id)
                     if (record is None or record.intent_id != executor.config.id
                             or wire_id in active_seen
@@ -1812,8 +1831,11 @@ class LifeLiquidityController(ControllerBase):
             if manager.state == "PAUSED" and self._observed_session_state != "PAUSED":
                 self._pause_reconciliation_required = True
                 self.order_safety_reason_code = "RECONCILIATION_REQUIRED"
+            hedge_ready = self._hedge_ready()
+            # A qualified coordinator drains spot risk and authorizes its own
+            # bounded hedge. The parent session still enforces all hard gates.
             risk_ready = (self._runtime_risk_ready() and self._spot_risk_ready() and self._joint_risk_ready()
-                          and self._hedge_ready() and carry_ready)
+                          and (self._hedge_coordinator is not None or hedge_ready) and carry_ready)
             loss_ready = risk_ready and self._execution_loss_ready()
             accounting_ready = loss_ready and self._fill_attribution_ready()
             markout_ready = accounting_ready and self._markout_risk_ready()
@@ -1841,14 +1863,18 @@ class LifeLiquidityController(ControllerBase):
             self._order_safety_gateway.runner_scope_check = self._runner_executor_scope_complete
         if self.order_safety_task is not None and not self.order_safety_task.done():
             return
+        hedge_drain = manager.state == "ACTIVE" and self._hedge_coordinator is not None and not hedge_ready
+        if hedge_drain:
+            self._halt_runner_orders(spot_only=True)
         if manager.state not in ("PAUSED", "EXPIRED", "TRANSITIONING"):
-            return
+            if not hedge_drain:
+                return
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
             self.order_safety_reason_code = "ORDER_SAFETY_LOOP_UNAVAILABLE"
             return
-        self.order_safety_task = loop.create_task(self._cancel_and_reconcile_orders())
+        self.order_safety_task = loop.create_task(self._cancel_and_reconcile_orders(spot_only=hedge_drain))
         self.order_safety_task.add_done_callback(self._on_order_safety_done)
 
     def _on_order_safety_done(self, task: asyncio.Task) -> None:
@@ -1862,21 +1888,10 @@ class LifeLiquidityController(ControllerBase):
             self.logger().error("LIFE safety order task failed", exc_info=(
                 type(failure), failure, failure.__traceback__))
 
-    async def _cancel_and_reconcile_orders(self) -> None:
+    async def _cancel_and_reconcile_orders(self, *, spot_only=False) -> None:
         manager = self._order_safety_manager
         gateway = self._order_safety_gateway
         wal = self._order_safety_wal
-        joint_ready = True
-        if self._joint_recovery is not None:
-            try:
-                await self._joint_recovery.cancel_working_swaps()
-                joint_ready = await self._joint_recovery.reconcile()
-            except asyncio.CancelledError:
-                raise
-            except Exception:
-                joint_ready = False
-            if not joint_ready:
-                self.order_safety_reason_code = "JOINT_RECONCILIATION_UNAVAILABLE"
         if self._order_safety_account_lock is not None and not self._account_uid_verified:
             try:
                 observed_uid = await gateway.connector.get_account_uid()
@@ -1894,29 +1909,49 @@ class LifeLiquidityController(ControllerBase):
         scopes = {(record.session_id, record.epoch) for record in wal.all_records()
                   if record.state not in ("TERMINAL", "ABORTED_BEFORE_SEND")}
         scopes.add((current.session_id, current.epoch))
-        primary_result = None
-        reason = "OLD_ORDERS_RECONCILED" if joint_ready else "JOINT_RECONCILIATION_UNAVAILABLE"
-        bounded_cancel_failed = False
-        if gateway.cancel_retry_policy is not None:
-            try:
+
+        async def cancel_spot():
+            if gateway.cancel_retry_policy is not None:
                 await gateway.request_cancel_scopes(tuple(sorted(scopes)))
+            else:
+                for session_id, epoch in sorted(scopes):
+                    await gateway.request_cancel(session_id, epoch)
+
+        async def cancel_joint():
+            if not spot_only:
+                await asyncio.wait_for(self._joint_recovery.cancel_working_swaps(),
+                                       self._joint_recovery.max_age_ms / 1000)
+            return await self._joint_recovery.reconcile()
+
+        joint_ready = True
+        if self._joint_recovery is not None:
+            # Each product gets transport time independently; joint proof still
+            # controls release. The configured freshness deadline bounds I/O.
+            async def bounded_spot():
+                async with asyncio.timeout(self._joint_recovery.max_age_ms / 1000):
+                    await cancel_spot()
+
+            canceled, joint_result = await asyncio.gather(bounded_spot(), cancel_joint(), return_exceptions=True)
+            joint_ready = joint_result is True
+        else:
+            try:
+                await cancel_spot()
+                canceled = None
             except asyncio.CancelledError:
                 raise
-            except Exception:
-                bounded_cancel_failed = True
-                self.logger().exception("LIFE bounded order cancellation failed")
+            except Exception as exc:
+                canceled = exc
+        bounded_cancel_failed = isinstance(canceled, BaseException)
+        if not joint_ready:
+            self.order_safety_reason_code = "JOINT_RECONCILIATION_UNAVAILABLE"
+        primary_result = None
+        reason = "OLD_ORDERS_RECONCILED" if joint_ready else "JOINT_RECONCILIATION_UNAVAILABLE"
         for session_id, epoch in sorted(scopes):
             cancel_failed = bounded_cancel_failed
-            if gateway.cancel_retry_policy is None:
-                try:
-                    await gateway.request_cancel(session_id, epoch)
-                except asyncio.CancelledError:
-                    raise
-                except Exception:
-                    cancel_failed = True
-                    self.logger().exception("LIFE order cancellation failed")
             try:
-                result = await gateway.reconcile(session_id, epoch)
+                fetch = gateway.reconcile(session_id, epoch)
+                result = (await asyncio.wait_for(fetch, self._joint_recovery.max_age_ms / 1000)
+                          if self._joint_recovery is not None else await fetch)
             except asyncio.CancelledError:
                 raise
             except Exception:

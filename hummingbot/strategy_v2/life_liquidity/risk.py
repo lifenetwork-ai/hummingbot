@@ -167,6 +167,25 @@ class ReservationLedger:
         with self._lock:
             self._ensure_healthy()
 
+    def verified_disk(self):
+        """Reuse decoded evidence only when the complete file bytes are unchanged.
+
+        Callers still compare balances, trades and reservations with memory.
+        This does not trust mtime, release a claim, or skip durability checks.
+        """
+        self.assert_healthy()
+        if self.path is None or not self.path.is_file() or self.path.is_symlink():
+            raise ValueError("RISK_JOURNAL_INVALID")
+        raw = self.path.read_bytes()
+        cached = getattr(self, "_verified_disk_cache", None)
+        if cached is None or cached[0] != raw or cached[1].limits != self.limits:
+            disk = type(self).restore(self.path, limits=self.limits)
+            if self.path.read_bytes() != raw:
+                raise ValueError("RISK_JOURNAL_CHANGED_DURING_VERIFY")
+            cached = (raw, disk)
+            self._verified_disk_cache = cached
+        return cached[1]
+
     @classmethod
     def restore(cls, path: Path, *, limits: RiskLimits) -> "ReservationLedger":
         path = Path(path)
@@ -200,6 +219,7 @@ class ReservationLedger:
                     raise ValueError("RISK_JOURNAL_INVALID")
                 reservations[key] = _Reservation(intent, remaining, filled, state)
             trades = {}
+            filled_by_intent = {}
             for trade_id, raw in data["trades"].items():
                 intent_id, quantity, price = raw
                 quantity, price = Decimal(quantity), Decimal(price)
@@ -208,9 +228,9 @@ class ReservationLedger:
                         or not _finite(price, positive=True)):
                     raise ValueError("RISK_JOURNAL_INVALID")
                 trades[trade_id] = (intent_id, quantity, price)
+                filled_by_intent[intent_id] = filled_by_intent.get(intent_id, Decimal("0")) + quantity
             for intent_id, item in reservations.items():
-                recorded = sum((quantity for trade_intent, quantity, _ in trades.values()
-                                if trade_intent == intent_id), Decimal("0"))
+                recorded = filled_by_intent.get(intent_id, Decimal("0"))
                 if recorded != item.filled_base:
                     raise ValueError("RISK_JOURNAL_INVALID")
             account_events = {}

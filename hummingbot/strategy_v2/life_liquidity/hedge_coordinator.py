@@ -13,7 +13,6 @@ from hummingbot.core.data_type.common import PositionAction, TradeType
 from hummingbot.strategy_v2.executors.order_executor.data_types import ExecutionStrategy, OrderExecutorConfig
 from hummingbot.strategy_v2.life_liquidity.hedge import HedgePolicy
 from hummingbot.strategy_v2.life_liquidity.policy_state import PolicyState
-from hummingbot.strategy_v2.life_liquidity.risk import ReservationLedger
 from hummingbot.strategy_v2.life_liquidity.shared_capital import _json
 from hummingbot.strategy_v2.life_liquidity.state import IntentWAL
 from hummingbot.strategy_v2.models.executor_actions import StopExecutorAction
@@ -262,7 +261,7 @@ class HedgeCoordinator:
         ledger.assert_healthy()
         if ledger.path is None or not ledger.path.is_file() or ledger.path.is_symlink():
             raise ValueError("HEDGE_SPOT_LEDGER_UNAVAILABLE")
-        restored = ReservationLedger.restore(ledger.path, limits=ledger.limits)
+        restored = ledger.verified_disk()
         if (restored.life_balance != ledger.life_balance or restored.usdt_balance != ledger.usdt_balance
                 or restored._reservations != ledger._reservations or restored._trades != ledger._trades
                 or restored._account_events != ledger._account_events):
@@ -294,9 +293,16 @@ class HedgeCoordinator:
                 obs = self._snapshot()
                 residual, urgent = self._residual(state, obs, now)
                 self._market(state, now)
+                claims = self.capital.claims()
+                records = {r.intent_id: r for r in self.controller._order_safety_wal.all_records()}
+                owned_makers = all(p.product == "SPOT" and claims.get(p.intent_id) == p
+                                   and p.intent_id in records
+                                   and records[p.intent_id].client_order_id == p.wire_id
+                                   and records[p.intent_id].state in ("SEND_UNKNOWN", "ACKED")
+                                   for p in obs.pending)
                 allowed = (not urgent and abs(residual) <= self.policy.hedge.deadband_base
                            and all(o["status"] == "TERMINAL" for o in state["orders"].values())
-                           and not obs.pending and self.capital.check().allowed)
+                           and owned_makers and self.capital.check().allowed)
                 self.journal.commit(state)
                 self.reason_code = "HEDGE_BALANCED" if allowed else "HEDGE_PAUSE_SPOT"
                 return allowed

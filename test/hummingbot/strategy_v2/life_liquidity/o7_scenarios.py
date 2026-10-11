@@ -34,7 +34,7 @@ D = Decimal
 
 
 @asynccontextmanager
-async def system(path):
+async def system(path, *, inventory_seconds=1):
     joint, v, history, canceled = setup_recovery(path, values=setup_shared(
         path, collateral="100", budget_capacity=500, spot_route=FakeTradingOkx()))
     c, pool, sender, spot, swap, sw, clock, account, feed, strategy, sc, pc = v
@@ -102,7 +102,7 @@ async def system(path):
 
         carry, _, feeds = setup_carry(path, values=v)
         book = InventoryExecutionLedger(path / "inventory.json", session_id="inventory", policy=InventoryExecutionPolicy(
-            "SELL", D("0.5"), D("1"), clock.wall + timedelta(seconds=1), D("0.5"), D("2"), D("200"), D("0.1"), D("0.2"),
+            "SELL", D("0.5"), D("1"), clock.wall + timedelta(seconds=inventory_seconds), D("0.5"), D("2"), D("200"), D("0.1"), D("0.2"),
             D("0.1"), D("1"), D("0.01"), D("0.1"), D("0.1")), create=True)
         observation = {"value": InventoryMarketObservation(now, D("0.98"), D("0.99"), D("100"), D("0"),
                                                            D("5"), D("0.001"), D("0.001"), "independent_market", "inventory")}
