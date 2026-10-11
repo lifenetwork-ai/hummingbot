@@ -37,6 +37,9 @@ class ProtectedSpotExecutorSender:
         self.gateway.authorize = self._authorized
 
     def _exit_planner(self, intent_id):
+        inventory = self.controller._inventory_executor
+        if inventory is not None and intent_id in inventory._configs:
+            return inventory
         planner = self.controller._spot_exit_planner
         return planner if planner is not None and intent_id in planner._configs else None
 
@@ -69,7 +72,8 @@ class ProtectedSpotExecutorSender:
         if permit.intent_id in self.controller._runner_stop_revoked_ids:
             return False
         exit_planner = self._exit_planner(permit.intent_id)
-        allowed = (self.controller.allow_risk_reduction_actions() if exit_planner is not None
+        allowed = ((self.controller.allow_inventory_execution_actions() if exit_planner is self.controller._inventory_executor
+                    else self.controller.allow_risk_reduction_actions()) if exit_planner is not None
                    else self.controller.allow_create_executor_actions())
         session_ready = (self.manager.can_reduce() if exit_planner is not None else self.manager.can_quote(
             reference_ready=True, all_gates_ready=True, market_reference_ready=True))
@@ -180,7 +184,7 @@ class ProtectedSpotExecutorSender:
                          reservation_id=config.id, session_id=current.session_id,
                          epoch=current.epoch, side=side, level=level)
         decision = (self.reservations.reserve_risk_reduction(intent, target_base=exit_planner.target_base)
-                    if exit_planner is not None else self.reservations.reserve(
+                    if exit_planner is not None and intent.side == "SELL" else self.reservations.reserve(
                         intent, reference_price=self.reference_price()))
         if not decision.allowed:
             self.gateway.wal.abort_before_send(config.id)

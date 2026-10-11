@@ -118,6 +118,7 @@ class ProtectedSwapExecutorSender:
             self._validate(config)
             if (self.controller.trading_permissions_ready() is not True
                     or not self._runtime_enabled
+                    or not self.controller._mm_mode_ready()
                     or not self.controller._joint_recovery_ready()
                     or self.controller.config_update_state.order_permission() is not True
                     or self.controller._order_safety_stopped

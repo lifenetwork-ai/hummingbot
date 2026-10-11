@@ -140,7 +140,7 @@ class ReconciledFillAttributor:
     def _subsidy_costs_by_intent(self, *, exits: bool | None = False) -> dict[str, Decimal]:
         costs = {}
         for event in self._events.values():
-            if exits is not None and (event.get("purpose") == "risk_reduction") != exits:
+            if exits is not None and (event.get("purpose") in ("risk_reduction", "inventory_execution")) != exits:
                 continue
             intent_id = event["intent_id"]
             costs[intent_id] = costs.get(intent_id, Decimal("0")) + Decimal(event["loss_quote"])
@@ -385,19 +385,19 @@ class ReconciledFillAttributor:
                         f"fill:{trade_id}", Decimal(event["loss_quote"]),
                         session_id=event["session_id"], at_utc=self._at_utc(event)):
                     return False
-            if any(event.get("purpose") not in (None, "risk_reduction") for event in self._events.values()):
+            if any(event.get("purpose") not in (None, "risk_reduction", "inventory_execution") for event in self._events.values()):
                 return False
             for event in self._events.values():
                 exit_hold = self.exit_budget is not None and self.exit_budget.matches_intent_session(
                     event["intent_id"], event["session_id"])
-                if (event.get("purpose") == "risk_reduction") != exit_hold:
+                if (event.get("purpose") in ("risk_reduction", "inventory_execution")) != exit_hold:
                     return False
                 if exit_hold and self.subsidy_budget is not None and self.subsidy_budget.matches_intent_session(
                         event["intent_id"], event["session_id"]):
                     return False
             for exits, budget in ((False, self.subsidy_budget), (True, self.exit_budget)):
                 selected = [event for event in self._events.values()
-                            if (event.get("purpose") == "risk_reduction") == exits]
+                            if (event.get("purpose") in ("risk_reduction", "inventory_execution")) == exits]
                 if exits and selected and budget is None:
                     return False
                 if budget is None:
@@ -536,7 +536,8 @@ class ReconciledFillAttributor:
                               "signed_fee": str(fill.signed_fee),
                               "fill_at_ms": fill.fill_at_ms}
                     if is_exit:
-                        stable["purpose"] = "risk_reduction"
+                        stable["purpose"] = ("inventory_execution" if callable(getattr(self, "inventory_intent", None))
+                                             and self.inventory_intent(record.intent_id) else "risk_reduction")
                     self._at_utc(stable)
                     previous = self._events.get(fill.trade_id)
                     if previous is not None:

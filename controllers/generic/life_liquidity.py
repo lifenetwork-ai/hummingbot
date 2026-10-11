@@ -221,6 +221,7 @@ class LifeLiquidityController(ControllerBase):
         self._markout_probe_guard: MarkoutProbeGuard | None = None
         self._spot_risk_binding: SpotRiskBinding | None = None
         self._spot_exit_planner = None
+        self._inventory_executor = None
         self._runner_stop_revoked_ids: set[str] = set()
         self._fee_rate_cache: CachedFeeRateSource | None = None
         self._fee_refresh_task: asyncio.Task | None = None
@@ -1340,16 +1341,69 @@ class LifeLiquidityController(ControllerBase):
         self.markout_reason_code = monitor.reason_code
         return ready or self.markout_probe_active()
 
+    def install_inventory_executor(self, execution) -> None:
+        from hummingbot.strategy_v2.life_liquidity.inventory_runner import InventoryExecutor
+        if (self._inventory_executor is not None or self._spot_exit_planner is not None
+                or not isinstance(execution, InventoryExecutor) or execution.controller is not self
+                or self._fill_attributor is None or self._fill_attributor.exit_budget is not execution.budget):
+            raise ValueError("INVENTORY_EXECUTOR_BINDING_INVALID")
+        if (self.config.recovery_state_dir is not None and execution.journal.path.resolve()
+                != (Path(self.config.recovery_state_dir) / "inventory_mode.json").resolve()):
+            raise ValueError("INVENTORY_RECOVERY_PATH_INVALID")
+        manager = self._order_safety_manager
+        if manager._inventory_reconciliation != self._inventory_successor_ready:
+            manager.bind_inventory_reconciliation(self._inventory_successor_ready)
+        self._inventory_executor = execution
+        self._fill_attributor.inventory_intent = execution.owns_intent
+
+    def _inventory_successor_ready(self, session_id, epoch):
+        return self._inventory_executor is not None and self._inventory_executor.allows_mm()
+
+    def _mm_mode_ready(self) -> bool:
+        return self._inventory_executor is None or self._inventory_executor.allows_mm()
+
+    def bounded_spot_planner(self, config):
+        if self._inventory_executor is not None and self._inventory_executor.handles(config):
+            return self._inventory_executor
+        if self._spot_exit_planner is not None and self._spot_exit_planner.handles(config):
+            return self._spot_exit_planner
+        return None
+
+    def _bounded_pending_ready(self):
+        return ((self._spot_exit_planner is not None and self._spot_exit_planner.pending_exit_ready())
+                or (self._inventory_executor is not None and self._inventory_executor.pending_exit_ready()))
+
+    def allow_inventory_execution_actions(self):
+        try:
+            self._runtime_risk_ready()
+            gate = self._runtime_risk_gate
+            execution = self._inventory_executor
+            watchdog = self.order_safety_watchdog_task
+            return (execution is not None and not self._order_safety_stopped and not self._safety_rearm_in_progress
+                    and gate is not None and gate.state in (("NORMAL", "DEGRADED") if execution.ledger.policy.side == "SELL" else ("NORMAL",))
+                    and self._fill_attributor is not None and self._fill_attributor.exit_budget is execution.budget
+                    and (execution.ledger.policy.side == "SELL" or self._spot_risk_ready() and self._markout_risk_ready())
+                    and not self._runner_stops_pending() and not self._runner_scope_invalid
+                    and self._joint_recovery_ready() and self._joint_risk_ready() and self._carry_ready()
+                    and self._hedge_ready() and self._execution_loss_ready() and self._fill_attribution_ready()
+                    and not self.has_unverified_runner_order_events() and self._spot_quote_gates_ready()
+                    and (self._telemetry is None or self._telemetry.healthy)
+                    and self._order_safety_manager.can_reduce()
+                    and watchdog is not None and not watchdog.done()
+                    and (self.order_safety_task is None or self.order_safety_task.done()))
+        except Exception:
+            return False
+
     def install_spot_exit_planner(self, planner) -> None:
         from hummingbot.strategy_v2.life_liquidity.exit_actions import SpotExitPlanner
-        if (self._spot_exit_planner is not None or not isinstance(planner, SpotExitPlanner)
+        if (self._spot_exit_planner is not None or self._inventory_executor is not None or not isinstance(planner, SpotExitPlanner)
                 or planner.controller is not self
                 or self._fill_attributor is not None and self._fill_attributor.exit_budget is not planner.budget):
             raise ValueError("EXIT_BINDING_INVALID")
         self._spot_exit_planner = planner
 
     def is_risk_reducing_config(self, config) -> bool:
-        return self._spot_exit_planner is not None and self._spot_exit_planner.handles(config)
+        return self.bounded_spot_planner(config) is not None and config.side == TradeType.SELL
 
     def _runner_stops_pending(self) -> bool:
         if not self._runner_stop_revoked_ids:
@@ -1387,15 +1441,15 @@ class LifeLiquidityController(ControllerBase):
             return False
         if self._is_swap_config(config):
             return self._protected_swap_sender is not None and self._protected_swap_sender.authorizes_config(config)
-        if self.is_risk_reducing_config(config):
-            return self._spot_exit_planner.authorizes_config(config)
+        if self.bounded_spot_planner(config) is not None:
+            return self.bounded_spot_planner(config).authorizes_config(config)
         return self.allow_create_executor_actions()
 
     def authorize_runner_create_action(self, action) -> bool:
         if self._is_swap_config(action.executor_config):
             return self._protected_swap_sender is not None and self._protected_swap_sender.authorizes_config(action.executor_config)
-        if self.is_risk_reducing_config(action.executor_config):
-            return self._spot_exit_planner.authorizes_config(action.executor_config)
+        if self.bounded_spot_planner(action.executor_config) is not None:
+            return self.bounded_spot_planner(action.executor_config).authorizes_config(action.executor_config)
         planner = self._quote_action_planner
         if self.config.recovery_state_dir is not None and not self._quote_action_recovery_ready:
             return False
@@ -1432,8 +1486,8 @@ class LifeLiquidityController(ControllerBase):
             if self._protected_swap_sender is not None:
                 self._protected_swap_sender.revoke(action.executor_config.id)
             return False
-        if self.is_risk_reducing_config(action.executor_config):
-            return self._spot_exit_planner.action_transition(action, "REJECTED")
+        if self.bounded_spot_planner(action.executor_config) is not None:
+            return self.bounded_spot_planner(action.executor_config).action_transition(action, "REJECTED")
         planner = self._quote_action_planner
         return planner.on_runner_action_rejected(action) if planner is not None else False
 
@@ -1442,8 +1496,8 @@ class LifeLiquidityController(ControllerBase):
                                intent_id=getattr(action.executor_config, "id", None))
         if self._is_swap_config(action.executor_config):
             return self._protected_swap_sender is not None and self._protected_swap_sender.authorizes_config(action.executor_config)
-        if self.is_risk_reducing_config(action.executor_config):
-            return self._spot_exit_planner.action_transition(action, "DISPATCHED")
+        if self.bounded_spot_planner(action.executor_config) is not None:
+            return self.bounded_spot_planner(action.executor_config).action_transition(action, "DISPATCHED")
         planner = self._quote_action_planner
         return planner.on_runner_action_dispatched(action) if planner is not None else False
 
@@ -1455,8 +1509,8 @@ class LifeLiquidityController(ControllerBase):
                 raise PermissionError("LIFE_SWAP_TRADING_DISABLED")
             return self._protected_swap_sender.submit(config, amount=amount, price=price, order_type=order_type)
         sender = self._protected_spot_sender
-        exit_order = self.is_risk_reducing_config(config)
-        allowed = (self._spot_exit_planner.authorizes_config(config) if exit_order
+        exit_order = self.bounded_spot_planner(config) is not None
+        allowed = (self.bounded_spot_planner(config).authorizes_config(config) if exit_order
                    else self.allow_create_executor_actions())
         if sender is None or allowed is not True:
             raise PermissionError("LIFE_TRADING_DISABLED")
@@ -1708,7 +1762,7 @@ class LifeLiquidityController(ControllerBase):
             permitted = False
         manager = self._order_safety_manager
         self._runner_halt_ok = False
-        exit_ready = self._spot_exit_planner is not None and self._spot_exit_planner.pending_exit_ready()
+        exit_ready = self._bounded_pending_ready()
         if (manager is None or self._order_safety_gateway is None
                 or manager.state != "ACTIVE" and not exit_ready or not permitted):
             self._runner_halt_ok = self._halt_runner_orders()
@@ -1720,6 +1774,8 @@ class LifeLiquidityController(ControllerBase):
         """Persist expiry and run order cancellation independent of quote readiness."""
         if self._order_safety_stopped:
             return
+        if self._inventory_executor is not None:
+            self._inventory_executor.on_safety_tick()
         # Do not short-circuit this observation on quote readiness or session expiry.
         carry_ready = self._carry_ready()
         if (self._joint_recovery is not None and self._joint_recovery.reconciliation_due()
@@ -1765,8 +1821,7 @@ class LifeLiquidityController(ControllerBase):
             stop_pending = self._runner_stops_pending()
             ready = (not stop_pending and markout_ready and qualified is not None and self._spot_quote_gates_ready()
                      and not self._pause_reconciliation_required)
-            exit_ready = (not stop_pending and self._spot_exit_planner is not None
-                          and self._spot_exit_planner.pending_exit_ready())
+            exit_ready = not stop_pending and self._bounded_pending_ready()
             previous_state = manager.state
             manager.tick(reference_ready=ready or exit_ready, all_gates_ready=ready or exit_ready,
                          market_reference_ready=(exit_ready or ready and qualified.market_reference_ready is True))
@@ -1891,6 +1946,8 @@ class LifeLiquidityController(ControllerBase):
             elif (result.open_order_ids or result.pending_cancel_ids
                   or result.unknown_order_ids):
                 reason = "CANCEL_REQUEST_FAILED" if cancel_failed else "OLD_ORDERS_UNRESOLVED"
+        if self._inventory_executor is not None:
+            await self._inventory_executor.reconcile()
         if manager.state == "TRANSITIONING" and primary_result is not None:
             try:
                 qualified = None
@@ -1921,6 +1978,11 @@ class LifeLiquidityController(ControllerBase):
 
     def stop(self):
         self._order_safety_stopped = True
+        inventory_task = getattr(self._inventory_executor, "active_task", None)
+        if inventory_task is not None:
+            inventory_task.add_done_callback(lambda _: self._release_account_lock_when_quiescent())
+            if inventory_task is not self.order_safety_task:
+                inventory_task.cancel()
         if self._joint_reconciliation_task is not None:
             self._joint_reconciliation_task.add_done_callback(
                 lambda _: self._release_account_lock_when_quiescent())
@@ -1940,7 +2002,8 @@ class LifeLiquidityController(ControllerBase):
     def _release_account_lock_when_quiescent(self) -> None:
         if (self._release_account_lock_on_task_done
                 and all(task is None or task.done() for task in (
-                    self.order_safety_task, self._joint_reconciliation_task))):
+                    self.order_safety_task, self._joint_reconciliation_task,
+                    getattr(self._inventory_executor, "active_task", None)))):
             self._release_account_lock()
 
     def _release_account_lock(self) -> None:
@@ -2050,7 +2113,7 @@ class LifeLiquidityController(ControllerBase):
                     and not (self.order_safety_task is not None and not self.order_safety_task.done()))
 
     def allow_create_executor_actions(self) -> bool:
-        if not self._joint_recovery_ready():
+        if not self._mm_mode_ready() or not self._joint_recovery_ready():
             return False
         checks = (
             ("telemetry", lambda: self._telemetry is None or self._telemetry.healthy, "TELEMETRY_UNAVAILABLE"),

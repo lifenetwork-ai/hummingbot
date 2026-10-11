@@ -93,7 +93,8 @@ class InventoryChildDecision:
 
 
 def plan_inventory_child(policy: InventoryExecutionPolicy,
-                         snapshot: InventoryExecutionSnapshot) -> InventoryChildDecision:
+                         snapshot: InventoryExecutionSnapshot, *,
+                         fee_rate: Decimal = Decimal("0")) -> InventoryChildDecision:
     if not isinstance(policy, InventoryExecutionPolicy):
         raise ValueError("INVENTORY_EXECUTION_POLICY_INVALID")
     remaining = Decimal("0")
@@ -109,6 +110,7 @@ def plan_inventory_child(policy: InventoryExecutionPolicy,
                                       Decimal("0"), remaining, Decimal("0"))
 
     if (not isinstance(snapshot, InventoryExecutionSnapshot)
+            or not _nonnegative(fee_rate)
             or not _utc(snapshot.observed_utc)
             or not all(_positive(value) for value in (
                 snapshot.best_bid_usdt, snapshot.best_ask_usdt))
@@ -131,7 +133,7 @@ def plan_inventory_child(policy: InventoryExecutionPolicy,
         return blocked("MM_RECONCILIATION_REQUIRED")
     if remaining <= 0:
         return blocked("INVENTORY_TARGET_FILLED_OR_PENDING")
-    if snapshot.independent_volume_base < policy.min_independent_volume_base:
+    if snapshot.independent_volume_base - snapshot.known_own_volume_base < policy.min_independent_volume_base:
         return blocked("INDEPENDENT_VOLUME_INSUFFICIENT")
     if snapshot.independent_depth_base <= 0:
         return blocked("INDEPENDENT_DEPTH_UNAVAILABLE")
@@ -163,7 +165,7 @@ def plan_inventory_child(policy: InventoryExecutionPolicy,
     if notional_room <= 0:
         return blocked("INVENTORY_NOTIONAL_CAP_REACHED")
     balance_room = (snapshot.life_balance if policy.side == "SELL"
-                    else snapshot.usdt_balance / price)
+                    else snapshot.usdt_balance / (price * (1 + fee_rate)))
     if balance_room <= 0:
         return blocked("INVENTORY_BALANCE_UNAVAILABLE")
     quantity = min(remaining, policy.max_child_base, participation_room,
@@ -174,7 +176,7 @@ def plan_inventory_child(policy: InventoryExecutionPolicy,
     adverse_price_loss = max(Decimal("0"), (
         (price - policy.benchmark_price_usdt) if policy.side == "BUY"
         else (policy.benchmark_price_usdt - price)) * quantity)
-    estimated_loss = adverse_price_loss + snapshot.expected_impact_quote
+    estimated_loss = adverse_price_loss + snapshot.expected_impact_quote + quantity * price * fee_rate
     if snapshot.exit_loss_used_quote + estimated_loss > policy.max_exit_loss_quote:
         return blocked("EXIT_BUDGET_EXHAUSTED")
     return InventoryChildDecision(True, "INVENTORY_CHILD_READY", "LIMIT_MAKER",
@@ -207,6 +209,7 @@ class InventoryExecutionLedger:
         self._entries: dict[str, dict] = {}
         self._last_observed_utc: str | None = None
         self._uncertain = False
+        self._executor = None
         if create:
             with self._file_lock():
                 if self.path.exists() or self.path.is_symlink():
@@ -256,7 +259,10 @@ class InventoryExecutionLedger:
         for intent_id, item in data["entries"].items():
             if (not isinstance(intent_id, str) or not intent_id
                     or not isinstance(item, dict)
-                    or set(item) != {"quantity", "price", "estimated_exit_loss", "trades"}
+                    or set(item) not in ({"quantity", "price", "estimated_exit_loss", "trades"},
+                                         {"quantity", "price", "estimated_exit_loss", "trades", "terminal_proof"})
+                    or "terminal_proof" in item and (not isinstance(item["terminal_proof"], str)
+                                                     or len(item["terminal_proof"]) != 64)
                     or not isinstance(item["trades"], dict)):
                 raise ValueError("INVENTORY_JOURNAL_UNAVAILABLE")
             try:
@@ -276,7 +282,7 @@ class InventoryExecutionLedger:
                     fill_qty, fill_price = Decimal(trade["quantity"]), Decimal(trade["price"])
                     fee_quote = Decimal(trade["fee_quote"])
                     if (not _positive(fill_qty) or not _positive(fill_price)
-                            or not _nonnegative(fee_quote)
+                            or not isinstance(fee_quote, Decimal) or not fee_quote.is_finite()
                             or self.policy.side == "SELL" and fill_price < price
                             or self.policy.side == "BUY" and fill_price > price):
                         raise ValueError
@@ -285,7 +291,8 @@ class InventoryExecutionLedger:
                     raise ValueError
             except (TypeError, ValueError) as exc:
                 raise ValueError("INVENTORY_JOURNAL_UNAVAILABLE") from exc
-        if sum((Decimal(item["quantity"]) for item in data["entries"].values()),
+        if sum((sum((Decimal(t["quantity"]) for t in item["trades"].values()), Decimal("0"))
+                if "terminal_proof" in item else Decimal(item["quantity"]) for item in data["entries"].values()),
                Decimal("0")) > self.policy.target_base:
             raise ValueError("INVENTORY_JOURNAL_UNAVAILABLE")
         return data
@@ -331,10 +338,10 @@ class InventoryExecutionLedger:
             item_filled = sum((Decimal(trade["quantity"])
                                for trade in item["trades"].values()), Decimal("0"))
             filled += item_filled
-            pending += quantity - item_filled
+            pending += Decimal("0") if "terminal_proof" in item else quantity - item_filled
             filled_notional += sum((Decimal(trade["quantity"]) * Decimal(trade["price"])
                                     for trade in item["trades"].values()), Decimal("0"))
-            pending_notional += (quantity - item_filled) * Decimal(item["price"])
+            pending_notional += (Decimal("0") if "terminal_proof" in item else quantity - item_filled) * Decimal(item["price"])
         return filled, pending, filled_notional, pending_notional
 
     def _exit_costs(self) -> tuple[Decimal, Decimal, Decimal]:
@@ -351,9 +358,35 @@ class InventoryExecutionLedger:
                 shortfall += (fill_price - self.policy.benchmark_price_usdt) * fill_qty * side_sign
                 fee_total += fee
                 item_filled += fill_qty
-            pending_hold += (Decimal(item["estimated_exit_loss"])
+            pending_hold += (Decimal("0") if "terminal_proof" in item else Decimal(item["estimated_exit_loss"])
                              * (quantity - item_filled) / quantity)
         return shortfall, fee_total, pending_hold
+
+    def gross_cost(self, intent_id=None):
+        with self._lock:
+            self._verified()
+            sign = Decimal("1") if self.policy.side == "BUY" else Decimal("-1")
+            return sum((max(Decimal("0"), (Decimal(t["price"]) - self.policy.benchmark_price_usdt)
+                            * Decimal(t["quantity"]) * sign) + max(Decimal("0"), Decimal(t["fee_quote"]))
+                        for key, item in self._entries.items() if intent_id is None or key == intent_id
+                        for t in item["trades"].values()), Decimal("0"))
+
+    def bind_executor(self, executor):
+        if self._executor is not None or executor.ledger is not self:
+            raise ValueError("INVENTORY_EXECUTOR_BINDING_INVALID")
+        self._executor = executor
+
+    def confirm_terminal(self, intent_id, *, authority, proof_id):
+        if authority is not self._executor or authority is None or not authority.authorizes_terminal(intent_id, proof_id):
+            raise ValueError("INVENTORY_TERMINAL_UNPROVEN")
+        with self._lock, self._file_lock():
+            self._verified()
+            item = self._entries[intent_id]
+            if "terminal_proof" in item:
+                return
+            updated = {**self._entries, intent_id: {**item, "terminal_proof": proof_id}}
+            self._save(updated, self._last_observed_utc)
+            self._entries = updated
 
     @property
     def filled_base(self) -> Decimal:
@@ -368,7 +401,8 @@ class InventoryExecutionLedger:
             return self._totals()[1]
 
     def reserve_child(self, intent_id: str,
-                      snapshot: InventoryExecutionSnapshot) -> InventoryChildDecision:
+                      snapshot: InventoryExecutionSnapshot, *,
+                      fee_rate: Decimal = Decimal("0")) -> InventoryChildDecision:
         with self._lock, self._file_lock():
             self._verified()
             if not isinstance(intent_id, str) or not intent_id or intent_id in self._entries:
@@ -382,19 +416,7 @@ class InventoryExecutionLedger:
                 return InventoryChildDecision(False, "INVENTORY_CLOCK_ROLLBACK", None,
                                               Decimal("0"), Decimal("0"),
                                               self.policy.target_base - self._totals()[0], Decimal("0"))
-            filled, pending, filled_notional, pending_notional = self._totals()
-            shortfall, fee, pending_hold = self._exit_costs()
-            adjusted = replace(
-                snapshot, filled_base=filled, pending_base=pending,
-                filled_notional_quote=filled_notional,
-                pending_notional_quote=pending_notional,
-                exit_loss_used_quote=max(snapshot.exit_loss_used_quote,
-                                         max(Decimal("0"), shortfall + fee) + pending_hold),
-                life_balance=max(Decimal("0"), snapshot.life_balance
-                                 - (pending if self.policy.side == "SELL" else Decimal("0"))),
-                usdt_balance=max(Decimal("0"), snapshot.usdt_balance
-                                 - (pending_notional if self.policy.side == "BUY" else Decimal("0"))))
-            decision = plan_inventory_child(self.policy, adjusted)
+            decision = self.preview_child(snapshot, fee_rate=fee_rate)
             next_observed = snapshot.observed_utc.isoformat()
             updated = dict(self._entries)
             if decision.allowed:
@@ -408,12 +430,32 @@ class InventoryExecutionLedger:
                 self._last_observed_utc = next_observed
             return decision
 
+    def preview_child(self, snapshot, *, fee_rate, exclude_intent=None):
+        with self._lock:
+            self._verified()
+            filled, pending, filled_notional, pending_notional = self._totals()
+            _, _, pending_hold = self._exit_costs()
+            if exclude_intent is not None:
+                item = self._entries[exclude_intent]
+                if "terminal_proof" in item:
+                    raise ValueError("INVENTORY_CHILD_TERMINAL")
+                remainder = Decimal(item["quantity"]) - sum((Decimal(t["quantity"]) for t in item["trades"].values()), Decimal("0"))
+                pending -= remainder
+                pending_notional -= remainder * Decimal(item["price"])
+                pending_hold -= Decimal(item["estimated_exit_loss"]) * remainder / Decimal(item["quantity"])
+            adjusted = replace(snapshot, filled_base=filled, pending_base=pending,
+                               filled_notional_quote=filled_notional, pending_notional_quote=pending_notional,
+                               exit_loss_used_quote=max(snapshot.exit_loss_used_quote, self.gross_cost() + pending_hold),
+                               life_balance=max(Decimal("0"), snapshot.life_balance - (pending if self.policy.side == "SELL" else Decimal("0"))),
+                               usdt_balance=max(Decimal("0"), snapshot.usdt_balance - (pending_notional if self.policy.side == "BUY" else Decimal("0"))))
+            return plan_inventory_child(self.policy, adjusted, fee_rate=fee_rate)
+
     def record_fill(self, intent_id: str, trade_id: str,
                     quantity_base: Decimal, price_usdt: Decimal,
                     fee_quote: Decimal) -> bool:
         if (not isinstance(trade_id, str) or not trade_id
                 or not _positive(quantity_base) or not _positive(price_usdt)
-                or not _nonnegative(fee_quote)):
+                or not isinstance(fee_quote, Decimal) or not fee_quote.is_finite()):
             raise ValueError("INVENTORY_FILL_INVALID")
         with self._lock, self._file_lock():
             self._verified()
@@ -431,6 +473,8 @@ class InventoryExecutionLedger:
                 if previous != trade:
                     raise ValueError("INVENTORY_FILL_CONFLICT")
                 return False
+            if "terminal_proof" in item:
+                raise ValueError("INVENTORY_TERMINAL_FILL_CHANGED")
             filled = sum((Decimal(value["quantity"]) for value in item["trades"].values()),
                          Decimal("0"))
             if filled + quantity_base > Decimal(item["quantity"]):
