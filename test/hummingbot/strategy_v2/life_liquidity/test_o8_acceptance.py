@@ -41,3 +41,19 @@ def test_hedge_wal_scope_cannot_be_dropped_from_acceptance(row):
         "test/hummingbot/strategy_v2/life_liquidity/test_hedge_wal_scope.py")
     with pytest.raises(ValueError):
         audit.validate_manifest(m, require_closed=False)
+
+
+def test_spot_journal_proof_cannot_be_dropped_from_acceptance():
+    m = json.loads(audit.MANIFEST.read_text())
+    m["review_evidence"]["O.8.4"]["tests"].remove(
+        "test/hummingbot/strategy_v2/life_liquidity/test_spot_journal_proof.py")
+    with pytest.raises(ValueError):
+        audit.validate_manifest(m, require_closed=False)
+
+
+def test_active_reservation_admission_cannot_be_dropped_from_acceptance():
+    m = json.loads(audit.MANIFEST.read_text())
+    m["review_evidence"]["O.8.4"]["tests"].remove(
+        "test/hummingbot/strategy_v2/life_liquidity/test_active_reservation_admission.py")
+    with pytest.raises(ValueError):
+        audit.validate_manifest(m, require_closed=False)

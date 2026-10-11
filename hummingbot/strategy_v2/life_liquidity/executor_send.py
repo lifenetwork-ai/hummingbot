@@ -16,6 +16,7 @@ from hummingbot.strategy_v2.life_liquidity.risk import ReservationLedger, SpotIn
 from hummingbot.strategy_v2.life_liquidity.send_gate import SendPermit
 from hummingbot.strategy_v2.life_liquidity.shared_capital import CapitalClaim
 from hummingbot.strategy_v2.life_liquidity.slots import SpotQuoteSlots
+from hummingbot.strategy_v2.life_liquidity.spot_journal_proof import spot_journal_proof
 
 
 class ProtectedSpotExecutorSender:
@@ -43,27 +44,8 @@ class ProtectedSpotExecutorSender:
         planner = self.controller._spot_exit_planner
         return planner if planner is not None and intent_id in planner._configs else None
 
-    def _journals_match(self, records, *, pending_intent_id: str | None = None) -> bool:
-        reservation_ids = self.reservations.reservation_ids
-        required_ids = set()
-        for record in records:
-            if record.state == "PREPARED" and record.intent_id != pending_intent_id:
-                return False
-            if (record.state == "TERMINAL"
-                    and not self.reservations.is_terminal_intent(record.reservation_id)):
-                return False
-            if record.state == "ABORTED_BEFORE_SEND":
-                if record.reservation_id in reservation_ids:
-                    if not self.reservations.is_terminal_intent(record.reservation_id):
-                        return False
-                    required_ids.add(record.reservation_id)
-            else:
-                if (record.state != "TERMINAL"
-                        and record.reservation_id in reservation_ids
-                        and self.reservations.is_terminal_intent(record.reservation_id)):
-                    return False
-                required_ids.add(record.reservation_id)
-        return reservation_ids == required_ids
+    def _journals_match(self, *, pending_intent_id: str | None = None) -> bool:
+        return spot_journal_proof(self.gateway.wal, self.reservations).matches(pending_intent_id=pending_intent_id)
 
     def _authorized(self, permit: SendPermit) -> bool:
         if not self.controller._joint_recovery_ready():
@@ -91,11 +73,13 @@ class ProtectedSpotExecutorSender:
                 or permit.reservation_id != permit.intent_id
                 or not self.reservations.matches_open_intent(intent)):
             return False
-        records = self.gateway.wal.all_records()
-        if not self._journals_match(records, pending_intent_id=permit.intent_id):
+        if not self._journals_match(pending_intent_id=permit.intent_id):
             return False
-        record = next((item for item in records if item.intent_id == permit.intent_id), None)
-        if (record is None or record.slot_market != self.slots.market
+        try:
+            record = self.gateway.wal.get(permit.intent_id)
+        except KeyError:
+            return False
+        if (record.slot_market != self.slots.market
                 or record.slot_side != intent.side
                 or record.slot_level != self._issued_slots.get(permit.intent_id)):
             return False
@@ -161,12 +145,11 @@ class ProtectedSpotExecutorSender:
             raise PermissionError("RESERVATION_JOURNAL_NOT_DURABLE")
         if config.id in self._attempted_intents:
             raise ValueError("RECONCILE_BEFORE_RETRY")
-        records = self.gateway.wal.all_records()
-        if any(item.intent_id == config.id for item in records):
+        if self.gateway.wal.has_intent(config.id):
             raise ValueError("RECONCILE_BEFORE_RETRY")
         if config.id in self.reservations.reservation_ids:
             raise PermissionError("RESERVATION_UNAVAILABLE")
-        if not self._journals_match(records):
+        if not self._journals_match():
             raise PermissionError("RECOVERY_JOURNALS_DISAGREE")
         side = config.side.name
         intent = SpotIntent(config.id, side, amount, price, current.session_id, current.epoch)

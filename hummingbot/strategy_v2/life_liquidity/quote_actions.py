@@ -25,6 +25,7 @@ from hummingbot.strategy_v2.life_liquidity.reference import ReferenceEngine
 from hummingbot.strategy_v2.life_liquidity.risk import ReservationLedger, SpotIntent
 from hummingbot.strategy_v2.life_liquidity.send_gate import SendPermit
 from hummingbot.strategy_v2.life_liquidity.slots import SpotQuoteSlots
+from hummingbot.strategy_v2.life_liquidity.spot_journal_proof import spot_journal_proof
 from hummingbot.strategy_v2.life_liquidity.spot_quotes import (
     AdaptiveQuotePolicy,
     AdaptiveQuoteSignals,
@@ -141,26 +142,7 @@ class QuoteActionPlanner:
         self.reason_code = "QUOTE_ACTIONS_NOT_EVALUATED"
 
     def _journal_consistent(self, session_id: str, epoch: int) -> bool:
-        records = self.wal.all_records()
-        reservation_ids = self.reservations.reservation_ids
-        expected_ids = set()
-        for record in records:
-            active = record.state not in ("TERMINAL", "ABORTED_BEFORE_SEND")
-            if active and (record.slot_market is None or record.session_id != session_id
-                           or record.epoch != epoch or record.state == "PREPARED"):
-                return False
-            if record.state == "ABORTED_BEFORE_SEND":
-                if record.reservation_id in reservation_ids:
-                    if not self.reservations.is_terminal_intent(record.reservation_id):
-                        return False
-                    expected_ids.add(record.reservation_id)
-            else:
-                expected_ids.add(record.reservation_id)
-                if record.reservation_id not in reservation_ids:
-                    return False
-                if self.reservations.is_terminal_intent(record.reservation_id) != (record.state == "TERMINAL"):
-                    return False
-        return expected_ids == reservation_ids
+        return spot_journal_proof(self.wal, self.reservations).matches(session_id=session_id, epoch=epoch)
 
     def _runner_occupied(self) -> set[tuple[str, int]] | None:
         executors = self.controller._runner_executors()

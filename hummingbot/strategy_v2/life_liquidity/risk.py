@@ -279,12 +279,15 @@ class ReservationLedger:
         disk = self.verified_disk()
         maps = (self._reservations, self._trades, self._account_events,
                 disk._reservations, disk._trades, disk._account_events)
+        totals = ((getattr(self, '_filled_base_total', None), disk._filled_base_total)
+                  if self._archive is not None else (None, None))
         key = (tuple(id(m) for m in maps), self.life_balance, self.usdt_balance,
-               disk.life_balance, disk.usdt_balance, self.limits, disk.limits)
+               disk.life_balance, disk.usdt_balance, self.limits, disk.limits, totals)
         cached = getattr(self, "_verified_memory", None)
         if cached is not None and cached[0] == key and all(isinstance(m, (MappingProxyType, PartitionMap)) for m in maps):
             return disk
         if (self.life_balance != disk.life_balance or self.usdt_balance != disk.usdt_balance
+                or totals[0] != totals[1]
                 or any(left != right for left, right in zip(maps[:3], maps[3:]))):
             raise ValueError("RISK_MEMORY_UNVERIFIED")
         if all(isinstance(m, (MappingProxyType, PartitionMap)) for m in maps):
@@ -797,9 +800,7 @@ class ReservationLedger:
                 limits=self.limits)
             if reason is not None:
                 return RiskDecision(False, reason, None)
-            updated = dict(self._reservations.items())
-            updated[intent.intent_id] = _Reservation(intent, intent.quantity_base)
-            self._commit(self.life_balance, self.usdt_balance, updated, self._trades)
+            self._commit_new_reservation(intent)
             return RiskDecision(True, "RESERVED", intent.intent_id)
 
     def reserve_risk_reduction(self, intent: SpotIntent, *, target_base: Decimal) -> RiskDecision:
@@ -818,9 +819,7 @@ class ReservationLedger:
                     or any(item.remaining_base > 0 for item in self._active_reservations().values())
                     or intent.quantity_base > self.life_balance - max(target_base, self.limits.min_inventory_base)):
                 return RiskDecision(False, "EXIT_WOULD_REVERSE_POSITION", None)
-            updated = dict(self._reservations.items())
-            updated[intent.intent_id] = _Reservation(intent, intent.quantity_base)
-            self._commit(self.life_balance, self.usdt_balance, updated, self._trades)
+            self._commit_new_reservation(intent)
             return RiskDecision(True, "EXIT_RESERVED", intent.intent_id)
 
     def record_fill(self, intent_id: str, trade_id: str, quantity: Decimal, price: Decimal) -> bool:
@@ -936,6 +935,43 @@ class ReservationLedger:
         disk._sealed_evidence = True
         self._verified_disk_cache = (self._durable_raw, disk)
 
+    def _commit_new_reservation(self, intent):
+        """Add a zero-fill hold without changing any verified financial history.
+
+        Public callers hold the memory lock and apply their admission policy.
+        The writer lock, complete disk/memory verification and root CAS fence
+        the active update. Balances, trades, fees and filled totals stay fixed.
+        """
+        item = _Reservation(intent, intent.quantity_base)
+        if self._archive is None:
+            updated = dict(self._reservations.items())
+            updated[intent.intent_id] = item
+            self._commit(self.life_balance, self.usdt_balance, updated, self._trades)
+            return
+        with self._file_lock():
+            self.verify_memory()
+            self._archive.archive.assert_capacity()
+            if intent.intent_id in self._reservations:
+                raise ValueError('DUPLICATE_INTENT')
+            active = dict(self._reservations.active)
+            active[intent.intent_id] = item
+            self._publish_active_reservations(active)
+
+    def _publish_active_reservations(self, active):
+        """Caller verified memory and holds both memory and writer locks."""
+        self._archive.verify()
+        raw_active = dict(self._archive._lazy_cut[2]['active'])
+        raw_active['reservations'] = self._payload(self.life_balance, self.usdt_balance, active, {}, {})['reservations']
+        try:
+            self._archive.publish_active(raw_active, expected=self._durable_raw)
+        except Exception:
+            self._uncertain = self._archive.uncertain
+            raise
+        self._durable_raw = self._archive.raw
+        self._reservations = PartitionMap(active, self._reservations.settled)
+        self._verified_memory = None
+        self._cache_verified_archive()
+
     def _commit_pending_reservation(self, intent_id, item):
         if self._archive is None:
             updated = dict(self._reservations.items())
@@ -949,18 +985,7 @@ class ReservationLedger:
                 raise ValueError('RISK_JOURNAL_INVALID')
             active = dict(self._reservations.active)
             active[intent_id] = item
-            self._archive.verify()
-            raw_active = dict(self._archive._lazy_cut[2]['active'])
-            raw_active['reservations'] = self._payload(self.life_balance, self.usdt_balance, active, {}, {})['reservations']
-            try:
-                self._archive.publish_active(raw_active, expected=self._durable_raw)
-            except Exception:
-                self._uncertain = self._archive.uncertain
-                raise
-            self._durable_raw = self._archive.raw
-            self._reservations = PartitionMap(active, self._reservations.settled)
-            self._verified_memory = None
-            self._cache_verified_archive()
+            self._publish_active_reservations(active)
 
     def request_cancel(self, intent_id: str) -> None:
         with self._lock:
