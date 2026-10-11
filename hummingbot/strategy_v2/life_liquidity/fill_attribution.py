@@ -15,11 +15,13 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
+from types import MappingProxyType
 from typing import Callable
 
 from hummingbot.strategy_v2.life_liquidity.account_bills import CashflowApprovals
 from hummingbot.strategy_v2.life_liquidity.accounting import CapitalLedger
 from hummingbot.strategy_v2.life_liquidity.economics import SubsidyBudgetLedger
+from hummingbot.strategy_v2.life_liquidity.lazy_archive import PartitionMap
 from hummingbot.strategy_v2.life_liquidity.loss_budget import LossBudgetLedger
 from hummingbot.strategy_v2.life_liquidity.order_gateway import SpotFill
 from hummingbot.strategy_v2.life_liquidity.risk import ReservationLedger
@@ -273,18 +275,10 @@ class ReconciledFillAttributor:
         path = self.reservations.path
         if path is None or not path.is_file() or path.is_symlink():
             return None
-        durable = self.reservations.verified_disk()
-        if (durable.trade_ids != self.reservations.trade_ids
-                or durable.life_balance != self.reservations.life_balance
-                or durable.usdt_balance != self.reservations.usdt_balance
-                or durable.cashflow_events != self.reservations.cashflow_events
-                or durable.joint_cash_events != self.reservations.joint_cash_events
-                or self.wal.path.is_symlink() or not self.wal.path.is_file()):
+        durable = self.reservations.verify_memory()
+        if self.wal.path.is_symlink() or not self.wal.path.is_file():
             return None
-        durable_wal = IntentWAL(self.wal.path)
-        if ({record.intent_id: record for record in durable_wal.all_records()}
-                != {record.intent_id: record for record in self.wal.all_records()}):
-            return None
+        self.wal.assert_verified()
         source_cashflows = durable.cashflow_events
         if (self.cashflow_approvals is None and source_cashflows
                 or self.cashflow_approvals is not None
@@ -388,6 +382,10 @@ class ReconciledFillAttributor:
             raise ValueError("FILL_ATTRIBUTION_JOURNAL_UNAVAILABLE")
         if any(getattr(b, "_uncertain", False) for b in budgets):
             raise ValueError("FILL_ATTRIBUTION_BUDGET_UNCERTAIN")
+        if self.wal._archive is not None:
+            self.wal.assert_verified()
+        if self.reservations._archive is not None:
+            self.reservations.verify_memory()
         disk = tuple((str(p.absolute()), p.read_bytes()) for p in files)
         memory = (self._policy(), self._events, self._cashflows, self.wal._records,
                   self.reservations.limits, self.reservations.life_balance, self.reservations.usdt_balance,
@@ -395,10 +393,12 @@ class ReconciledFillAttributor:
                   tuple((b._policy(), getattr(b, "campaign_id", None),
                          b._events if b is self.loss_budget else b._entries) for b in budgets))
         if detach:
+            def snapshot(mapping):
+                return mapping if isinstance(mapping, (MappingProxyType, PartitionMap)) else dict(mapping.items())
             memory = (memory[0], {k: dict(v) for k, v in self._events.items()},
-                      {k: dict(v) for k, v in self._cashflows.items()}, dict(self.wal._records),
-                      *memory[4:7], dict(self.reservations._reservations),
-                      dict(self.reservations._trades), dict(self.reservations._account_events),
+                      {k: dict(v) for k, v in self._cashflows.items()}, snapshot(self.wal._records),
+                      *memory[4:7], snapshot(self.reservations._reservations),
+                      snapshot(self.reservations._trades), snapshot(self.reservations._account_events),
                       tuple((policy, campaign, {k: dict(v) for k, v in entries.items()}
                              if budget is self.loss_budget else copy.deepcopy(entries))
                             for budget, (policy, campaign, entries) in zip(budgets, memory[-1])))

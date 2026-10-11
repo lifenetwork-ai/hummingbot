@@ -46,10 +46,8 @@ def collect_spot_metrics(controller, *, utc_now_ms, independent_value,
     if ledger is not None and wal is not None:
         try:
             ledger.assert_healthy()
-            from hummingbot.strategy_v2.life_liquidity.risk import ReservationLedger
-            from hummingbot.strategy_v2.life_liquidity.state import IntentWAL
-            if (ReservationLedger.restore(ledger.path, limits=ledger.limits).reservation_snapshot()
-                    != ledger.reservation_snapshot() or IntentWAL(wal.path).all_records() != wal.all_records()):
+            if (ledger.verified_disk().reservation_snapshot()
+                    != ledger.reservation_snapshot() or wal.verified_disk().all_records() != wal.all_records()):
                 raise ValueError("TELEMETRY_JOURNAL_CHANGED")
             put("inventory_base", ledger.life_balance)
             put("usdt_balance", ledger.usdt_balance)

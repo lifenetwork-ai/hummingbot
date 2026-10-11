@@ -187,10 +187,10 @@ class OkxSpotOrderGateway:
                              *, max_requests: int | None = None) -> int | None:
         if self.cancel_retry_policy is not None:
             return await self._request_cancel_bounded(
-                self.wal.scoped_records(session_id, epoch), max_requests=max_requests)
+                tuple(r for r in self.wal.active_records() if (r.session_id, r.epoch) == (session_id, epoch)), max_requests=max_requests)
         if max_requests is not None:
             raise ValueError("CANCEL_RETRY_POLICY_UNCONFIGURED")
-        for record in self.wal.scoped_records(session_id, epoch):
+        for record in tuple(r for r in self.wal.active_records() if (r.session_id, r.epoch) == (session_id, epoch)):
             if (record.state in ("TERMINAL", "PREPARED", "ABORTED_BEFORE_SEND")
                     or record.exchange_terminal_observed):
                 continue
@@ -215,7 +215,7 @@ class OkxSpotOrderGateway:
         if self.cancel_retry_policy is None:
             raise ValueError("CANCEL_RETRY_POLICY_UNCONFIGURED")
         scope_set = set(scopes)
-        records = tuple(record for record in self.wal.all_records()
+        records = tuple(record for record in self.wal.active_records()
                         if (record.session_id, record.epoch) in scope_set)
         return await self._request_cancel_bounded(records)
 

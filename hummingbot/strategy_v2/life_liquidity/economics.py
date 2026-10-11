@@ -455,13 +455,11 @@ class SubsidyBudgetLedger:
 
     def release_unsent(self, intent_id: str, *, wal, reservations) -> bool:
         """Credit back only after both order and capital journals prove no send."""
-        from hummingbot.strategy_v2.life_liquidity.risk import ReservationLedger
-        from hummingbot.strategy_v2.life_liquidity.state import IntentWAL
 
-        record = IntentWAL(wal.path).get(intent_id)
+        record = wal.verified_disk().get(intent_id)
         if record.state != "ABORTED_BEFORE_SEND":
             raise ValueError("SUBSIDY_RELEASE_UNPROVEN")
-        durable = ReservationLedger.restore(reservations.path, limits=reservations.limits)
+        durable = reservations.verified_disk()
         if (record.reservation_id != intent_id
                 or not durable.is_terminal_intent(intent_id)
                 or not durable.can_abort_unsent(
@@ -475,11 +473,9 @@ class SubsidyBudgetLedger:
         A partial fill retains its hold until complete inventory/exit accounting;
         merely ending the quote does not settle the economic subsidy.
         """
-        from hummingbot.strategy_v2.life_liquidity.risk import ReservationLedger
-        from hummingbot.strategy_v2.life_liquidity.state import IntentWAL
 
-        record = IntentWAL(wal.path).get(intent_id)
-        durable = ReservationLedger.restore(reservations.path, limits=reservations.limits)
+        record = wal.verified_disk().get(intent_id)
+        durable = reservations.verified_disk()
         reservation = durable.reservation_snapshot().get(intent_id)
         if (record.state != "TERMINAL" or not record.exchange_terminal_observed
                 or not record.exchange_order_id or record.reservation_id != intent_id

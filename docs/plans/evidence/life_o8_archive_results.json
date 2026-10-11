@@ -1,0 +1,298 @@
+{
+  "archived_paths": [
+    "capital.settled",
+    "joint.bundle.orders"
+  ],
+  "base_revision": "7d8494e05272bf596cbb6df76d7bab04290c3a53",
+  "budgets_sha256": "e1be70f238efdaad68086e3ae43fdc8ca4447a4c6da6dc36c03260ca7e6be5c3",
+  "commands": {
+    "focused": "conda run -n hummingbot python -m pytest -q test/hummingbot/strategy_v2/life_liquidity/test_checkpoint_archive.py test/hummingbot/strategy_v2/life_liquidity/test_o8_verified_state.py test/hummingbot/strategy_v2/life_liquidity/test_o8_acceptance.py --tb=short",
+    "full": "conda run -n hummingbot python -m test.hummingbot.strategy_v2.life_liquidity.o8_acceptance --candidate --output-dir /tmp/life-o8-archive-final",
+    "isolated": "conda run -n hummingbot python -m pytest -q test/hummingbot/strategy_v2/life_liquidity/test_o8_settled_history.py -s --tb=short"
+  },
+  "coverage": "Full candidate collects coverage.xml but fails the mandatory 10k gates before pinned changed-line comparisons/completion summary. Earlier coverage percentages remain historical.",
+  "dirty_workspace": true,
+  "environment": "macOS arm64, local APFS, conda hummingbot Python 3.13",
+  "focused": {
+    "failed": 0,
+    "passed": 48,
+    "skipped": 0,
+    "warnings": 6
+  },
+  "full_regression": {
+    "completion_summary_issued": false,
+    "failed_selectors": [
+      "test/hummingbot/strategy_v2/life_liquidity/test_o8_settled_history.py::test_complete_settled_history_send_poll_and_cancel[legacy-10000]",
+      "test/hummingbot/strategy_v2/life_liquidity/test_o8_settled_history.py::test_complete_settled_history_send_poll_and_cancel[segmented-10000]"
+    ],
+    "outcomes": {
+      "failed": 2,
+      "passed": 2091
+    },
+    "report": "life_o8_archive_regression.json",
+    "setup_teardown_failures": [],
+    "sha256": "cef4413109572451de38f576cf5a134c1a5dc09788289ced1a450b5812bab357",
+    "skipped": 0,
+    "warnings": 28
+  },
+  "isolated_samples": [
+    {
+      "archived": false,
+      "cancel_start_ms": 12.167958979262039,
+      "event_loop_lag": {
+        "max_ms": 56.57774999621324,
+        "median_ms": 4.066957985050976,
+        "p95_ms": 56.57774999621324,
+        "samples_ms": [
+          0.10833299369551241,
+          56.57774999621324,
+          0.8019580075051636,
+          1.54433298506774,
+          0.42470900574699044,
+          4.066957985050976,
+          4.828165993094444,
+          4.462874998571351,
+          3.855458004400134,
+          4.776916999835521,
+          4.4156659953296185,
+          6.602291987510398,
+          2.9282079869881272
+        ]
+      },
+      "history": 0,
+      "joint_poll_ms": 4.6692500181961805,
+      "propose_filter_final_send_ms": 51.203333016019315,
+      "repeated_permission": {
+        "max_ms": 4.242958995746449,
+        "median_ms": 4.009083000710234,
+        "p95_ms": 4.242958995746449,
+        "samples_ms": [
+          4.009083000710234,
+          4.120582976611331,
+          3.9699159970041364,
+          4.242958995746449,
+          3.9426250150427222
+        ]
+      }
+    },
+    {
+      "archived": false,
+      "cancel_start_ms": 63.73095800518058,
+      "event_loop_lag": {
+        "max_ms": 222.73150000022724,
+        "median_ms": 17.467082982184365,
+        "p95_ms": 222.73150000022724,
+        "samples_ms": [
+          98.37212498881854,
+          222.73150000022724,
+          16.121542003238574,
+          16.150833000428975,
+          16.3899170095101,
+          16.505625020945445,
+          17.467082982184365,
+          47.35908399219625,
+          89.95166599401273
+        ]
+      },
+      "history": 1000,
+      "joint_poll_ms": 96.83783299988136,
+      "propose_filter_final_send_ms": 216.9129999820143,
+      "repeated_permission": {
+        "max_ms": 10.888209013501182,
+        "median_ms": 10.80604101298377,
+        "p95_ms": 10.888209013501182,
+        "samples_ms": [
+          10.85091699496843,
+          10.62449999153614,
+          10.608584008878097,
+          10.80604101298377,
+          10.888209013501182
+        ]
+      }
+    },
+    {
+      "archived": false,
+      "cancel_start_ms": 620.9517079987563,
+      "event_loop_lag": {
+        "max_ms": 3281.7566250253003,
+        "median_ms": 185.8431249950081,
+        "p95_ms": 3281.7566250253003,
+        "samples_ms": [
+          1425.4563340020832,
+          3281.7566250253003,
+          182.59120800415985,
+          182.30349999270402,
+          185.8431249950081,
+          178.09204202261753,
+          175.40183300501667,
+          475.8283750072587,
+          1823.2666250062175
+        ]
+      },
+      "history": 10000,
+      "joint_poll_ms": 1340.276666014688,
+      "propose_filter_final_send_ms": 3181.763000000501,
+      "repeated_permission": {
+        "max_ms": 97.86816700943746,
+        "median_ms": 96.85666701989248,
+        "p95_ms": 97.86816700943746,
+        "samples_ms": [
+          97.06775000086054,
+          96.85666701989248,
+          97.86816700943746,
+          96.00449999561533,
+          93.3048750157468
+        ]
+      }
+    },
+    {
+      "archived": true,
+      "cancel_start_ms": 10.47745899995789,
+      "event_loop_lag": {
+        "max_ms": 77.51379098976031,
+        "median_ms": 12.808500012615696,
+        "p95_ms": 77.51379098976031,
+        "samples_ms": [
+          3.000542006921023,
+          77.51379098976031,
+          13.165374994277954,
+          12.811500006355345,
+          12.920749994227663,
+          11.821457979967818,
+          12.808500012615696,
+          9.9138329771813,
+          3.907415996072814
+        ]
+      },
+      "history": 0,
+      "joint_poll_ms": 5.9769999934360385,
+      "propose_filter_final_send_ms": 71.50700001511723,
+      "repeated_permission": {
+        "max_ms": 7.14933400740847,
+        "median_ms": 6.724166014464572,
+        "p95_ms": 7.14933400740847,
+        "samples_ms": [
+          7.14933400740847,
+          6.779582996387035,
+          6.724166014464572,
+          6.64254100411199,
+          6.514750013593584
+        ]
+      }
+    },
+    {
+      "archived": true,
+      "cancel_start_ms": 47.32945800060406,
+      "event_loop_lag": {
+        "max_ms": 765.7453749945853,
+        "median_ms": 29.23320898320526,
+        "p95_ms": 765.7453749945853,
+        "samples_ms": [
+          105.84770900662988,
+          331.25970798777416,
+          28.148583000293,
+          29.23320898320526,
+          29.096791006159037,
+          28.00437500467524,
+          765.7453749945853,
+          25.63041699817404,
+          82.98950000084005
+        ]
+      },
+      "history": 1000,
+      "joint_poll_ms": 95.325333008077,
+      "propose_filter_final_send_ms": 319.05008302419446,
+      "repeated_permission": {
+        "max_ms": 20.029500010423362,
+        "median_ms": 19.838542008074,
+        "p95_ms": 20.029500010423362,
+        "samples_ms": [
+          19.746625010157004,
+          19.86941701034084,
+          20.029500010423362,
+          19.54916599788703,
+          19.838542008074
+        ]
+      }
+    },
+    {
+      "archived": true,
+      "cancel_start_ms": 302.0299170166254,
+      "event_loop_lag": {
+        "max_ms": 3178.9639169967268,
+        "median_ms": 282.6481250033248,
+        "p95_ms": 3178.9639169967268,
+        "samples_ms": [
+          1402.0140000013635,
+          3178.9639169967268,
+          310.80354102072306,
+          282.11312500410713,
+          281.8375839944929,
+          282.6481250033248,
+          279.3699160194956,
+          171.56666701543145,
+          1622.3384999996051
+        ]
+      },
+      "history": 10000,
+      "joint_poll_ms": 1266.7493330081925,
+      "propose_filter_final_send_ms": 3015.834417019505,
+      "repeated_permission": {
+        "max_ms": 179.7952089982573,
+        "median_ms": 150.81608400214463,
+        "p95_ms": 179.7952089982573,
+        "samples_ms": [
+          179.7952089982573,
+          149.2179170018062,
+          150.81608400214463,
+          151.71245898818597,
+          148.2338749920018
+        ]
+      }
+    }
+  ],
+  "isolated_summary": "3 failed, 4 passed, 6 warnings in 28.63s",
+  "limitations": [
+    "Other financial/ownership journals still use full history checkpoints.",
+    "Full verified views remain in memory; configured archive bytes are not precise decoded-memory budgets.",
+    "Referenced segment bytes are reread and verified synchronously.",
+    "No archive rotation/deletion or capacity reservation for eventual settlement is implemented.",
+    "Controller/live defaults do not opt into archive migration."
+  ],
+  "manifest_sha256": "2b958835b1b42f7b507e11af6133983fd254e0c13786a18a47d1163aef433f50",
+  "offline_complete": false,
+  "open_review_items": [
+    "O.8.4",
+    "O.8.7"
+  ],
+  "production_order_permission": false,
+  "recorded_at": "2026-10-11",
+  "red_reproductions": {
+    "archive": "ModuleNotFoundError during test collection before checkpoint_archive existed",
+    "read_queries": "1 failed before read-only queries replaced mutable full-history access",
+    "wire_index": "2 failed before indexed lookup existed"
+  },
+  "scale_archive_capacities": {
+    "live_default": false,
+    "max_active_bytes": 262144,
+    "max_archive_bytes": 67108864,
+    "max_segment_bytes": 1048576,
+    "max_segments": 512,
+    "records_per_segment": 500
+  },
+  "schema_version": 1,
+  "scope": "OFFLINE_SYNTHETIC_ONLY",
+  "source_sha256": {
+    "hummingbot/strategy_v2/life_liquidity/carry_monitor.py": "1bffee017452aa56862859e49c112d57a9b4787007dae43ca3b67275d4388b09",
+    "hummingbot/strategy_v2/life_liquidity/checkpoint_archive.py": "5c1c51ee0a34aaecad855484e0b9926c15f52c67a5ca0e99ba0f76edf404901e",
+    "hummingbot/strategy_v2/life_liquidity/joint_recovery.py": "045df7e245bcc4b221c2c8d8e5e8005945a3ceb75de5594cddd5e843db33f2de",
+    "hummingbot/strategy_v2/life_liquidity/policy_state.py": "a76b41166c6d688fcacc2ae58e788f934f7710c5f8e162700dfd7ced47cfc7f7",
+    "hummingbot/strategy_v2/life_liquidity/shared_capital.py": "3d93db6ee58b6f8bde781d7a980bf4fdcf207bc80f83aa99b31e27469ee60d2e",
+    "hummingbot/strategy_v2/life_liquidity/state.py": "8492486f2a71a97f1e668bb513032a18be6a9f8b742d08f0e6b9c96ce64478c0",
+    "test/hummingbot/strategy_v2/life_liquidity/o8_acceptance.py": "b56627f020530d8ccf830e8a39921d28267213c6903e43c0de94c8fbd4dba284",
+    "test/hummingbot/strategy_v2/life_liquidity/o8_history.py": "bf5cba3977dd937f4814876a564ea049903bfc4ed34e98cf99a7004c7719ffb4",
+    "test/hummingbot/strategy_v2/life_liquidity/test_checkpoint_archive.py": "2694e95f09ef4d176618dbce771e95a8caf7202fe939cf0f698532a4f52ae7a8",
+    "test/hummingbot/strategy_v2/life_liquidity/test_o8_settled_history.py": "7ed53c32845060728403ed5df742f6a0fca3432ebeafc3b5d20e5bdd1107df73",
+    "test/hummingbot/strategy_v2/life_liquidity/test_o8_verified_state.py": "f6a607b119435c0a18644e49773fdccd6c81399c7906afdfd37dd926bdbaede8"
+  }
+}

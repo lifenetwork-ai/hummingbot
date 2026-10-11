@@ -134,7 +134,8 @@
         "test/hummingbot/strategy_v2/life_liquidity/test_o8_continuous.py",
         "test/hummingbot/strategy_v2/life_liquidity/test_o8_acceptance.py",
         "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_tied_swap_history_release_and_cold_restart",
-        "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_same_direction_swap_ties_also_require_valid_causal_evidence"
+        "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_same_direction_swap_ties_also_require_valid_causal_evidence",
+        "test/hummingbot/strategy_v2/life_liquidity/test_hedge_wal_scope.py"
       ]
     },
     "A09": {
@@ -172,7 +173,8 @@
         "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_owned_pending_maker_does_not_pause_balanced_hedge",
         "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_pending_maker_risk_and_identity_fail_closed",
         "test/hummingbot/strategy_v2/life_liquidity/test_o8_continuous.py",
-        "test/hummingbot/strategy_v2/life_liquidity/test_o8_acceptance.py"
+        "test/hummingbot/strategy_v2/life_liquidity/test_o8_acceptance.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_hedge_wal_scope.py"
       ]
     },
     "A11": {
@@ -418,7 +420,12 @@
         "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_inflight_joint_collection_cannot_block_either_product_cancel",
         "test/hummingbot/strategy_v2/life_liquidity/test_o8_settled_history.py",
         "test/hummingbot/strategy_v2/life_liquidity/test_o8_verified_state.py",
-        "test/hummingbot/strategy_v2/life_liquidity/test_o8_verified_state.py::test_cancel_transports_start_before_full_joint_qualification"
+        "test/hummingbot/strategy_v2/life_liquidity/test_o8_verified_state.py::test_cancel_transports_start_before_full_joint_qualification",
+        "test/hummingbot/strategy_v2/life_liquidity/test_checkpoint_archive.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_history_worker.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_archived_journals.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_lazy_journals.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_hedge_wal_scope.py"
       ]
     },
     "A25": {
@@ -528,7 +535,8 @@
         "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_owned_pending_maker_does_not_pause_balanced_hedge",
         "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_pending_maker_risk_and_identity_fail_closed",
         "test/hummingbot/strategy_v2/life_liquidity/test_o8_continuous.py",
-        "test/hummingbot/strategy_v2/life_liquidity/test_o8_acceptance.py"
+        "test/hummingbot/strategy_v2/life_liquidity/test_o8_acceptance.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_hedge_wal_scope.py"
       ]
     },
     "A31": {
@@ -596,7 +604,8 @@
         "test/hummingbot/strategy_v2/life_liquidity/test_o8_continuous.py",
         "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_owned_pending_maker_does_not_pause_balanced_hedge",
         "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_pending_maker_risk_and_identity_fail_closed",
-        "test/hummingbot/strategy_v2/life_liquidity/test_o8_acceptance.py"
+        "test/hummingbot/strategy_v2/life_liquidity/test_o8_acceptance.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_hedge_wal_scope.py"
       ]
     },
     "A35": {
@@ -635,7 +644,12 @@
         "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_inflight_joint_collection_cannot_block_either_product_cancel",
         "test/hummingbot/strategy_v2/life_liquidity/test_o8_settled_history.py",
         "test/hummingbot/strategy_v2/life_liquidity/test_o8_verified_state.py",
-        "test/hummingbot/strategy_v2/life_liquidity/test_o8_verified_state.py::test_cancel_transports_start_before_full_joint_qualification"
+        "test/hummingbot/strategy_v2/life_liquidity/test_o8_verified_state.py::test_cancel_transports_start_before_full_joint_qualification",
+        "test/hummingbot/strategy_v2/life_liquidity/test_checkpoint_archive.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_history_worker.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_archived_journals.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_lazy_journals.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_hedge_wal_scope.py"
       ]
     },
     "A36": {
@@ -664,7 +678,12 @@
         "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_inflight_joint_collection_cannot_block_either_product_cancel",
         "test/hummingbot/strategy_v2/life_liquidity/test_o8_settled_history.py",
         "test/hummingbot/strategy_v2/life_liquidity/test_o8_verified_state.py",
-        "test/hummingbot/strategy_v2/life_liquidity/test_o8_verified_state.py::test_cancel_transports_start_before_full_joint_qualification"
+        "test/hummingbot/strategy_v2/life_liquidity/test_o8_verified_state.py::test_cancel_transports_start_before_full_joint_qualification",
+        "test/hummingbot/strategy_v2/life_liquidity/test_checkpoint_archive.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_history_worker.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_archived_journals.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_lazy_journals.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_hedge_wal_scope.py"
       ]
     },
     "A37": {
@@ -721,7 +740,8 @@
         "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_pending_maker_risk_and_identity_fail_closed",
         "test/hummingbot/strategy_v2/life_liquidity/test_o8_continuous.py",
         "test/hummingbot/strategy_v2/life_liquidity/test_o8_acceptance.py",
-        "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_active_unarmed_spot_child_requires_a_captured_proposal"
+        "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_active_unarmed_spot_child_requires_a_captured_proposal",
+        "test/hummingbot/strategy_v2/life_liquidity/test_hedge_wal_scope.py"
       ]
     }
   },
@@ -2923,7 +2943,8 @@
       "status": "verified",
       "tests": [
         "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_owned_pending_maker_does_not_pause_balanced_hedge",
-        "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_pending_maker_risk_and_identity_fail_closed"
+        "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_pending_maker_risk_and_identity_fail_closed",
+        "test/hummingbot/strategy_v2/life_liquidity/test_hedge_wal_scope.py"
       ]
     },
     "O.8.4": {
@@ -2934,7 +2955,8 @@
       ],
       "owner": "strategy/executor maintainer",
       "remaining": [
-        "The mandatory complete 10k settled-history replay still breaches the frozen final-send, event-loop lag and cancel-start limits. Implement bounded checkpoints/retention without losing deduplication or financial evidence, then rerun all history sizes."
+        "WAL/reservation terminal maps now use segment-bounded lazy decoded caches and cold validation scratch indexes; active cancel checkpoints preserve terminal descriptors without enumerating historical rows. Exact integrity reads remain synchronous and proportional to history. Financial settlement/new reservation writes, other financial/ownership journals, qualification and final-send loops still need bounded cooperative work, future settlement capacity and unchanged scale gate proof. O.8.4/O.8.7 remain open.",
+        "Hedge permission now compares independently verified immutable WAL cuts and looks up pending makers by exact intent ID with wire/session/epoch/state checks. This removes redundant hedge history materialization only; full quote/executor consistency, financial writes, integrity reads, working-set/storage bounds and unchanged full scale/completion gates remain required."
       ],
       "requirements": [
         "P4.14",
@@ -2950,7 +2972,12 @@
         "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_verified_ledger_cache_does_not_hide_corruption",
         "test/hummingbot/strategy_v2/life_liquidity/test_o8_review.py::test_action_cache_keeps_independent_verified_image",
         "test/hummingbot/strategy_v2/life_liquidity/test_o8_settled_history.py",
-        "test/hummingbot/strategy_v2/life_liquidity/test_o8_verified_state.py"
+        "test/hummingbot/strategy_v2/life_liquidity/test_o8_verified_state.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_checkpoint_archive.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_history_worker.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_archived_journals.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_lazy_journals.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_hedge_wal_scope.py"
       ]
     },
     "O.8.5": {

@@ -1,0 +1,638 @@
+{
+  "base_revision": "7d8494e05272bf596cbb6df76d7bab04290c3a53",
+  "budgets_sha256": "e1be70f238efdaad68086e3ae43fdc8ca4447a4c6da6dc36c03260ca7e6be5c3",
+  "commands": {
+    "focused": "conda run -n hummingbot python -m pytest -q test/hummingbot/strategy_v2/life_liquidity/test_archived_journals.py test/hummingbot/strategy_v2/life_liquidity/test_history_worker.py test/hummingbot/strategy_v2/life_liquidity/test_joint_recovery.py test/hummingbot/strategy_v2/life_liquidity/test_o8_verified_state.py test/hummingbot/strategy_v2/life_liquidity/test_reservation_persistence.py test/hummingbot/strategy_v2/life_liquidity/test_o8_acceptance.py test/hummingbot/strategy_v2/life_liquidity/test_risk.py test/hummingbot/strategy_v2/life_liquidity/test_wal.py test/hummingbot/strategy_v2/life_liquidity/test_reconciled_fill_attribution.py test/hummingbot/strategy_v2/life_liquidity/test_controller_telemetry.py --tb=short",
+    "full": "conda run -n hummingbot python -m test.hummingbot.strategy_v2.life_liquidity.o8_acceptance --candidate --output-dir /tmp/life-o8-journal-final",
+    "isolated": "conda run -n hummingbot python -m pytest -q test/hummingbot/strategy_v2/life_liquidity/test_o8_settled_history.py -s --tb=short"
+  },
+  "coverage": "Coverage collected; regression failures prevent pinned changed-line comparisons and completion summary. No current percentage claimed.",
+  "date": "2026-10-11",
+  "dirty_workspace": true,
+  "environment": "macOS arm64, local APFS, conda hummingbot Python 3.13.15, GIL enabled",
+  "focused": {
+    "elapsed_seconds": 14.47,
+    "failed": 0,
+    "passed": 203,
+    "skipped": 0,
+    "warnings": 6
+  },
+  "full_regression": {
+    "call_outcomes": {
+      "failed": 5,
+      "passed": 2172
+    },
+    "collected": 2177,
+    "completion_summary_issued": false,
+    "elapsed_seconds": 261.61,
+    "failed": 5,
+    "failed_selectors": [
+      "test/hummingbot/strategy_v2/life_liquidity/test_o8_settled_history.py::test_complete_settled_history_send_poll_and_cancel[legacy-10000]",
+      "test/hummingbot/strategy_v2/life_liquidity/test_o8_settled_history.py::test_complete_settled_history_send_poll_and_cancel[segmented-10000]",
+      "test/hummingbot/strategy_v2/life_liquidity/test_o8_settled_history.py::test_complete_settled_history_send_poll_and_cancel[segmented-worker-10000]",
+      "test/hummingbot/strategy_v2/life_liquidity/test_o8_settled_history.py::test_complete_settled_history_send_poll_and_cancel[segmented-process-10000]",
+      "test/hummingbot/strategy_v2/life_liquidity/test_o8_settled_history.py::test_complete_settled_history_send_poll_and_cancel[segmented-journals-10000]"
+    ],
+    "instrumentation_headroom": 5,
+    "passed": 2172,
+    "report": "life_o8_journal_regression.json",
+    "setup_teardown_failures": [],
+    "sha256": "dd1bb22bca31ac45439345eb1699d7da2bc81104880114d4b7b5c2462b39614f",
+    "skipped": 0,
+    "warnings": 27
+  },
+  "isolated": {
+    "elapsed_seconds": 85.38,
+    "failed": 7,
+    "passed": 9,
+    "skipped": 0,
+    "warnings": 6
+  },
+  "isolated_failed_selectors": [
+    "test/hummingbot/strategy_v2/life_liquidity/test_o8_settled_history.py::test_complete_settled_history_send_poll_and_cancel[legacy-10000]",
+    "test/hummingbot/strategy_v2/life_liquidity/test_o8_settled_history.py::test_complete_settled_history_send_poll_and_cancel[segmented-10000]",
+    "test/hummingbot/strategy_v2/life_liquidity/test_o8_settled_history.py::test_complete_settled_history_send_poll_and_cancel[segmented-worker-10000]",
+    "test/hummingbot/strategy_v2/life_liquidity/test_o8_settled_history.py::test_complete_settled_history_send_poll_and_cancel[segmented-process-1000]",
+    "test/hummingbot/strategy_v2/life_liquidity/test_o8_settled_history.py::test_complete_settled_history_send_poll_and_cancel[segmented-process-10000]",
+    "test/hummingbot/strategy_v2/life_liquidity/test_o8_settled_history.py::test_complete_settled_history_send_poll_and_cancel[segmented-journals-1000]",
+    "test/hummingbot/strategy_v2/life_liquidity/test_o8_settled_history.py::test_complete_settled_history_send_poll_and_cancel[segmented-journals-10000]"
+  ],
+  "isolated_samples": [
+    {
+      "archived": false,
+      "cancel_start_ms": 11.416041990742087,
+      "event_loop_lag": {
+        "max_ms": 59.16770798852667,
+        "median_ms": 5.749250000226311,
+        "p95_ms": 59.16770798852667,
+        "samples_ms": [
+          0.12662501307204366,
+          59.16770798852667,
+          0.8540829969570041,
+          2.8068339836318046,
+          1.0802499984856695,
+          5.0628749979659915,
+          7.498792003607377,
+          6.678250016411766,
+          6.963165980996564,
+          6.4893330074846745,
+          6.435625002486631,
+          2.769292021403089
+        ]
+      },
+      "history": 0,
+      "joint_poll_ms": 4.455749993212521,
+      "journal_archived": false,
+      "propose_filter_final_send_ms": 52.07945898291655,
+      "repeated_permission": {
+        "max_ms": 4.2200839961878955,
+        "median_ms": 4.004958987934515,
+        "p95_ms": 4.2200839961878955,
+        "samples_ms": [
+          3.9448329771403223,
+          3.9857079973444343,
+          4.010874981759116,
+          4.2200839961878955,
+          4.004958987934515
+        ]
+      },
+      "worker": false,
+      "worker_backend": null,
+      "worker_startup_ms": null
+    },
+    {
+      "archived": false,
+      "cancel_start_ms": 93.31050000037067,
+      "event_loop_lag": {
+        "max_ms": 253.92954200855456,
+        "median_ms": 19.683667002245784,
+        "p95_ms": 253.92954200855456,
+        "samples_ms": [
+          114.81554201804101,
+          253.92954200855456,
+          18.324250015430152,
+          19.3096250097733,
+          16.595250004902482,
+          19.683667002245784,
+          17.941082982579246,
+          68.95820899284445,
+          121.18620798923075
+        ]
+      },
+      "history": 1000,
+      "joint_poll_ms": 110.64112500753254,
+      "journal_archived": false,
+      "propose_filter_final_send_ms": 250.06104199565016,
+      "repeated_permission": {
+        "max_ms": 13.674166984856129,
+        "median_ms": 12.894958024844527,
+        "p95_ms": 13.674166984856129,
+        "samples_ms": [
+          10.991874994942918,
+          13.674166984856129,
+          12.894958024844527,
+          13.636250019771978,
+          12.240000010933727
+        ]
+      },
+      "worker": false,
+      "worker_backend": null,
+      "worker_startup_ms": null
+    },
+    {
+      "archived": false,
+      "cancel_start_ms": 863.2448329881299,
+      "event_loop_lag": {
+        "max_ms": 3910.145499985665,
+        "median_ms": 253.09399999445304,
+        "p95_ms": 3910.145499985665,
+        "samples_ms": [
+          1639.0277920092922,
+          3910.145499985665,
+          213.37929197237827,
+          211.31691698450595,
+          223.75887499423698,
+          228.78270899876952,
+          253.09399999445304,
+          660.2057080110535,
+          2581.62862499943
+        ]
+      },
+      "history": 10000,
+      "joint_poll_ms": 1532.9158330278005,
+      "journal_archived": false,
+      "propose_filter_final_send_ms": 3794.4290000014007,
+      "repeated_permission": {
+        "max_ms": 128.29120899550617,
+        "median_ms": 118.39483299991116,
+        "p95_ms": 128.29120899550617,
+        "samples_ms": [
+          115.69375000544824,
+          111.16633299388923,
+          118.81937499856576,
+          118.39483299991116,
+          128.29120899550617
+        ]
+      },
+      "worker": false,
+      "worker_backend": null,
+      "worker_startup_ms": null
+    },
+    {
+      "archived": true,
+      "cancel_start_ms": 11.669708997942507,
+      "event_loop_lag": {
+        "max_ms": 87.60208401712589,
+        "median_ms": 12.886000020662323,
+        "p95_ms": 87.60208401712589,
+        "samples_ms": [
+          3.296499993884936,
+          87.60208401712589,
+          12.779749997425824,
+          14.868209002306685,
+          15.445542007219046,
+          12.886000020662323,
+          13.230833001434803,
+          10.38379100849852,
+          5.36087499698624
+        ]
+      },
+      "history": 0,
+      "joint_poll_ms": 6.34687501587905,
+      "journal_archived": false,
+      "propose_filter_final_send_ms": 81.00029200431891,
+      "repeated_permission": {
+        "max_ms": 9.314791997894645,
+        "median_ms": 6.93791700177826,
+        "p95_ms": 9.314791997894645,
+        "samples_ms": [
+          6.669708003755659,
+          9.119541995460168,
+          6.93791700177826,
+          9.314791997894645,
+          6.662500003585592
+        ]
+      },
+      "worker": false,
+      "worker_backend": null,
+      "worker_startup_ms": null
+    },
+    {
+      "archived": true,
+      "cancel_start_ms": 56.89795900252648,
+      "event_loop_lag": {
+        "max_ms": 390.4837079846766,
+        "median_ms": 37.72416700143367,
+        "p95_ms": 390.4837079846766,
+        "samples_ms": [
+          126.75383300869726,
+          390.4837079846766,
+          35.874458010075614,
+          36.72620797646232,
+          41.52041700785048,
+          37.44558298261836,
+          37.72416700143367,
+          28.477082998724654,
+          109.31941699003801
+        ]
+      },
+      "history": 1000,
+      "joint_poll_ms": 113.81416697986424,
+      "journal_archived": false,
+      "propose_filter_final_send_ms": 372.7975000219885,
+      "repeated_permission": {
+        "max_ms": 26.374541979748756,
+        "median_ms": 24.68949998728931,
+        "p95_ms": 26.374541979748756,
+        "samples_ms": [
+          23.33016597549431,
+          24.68949998728931,
+          26.374541979748756,
+          25.25704202707857,
+          24.284499988425523
+        ]
+      },
+      "worker": false,
+      "worker_backend": null,
+      "worker_startup_ms": null
+    },
+    {
+      "archived": true,
+      "cancel_start_ms": 1506.7359160166234,
+      "event_loop_lag": {
+        "max_ms": 6665.083792011719,
+        "median_ms": 645.456416978268,
+        "p95_ms": 6665.083792011719,
+        "samples_ms": [
+          3373.365459012566,
+          6665.083792011719,
+          645.456416978268,
+          362.5992079998832,
+          340.68174998741597,
+          319.3530829832889,
+          598.4809580061119,
+          787.939292009687,
+          3391.4196250063833
+        ]
+      },
+      "history": 10000,
+      "joint_poll_ms": 3067.012749990681,
+      "journal_archived": false,
+      "propose_filter_final_send_ms": 6133.782708988292,
+      "repeated_permission": {
+        "max_ms": 389.7666249831673,
+        "median_ms": 191.77558302180842,
+        "p95_ms": 389.7666249831673,
+        "samples_ms": [
+          389.7666249831673,
+          191.77558302180842,
+          182.53900000127032,
+          168.89649999211542,
+          274.39633299945854
+        ]
+      },
+      "worker": false,
+      "worker_backend": null,
+      "worker_startup_ms": null
+    },
+    {
+      "archived": true,
+      "cancel_start_ms": 14.213541988283396,
+      "event_loop_lag": {
+        "max_ms": 206.97616600431502,
+        "median_ms": 13.068707989295945,
+        "p95_ms": 206.97616600431502,
+        "samples_ms": [
+          38.50891599198803,
+          206.97616600431502,
+          13.068707989295945,
+          16.559332996839657,
+          11.948833018541336,
+          16.66354100801982,
+          12.975708008743823,
+          11.792707993881777,
+          3.6681250005494803
+        ]
+      },
+      "history": 0,
+      "joint_poll_ms": 28.750834026141092,
+      "journal_archived": false,
+      "propose_filter_final_send_ms": 203.1436249963008,
+      "repeated_permission": {
+        "max_ms": 11.101500014774501,
+        "median_ms": 9.190208016661927,
+        "p95_ms": 11.101500014774501,
+        "samples_ms": [
+          11.101500014774501,
+          8.584124996559694,
+          9.190208016661927,
+          7.72654201136902,
+          9.894249989883974
+        ]
+      },
+      "worker": true,
+      "worker_backend": "thread",
+      "worker_startup_ms": null
+    },
+    {
+      "archived": true,
+      "cancel_start_ms": 62.326792016392574,
+      "event_loop_lag": {
+        "max_ms": 426.20941700646654,
+        "median_ms": 38.409457987872884,
+        "p95_ms": 426.20941700646654,
+        "samples_ms": [
+          97.96074999962002,
+          64.66383301652968,
+          53.294040999608114,
+          426.20941700646654,
+          36.27929098205641,
+          35.516999991377816,
+          37.56129099405371,
+          36.22683301568031,
+          38.409457987872884,
+          31.74695798428729,
+          132.93841700418852
+        ]
+      },
+      "history": 1000,
+      "joint_poll_ms": 217.5900830188766,
+      "journal_archived": false,
+      "propose_filter_final_send_ms": 407.8694590134546,
+      "repeated_permission": {
+        "max_ms": 26.832582982024178,
+        "median_ms": 23.198000009870157,
+        "p95_ms": 26.832582982024178,
+        "samples_ms": [
+          22.819917008746415,
+          21.566832991084084,
+          26.832582982024178,
+          24.85341700958088,
+          23.198000009870157
+        ]
+      },
+      "worker": true,
+      "worker_backend": "thread",
+      "worker_startup_ms": null
+    },
+    {
+      "archived": true,
+      "cancel_start_ms": 11.089125007856637,
+      "event_loop_lag": {
+        "max_ms": 78.35137501591817,
+        "median_ms": 11.58904199313838,
+        "p95_ms": 78.35137501591817,
+        "samples_ms": [
+          6.66370898601599,
+          7.08316701115109,
+          78.35137501591817,
+          14.875625007553026,
+          11.235749998595566,
+          13.497207992477342,
+          13.015290993498638,
+          11.668417000910267,
+          11.509666985366493,
+          6.731415991671383
+        ]
+      },
+      "history": 0,
+      "joint_poll_ms": 20.65724998828955,
+      "journal_archived": false,
+      "propose_filter_final_send_ms": 78.9725840149913,
+      "repeated_permission": {
+        "max_ms": 8.442499994998798,
+        "median_ms": 6.727583007887006,
+        "p95_ms": 8.442499994998798,
+        "samples_ms": [
+          6.727583007887006,
+          6.603791000088677,
+          8.442499994998798,
+          6.752874993253499,
+          6.497624999610707
+        ]
+      },
+      "worker": true,
+      "worker_backend": "process",
+      "worker_startup_ms": 913.768667000113
+    },
+    {
+      "archived": true,
+      "cancel_start_ms": 53.35691600339487,
+      "event_loop_lag": {
+        "max_ms": 1278.8563750020694,
+        "median_ms": 38.760104007669725,
+        "p95_ms": 1278.8563750020694,
+        "samples_ms": [
+          98.30200000782497,
+          51.42866698792204,
+          40.9615000046324,
+          49.38391701783985,
+          1278.8563750020694,
+          36.55870801070705,
+          32.359416984254494,
+          31.832165996311232,
+          31.927083977498114,
+          32.58987499633804,
+          27.16750000603497,
+          133.9793750178069
+        ]
+      },
+      "history": 1000,
+      "joint_poll_ms": 257.0187499804888,
+      "journal_archived": false,
+      "propose_filter_final_send_ms": 1266.6325829923153,
+      "repeated_permission": {
+        "max_ms": 25.197834009304643,
+        "median_ms": 21.317458973499015,
+        "p95_ms": 25.197834009304643,
+        "samples_ms": [
+          25.197834009304643,
+          21.06508400174789,
+          21.317458973499015,
+          19.243165996158496,
+          22.127209027530625
+        ]
+      },
+      "worker": true,
+      "worker_backend": "process",
+      "worker_startup_ms": 778.3008749829605
+    },
+    {
+      "archived": true,
+      "cancel_start_ms": 13.205165974795818,
+      "event_loop_lag": {
+        "max_ms": 99.11695798859,
+        "median_ms": 10.136375009315088,
+        "p95_ms": 99.11695798859,
+        "samples_ms": [
+          5.36683298763819,
+          99.11695798859,
+          34.46891701081768,
+          7.681792000075802,
+          10.136375009315088,
+          13.589874996105209,
+          16.42462501535192,
+          10.02420902135782,
+          6.506208019563928
+        ]
+      },
+      "history": 0,
+      "joint_poll_ms": 7.71883298875764,
+      "journal_archived": true,
+      "propose_filter_final_send_ms": 92.55558298900723,
+      "repeated_permission": {
+        "max_ms": 10.135624994290993,
+        "median_ms": 7.6543329923879355,
+        "p95_ms": 10.135624994290993,
+        "samples_ms": [
+          7.6543329923879355,
+          7.583833008538932,
+          7.866959000239149,
+          7.4650000024121255,
+          10.135624994290993
+        ]
+      },
+      "worker": false,
+      "worker_backend": null,
+      "worker_startup_ms": null
+    },
+    {
+      "archived": true,
+      "cancel_start_ms": 81.95029202033766,
+      "event_loop_lag": {
+        "max_ms": 756.1993330111727,
+        "median_ms": 57.586874996777624,
+        "p95_ms": 756.1993330111727,
+        "samples_ms": [
+          165.12487500789575,
+          602.3076250078157,
+          49.110416972544044,
+          56.76941699697636,
+          57.586874996777624,
+          62.41129199974239,
+          56.53904198901728,
+          41.7826670256909,
+          756.1993330111727
+        ]
+      },
+      "history": 1000,
+      "joint_poll_ms": 146.2404579797294,
+      "journal_archived": true,
+      "propose_filter_final_send_ms": 576.9347499881405,
+      "repeated_permission": {
+        "max_ms": 39.83374999370426,
+        "median_ms": 34.79566698661074,
+        "p95_ms": 39.83374999370426,
+        "samples_ms": [
+          30.52358399145305,
+          34.79566698661074,
+          34.27487501176074,
+          39.83374999370426,
+          34.87945900997147
+        ]
+      },
+      "worker": false,
+      "worker_backend": null,
+      "worker_startup_ms": null
+    },
+    {
+      "archived": true,
+      "cancel_start_ms": 547.588875022484,
+      "event_loop_lag": {
+        "max_ms": 6927.57170799654,
+        "median_ms": 424.74741699174047,
+        "p95_ms": 6927.57170799654,
+        "samples_ms": [
+          2024.0572079876438,
+          6927.57170799654,
+          405.8182079845574,
+          405.98891699686646,
+          424.74741699174047,
+          425.8442499942612,
+          419.26583299413323,
+          255.52037498913705,
+          2423.0523750104476
+        ]
+      },
+      "history": 10000,
+      "joint_poll_ms": 1810.9628340171184,
+      "journal_archived": true,
+      "propose_filter_final_send_ms": 6707.4986250081565,
+      "repeated_permission": {
+        "max_ms": 233.37775000254624,
+        "median_ms": 223.2487089931965,
+        "p95_ms": 233.37775000254624,
+        "samples_ms": [
+          221.19441701215692,
+          212.3728340084199,
+          233.37775000254624,
+          223.2487089931965,
+          225.4634170094505
+        ]
+      },
+      "worker": false,
+      "worker_backend": null,
+      "worker_startup_ms": null
+    }
+  ],
+  "limitations": [
+    "Disk partitions and explicit per-journal migration/restore only; logical maps still materialize retained history.",
+    "Exact segment integrity reads, cross-journal qualification and final-send work remain history dependent.",
+    "Pending future-settlement/cancellation/recovery headroom is not pre-reserved.",
+    "Capacity refusal retains evidence; it does not guarantee that every future settlement/write remains possible.",
+    "Migration is atomic per journal, not across all journals; no controller/YAML auto-restore or migration factory is enabled.",
+    "All unchanged scale variants remain mandatory; no latency, worker deadline or live permission has been widened.",
+    "O.8.4/O.8.7 remain open; old snapshot coverage/completion reports are not current closure evidence."
+  ],
+  "manifest_sha256": "34f5a3b3f2f692d04bc568247bf6d6672f0e309d51a6c952c9ef1b0c6c7696af",
+  "offline_complete": false,
+  "production_order_permission": false,
+  "schema_version": 1,
+  "sources_sha256": {
+    "controllers/generic/life_liquidity.py": "cee28b29821989f10e32fb1d5b9aa616d5f93a6d900bbe07ae98cd6080ec4a6b",
+    "hummingbot/strategy_v2/life_liquidity/carry_monitor.py": "1bffee017452aa56862859e49c112d57a9b4787007dae43ca3b67275d4388b09",
+    "hummingbot/strategy_v2/life_liquidity/checkpoint_archive.py": "5c1c51ee0a34aaecad855484e0b9926c15f52c67a5ca0e99ba0f76edf404901e",
+    "hummingbot/strategy_v2/life_liquidity/economics.py": "3669cc084a324a63078b4469f510ebbaac119a2108c94a4ddbe92963f61256da",
+    "hummingbot/strategy_v2/life_liquidity/fill_attribution.py": "208411a763ae5a64ea2363da8c96e80aa82cae43b88fc0839590578257bcc0af",
+    "hummingbot/strategy_v2/life_liquidity/hedge_coordinator.py": "f9a90de9079cdf68ac96e36c0470ae6410e7bb24966c224073be4dc7ed0d3d66",
+    "hummingbot/strategy_v2/life_liquidity/history_worker.py": "a5e176025d4b0b45c898757830a418b474c74b6421212ec55a6b0cab74e129b0",
+    "hummingbot/strategy_v2/life_liquidity/joint_recovery.py": "db5c85448ce52cd92de4cfdef4f95d6aeb65dc5071ef3145a044d3afedd6d779",
+    "hummingbot/strategy_v2/life_liquidity/journal_archive.py": "73b2ae8d15b7726b9c2776fa784be0acd5fbd0b90ec40c75b6194903c2b9f30a",
+    "hummingbot/strategy_v2/life_liquidity/policy_state.py": "1b2e958fa4968a37856bd93400c275eda5ad9d73a6dc3ffd73e501a2f1ce02c0",
+    "hummingbot/strategy_v2/life_liquidity/protected_swap.py": "e0a9e34101f39c3f12457090da724ed460700de69fe8ec47405e6a69b85a3ae6",
+    "hummingbot/strategy_v2/life_liquidity/risk.py": "498c391b69909a4d9b5780f75cb5ca808d0fa5aeff6d77dc7febdbfdd58c9c18",
+    "hummingbot/strategy_v2/life_liquidity/shared_capital.py": "3d93db6ee58b6f8bde781d7a980bf4fdcf207bc80f83aa99b31e27469ee60d2e",
+    "hummingbot/strategy_v2/life_liquidity/spot_telemetry.py": "ebd1b585c18592e622edc1f7f2e8abf06c38f756becd18f45af67d1590212572",
+    "hummingbot/strategy_v2/life_liquidity/state.py": "c8386cb3f77eb951b831095e8f7593d1aa565b3d962defff4761917b2425fd01",
+    "test/hummingbot/strategy_v2/life_liquidity/o8_acceptance.py": "2844b1ef063fd6e95e01cca4f58d5faa11f59d08bb59874150d48eb39d7725fd",
+    "test/hummingbot/strategy_v2/life_liquidity/o8_history.py": "0ec0e9a66d1b80805f28b7712380706e4d10c9fd790fdf8359cf21f5812f1e0a",
+    "test/hummingbot/strategy_v2/life_liquidity/test_archived_journals.py": "489fa626c28c404b3ae8ba4bf8ce87d08412b62215b6d61bb58c1b31404b3a0f",
+    "test/hummingbot/strategy_v2/life_liquidity/test_checkpoint_archive.py": "2694e95f09ef4d176618dbce771e95a8caf7202fe939cf0f698532a4f52ae7a8",
+    "test/hummingbot/strategy_v2/life_liquidity/test_history_worker.py": "79ba212aa0372f5a0d9adb392d1aa510f2e3169fcc4cde4c51402cd1080ea5f3",
+    "test/hummingbot/strategy_v2/life_liquidity/test_o8_settled_history.py": "167914d8885481adfacaaadbe8dc0adae4e2d413b5b7f0898188944b082e8f64",
+    "test/hummingbot/strategy_v2/life_liquidity/test_o8_verified_state.py": "f6a607b119435c0a18644e49773fdccd6c81399c7906afdfd37dd926bdbaede8"
+  },
+  "synthetic_policies": {
+    "live_defaults": false,
+    "scale": {
+      "max_active_bytes": 262144,
+      "max_archive_bytes": 67108864,
+      "max_segment_bytes": 1048576,
+      "max_segments": 512,
+      "records_per_segment": 500
+    },
+    "unit": {
+      "max_active_bytes": 16384,
+      "max_archive_bytes": 262144,
+      "max_segment_bytes": 8192,
+      "max_segments": 64,
+      "records_per_segment": 2
+    }
+  },
+  "tdd": {
+    "archive_binding_failures": 2,
+    "initial_missing_migration_api_failures": 16,
+    "journal_suite_cases": 38,
+    "warm_cache_failure": 1
+  }
+}

@@ -938,8 +938,8 @@ class LifeLiquidityController(ControllerBase):
         self._account_uid_verified = True
         reservations.assert_healthy()
         if (wal.path != path / "intents.json" or reservations.path != path / "reservations.json"
-                or IntentWAL(wal.path).all_records() != wal.all_records()
-                or ReservationLedger.restore(reservations.path, limits=reservations.limits).reservation_snapshot()
+                or wal.verified_disk().all_records() != wal.all_records()
+                or reservations.verified_disk().reservation_snapshot()
                 != reservations.reservation_snapshot()):
             raise ValueError("REARM_JOURNALS_DISAGREE")
         self._verify_quote_action_recovery(path, manager, wal, reservations)
@@ -977,8 +977,8 @@ class LifeLiquidityController(ControllerBase):
                 or not self.verify_runner_fill_events() or not self._fill_attribution_ready()):
             raise ValueError("REARM_PROOF_INVALIDATED")
         reservations.assert_healthy()
-        if (IntentWAL(wal.path).all_records() != wal.all_records()
-                or ReservationLedger.restore(reservations.path, limits=reservations.limits).reservation_snapshot()
+        if (wal.verified_disk().all_records() != wal.all_records()
+                or reservations.verified_disk().reservation_snapshot()
                 != reservations.reservation_snapshot()):
             raise ValueError("REARM_JOURNALS_DISAGREE")
         self._verify_quote_action_recovery(path, manager, wal, reservations)
@@ -1411,9 +1411,9 @@ class LifeLiquidityController(ControllerBase):
             return False
         if self._order_safety_wal is None:
             return True
-        records = self._order_safety_wal.all_records()
+        records = self._order_safety_wal.active_records()
         if self._protected_swap_sender is not None:
-            records += self._protected_swap_sender.wal.all_records()
+            records += self._protected_swap_sender.wal.active_records()
         return any(record.intent_id in self._runner_stop_revoked_ids
                    and record.state not in ("TERMINAL", "ABORTED_BEFORE_SEND")
                    for record in records)
@@ -1555,19 +1555,14 @@ class LifeLiquidityController(ControllerBase):
                 account_uid=self.config.recovery_account_uid).verified_records()
             if claims != self._quote_action_recovery_records:
                 return False
-            if IntentWAL(wal.path).all_records() != wal.all_records():
-                return False
-            snapshot = reservations.reservation_snapshot()
-            durable_reservations = ReservationLedger.restore(
-                reservations.path, limits=reservations.limits)
-            if durable_reservations.reservation_snapshot() != snapshot:
-                return False
+            wal.assert_verified()
+            reservations.verify_memory()
             by_intent = {claim.intent_id: claim for claim in claims}
             if len(by_intent) != len(claims):
                 return False
             for record in missing_records:
                 claim = by_intent.get(record.intent_id)
-                reservation = snapshot.get(record.reservation_id)
+                reservation = reservations.reservation_state(record.reservation_id)
                 if (record.state not in ("SEND_UNKNOWN", "ACKED", "TERMINAL")
                         or record.reservation_id != record.intent_id
                         or record.slot_market != self.config.strategy.spot.pair
@@ -1907,8 +1902,7 @@ class LifeLiquidityController(ControllerBase):
                 return
             self._account_uid_verified = True
         current = manager.current_session
-        scopes = {(record.session_id, record.epoch) for record in wal.all_records()
-                  if record.state not in ("TERMINAL", "ABORTED_BEFORE_SEND")}
+        scopes = {(record.session_id, record.epoch) for record in wal.active_records()}
         scopes.add((current.session_id, current.epoch))
 
         async def cancel_spot():
@@ -2017,6 +2011,9 @@ class LifeLiquidityController(ControllerBase):
 
     def stop(self):
         self._order_safety_stopped = True
+        history_worker = getattr(self._joint_recovery, "history_worker", None)
+        if history_worker is not None:
+            history_worker.close()
         inventory_task = getattr(self._inventory_executor, "active_task", None)
         if inventory_task is not None:
             inventory_task.add_done_callback(lambda _: self._release_account_lock_when_quiescent())

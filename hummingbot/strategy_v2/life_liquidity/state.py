@@ -3,6 +3,7 @@
 import fcntl
 import json
 import os
+import sqlite3
 import tempfile
 from collections import OrderedDict
 from contextlib import contextmanager
@@ -12,6 +13,9 @@ from pathlib import Path
 from threading import RLock
 from types import MappingProxyType
 from typing import Callable
+
+from hummingbot.strategy_v2.life_liquidity.journal_archive import JournalArchive
+from hummingbot.strategy_v2.life_liquidity.lazy_archive import PartitionMap, TransformedMap, scratch_index
 
 
 @dataclass(frozen=True)
@@ -33,6 +37,11 @@ class IntentRecord:
 
 
 class IntentWAL:
+    def __setattr__(self, name, value):
+        if getattr(self, "_sealed_evidence", False):
+            raise TypeError("verified WAL evidence is read-only")
+        super().__setattr__(name, value)
+
     # Resource cache only: exact bytes are reread on every construction. Frozen
     # records and detached maps retain validation without stat-based trust.
     _verified_images = OrderedDict()
@@ -41,69 +50,200 @@ class IntentWAL:
     _cache_files = 8
 
     @classmethod
-    def _remember(cls, path, raw, records):
+    def _remember(cls, path, raw, records, wires):
         with cls._image_lock:
             key = str(path.absolute())
             cls._verified_images.pop(key, None)
             if len(raw) <= cls._cache_bytes:
-                cls._verified_images[key] = (raw, MappingProxyType(dict(records)))
+                cls._verified_images[key] = (raw, records, wires)
             while (len(cls._verified_images) > cls._cache_files
                    or sum(len(v[0]) for v in cls._verified_images.values()) > cls._cache_bytes):
                 cls._verified_images.popitem(last=False)
 
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, *, archive=None):
         self.path = Path(path)
         self._lock = RLock()
         self._uncertain = False
         self._must_exist = self.path.exists() or self.path.is_symlink()
         self._records: dict[str, IntentRecord] = {}
+        self._archive = None if archive is None else JournalArchive(self.path, archive, kind="wal")
+        self._archive_authority = self._archive
+        if self._archive is not None and not self.path.is_file():
+            raise ValueError("ARCHIVE_JOURNAL_UNAVAILABLE")
         if self.path.exists():
-            raw = self.path.read_bytes()
+            if self._archive is None:
+                raw = self.path.read_bytes()
+            else:
+                manifest, data = self._archive.read()
+                self._archive.raw = manifest
+                self._install_archive_data(data)
+                self._archive.verify()
+                return
             with self._image_lock:
                 cached = self._verified_images.get(str(self.path.absolute()))
                 if cached is not None and cached[0] == raw:
                     self._records = cached[1]
+                    self._wire_image = (self._records, cached[2])
                     return
             data = json.loads(raw)
             if data.get("schema_version") != 1 or not isinstance(data.get("records"), dict):
                 raise ValueError("intent WAL invalid")
             self._records = {key: IntentRecord(**value) for key, value in data["records"].items()}
-            for record in self._records.values():
-                slot_fields = (record.slot_market, record.slot_side, record.slot_level)
-                if (any(value is not None for value in slot_fields)
-                        and (not isinstance(record.slot_market, str) or not record.slot_market
-                             or record.slot_side not in ("BUY", "SELL")
-                             or not isinstance(record.slot_level, int)
-                             or isinstance(record.slot_level, bool) or record.slot_level < 0)):
-                    raise ValueError("intent WAL slot identity invalid")
-                if (not isinstance(record.cancel_requested, bool)
-                        or not isinstance(record.exchange_terminal_observed, bool)
-                        or not isinstance(record.cancel_attempts, int)
-                        or isinstance(record.cancel_attempts, bool)
-                        or record.cancel_attempts < 0
-                        or (record.cancel_attempts > 0) != (record.last_cancel_attempt_at is not None)
-                        or record.cancel_attempts > 0 and not record.cancel_requested
-                        or record.exchange_terminal_observed and (
-                            not record.exchange_order_id
-                            or record.state not in ("ACKED", "TERMINAL"))):
-                    raise ValueError("intent WAL cancel state invalid")
-                if record.last_cancel_attempt_at is not None:
-                    try:
-                        self._cancel_time(record.last_cancel_attempt_at)
-                    except (TypeError, ValueError) as exc:
-                        raise ValueError("intent WAL cancel time invalid") from exc
-            self._remember(self.path, raw, self._records)
+            self._records = {key: self._decode_record(key, row.__dict__) for key, row in self._records.items()}
             self._records = MappingProxyType(self._records)
+            self._index_wires()
+            self._remember(self.path, raw, self._records, self._wire_image[1])
+        self._index_wires()
+
+    @staticmethod
+    def _decode_record(key, value):
+        record = IntentRecord(**value)
+        if key != record.intent_id:
+            raise ValueError('WAL_INTENT_ID_MISMATCH')
+        if not isinstance(record.client_order_id, str) or not record.client_order_id:
+            raise ValueError('WAL_WIRE_ID_INVALID')
+        slot_fields = (record.slot_market, record.slot_side, record.slot_level)
+        if (any(value is not None for value in slot_fields)
+                and (not isinstance(record.slot_market, str) or not record.slot_market
+                     or record.slot_side not in ("BUY", "SELL")
+                     or not isinstance(record.slot_level, int)
+                     or isinstance(record.slot_level, bool) or record.slot_level < 0)):
+            raise ValueError("intent WAL slot identity invalid")
+        if (not isinstance(record.cancel_requested, bool)
+                or not isinstance(record.exchange_terminal_observed, bool)
+                or not isinstance(record.cancel_attempts, int)
+                or isinstance(record.cancel_attempts, bool)
+                or record.cancel_attempts < 0
+                or (record.cancel_attempts > 0) != (record.last_cancel_attempt_at is not None)
+                or record.cancel_attempts > 0 and not record.cancel_requested
+                or record.exchange_terminal_observed and (
+                    not record.exchange_order_id
+                    or record.state not in ("ACKED", "TERMINAL"))):
+            raise ValueError("intent WAL cancel state invalid")
+        if record.last_cancel_attempt_at is not None:
+            try:
+                IntentWAL._cancel_time(record.last_cancel_attempt_at)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("intent WAL cancel time invalid") from exc
+        return record
+
+    def _install_archive_data(self, data):
+        with self._image_lock:
+            self._verified_images.pop(str(self.path.absolute()), None)
+        source = data['records']
+        records = PartitionMap(
+            {key: self._decode_record(key, row) for key, row in source.active.items()},
+            TransformedMap(source.settled, IntentWAL._decode_record))
+        # Disk scratch bounds cold duplicate validation without keeping all wire
+        # IDs in a Python set. It is discarded before this cut can authorize work.
+        with scratch_index() as index:
+            index.execute('CREATE TABLE wires (wire TEXT PRIMARY KEY)')
+            slotted = False
+            for record in records.values():
+                try:
+                    index.execute('INSERT INTO wires VALUES (?)', (record.client_order_id,))
+                except sqlite3.IntegrityError as exc:
+                    raise ValueError('WAL_WIRE_ID_DUPLICATE') from exc
+                slotted |= record.slot_market is not None
+        self._records = records
+        self._has_slotted_history = slotted
+        self._wire_image = (records, MappingProxyType({row.client_order_id: row for row in records.active.values()}))
+
+    def _active_values(self):
+        if isinstance(self._records, PartitionMap):
+            return self._records.active.values()
+        return (r for r in self._records.values() if r.state not in ('TERMINAL', 'ABORTED_BEFORE_SEND'))
+
+    def active_records(self):
+        """Pending identity scope; historical audit APIs remain explicit."""
+        with self._lock:
+            return tuple(self._active_values())
+
+    def _cache_verified_archive(self):
+        disk = type(self).__new__(type(self))
+        for name in ('path', '_uncertain', '_must_exist', '_records', '_wire_image', '_has_slotted_history'):
+            setattr(disk, name, getattr(self, name))
+        disk._lock = RLock()
+        disk._archive = self._archive.verified_copy()
+        disk._archive_authority = disk._archive
+        disk._sealed_evidence = True
+        self._verified_disk_cache = (self._archive.raw, disk)
+
+    def _check_archive_binding(self):
+        if (self._archive is not self._archive_authority
+                or self._archive is not None and self._archive.path != self.path):
+            raise ValueError("WAL_ARCHIVE_BINDING_CHANGED")
+
+    def reopen(self):
+        """Cold verification with this instance's explicit archive policy."""
+        self._check_archive_binding()
+        return type(self)(self.path, archive=None if self._archive is None else self._archive.archive.policy)
+
+    def verified_disk(self):
+        """Reuse decoded immutable evidence after exact manifest/segment reads."""
+        self._check_archive_binding()
+        if self._uncertain or self.path.is_symlink() or not self.path.is_file():
+            raise ValueError("WAL_STATE_UNCERTAIN")
+        if self._archive is None:
+            raw = self.path.read_bytes()
+        else:
+            raw, _ = self._archive.read()
+        cached = getattr(self, "_verified_disk_cache", None)
+        if cached is None or cached[0] != raw:
+            disk = self.reopen()
+            if self.path.read_bytes() != raw:
+                raise ValueError("WAL_CHANGED_DURING_VERIFY")
+            disk._sealed_evidence = True
+            cached = (raw, disk)
+            self._verified_disk_cache = cached
+        return cached[1]
+
+    def migrate_archive(self, policy):
+        """Explicit quiescent migration; every identity tombstone is retained."""
+        with self._lock, self._file_lock():
+            if self._archive is not None:
+                raise ValueError("ARCHIVE_MIGRATION_UNSAFE")
+            self.assert_verified()
+            candidate = JournalArchive(self.path, policy, kind="wal")
+            try:
+                candidate.publish({"schema_version": 1,
+                                   "records": {key: row.__dict__ for key, row in self._records.items()}},
+                                  expected=self.path.read_bytes())
+            except Exception:
+                self._uncertain = candidate.uncertain
+                raise
+            self._archive = candidate
+            self._archive_authority = candidate
+            self._install_archive_data(candidate.verify())
+            self._cache_verified_archive()
+
+    def _index_wires(self):
+        image = getattr(self, "_wire_image", None)
+        if image is not None and image[0] is self._records and isinstance(self._records, (MappingProxyType, PartitionMap)):
+            return image[1]
+        indexed = {}
+        for key, record in self._records.items():
+            if key != record.intent_id:
+                raise ValueError("WAL_INTENT_ID_MISMATCH")
+            if record.client_order_id in indexed:
+                raise ValueError("WAL_WIRE_ID_DUPLICATE")
+            indexed[record.client_order_id] = record
+        # Only internally immutable record cuts can use identity reuse. Test
+        # fixtures/legacy mutable maps are re-indexed until disk verification
+        # replaces them with an independently validated immutable image.
+        self._wire_image = (self._records, MappingProxyType(indexed))
+        return self._wire_image[1]
 
     def assert_verified(self):
         if self._uncertain or not self.path.is_file() or self.path.is_symlink():
             raise ValueError("WAL_STATE_UNCERTAIN")
-        disk = type(self)(self.path)
+        disk = self.verified_disk()
         if self._records != disk._records:
             raise ValueError("WAL_STATE_UNCERTAIN")
         # Frozen records behind a detached immutable map can share the verified
         # image. Every subsequent check still reads the exact on-disk bytes.
         self._records = disk._records
+        self._wire_image = disk._wire_image
 
     @staticmethod
     def _cancel_time(value: str) -> datetime:
@@ -129,6 +269,16 @@ class IntentWAL:
             os.close(descriptor)
 
     def _save(self, records: dict[str, IntentRecord]) -> None:
+        self._check_archive_binding()
+        if self._archive is not None:
+            try:
+                self._archive.publish({"schema_version": 1,
+                                       "records": {key: row.__dict__ for key, row in records.items()}},
+                                      expected=self._archive.raw)
+            except Exception:
+                self._uncertain = self._archive.uncertain
+                raise
+            return
         self.path.parent.mkdir(parents=True, exist_ok=True)
         descriptor, temporary = tempfile.mkstemp(prefix=f".{self.path.name}.", dir=self.path.parent)
         replace_attempted = False
@@ -161,16 +311,36 @@ class IntentWAL:
         with self._lock, self._file_lock():
             if self._uncertain or self.path.is_symlink() or (self._must_exist and not self.path.is_file()):
                 raise ValueError("WAL_STATE_UNCERTAIN")
+            if self._archive is not None and record.state not in ('TERMINAL', 'ABORTED_BEFORE_SEND'):
+                self.assert_verified()
+                active = dict(self._records.active)
+                if record.intent_id in self._records.settled:
+                    raise ValueError('RECONCILE_BEFORE_RETRY')
+                active[record.intent_id] = self._decode_record(record.intent_id, record.__dict__)
+                try:
+                    self._archive.publish_active({key: row.__dict__ for key, row in active.items()},
+                                                 expected=self._archive.raw)
+                except Exception:
+                    self._uncertain = self._archive.uncertain
+                    raise
+                self._records = PartitionMap(active, self._records.settled)
+                self._wire_image = (self._records, MappingProxyType({r.client_order_id: r for r in active.values()}))
+                self._has_slotted_history |= record.slot_market is not None
+                self._cache_verified_archive()
+                return
             try:
-                durable_records = IntentWAL(self.path)._records if self.path.exists() else {}
+                durable_records = self.reopen()._records if self.path.exists() else {}
             except (OSError, TypeError, ValueError) as exc:
                 raise ValueError("WAL_STATE_UNCERTAIN") from exc
             if durable_records != self._records:
                 raise ValueError("WAL_STATE_UNCERTAIN")
-            updated = dict(self._records)
+            updated = dict(self._records.items())
             updated[record.intent_id] = record
             self._save(updated)
-            self._records = MappingProxyType(updated)
+            if self._archive is None:
+                self._records = MappingProxyType(updated)
+            else:
+                self._install_archive_data(self._archive.verify())
             self._must_exist = True
 
     def initialize_empty(self) -> None:
@@ -181,6 +351,10 @@ class IntentWAL:
                 raise ValueError("WAL_INITIALIZATION_UNSAFE")
             self._save({})
             self._must_exist = True
+
+    def has_intent(self, intent_id: str) -> bool:
+        with self._lock:
+            return intent_id in self._records
 
     def get(self, intent_id: str) -> IntentRecord:
         with self._lock:
@@ -194,14 +368,17 @@ class IntentWAL:
     def all_records(self) -> tuple[IntentRecord, ...]:
         """Canonical identity order matches a reopened, key-sorted journal."""
         with self._lock:
-            return tuple(self._records[key] for key in sorted(self._records))
+            return tuple(row for _, row in sorted(self._records.items()))
 
     def find_by_client_order_id(self, client_order_id: str) -> IntentRecord:
         with self._lock:
-            for record in self._records.values():
-                if record.client_order_id == client_order_id:
-                    return record
-        raise KeyError(client_order_id)
+            if isinstance(self._records, PartitionMap):
+                active = self._index_wires()
+                if client_order_id in active:
+                    return active[client_order_id]
+                key, row = self._records.settled.source.find(client_order_id)
+                return self._decode_record(key, row)
+            return self._index_wires()[client_order_id]
 
     def mark_cancel_requested(self, intent_id: str) -> bool:
         with self._lock:
@@ -257,14 +434,14 @@ class IntentWAL:
 
     def pending_reconciliation(self, session_id: str, epoch: int) -> tuple[str, ...]:
         with self._lock:
-            return tuple(record.client_order_id for record in self._records.values()
+            return tuple(record.client_order_id for record in self._active_values()
                          if record.session_id == session_id and record.epoch == epoch
                          and record.state in ("PREPARED", "SEND_UNKNOWN"))
 
     def scoped_order_ids(self, session_id: str, epoch: int) -> tuple[str, ...]:
         """Include ACKed orders; only authoritative terminal reconciliation can remove them."""
         with self._lock:
-            return tuple(record.client_order_id for record in self._records.values()
+            return tuple(record.client_order_id for record in self._active_values()
                          if record.session_id == session_id and record.epoch == epoch
                          and record.state not in ("TERMINAL", "ABORTED_BEFORE_SEND"))
 
@@ -282,16 +459,18 @@ class IntentWAL:
                         or slot_level < 0):
             raise ValueError("SLOT_IDENTITY_INVALID")
         with self._lock:
+            if self._archive is not None:
+                self._archive.archive.assert_capacity()
             # A second WAL instance may have advanced the journal since this one
             # loaded it. Never overwrite that state while claiming a slot.
             try:
-                durable_records = IntentWAL(self.path)._records if self.path.exists() else {}
+                durable_records = self.verified_disk()._records if self.path.exists() else {}
             except (OSError, TypeError, ValueError) as exc:
                 raise ValueError("WAL_STATE_UNCERTAIN") from exc
             if durable_records != self._records:
                 raise ValueError("WAL_STATE_UNCERTAIN")
             if slotted:
-                for record in self._records.values():
+                for record in self._active_values():
                     if record.state in ("TERMINAL", "ABORTED_BEFORE_SEND"):
                         continue
                     if record.slot_market is None:
@@ -300,11 +479,16 @@ class IntentWAL:
                         raise ValueError("OLD_SESSION_ORDERS_UNRESOLVED")
                     if (record.slot_market, record.slot_side, record.slot_level) == slot_fields:
                         raise ValueError("SLOT_OCCUPIED")
-            elif any(record.slot_market is not None for record in self._records.values()):
+            elif (self._has_slotted_history if isinstance(self._records, PartitionMap)
+                  else any(record.slot_market is not None for record in self._records.values())):
                 raise ValueError("SLOT_REQUIRED")
             if intent_id in self._records:
                 raise ValueError("RECONCILE_BEFORE_RETRY")
-            if any(record.client_order_id == client_order_id for record in self._records.values()):
+            try:
+                self.find_by_client_order_id(client_order_id)
+            except KeyError:
+                pass
+            else:
                 raise ValueError("CLIENT_ORDER_ID_DUPLICATE")
             prepared = IntentRecord(intent_id, client_order_id, session_id, epoch,
                                     reservation_id, "PREPARED", slot_market=slot_market,
@@ -329,7 +513,7 @@ class IntentWAL:
             if record.state not in ("PREPARED", "ABORTED_BEFORE_SEND"):
                 raise ValueError("ORDER_MAY_HAVE_BEEN_SENT")
             try:
-                durable_records = IntentWAL(self.path)._records
+                durable_records = self.reopen()._records
             except (OSError, TypeError, ValueError) as exc:
                 raise ValueError("WAL_STATE_UNCERTAIN") from exc
             if durable_records != self._records:
@@ -351,7 +535,7 @@ class IntentWAL:
                         client_order_id, session_id, epoch)):
                 raise ValueError("ORDER_MAY_HAVE_BEEN_SENT")
             try:
-                durable_records = IntentWAL(self.path)._records
+                durable_records = self.reopen()._records
             except (OSError, TypeError, ValueError) as exc:
                 raise ValueError("WAL_STATE_UNCERTAIN") from exc
             if durable_records != self._records:

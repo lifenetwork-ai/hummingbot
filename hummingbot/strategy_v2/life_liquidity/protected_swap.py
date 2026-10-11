@@ -146,7 +146,7 @@ class ProtectedSwapExecutorSender:
                     or self.authorize_reservation(permit) is not True):
                 raise ValueError("SWAP_RESERVATION_REVOKED")
             if (self.wal._uncertain or not self.wal.path.is_file() or self.wal.path.is_symlink()
-                    or {r.intent_id: r for r in IntentWAL(self.wal.path).all_records()}
+                    or {r.intent_id: r for r in self.wal.verified_disk().all_records()}
                     != {r.intent_id: r for r in self.wal.all_records()}):
                 raise ValueError("SWAP_WAL_UNVERIFIED")
             if issued:

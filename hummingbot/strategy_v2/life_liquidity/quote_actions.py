@@ -277,7 +277,7 @@ class QuoteActionPlanner:
                     or executors is None
                     or self.controller._runner_scope_invalid
                     or config.id in self.reservations.reservation_ids
-                    or any(record.intent_id == config.id for record in self.wal.all_records())
+                    or self.wal.has_intent(config.id)
                     or any(getattr(getattr(executor, "config", None), "id", None) == config.id
                            for executor in executors)):
                 return False
@@ -327,7 +327,7 @@ class QuoteActionPlanner:
                 return False
         except (KeyError, OSError, ValueError):
             return False
-        if any(record.intent_id == config.id for record in self.wal.all_records()):
+        if self.wal.has_intent(config.id):
             return False
         observed = self._current_snapshot(current)
         if observed is None or not self._journal_consistent(current.session_id, current.epoch):
@@ -617,9 +617,7 @@ class QuoteActionPlanner:
             return []
         actions = []
         proposed = {}
-        used_ids = ({record.intent_id for record in self.wal.all_records()}
-                    | {record.intent_id for record in claims}
-                    | set(self._issued))
+        used_ids = ({record.intent_id for record in claims} | set(self._issued))
         active_slots = {claim.slot for claim in active_claims}
         for candidate in self.last_plan.candidates:
             if probe_mode and (actions or not self.controller.quote_probe_authorizes(
@@ -639,7 +637,7 @@ class QuoteActionPlanner:
             except Exception:
                 self.reason_code = "QUOTE_ACTION_ID_UNAVAILABLE"
                 return []
-            if not isinstance(intent_id, str) or not intent_id or intent_id in used_ids:
+            if not isinstance(intent_id, str) or not intent_id or intent_id in used_ids or self.wal.has_intent(intent_id):
                 self.reason_code = "QUOTE_ACTION_ID_INVALID"
                 return []
             used_ids.add(intent_id)

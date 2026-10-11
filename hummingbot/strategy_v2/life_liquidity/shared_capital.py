@@ -167,14 +167,14 @@ class CapitalDecision:
 
 
 class SharedCapitalAuthority:
-    def __init__(self, path: Path, *, policy: CapitalPolicy, observation, clock_ms, create: bool):
+    def __init__(self, path: Path, *, policy: CapitalPolicy, observation, clock_ms, create: bool, checkpoint_archive=None):
         if not isinstance(policy, CapitalPolicy) or not callable(observation) or not callable(clock_ms):
             raise ValueError("CAPITAL_AUTHORITY_INVALID")
         self.policy, self.observation, self.clock_ms = policy, observation, clock_ms
         self._recovery = None
         self.journal = PolicyState(path, policy=_json(asdict(policy)),
                                    initial={"claims": {}, "settled": {}, "last_checked_ms": None,
-                                            "snapshot_sequence": None, "snapshot": None}, create=create)
+                                            "snapshot_sequence": None, "snapshot": None}, create=create, archive=checkpoint_archive)
         with self.journal.locked() as state:
             self._retained = self._decode(state)
             self.journal.commit(state)
@@ -414,6 +414,8 @@ class SharedCapitalAuthority:
 
     def _operate(self, claim=None, *, reserve=False, spot_balances=None, swap_account=None):
         try:
+            if self.journal.archive is not None:
+                self.journal.archive.assert_capacity()
             if self._recovery is not None and not self._recovery.allocation_ready():
                 return CapitalDecision(False, "CAPITAL_JOINT_RECOVERY_REQUIRED")
             if _json(asdict(self.policy)) != self.journal.policy:

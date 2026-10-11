@@ -10,12 +10,30 @@ from test.hummingbot.strategy_v2.life_liquidity.test_carry_monitor import refres
 
 from hummingbot.core.data_type.common import TradeType
 from hummingbot.strategy_v2.life_liquidity.action_journal import QuoteActionRecord
+from hummingbot.strategy_v2.life_liquidity.checkpoint_archive import ArchivePolicy
 from hummingbot.strategy_v2.life_liquidity.joint_recovery import RecoveryOrder, RecoveryTrade, digest, encode_order
 from hummingbot.strategy_v2.life_liquidity.risk import SpotIntent, _Reservation
 from hummingbot.strategy_v2.life_liquidity.shared_capital import CapitalClaim, _json
 from hummingbot.strategy_v2.life_liquidity.state import IntentRecord
 from hummingbot.strategy_v2.models.base import RunnableStatus
 from hummingbot.strategy_v2.models.executors_info import ExecutorInfo
+
+
+def archive_settled_history(f):
+    """Explicit offline capacities; these are not controller/live defaults."""
+    values = dict(records_per_segment=500, max_segment_bytes=1024 * 1024,
+                  max_archive_bytes=64 * 1024 * 1024, max_segments=512, max_active_bytes=256 * 1024)
+    f.v[1].journal.migrate_archive(ArchivePolicy(paths=(("settled",),), **values))
+    f.joint.journal.migrate_archive(ArchivePolicy(paths=(("bundle", "orders"),), **values))
+
+
+def archive_financial_journals(f):
+    """Explicit synthetic WAL/reservation partitions, no controller defaults."""
+    values = dict(records_per_segment=500, max_segment_bytes=1024 * 1024,
+                  max_archive_bytes=64 * 1024 * 1024, max_segments=512, max_active_bytes=256 * 1024)
+    f.c._order_safety_wal.migrate_archive(ArchivePolicy(paths=(("settled",),), **values))
+    f.c._order_safety_reservations.migrate_archive(ArchivePolicy(
+        paths=tuple(("settled", key) for key in ("reservations", "trades", "account_events")), **values))
 
 
 def seed_settled_history(f, count):

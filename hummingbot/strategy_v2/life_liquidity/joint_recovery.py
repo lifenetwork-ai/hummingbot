@@ -18,6 +18,8 @@ from pathlib import Path
 from hummingbot.core.data_type.common import OrderType
 from hummingbot.core.data_type.trade_fee import TradeFeeBase
 from hummingbot.strategy_v2.executors.order_executor.data_types import OrderExecutorConfig
+from hummingbot.strategy_v2.life_liquidity.checkpoint_archive import read_limited
+from hummingbot.strategy_v2.life_liquidity.history_worker import HistoryWorker
 from hummingbot.strategy_v2.life_liquidity.order_gateway import SpotFill
 from hummingbot.strategy_v2.life_liquidity.policy_state import PolicyState, _FrozenDict
 from hummingbot.strategy_v2.life_liquidity.shared_capital import CapitalClaim, _json
@@ -102,13 +104,17 @@ class JointCapitalMeasurement:
 class JointRecovery:
     def __init__(self, path: Path, *, controller, collect, cancel_swap, clock_ms,
                  max_age_ms: int, cancel_retry_ms: int, max_cancels_per_cycle: int, poll_interval_ms: int,
-                 opening_long_entry: Decimal, opening_short_entry: Decimal, create: bool):
+                 opening_long_entry: Decimal, opening_short_entry: Decimal, create: bool, checkpoint_archive=None,
+                 history_worker: HistoryWorker | None = None):
         self.controller = controller
         self.capital, self.sender = controller._shared_capital_authority, controller._protected_swap_sender
         self.spot_wal, self.reservations = controller._order_safety_wal, controller._order_safety_reservations
         self.collect, self.cancel_swap, self.clock_ms = collect, cancel_swap, clock_ms
         self.max_age_ms, self.cancel_retry_ms, self.max_cancels_per_cycle = max_age_ms, cancel_retry_ms, max_cancels_per_cycle
         self.poll_interval_ms = poll_interval_ms
+        if history_worker is not None and type(history_worker) is not HistoryWorker:
+            raise ValueError("JOINT_HISTORY_WORKER_BINDING_INVALID")
+        self.history_worker = history_worker
         if (self.capital is None or self.sender is None or self.spot_wal is None or self.reservations is None
                 or any(not callable(f) for f in (collect, cancel_swap, clock_ms))
                 or any(type(n) is not int or n <= 0 for n in (max_age_ms, cancel_retry_ms, max_cancels_per_cycle, poll_interval_ms))
@@ -146,7 +152,7 @@ class JointRecovery:
                                         + obs.short_base * (opening_short_entry - obs.mark_price_usdt))}
             if Decimal(initial["highwater"]) <= 0:
                 raise ValueError("JOINT_OPENING_NAV_INVALID")
-        self.journal = PolicyState(path, policy=self._binding, initial=initial, create=create)
+        self.journal = PolicyState(path, policy=self._binding, initial=initial, create=create, archive=checkpoint_archive)
         self._armed, self._healthy, self._busy = create, False, False
         self._receipt_context = None
         self.reason_code = "JOINT_RECOVERY_REQUIRED"
@@ -211,7 +217,7 @@ class JointRecovery:
                 or ownership.path.name != f"okx-{self.capital.policy.account_uid}.lock"):
             raise ValueError("JOINT_ACCOUNT_OWNERSHIP_REQUIRED")
 
-    def _qualify(self, bundle, state, now):
+    def _qualify(self, bundle, state, now, prepared=None):
         obs = self.capital.qualified_snapshot()
         if (not isinstance(bundle, RecoveryBundle) or bundle.source != "okx_joint_reconciled"
                 or bundle.account_uid != self.capital.policy.account_uid
@@ -229,9 +235,15 @@ class JointRecovery:
                 or self.controller._runner_orchestrator is not None
                 and not self.controller._runner_executor_scope_complete(quiescent=False)):
             raise ValueError("JOINT_RUNNER_SCOPE_UNVERIFIED")
-        encoded = _json(asdict(replace(bundle, orders=())))
-        encoded_orders = {id(o): encode_order(o) for o in bundle.orders}
-        encoded["orders"] = sorted(encoded_orders.values(), key=lambda o: o["claim"]["intent_id"])
+        if prepared is None:
+            encoded = _json(asdict(replace(bundle, orders=())))
+            encoded_orders = {id(o): encode_order(o) for o in bundle.orders}
+            encoded["orders"] = sorted(encoded_orders.values(), key=lambda o: o["claim"]["intent_id"])
+        else:
+            if prepared.bundle != bundle or len(prepared.orders) != len(bundle.orders):
+                raise ValueError("JOINT_HISTORY_RESULT_MISMATCH")
+            encoded = prepared.encoded
+            encoded_orders = {id(order): value for order, value in zip(bundle.orders, prepared.orders)}
         if state["sequence"] is not None and (
                 bundle.snapshot_sequence < state["sequence"]
                 or bundle.snapshot_sequence == state["sequence"] and encoded != state["bundle"]
@@ -494,8 +506,10 @@ class JointRecovery:
         async with self._mutex:
             self._busy = True
             try:
-                self._verify_storage()
                 context = self._context()
+                if self.history_worker is not None:
+                    await self._prime_reservations(context)
+                self._verify_storage()
                 now = self.clock_ms()
                 with self.journal.locked(shallow=True) as state:
                     self._validate_state(state)
@@ -507,13 +521,16 @@ class JointRecovery:
                 bundle = await asyncio.wait_for(self.collect(), self.max_age_ms / 1000)
                 if context != self._context():
                     raise ValueError("JOINT_CONTEXT_CHANGED_DURING_REFRESH")
+                prepared = None
+                if self.history_worker is not None:
+                    prepared = await self._prepare_history(bundle, context)
                 now = self.clock_ms()
                 with self.journal.locked(shallow=True) as state:
                     self._validate_state(state)
                     if type(now) is not int or now < state["last_ms"]:
                         raise ValueError("JOINT_CLOCK_ROLLBACK")
                     state["last_ms"] = now
-                    obs, orders, events, encoded, valuation = self._qualify(bundle, state, now)
+                    obs, orders, events, encoded, valuation = self._qualify(bundle, state, now, prepared)
                     # A COMMITTED immutable terminal cut has already completed
                     # all cross-journal checkpoints. Re-qualify all facts, but
                     # do not replay durable financial writes for settled orders.
@@ -528,7 +545,8 @@ class JointRecovery:
                     no_settlement = (state["phase"] == "COMMITTED" and len(completed) == len(orders)
                                      and hedge_idle and all(known_cash.get(k) == v
                                                             for k, v in events.items()))
-                    state.update(sequence=obs.sequence, bundle=encoded, proof_id=digest(encoded),
+                    state.update(sequence=obs.sequence, bundle=encoded,
+                                 proof_id=digest(encoded) if prepared is None else prepared.proof_id,
                                  phase="COMMITTED" if no_settlement else "APPLYING",
                                  valuation=valuation, highwater=valuation["highwater_quote"])
                     self.journal.commit(state)  # Intent-to-settle precedes every financial/WAL checkpoint.
@@ -558,6 +576,68 @@ class JointRecovery:
                 return False
             finally:
                 self._busy = False
+
+    async def _prime_reservations(self, context):
+        """Decode a cold reservation cut in the same bounded read-only worker."""
+        worker = self.history_worker
+        before = self.clock_ms()
+        ledger = self.reservations
+        ledger.assert_healthy()
+        if ledger._archive is not None:
+            # A manifest alone is not financial evidence. The normal journal
+            # verifier includes all referenced segments; the legacy pure-byte
+            # decoder must never cache only a manifest's identity.
+            return
+        if ledger.path is None or ledger.path.is_symlink() or not ledger.path.is_file():
+            raise ValueError("JOINT_HISTORY_RESERVATIONS_UNAVAILABLE")
+        try:
+            raw = read_limited(ledger.path, worker.policy.max_snapshot_bytes)
+        except (OSError, ValueError) as exc:
+            raise ValueError("JOINT_HISTORY_RESERVATIONS_UNAVAILABLE_OR_CAPACITY") from exc
+        cached = getattr(ledger, "_verified_disk_cache", None)
+        if cached is not None and cached[0] == raw and cached[1].limits == ledger.limits:
+            return  # The normal exact-byte/memory gates still run below.
+        evidence = await worker.decode_reservations(raw, path=str(ledger.path), limits=ledger.limits,
+                                                    timeout_ms=self.max_age_ms)
+        if (worker is not self.history_worker or context != self._context()
+                or self.controller._order_safety_stopped):
+            raise ValueError("JOINT_HISTORY_CONTEXT_CHANGED")
+        now = self.clock_ms()
+        if type(now) is not int or type(before) is not int or now < before:
+            raise ValueError("JOINT_CLOCK_ROLLBACK")
+        ledger._accept_verified_snapshot(raw, evidence)
+
+    async def _prepare_history(self, bundle, context):
+        """Precompute JSON only; authority and settlement remain on the event loop."""
+        worker = self.history_worker
+        before = self.clock_ms()
+        observation = self.capital.qualified_snapshot()
+        account = self.sender.account_observation()
+        session_state = self.controller._order_safety_manager.state
+        with self.journal.inspect() as state:
+            self._validate_state(state)
+            version = self.journal._verified_image[0]
+        # No journal lock, controller, callback or financial object crosses
+        # this await. The worker receives a detached frozen fact snapshot.
+        prepared = await worker.prepare(bundle, timeout_ms=self.max_age_ms)
+        if (worker is not self.history_worker or context != self._context()
+                or self.controller._order_safety_stopped
+                or session_state != self.controller._order_safety_manager.state):
+            raise ValueError("JOINT_HISTORY_CONTEXT_CHANGED")
+        now = self.clock_ms()
+        if type(now) is not int or type(before) is not int or now < before:
+            raise ValueError("JOINT_CLOCK_ROLLBACK")
+        if type(bundle.observed_at_ms) is not int or not 0 <= now - bundle.observed_at_ms <= self.max_age_ms:
+            raise ValueError("JOINT_HISTORY_RESULT_STALE")
+        with self.journal.inspect():
+            if self.journal._verified_image[0] != version:
+                raise ValueError("JOINT_HISTORY_JOURNAL_CHANGED")
+        if observation != self.capital.qualified_snapshot() or account != self.sender.account_observation():
+            raise ValueError("JOINT_HISTORY_ACCOUNT_CHANGED")
+        # Refreshes can yield to cancels/fills and other writers. Recheck the
+        # exact WAL and financial bytes/memory before applying any result.
+        self._verify_storage()
+        return prepared
 
     def _completed_orders(self, state, orders):
         if state["phase"] != "COMMITTED":
@@ -741,6 +821,8 @@ class JointRecovery:
 
     def allocation_ready(self):
         try:
+            if self.journal.archive is not None:
+                self.journal.archive.assert_capacity()
             return self._armed and self._fresh() is not None
         except Exception:
             return False
@@ -791,7 +873,7 @@ class JointRecovery:
 
     def reconciliation_due(self):
         try:
-            with self.journal.locked() as state:
+            with self.journal.inspect() as state:
                 self._validate_state(state)
                 return state["last_poll_ms"] is None or self.clock_ms() - state["last_poll_ms"] >= self.poll_interval_ms
         except Exception:
@@ -810,7 +892,7 @@ class JointRecovery:
         async with self._cancel_mutex:
             self._verify_storage()
             now = self.clock_ms()
-            with self.journal.locked() as state:
+            with self.journal.locked(shallow=True) as state:
                 self._validate_state(state)
                 if type(now) is not int or now < 0 or state["last_ms"] is not None and now < state["last_ms"]:
                     raise ValueError("JOINT_CLOCK_ROLLBACK")

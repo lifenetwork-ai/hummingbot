@@ -32,3 +32,12 @@ def test_o8_candidate_is_explicitly_incomplete():
     assert any(row["status"] == "open" for row in m["review_evidence"].values())
     with pytest.raises(ValueError):
         audit.validate_manifest(m)
+
+
+@pytest.mark.parametrize("row", ["O.8.3", "O.8.4"])
+def test_hedge_wal_scope_cannot_be_dropped_from_acceptance(row):
+    m = json.loads(audit.MANIFEST.read_text())
+    m["review_evidence"][row]["tests"].remove(
+        "test/hummingbot/strategy_v2/life_liquidity/test_hedge_wal_scope.py")
+    with pytest.raises(ValueError):
+        audit.validate_manifest(m, require_closed=False)

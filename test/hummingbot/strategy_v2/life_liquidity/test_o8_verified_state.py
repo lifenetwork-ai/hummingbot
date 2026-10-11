@@ -2,6 +2,7 @@
 import asyncio
 import os
 from contextlib import contextmanager
+from dataclasses import replace
 from test.hummingbot.strategy_v2.life_liquidity.o7_scenarios import send, system
 from test.hummingbot.strategy_v2.life_liquidity.o8_history import seed_settled_history
 
@@ -9,6 +10,57 @@ import pytest
 
 from hummingbot.strategy_v2.life_liquidity.policy_state import PolicyState
 from hummingbot.strategy_v2.life_liquidity.state import IntentWAL
+
+
+@pytest.mark.asyncio
+async def test_wire_index_reuses_verified_image_and_invalidates_after_commit(tmp_path, monkeypatch):
+    async with system(tmp_path) as f:
+        seed_settled_history(f, 20)
+        wal = f.c._order_safety_wal
+        wal.assert_verified()
+        assert wal.find_by_client_order_id("HBOTpast000000000000000000000019").intent_id == "past-00019"
+        image = wal._wire_image
+        for record in wal.all_records():
+            assert wal.find_by_client_order_id(record.client_order_id) == record
+        assert wal._wire_image is image
+        # A map transition replaces the strong referenced image, including
+        # changed cancellation state for an otherwise identical wire ID.
+        wal._commit(replace(wal.get("past-00019"), cancel_requested=True))
+        assert wal.find_by_client_order_id("HBOTpast000000000000000000000019").cancel_requested
+        assert wal._wire_image is not image
+        with pytest.raises(KeyError):
+            wal.find_by_client_order_id("absent-wire")
+
+
+@pytest.mark.asyncio
+async def test_wire_index_does_not_hide_replaced_memory_or_duplicate_wires(tmp_path):
+    async with system(tmp_path) as f:
+        seed_settled_history(f, 2)
+        wal = f.c._order_safety_wal
+        wire = wal.get("past-00000").client_order_id
+        assert wal.find_by_client_order_id(wire).intent_id == "past-00000"
+        wal._records = {"past-00000": replace(wal.get("past-00000"), cancel_requested=True)}
+        assert wal.find_by_client_order_id(wire).cancel_requested
+        wal._records["past-00001"] = replace(wal.get("past-00000"), intent_id="past-00001")
+        with pytest.raises(ValueError, match="WAL_WIRE_ID_DUPLICATE"):
+            wal.find_by_client_order_id(wire)
+        wal._save(wal._records)
+        with pytest.raises(ValueError, match="WAL_WIRE_ID_DUPLICATE"):
+            IntentWAL(wal.path)
+
+
+@pytest.mark.asyncio
+async def test_read_only_carry_and_poll_queries_do_not_require_mutable_full_history(tmp_path, monkeypatch):
+    async with system(tmp_path) as f:
+        seed_settled_history(f, 2)
+        assert await f.joint.reconcile()
+
+        def unexpected(*args, **kwargs):
+            raise AssertionError("read-only query requested a mutable full-history checkpoint")
+        monkeypatch.setattr(f.v[1].journal, "locked", unexpected)
+        assert f.c._carry_monitor.check().allowed
+        monkeypatch.setattr(f.joint.journal, "locked", unexpected)
+        assert not f.joint.reconciliation_due()
 
 
 def test_read_only_and_shallow_checkpoints_never_alias_mutable_state(tmp_path):

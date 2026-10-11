@@ -14,7 +14,6 @@ from hummingbot.strategy_v2.executors.order_executor.data_types import Execution
 from hummingbot.strategy_v2.life_liquidity.hedge import HedgePolicy
 from hummingbot.strategy_v2.life_liquidity.policy_state import PolicyState
 from hummingbot.strategy_v2.life_liquidity.shared_capital import _json
-from hummingbot.strategy_v2.life_liquidity.state import IntentWAL
 from hummingbot.strategy_v2.models.executor_actions import StopExecutorAction
 
 ZERO = Decimal("0")
@@ -267,9 +266,14 @@ class HedgeCoordinator:
                 or restored._account_events != ledger._account_events):
             raise ValueError("HEDGE_SPOT_LEDGER_MISMATCH")
         wal = self.controller._order_safety_wal
-        if (wal is None or wal._uncertain or not wal.path.is_file() or wal.path.is_symlink()
-                or IntentWAL(wal.path).all_records() != wal.all_records()):
+        if wal is None or wal._uncertain or not wal.path.is_file() or wal.path.is_symlink():
             raise ValueError("HEDGE_SPOT_WAL_UNAVAILABLE")
+        # Exact disk/memory verification shares immutable cuts; materializing
+        # both complete historical tuples here defeats lazy journal bounds.
+        try:
+            wal.assert_verified()
+        except (OSError, TypeError, ValueError) as exc:
+            raise ValueError("HEDGE_SPOT_WAL_UNAVAILABLE") from exc
         account = self.sender.account_observation()
         ct = self.sender.contract.contract_value_life
         long = max(account.net_contracts, ZERO) if obs.position_mode == "ONEWAY" else account.long_contracts
@@ -294,12 +298,22 @@ class HedgeCoordinator:
                 residual, urgent = self._residual(state, obs, now)
                 self._market(state, now)
                 claims = self.capital.claims()
-                records = {r.intent_id: r for r in self.controller._order_safety_wal.all_records()}
-                owned_makers = all(p.product == "SPOT" and claims.get(p.intent_id) == p
-                                   and p.intent_id in records
-                                   and records[p.intent_id].client_order_id == p.wire_id
-                                   and records[p.intent_id].state in ("SEND_UNKNOWN", "ACKED")
-                                   for p in obs.pending)
+                wal = self.controller._order_safety_wal
+                owned_makers = True
+                for pending in obs.pending:
+                    if pending.product != "SPOT" or claims.get(pending.intent_id) != pending:
+                        owned_makers = False
+                        break
+                    try:
+                        record = wal.get(pending.intent_id)
+                    except KeyError:
+                        owned_makers = False
+                        break
+                    if (record.client_order_id != pending.wire_id
+                            or (record.session_id, record.epoch) != (pending.session_id, pending.epoch)
+                            or record.state not in ("SEND_UNKNOWN", "ACKED")):
+                        owned_makers = False
+                        break
                 allowed = (not urgent and abs(residual) <= self.policy.hedge.deadband_base
                            and all(o["status"] == "TERMINAL" for o in state["orders"].values())
                            and owned_makers and self.capital.check().allowed)

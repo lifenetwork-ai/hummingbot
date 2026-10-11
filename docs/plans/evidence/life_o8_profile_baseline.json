@@ -1,0 +1,1567 @@
+{
+  "acceptance_manifest_sha256": "b72c39720d2759c458666fcbd59e8dfcde991bc8ea09801cfb95a7f31610b516",
+  "baseline_artifact": "docs/plans/evidence/life_o8_lazy_journal_results.json",
+  "baseline_sha256": "ada1f13bb18676810265d163c22cae4511514685f4a13444a49dd682cc8f5cf2",
+  "budget_sha256": "e1be70f238efdaad68086e3ae43fdc8ca4447a4c6da6dc36c03260ca7e6be5c3",
+  "focused_verification": {
+    "cases": [
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_o8_profile",
+        "name": "test_profile_counts_aliased_reads_once_and_restores_io",
+        "time": "0.015"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_o8_profile",
+        "name": "test_profile_preserves_capacity_errors_and_failed_stage",
+        "time": "0.002"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_o8_profile",
+        "name": "test_timing_mode_does_not_install_io_or_cpu_instrumentation",
+        "time": "0.001"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_o8_verified_state",
+        "name": "test_wire_index_reuses_verified_image_and_invalidates_after_commit",
+        "time": "0.031"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_o8_verified_state",
+        "name": "test_wire_index_does_not_hide_replaced_memory_or_duplicate_wires",
+        "time": "0.024"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_o8_verified_state",
+        "name": "test_read_only_carry_and_poll_queries_do_not_require_mutable_full_history",
+        "time": "0.029"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_o8_verified_state",
+        "name": "test_read_only_and_shallow_checkpoints_never_alias_mutable_state",
+        "time": "0.003"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_o8_verified_state",
+        "name": "test_verified_policy_cache_detects_same_stat_and_memory_mutation",
+        "time": "0.002"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_o8_verified_state",
+        "name": "test_attribution_cache_cannot_hide_financial_changes[loss_disk]",
+        "time": "0.025"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_o8_verified_state",
+        "name": "test_attribution_cache_cannot_hide_financial_changes[attribution_memory]",
+        "time": "0.025"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_o8_verified_state",
+        "name": "test_attribution_cache_cannot_hide_financial_changes[reservation_memory]",
+        "time": "0.027"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_o8_verified_state",
+        "name": "test_attribution_cache_cannot_hide_financial_changes[wal_memory]",
+        "time": "0.026"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_o8_verified_state",
+        "name": "test_attribution_cache_cannot_hide_financial_changes[uncertain]",
+        "time": "0.025"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_o8_verified_state",
+        "name": "test_wal_cache_independent_images_and_same_stat_conflict",
+        "time": "0.027"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_o8_verified_state",
+        "name": "test_applying_phase_must_replay_cross_journal_terminal_checkpoints",
+        "time": "0.037"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_o8_verified_state",
+        "name": "test_cached_reservation_evidence_cannot_be_mutated",
+        "time": "0.032"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_o8_verified_state",
+        "name": "test_cancel_transports_start_before_full_joint_qualification",
+        "time": "0.110"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_o8_verified_state",
+        "name": "test_permission_telemetry_does_not_replay_financial_history",
+        "time": "0.022"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_o8_verified_state",
+        "name": "test_attribution_cache_rejects_a_change_during_final_snapshot",
+        "time": "0.112"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_o8_verified_state",
+        "name": "test_clock_fence_is_rechecked_after_switching_to_write_lock",
+        "time": "0.021"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_lazy_journals",
+        "name": "test_cold_terminal_maps_are_lazy_and_reads_are_segment_bounded[wal]",
+        "time": "0.025"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_lazy_journals",
+        "name": "test_cold_terminal_maps_are_lazy_and_reads_are_segment_bounded[risk]",
+        "time": "0.023"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_lazy_journals",
+        "name": "test_active_queries_and_verified_memory_do_not_enumerate_terminal_maps[wal]",
+        "time": "0.052"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_lazy_journals",
+        "name": "test_active_queries_and_verified_memory_do_not_enumerate_terminal_maps[risk]",
+        "time": "0.034"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_lazy_journals",
+        "name": "test_lazy_cut_changes_remain_stale_and_pending_updates_do_not_retain_history[wal]",
+        "time": "0.024"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_lazy_journals",
+        "name": "test_lazy_cut_changes_remain_stale_and_pending_updates_do_not_retain_history[risk]",
+        "time": "0.027"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_lazy_journals",
+        "name": "test_rehashed_invalid_history_still_fails_cold_financial_validation[wire_duplicate]",
+        "time": "0.014"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_lazy_journals",
+        "name": "test_rehashed_invalid_history_still_fails_cold_financial_validation[wrong_fill_sum]",
+        "time": "0.018"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_lazy_journals",
+        "name": "test_rehashed_invalid_history_still_fails_cold_financial_validation[fee_without_trade]",
+        "time": "0.019"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_lazy_journals",
+        "name": "test_rehashed_invalid_history_still_fails_cold_financial_validation[overlapping_range]",
+        "time": "0.013"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_lazy_journals",
+        "name": "test_rehashed_invalid_history_still_fails_cold_financial_validation[numeric_owner]",
+        "time": "0.019"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_lazy_journals",
+        "name": "test_bloom_collisions_never_omit_exact_wire_matches",
+        "time": "0.029"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_lazy_journals",
+        "name": "test_cold_restore_rechecks_root_after_stream_validation[wal]",
+        "time": "0.015"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_lazy_journals",
+        "name": "test_cold_restore_rechecks_root_after_stream_validation[risk]",
+        "time": "0.019"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_lazy_journals",
+        "name": "test_pending_cancel_checkpoint_reuses_terminal_segments_without_row_scan[wal]",
+        "time": "0.015"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_lazy_journals",
+        "name": "test_pending_cancel_checkpoint_reuses_terminal_segments_without_row_scan[risk]",
+        "time": "0.023"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_lazy_journals",
+        "name": "test_retained_terminal_cache_bound_at_frozen_history_sizes[0-wal]",
+        "time": "0.013"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_lazy_journals",
+        "name": "test_retained_terminal_cache_bound_at_frozen_history_sizes[0-risk]",
+        "time": "0.014"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_lazy_journals",
+        "name": "test_retained_terminal_cache_bound_at_frozen_history_sizes[1000-wal]",
+        "time": "0.113"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_lazy_journals",
+        "name": "test_retained_terminal_cache_bound_at_frozen_history_sizes[1000-risk]",
+        "time": "0.176"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_lazy_journals",
+        "name": "test_retained_terminal_cache_bound_at_frozen_history_sizes[10000-wal]",
+        "time": "1.010"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_lazy_journals",
+        "name": "test_retained_terminal_cache_bound_at_frozen_history_sizes[10000-risk]",
+        "time": "1.882"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_lazy_journals",
+        "name": "test_attribution_cache_retains_lazy_views_and_rechecks_segment_integrity",
+        "time": "0.046"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_lazy_journals",
+        "name": "test_pending_checkpoint_ambiguous_replace_locks_writer[False-wal]",
+        "time": "0.015"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_lazy_journals",
+        "name": "test_pending_checkpoint_ambiguous_replace_locks_writer[False-risk]",
+        "time": "0.024"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_lazy_journals",
+        "name": "test_pending_checkpoint_ambiguous_replace_locks_writer[True-wal]",
+        "time": "0.016"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_lazy_journals",
+        "name": "test_pending_checkpoint_ambiguous_replace_locks_writer[True-risk]",
+        "time": "0.023"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_lazy_journals",
+        "name": "test_lazy_reader_rejects_invalid_manifest_metadata[count]",
+        "time": "0.014"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_lazy_journals",
+        "name": "test_lazy_reader_rejects_invalid_manifest_metadata[digest]",
+        "time": "0.014"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_lazy_journals",
+        "name": "test_lazy_reader_rejects_invalid_manifest_metadata[descriptor_bytes]",
+        "time": "0.015"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_lazy_journals",
+        "name": "test_lazy_reader_rejects_invalid_manifest_metadata[branch]",
+        "time": "0.016"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_lazy_journals",
+        "name": "test_lazy_reader_rejects_invalid_manifest_metadata[root_type]",
+        "time": "0.016"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_lazy_journals",
+        "name": "test_lazy_reader_rejects_invalid_manifest_metadata[directory_symlink]",
+        "time": "0.017"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_lazy_journals",
+        "name": "test_repeated_snapshot_lookup_reuses_one_chunk_but_permission_rehashes_all_bytes[wal]",
+        "time": "0.016"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_lazy_journals",
+        "name": "test_repeated_snapshot_lookup_reuses_one_chunk_but_permission_rehashes_all_bytes[risk]",
+        "time": "0.022"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_lazy_journals",
+        "name": "test_wire_filter_does_not_thrash_the_single_chunk_cache_at_scale",
+        "time": "0.302"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_history_worker",
+        "name": "test_worker_encodes_detached_immutable_history_off_event_loop",
+        "time": "0.026"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_history_worker",
+        "name": "test_worker_keeps_one_slot_until_thread_finishes_and_discards_late_results[timeout]",
+        "time": "0.052"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_history_worker",
+        "name": "test_worker_keeps_one_slot_until_thread_finishes_and_discards_late_results[cancel]",
+        "time": "0.097"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_history_worker",
+        "name": "test_worker_keeps_one_slot_until_thread_finishes_and_discards_late_results[close]",
+        "time": "0.020"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_history_worker",
+        "name": "test_capacity_and_worker_failure_never_authorize_or_mutate_bot[orders]",
+        "time": "0.024"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_history_worker",
+        "name": "test_capacity_and_worker_failure_never_authorize_or_mutate_bot[trades]",
+        "time": "0.023"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_history_worker",
+        "name": "test_capacity_and_worker_failure_never_authorize_or_mutate_bot[bytes]",
+        "time": "0.023"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_history_worker",
+        "name": "test_capacity_and_worker_failure_never_authorize_or_mutate_bot[mutable]",
+        "time": "0.026"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_history_worker",
+        "name": "test_capacity_and_worker_failure_never_authorize_or_mutate_bot[failed]",
+        "time": "0.026"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_history_worker",
+        "name": "test_refresh_rejects_changes_while_worker_runs_before_any_settlement[context]",
+        "time": "0.026"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_history_worker",
+        "name": "test_refresh_rejects_changes_while_worker_runs_before_any_settlement[account]",
+        "time": "0.112"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_history_worker",
+        "name": "test_refresh_rejects_changes_while_worker_runs_before_any_settlement[journal]",
+        "time": "0.100"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_history_worker",
+        "name": "test_refresh_rejects_changes_while_worker_runs_before_any_settlement[same_stat]",
+        "time": "0.033"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_history_worker",
+        "name": "test_refresh_rejects_changes_while_worker_runs_before_any_settlement[clock]",
+        "time": "0.036"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_history_worker",
+        "name": "test_refresh_rejects_changes_while_worker_runs_before_any_settlement[stale]",
+        "time": "0.042"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_history_worker",
+        "name": "test_refresh_rejects_changes_while_worker_runs_before_any_settlement[wal]",
+        "time": "0.036"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_history_worker",
+        "name": "test_refresh_rejects_changes_while_worker_runs_before_any_settlement[reservation]",
+        "time": "0.037"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_history_worker",
+        "name": "test_refresh_rejects_changes_while_worker_runs_before_any_settlement[runner]",
+        "time": "0.036"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_history_worker",
+        "name": "test_refresh_rejects_changes_while_worker_runs_before_any_settlement[stop]",
+        "time": "0.037"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_history_worker",
+        "name": "test_slow_history_worker_does_not_block_owned_spot_cancel_or_release_claim",
+        "time": "0.087"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_history_worker",
+        "name": "test_worker_refresh_allows_actual_affordable_send_but_stop_closes_admission",
+        "time": "0.085"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_history_worker",
+        "name": "test_reservation_decode_runs_off_loop_and_is_bound_to_exact_bytes",
+        "time": "0.033"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_history_worker",
+        "name": "test_reservation_predecode_cannot_publish_a_stale_or_uncertain_cut[bytes]",
+        "time": "0.026"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_history_worker",
+        "name": "test_reservation_predecode_cannot_publish_a_stale_or_uncertain_cut[memory]",
+        "time": "0.026"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_history_worker",
+        "name": "test_reservation_predecode_cannot_publish_a_stale_or_uncertain_cut[uncertain]",
+        "time": "0.030"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_history_worker",
+        "name": "test_reservation_predecode_cannot_publish_a_stale_or_uncertain_cut[context]",
+        "time": "0.027"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_history_worker",
+        "name": "test_reservation_predecode_cannot_publish_a_stale_or_uncertain_cut[clock]",
+        "time": "0.027"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_history_worker",
+        "name": "test_snapshot_decoder_does_not_reopen_paths_or_write",
+        "time": "0.002"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_history_worker",
+        "name": "test_worker_requires_explicit_positive_integer_bounds[0]",
+        "time": "0.000"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_history_worker",
+        "name": "test_worker_requires_explicit_positive_integer_bounds[-1]",
+        "time": "0.000"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_history_worker",
+        "name": "test_worker_requires_explicit_positive_integer_bounds[True]",
+        "time": "0.000"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_history_worker",
+        "name": "test_worker_requires_explicit_positive_integer_bounds[1.5]",
+        "time": "0.000"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_history_worker",
+        "name": "test_worker_requires_explicit_positive_integer_bounds[None]",
+        "time": "0.000"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_history_worker",
+        "name": "test_candidate_bytes_cannot_be_rebound_to_another_checkpoint",
+        "time": "0.021"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_history_worker",
+        "name": "test_cold_restore_with_explicit_worker_still_requires_operator_rearm",
+        "time": "0.026"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_history_worker",
+        "name": "test_spawn_process_startup_immutable_transfer_and_actual_send",
+        "time": "1.065"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_history_worker",
+        "name": "test_killed_process_worker_denies_refresh_without_releasing_existing_claim",
+        "time": "0.801"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_o8_settled_history",
+        "name": "test_committed_history_does_not_recheckpoint_terminal_orders",
+        "time": "0.030"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_o8_settled_history",
+        "name": "test_complete_settled_history_send_poll_and_cancel[segmented-journals-0]",
+        "time": "0.303"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_o8_settled_history",
+        "name": "test_complete_settled_history_send_poll_and_cancel[legacy-0]",
+        "time": "0.250"
+      },
+      {
+        "classname": "test.hummingbot.strategy_v2.life_liquidity.test_o8_settled_history",
+        "name": "test_complete_settled_history_send_poll_and_cancel[segmented-0]",
+        "time": "0.286"
+      }
+    ],
+    "command": "conda run -n hummingbot python -m pytest -q test/hummingbot/strategy_v2/life_liquidity/test_o8_profile.py test/hummingbot/strategy_v2/life_liquidity/test_o8_verified_state.py test/hummingbot/strategy_v2/life_liquidity/test_lazy_journals.py test/hummingbot/strategy_v2/life_liquidity/test_history_worker.py test/hummingbot/strategy_v2/life_liquidity/test_o8_settled_history.py::test_committed_history_does_not_recheckpoint_terminal_orders 'test/hummingbot/strategy_v2/life_liquidity/test_o8_settled_history.py::test_complete_settled_history_send_poll_and_cancel[segmented-journals-0]' 'test/hummingbot/strategy_v2/life_liquidity/test_o8_settled_history.py::test_complete_settled_history_send_poll_and_cancel[legacy-0]' 'test/hummingbot/strategy_v2/life_liquidity/test_o8_settled_history.py::test_complete_settled_history_send_poll_and_cancel[segmented-0]' --tb=short --junitxml=/tmp/life-o8-profile-focused.xml",
+    "failed": 0,
+    "junit_sha256": "bf23c67b1f71bd5b2819e31b921651df2c0a9e2d4aa2ae091a00ce6f5184b0f2",
+    "local_log": "/tmp/life-o8-profile-focused.log",
+    "passed": 97,
+    "seconds": 14.07,
+    "skipped": 0,
+    "warnings": 9
+  },
+  "historical_candidate": {
+    "collected": 2213,
+    "command": "conda run -n hummingbot python -m test.hummingbot.strategy_v2.life_liquidity.o8_acceptance --candidate --output-dir /tmp/life-o8-lazy-final3",
+    "failed": 7,
+    "failures": [
+      "test/hummingbot/strategy_v2/life_liquidity/test_carry_runner.py::test_carry_at_actual_swap_rest_throttler[True]",
+      "test/hummingbot/strategy_v2/life_liquidity/test_o8_settled_history.py::test_complete_settled_history_send_poll_and_cancel[legacy-10000]",
+      "test/hummingbot/strategy_v2/life_liquidity/test_o8_settled_history.py::test_complete_settled_history_send_poll_and_cancel[segmented-10000]",
+      "test/hummingbot/strategy_v2/life_liquidity/test_o8_settled_history.py::test_complete_settled_history_send_poll_and_cancel[segmented-worker-10000]",
+      "test/hummingbot/strategy_v2/life_liquidity/test_o8_settled_history.py::test_complete_settled_history_send_poll_and_cancel[segmented-process-10000]",
+      "test/hummingbot/strategy_v2/life_liquidity/test_o8_settled_history.py::test_complete_settled_history_send_poll_and_cancel[segmented-journals-1000]",
+      "test/hummingbot/strategy_v2/life_liquidity/test_o8_settled_history.py::test_complete_settled_history_send_poll_and_cancel[segmented-journals-10000]"
+    ],
+    "passed": 2206,
+    "seconds": 351.15,
+    "skipped": 0
+  },
+  "hooks": {
+    "git_diff_check": "passed",
+    "local_log": "/tmp/life-o8-profile-hooks.log",
+    "scope": "three diagnostic/helper Python files, profile evidence, implementation plan and all eleven diagnostic JSON artifacts",
+    "sha256": "360c0680ffeedd2aacf06436710a7f51de37e1ca622b4794c532fd6d2b37fbda",
+    "status": "passed"
+  },
+  "limitations": [
+    "One sample per configuration, no causal before/after speed claim.",
+    "All ten diagnostic runs used fresh processes, sequentially, without concurrent test/lint jobs.",
+    "Initial mixed test/lint smoke run is excluded from timing evidence.",
+    "cProfile measures main-thread execution, not total worker execution/IPC latency.",
+    "Raw .prof files are local /tmp artifacts; portable summaries/callers/source hashes are retained here.",
+    "No full candidate rerun; historical 2206/7 remains historical.",
+    "No production code, frozen budgets or acceptance manifest changed in this diagnostic increment."
+  ],
+  "measurements": [
+    {
+      "artifact": "docs/plans/evidence/life_o8_profile/timing_journals_0.json",
+      "command": "conda run -n hummingbot python -m test.hummingbot.strategy_v2.life_liquidity.o8_profile --history 0 --variant journals --mode timing --output-dir /tmp/life-o8-diagnosis-timing-0",
+      "error": null,
+      "history": 0,
+      "hot_stages": [
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "joint_poll",
+          "process_cpu_ms": 8.50799999999996,
+          "reads": 0,
+          "returned_bytes": 0,
+          "wall_ms": 8.733124996069819
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "watchdog_before_send",
+          "process_cpu_ms": 7.838999999999707,
+          "reads": 0,
+          "returned_bytes": 0,
+          "wall_ms": 15.928167005768046
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "attribution_ready",
+          "process_cpu_ms": 0.48500000000029075,
+          "reads": 0,
+          "returned_bytes": 0,
+          "wall_ms": 0.4839580215048045
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "valuation",
+          "process_cpu_ms": 1.002999999999865,
+          "reads": 0,
+          "returned_bytes": 0,
+          "wall_ms": 1.007665996439755
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "propose",
+          "process_cpu_ms": 8.995000000000086,
+          "reads": 0,
+          "returned_bytes": 0,
+          "wall_ms": 9.082000004127622
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "filter_dispatch_final_send",
+          "process_cpu_ms": 82.252,
+          "reads": 0,
+          "returned_bytes": 0,
+          "wall_ms": 83.52583399391733
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "watchdog_after_send",
+          "process_cpu_ms": 6.512999999999991,
+          "reads": 0,
+          "returned_bytes": 0,
+          "wall_ms": 16.097624989924952
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "permission_1",
+          "process_cpu_ms": 7.2190000000000865,
+          "reads": 0,
+          "returned_bytes": 0,
+          "wall_ms": 7.219708990305662
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "permission_2",
+          "process_cpu_ms": 7.432000000000105,
+          "reads": 0,
+          "returned_bytes": 0,
+          "wall_ms": 7.444041984854266
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "permission_3",
+          "process_cpu_ms": 7.454000000000072,
+          "reads": 0,
+          "returned_bytes": 0,
+          "wall_ms": 7.453208003425971
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "permission_4",
+          "process_cpu_ms": 7.79799999999975,
+          "reads": 0,
+          "returned_bytes": 0,
+          "wall_ms": 7.827499997802079
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "permission_5",
+          "process_cpu_ms": 7.3110000000000674,
+          "reads": 0,
+          "returned_bytes": 0,
+          "wall_ms": 7.311082998057827
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "cancel_dispatch",
+          "process_cpu_ms": 12.83999999999974,
+          "reads": 0,
+          "returned_bytes": 0,
+          "wall_ms": 13.142832991434261
+        }
+      ],
+      "mode": "timing",
+      "sha256": "8d58c81134e4c6133d3bc661039ac6ef5563ff0d460ec3c1fb288753960feb87",
+      "variant": "journals",
+      "workload_status": "passed"
+    },
+    {
+      "artifact": "docs/plans/evidence/life_o8_profile/timing_journals_1000.json",
+      "command": "conda run -n hummingbot python -m test.hummingbot.strategy_v2.life_liquidity.o8_profile --history 1000 --variant journals --mode timing --output-dir /tmp/life-o8-diagnosis-timing-1000",
+      "error": "{'propose_filter_final_send_ms': (3682.5887910090387, 1000), 'event_loop_lag_ms': (3937.870709002018, 500), 'cancel_start_ms': (268.55958401574753, 250)}",
+      "history": 1000,
+      "hot_stages": [
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "joint_poll",
+          "process_cpu_ms": 518.4100000000003,
+          "reads": 0,
+          "returned_bytes": 0,
+          "wall_ms": 742.0367079903372
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "watchdog_before_send",
+          "process_cpu_ms": 140.6830000000001,
+          "reads": 0,
+          "returned_bytes": 0,
+          "wall_ms": 192.18616699799895
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "attribution_ready",
+          "process_cpu_ms": 5.224000000000117,
+          "reads": 0,
+          "returned_bytes": 0,
+          "wall_ms": 6.071749987313524
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "valuation",
+          "process_cpu_ms": 7.732000000000738,
+          "reads": 0,
+          "returned_bytes": 0,
+          "wall_ms": 7.794000004651025
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "propose",
+          "process_cpu_ms": 373.66600000000005,
+          "reads": 0,
+          "returned_bytes": 0,
+          "wall_ms": 687.8474590193946
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "filter_dispatch_final_send",
+          "process_cpu_ms": 2083.3839999999987,
+          "reads": 0,
+          "returned_bytes": 0,
+          "wall_ms": 2994.6838750038296
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "watchdog_after_send",
+          "process_cpu_ms": 143.3649999999993,
+          "reads": 0,
+          "returned_bytes": 0,
+          "wall_ms": 251.3000830076635
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "permission_1",
+          "process_cpu_ms": 148.79700000000008,
+          "reads": 0,
+          "returned_bytes": 0,
+          "wall_ms": 510.8619580278173
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "permission_2",
+          "process_cpu_ms": 145.21899999999908,
+          "reads": 0,
+          "returned_bytes": 0,
+          "wall_ms": 220.9605419775471
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "permission_3",
+          "process_cpu_ms": 147.34900000000016,
+          "reads": 0,
+          "returned_bytes": 0,
+          "wall_ms": 264.28829197539017
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "permission_4",
+          "process_cpu_ms": 152.647,
+          "reads": 0,
+          "returned_bytes": 0,
+          "wall_ms": 310.36487498204224
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "permission_5",
+          "process_cpu_ms": 144.99700000000004,
+          "reads": 0,
+          "returned_bytes": 0,
+          "wall_ms": 200.33966598566622
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "cancel_dispatch",
+          "process_cpu_ms": 178.2370000000011,
+          "reads": 0,
+          "returned_bytes": 0,
+          "wall_ms": 281.8508750060573
+        }
+      ],
+      "mode": "timing",
+      "sha256": "7a9aba06cb961d29fe7444ba4a5b335efd0da0207aa4fdec2e299467f0a5c85b",
+      "variant": "journals",
+      "workload_status": "failed"
+    },
+    {
+      "artifact": "docs/plans/evidence/life_o8_profile/timing_journals_10000.json",
+      "command": "conda run -n hummingbot python -m test.hummingbot.strategy_v2.life_liquidity.o8_profile --history 10000 --variant journals --mode timing --output-dir /tmp/life-o8-diagnosis-timing-10000",
+      "error": "{'joint_poll_ms': (7631.554583000252, 2000), 'propose_filter_final_send_ms': (39705.27700000093, 1000), 'event_loop_lag_ms': (40688.797832999844, 500), 'cancel_start_ms': (728.6212500184774, 250)}",
+      "history": 10000,
+      "hot_stages": [
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "joint_poll",
+          "process_cpu_ms": 5383.554999999999,
+          "reads": 0,
+          "returned_bytes": 0,
+          "wall_ms": 7631.50545800454
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "watchdog_before_send",
+          "process_cpu_ms": 1264.4009999999994,
+          "reads": 0,
+          "returned_bytes": 0,
+          "wall_ms": 1973.4954999876209
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "attribution_ready",
+          "process_cpu_ms": 39.14200000000179,
+          "reads": 0,
+          "returned_bytes": 0,
+          "wall_ms": 54.78174999007024
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "valuation",
+          "process_cpu_ms": 49.94699999999952,
+          "reads": 0,
+          "returned_bytes": 0,
+          "wall_ms": 73.87095800368115
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "propose",
+          "process_cpu_ms": 3635.8940000000002,
+          "reads": 0,
+          "returned_bytes": 0,
+          "wall_ms": 5457.952124997973
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "filter_dispatch_final_send",
+          "process_cpu_ms": 22716.729,
+          "reads": 0,
+          "returned_bytes": 0,
+          "wall_ms": 34247.24179197801
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "watchdog_after_send",
+          "process_cpu_ms": 785.3589999999997,
+          "reads": 0,
+          "returned_bytes": 0,
+          "wall_ms": 864.7377919987775
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "permission_1",
+          "process_cpu_ms": 832.0250000000016,
+          "reads": 0,
+          "returned_bytes": 0,
+          "wall_ms": 836.5371249965392
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "permission_2",
+          "process_cpu_ms": 570.2969999999965,
+          "reads": 0,
+          "returned_bytes": 0,
+          "wall_ms": 577.3587090079673
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "permission_3",
+          "process_cpu_ms": 561.1869999999967,
+          "reads": 0,
+          "returned_bytes": 0,
+          "wall_ms": 562.4722090142313
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "permission_4",
+          "process_cpu_ms": 1042.0730000000021,
+          "reads": 0,
+          "returned_bytes": 0,
+          "wall_ms": 1141.126250004163
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "permission_5",
+          "process_cpu_ms": 561.1260000000016,
+          "reads": 0,
+          "returned_bytes": 0,
+          "wall_ms": 566.942375007784
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "cancel_dispatch",
+          "process_cpu_ms": 649.4470000000022,
+          "reads": 0,
+          "returned_bytes": 0,
+          "wall_ms": 749.7827089973725
+        }
+      ],
+      "mode": "timing",
+      "sha256": "2fd1c8bb12d671983c47d8b24d3651102507c3434eb2c187ec5e63bd314988f0",
+      "variant": "journals",
+      "workload_status": "failed"
+    },
+    {
+      "artifact": "docs/plans/evidence/life_o8_profile/profile_journals_0.json",
+      "command": "conda run -n hummingbot python -m test.hummingbot.strategy_v2.life_liquidity.o8_profile --history 0 --variant journals --mode profile --output-dir /tmp/life-o8-diagnosis-profile-0",
+      "error": null,
+      "history": 0,
+      "hot_stages": [
+        {
+          "fsync_calls": 8,
+          "fsync_ms": 0.13733198284171522,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "joint_poll",
+          "process_cpu_ms": 16.696000000000044,
+          "reads": 57,
+          "returned_bytes": 71137,
+          "wall_ms": 16.95554199977778
+        },
+        {
+          "fsync_calls": 5,
+          "fsync_ms": 0.1926249824464321,
+          "gc_collections": 1,
+          "gc_ms": 3.0853749776724726,
+          "name": "watchdog_before_send",
+          "process_cpu_ms": 19.445000000000157,
+          "reads": 53,
+          "returned_bytes": 76716,
+          "wall_ms": 19.61570800631307
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "attribution_ready",
+          "process_cpu_ms": 1.0419999999999874,
+          "reads": 10,
+          "returned_bytes": 5061,
+          "wall_ms": 1.0411250113975257
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "valuation",
+          "process_cpu_ms": 2.1589999999998,
+          "reads": 10,
+          "returned_bytes": 15729,
+          "wall_ms": 2.158499992219731
+        },
+        {
+          "fsync_calls": 4,
+          "fsync_ms": 0.12279200018383563,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "propose",
+          "process_cpu_ms": 19.435999999999787,
+          "reads": 64,
+          "returned_bytes": 85968,
+          "wall_ms": 19.51916702091694
+        },
+        {
+          "fsync_calls": 14,
+          "fsync_ms": 0.6252080493140966,
+          "gc_collections": 1,
+          "gc_ms": 0.1264170277863741,
+          "name": "filter_dispatch_final_send",
+          "process_cpu_ms": 170.49599999999998,
+          "reads": 643,
+          "returned_bytes": 918875,
+          "wall_ms": 171.1389170086477
+        },
+        {
+          "fsync_calls": 1,
+          "fsync_ms": 0.10704199667088687,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "watchdog_after_send",
+          "process_cpu_ms": 14.77499999999976,
+          "reads": 53,
+          "returned_bytes": 89365,
+          "wall_ms": 15.208291995804757
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "permission_1",
+          "process_cpu_ms": 16.486,
+          "reads": 62,
+          "returned_bytes": 100393,
+          "wall_ms": 16.499833000125363
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "permission_2",
+          "process_cpu_ms": 16.753000000000018,
+          "reads": 62,
+          "returned_bytes": 100393,
+          "wall_ms": 16.766417014878243
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "permission_3",
+          "process_cpu_ms": 16.664000000000012,
+          "reads": 62,
+          "returned_bytes": 100393,
+          "wall_ms": 16.669292002916336
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "permission_4",
+          "process_cpu_ms": 17.921999999999993,
+          "reads": 62,
+          "returned_bytes": 100393,
+          "wall_ms": 19.68791600666009
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 1,
+          "gc_ms": 0.09549999958835542,
+          "name": "permission_5",
+          "process_cpu_ms": 17.656000000000116,
+          "reads": 62,
+          "returned_bytes": 100393,
+          "wall_ms": 17.721584008540958
+        },
+        {
+          "fsync_calls": 17,
+          "fsync_ms": 0.3119600296486169,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "cancel_dispatch",
+          "process_cpu_ms": 25.45200000000003,
+          "reads": 90,
+          "returned_bytes": 149263,
+          "wall_ms": 26.304416998755187
+        }
+      ],
+      "mode": "profile",
+      "sha256": "b7c62c5228f404d65d47acfe77792eaeb6a4e3e3a21536df4a8eac769fad61d8",
+      "variant": "journals",
+      "workload_status": "passed"
+    },
+    {
+      "artifact": "docs/plans/evidence/life_o8_profile/profile_journals_1000.json",
+      "command": "conda run -n hummingbot python -m test.hummingbot.strategy_v2.life_liquidity.o8_profile --history 1000 --variant journals --mode profile --output-dir /tmp/life-o8-diagnosis-profile-1000",
+      "error": "{'propose_filter_final_send_ms': (3101.329583005281, 1000), 'event_loop_lag_ms': (3229.8540419817436, 500)}",
+      "history": 1000,
+      "hot_stages": [
+        {
+          "fsync_calls": 8,
+          "fsync_ms": 0.3113750135526061,
+          "gc_collections": 19,
+          "gc_ms": 4.834957100683823,
+          "name": "joint_poll",
+          "process_cpu_ms": 524.82,
+          "reads": 165,
+          "returned_bytes": 11665895,
+          "wall_ms": 531.155457982095
+        },
+        {
+          "fsync_calls": 5,
+          "fsync_ms": 0.2723749785218388,
+          "gc_collections": 1,
+          "gc_ms": 0.8648749790154397,
+          "name": "watchdog_before_send",
+          "process_cpu_ms": 129.19300000000032,
+          "reads": 115,
+          "returned_bytes": 9855989,
+          "wall_ms": 129.95058301021345
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "attribution_ready",
+          "process_cpu_ms": 2.8000000000001357,
+          "reads": 18,
+          "returned_bytes": 1169732,
+          "wall_ms": 2.7991660172119737
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "valuation",
+          "process_cpu_ms": 4.825000000000301,
+          "reads": 22,
+          "returned_bytes": 1678909,
+          "wall_ms": 4.823916999157518
+        },
+        {
+          "fsync_calls": 4,
+          "fsync_ms": 0.3780850092880428,
+          "gc_collections": 3,
+          "gc_ms": 0.9457909618504345,
+          "name": "propose",
+          "process_cpu_ms": 357.64,
+          "reads": 152,
+          "returned_bytes": 14158509,
+          "wall_ms": 358.2335000101011
+        },
+        {
+          "fsync_calls": 14,
+          "fsync_ms": 0.8402480452787131,
+          "gc_collections": 39,
+          "gc_ms": 11.795125989010558,
+          "name": "filter_dispatch_final_send",
+          "process_cpu_ms": 2366.1140000000005,
+          "reads": 1507,
+          "returned_bytes": 122662338,
+          "wall_ms": 2743.0628330039326
+        },
+        {
+          "fsync_calls": 1,
+          "fsync_ms": 0.33370801247656345,
+          "gc_collections": 1,
+          "gc_ms": 0.2697919844649732,
+          "name": "watchdog_after_send",
+          "process_cpu_ms": 129.34100000000015,
+          "reads": 115,
+          "returned_bytes": 9868638,
+          "wall_ms": 130.8862500009127
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 1,
+          "gc_ms": 0.32941700192168355,
+          "name": "permission_1",
+          "process_cpu_ms": 131.01500000000055,
+          "reads": 134,
+          "returned_bytes": 10998920,
+          "wall_ms": 131.20062500820495
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 1,
+          "gc_ms": 0.30070802313275635,
+          "name": "permission_2",
+          "process_cpu_ms": 133.93500000000014,
+          "reads": 134,
+          "returned_bytes": 10998920,
+          "wall_ms": 137.3345839965623
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 1,
+          "gc_ms": 0.47695799730718136,
+          "name": "permission_3",
+          "process_cpu_ms": 133.51099999999948,
+          "reads": 134,
+          "returned_bytes": 10998920,
+          "wall_ms": 133.84683302138
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 1,
+          "gc_ms": 0.4016250022687018,
+          "name": "permission_4",
+          "process_cpu_ms": 134.85299999999967,
+          "reads": 134,
+          "returned_bytes": 10998920,
+          "wall_ms": 135.50058301188983
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 1,
+          "gc_ms": 0.28450001263991,
+          "name": "permission_5",
+          "process_cpu_ms": 131.4219999999997,
+          "reads": 134,
+          "returned_bytes": 10998920,
+          "wall_ms": 131.54970802133903
+        },
+        {
+          "fsync_calls": 17,
+          "fsync_ms": 0.564374087844044,
+          "gc_collections": 1,
+          "gc_ms": 0.4212500061839819,
+          "name": "cancel_dispatch",
+          "process_cpu_ms": 153.13999999999962,
+          "reads": 212,
+          "returned_bytes": 17211528,
+          "wall_ms": 162.88037499180064
+        }
+      ],
+      "mode": "profile",
+      "sha256": "5fd0abd1f1c7a0c5bc7a9842c1382d61a4354557284de1b20ec892d5b74d77f3",
+      "variant": "journals",
+      "workload_status": "failed"
+    },
+    {
+      "artifact": "docs/plans/evidence/life_o8_profile/profile_journals_10000.json",
+      "command": "conda run -n hummingbot python -m test.hummingbot.strategy_v2.life_liquidity.o8_profile --history 10000 --variant journals --mode profile --output-dir /tmp/life-o8-diagnosis-profile-10000",
+      "error": "{'joint_poll_ms': (6058.062291005626, 2000), 'propose_filter_final_send_ms': (27184.39333300921, 1000), 'event_loop_lag_ms': (28423.792124997126, 500), 'cancel_start_ms': (1377.6930420135614, 250)}",
+      "history": 10000,
+      "hot_stages": [
+        {
+          "fsync_calls": 8,
+          "fsync_ms": 0.8844170079100877,
+          "gc_collections": 204,
+          "gc_ms": 331.0388340614736,
+          "name": "joint_poll",
+          "process_cpu_ms": 5911.207,
+          "reads": 1137,
+          "returned_bytes": 116017273,
+          "wall_ms": 6058.028333005495
+        },
+        {
+          "fsync_calls": 5,
+          "fsync_ms": 0.6167920073494315,
+          "gc_collections": 29,
+          "gc_ms": 11.854749958729371,
+          "name": "watchdog_before_send",
+          "process_cpu_ms": 1168.743000000001,
+          "reads": 673,
+          "returned_bytes": 97868231,
+          "wall_ms": 1175.26024999097
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "attribution_ready",
+          "process_cpu_ms": 21.411000000000513,
+          "reads": 90,
+          "returned_bytes": 11651525,
+          "wall_ms": 21.48366699111648
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "valuation",
+          "process_cpu_ms": 30.63099999999963,
+          "reads": 130,
+          "returned_bytes": 16647274,
+          "wall_ms": 30.74512499733828
+        },
+        {
+          "fsync_calls": 4,
+          "fsync_ms": 1.7617910052649677,
+          "gc_collections": 74,
+          "gc_ms": 35.49895901232958,
+          "name": "propose",
+          "process_cpu_ms": 3493.489999999998,
+          "reads": 944,
+          "returned_bytes": 140809960,
+          "wall_ms": 3572.511999984272
+        },
+        {
+          "fsync_calls": 14,
+          "fsync_ms": 2.1344569977372885,
+          "gc_collections": 575,
+          "gc_ms": 1219.3462959257886,
+          "name": "filter_dispatch_final_send",
+          "process_cpu_ms": 23035.357000000004,
+          "reads": 9283,
+          "returned_bytes": 1218338286,
+          "wall_ms": 23611.833165981807
+        },
+        {
+          "fsync_calls": 1,
+          "fsync_ms": 0.4371670074760914,
+          "gc_collections": 28,
+          "gc_ms": 11.408747144741938,
+          "name": "watchdog_after_send",
+          "process_cpu_ms": 1177.063000000004,
+          "reads": 673,
+          "returned_bytes": 97880880,
+          "wall_ms": 1197.1315830014646
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 28,
+          "gc_ms": 258.8037920068018,
+          "name": "permission_1",
+          "process_cpu_ms": 1434.5719999999958,
+          "reads": 782,
+          "returned_bytes": 109084227,
+          "wall_ms": 1442.9673749837093
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 28,
+          "gc_ms": 11.487832001876086,
+          "name": "permission_2",
+          "process_cpu_ms": 1199.214000000005,
+          "reads": 782,
+          "returned_bytes": 109084227,
+          "wall_ms": 1205.9763750003185
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 28,
+          "gc_ms": 13.445292977849022,
+          "name": "permission_3",
+          "process_cpu_ms": 1201.802999999998,
+          "reads": 782,
+          "returned_bytes": 109084227,
+          "wall_ms": 1263.3447500120383
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 28,
+          "gc_ms": 265.4941639630124,
+          "name": "permission_4",
+          "process_cpu_ms": 1445.2380000000035,
+          "reads": 782,
+          "returned_bytes": 109084227,
+          "wall_ms": 1450.3667500102893
+        },
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 28,
+          "gc_ms": 12.848959042457864,
+          "name": "permission_5",
+          "process_cpu_ms": 1186.551999999999,
+          "reads": 782,
+          "returned_bytes": 109084227,
+          "wall_ms": 1192.930334014818
+        },
+        {
+          "fsync_calls": 17,
+          "fsync_ms": 0.9664999379310757,
+          "gc_collections": 28,
+          "gc_ms": 15.060792968142778,
+          "name": "cancel_dispatch",
+          "process_cpu_ms": 1368.4949999999958,
+          "reads": 1310,
+          "returned_bytes": 170769576,
+          "wall_ms": 1602.2134999802802
+        }
+      ],
+      "mode": "profile",
+      "sha256": "f396bbc3b2d0e8aa26732defbfa6e2c8f4572806b44dbf400a5c55660afd8ba4",
+      "variant": "journals",
+      "workload_status": "failed"
+    },
+    {
+      "artifact": "docs/plans/evidence/life_o8_profile/timing_thread_10000.json",
+      "command": "conda run -n hummingbot python -m test.hummingbot.strategy_v2.life_liquidity.o8_profile --history 10000 --variant thread --mode timing --output-dir /tmp/life-o8-diagnosis-timing-thread-10000",
+      "error": "JOINT_HISTORY_WORKER_TIMEOUT",
+      "history": 10000,
+      "hot_stages": [
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "joint_poll",
+          "process_cpu_ms": 1344.0960000000005,
+          "reads": 0,
+          "returned_bytes": 0,
+          "wall_ms": 1511.250084004132
+        }
+      ],
+      "mode": "timing",
+      "sha256": "393216458f3303230c431d57de36c5895b80dfa6c9c827933213939a6d57fc3f",
+      "variant": "thread",
+      "workload_status": "failed"
+    },
+    {
+      "artifact": "docs/plans/evidence/life_o8_profile/profile_thread_10000.json",
+      "command": "conda run -n hummingbot python -m test.hummingbot.strategy_v2.life_liquidity.o8_profile --history 10000 --variant thread --mode profile --output-dir /tmp/life-o8-diagnosis-profile-thread-10000",
+      "error": "JOINT_HISTORY_WORKER_TIMEOUT",
+      "history": 10000,
+      "hot_stages": [
+        {
+          "fsync_calls": 11,
+          "fsync_ms": 0.7317070267163217,
+          "gc_collections": 244,
+          "gc_ms": 428.8128819898702,
+          "name": "joint_poll",
+          "process_cpu_ms": 1774.3080000000004,
+          "reads": 333,
+          "returned_bytes": 129529235,
+          "wall_ms": 1801.472624996677
+        }
+      ],
+      "mode": "profile",
+      "sha256": "9081fb3215180514e55cc3a4db7393f047edd6f468192319e0c454c002be9819",
+      "variant": "thread",
+      "workload_status": "failed"
+    },
+    {
+      "artifact": "docs/plans/evidence/life_o8_profile/timing_process_10000.json",
+      "command": "conda run -n hummingbot python -m test.hummingbot.strategy_v2.life_liquidity.o8_profile --history 10000 --variant process --mode timing --output-dir /tmp/life-o8-diagnosis-timing-process-10000",
+      "error": "JOINT_HISTORY_WORKER_TIMEOUT",
+      "history": 10000,
+      "hot_stages": [
+        {
+          "fsync_calls": 0,
+          "fsync_ms": 0.0,
+          "gc_collections": 0,
+          "gc_ms": 0.0,
+          "name": "joint_poll",
+          "process_cpu_ms": 1266.3860000000006,
+          "reads": 0,
+          "returned_bytes": 0,
+          "wall_ms": 1274.6442499919794
+        }
+      ],
+      "mode": "timing",
+      "sha256": "6995cd8bb700426d45f5a9c9dd7f970d1aa5764b9693d1f92b47e6edb08a56f5",
+      "variant": "process",
+      "workload_status": "failed"
+    },
+    {
+      "artifact": "docs/plans/evidence/life_o8_profile/profile_process_10000.json",
+      "command": "conda run -n hummingbot python -m test.hummingbot.strategy_v2.life_liquidity.o8_profile --history 10000 --variant process --mode profile --output-dir /tmp/life-o8-diagnosis-profile-process-10000",
+      "error": "JOINT_HISTORY_WORKER_TIMEOUT",
+      "history": 10000,
+      "hot_stages": [
+        {
+          "fsync_calls": 11,
+          "fsync_ms": 0.3977060259785503,
+          "gc_collections": 167,
+          "gc_ms": 647.091950988397,
+          "name": "joint_poll",
+          "process_cpu_ms": 1802.1380000000001,
+          "reads": 333,
+          "returned_bytes": 129529235,
+          "wall_ms": 1982.9378330032341
+        }
+      ],
+      "mode": "profile",
+      "sha256": "47c76a2110a739d9660417471606360023cb7b56d481f5ba74ee83b16119ebf9",
+      "variant": "process",
+      "workload_status": "failed"
+    }
+  ],
+  "offline_complete": false,
+  "production_order_permission": false,
+  "recorded_at": "2026-10-11T15:14:52.597904-07:00",
+  "runtime_changed_from_baseline": {},
+  "schema_version": 1,
+  "scope": "OFFLINE_DIAGNOSTIC_ONLY",
+  "sources_match_across_all_runs": true
+}

@@ -1,15 +1,20 @@
 """Conservative spot risk and reservation state."""
 
+import fcntl
 import json
 import os
 import re
 import tempfile
+from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from threading import RLock
 from types import MappingProxyType
 
+from hummingbot.strategy_v2.life_liquidity.checkpoint_archive import decode, encode
+from hummingbot.strategy_v2.life_liquidity.journal_archive import JournalArchive
+from hummingbot.strategy_v2.life_liquidity.lazy_archive import PartitionMap, TransformedMap, scratch_index
 from hummingbot.strategy_v2.life_liquidity.state import IntentWAL
 
 
@@ -100,14 +105,15 @@ class ReservationLedger:
         self._account_events: dict[str, tuple[str, str, Decimal]] = {}
         self._lock = RLock()
         self._uncertain = False
+        self._archive = None
+        self._archive_authority = None
+        self._durable_raw = None
         self._save(self.life_balance, self.usdt_balance, self._reservations, self._trades)
 
-    def _save(self, life_balance: Decimal, usdt_balance: Decimal,
-              reservations: dict[str, _Reservation],
-              trades: dict[str, tuple[str, Decimal, Decimal]],
-              account_events: dict[str, tuple[str, str, Decimal]] | None = None) -> None:
-        if self.path is None:
-            return
+    def _payload(self, life_balance: Decimal, usdt_balance: Decimal,
+                 reservations: dict[str, _Reservation],
+                 trades: dict[str, tuple[str, Decimal, Decimal]],
+                 account_events: dict[str, tuple[str, str, Decimal]] | None = None):
         data = {
             "schema_version": 2,
             "limits": {key: str(value) for key, value in self.limits.__dict__.items()},
@@ -125,6 +131,66 @@ class ReservationLedger:
                 for key, (kind, currency, amount) in (
                     self._account_events if account_events is None else account_events).items()},
         }
+        return data
+
+    @contextmanager
+    def _file_lock(self):
+        if self.path is None:
+            yield
+            return
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(self.path.with_name("." + self.path.name + ".lock"),
+                     os.O_CREAT | os.O_RDWR | getattr(os, "O_NOFOLLOW", 0), 0o600)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX)
+            yield
+        finally:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+            os.close(fd)
+
+    def migrate_archive(self, policy):
+        """Explicit quiescent migration, retaining fills, fees and cash dedup."""
+        with self._lock, self._file_lock():
+            if self.path is None or self._archive is not None:
+                raise ValueError("ARCHIVE_MIGRATION_UNSAFE")
+            self.verify_memory()
+            candidate = JournalArchive(self.path, policy, kind="reservations",
+                                       limits={key: str(value) for key, value in self.limits.__dict__.items()})
+            try:
+                candidate.publish(self._payload(self.life_balance, self.usdt_balance,
+                                                self._reservations, self._trades),
+                                  expected=self._durable_raw)
+            except Exception:
+                self._uncertain = candidate.uncertain
+                raise
+            self._archive = candidate
+            self._archive_authority = candidate
+            self._durable_raw = candidate.raw
+            self._verified_disk_cache = None
+            self._load_archive_data(candidate.verify())
+
+    def _save(self, life_balance, usdt_balance, reservations, trades, account_events=None):
+        if self.path is None:
+            return
+        self._ensure_healthy()
+        data = self._payload(life_balance, usdt_balance, reservations, trades, account_events)
+        with self._file_lock():
+            if self.path.is_symlink():
+                raise ValueError("RISK_JOURNAL_UNCERTAIN")
+            current = self.path.read_bytes() if self.path.exists() else None
+            if current != self._durable_raw:
+                raise ValueError("RISK_JOURNAL_STALE")
+            if self._archive is not None:
+                try:
+                    self._archive.publish(data, expected=self._durable_raw)
+                except Exception:
+                    self._uncertain = self._archive.uncertain
+                    raise
+                self._durable_raw = self._archive.raw
+                return
+            self._write_payload(data)
+
+    def _write_payload(self, data):
         self.path.parent.mkdir(parents=True, exist_ok=True)
         descriptor, temporary = tempfile.mkstemp(prefix=f".{self.path.name}.", dir=self.path.parent)
         replace_attempted = False
@@ -140,6 +206,7 @@ class ReservationLedger:
                 os.fsync(directory_fd)
             finally:
                 os.close(directory_fd)
+            self._durable_raw = encode(data)
         except OSError:
             if replace_attempted:
                 # The disk may contain the new state while this instance still
@@ -160,11 +227,17 @@ class ReservationLedger:
         self._save(life_balance, usdt_balance, reservations, trades, account_events)
         self.life_balance = life_balance
         self.usdt_balance = usdt_balance
-        self._reservations = MappingProxyType(dict(reservations))
-        self._trades = MappingProxyType(dict(trades))
-        self._account_events = MappingProxyType(dict(account_events))
+        if self._archive is not None:
+            self._load_archive_data(self._archive.verify())
+        else:
+            self._reservations = MappingProxyType(dict(reservations))
+            self._trades = MappingProxyType(dict(trades))
+            self._account_events = MappingProxyType(dict(account_events))
 
     def _ensure_healthy(self) -> None:
+        if (self._archive is not self._archive_authority
+                or self._archive is not None and self._archive.path != self.path):
+            raise ValueError("RISK_ARCHIVE_BINDING_CHANGED")
         if self._uncertain:
             raise ValueError("RISK_JOURNAL_UNCERTAIN")
 
@@ -172,6 +245,12 @@ class ReservationLedger:
         """Reject new risk while a checkpoint may be ahead of in-memory state."""
         with self._lock:
             self._ensure_healthy()
+
+    def reopen(self):
+        """Cold financial verification with the explicitly selected format."""
+        self._ensure_healthy()
+        return type(self).restore(self.path, limits=self.limits,
+                                  archive=None if self._archive is None else self._archive.archive.policy)
 
     def verified_disk(self):
         """Reuse decoded evidence only when the complete file bytes are unchanged.
@@ -182,10 +261,12 @@ class ReservationLedger:
         self.assert_healthy()
         if self.path is None or not self.path.is_file() or self.path.is_symlink():
             raise ValueError("RISK_JOURNAL_INVALID")
+        if self._archive is not None:
+            self._archive.verify()  # Includes exact segment bytes even on cache hits.
         raw = self.path.read_bytes()
         cached = getattr(self, "_verified_disk_cache", None)
         if cached is None or cached[0] != raw or cached[1].limits != self.limits:
-            disk = type(self).restore(self.path, limits=self.limits)
+            disk = self.reopen()
             if self.path.read_bytes() != raw:
                 raise ValueError("RISK_JOURNAL_CHANGED_DURING_VERIFY")
             disk._sealed_evidence = True
@@ -201,23 +282,131 @@ class ReservationLedger:
         key = (tuple(id(m) for m in maps), self.life_balance, self.usdt_balance,
                disk.life_balance, disk.usdt_balance, self.limits, disk.limits)
         cached = getattr(self, "_verified_memory", None)
-        if cached is not None and cached[0] == key and all(isinstance(m, MappingProxyType) for m in maps):
+        if cached is not None and cached[0] == key and all(isinstance(m, (MappingProxyType, PartitionMap)) for m in maps):
             return disk
         if (self.life_balance != disk.life_balance or self.usdt_balance != disk.usdt_balance
                 or any(left != right for left, right in zip(maps[:3], maps[3:]))):
             raise ValueError("RISK_MEMORY_UNVERIFIED")
-        if all(isinstance(m, MappingProxyType) for m in maps):
+        if all(isinstance(m, (MappingProxyType, PartitionMap)) for m in maps):
             self._verified_memory = (key, maps)  # Retain objects to fence Python id reuse.
         return disk
 
     @classmethod
-    def restore(cls, path: Path, *, limits: RiskLimits) -> "ReservationLedger":
+    def restore(cls, path: Path, *, limits: RiskLimits, archive=None) -> "ReservationLedger":
         path = Path(path)
         try:
-            with path.open(encoding="utf-8") as handle:
-                data = json.load(handle)
+            raw = path.read_bytes()
+        except OSError as exc:
+            raise ValueError("RISK_JOURNAL_INVALID") from exc
+        if archive is None:
+            return cls._restore_snapshot(raw, path=path, limits=limits)
+        journal = JournalArchive(path, archive, kind="reservations",
+                                 limits={key: str(value) for key, value in limits.__dict__.items()})
+        raw, data = journal.read()
+        journal.raw = raw
+        book = cls.__new__(cls)
+        book.path, book.limits = path, limits
+        book._lock, book._uncertain = RLock(), False
+        book._load_archive_data(data)
+        journal.verify()
+        book._archive = journal
+        book._archive_authority = journal
+        book._durable_raw = raw
+        return book
+
+    @staticmethod
+    def _decode_reservation(key, raw):
+        fields = dict(raw['intent'])
+        fields['quantity_base'] = Decimal(fields['quantity_base'])
+        fields['limit_price_usdt'] = Decimal(fields['limit_price_usdt'])
+        intent = SpotIntent(**fields)
+        remaining, filled = Decimal(raw['remaining_base']), Decimal(raw['filled_base'])
+        state = raw['state']
+        if (key != intent.intent_id or not _finite(remaining) or not _finite(filled)
+                or filled > intent.quantity_base or state not in ('OPEN', 'CANCEL_PENDING', 'UNKNOWN', 'TERMINAL')
+                or state == 'TERMINAL' and remaining != 0
+                or state != 'TERMINAL' and remaining + filled != intent.quantity_base):
+            raise ValueError('RISK_JOURNAL_INVALID')
+        return _Reservation(intent, remaining, filled, state)
+
+    @staticmethod
+    def _decode_trade(key, raw):
+        intent_id, quantity, price = raw
+        quantity, price = Decimal(quantity), Decimal(price)
+        if (not key or not isinstance(intent_id, str) or not intent_id
+                or not _finite(quantity, positive=True) or not _finite(price, positive=True)):
+            raise ValueError('RISK_JOURNAL_INVALID')
+        return intent_id, quantity, price
+
+    @staticmethod
+    def _decode_event(key, raw):
+        kind, currency, amount = raw
+        amount = Decimal(amount)
+        if (not key or kind not in ('FEE', 'CASHFLOW', 'JOINT') or currency not in ('LIFE', 'USDT')
+                or not amount.is_finite() or kind == 'FEE' and not key.startswith('FEE:')
+                or kind == 'CASHFLOW' and (not key.startswith('CASHFLOW:') or not key[9:].isdigit() or amount == 0)
+                or kind == 'JOINT' and (currency != 'USDT' or not _joint_cash_key(key))):
+            raise ValueError('RISK_JOURNAL_INVALID')
+        return kind, currency, amount
+
+    def _load_archive_data(self, data):
+        """Stream financial validation; disposable disk sums bound cold RAM."""
+        try:
+            life, usdt = Decimal(data['life_balance']), Decimal(data['usdt_balance'])
+            if not _finite(life) or not _finite(usdt):
+                raise ValueError('RISK_JOURNAL_INVALID')
+            maps = []
+            for key, transform in (('reservations', ReservationLedger._decode_reservation),
+                                   ('trades', ReservationLedger._decode_trade),
+                                   ('account_events', ReservationLedger._decode_event)):
+                source = data[key]
+                maps.append(PartitionMap({k: transform(k, row) for k, row in source.active.items()},
+                                         TransformedMap(source.settled, transform)))
+            reservations, trades, events = maps
+            total = Decimal('0')
+            with scratch_index() as index:
+                index.execute('CREATE TABLE fills (intent TEXT PRIMARY KEY, expected TEXT, quantity TEXT)')
+                index.execute('CREATE TABLE trades (trade TEXT PRIMARY KEY)')
+                for key, row in reservations.items():
+                    index.execute('INSERT INTO fills VALUES (?, ?, ?)', (key, str(row.filled_base), '0'))
+                for trade_id, (intent_id, quantity, _) in trades.items():
+                    prior = index.execute('SELECT quantity FROM fills WHERE intent=?', (intent_id,)).fetchone()
+                    if prior is None:
+                        raise ValueError('RISK_JOURNAL_INVALID')
+                    aggregate = quantity + Decimal(prior[0])
+                    index.execute('UPDATE fills SET quantity=? WHERE intent=?', (str(aggregate), intent_id))
+                    index.execute('INSERT INTO trades VALUES (?)', (trade_id,))
+                    total += quantity
+                for expected, recorded in index.execute('SELECT expected, quantity FROM fills'):
+                    if Decimal(expected) != Decimal(recorded):
+                        raise ValueError('RISK_JOURNAL_INVALID')
+                for key, (kind, _, _) in events.items():
+                    if kind == 'FEE' and index.execute('SELECT 1 FROM trades WHERE trade=?', (key[4:],)).fetchone() is None:
+                        raise ValueError('RISK_JOURNAL_INVALID')
+            self.life_balance, self.usdt_balance = life, usdt
+            self._reservations, self._trades, self._account_events = maps
+            self._filled_base_total = total
+            self._verified_memory = None
+            self._verified_disk_cache = None
+        except (KeyError, TypeError, ValueError, InvalidOperation, OSError) as exc:
+            raise ValueError('RISK_JOURNAL_INVALID') from exc
+
+    def _active_reservations(self):
+        return (self._reservations.active if isinstance(self._reservations, PartitionMap)
+                else self._reservations)
+
+    @classmethod
+    def _restore_snapshot(cls, raw: bytes, *, path: Path, limits: RiskLimits,
+                          max_reservations=None, max_trades=None) -> "ReservationLedger":
+        """Decode detached evidence without I/O; worker output grants no risk."""
+        try:
+            source_raw = raw
+            data = decode(raw)
             if data["schema_version"] not in (1, 2):
                 raise ValueError("RISK_JOURNAL_INVALID")
+            if (max_reservations is not None and len(data["reservations"]) > max_reservations
+                    or max_trades is not None and len(data["trades"]) > max_trades):
+                raise ValueError("RISK_JOURNAL_CAPACITY")
             saved_limits = RiskLimits(**{key: Decimal(value)
                                          for key, value in data["limits"].items()})
             if saved_limits != limits:
@@ -286,12 +475,30 @@ class ReservationLedger:
             book._account_events = MappingProxyType(account_events)
             book._lock = RLock()
             book._uncertain = False
+            book._archive = None
+            book._archive_authority = None
+            book._durable_raw = source_raw
             return book
         except (KeyError, TypeError, ValueError, InvalidOperation,
                 json.JSONDecodeError, OSError) as exc:
             if isinstance(exc, ValueError) and str(exc) == "RISK_LIMIT_MISMATCH":
                 raise
             raise ValueError("RISK_JOURNAL_INVALID") from exc
+
+    def _accept_verified_snapshot(self, raw, evidence):
+        """Publish a worker candidate only against current exact bytes/memory."""
+        self.assert_healthy()
+        if (self._archive is not None or type(evidence) is not type(self) or not getattr(evidence, "_sealed_evidence", False)
+                or getattr(evidence, "_snapshot_raw", None) != raw
+                or evidence.path != self.path or evidence.limits != self.limits
+                or self.path is None or self.path.is_symlink() or not self.path.is_file()
+                or self.path.read_bytes() != raw):
+            raise ValueError("RISK_JOURNAL_CHANGED_DURING_VERIFY")
+        if (self.life_balance != evidence.life_balance or self.usdt_balance != evidence.usdt_balance
+                or self._reservations != evidence._reservations or self._trades != evidence._trades
+                or self._account_events != evidence._account_events):
+            raise ValueError("RISK_MEMORY_UNVERIFIED")
+        self._verified_disk_cache = (raw, evidence)
 
     def trade_intent_id(self, trade_id: str) -> str | None:
         with self._lock:
@@ -341,7 +548,7 @@ class ReservationLedger:
             usdt = self.usdt_balance + (amount if currency == "USDT" else Decimal("0"))
             if life < 0 or usdt < 0:
                 raise ValueError("ACCOUNT_EVENT_EXCEEDS_BALANCE")
-            updated = dict(self._account_events)
+            updated = dict(self._account_events.items())
             updated[event_id] = event
             self._commit(life, usdt, self._reservations, self._trades, updated)
             return True
@@ -373,9 +580,9 @@ class ReservationLedger:
             self._ensure_healthy()
             staged = ReservationLedger(life_balance=self.life_balance, usdt_balance=self.usdt_balance,
                                        limits=self.limits)
-            staged._reservations = dict(self._reservations)
-            staged._trades = dict(self._trades)
-            staged._account_events = dict(self._account_events)
+            staged._reservations = dict(self._reservations.items())
+            staged._trades = dict(self._trades.items())
+            staged._account_events = dict(self._account_events.items())
             timeline = []
             for key, fills in spot_snapshots:
                 prefix, cumulative = [], Decimal("0")
@@ -413,7 +620,7 @@ class ReservationLedger:
     def record_cashflows_batch(self, events: tuple[tuple[str, str, Decimal], ...]) -> bool:
         """Checkpoint verified transfers together, including their dedup identities."""
         with self._lock:
-            updated = dict(self._account_events)
+            updated = dict(self._account_events.items())
             life, usdt = self.life_balance, self.usdt_balance
             changed = False
             for bill_id, currency, amount in events:
@@ -443,13 +650,19 @@ class ReservationLedger:
     def reserved_usdt(self) -> Decimal:
         with self._lock:
             return sum((item.remaining_base * item.intent.limit_price_usdt
-                        for item in self._reservations.values()
+                        for item in self._active_reservations().values()
                         if item.intent.side == "BUY"), Decimal("0"))
 
     @property
     def reservation_ids(self) -> frozenset[str]:
         with self._lock:
             return frozenset(self._reservations)
+
+    def reservation_state(self, intent_id):
+        """Point lookup without materializing historical reservations."""
+        with self._lock:
+            item = self._reservations.get(intent_id)
+            return None if item is None else ReservationState(item.intent, item.remaining_base, item.filled_base, item.state)
 
     def reservation_snapshot(self) -> dict[str, ReservationState]:
         """Return immutable values for a cross-journal read; no send permission follows."""
@@ -505,7 +718,7 @@ class ReservationLedger:
             item = self._reservations[intent_id]
             if item.state == "TERMINAL":
                 return False
-            updated = dict(self._reservations)
+            updated = dict(self._reservations.items())
             updated[intent_id] = replace(item, remaining_base=Decimal("0"),
                                          state="TERMINAL")
             self._commit(self.life_balance, self.usdt_balance, updated, self._trades)
@@ -514,7 +727,7 @@ class ReservationLedger:
     @property
     def reserved_life(self) -> Decimal:
         with self._lock:
-            return sum((item.remaining_base for item in self._reservations.values()
+            return sum((item.remaining_base for item in self._active_reservations().values()
                         if item.intent.side == "SELL"), Decimal("0"))
 
     @staticmethod
@@ -526,6 +739,7 @@ class ReservationLedger:
             return "REFERENCE_UNAVAILABLE"
         if intent.intent_id in reservations:
             return "DUPLICATE_INTENT"
+        reservations = reservations.active if isinstance(reservations, PartitionMap) else reservations
         buy_base = sum((item.remaining_base for item in reservations.values()
                         if item.intent.side == "BUY"), Decimal("0"))
         sell_base = sum((item.remaining_base for item in reservations.values()
@@ -555,7 +769,7 @@ class ReservationLedger:
     def preview(self, *, exclude_open_intent: SpotIntent | None = None) -> "ReservationPreview":
         with self._lock:
             self._ensure_healthy()
-            reservations = dict(self._reservations)
+            reservations = dict(self._active_reservations())
             if exclude_open_intent is not None:
                 if not isinstance(exclude_open_intent, SpotIntent):
                     raise ValueError("RESERVATION_EXCLUSION_UNSAFE")
@@ -568,18 +782,22 @@ class ReservationLedger:
                 del reservations[exclude_open_intent.intent_id]
             return ReservationPreview(self.life_balance, self.usdt_balance,
                                       self.limits, reservations,
-                                      sum((trade[1] for trade in self._trades.values()),
-                                          Decimal("0")))
+                                      self._filled_base_total if isinstance(self._trades, PartitionMap)
+                                      else sum((trade[1] for trade in self._trades.values()), Decimal('0')),
+                                      historical=(self._reservations.settled
+                                                  if isinstance(self._reservations, PartitionMap) else None))
 
     def reserve(self, intent: SpotIntent, *, reference_price: Decimal) -> RiskDecision:
         with self._lock:
+            if self._archive is not None:
+                self._archive.archive.assert_capacity()
             reason = self._reserve_reason(
                 intent, reference_price, self._reservations,
                 life_balance=self.life_balance, usdt_balance=self.usdt_balance,
                 limits=self.limits)
             if reason is not None:
                 return RiskDecision(False, reason, None)
-            updated = dict(self._reservations)
+            updated = dict(self._reservations.items())
             updated[intent.intent_id] = _Reservation(intent, intent.quantity_base)
             self._commit(self.life_balance, self.usdt_balance, updated, self._trades)
             return RiskDecision(True, "RESERVED", intent.intent_id)
@@ -593,12 +811,14 @@ class ReservationLedger:
         """
         with self._lock:
             self._ensure_healthy()
+            if self._archive is not None:
+                self._archive.archive.assert_capacity()
             if (not isinstance(intent, SpotIntent) or intent.side != "SELL"
                     or not _finite(target_base) or intent.intent_id in self._reservations
-                    or any(item.remaining_base > 0 for item in self._reservations.values())
+                    or any(item.remaining_base > 0 for item in self._active_reservations().values())
                     or intent.quantity_base > self.life_balance - max(target_base, self.limits.min_inventory_base)):
                 return RiskDecision(False, "EXIT_WOULD_REVERSE_POSITION", None)
-            updated = dict(self._reservations)
+            updated = dict(self._reservations.items())
             updated[intent.intent_id] = _Reservation(intent, intent.quantity_base)
             self._commit(self.life_balance, self.usdt_balance, updated, self._trades)
             return RiskDecision(True, "EXIT_RESERVED", intent.intent_id)
@@ -623,11 +843,11 @@ class ReservationLedger:
             else:
                 life_balance = self.life_balance - quantity
                 usdt_balance = self.usdt_balance + quantity * price
-            updated_reservations = dict(self._reservations)
+            updated_reservations = dict(self._reservations.items())
             updated_reservations[intent_id] = replace(
                 item, filled_base=item.filled_base + quantity,
                 remaining_base=item.remaining_base - quantity)
-            updated_trades = dict(self._trades)
+            updated_trades = dict(self._trades.items())
             updated_trades[trade_id] = trade
             self._commit(life_balance, usdt_balance, updated_reservations, updated_trades)
             return True
@@ -645,8 +865,8 @@ class ReservationLedger:
                 raise ValueError("FILL_CUMULATIVE_REGRESSION")
             life, usdt = self.life_balance, self.usdt_balance
             remaining, filled = item.remaining_base, item.filled_base
-            trades = dict(self._trades)
-            events = dict(self._account_events)
+            trades = dict(self._trades.items())
+            events = dict(self._account_events.items())
             seen = set()
             changed = False
             snapshot_total = Decimal("0")
@@ -699,27 +919,60 @@ class ReservationLedger:
             if life < 0 or usdt < 0:
                 raise ValueError("ACCOUNT_EVENT_EXCEEDS_BALANCE")
             if changed:
-                reservations = dict(self._reservations)
+                reservations = dict(self._reservations.items())
                 reservations[intent_id] = replace(item, remaining_base=remaining,
                                                   filled_base=filled)
                 self._commit(life, usdt, reservations, trades, events)
             return changed
 
+    def _cache_verified_archive(self):
+        disk = type(self).__new__(type(self))
+        for name in ('path', 'limits', 'life_balance', 'usdt_balance', '_reservations', '_trades',
+                     '_account_events', '_filled_base_total', '_uncertain', '_durable_raw'):
+            setattr(disk, name, getattr(self, name))
+        disk._lock = RLock()
+        disk._archive = self._archive.verified_copy()
+        disk._archive_authority = disk._archive
+        disk._sealed_evidence = True
+        self._verified_disk_cache = (self._durable_raw, disk)
+
+    def _commit_pending_reservation(self, intent_id, item):
+        if self._archive is None:
+            updated = dict(self._reservations.items())
+            updated[intent_id] = item
+            self._commit(self.life_balance, self.usdt_balance, updated, self._trades)
+            return
+        with self._file_lock():
+            self.verify_memory()
+            previous = self._reservations.active[intent_id]
+            if replace(previous, state=item.state) != item or item.state == 'TERMINAL':
+                raise ValueError('RISK_JOURNAL_INVALID')
+            active = dict(self._reservations.active)
+            active[intent_id] = item
+            self._archive.verify()
+            raw_active = dict(self._archive._lazy_cut[2]['active'])
+            raw_active['reservations'] = self._payload(self.life_balance, self.usdt_balance, active, {}, {})['reservations']
+            try:
+                self._archive.publish_active(raw_active, expected=self._durable_raw)
+            except Exception:
+                self._uncertain = self._archive.uncertain
+                raise
+            self._durable_raw = self._archive.raw
+            self._reservations = PartitionMap(active, self._reservations.settled)
+            self._verified_memory = None
+            self._cache_verified_archive()
+
     def request_cancel(self, intent_id: str) -> None:
         with self._lock:
             item = self._reservations[intent_id]
             if item.state != "TERMINAL":
-                updated = dict(self._reservations)
-                updated[intent_id] = replace(item, state="CANCEL_PENDING")
-                self._commit(self.life_balance, self.usdt_balance, updated, self._trades)
+                self._commit_pending_reservation(intent_id, replace(item, state="CANCEL_PENDING"))
 
     def mark_unknown(self, intent_id: str) -> None:
         with self._lock:
             item = self._reservations[intent_id]
             if item.state != "TERMINAL":
-                updated = dict(self._reservations)
-                updated[intent_id] = replace(item, state="UNKNOWN")
-                self._commit(self.life_balance, self.usdt_balance, updated, self._trades)
+                self._commit_pending_reservation(intent_id, replace(item, state="UNKNOWN"))
 
     def requires_reconciliation(self, intent_id: str) -> bool:
         with self._lock:
@@ -737,7 +990,7 @@ class ReservationLedger:
                 raise ValueError("FILL_CUMULATIVE_MISMATCH")
             if exchange_state == "FILLED" and cumulative_filled != item.intent.quantity_base:
                 raise ValueError("FILL_CUMULATIVE_MISMATCH")
-            updated = dict(self._reservations)
+            updated = dict(self._reservations.items())
             updated[intent_id] = replace(item, remaining_base=Decimal("0"), state="TERMINAL")
             self._commit(self.life_balance, self.usdt_balance, updated, self._trades)
 
@@ -747,12 +1000,13 @@ class ReservationPreview:
 
     def __init__(self, life_balance: Decimal, usdt_balance: Decimal,
                  limits: RiskLimits, reservations: dict[str, _Reservation],
-                 filled_base_total: Decimal):
+                 filled_base_total: Decimal, *, historical=None):
         self.life_balance = life_balance
         self.usdt_balance = usdt_balance
         self.limits = limits
         self._reservations = reservations
         self.filled_base_total = filled_base_total
+        self._historical = historical
 
     @property
     def projected_inventory_after_buys(self) -> Decimal:
@@ -777,6 +1031,8 @@ class ReservationPreview:
                      for item in self._reservations.values() if item.remaining_base > 0)
 
     def check_and_hold(self, intent: SpotIntent, *, reference_price: Decimal) -> RiskDecision:
+        if self._historical is not None and intent.intent_id in self._historical:
+            return RiskDecision(False, 'DUPLICATE_INTENT', None)
         reason = ReservationLedger._reserve_reason(
             intent, reference_price, self._reservations,
             life_balance=self.life_balance, usdt_balance=self.usdt_balance,

@@ -273,7 +273,7 @@ class CarryMonitor:
                 bundle = self.observation()
                 obs, policy = self._qualify(bundle, state, now)
                 self.journal.commit(state)  # Preserve newer expensive evidence even on financial refusal.
-                with self.capital.journal.locked() as capital_state:
+                with self.capital.journal.inspect() as capital_state:
                     claims = self.capital._decode(capital_state)
                 if prospective is not None:
                     self.capital._validate_claim(prospective)
