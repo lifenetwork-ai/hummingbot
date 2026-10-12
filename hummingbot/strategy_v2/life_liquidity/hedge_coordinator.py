@@ -297,11 +297,10 @@ class HedgeCoordinator:
                 obs = self._snapshot()
                 residual, urgent = self._residual(state, obs, now)
                 self._market(state, now)
-                claims = self.capital.claims()
                 wal = self.controller._order_safety_wal
                 owned_makers = True
                 for pending in obs.pending:
-                    if pending.product != "SPOT" or claims.get(pending.intent_id) != pending:
+                    if pending.product != "SPOT":
                         owned_makers = False
                         break
                     try:
@@ -316,7 +315,7 @@ class HedgeCoordinator:
                         break
                 allowed = (not urgent and abs(residual) <= self.policy.hedge.deadband_base
                            and all(o["status"] == "TERMINAL" for o in state["orders"].values())
-                           and owned_makers and self.capital.check().allowed)
+                           and owned_makers and self.capital.check(required_claims=obs.pending).allowed)
                 self.journal.commit(state)
                 self.reason_code = "HEDGE_BALANCED" if allowed else "HEDGE_PAUSE_SPOT"
                 return allowed

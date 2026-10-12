@@ -28,6 +28,7 @@ from hummingbot.client.config.config_helpers import (
 )
 from hummingbot.client.hummingbot_application import HummingbotApplication
 from hummingbot.client.settings import SCRIPT_STRATEGY_CONF_DIR_PATH, STRATEGIES_CONF_DIR_PATH, AllConnectorSettings
+from hummingbot.strategy_v2.life_liquidity.storage.postgres.migrations import auto_migrate
 
 
 def autofix_permissions(user_group_spec: str) -> None:
@@ -162,6 +163,8 @@ async def bootstrap_application(
     ``HummingbotApplication``. Returns the app, or ``None`` on a bad password. The per-caller bits
     (logging name/level, MQTT autostart, console silencing) are explicit params so behavior is identical.
     """
+    await auto_migrate()
+
     from hummingbot import init_logging
     from hummingbot.client.config.config_helpers import create_yml_files_legacy, read_system_configs_from_yml
     from hummingbot.client.config.security import Security

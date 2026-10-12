@@ -1,4 +1,4 @@
-from typing import Callable, Optional
+from typing import Awaitable, Callable, Optional
 
 import aiohttp
 
@@ -10,7 +10,13 @@ class RESTConnection:
         self._client_session = aiohttp_client_session
 
     async def call(self, request: RESTRequest,
-                   pre_send_check: Optional[Callable[[], None]] = None) -> RESTResponse:
+                   pre_send_check: Optional[Callable[[], None]] = None,
+                   async_pre_send_check: Optional[Callable[[], Awaitable[None]]] = None) -> RESTResponse:
+        # Both gates run after throttling/authentication. The synchronous gate
+        # follows the last authorization await, so local stop/expiry can revoke
+        # a DB result before the first request await. DB/exchange are not atomic.
+        if async_pre_send_check is not None:
+            await async_pre_send_check()
         # A synchronous check here runs after RESTAssistant's throttler and
         # immediately before the first network await.
         if pre_send_check is not None:

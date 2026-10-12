@@ -17,7 +17,7 @@ REQUIRED = {
     "O.8.2": ["test_o8_review.py::test_spot_sell_fill_then_safety_tick_allows_bounded_open_hedge", "test_o8_continuous.py"],
     "O.8.3": ["test_o8_review.py::test_owned_pending_maker_does_not_pause_balanced_hedge",
               "test_o8_review.py::test_pending_maker_risk_and_identity_fail_closed", "test_hedge_wal_scope.py"],
-    "O.8.4": ["test_o8_performance.py", "test_o8_settled_history.py", "test_o8_verified_state.py", "test_checkpoint_archive.py", "test_history_worker.py", "test_archived_journals.py", "test_lazy_journals.py", "test_hedge_wal_scope.py", "test_spot_journal_proof.py", "test_active_reservation_admission.py", "test_attribution_financial_proof.py", "test_o8_review.py::test_ten_thousand_terminal_reservations_restore_within_offline_budget",
+    "O.8.4": ["test_o8_performance.py", "test_o8_settled_history.py", "test_o8_verified_state.py", "test_checkpoint_archive.py", "test_checkpoint_byte_proof.py", "test_capital_permission_read.py", "test_history_worker.py", "test_archived_journals.py", "test_lazy_journals.py", "test_hedge_wal_scope.py", "test_spot_journal_proof.py", "test_active_reservation_admission.py", "test_attribution_financial_proof.py", "test_o8_review.py::test_ten_thousand_terminal_reservations_restore_within_offline_budget",
               "test_o8_review.py::test_many_fills_qualification_restart_and_page_order",
               "test_o8_review.py::test_verified_ledger_cache_does_not_hide_corruption",
               "test_o8_review.py::test_action_cache_keeps_independent_verified_image"],
@@ -31,6 +31,11 @@ REQUIRED = {
               "test_o8_review.py::test_same_direction_swap_ties_also_require_valid_causal_evidence"],
     "O.8.7": ["test_o8_continuous.py", "test_o8_acceptance.py"],
 }
+REQUIRED["O.8.4"].append("test_telemetry_reservation_lookup.py")
+REQUIRED["O.8.4"].append("test_reservation_membership.py")
+REQUIRED["O.8.4"].extend(["test_sender_joint_admission.py", "test_capital_snapshot_scope.py", "test_joint_receipt_scope.py"])
+REQUIRED["O.8.4"].append("test_immutable_history_identity.py")
+REQUIRED["O.8.4"].append("test_joint_capital_scope.py")
 
 
 def sha(path):

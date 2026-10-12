@@ -126,9 +126,25 @@ class PolicyState:
                 raise ValueError("RISK_STATE_STALE_OR_UNCERTAIN")
             cache = (raw, durable, self._policy_blob)
             self._verified_image = cache
-        if cache[1] != self._state:
+        # Both may be the very same recursively immutable verified image.
+        # Different objects still need the complete logical comparison.
+        if cache[1] is not self._state and cache[1] != self._state:
             raise ValueError("RISK_STATE_STALE_OR_UNCERTAIN")
         return cache
+
+    def assert_current(self):
+        """Fence root/memory changes inside an already verified locked scope.
+
+        This is not segment verification or allocation authority. Scope entry
+        verifies historical bytes; publication verifies its resulting cut.
+        """
+        if not self._locked:
+            raise ValueError("RISK_STATE_LOCK_REQUIRED")
+        cache = getattr(self, "_verified_image", None)
+        if (self._uncertain or cache is None or not self.path.is_file() or self.path.is_symlink()
+                or cache[2] != self._policy_blob or self._raw() != cache[0]
+                or cache[1] is not self._state and cache[1] != self._state):
+            raise ValueError("RISK_STATE_STALE_OR_UNCERTAIN")
 
     @contextmanager
     def inspect(self):
@@ -148,10 +164,22 @@ class PolicyState:
                 self._locked = False
 
     @contextmanager
-    def locked(self, *, shallow=False):
+    def locked(self, *, shallow=False, observe=None):
+        """Optionally read external facts before verification under the same lock.
+
+        The observer receives no checkpoint and cannot publish. Its result
+        grants no authority: all durable bytes and memory are verified after
+        it returns, before the caller receives any checkpoint state.
+        """
         if self._locked:
             raise ValueError("RISK_STATE_NESTED_LOCK")
         with self._file_lock():
+            if observe is not None:
+                self._locked = self._read_only = True
+                try:
+                    observe()
+                finally:
+                    self._locked = self._read_only = False
             self._verified()
             self._locked = True
             try:

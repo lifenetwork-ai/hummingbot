@@ -1,7 +1,7 @@
 import json
 from asyncio import wait_for
 from copy import deepcopy
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Union
 
 from hummingbot.core.api_throttler.async_throttler_base import AsyncThrottlerBase
 from hummingbot.core.web_assistant.auth import AuthBase
@@ -45,6 +45,7 @@ class RESTAssistant:
         timeout: Optional[float] = None,
         headers: Optional[Dict[str, Any]] = None,
         pre_send_check: Optional[Callable[[], None]] = None,
+        async_pre_send_check: Optional[Callable[[], Awaitable[None]]] = None,
     ) -> Union[str, Dict[str, Any]]:
         response = await self.execute_request_and_get_response(
             url=url,
@@ -57,6 +58,7 @@ class RESTAssistant:
             timeout=timeout,
             headers=headers,
             pre_send_check=pre_send_check,
+            **({"async_pre_send_check": async_pre_send_check} if async_pre_send_check is not None else {}),
         )
         response_json = await response.json()
         return response_json
@@ -73,6 +75,7 @@ class RESTAssistant:
             timeout: Optional[float] = None,
             headers: Optional[Dict[str, Any]] = None,
             pre_send_check: Optional[Callable[[], None]] = None,
+            async_pre_send_check: Optional[Callable[[], Awaitable[None]]] = None,
     ) -> RESTResponse:
 
         headers = headers or {}
@@ -96,7 +99,9 @@ class RESTAssistant:
 
         async with self._throttler.execute_task(limit_id=throttler_limit_id):
             response = await self.call(request=request, timeout=timeout,
-                                       pre_send_check=pre_send_check)
+                                       pre_send_check=pre_send_check,
+                                       **({"async_pre_send_check": async_pre_send_check}
+                                          if async_pre_send_check is not None else {}))
 
             if 400 <= response.status:
                 if not return_err:
@@ -107,12 +112,17 @@ class RESTAssistant:
             return response
 
     async def call(self, request: RESTRequest, timeout: Optional[float] = None,
-                   pre_send_check: Optional[Callable[[], None]] = None) -> RESTResponse:
+                   pre_send_check: Optional[Callable[[], None]] = None,
+                   async_pre_send_check: Optional[Callable[[], Awaitable[None]]] = None) -> RESTResponse:
         request = deepcopy(request)
         request = await self._pre_process_request(request)
         request = await self._authenticate(request)
-        connection_call = (self._connection.call(request) if pre_send_check is None
-                           else self._connection.call(request, pre_send_check=pre_send_check))
+        if async_pre_send_check is not None:
+            connection_call = self._connection.call(request, pre_send_check=pre_send_check,
+                                                    async_pre_send_check=async_pre_send_check)
+        else:
+            connection_call = (self._connection.call(request) if pre_send_check is None
+                               else self._connection.call(request, pre_send_check=pre_send_check))
         resp = await wait_for(connection_call, timeout)
         resp = await self._post_process_response(resp)
         return resp

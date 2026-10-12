@@ -197,6 +197,12 @@ class BootstrapApplicationTest(unittest.IsolatedAsyncioTestCase):
     """All deferred imports (init_logging, yml helpers, Security) are patched at their source
     modules; no real login, decryption, file writes, or logging re-init happens."""
 
+    def setUp(self):
+        # Migration startup is tested separately; legacy boot tests never read local secrets.
+        patcher = patch.object(runner, "auto_migrate", new=AsyncMock())
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def _patches(self, login_ok=True):
         security = MagicMock()
         security.login.return_value = login_ok

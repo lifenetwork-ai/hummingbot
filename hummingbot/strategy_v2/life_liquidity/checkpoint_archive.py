@@ -121,7 +121,7 @@ class CheckpointArchive:
             if not isinstance(value, (dict, list)):
                 raise ValueError("ARCHIVE_BRANCH_INVALID")
             old = previous.get(path)
-            if old is not None and value == old[0]:
+            if old is not None and (value is old[0] or value == old[0]):
                 entry = old[1]
             else:
                 kind = "map" if isinstance(value, dict) else "list"
@@ -204,6 +204,7 @@ class CheckpointArchive:
             raise ValueError("ARCHIVE_POLICY_MISMATCH")
         if self.directory.is_symlink() or not self.directory.is_dir():
             raise ValueError("ARCHIVE_DIRECTORY_INVALID")
+        cached = self._image
         images = {}
         loaded, total_bytes = {}, 0
         for entry, path in zip(manifest["archives"], self.policy.paths):
@@ -233,13 +234,22 @@ class CheckpointArchive:
                         raise ValueError("ARCHIVE_CAPACITY_EXCEEDED")
                     loaded[name] = read_limited(target, segment["bytes"])
                 blob = loaded[name]
-                if len(blob) != segment["bytes"] or hashlib.sha256(blob).hexdigest() != segment["sha256"]:
+                # The existing image contains independently hash-checked bytes.
+                # Re-read every file, but exact bytes plus the same descriptor
+                # can reuse that proof across active-only manifest changes.
+                # A new descriptor (including a new digest/count) must validate
+                # from scratch even if its bytes equal an older segment.
+                previous = None if cached is None else cached[2].get(path)
+                prior_segments = () if previous is None else previous[1]["segments"]
+                unchanged = (index < len(prior_segments) and prior_segments[index] == segment
+                             and cached[1].get((path, index)) == blob)
+                if (len(blob) != segment["bytes"]
+                        or not unchanged and hashlib.sha256(blob).hexdigest() != segment["sha256"]):
                     raise ValueError("ARCHIVE_SEGMENT_CHANGED")
                 images[(path, index)] = blob
                 count += segment["count"]
             if count != entry["count"]:
                 raise ValueError("ARCHIVE_COVERAGE_INVALID")
-        cached = self._image
         if cached is not None and cached[0] == raw and cached[1] == images:
             return cached[3]
         state, branches = manifest["state"], {}

@@ -48,12 +48,15 @@ class ProtectedSpotExecutorSender:
         return spot_journal_proof(self.gateway.wal, self.reservations).matches(pending_intent_id=pending_intent_id)
 
     def _authorized(self, permit: SendPermit) -> bool:
-        if not self.controller._joint_recovery_ready():
+        exit_planner = self._exit_planner(permit.intent_id)
+        # Quote admission below freshly checks joint recovery itself. Exit
+        # routes retain their explicit check, including risk-reduction gates
+        # which do not otherwise require a joint recovery receipt.
+        if exit_planner is not None and not self.controller._joint_recovery_ready():
             return False
         current = self.manager.current_session
         if permit.intent_id in self.controller._runner_stop_revoked_ids:
             return False
-        exit_planner = self._exit_planner(permit.intent_id)
         allowed = ((self.controller.allow_inventory_execution_actions() if exit_planner is self.controller._inventory_executor
                     else self.controller.allow_risk_reduction_actions()) if exit_planner is not None
                    else self.controller.allow_create_executor_actions())
@@ -147,7 +150,7 @@ class ProtectedSpotExecutorSender:
             raise ValueError("RECONCILE_BEFORE_RETRY")
         if self.gateway.wal.has_intent(config.id):
             raise ValueError("RECONCILE_BEFORE_RETRY")
-        if config.id in self.reservations.reservation_ids:
+        if self.reservations.has_reservation(config.id):
             raise PermissionError("RESERVATION_UNAVAILABLE")
         if not self._journals_match():
             raise PermissionError("RECOVERY_JOURNALS_DISAGREE")

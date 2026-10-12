@@ -1,5 +1,5 @@
 .ONESHELL:
-.PHONY: test run run_coverage report_coverage development-diff-cover uninstall build install setup deploy down link-cli
+.PHONY: test run run_coverage report_coverage development-diff-cover uninstall build install setup deploy down link-cli life-migrate life-migration-status
 
 DYDX ?= 0
 ENV_FILE := setup/environment.yml
@@ -99,3 +99,11 @@ deploy:
 
 down:
 	docker compose --profile gateway down
+
+# Separate schema task; LIFE_MIGRATION_DSN belongs in the environment, never ARGS.
+LIFE_MIGRATION_ARGS ?=
+life-migrate:
+	conda run -n hummingbot --no-capture-output python -m hummingbot.strategy_v2.life_liquidity.storage.postgres.migrations up $(LIFE_MIGRATION_ARGS)
+
+life-migration-status:
+	conda run -n hummingbot --no-capture-output python -m hummingbot.strategy_v2.life_liquidity.storage.postgres.migrations status $(LIFE_MIGRATION_ARGS)

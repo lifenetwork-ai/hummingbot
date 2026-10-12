@@ -111,20 +111,22 @@ class OkxExchange(ExchangePyBase):
 
     def submit_protected_order(self, *, order_id: str, trading_pair: str, amount: Decimal,
                                trade_type: TradeType, order_type: OrderType, price: Decimal,
-                               pre_send_check, on_ack) -> str:
+                               pre_send_check, on_ack, async_pre_send_check=None) -> str:
         """Schedule an order with an externally persisted ID and final-send check.
 
         The caller must commit the ID/reservation/epoch to its WAL before this
         method is invoked. Ordinary connector orders keep their existing path.
         """
         if (not order_id or not callable(pre_send_check) or not callable(on_ack)
+                or async_pre_send_check is not None and not callable(async_pre_send_check)
                 or order_type != OrderType.LIMIT_MAKER
                 or trading_pair not in self._protected_trading_pairs):
             raise ValueError("protected OKX order requires ID, callbacks, and post-only type")
         safe_ensure_future(self._create_order(
             trade_type=trade_type, order_id=order_id, trading_pair=trading_pair,
             amount=amount, order_type=order_type, price=price,
-            pre_send_check=pre_send_check, on_ack=on_ack))
+            pre_send_check=pre_send_check, on_ack=on_ack,
+            **({"async_pre_send_check": async_pre_send_check} if async_pre_send_check is not None else {})))
         return order_id
 
     def _is_request_exception_related_to_time_synchronizer(self, request_exception: Exception):
@@ -216,6 +218,7 @@ class OkxExchange(ExchangePyBase):
                            **kwargs) -> Tuple[str, float]:
 
         pre_send_check = kwargs.pop("pre_send_check", None)
+        async_pre_send_check = kwargs.pop("async_pre_send_check", None)
         on_ack = kwargs.pop("on_ack", None)
         if (trading_pair in self._protected_trading_pairs
                 and (pre_send_check is None or on_ack is None)):
@@ -244,6 +247,8 @@ class OkxExchange(ExchangePyBase):
             is_auth_required=True,
             limit_id=CONSTANTS.OKX_PLACE_ORDER_PATH,
             pre_send_check=final_check,
+            **({"async_pre_send_check": lambda: async_pre_send_check(data)}
+               if async_pre_send_check is not None else {}),
         )
         data = exchange_order_id["data"][0]
         if data["sCode"] != "0":

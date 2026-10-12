@@ -11,3 +11,6 @@
 /conf/gateway_connections.json
 /conf/.password_verification
 /conf/connectors/*.yml
+
+# Local migration credentials are injected at runtime, never baked into images.
+/.env

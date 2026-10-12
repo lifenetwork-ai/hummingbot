@@ -65,3 +65,60 @@ def test_attribution_financial_proof_cannot_be_dropped_from_acceptance():
         "test/hummingbot/strategy_v2/life_liquidity/test_attribution_financial_proof.py")
     with pytest.raises(ValueError):
         audit.validate_manifest(m, require_closed=False)
+
+
+def test_checkpoint_byte_proof_cannot_be_dropped_from_acceptance():
+    m = json.loads(audit.MANIFEST.read_text())
+    m["review_evidence"]["O.8.4"]["tests"].remove(
+        "test/hummingbot/strategy_v2/life_liquidity/test_checkpoint_byte_proof.py")
+    with pytest.raises(ValueError):
+        audit.validate_manifest(m, require_closed=False)
+
+
+def test_capital_permission_read_cannot_be_dropped_from_acceptance():
+    m = json.loads(audit.MANIFEST.read_text())
+    m["review_evidence"]["O.8.4"]["tests"].remove(
+        "test/hummingbot/strategy_v2/life_liquidity/test_capital_permission_read.py")
+    with pytest.raises(ValueError):
+        audit.validate_manifest(m, require_closed=False)
+
+
+def test_telemetry_reservation_lookup_cannot_be_dropped_from_acceptance():
+    m = json.loads(audit.MANIFEST.read_text())
+    m["review_evidence"]["O.8.4"]["tests"].remove(
+        "test/hummingbot/strategy_v2/life_liquidity/test_telemetry_reservation_lookup.py")
+    with pytest.raises(ValueError):
+        audit.validate_manifest(m, require_closed=False)
+
+
+def test_reservation_membership_cannot_be_dropped_from_acceptance():
+    m = json.loads(audit.MANIFEST.read_text())
+    m["review_evidence"]["O.8.4"]["tests"].remove(
+        "test/hummingbot/strategy_v2/life_liquidity/test_reservation_membership.py")
+    with pytest.raises(ValueError):
+        audit.validate_manifest(m, require_closed=False)
+
+
+@pytest.mark.parametrize("suite", ["sender_joint_admission", "capital_snapshot_scope", "joint_receipt_scope"])
+def test_single_scope_admission_evidence_cannot_be_dropped(suite):
+    m = json.loads(audit.MANIFEST.read_text())
+    m["review_evidence"]["O.8.4"]["tests"].remove(
+        "test/hummingbot/strategy_v2/life_liquidity/test_" + suite + ".py")
+    with pytest.raises(ValueError):
+        audit.validate_manifest(m, require_closed=False)
+
+
+def test_immutable_history_identity_evidence_cannot_be_dropped():
+    m = json.loads(audit.MANIFEST.read_text())
+    m["review_evidence"]["O.8.4"]["tests"].remove(
+        "test/hummingbot/strategy_v2/life_liquidity/test_immutable_history_identity.py")
+    with pytest.raises(ValueError):
+        audit.validate_manifest(m, require_closed=False)
+
+
+def test_joint_capital_scope_evidence_cannot_be_dropped():
+    m = json.loads(audit.MANIFEST.read_text())
+    m["review_evidence"]["O.8.4"]["tests"].remove(
+        "test/hummingbot/strategy_v2/life_liquidity/test_joint_capital_scope.py")
+    with pytest.raises(ValueError):
+        audit.validate_manifest(m, require_closed=False)

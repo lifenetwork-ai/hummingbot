@@ -57,7 +57,14 @@ async def test_read_only_carry_and_poll_queries_do_not_require_mutable_full_hist
 
         def unexpected(*args, **kwargs):
             raise AssertionError("read-only query requested a mutable full-history checkpoint")
-        monkeypatch.setattr(f.v[1].journal, "locked", unexpected)
+        capital_locked = f.v[1].journal.locked
+
+        def shallow_only(*args, **kwargs):
+            if kwargs.get("shallow") is not True:
+                unexpected()
+            return capital_locked(*args, **kwargs)
+
+        monkeypatch.setattr(f.v[1].journal, "locked", shallow_only)
         assert f.c._carry_monitor.check().allowed
         monkeypatch.setattr(f.joint.journal, "locked", unexpected)
         assert not f.joint.reconciliation_due()
@@ -255,16 +262,18 @@ async def test_clock_fence_is_rechecked_after_switching_to_write_lock(tmp_path, 
         journal = f.joint.journal
         f.v[6].advance(.001)
         now = f.joint.clock_ms()
-        original = journal.inspect
+        original = journal.locked
 
         @contextmanager
-        def observe_newer_checkpoint():
-            with original() as state:
-                yield state
-            with journal.locked() as state:
+        def observe_newer_checkpoint(*args, **kwargs):
+            # Publish the newer cut immediately before the operation acquires
+            # its writer scope; it must fence the current clock at that entry.
+            with original(shallow=True) as state:
                 state["last_ms"] = now + 1
                 journal.commit(state)
-        monkeypatch.setattr(journal, "inspect", observe_newer_checkpoint)
+            with original(*args, **kwargs) as state:
+                yield state
+        monkeypatch.setattr(journal, "locked", observe_newer_checkpoint)
         with pytest.raises(ValueError, match="JOINT_CLOCK_ROLLBACK"):
             f.joint._fresh()
         assert journal._state["last_ms"] == now + 1

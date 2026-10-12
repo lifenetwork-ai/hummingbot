@@ -667,6 +667,11 @@ class ReservationLedger:
             item = self._reservations.get(intent_id)
             return None if item is None else ReservationState(item.intent, item.remaining_base, item.filled_base, item.state)
 
+    def has_reservation(self, intent_id) -> bool:
+        """Read one in-memory identity; this grants no journal or send authority."""
+        with self._lock:
+            return intent_id in self._reservations
+
     def reservation_snapshot(self) -> dict[str, ReservationState]:
         """Return immutable values for a cross-journal read; no send permission follows."""
         with self._lock:

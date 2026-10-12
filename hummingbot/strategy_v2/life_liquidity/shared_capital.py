@@ -6,6 +6,7 @@ PolicyState supplies host-local locking, atomic checkpoints and writer fencing.
 """
 
 import json
+from contextlib import nullcontext
 from dataclasses import asdict, dataclass
 from decimal import Decimal
 from itertools import product
@@ -187,7 +188,8 @@ class SharedCapitalAuthority:
         if set(state) != {"claims", "settled", "last_checked_ms", "snapshot_sequence", "snapshot"}:
             raise ValueError("CAPITAL_JOURNAL_INVALID")
         cached = getattr(self, "_verified_settled", None)
-        if cached is None or cached != state["settled"] or getattr(self, "_settled_policy", None) != self.policy:
+        if (cached is None or cached is not state["settled"] and cached != state["settled"]
+                or getattr(self, "_settled_policy", None) != self.policy):
             decoded_settled = {}
             for key, entry in state["settled"].items():
                 claim = self._read_claim(entry["claim"])
@@ -324,7 +326,9 @@ class SharedCapitalAuthority:
             raise ValueError("CAPITAL_PENDING_DUPLICATE")
 
     def _snapshot(self, state, now):
-        obs = self.observation()
+        return self._record_snapshot(state, now, self.observation())
+
+    def _record_snapshot(self, state, now, obs):
         self._validate_snapshot(obs, now)
         encoded = _json(asdict(obs))
         sequence = state["snapshot_sequence"]
@@ -412,24 +416,50 @@ class SharedCapitalAuthority:
                 return CapitalDecision(False, reason, **values)
         return CapitalDecision(True, "CAPITAL_READY", **values)
 
-    def _operate(self, claim=None, *, reserve=False, spot_balances=None, swap_account=None):
+    def _operate(self, claim=None, *, reserve=False, spot_balances=None, swap_account=None, required_claims=()):
         try:
             if self.journal.archive is not None:
                 self.journal.archive.assert_capacity()
-            if self._recovery is not None and not self._recovery.allocation_ready():
-                return CapitalDecision(False, "CAPITAL_JOINT_RECOVERY_REQUIRED")
             if _json(asdict(self.policy)) != self.journal.policy:
                 raise ValueError("CAPITAL_POLICY_CHANGED")
-            with self.journal.locked(shallow=True) as state:
-                claims = self._decode(state)
-                self._retained = claims
-                now = self.clock_ms()
+            scope = nullcontext(None) if self._recovery is None else self._recovery._capital_allocation(self)
+            with scope as validate_joint:
+                return self._operate_in_scope(claim, reserve=reserve, spot_balances=spot_balances,
+                                              swap_account=swap_account, required_claims=required_claims,
+                                              validate_joint=validate_joint)
+        except Exception as exc:
+            reason = "CAPITAL_JOINT_RECOVERY_REQUIRED" if str(exc) == "CAPITAL_JOINT_RECOVERY_REQUIRED" else "CAPITAL_STATE_UNAVAILABLE"
+            return CapitalDecision(False, reason)
+
+    def _operate_in_scope(self, claim, *, reserve, spot_balances, swap_account, required_claims, validate_joint):
+        facts = []
+
+        def observe():
+            now = self.clock_ms()
+            if type(now) is not int or now < 0:
+                raise ValueError("CAPITAL_CLOCK_ROLLBACK")
+            facts.append((now, self.observation()))
+
+        # Read-only callbacks precede the one full verification. A segment
+        # changed by an observer cannot inherit a pre-callback byte proof.
+        with self.journal.locked(shallow=True, observe=observe) as state:
+            claims = self._decode(state)
+            self._retained = claims
+            self.journal._read_only = True
+            try:
+                now, observation = facts[0]
                 if (type(now) is not int or now < 0
                         or state["last_checked_ms"] is not None and now < state["last_checked_ms"]):
                     raise ValueError("CAPITAL_CLOCK_ROLLBACK")
+                self.journal.assert_current()
                 state["last_checked_ms"] = now
                 try:
-                    obs = self._snapshot(state, now)
+                    obs = self._record_snapshot(state, now, observation)
+                    if validate_joint is not None:
+                        validate_joint(obs, now)
+                    if (type(required_claims) is not tuple
+                            or any(not isinstance(c, CapitalClaim) or claims.get(c.intent_id) != c for c in required_claims)):
+                        raise ValueError("CAPITAL_REQUIRED_CLAIM_MISMATCH")
                     if spot_balances is not None and spot_balances != (obs.spot_life_base, obs.spot_cash_quote):
                         raise ValueError("CAPITAL_SPOT_BALANCE_MISMATCH")
                     if swap_account is not None:
@@ -462,21 +492,38 @@ class SharedCapitalAuthority:
                             raise ValueError("CAPITAL_OLD_SESSION_CLAIMS")
                         claims = {**claims, claim.intent_id: claim}
                     decision = self._evaluate(obs, claims)
-                    if decision.allowed and reserve:
-                        state["claims"] = {key: _json(asdict(c)) for key, c in claims.items()}
+                    if validate_joint is not None:
+                        validate_joint(obs, now)
                 except Exception as exc:
                     reason = str(exc) if isinstance(exc, ValueError) and str(exc).startswith("CAPITAL_") else "CAPITAL_OBSERVATION_UNAVAILABLE"
                     decision = CapitalDecision(False, reason)
-                if decision.allowed and reserve:
-                    self._retained = claims
-                self.journal.commit(state)
-                self._retained = self._decode(state)
-                return decision
-        except Exception:
-            return CapitalDecision(False, "CAPITAL_STATE_UNAVAILABLE")
+                # Callback faults cannot overwrite a newer/uncertain capital cut,
+                # even when the financial decision itself is a refusal.
+                self.journal.assert_current()
+                if _json(asdict(self.policy)) != self.journal.policy:
+                    raise ValueError("CAPITAL_POLICY_CHANGED")
+            finally:
+                self.journal._read_only = False
+            if decision.allowed and reserve:
+                state["claims"] = {key: _json(asdict(c)) for key, c in claims.items()}
+                self._retained = claims
+            self.journal.commit(state)
+            self._retained = self._decode(state)
+            if decision.allowed:
+                self.journal._read_only = True
+                try:
+                    if validate_joint is not None:
+                        validate_joint(obs, now)
+                    self.journal.assert_current()
+                    if _json(asdict(self.policy)) != self.journal.policy:
+                        raise ValueError("CAPITAL_POLICY_CHANGED")
+                finally:
+                    self.journal._read_only = False
+            return decision
 
-    def check(self):
-        return self._operate()
+    def check(self, *, required_claims=()):
+        """Check finances and optional ownership against the same fresh checkpoint."""
+        return self._operate(required_claims=required_claims)
 
     def qualified_snapshot(self):
         """Read qualified facts even after a risk breach; this grants no allocation.
@@ -486,23 +533,27 @@ Only reserve/authorize/check supply financial permission.
 """
         if _json(asdict(self.policy)) != self.journal.policy:
             raise ValueError("CAPITAL_POLICY_CHANGED")
-        with self.journal.inspect() as state:
-            self._decode(state)
-            now = self.clock_ms()
-            if type(now) is not int or now < 0 or state["last_checked_ms"] is not None and now < state["last_checked_ms"]:
-                raise ValueError("CAPITAL_CLOCK_ROLLBACK")
-            obs = self.observation()
-            self._validate_snapshot(obs, now)
-            if now == state["last_checked_ms"] and _json(asdict(obs)) == state["snapshot"]:
-                return obs
         with self.journal.locked(shallow=True) as state:
             self._decode(state)
-            now = self.clock_ms()
-            if (type(now) is not int or now < 0
-                    or state["last_checked_ms"] is not None and now < state["last_checked_ms"]):
-                raise ValueError("CAPITAL_CLOCK_ROLLBACK")
+            previous_snapshot = state["snapshot"]
+            # Observers retain the read-only callback boundary of inspect().
+            # The shallow writer scope serializes qualification and a possible
+            # checkpoint advance without a second full-history verification.
+            self.journal._read_only = True
+            try:
+                now = self.clock_ms()
+                if (type(now) is not int or now < 0
+                        or state["last_checked_ms"] is not None and now < state["last_checked_ms"]):
+                    raise ValueError("CAPITAL_CLOCK_ROLLBACK")
+                obs = self._snapshot(state, now)
+            finally:
+                self.journal._read_only = False
+            self.journal.assert_current()
+            if _json(asdict(self.policy)) != self.journal.policy:
+                raise ValueError("CAPITAL_POLICY_CHANGED")
+            if now == state["last_checked_ms"] and state["snapshot"] == previous_snapshot:
+                return obs
             state["last_checked_ms"] = now
-            obs = self._snapshot(state, now)
             self.journal.commit(state)
             return obs
 

@@ -24,6 +24,7 @@ from hummingbot.core.event.event_listener import EventListener
 from hummingbot.core.event.events import HummingbotUIEvent
 from hummingbot.core.utils import detect_available_port
 from hummingbot.core.utils.async_utils import safe_gather
+from hummingbot.strategy_v2.life_liquidity.storage.postgres.migrations import auto_migrate
 
 
 class UIStartListener(EventListener):
@@ -53,6 +54,7 @@ class UIStartListener(EventListener):
 
 
 async def main_async(client_config_map: ClientConfigAdapter):
+    await auto_migrate()
     await Security.wait_til_decryption_done()
     await create_yml_files_legacy()
 

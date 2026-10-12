@@ -4,7 +4,7 @@ import logging
 import math
 from abc import ABC, abstractmethod
 from decimal import Decimal
-from typing import Any, AsyncIterable, Callable, Dict, List, Optional, Tuple
+from typing import Any, AsyncIterable, Awaitable, Callable, Dict, List, Optional, Tuple
 
 from async_timeout import timeout
 
@@ -934,6 +934,7 @@ class ExchangePyBase(ExchangeBase, ABC):
             limit_id: Optional[str] = None,
             headers: Optional[Dict[str, Any]] = None,
             pre_send_check: Optional[Callable[[], None]] = None,
+            async_pre_send_check: Optional[Callable[[], Awaitable[None]]] = None,
             **kwargs,
     ) -> Dict[str, Any]:
 
@@ -954,6 +955,7 @@ class ExchangePyBase(ExchangeBase, ABC):
                     throttler_limit_id=limit_id if limit_id else path_url,
                     headers=headers,
                     pre_send_check=pre_send_check,
+                    **({"async_pre_send_check": async_pre_send_check} if async_pre_send_check is not None else {}),
                 )
 
                 return request_result

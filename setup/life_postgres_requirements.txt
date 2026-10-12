@@ -1,0 +1,2 @@
+# Optional migration/storage extra; qualify the Linux worker image in PG0.4/PG7.
+asyncpg==0.31.0

@@ -2111,7 +2111,7 @@ class LifeLiquidityController(ControllerBase):
                 inputs = collect_quote_inputs(self)
                 if record is not None:
                     inputs.update(wal_state=record.state, cancel_requested=record.cancel_requested)
-                    held = self._order_safety_reservations.reservation_snapshot().get(record.intent_id)
+                    held = self._order_safety_reservations.reservation_state(record.intent_id)
                     if held is not None:
                         inputs.update(intent_price_usdt=str(held.intent.limit_price_usdt),
                                       intent_quantity_base=str(held.intent.quantity_base),

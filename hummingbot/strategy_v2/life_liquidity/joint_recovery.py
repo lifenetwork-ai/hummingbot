@@ -10,6 +10,7 @@ import asyncio
 import hashlib
 import json
 import uuid
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -175,7 +176,7 @@ class JointRecovery:
 
     def _bundle_matches(self, bundle, proof_id):
         cached = getattr(self, "_verified_bundle", None)
-        if cached is not None and cached[0] == proof_id and cached[1] == bundle:
+        if cached is not None and cached[0] == proof_id and (cached[1] is bundle or cached[1] == bundle):
             if isinstance(bundle, _FrozenDict):
                 self._verified_bundle = (proof_id, bundle)
             return True
@@ -753,34 +754,81 @@ class JointRecovery:
         except Exception:
             return False
 
-    def _check_receipt(self, state, now):
-        if self._receipt_context != self._context() or self.controller._runner_scope_invalid:
+    def _check_receipt(self, state, now, *, observation=None):
+        context = self._context()
+        if self._receipt_context != context or self.controller._runner_scope_invalid:
             raise ValueError("JOINT_RUNNER_CONTEXT_UNVERIFIED")
         if (not self._healthy or state["phase"] != "COMMITTED"
                 or state["runner_fills"] or state["runner_cancels"]
                 or not 0 <= now - state["bundle"]["observed_at_ms"] <= self.max_age_ms
-                or self.capital.qualified_snapshot().sequence != state["sequence"]):
+                or (self.capital.qualified_snapshot() if observation is None else observation).sequence != state["sequence"]):
             raise ValueError("JOINT_FRESH_PROOF_REQUIRED")
         return state
 
-    def _fresh(self):
+    @contextmanager
+    def _receipt_scope(self):
         self._verify_storage()
-        with self.journal.inspect() as state:
-            self._validate_state(state)
-            now = self.clock_ms()
-            if type(now) is not int or now < 0 or state["last_ms"] is not None and now < state["last_ms"]:
-                raise ValueError("JOINT_CLOCK_ROLLBACK")
-            if now == state["last_ms"]:
-                return self._check_receipt(state, now)
         with self.journal.locked(shallow=True) as state:
-            self._validate_state(state)
-            now = self.clock_ms()
-            if type(now) is not int or now < 0 or state["last_ms"] is not None and now < state["last_ms"]:
-                raise ValueError("JOINT_CLOCK_ROLLBACK")
-            state["last_ms"] = now
-            self.journal.commit(state)  # Persist observed advances even if subsequent observation fails.
-        with self.journal.inspect() as state:
-            return self._check_receipt(state, now)
+            # One verified writer scope fences the entire receipt operation.
+            # Callbacks retain inspect's read-only contract; only this method's
+            # clock checkpoint may commit, before any later receipt refusal.
+            self.journal._read_only = True
+            try:
+                self._validate_state(state)
+                now = self.clock_ms()
+                if type(now) is not int or now < 0 or state["last_ms"] is not None and now < state["last_ms"]:
+                    raise ValueError("JOINT_CLOCK_ROLLBACK")
+                self.journal.assert_current()
+                if now != state["last_ms"]:
+                    state["last_ms"] = now
+                    self.journal._read_only = False
+                    try:
+                        self.journal.commit(state)
+                    finally:
+                        self.journal._read_only = True
+                yield self.journal._verified_image[1], now
+            finally:
+                self.journal._read_only = False
+
+    def _fresh(self):
+        with self._receipt_scope() as (state, now):
+            receipt = self._check_receipt(state, now)
+            self.journal.assert_current()
+            return receipt
+
+    @contextmanager
+    def _capital_allocation(self, capital):
+        """Join one synchronous allocation to its fresh capital observation.
+
+        Joint → capital is the only lock order. The yielded validator has no
+        authority outside these locks and must never cross an await.
+        """
+        if capital is not self.capital or capital._recovery is not self or capital.journal._locked:
+            raise ValueError("CAPITAL_JOINT_RECOVERY_REQUIRED")
+        if self.journal.archive is not None:
+            self.journal.archive.assert_capacity()
+        if not self._armed:
+            raise ValueError("CAPITAL_JOINT_RECOVERY_REQUIRED")
+        with self._receipt_scope() as (state, now):
+            active = True
+
+            def validate(observation, observed_clock_ms):
+                try:
+                    if (not active or not capital.journal._locked or not self.journal._locked
+                            or not self.journal._read_only or observed_clock_ms < now):
+                        raise ValueError("JOINT_ALLOCATION_SCOPE_REQUIRED")
+                    self._validate_state(state)
+                    self._check_receipt(state, observed_clock_ms, observation=observation)
+                    if not self._armed or capital is not self.capital or capital._recovery is not self:
+                        raise ValueError("JOINT_REARM_REQUIRED")
+                    self.journal.assert_current()
+                except Exception as exc:
+                    raise ValueError("CAPITAL_JOINT_RECOVERY_REQUIRED") from exc
+
+            try:
+                yield validate
+            finally:
+                active = False
 
     def observe_runner_fill(self, event):
         """Persist tracker hints; only complete exchange evidence may consume them."""

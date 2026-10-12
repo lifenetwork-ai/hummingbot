@@ -1,0 +1,368 @@
+"""Opt-in real PostgreSQL tests; use run_migrations.py, never a user's database."""
+import asyncio
+import os
+import sys
+import uuid
+
+import asyncpg
+import pytest
+import pytest_asyncio
+
+from hummingbot.strategy_v2.life_liquidity.storage.postgres.migrations import (
+    DEFAULT_DIRECTORY,
+    LOCK_KEY,
+    MigrationError,
+    migrate,
+)
+
+
+@pytest_asyncio.fixture
+async def db(tmp_path):
+    dsn = os.environ['LIFE_PG_MIGRATION_TEST_DSN']
+    assert dsn.startswith('postgresql://postgres@127.0.0.1:') and dsn.endswith('/life_migrations_test')
+    admin = await asyncpg.connect(dsn, command_timeout=5)
+    assert await admin.fetchval('SELECT current_database()') == 'life_migrations_test'
+    name = 'migration_case_' + uuid.uuid4().hex
+    await admin.execute(f'CREATE DATABASE "{name}" OWNER life_migrator_test')
+    migration_dsn = dsn.rsplit('/', 1)[0].replace('postgres@', 'life_migrator_test@') + '/' + name
+    connection = await asyncpg.connect(migration_dsn, command_timeout=5)
+    try:
+        yield connection, migration_dsn, tmp_path
+    finally:
+        await connection.close()
+        await admin.execute(f'DROP DATABASE "{name}" WITH (FORCE)')
+        await admin.close()
+
+
+def write(directory, version, sql, suffix='change'):
+    path = directory / f'{version:06d}_{suffix}.sql'
+    path.write_text(sql)
+    return path
+
+
+async def versions(connection):
+    return await connection.fetch('SELECT version FROM life_migrations.schema_migrations ORDER BY version')
+
+
+@pytest.mark.asyncio
+async def test_status_has_no_ddl_and_repeat_up_does_not_reexecute(db):
+    c, _, directory = db
+    write(directory, 1, 'CREATE SCHEMA sample; CREATE TABLE sample.counter(n int); INSERT INTO sample.counter VALUES (1);')
+    write(directory, 2, 'UPDATE sample.counter SET n=n+1;')
+    status = await migrate(c, directory)
+    assert len(status['pending']) == 2
+    assert not await c.fetchval("SELECT to_regnamespace('life_migrations') IS NOT NULL")
+    assert len((await migrate(c, directory, action='up'))['applied']) == 2
+    assert (await migrate(c, directory, action='up'))['applied'] == []
+    assert (await migrate(c, directory))['pending'] == []
+    assert await c.fetchval('SELECT n FROM sample.counter') == 2
+    assert [r['version'] for r in await versions(c)] == [1, 2]
+
+
+@pytest.mark.asyncio
+async def test_packaged_lineage_is_stable_and_not_financial_bootstrap(db):
+    c, _, _ = db
+    await migrate(c, action='up')
+    before = await c.fetchrow('SELECT * FROM life_storage.storage_metadata')
+    await migrate(c, action='up')
+    assert before == await c.fetchrow('SELECT * FROM life_storage.storage_metadata')
+    assert await c.fetchval("SELECT count(*) FROM pg_tables WHERE schemaname='life_storage'") == 1
+    assert DEFAULT_DIRECTORY.is_dir()
+
+
+@pytest.mark.asyncio
+async def test_failed_migration_rolls_back_ddl_data_and_history_then_resumes(db):
+    c, _, directory = db
+    write(directory, 1, 'CREATE SCHEMA sample; CREATE TABLE sample.counter(n int); INSERT INTO sample.counter VALUES (1);')
+    bad = write(directory, 2, 'UPDATE sample.counter SET n=99; CREATE TABLE sample.bad(n int); SELECT 1/0;')
+    with pytest.raises(asyncpg.DivisionByZeroError):
+        await migrate(c, directory, action='up')
+    assert await c.fetchval('SELECT n FROM sample.counter') == 1
+    assert not await c.fetchval("SELECT to_regclass('sample.bad') IS NOT NULL")
+    assert len(await versions(c)) == 1
+    # Only an unapplied migration may be corrected.
+    bad.write_text('UPDATE sample.counter SET n=2;')
+    assert len((await migrate(c, directory, action='up'))['applied']) == 1
+    assert await c.fetchval('SELECT n FROM sample.counter') == 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('change', ['bytes', 'delete', 'rename', 'insert_older'])
+async def test_history_drift_refuses_every_pending_change(db, change):
+    c, _, directory = db
+    first = write(directory, 2, 'CREATE SCHEMA sample; CREATE TABLE sample.counter(n int);')
+    await migrate(c, directory, action='up')
+    write(directory, 3, 'INSERT INTO sample.counter VALUES (100);')
+    if change == 'bytes':
+        first.write_text(first.read_text() + '\n')
+    elif change == 'delete':
+        first.unlink()
+    elif change == 'rename':
+        first.rename(directory / '000002_renamed.sql')
+    else:
+        write(directory, 1, 'SELECT 1;')
+    with pytest.raises(MigrationError):
+        await migrate(c, directory, action='up')
+    assert await c.fetchval('SELECT count(*) FROM sample.counter') == 0
+
+
+@pytest.mark.asyncio
+async def test_database_ahead_of_bundle_and_unregistered_schema_fail_closed(db):
+    c, _, directory = db
+    write(directory, 1, 'SELECT 1;')
+    second = write(directory, 2, 'SELECT 2;')
+    await migrate(c, directory, action='up')
+    second.unlink()
+    with pytest.raises(MigrationError):
+        await migrate(c, directory)
+    await c.execute('DROP TABLE life_migrations.schema_migrations')
+    with pytest.raises(MigrationError):
+        await migrate(c, directory, action='up')
+
+
+@pytest.mark.asyncio
+async def test_unregistered_storage_is_not_adopted_or_overwritten(db):
+    c, _, _ = db
+    await c.execute('CREATE SCHEMA life_storage; CREATE TABLE life_storage.existing(n int)')
+    with pytest.raises(asyncpg.DuplicateSchemaError):
+        await migrate(c, action='up')
+    assert len(await versions(c)) == 0
+    assert await c.fetchval("SELECT to_regclass('life_storage.existing') IS NOT NULL")
+
+
+@pytest.mark.asyncio
+async def test_two_runners_apply_each_script_once(db):
+    c, dsn, directory = db
+    write(directory, 1, 'CREATE SCHEMA sample; CREATE TABLE sample.counter(n int); SELECT pg_sleep(.1);')
+    write(directory, 2, 'INSERT INTO sample.counter VALUES (1);')
+    other = await asyncpg.connect(dsn, command_timeout=5)
+    try:
+        a, b = await asyncio.gather(migrate(c, directory, action='up'), migrate(other, directory, action='up'))
+        assert sorted([len(a['applied']), len(b['applied'])]) == [0, 2]
+        assert await c.fetchval('SELECT count(*) FROM sample.counter') == 1
+    finally:
+        await other.close()
+
+
+@pytest.mark.asyncio
+async def test_advisory_lock_wait_is_bounded_and_released_after_failure(db):
+    c, dsn, directory = db
+    write(directory, 1, 'SELECT 1;')
+    blocker = await asyncpg.connect(dsn)
+    try:
+        await blocker.execute('SELECT pg_advisory_lock($1)', LOCK_KEY)
+        with pytest.raises(MigrationError, match='lock timeout'):
+            await migrate(c, directory, action='up', lock_timeout=.05)
+        assert not await c.fetchval("SELECT to_regnamespace('life_migrations') IS NOT NULL")
+        await blocker.execute('SELECT pg_advisory_unlock($1)', LOCK_KEY)
+        assert len((await migrate(c, directory, action='up'))['applied']) == 1
+    finally:
+        await blocker.close()
+
+
+@pytest.mark.asyncio
+async def test_cancelled_script_rolls_back_and_releases_session_lock(db):
+    c, dsn, directory = db
+    file = write(directory, 1, 'CREATE SCHEMA sample; SELECT pg_sleep(10);')
+    task = asyncio.create_task(migrate(c, directory, action='up'))
+    observer = await asyncpg.connect(dsn)
+    try:
+        for _ in range(100):
+            waiting = await observer.fetchval('''SELECT EXISTS(SELECT 1 FROM pg_stat_activity
+                WHERE pid=$1 AND wait_event='PgSleep')''', c.get_server_pid())
+            if waiting:
+                break
+            await asyncio.sleep(.01)
+        assert waiting
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert not await c.fetchval("SELECT to_regnamespace('sample') IS NOT NULL")
+        assert len(await versions(c)) == 0
+        file.write_text('CREATE SCHEMA sample;')
+        assert len((await migrate(observer, directory, action='up', lock_timeout=.2))['applied']) == 1
+    finally:
+        if not task.done():
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+        await observer.close()
+
+
+@pytest.mark.asyncio
+async def test_statement_timeout_has_no_partial_schema(db):
+    c, _, directory = db
+    write(directory, 1, 'CREATE SCHEMA sample; SELECT pg_sleep(1);')
+    with pytest.raises(asyncpg.QueryCanceledError):
+        await migrate(c, directory, action='up', statement_timeout=50, ddl_lock_timeout=25)
+    assert not await c.fetchval("SELECT to_regnamespace('sample') IS NOT NULL")
+    assert len(await versions(c)) == 0
+
+
+class LostCommitReply:
+    """Test proxy loses the reply after a real successful script/history COMMIT."""
+
+    def __init__(self, connection):
+        self.connection = connection
+        self.transactions = 0
+
+    def __getattr__(self, name):
+        return getattr(self.connection, name)
+
+    def transaction(self):
+        self.transactions += 1
+        real = self.connection.transaction()
+        lose_reply = self.transactions == 2  # Bootstrap, then first script.
+        connection = self.connection
+
+        class Transaction:
+            async def __aenter__(self):
+                return await real.__aenter__()
+
+            async def __aexit__(self, *args):
+                result = await real.__aexit__(*args)
+                if lose_reply and args[0] is None:
+                    await connection.close()
+                    raise ConnectionError('simulated COMMIT reply loss')
+                return result
+
+        return Transaction()
+
+
+@pytest.mark.asyncio
+async def test_unknown_commit_fresh_run_reads_history_without_reexecuting(db):
+    c, dsn, directory = db
+    write(directory, 1, 'CREATE SCHEMA sample; CREATE TABLE sample.counter(n int); INSERT INTO sample.counter VALUES (1);')
+    with pytest.raises(ConnectionError):
+        await migrate(LostCommitReply(c), directory, action='up')
+    fresh = await asyncpg.connect(dsn)
+    try:
+        assert (await migrate(fresh, directory))['pending'] == []
+        assert (await migrate(fresh, directory, action='up'))['applied'] == []
+        assert await fresh.fetchval('SELECT count(*) FROM sample.counter') == 1
+    finally:
+        await fresh.close()
+
+
+@pytest.mark.asyncio
+async def test_runtime_denied_and_reporting_can_only_read_history(db):
+    c, dsn, directory = db
+    write(directory, 1, 'CREATE SCHEMA sample;')
+    await migrate(c, directory, action='up')
+    await c.execute('GRANT USAGE ON SCHEMA life_migrations TO life_reporter_test')
+    await c.execute('GRANT SELECT ON life_migrations.schema_migrations TO life_reporter_test')
+    write(directory, 2, 'CREATE TABLE sample.new_table(n int);')
+    for role in ['life_runtime_test', 'life_reporter_test']:
+        other = await asyncpg.connect(dsn.replace('life_migrator_test@', role + '@'))
+        try:
+            if role == 'life_reporter_test':
+                assert len((await migrate(other, directory))['pending']) == 1
+            with pytest.raises(asyncpg.InsufficientPrivilegeError):
+                await migrate(other, directory, action='up')
+            with pytest.raises(asyncpg.InsufficientPrivilegeError):
+                await other.execute("UPDATE life_migrations.schema_migrations SET checksum=repeat('0',64)")
+        finally:
+            await other.close()
+    assert not await c.fetchval("SELECT to_regclass('sample.new_table') IS NOT NULL")
+
+
+@pytest.mark.asyncio
+async def test_cli_exit_codes_and_secret_redaction(db):
+    _, dsn, directory = db
+    secret = 'DO_NOT_LOG_THIS_SQL_LITERAL'
+    file = write(directory, 1, "SELECT '" + secret + "'::integer;")
+
+    async def cli(action):
+        process = await asyncio.create_subprocess_exec(
+            sys.executable, '-m', 'hummingbot.strategy_v2.life_liquidity.storage.postgres.migrations',
+            action, '--directory', str(directory), '--local-insecure',
+            env={**os.environ, 'LIFE_MIGRATION_DSN': dsn},
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        stdout, stderr = await process.communicate()
+        assert dsn.encode() not in stdout + stderr and secret.encode() not in stdout + stderr
+        return process.returncode, stdout, stderr
+
+    assert (await cli('status'))[0] == 2
+    error = await cli('up')
+    assert error[0] == 1 and b'InvalidTextRepresentationError' in error[2]
+    file.write_text('SELECT 1;')
+    assert (await cli('up'))[0] == 0
+    assert (await cli('status'))[0] == 0
+
+
+@pytest.mark.asyncio
+async def test_nested_procedure_cannot_commit_outside_runner_transaction(db):
+    c, _, directory = db
+    write(directory, 1, 'CREATE SCHEMA sample; DO $$ BEGIN COMMIT; END; $$;')
+    with pytest.raises(asyncpg.InvalidTransactionTerminationError):
+        await migrate(c, directory, action='up')
+    assert not await c.fetchval("SELECT to_regnamespace('sample') IS NOT NULL")
+    assert len(await versions(c)) == 0
+
+
+@pytest.mark.asyncio
+async def test_ddl_lock_timeout_leaves_applied_prefix_unchanged(db):
+    c, dsn, directory = db
+    write(directory, 1, 'CREATE SCHEMA sample; CREATE TABLE sample.counter(n int);')
+    await migrate(c, directory, action='up')
+    blocker = await asyncpg.connect(dsn)
+    try:
+        await blocker.execute('BEGIN; LOCK TABLE sample.counter IN ACCESS EXCLUSIVE MODE;')
+        write(directory, 2, 'ALTER TABLE sample.counter ADD COLUMN next_value int;')
+        with pytest.raises(asyncpg.LockNotAvailableError):
+            await migrate(c, directory, action='up', statement_timeout=500, ddl_lock_timeout=25)
+        assert len(await versions(c)) == 1
+    finally:
+        await blocker.execute('ROLLBACK')
+        await blocker.close()
+
+
+@pytest.mark.asyncio
+async def test_caller_transaction_cannot_turn_commit_into_a_savepoint(db):
+    c, _, directory = db
+    write(directory, 1, 'SELECT 1;')
+    async with c.transaction():
+        with pytest.raises(MigrationError, match='outside a transaction'):
+            await migrate(c, directory, action='up')
+    assert not await c.fetchval("SELECT to_regnamespace('life_migrations') IS NOT NULL")
+
+
+@pytest.mark.asyncio
+async def test_auto_migration_from_env_file_is_idempotent_and_disabled_is_noop(db):
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.config import load_config
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.migrations import auto_migrate
+
+    c, dsn, directory = db
+    scripts = directory / 'sql'
+    scripts.mkdir()
+    write(scripts, 1, 'CREATE SCHEMA sample; CREATE TABLE sample.counter(n int); INSERT INTO sample.counter VALUES (1);')
+    file = directory / '.env'
+    text = f'LIFE_AUTO_MIGRATE=false\nLIFE_MIGRATION_DSN={dsn}\n'
+    text += 'LIFE_MIGRATION_LOCAL_INSECURE=true\nLIFE_MIGRATION_DIRECTORY=sql\n'
+    file.write_text(text)
+    assert await auto_migrate(load_config(env_file=file, environ={})) is None
+    assert not await c.fetchval("SELECT to_regnamespace('life_migrations') IS NOT NULL")
+    file.write_text(text.replace('LIFE_AUTO_MIGRATE=false', 'LIFE_AUTO_MIGRATE=true'))
+    config = load_config(env_file=file, environ={})
+    assert len((await auto_migrate(config))['applied']) == 1
+    assert (await auto_migrate(config))['applied'] == []
+    assert await c.fetchval('SELECT count(*) FROM sample.counter') == 1
+
+
+@pytest.mark.asyncio
+async def test_cli_reads_dotenv_while_manual_up_ignores_auto_flag(db):
+    _, dsn, directory = db
+    scripts = directory / 'sql'
+    scripts.mkdir()
+    write(scripts, 1, 'CREATE SCHEMA sample;')
+    file = directory / '.env'
+    file.write_text(f'LIFE_AUTO_MIGRATE=false\nLIFE_MIGRATION_DSN={dsn}\n'
+                    'LIFE_MIGRATION_LOCAL_INSECURE=true\nLIFE_MIGRATION_DIRECTORY=sql\n')
+    env = {key: value for key, value in os.environ.items() if not key.startswith('LIFE_MIGRATION_')}
+    for action, expected in [('status', 2), ('up', 0), ('up', 0), ('status', 0)]:
+        process = await asyncio.create_subprocess_exec(
+            sys.executable, '-m', 'hummingbot.strategy_v2.life_liquidity.storage.postgres.migrations',
+            action, '--env-file', str(file), env=env,
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        stdout, stderr = await process.communicate()
+        assert process.returncode == expected, (stdout, stderr)
+        assert dsn.encode() not in stdout + stderr
