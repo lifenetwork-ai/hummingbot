@@ -77,7 +77,15 @@ For automatic local startup, configure a valid migration DSN and set:
 
 ```dotenv
 LIFE_AUTO_MIGRATE=true
+LIFE_MIGRATION_DSN=postgresql://migration_user:URL_ENCODED_PASSWORD@DB_HOST:5432/DB_NAME
 ```
+
+With those settings, start the service normally; no manual `make life-migrate`
+step is required. The sequence is `.env`/environment configuration → acquire
+migration lock → verify applied versions → apply pending scripts transactionally
+→ release the connection → construct the bot application. Every restart uses
+the same sequence, including when no scripts are pending. A failed migration
+blocks application startup; `LIFE_AUTO_MIGRATE=false` skips the migration stage.
 
 `make run` / quickstart, the detached `hbot` engine and the legacy interactive
 launcher await the same runner before constructing the application/connectors.
@@ -89,11 +97,14 @@ application/recorder PostgreSQL backend or provide permission to trade.
 
 The migration driver must be installed in the startup environment. The current
 Docker/Cloud image still needs the planned dependency/SQL-bundle packaging and
-qualification. For Cloud Run workers, keep auto migration off and run the
-separate migration Job with its own role/identity; the application worker
-should receive runtime privileges only. Optional startup mode is intended for
-controlled local/single-process development, with workers drained before
-incompatible schema changes.
+qualification. The requested deployment flow uses config-enabled startup
+migration. Package the SQL bundle and driver, and provide the migration role
+only to the startup migration stage; subsequent application database access
+uses the runtime role. A separate migration Job remains an optional deployment
+mode with `LIFE_AUTO_MIGRATE=false`. Workers must be drained before incompatible
+schema changes in either mode. Removing the inherited DSN is not secret
+isolation: a colocated process may still read its mounted `.env` or secret;
+deployment isolation remains a PG7 qualification requirement.
 
 ## Script and retry contract
 
@@ -143,13 +154,15 @@ creates or promotes production roles.
 For Cloud Run, the planned order is:
 
 1. Provision DB, roles, network/TLS and a migration-only secret/service identity.
-2. Execute a separate migration Job with the pinned release bundle, one task,
-   parallelism one and automatic retries disabled; wait for successful completion.
+2. Package the pinned release bundle and enable `LIFE_AUTO_MIGRATE=true` through
+   managed configuration. Startup awaits the central runner before application
+   construction. Alternatively, run a separate migration Job with one task,
+   parallelism one and automatic retries disabled, then keep worker auto migration off.
 3. Check matching schema/bundle compatibility before starting an **unarmed**
    worker with the runtime role. Stop deployment if migrations fail.
 4. Follow the independent ownership, demo and trading release gates before rearm.
 
-The database lock serializes accidental duplicate job invocations. A task-count
+The database lock serializes concurrent startup runners and duplicate jobs. A task-count
 setting alone is insufficient. Future incompatible migrations require an explicit
 worker drain and schema compatibility policy; this runner cannot guarantee a safe
 rolling upgrade. Cloud resources/Job definitions have not been deployed. The planned task/retry

@@ -35,18 +35,26 @@ from hummingbot.strategy_v2.life_liquidity.storage.contracts import (
 )
 from hummingbot.strategy_v2.life_liquidity.storage.file import FileCheckpointStore
 from hummingbot.strategy_v2.life_liquidity.storage.financial import (
+    AckReceipt,
+    AckSpot,
     AttemptState,
     BudgetPolicy,
+    FillReceipt,
+    FillSpot,
     FinancialCut,
     PrepareReceipt,
     PrepareSpot,
     SpotAttempt,
     SpotBalance,
     SpotBudget,
+    SpotFillObservation,
+    SpotFillPolicy,
     SpotReservation,
     SpotSession,
     SpotSnapshot,
 )
+
+PARTIAL_PHASES = ('PREPARING', 'ARMING', 'ACKING', 'FILLING')
 
 
 @dataclass(frozen=True)
@@ -72,7 +80,7 @@ class LegacySpotStore(FileCheckpointStore):
     atomic_scope = AtomicScope.RECOVERABLE_SAGA
 
     def __init__(self, files, binding, limits, risk_limits, subsidy_policy, loss_policy,
-                 config_version, account_lock_root, clock):
+                 config_version, account_lock_root, clock, fill_policy=None):
         if (not isinstance(files, LegacySpotFiles) or not isinstance(risk_limits, RiskLimits)
                 or not isinstance(subsidy_policy, BudgetPolicy) or not isinstance(loss_policy, BudgetPolicy)
                 or type(config_version) is not int or config_version < 1):
@@ -84,11 +92,16 @@ class LegacySpotStore(FileCheckpointStore):
         if not self._account_lock_root.is_absolute():
             raise StorageError('SPOT_ACCOUNT_LOCK_ROOT_INVALID')
         self._account_lock = None
+        if fill_policy is not None and not isinstance(fill_policy, SpotFillPolicy):
+            raise StorageError('SPOT_FILL_POLICY_INVALID')
+        self._fill_policy = fill_policy
         self._policy['legacy_spot'] = {
             'paths': {key: str(value) for key, value in files.journals().items()},
             'account_lock_root': str(Path(account_lock_root)),
             'risk': {key: str(value) for key, value in risk_limits.__dict__.items()},
             'subsidy': subsidy_policy.json(), 'execution_loss': loss_policy.json(), 'config_version': config_version}
+        if fill_policy is not None:
+            self._policy['legacy_spot']['fill_policy'] = {'max_reference_skew_ms': fill_policy.max_reference_skew_ms}
         self._cold_unarmed = True
         self._cleanup_future = None
 
@@ -157,11 +170,11 @@ class LegacySpotStore(FileCheckpointStore):
             if self._raw() != before:
                 raise StorageUnavailable('SPOT_JOURNAL_CHANGED_DURING_READ')
             hashes = self._hashes(before)
-            commands = [PrepareSpot.from_json(item['command']) for item in meta.resources['commands'].values()]
-            fee_base = sum((command.fee_buffer_base_life for command in commands), Decimal('0'))
-            fee_quote = sum((command.fee_buffer_quote_usdt for command in commands), Decimal('0'))
             partial = (hashes != dict(meta.resources['journal_hashes'])
-                       or any(item['state'] in ('PREPARING', 'ARMING') for item in meta.resources['commands'].values()))
+                       or any(item['state'] in PARTIAL_PHASES for item in meta.resources['commands'].values()))
+            if self._fill_policy is not None and not partial:
+                self._verify_fill_projection(meta.resources['commands'], meta.resources.get('fills', {}))
+            fee_base, fee_quote, fee_overrun = self._fee_claims(meta.resources['commands'])
             return SpotSnapshot(
                 FinancialCut(meta.cut, tuple(sorted(hashes.items()))),
                 SpotSession(record.session_id, record.epoch, record.config_version, record.started_at, record.expires_at,
@@ -172,7 +185,7 @@ class LegacySpotStore(FileCheckpointStore):
                 SpotBudget(subsidy.session_committed_quote, subsidy.day_committed_quote, subsidy.campaign_committed_quote,
                            subsidy.available_quote, loss.session_loss_quote, loss.day_loss_quote,
                            loss.campaign_loss_quote, loss.exhausted),
-                partial or self._cold_unarmed or any(row.state == 'SEND_UNKNOWN' for row in self._wal.active_records()))
+                partial or fee_overrun or self._cold_unarmed or any(row.state == 'SEND_UNKNOWN' for row in self._wal.active_records()))
         except (ValueError, KeyError, TypeError, OSError, ArithmeticError):
             raise StorageUnavailable('SPOT_FINANCIAL_CUT_UNVERIFIED') from None
 
@@ -222,7 +235,7 @@ class LegacySpotStore(FileCheckpointStore):
         record = super()._read().resources['commands'].get(operation_id)
         if record is None:
             return None
-        partial = record['state'] in ('PREPARING', 'ARMING') or dict(view.cut.components) != dict(
+        partial = record['state'] in PARTIAL_PHASES or dict(view.cut.components) != dict(
             super()._read().resources['journal_hashes'])
         return PrepareReceipt(self.binding, operation_id, record['command']['intent_id'],
                               'RECOVERY_REQUIRED' if partial else record['state'], True, self.atomic_scope)
@@ -377,6 +390,283 @@ class LegacySpotStore(FileCheckpointStore):
             self._uncertain = True
             raise
 
+    def _ack_guard(self, view, owner):
+        """Accept late observations from the same writer; never return send authority."""
+        meta = super()._read()
+        now = utc(self._clock())
+        if (self._cold_unarmed or meta.ownership.token != owner
+                or meta.ownership.mode not in (OwnerMode.ACTIVE, OwnerMode.DRAINING, OwnerMode.RECOVERY_ONLY)
+                or now < owner.valid_from
+                or dict(view.cut.components) != dict(meta.resources['journal_hashes'])
+                or any(item['state'] in PARTIAL_PHASES for item in meta.resources['commands'].values())):
+            raise StorageError('SPOT_ACK_OWNER_OR_RECOVERY_GATE')
+        return meta
+
+    def _publish_ack(self, key, owner, commands, acknowledgements, hashes):
+        meta = super()._read()
+        return super()._commit(meta.cut, owner, key, (
+            ('commands', encode(commands)), ('acknowledgements', encode(acknowledgements)),
+            ('journal_hashes', encode(hashes))), observation=True)
+
+    @staticmethod
+    def _ack_receipt(binding, command, state, replayed):
+        return AckReceipt(binding, command['operation_id'], command['intent_id'], command['exchange_order_id'],
+                          state, replayed, AtomicScope.RECOVERABLE_SAGA)
+
+    def _lookup_ack(self, operation_id):
+        view = self._snapshot()
+        meta = super()._read()
+        row = meta.resources.get('acknowledgements', {}).get(operation_id)
+        if row is None:
+            return None
+        incomplete = row['state'] != 'ACKED' or dict(view.cut.components) != dict(meta.resources['journal_hashes'])
+        return self._ack_receipt(self.binding, row['command'], 'RECOVERY_REQUIRED' if incomplete else 'ACKED', True)
+
+    async def lookup_ack(self, operation_id, binding):
+        self._assert_binding(binding)
+        identifier(operation_id)
+        return await self._call(self._lookup_ack, operation_id)
+
+    def _ack_evidence(self, ack, record):
+        prepared = PrepareSpot.from_json(record['command'])
+        if (ack.prepare_operation_id, ack.intent_id, ack.client_order_id, ack.market, ack.side, ack.session_id, ack.epoch) != (
+                prepared.operation_id, prepared.intent_id, prepared.client_order_id, prepared.market, prepared.side,
+                prepared.session_id, prepared.epoch):
+            raise StorageError('SPOT_ACK_SCOPE_MISMATCH')
+        row = self._wal.get(ack.intent_id)
+        if (row.state not in ('SEND_UNKNOWN', 'ACKED')
+                or (row.client_order_id, row.reservation_id, row.session_id, row.epoch,
+                    row.slot_market, row.slot_side, row.slot_level) != (
+                        prepared.client_order_id, prepared.intent_id, prepared.session_id, prepared.epoch,
+                        prepared.market, prepared.side, prepared.quote_level)
+                or row.exchange_order_id is not None and row.exchange_order_id != ack.exchange_order_id
+                or not self._matches_accounting_hold(prepared, record)):
+            raise StorageError('SPOT_ACK_EVIDENCE_INCOMPLETE')
+        if any(other.intent_id != ack.intent_id and other.exchange_order_id == ack.exchange_order_id
+               for other in self._wal.all_records()):
+            raise StorageConflict('SPOT_EXCHANGE_ORDER_ID_REUSED')
+        if any(value['intent_id'] == ack.intent_id and value['exchange_order_id'] != ack.exchange_order_id
+               for value in super()._read().resources.get('fills', {}).values()):
+            raise StorageConflict('SPOT_FILLED_EXCHANGE_ORDER_CONFLICT')
+        if not datetime.fromisoformat(record['prepared_at']) <= ack.observed_at <= utc(self._clock()):
+            raise StorageError('SPOT_ACK_OBSERVATION_TIME_INVALID')
+
+    def _acknowledge(self, command, cut, owner):
+        view = self._snapshot()
+        meta = self._ack_guard(view, owner)
+        commands = thaw(meta.resources['commands'])
+        acknowledgements = thaw(meta.resources.get('acknowledgements', {}))
+        # A retry may supply a fresh cut; the immutable observation and writer
+        # identity must match. New operations still require an exact fresh cut.
+        command_hash = fingerprint({'command': command.json(), 'owner': owner.json()})
+        previous = acknowledgements.get(command.operation_id)
+        if previous is not None and previous['fingerprint'] != command_hash:
+            raise StorageConflict('SPOT_ACK_OPERATION_CONFLICT')
+        record = commands.get(command.prepare_operation_id)
+        if record is None or record['state'] not in ('SEND_UNKNOWN', 'ACKED'):
+            raise StorageError('SPOT_ACK_ATTEMPT_NOT_SENT')
+        self._ack_evidence(command, record)
+        if previous is not None:
+            if previous['state'] != 'ACKED' or self._wal.get(command.intent_id).state != 'ACKED':
+                raise StorageError('SPOT_ACK_RECONCILE_BEFORE_RETRY')
+            return self._ack_receipt(self.binding, command.json(), 'ACKED', True)
+        if view.cut != cut:
+            raise StorageConflict('SPOT_CUT_STALE')
+        acknowledgements[command.operation_id] = {'command': command.json(), 'fingerprint': command_hash, 'state': 'ACKING'}
+        record['state'] = 'ACKING'
+        try:
+            self._publish_ack('ack-start:' + command.operation_id, owner, commands, acknowledgements, dict(view.cut.components))
+            self._wal.acknowledge(command.intent_id, command.exchange_order_id)
+            row = self._wal.get(command.intent_id)
+            if row.state != 'ACKED' or row.exchange_order_id != command.exchange_order_id:
+                raise StorageError('SPOT_ACK_PUBLICATION_INCOMPLETE')
+            record['state'] = 'ACKED'
+            acknowledgements[command.operation_id]['state'] = 'ACKED'
+            verified = self._snapshot()  # Never publish raw hashes of unverified financial changes.
+            self._publish_ack('ack-done:' + command.operation_id, owner, commands, acknowledgements, dict(verified.cut.components))
+            return self._ack_receipt(self.binding, command.json(), 'ACKED', False)
+        except BaseException:
+            self._uncertain = True
+            raise CommitUnknown('SPOT_ACK_UNKNOWN') from None
+
+    async def acknowledge(self, command, *, cut, owner):
+        if not isinstance(command, AckSpot) or not isinstance(cut, FinancialCut) or not isinstance(owner, OwnerToken):
+            raise StorageError('SPOT_COMMAND_INVALID')
+        self._assert_binding(cut.checkpoint.binding)
+        try:
+            return await self._call(self._acknowledge, command, cut, owner)
+        except asyncio.CancelledError:
+            self._uncertain = True
+            raise
+
+    def _fee_claims(self, commands):
+        # One pass over native fee identities; rebates never replenish a hold.
+        paid = {}
+        for trade_id in self._ledger.trade_ids:
+            fee = self._ledger.fee_for_trade(trade_id)
+            if fee is not None and fee[1] < 0:
+                intent_id = self._ledger.trade_intent_id(trade_id)
+                bucket = paid.setdefault(intent_id, {'LIFE': Decimal('0'), 'USDT': Decimal('0')})
+                bucket[fee[0]] += -fee[1]
+        base = quote = Decimal('0')
+        overrun = False
+        for record in commands.values():
+            command = PrepareSpot.from_json(record['command'])
+            debits = paid.get(command.intent_id, {'LIFE': Decimal('0'), 'USDT': Decimal('0')})
+            base += max(Decimal('0'), command.fee_buffer_base_life - debits['LIFE'])
+            quote += max(Decimal('0'), command.fee_buffer_quote_usdt - debits['USDT'])
+            overrun |= (debits['LIFE'] > command.fee_buffer_base_life or debits['USDT'] > command.fee_buffer_quote_usdt)
+        return base, quote, overrun
+
+    def _matches_accounting_hold(self, prepared, record):
+        reservation = self._ledger.reservation_state(prepared.intent_id)
+        if reservation is None or reservation.intent != self._intent(prepared) or reservation.state == 'TERMINAL':
+            return False
+        if reservation.filled_base == 0:
+            return (self._ledger.matches_open_intent(self._intent(prepared))
+                    and self._subsidy.matches_reservation(prepared.intent_id, prepared.subsidy_quote_usdt,
+                                                          session_id=prepared.session_id,
+                                                          at_utc=datetime.fromisoformat(record['prepared_at'])))
+        return (reservation.remaining_base + reservation.filled_base == prepared.quantity_base
+                and self._subsidy.reserved_for(prepared.intent_id, session_id=prepared.session_id) == prepared.subsidy_quote_usdt)
+
+    def _verify_fill_projection(self, commands, fills):
+        if set(fills) != self._ledger.trade_ids:
+            raise StorageUnavailable('SPOT_FILL_PROJECTION_INCOMPLETE')
+        costs = {}
+        for trade_id, value in fills.items():
+            row = SpotFillObservation.from_json(value['fill'])
+            prepared = PrepareSpot.from_json(commands[value['prepare_operation_id']]['command'])
+            attempt = self._wal.get(prepared.intent_id)
+            if (row.trade_id != trade_id or value['intent_id'] != prepared.intent_id
+                    or (attempt.client_order_id, attempt.session_id, attempt.epoch, attempt.slot_market, attempt.slot_side) != (
+                        prepared.client_order_id, prepared.session_id, prepared.epoch, prepared.market, prepared.side)
+                    or attempt.exchange_order_id is not None and attempt.exchange_order_id != value['exchange_order_id']
+                    or not self._ledger.matches_recorded_fill(prepared.intent_id, trade_id, row.quantity_base_life,
+                                                              row.price_usdt, row.fee_currency, row.signed_fee)
+                    or not self._loss.matches_event('fill:' + trade_id, row.loss(prepared.side),
+                                                    session_id=prepared.session_id,
+                                                    at_utc=datetime.fromtimestamp(row.fill_at_ms / 1000, timezone.utc))):
+                raise StorageUnavailable('SPOT_FILL_PROJECTION_UNVERIFIED')
+            costs[prepared.intent_id] = costs.get(prepared.intent_id, Decimal('0')) + row.loss(prepared.side)
+        for intent_id, cost in costs.items():
+            if not self._subsidy.matches_fill_floor(intent_id, cost):
+                raise StorageUnavailable('SPOT_FILL_SUBSIDY_UNVERIFIED')
+
+    @staticmethod
+    def _fill_receipt(binding, row, state, replayed):
+        data = row['command']
+        return FillReceipt(binding, data['operation_id'], data['intent_id'], Decimal(data['cumulative_base_life']),
+                           Decimal(row['execution_loss_usdt']), state, replayed, AtomicScope.RECOVERABLE_SAGA)
+
+    def _lookup_fill(self, operation_id):
+        view = self._snapshot()
+        meta = super()._read()
+        row = meta.resources.get('fill_operations', {}).get(operation_id)
+        if row is None:
+            return None
+        partial = row['state'] != 'APPLIED' or dict(view.cut.components) != dict(meta.resources['journal_hashes'])
+        return self._fill_receipt(self.binding, row, 'RECOVERY_REQUIRED' if partial else 'APPLIED', True)
+
+    async def lookup_fill(self, operation_id, binding):
+        self._assert_binding(binding)
+        identifier(operation_id)
+        return await self._call(self._lookup_fill, operation_id)
+
+    def _publish_fills(self, key, owner, commands, operations, fills, hashes):
+        meta = super()._read()
+        return super()._commit(meta.cut, owner, key, (
+            ('commands', encode(commands)), ('fill_operations', encode(operations)),
+            ('fills', encode(fills)), ('journal_hashes', encode(hashes))), observation=True)
+
+    def _apply_fills(self, command, cut, owner):
+        if self._fill_policy is None:
+            raise UnsupportedBackend('SPOT_FILL_POLICY_REQUIRED')
+        view = self._snapshot()
+        meta = self._ack_guard(view, owner)
+        commands = thaw(meta.resources['commands'])
+        operations = thaw(meta.resources.get('fill_operations', {}))
+        fills = thaw(meta.resources.get('fills', {}))
+        command_hash = fingerprint({'command': command.json(), 'owner': owner.json()})
+        previous = operations.get(command.operation_id)
+        if previous is not None:
+            if previous['fingerprint'] != command_hash:
+                raise StorageConflict('SPOT_FILL_OPERATION_CONFLICT')
+            if previous['state'] != 'APPLIED':
+                raise StorageError('SPOT_FILL_RECONCILE_BEFORE_RETRY')
+            return self._fill_receipt(self.binding, previous, 'APPLIED', True)
+        if view.cut != cut:
+            raise StorageConflict('SPOT_CUT_STALE')
+        record = commands.get(command.prepare_operation_id)
+        if record is None or record['state'] not in ('SEND_UNKNOWN', 'ACKED'):
+            raise StorageError('SPOT_FILL_ATTEMPT_NOT_SENT')
+        # Reuse complete identity/hold checks; this deliberately permits fills
+        # before the ACK reply, without changing SEND_UNKNOWN or granting send.
+        ack = AckSpot(command.operation_id, command.prepare_operation_id, command.intent_id, command.client_order_id,
+                      command.market, command.side, command.session_id, command.epoch, command.exchange_order_id, command.observed_at)
+        self._ack_evidence(ack, record)
+        prepared = PrepareSpot.from_json(record['command'])
+        current = self._ledger.reservation_state(command.intent_id)
+        if not current.filled_base <= command.cumulative_base_life <= prepared.quantity_base:
+            raise StorageError('SPOT_FILL_CUMULATIVE_INVALID')
+        old_ids = {trade_id for trade_id, row in fills.items() if row['intent_id'] == command.intent_id}
+        if not old_ids.issubset({row.trade_id for row in command.fills}):
+            raise StorageError('SPOT_FILL_SNAPSHOT_INCOMPLETE')
+        received_ms = int(command.observed_at.timestamp() * 1000)
+        started_ms = int(datetime.fromisoformat(record['prepared_at']).timestamp() * 1000)
+        for row in command.fills:
+            if (not started_ms <= row.fill_at_ms <= received_ms
+                    or row.independent_observed_at_ms > received_ms
+                    or abs(row.independent_value_at_ms - row.fill_at_ms) > self._fill_policy.max_reference_skew_ms
+                    or abs(row.independent_observed_at_ms - row.fill_at_ms) > self._fill_policy.max_reference_skew_ms
+                    or command.side == 'BUY' and row.price_usdt > prepared.limit_price_usdt
+                    or command.side == 'SELL' and row.price_usdt < prepared.limit_price_usdt):
+                raise StorageError('SPOT_FILL_OBSERVATION_UNQUALIFIED')
+            stable = {'prepare_operation_id': command.prepare_operation_id, 'intent_id': command.intent_id,
+                      'exchange_order_id': command.exchange_order_id, 'fill': row.json()}
+            if row.trade_id in fills and fills[row.trade_id] != stable:
+                raise StorageConflict('SPOT_FILL_IDENTITY_CONFLICT')
+            fills[row.trade_id] = stable
+        loss = sum((row.loss(command.side) for row in command.fills), Decimal('0'))
+        operations[command.operation_id] = {'command': command.json(), 'fingerprint': command_hash,
+                                            'state': 'FILLING', 'execution_loss_usdt': str(loss)}
+        original_state = record['state']
+        record['state'] = 'FILLING'
+        try:
+            self._publish_fills('fill-start:' + command.operation_id, owner, commands, operations,
+                                thaw(meta.resources.get('fills', {})), dict(view.cut.components))
+            self._ledger.apply_fills_snapshot(command.intent_id, tuple(
+                (row.trade_id, row.quantity_base_life, row.price_usdt, row.fee_currency, row.signed_fee)
+                for row in command.fills), command.cumulative_base_life, require_fees=True)
+            if (self._ledger.reservation_state(command.intent_id).filled_base != command.cumulative_base_life
+                    or any(not self._ledger.matches_recorded_fill(command.intent_id, row.trade_id, row.quantity_base_life,
+                                                                  row.price_usdt, row.fee_currency, row.signed_fee)
+                           for row in command.fills)):
+                raise StorageError('SPOT_FILL_PUBLICATION_INCOMPLETE')
+            for row in command.fills:
+                self._loss.record('fill:' + row.trade_id, row.loss(command.side), session_id=command.session_id,
+                                  at_utc=datetime.fromtimestamp(row.fill_at_ms / 1000, timezone.utc))
+            self._subsidy.record_fill_floor(command.intent_id, loss)
+            self._verify_fill_projection(commands, fills)
+            verified = self._snapshot()
+            record['state'] = original_state
+            operations[command.operation_id]['state'] = 'APPLIED'
+            self._publish_fills('fill-done:' + command.operation_id, owner, commands, operations, fills, dict(verified.cut.components))
+            return self._fill_receipt(self.binding, operations[command.operation_id], 'APPLIED', False)
+        except BaseException:
+            self._uncertain = True
+            raise CommitUnknown('SPOT_FILL_APPLICATION_UNKNOWN') from None
+
+    async def apply_fills(self, command, *, cut, owner):
+        if not isinstance(command, FillSpot) or not isinstance(cut, FinancialCut) or not isinstance(owner, OwnerToken):
+            raise StorageError('SPOT_COMMAND_INVALID')
+        self._assert_binding(cut.checkpoint.binding)
+        try:
+            return await self._call(self._apply_fills, command, cut, owner)
+        except asyncio.CancelledError:
+            self._uncertain = True
+            raise
+
     def _release_account_lock(self):
         if self._account_lock is not None:
             self._account_lock.release()
@@ -396,9 +686,9 @@ class LegacySpotStore(FileCheckpointStore):
 
 async def open_legacy_spot(files, *, binding, limits, risk_limits, subsidy_policy, loss_policy,
                            config_version, account_lock_root, create_binding=False, owner=None,
-                           clock=lambda: datetime.now(timezone.utc)):
+                           clock=lambda: datetime.now(timezone.utc), fill_policy=None):
     store = LegacySpotStore(files, binding, limits, risk_limits, subsidy_policy, loss_policy,
-                            config_version, account_lock_root, clock)
+                            config_version, account_lock_root, clock, fill_policy)
     try:
         await store._call(store._initialize_spot, create_binding, owner)
         return store

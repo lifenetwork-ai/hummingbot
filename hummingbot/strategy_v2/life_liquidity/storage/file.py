@@ -257,20 +257,27 @@ class FileCheckpointStore:
         self._assert_binding(cut.binding)
         return _FileUnitOfWork(self, cut, owner)
 
-    def _commit(self, cut, owner, operation_id, changes):
+    def _commit(self, cut, owner, operation_id, changes, *, observation=False):
+        # Private observational publication for domain adapters only. Generic UoW
+        # always uses the normal active/unexpired owner check. An observation can
+        # persist late ACK/fill accounting without granting new-risk admission
+        # or changing ownership. Qualified release is a separate domain command.
         if self._uncertain:
             raise StorageUnavailable('STORAGE_COMMIT_UNCERTAIN')
         self._check_file()
         values = {key: json.loads(raw) for key, raw in changes}
         command_digest = fingerprint({'cut': cut.json(), 'owner': owner.json(), 'changes': values})
+        if observation:
+            command_digest = fingerprint({'observation': True, 'payload': command_digest})
         try:
             with self._state.locked() as state:
                 self._validate(state)
                 actual_owner = self._ownership(state)
                 now = utc(self._clock())  # Recheck after thread queue and file-lock waits.
                 checked_at = state['checked_at']
-                if (actual_owner.mode is not OwnerMode.ACTIVE or actual_owner.token != owner
-                        or not owner.valid_from <= now < owner.expires_at
+                modes = (OwnerMode.ACTIVE, OwnerMode.DRAINING, OwnerMode.RECOVERY_ONLY) if observation else (OwnerMode.ACTIVE,)
+                if (actual_owner.mode not in modes or actual_owner.token != owner
+                        or now < owner.valid_from or not observation and now >= owner.expires_at
                         or checked_at is not None and now < datetime.fromisoformat(checked_at)):
                     raise StorageError('STORAGE_OWNER_REVOKED_OR_EXPIRED')
                 record = state['operations'].get(operation_id)

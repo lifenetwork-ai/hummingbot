@@ -96,7 +96,7 @@ standalone evidence files.
 ## Spot financial ports and legacy journal adapter
 
 `financial.py` adds typed session, balance, budget, reservation and send-attempt
-views plus `SpotPreparationRepository`. `PrepareSpot` specifies LIFE quantity,
+views plus preparation, ACK and fill repository ports. `PrepareSpot` specifies LIFE quantity,
 USDT/LIFE prices, USDT subsidy, **explicit LIFE and USDT fee buffers**, quote slot,
 config/session versions and permanently scoped operation/intent/wire identities.
 Inputs require finite `Decimal`; float/bool/nonfinite values fail. Decimal text is
@@ -141,7 +141,8 @@ flowchart LR
 
 `prepare()` checks native risk limits and available funds including existing/new
 fee buffers before any journal write. The coordinator's fee claims reduce
-spendable funds; they are retained through preparation/arming and readback. The
+spendable funds; they are retained through preparation/arming and readback, and
+actual fee debits consume their corresponding asset buffer. The
 native reservation holds principal. Fee claims are keyed by the same permanent
 command identity, so replay does not double-allocate them. Budget committed
 amounts are separate spending obligations, not cash balances. The caller must
@@ -161,15 +162,108 @@ hashes are cross-journal version checks, not a privileged-tamper attestation.
 quote slot, an unfilled full reservation and exact subsidy claim. It persists
 `SEND_UNKNOWN` before any future transport could run. Repeating arm is denied;
 read back the original attempt/operation instead. Neither prepare nor arm receipt
-contains a send permit. Post-throttler revalidation, ACK/terminal handling,
-fills/signed fees/cashflows, loss/subsidy application, qualified release, recorder
+contains a send permit. Post-throttler revalidation, terminal handling,
+cashflows, complete accounting/NAV, qualified release, recorder
 integration and actual controller wiring remain later work.
+
+### ACK observations
+
+`AckSpot` binds an observation operation to the original prepare operation,
+intent, exact wire ID, LIFE-USDT side, session/epoch and numeric exchange order
+ID. `observed_at` is local UTC receipt time, not an exchange sequencing clock.
+The 128-digit exchange ID bound is a technical encoding limit, not live OKX
+qualification. The pending authenticated connector/reconciliation bridge must
+establish the source account and authenticity; constructing this DTO is not proof
+of those facts.
+
+`acknowledge()` requires fresh account/binding/cut and the current exact writer
+token, complete original holds and an already armed attempt. Exchange order IDs
+cannot be reused by a different intent, including retained WAL history. A new
+ACK operation must use the current cut. An identical operation replay may use
+the original or a fresh cut and performs no write; changed observation/writer
+identity conflicts. A duplicate matching ACK under a new operation ID is harmless.
+ACK payloads and fingerprints are permanently retained in the coordinator.
+
+The saga persists `ACKING`, writes actual WAL `ACKED`, verifies all journals, then
+publishes the completed receipt/cut. A crash, cancellation or ambiguous write
+preserves principal, fee and subsidy holds; cold readback shows the actual WAL
+state and `RECOVERY_REQUIRED` for an incomplete receipt. Cold open remains
+unarmed and cannot complete the saga using an old token. No blind retry or
+reservation release occurs.
+
+Same-writer late ACKs can be stored after session/token expiry and in DRAINING
+or RECOVERY_ONLY mode. This private observational checkpoint path retains the
+exact writer token, rejects UNARMED/replaced writers and clock rollback, and
+changes neither ownership nor capital/budget values. Generic checkpoint UoWs
+still require ACTIVE and unexpired ownership. An ACK does not clear session
+expiry, owner mode or another unknown attempt. External session/journal changes
+still require qualified reconciliation; this slice does not bypass a mismatched
+cut to capture arbitrary observations. Terminal attempts, recovery completion
+and transport authentication remain future command/bridge work. ACK after an
+already applied fill validates the partially filled reservation and retained
+subsidy claim, rather than requiring an unfilled hold.
+
+### Complete fill snapshots and fees
+
+`SpotFillRepository` uses `FillSpot` and immutable `SpotFillObservation` rows.
+Each command carries a complete cumulative fill/fee snapshot for the exact
+account-bound prepare/intent/wire/exchange-order/session identity. Signed fees
+must be finite Decimal in LIFE or USDT: negative is a debit, positive is an
+actual rebate. Known trade identities, fee terms and independent valuations
+cannot be changed; every previous fill must remain in later snapshots. A changed
+operation fingerprint conflicts; identical replay does not apply money twice.
+
+An explicit `SpotFillPolicy(max_reference_skew_ms=...)` is required and bound to
+the coordinator. No live reference-skew default is inferred. Independent fill-time
+prices/timestamps must fit this policy and precede local receipt time. The
+pending connector/valuation bridge must qualify authenticity, independent source
+provenance and actual exchange history; the DTO's `source_kind` alone proves none
+of these. Existing coordinators cannot silently change/adopt the fill policy.
+Histories with native trades and no corresponding storage fill projection require
+a separately qualified import, not an empty attribution bootstrap.
+
+The file saga persists FILLING with the complete proposed facts, then invokes
+the existing `ReservationLedger.apply_fills_snapshot(..., require_fees=True)`.
+It verifies native quantity/fee postconditions, records per-fill execution loss
+in the existing loss ledger and cumulative loss in the subsidy fill floor, and
+publishes APPLIED only after complete projection checks. Loss uses the existing
+independent edge plus actual converted fee semantics; a favorable later fill or
+rebate does not erase earlier loss. Loss uses fill UTC day; subsidy retains the
+original reservation bucket semantics. Full cashflow-adjusted NAV, starting
+inventory attribution, markout, causal account-wide replay and terminal budget
+settlement remain separate work.
+
+Actual debits reduce the matching fee buffer exactly once; rebates never replenish
+it. The fee/intent pass is linear in retained trades plus commands, rather than
+scanning all trades separately for each command. Fees exceeding a buffer are
+recorded when the native balance permits, and latch recovery-required new-risk
+denial. Unrepresentable/insufficient balances leave the proposed facts and holds
+behind FILLING for qualified recovery. These are storage checks, not a guarantee
+that economic loss cannot exceed the pre-trade estimate.
+
+Fills may arrive before ACK and after expiry/loss-budget exhaustion. They update
+actual accounting without clearing SEND_UNKNOWN, granting send permission or
+changing ownership. A later ACK must match the fill's exchange order ID. Full
+quantity does not mark WAL/reservations terminal or refund unused fees/subsidy.
+Partial/unknown publication, cancelled work and killed processes retain the
+account lock through worker completion and expose recovery readback on cold open.
+Pending receipts describe proposed cumulative facts; only APPLIED identifies a
+completed storage operation. Cold open remains unarmed and does not replay writes.
+
+This optional file adapter adds no SQL financial migration or live controller
+integration. Retained journal/projection checks still scan history; O.8 performance
+and full file/PostgreSQL equivalence remain open. Native filesystem durability
+semantics are retained; process-kill tests do not qualify power-loss durability.
 
 ### Spot tests
 
 ```sh
 conda run -n hummingbot python -m pytest -q \
   test/hummingbot/strategy_v2/life_liquidity/storage/test_spot_financial_contracts.py
+conda run -n hummingbot python -m pytest -q \
+  test/hummingbot/strategy_v2/life_liquidity/storage/test_spot_ack_contracts.py
+conda run -n hummingbot python -m pytest -q \
+  test/hummingbot/strategy_v2/life_liquidity/storage/test_spot_fill_contracts.py
 ```
 
 Tests exercise the actual journals, BUY/SELL and fee claims, budget limits/spending
