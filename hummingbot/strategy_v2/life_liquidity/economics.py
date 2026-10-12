@@ -358,6 +358,16 @@ class SubsidyBudgetLedger:
             return (entry is not None
                     and Decimal(entry.get("fill_floor", "0")) == cumulative_cost_quote)
 
+    def matches_settled(self, intent_id: str, actual_cost_quote: Decimal, *, session_id: str) -> bool:
+        """Verify an actual settled cost without treating absence of a hold as proof."""
+        if not _valid(actual_cost_quote):
+            return False
+        with self._lock, self._file_lock():
+            self._assert_disk_matches(required=True)
+            entry = self._entries.get(intent_id)
+            return (entry is not None and entry['session_id'] == session_id
+                    and entry['actual'] is not None and Decimal(entry['actual']) == actual_cost_quote)
+
     def matches_intent_session(self, intent_id: str, session_id: str) -> bool:
         """Attribution cannot move a fill or released hold into another session."""
         with self._lock, self._file_lock():

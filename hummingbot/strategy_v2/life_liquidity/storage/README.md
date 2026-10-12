@@ -308,6 +308,69 @@ transfer or a committed NAV preserve readback. Controller bill/valuation wiring,
 recovery completion, qualified terminal release, markout/shared-capital/recorder
 paths, PostgreSQL transactions and production durability/performance remain open.
 
+### Qualified terminal release and exact-operation resume
+
+`terminal.py` defines immutable `SpotTerminalPolicy`, `SpotTerminalFacts`,
+`TerminalSpot`, terminal receipts and async confirm/resume/readback ports.
+`terminal_adapter.py` implements the legacy saga separately from the main
+adapter, on its same owning worker/account lock. The bound policy requires
+explicit positive `max_fact_age_ms` and the accounting/fill policies; no live
+freshness default is inferred. Existing coordinators need qualified import to
+adopt this policy rather than silently receiving release capability.
+
+Qualification facts bind the full account/environment/lineage/policy identity,
+exact original intent/wire/exchange order/session/side/quantity/limit, complete
+cumulative fills with signed fees and independent values, exact account balances,
+zero liabilities, account-wide trade/cashflow identities and complete pending/
+runner scope. The target must be absent from pending orders; foreign identities,
+another unknown send, missing/changed fills, stale/future observations, mismatched
+cash or incomplete scope deny release before writes. Completed native accounting
+projections are verified; ending an order does not substitute for accounting.
+
+These are facts asserted by the pending authenticated gateway/bill/runner bridge.
+Completeness booleans, UID bindings and caller-provided snapshots do not prove
+exchange authentication, history coverage, finality or credential fencing. This
+increment is offline storage qualification, not the integration of the actual
+controller/gateway. Live eligibility still requires those release gates.
+
+The saga persists TERMINATING and the exact principal remaining before release,
+marks exchange-terminal observation in WAL, confirms native reservation terminal,
+marks native WAL terminal, settles zero-fill subsidy with independently verified
+actual cost 0, then publishes the complete terminal receipt. Native no-op or
+ambiguous publication fails closed. Until final receipt publication, the adapter
+overlays any already-released native principal using its durable pre-release
+quantity and retains fee claims. Thus partially completed releases do not increase
+spendable capacity through the storage API. Native files are not an atomic account
+transaction and must not be read directly to bypass this coordinator barrier.
+
+After completion, unused principal and fee buffers are released; terminal intent,
+wire and exchange identities remain permanent. New orders may reuse the quote
+slot only with new identities and fresh normal admission. **Any filled order
+retains its subsidy reservation/fill floor and execution-loss spending.** Ending
+the quote does not establish inventory/exit economic settlement. Qualified
+inventory-cycle/exit settlement remains future work; no generic per-order actual
+cost field is accepted to refund a filled quote's economic hold.
+
+`resume_terminal()` can finish exactly one durable TERMINATING operation after a
+crash or cancellation, including on a cold read-only store. It requires the
+same persisted writer token/mode, binding and original operation/order/cumulative
+fill facts, a fresh cut and fresh complete account/order/bill/runner observations.
+Recovery observations are recorded separately from the immutable original command.
+Unrelated preparation/fill/cashflow or other terminal partial work denies resume.
+It never transfers ownership, rearms, allocates capital, sends/cancels an order,
+completes a different saga or repairs absent state. An already completed operation
+returns exact readback without a second release. Cold-unarmed state and expired/
+draining normal-admission guards remain in force after recovery. The single-host
+account lock and writer token do not establish external OKX sender exclusion.
+
+This scope cannot resolve incomplete prepare/arm/ACK/fill/cashflow operations,
+change approval/owner policies or settle filled inventory. Those recovery/grant/
+import contracts stay open. Complete financial/postgres equivalence, power-loss
+durability and O.8 performance remain unqualified; retained history checks still
+scan file projections. Tests include native no-ops, partial/full/zero fills,
+freshness/identity/scope conflicts, cancellation ownership and real process exits
+after principal release, subsidy settlement and final coordinator publication.
+
 ### Spot test commands
 
 ```sh
@@ -319,6 +382,8 @@ conda run -n hummingbot python -m pytest -q \
   test/hummingbot/strategy_v2/life_liquidity/storage/test_spot_fill_contracts.py
 conda run -n hummingbot python -m pytest -q \
   test/hummingbot/strategy_v2/life_liquidity/storage/test_spot_capital_contracts.py
+conda run -n hummingbot python -m pytest -q \
+  test/hummingbot/strategy_v2/life_liquidity/storage/test_spot_terminal_contracts.py
 ```
 
 Tests exercise the actual journals, BUY/SELL and fee claims, budget limits/spending

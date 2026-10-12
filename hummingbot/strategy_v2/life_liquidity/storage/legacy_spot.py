@@ -1,6 +1,7 @@
 """Offline spot ports on existing journals; multi-file work has recovery barriers.
 
-No exchange I/O, hold release, blind repair, grant issuance or controller wiring.
+No exchange I/O, blind repair, grant issuance or controller wiring. Exact-order
+terminal release/resume requires the separate complete reconciliation facts port.
 One account lock and one bounded worker own all live legacy objects. A separate
 bound coordinator records STARTED before journal writes and completion afterward.
 """
@@ -62,8 +63,10 @@ from hummingbot.strategy_v2.life_liquidity.storage.financial import (
     SpotSession,
     SpotSnapshot,
 )
+from hummingbot.strategy_v2.life_liquidity.storage.terminal import SpotTerminalPolicy
+from hummingbot.strategy_v2.life_liquidity.storage.terminal_adapter import LegacyTerminalAdapter
 
-PARTIAL_PHASES = ('PREPARING', 'ARMING', 'ACKING', 'FILLING')
+PARTIAL_PHASES = ('PREPARING', 'ARMING', 'ACKING', 'FILLING', 'TERMINATING')
 
 
 @dataclass(frozen=True)
@@ -85,11 +88,11 @@ class LegacySpotFiles:
         return {key: value for key, value in self.__dict__.items() if key != 'binding'}
 
 
-class LegacySpotStore(FileCheckpointStore):
+class LegacySpotStore(LegacyTerminalAdapter, FileCheckpointStore):
     atomic_scope = AtomicScope.RECOVERABLE_SAGA
 
     def __init__(self, files, binding, limits, risk_limits, subsidy_policy, loss_policy,
-                 config_version, account_lock_root, clock, fill_policy=None, accounting_policy=None):
+                 config_version, account_lock_root, clock, fill_policy=None, accounting_policy=None, terminal_policy=None):
         if (not isinstance(files, LegacySpotFiles) or not isinstance(risk_limits, RiskLimits)
                 or not isinstance(subsidy_policy, BudgetPolicy) or not isinstance(loss_policy, BudgetPolicy)
                 or type(config_version) is not int or config_version < 1):
@@ -107,6 +110,9 @@ class LegacySpotStore(FileCheckpointStore):
         if accounting_policy is not None and (not isinstance(accounting_policy, SpotAccountingPolicy) or fill_policy is None):
             raise StorageError('SPOT_ACCOUNTING_POLICY_INVALID')
         self._accounting_policy = accounting_policy
+        if terminal_policy is not None and (not isinstance(terminal_policy, SpotTerminalPolicy) or accounting_policy is None):
+            raise StorageError('SPOT_TERMINAL_POLICY_INVALID')
+        self._terminal_policy = terminal_policy
         self._policy['legacy_spot'] = {
             'paths': {key: str(value) for key, value in files.journals().items()},
             'account_lock_root': str(Path(account_lock_root)),
@@ -116,6 +122,8 @@ class LegacySpotStore(FileCheckpointStore):
             self._policy['legacy_spot']['fill_policy'] = {'max_reference_skew_ms': fill_policy.max_reference_skew_ms}
         if accounting_policy is not None:
             self._policy['legacy_spot']['accounting_policy'] = accounting_policy.json()
+        if terminal_policy is not None:
+            self._policy['legacy_spot']['terminal_policy'] = {'max_fact_age_ms': terminal_policy.max_fact_age_ms}
         self._cold_unarmed = True
         self._cleanup_future = None
 
@@ -193,14 +201,18 @@ class LegacySpotStore(FileCheckpointStore):
                     raise StorageUnavailable('SPOT_OPENING_CAPITAL_TIME_INVALID')
                 self._verify_capital_projection(meta.resources['commands'], meta.resources.get('fills', {}),
                                                 meta.resources.get('cashflows', {}))
+            if self._terminal_policy is not None and not partial:
+                self._verify_terminal_projection(meta.resources)
             fee_base, fee_quote, fee_overrun = self._fee_claims(meta.resources['commands'])
+            pending_base, pending_quote = self._pending_terminal_principal(meta.resources)
             return SpotSnapshot(
                 FinancialCut(meta.cut, tuple(sorted(hashes.items()))),
                 SpotSession(record.session_id, record.epoch, record.config_version, record.started_at, record.expires_at,
                             journal.state, journal.last_seen_at, journal.clock_rollback_latched, record.anchors),
-                SpotBalance(self._ledger.life_balance, self._ledger.usdt_balance, self._ledger.reserved_life + fee_base,
-                            self._ledger.reserved_usdt + fee_quote, self._ledger.life_balance - self._ledger.reserved_life - fee_base,
-                            self._ledger.usdt_balance - self._ledger.reserved_usdt - fee_quote, fee_base, fee_quote),
+                SpotBalance(self._ledger.life_balance, self._ledger.usdt_balance, self._ledger.reserved_life + fee_base + pending_base,
+                            self._ledger.reserved_usdt + fee_quote + pending_quote,
+                            self._ledger.life_balance - self._ledger.reserved_life - fee_base - pending_base,
+                            self._ledger.usdt_balance - self._ledger.reserved_usdt - fee_quote - pending_quote, fee_base, fee_quote),
                 SpotBudget(subsidy.session_committed_quote, subsidy.day_committed_quote, subsidy.campaign_committed_quote,
                            subsidy.available_quote, loss.session_loss_quote, loss.day_loss_quote,
                            loss.campaign_loss_quote, loss.exhausted),
@@ -535,6 +547,8 @@ class LegacySpotStore(FileCheckpointStore):
         base = quote = Decimal('0')
         overrun = False
         for record in commands.values():
+            if record['state'] == 'TERMINAL':
+                continue  # Release fee claims only after complete terminal publication.
             command = PrepareSpot.from_json(record['command'])
             debits = paid.get(command.intent_id, {'LIFE': Decimal('0'), 'USDT': Decimal('0')})
             base += max(Decimal('0'), command.fee_buffer_base_life - debits['LIFE'])
@@ -943,9 +957,9 @@ class LegacySpotStore(FileCheckpointStore):
 
 async def open_legacy_spot(files, *, binding, limits, risk_limits, subsidy_policy, loss_policy,
                            config_version, account_lock_root, create_binding=False, owner=None,
-                           clock=lambda: datetime.now(timezone.utc), fill_policy=None, accounting_policy=None):
+                           clock=lambda: datetime.now(timezone.utc), fill_policy=None, accounting_policy=None, terminal_policy=None):
     store = LegacySpotStore(files, binding, limits, risk_limits, subsidy_policy, loss_policy,
-                            config_version, account_lock_root, clock, fill_policy, accounting_policy)
+                            config_version, account_lock_root, clock, fill_policy, accounting_policy, terminal_policy)
     try:
         await store._call(store._initialize_spot, create_binding, owner)
         return store

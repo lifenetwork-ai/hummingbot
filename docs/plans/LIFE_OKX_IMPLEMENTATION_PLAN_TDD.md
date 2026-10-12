@@ -26,6 +26,8 @@ Architecture and economics reviewed on 2026-10-01. Review findings are mapped to
 
 **Spot cashflow/NAV storage checkpoint (2026-10-12):** bound opening capital and immutable bill approvals now support replayable signed LIFE/USDT transfers, existing causal CapitalLedger projection, net-cashflow-adjusted NAV and recorded highwater. Transfers preserve loss/subsidy spending; partial cashflow writes retain funds and recovery barriers. Independent prices/bills remain caller-supplied facts requiring the authenticated bridge; controller/recovery/terminal integration, PostgreSQL schema and O.8/demo/live gates remain open in the [PG plan](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md).
 
+**Spot terminal/exact-resume storage (2026-10-12):** an explicit complete order/account/fill/fee/bill/runner observation cut now qualifies offline terminal release. Native partial release remains behind a durable principal overlay and retained fee claims until final receipt; zero-fill subsidy settles to verified 0 while filled subsidy/loss remains for inventory/exit economics. Exact terminal recovery can complete one pending saga with fresh facts and the original bound writer, including cold read-only stores, without rearm/resend. General recovery, authenticated controller/gateway/history/ownership integration, filled economic settlement, PostgreSQL transactions and existing O.8/demo/live gates remain open in the [PG plan](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md).
+
 ## 1. Objectives and Scope
 
 Build a market-making system for LIFE–USDT on OKX that can be tested before LIFE is listed. Support spot and linear perpetual swaps when OKX opens each market for trading. Session duration is configurable; four hours is only an example.
