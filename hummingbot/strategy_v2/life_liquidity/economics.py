@@ -446,6 +446,12 @@ class SubsidyBudgetLedger:
             self._assert_disk_matches(required=True)
             return self._status(session_id=session_id, day=day)
 
+    def verified_intent_ids(self) -> frozenset[str]:
+        """Immutable identity scope for account reconciliation; no release authority."""
+        with self._lock, self._file_lock():
+            self._assert_disk_matches(required=True)
+            return frozenset(self._entries)
+
     def matches_reservation(self, intent_id: str, expected_cost_quote: Decimal, *,
                             session_id: str, at_utc: datetime) -> bool:
         day = self._day(at_utc)

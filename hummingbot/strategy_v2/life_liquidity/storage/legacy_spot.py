@@ -63,6 +63,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.financial import (
     SpotSession,
     SpotSnapshot,
 )
+from hummingbot.strategy_v2.life_liquidity.storage.prepare_recovery import LegacyPrepareRecoveryAdapter
 from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancialRecoveryPolicy
 from hummingbot.strategy_v2.life_liquidity.storage.recovery_adapter import LegacyFinancialRecoveryAdapter
 from hummingbot.strategy_v2.life_liquidity.storage.terminal import SpotTerminalPolicy
@@ -90,7 +91,7 @@ class LegacySpotFiles:
         return {key: value for key, value in self.__dict__.items() if key != 'binding'}
 
 
-class LegacySpotStore(LegacyFinancialRecoveryAdapter, LegacyTerminalAdapter, FileCheckpointStore):
+class LegacySpotStore(LegacyPrepareRecoveryAdapter, LegacyFinancialRecoveryAdapter, LegacyTerminalAdapter, FileCheckpointStore):
     atomic_scope = AtomicScope.RECOVERABLE_SAGA
 
     def __init__(self, files, binding, limits, risk_limits, subsidy_policy, loss_policy,
@@ -352,7 +353,8 @@ class LegacySpotStore(LegacyFinancialRecoveryAdapter, LegacyTerminalAdapter, Fil
             raise StorageError('SPOT_CAPITAL_OR_BUDGET_DENIED')
         commands = thaw(meta.resources['commands'])
         commands[command.operation_id] = {'command': command.json(), 'fingerprint': command_hash,
-                                          'state': 'PREPARING', 'prepared_at': utc(self._clock()).isoformat()}
+                                          'state': 'PREPARING', 'prepared_at': utc(self._clock()).isoformat(),
+                                          'original_cut': cut.json(), 'original_owner': owner.json()}
         try:
             self._publish('prepare:' + command.operation_id, owner, commands, dict(view.cut.components))
             self._wal.begin(command.intent_id, client_order_id=command.client_order_id,
@@ -408,6 +410,9 @@ class LegacySpotStore(LegacyFinancialRecoveryAdapter, LegacyTerminalAdapter, Fil
         self._assert_holds(command, record)
         try:
             record['state'] = 'ARMING'
+            record['arm_owner'] = owner.json()
+            record['arm_cut'] = cut.json()
+            record['arm_fingerprint'] = fingerprint({'operation': operation_id, 'cut': cut.json(), 'owner': owner.json()})
             self._publish('arming:' + operation_id, owner, commands, dict(view.cut.components))
             self._wal.arm_send(command.intent_id, client_order_id=command.client_order_id,
                                session_id=command.session_id, epoch=command.epoch, reservation_id=command.intent_id)

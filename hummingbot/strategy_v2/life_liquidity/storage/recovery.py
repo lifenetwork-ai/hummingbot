@@ -18,6 +18,8 @@ from hummingbot.strategy_v2.life_liquidity.storage.financial import (
     FillReceipt,
     FillSpot,
     FinancialCut,
+    PrepareReceipt,
+    PrepareSpot,
     decimal,
 )
 from hummingbot.strategy_v2.life_liquidity.storage.terminal import SpotTerminalRepository
@@ -104,6 +106,14 @@ class SpotAckRecoveryFacts:
 
 
 class SpotFinancialRecoveryRepository(SpotTerminalRepository, Protocol):
+    async def resume_prepare(self, command: PrepareSpot, *, facts: SpotFinancialRecoveryFacts,
+                             cut: FinancialCut, owner: OwnerToken) -> PrepareReceipt:
+        ...
+
+    async def resume_arm(self, operation_id: str, *, facts: SpotFinancialRecoveryFacts,
+                         cut: FinancialCut, owner: OwnerToken) -> PrepareReceipt:
+        ...
+
     async def resume_ack(self, command: AckSpot, *, facts: SpotAckRecoveryFacts,
                          cut: FinancialCut, owner: OwnerToken) -> AckReceipt:
         ...

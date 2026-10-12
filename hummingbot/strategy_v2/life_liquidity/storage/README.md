@@ -416,8 +416,9 @@ resend an order, refund fees/subsidy, reset budgets, complete another operation,
 issue grants or change approved policies. Native states that cannot produce a
 healthy spendable snapshot, including an underfunded withdrawal with outstanding
 claims, remain blocked for the separately qualified control-plane/import workflow.
-General prepare/arm recovery, approval changes and filled economic settlement
-remain open. Retained projection/native checks still scan history; this is not an
+Approval changes, general control-plane/import repair and filled economic settlement
+remain open. Exact pending preparation/arm completion is described below. Retained
+projection/native checks still scan history; this is not an
 O.8 performance or PostgreSQL/full-product equivalence milestone.
 
 ### Exact pending ACK recovery
@@ -446,6 +447,37 @@ cover actual process exits after native ACK and final receipt publication. Sourc
 facts still require the pending authenticated account/order/runner bridge; these
 offline tests do not qualify that bridge, power-loss durability or PostgreSQL.
 
+### Exact pending preparation/arm recovery
+
+`resume_prepare()` and `resume_arm()` complete an existing PREPARING/ARMING saga
+on the same bounded account worker. New prepare records retain their original
+request cut/writer; arm records also retain the original arm cut/writer and
+fingerprint. Recovery cannot infer those fields for older partial records: a
+qualified import remains required. The immutable command, current owner token,
+binding, current cut and fresh complete account facts must all match.
+
+Native WAL, capital and subsidy identity scopes must belong to known commands.
+Previously applied fills/fees/bills, balances and other order holds must verify;
+foreign activity, unrelated partial commands, acknowledged/canceled/filled target
+attempts or changed session identity deny recovery. Missing principal and subsidy
+holds require available capital including retained fee claims and the original
+UTC subsidy bucket. Existing holds are validated rather than reserved twice.
+`verified_intent_ids()` exposes immutable verified subsidy scope for this check.
+
+Preparation completes missing WAL/principal/subsidy checkpoints, verifies holds,
+then publishes PREPARED. Arm completion conservatively publishes SEND_UNKNOWN;
+an already written native unknown-send checkpoint is retained. An accepted-wire
+observation does not infer ACK or grant a send. Native no-ops fail postconditions.
+Expiry and cold completion preserve holds without rearm, refund, owner transfer
+or external I/O. Completed recovery replay returns historical readback only.
+
+Tests cover BUY/SELL at all preparation and arm checkpoints, original-cut/writer
+conflicts, unqualified/foreign facts, expired UTC buckets, old partial formats,
+foreign subsidy scope, native no-ops, cancellation/account exclusion and actual
+process exits after principal/unknown-send/final receipt writes. These are file
+storage contracts; settlement, broader product/control-plane ports and actual
+controller/runner/authenticated PostgreSQL integration remain open in PG1/PG2.
+
 ### Spot test commands
 
 ```sh
@@ -463,6 +495,8 @@ conda run -n hummingbot python -m pytest -q \
   test/hummingbot/strategy_v2/life_liquidity/storage/test_spot_financial_recovery.py
 conda run -n hummingbot python -m pytest -q \
   test/hummingbot/strategy_v2/life_liquidity/storage/test_spot_ack_recovery.py
+conda run -n hummingbot python -m pytest -q \
+  test/hummingbot/strategy_v2/life_liquidity/storage/test_spot_prepare_recovery.py
 ```
 
 Tests exercise the actual journals, BUY/SELL and fee claims, budget limits/spending
