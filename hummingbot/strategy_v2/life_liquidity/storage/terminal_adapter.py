@@ -55,7 +55,8 @@ class LegacyTerminalAdapter:
         if (any(row['state'] in ('PREPARING', 'ARMING', 'ACKING', 'FILLING')
                 or key != target and row['state'] == 'TERMINATING'
                 for key, row in meta.resources['commands'].items())
-                or any(row['state'] != 'APPLIED' for row in meta.resources.get('cashflow_operations', {}).values())):
+                or any(row['state'] != 'APPLIED' for row in meta.resources.get('cashflow_operations', {}).values())
+                or any(row['state'] != 'SETTLED' for row in meta.resources.get('settlement_operations', {}).values())):
             raise StorageError('SPOT_TERMINAL_OTHER_RECOVERY_PENDING')
         return meta
 
@@ -178,7 +179,8 @@ class LegacyTerminalAdapter:
             if reservation.filled_base == 0:
                 if not self._subsidy.matches_settled(original.intent_id, Decimal('0'), session_id=original.session_id):
                     raise StorageError('SPOT_TERMINAL_PROJECTION_UNVERIFIED')
-            elif self._subsidy.reserved_for(original.intent_id, session_id=original.session_id) != original.subsidy_quote_usdt:
+            elif (not self._settled_inventory_member(resources, original.intent_id)
+                  and self._subsidy.reserved_for(original.intent_id, session_id=original.session_id) != original.subsidy_quote_usdt):
                 raise StorageError('SPOT_TERMINAL_PROJECTION_UNVERIFIED')
             completed.add(command['prepare_operation_id'])
         if completed != {key for key, row in resources['commands'].items() if row['state'] == 'TERMINAL'}:

@@ -10,7 +10,7 @@ from dataclasses import asdict, dataclass
 from decimal import Decimal, InvalidOperation
 from enum import Enum
 from pathlib import Path
-from typing import Callable
+from typing import Awaitable, Callable
 
 from hummingbot.core.data_type.common import OrderType, PositionAction, PositionMode, TradeType
 from hummingbot.strategy_v2.executors.order_executor.data_types import ExecutionStrategy, OrderExecutorConfig
@@ -59,13 +59,17 @@ class ProtectedSwapExecutorSender:
                  path: Path, *, account_observation: Callable[[], SwapAccountObservation],
                  authorize_reservation: Callable[[SwapSendPermit], bool], risk_epoch: Callable[[], int],
                  clock_ms: Callable[[], int], max_age_ms: int, account_mode: str,
-                 request_budget: AccountRequestBudget, create: bool):
+                 request_budget: AccountRequestBudget, create: bool,
+                 async_authorize: Callable[[SwapSendPermit], Awaitable[bool]] | None = None):
         self.controller, self.connector, self.wal = controller, connector, wal
         self.contract, self.manager = contract, controller._order_safety_manager
         self.account_observation, self.authorize_reservation = account_observation, authorize_reservation
         self.risk_epoch, self.clock_ms = risk_epoch, clock_ms
         self.max_age_ms, self.account_mode = max_age_ms, account_mode
         self.request_budget = request_budget
+        if async_authorize is not None and not callable(async_authorize):
+            raise ValueError('SWAP_ASYNC_AUTHORITY_INVALID')
+        self._async_authorize = async_authorize
         if (self.manager is None or not isinstance(contract, LinearSwapContract)
                 or contract.instrument != "LIFE-USDT-SWAP" or contract.trading_pair != "LIFE-USDT"
                 or any(not isinstance(v, Decimal) or not v.is_finite() or v <= 0 for v in (
@@ -86,13 +90,16 @@ class ProtectedSwapExecutorSender:
         self._runtime_enabled = create
 
     def _policy(self):
-        return {"controller_id": self.controller.config.id,
-                "strategy": self.controller.config.strategy.model_dump(mode="json"),
-                "account_uid": self.controller.config.recovery_account_uid,
-                "account_mode": self.account_mode, "max_age_ms": self.max_age_ms,
-                "contract": {k: str(v) for k, v in asdict(self.contract).items()},
-                "request_budget": str(self.request_budget.path.resolve()),
-                "request_policy": asdict(self.request_budget.policy)}
+        policy = {"controller_id": self.controller.config.id,
+                  "strategy": self.controller.config.strategy.model_dump(mode="json"),
+                  "account_uid": self.controller.config.recovery_account_uid,
+                  "account_mode": self.account_mode, "max_age_ms": self.max_age_ms,
+                  "contract": {k: str(v) for k, v in asdict(self.contract).items()},
+                  "request_budget": str(self.request_budget.path.resolve()),
+                  "request_policy": asdict(self.request_budget.policy)}
+        if self._async_authorize is not None:
+            policy['async_authority_required'] = True
+        return policy
 
     def unresolved_order_ids(self):
         return tuple(r.client_order_id for r in self.wal.all_records()
@@ -342,8 +349,13 @@ class ProtectedSwapExecutorSender:
                 raise PermissionError("SWAP_ACK_WITHOUT_SEND")
             self.wal.acknowledge(config.id, exchange_id)
 
+        async def async_final_check(_wire):
+            if await self._async_authorize(permit) is not True:
+                raise PermissionError('SWAP_ASYNC_AUTHORITY_DENIED')
+
         return self.connector.submit_protected_order(
             order_id=permit.client_order_id, trading_pair=config.trading_pair,
             amount=amount, price=price, trade_type=config.side, order_type=order_type,
             position_action=config.position_action, pre_send_check=final_check,
-            on_ack=acknowledge)
+            on_ack=acknowledge,
+            **({'async_pre_send_check': async_final_check} if self._async_authorize is not None else {}))

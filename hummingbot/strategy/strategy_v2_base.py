@@ -271,6 +271,7 @@ class StrategyV2Base(StrategyPyBase):
         self.controller_reports: Dict[str, Dict] = {}
         self.market_data_provider = MarketDataProvider(connectors)
         self._is_stop_triggered = False
+        self._async_action_dispatcher = None
         self.mqtt_enabled = False
         self._pub: Optional[ETopicPublisher] = None
 
@@ -353,6 +354,10 @@ class StrategyV2Base(StrategyPyBase):
             self.update_executors_info()
             self.update_controllers_configs()
             if self.market_data_provider.ready and not self._is_stop_triggered:
+                dispatcher = getattr(self, '_async_action_dispatcher', None)
+                if dispatcher is not None:
+                    dispatcher.submit(self.determine_executor_actions())
+                    return
                 executor_actions: List[ExecutorAction] = self._filter_authorized_actions(
                     self.determine_executor_actions())
                 for action in executor_actions:
@@ -364,6 +369,7 @@ class StrategyV2Base(StrategyPyBase):
         Called when the strategy is stopped. Shuts down controllers, executors, and market data provider.
         """
         self._is_stop_triggered = True
+        dispatcher = getattr(self, '_async_action_dispatcher', None)
 
         # Stop controllers FIRST to prevent new executor actions
         for controller in self.controllers.values():
@@ -371,6 +377,8 @@ class StrategyV2Base(StrategyPyBase):
 
         if self.listen_to_executor_actions_task:
             self.listen_to_executor_actions_task.cancel()
+        if dispatcher is not None:
+            await dispatcher.close()
 
         # Executors may still need to place position-closing orders during shutdown.
         # A clock/strategy teardown racing with this coroutine can remove StrategyBase's
@@ -768,6 +776,13 @@ class StrategyV2Base(StrategyPyBase):
                         stop_priority_controllers.add(action.controller_id)
         return stop_priority_controllers
 
+    def install_async_action_dispatcher(self, *, max_pending: int, shutdown_timeout_s: float) -> None:
+        from hummingbot.strategy_v2.life_liquidity.storage.async_dispatch import AsyncActionDispatcher
+        if getattr(self, '_async_action_dispatcher', None) is not None or self._is_stop_triggered:
+            raise ValueError('ASYNC_DISPATCH_ALREADY_INSTALLED_OR_STOPPED')
+        self._async_action_dispatcher = AsyncActionDispatcher(
+            self, max_pending=max_pending, shutdown_timeout_s=shutdown_timeout_s)
+
     def _filter_authorized_actions(self, actions: List[ExecutorAction]) -> List[ExecutorAction]:
         """Recheck controller create permission after actions leave their queue."""
         stop_priority_controllers = set(getattr(self, "_pending_stop_controllers", ()))
@@ -793,6 +808,8 @@ class StrategyV2Base(StrategyPyBase):
                     continue
                 create_allowed = getattr(controller, "allow_create_executor_actions", None)
                 authorized = action.controller_id not in stop_priority_controllers
+                if getattr(controller, 'async_dispatch_enabled', False) is True:
+                    authorized = False  # No synchronous fallback for an awaited authority.
                 if not authorized:
                     self.logger().warning(
                         f"Ignoring create action while stop is pending for controller {action.controller_id}")
@@ -854,6 +871,10 @@ class StrategyV2Base(StrategyPyBase):
                 try:
                     for actions in batches:
                         try:
+                            dispatcher = getattr(self, '_async_action_dispatcher', None)
+                            if dispatcher is not None:
+                                dispatcher.submit(actions)
+                                continue
                             actions = self._filter_authorized_actions(actions)
                             if not actions:
                                 continue

@@ -67,6 +67,8 @@ class LegacyFinancialRecoveryAdapter:
                     raise StorageError('SPOT_FINANCIAL_OTHER_RECOVERY_PENDING')
         if any(row['state'] != 'TERMINAL' for row in meta.resources.get('terminal_operations', {}).values()):
             raise StorageError('SPOT_FINANCIAL_OTHER_RECOVERY_PENDING')
+        if any(row['state'] != 'SETTLED' for row in meta.resources.get('settlement_operations', {}).values()):
+            raise StorageError('SPOT_FINANCIAL_OTHER_RECOVERY_PENDING')
         if kind in ('fill', 'ack') and meta.resources['commands'][target]['state'] != expected_phase:
             raise StorageError('SPOT_FINANCIAL_RECOVERY_PHASE_INVALID')
         age_ms = (now - facts.observed_at).total_seconds() * 1000

@@ -73,6 +73,7 @@ from hummingbot.strategy_v2.life_liquidity.shared_capital import CapitalClaim, S
 from hummingbot.strategy_v2.life_liquidity.spot_risk import SpotRiskBinding
 from hummingbot.strategy_v2.life_liquidity.spot_telemetry import collect_quote_inputs, collect_spot_metrics
 from hummingbot.strategy_v2.life_liquidity.state import IntentWAL
+from hummingbot.strategy_v2.life_liquidity.storage.contracts import StateBinding
 from hummingbot.strategy_v2.life_liquidity.telemetry import Metric, TelemetryRecorder
 from hummingbot.strategy_v2.models.base import RunnableStatus
 from hummingbot.strategy_v2.models.executor_actions import StopExecutorAction
@@ -99,6 +100,8 @@ def _simulation_template() -> StrategyConfig:
 class LifeLiquidityConfig(ControllerConfigBase):
     controller_type: Literal["generic"] = "generic"
     controller_name: Literal["life_liquidity"] = "life_liquidity"
+    storage_backend: Literal['file', 'postgres'] = Field(default='file', json_schema_extra={'is_updatable': False})
+    storage_binding: StateBinding | None = Field(default=None, json_schema_extra={'is_updatable': False})
     total_amount_quote: Decimal = Field(
         default=Decimal("0"),
         json_schema_extra={"is_updatable": False},
@@ -142,6 +145,8 @@ class LifeLiquidityConfig(ControllerConfigBase):
 
 class LifeLiquidityController(ControllerBase):
     def __init__(self, config: LifeLiquidityConfig, *args, **kwargs):
+        if config.storage_backend != 'file':
+            raise ValueError('LIFE_POSTGRES_RUNTIME_NOT_IMPLEMENTED')
         super().__init__(config, *args, **kwargs)
         self.config_update_state = ConfigUpdateState(config.strategy)
         self.benchmark_route = BenchmarkConnectorRoute.from_strategy(config.strategy)
@@ -168,6 +173,7 @@ class LifeLiquidityController(ControllerBase):
         self._account_uid_verified = False
         self._release_account_lock_on_task_done = False
         self._order_safety_stopped = False
+        self._storage_runtime = None
         self._telemetry = None
         self._telemetry_value = None
         self._telemetry_utc_ms = None
@@ -637,6 +643,9 @@ class LifeLiquidityController(ControllerBase):
             self.logger().error("LIFE order-safety watchdog stopped unexpectedly")
 
     def update_config(self, new_config: LifeLiquidityConfig):
+        if new_config.storage_backend != self.config.storage_backend or new_config.storage_binding != self.config.storage_binding:
+            self.config_update_state.reject('CONFIG_UPDATE_UNSUPPORTED')
+            raise ValueError('LIFE storage binding changes require restart')
         if new_config.strategy != self.config.strategy:
             self.config_update_state.reject("CONFIG_UPDATE_UNSUPPORTED")
             raise ValueError("LIFE nested hot reload is unavailable until the controller gate is implemented")
@@ -648,6 +657,29 @@ class LifeLiquidityController(ControllerBase):
     def trading_permissions_ready(self) -> bool:
         # P4 will replace this with the final order-permission checks.
         return False
+
+    @property
+    def async_dispatch_enabled(self):
+        return self._storage_runtime is not None
+
+    def install_storage_runtime(self, runtime):
+        from hummingbot.strategy_v2.life_liquidity.storage.contracts import Backend
+        if (self._storage_runtime is not None or runtime.owns_controller(self) is not True
+                or runtime.backend is not Backend.FILE or runtime.binding != self.config.storage_binding):
+            raise ValueError('LIFE_STORAGE_RUNTIME_BINDING_INVALID')
+        from hummingbot.strategy_v2.life_liquidity.storage.contracts import fingerprint
+        runtime.validate_binding(self.config.storage_binding, fingerprint(self.config.strategy.model_dump(mode='json')))
+        runtime.bind_final_authority()
+        self._storage_runtime = runtime
+
+    async def async_authorize_runner_create_action(self, action):
+        return self._storage_runtime is not None and await self._storage_runtime.authorize_action(action) is True
+
+    def local_runner_create_fence(self, action):
+        return self._storage_runtime is not None and self._storage_runtime.local_fence(action) is True
+
+    def local_runner_create_preflight(self, action):
+        return self._storage_runtime is not None and self._storage_runtime.preflight(action) is True
 
     def install_protected_spot_sender(self, sender: ProtectedSpotExecutorSender) -> None:
         """Attach an explicitly configured sender; this does not grant quote permission."""
@@ -1481,6 +1513,8 @@ class LifeLiquidityController(ControllerBase):
         return True
 
     def on_runner_create_action_rejected(self, action) -> bool:
+        if self._storage_runtime is not None:
+            self._storage_runtime.forget_action(action.executor_config.id)
         self._record_telemetry("QUEUE_REJECT", allowed=False, reason_code="RUNNER_ACTION_REJECTED",
                                intent_id=getattr(action.executor_config, "id", None))
         if self._is_swap_config(action.executor_config):
@@ -1493,6 +1527,8 @@ class LifeLiquidityController(ControllerBase):
         return planner.on_runner_action_rejected(action) if planner is not None else False
 
     def on_runner_create_action_dispatched(self, action) -> bool:
+        if self._storage_runtime is not None:
+            self._storage_runtime.forget_action(action.executor_config.id)
         self._record_telemetry("QUEUE_DISPATCH", allowed=True, reason_code="RUNNER_ACTION_DISPATCHED",
                                intent_id=getattr(action.executor_config, "id", None))
         if self._is_swap_config(action.executor_config):
@@ -2011,6 +2047,8 @@ class LifeLiquidityController(ControllerBase):
 
     def stop(self):
         self._order_safety_stopped = True
+        if self._storage_runtime is not None:
+            self._storage_runtime.revoke()
         history_worker = getattr(self._joint_recovery, "history_worker", None)
         if history_worker is not None:
             history_worker.close()

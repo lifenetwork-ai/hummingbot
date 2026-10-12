@@ -27,7 +27,8 @@ from hummingbot.strategy_v2.models.executor_actions import StopExecutorAction
 D = Decimal
 
 
-def setup_swap(tmp_path, *, mode=PositionMode.ONEWAY, action=PositionAction.CLOSE, side=TradeType.SELL, route=None, spot_route=None, budget_capacity=5):
+def setup_swap(tmp_path, *, mode=PositionMode.ONEWAY, action=PositionAction.CLOSE, side=TradeType.SELL, route=None,
+               spot_route=None, budget_capacity=5, async_authorize=None):
     clock = FakeClock()
     c, _, _, _, _, _ = _setup(tmp_path, recovery_account_uid="12345", quote_levels=3, clock=clock, connector=spot_route)
     del c.allow_create_executor_actions
@@ -54,7 +55,7 @@ def setup_swap(tmp_path, *, mode=PositionMode.ONEWAY, action=PositionAction.CLOS
         tmp_path / "swap_actions.json", account_observation=lambda: account["value"],
         authorize_reservation=lambda _: risk["allowed"], risk_epoch=lambda: risk["epoch"],
         clock_ms=lambda: int(clock.wall.timestamp() * 1000), max_age_ms=1000,
-        account_mode="2", request_budget=budget, create=True)
+        account_mode="2", request_budget=budget, create=True, async_authorize=async_authorize)
     c.install_protected_swap_sender(sender)
     # Only the production release switch is substituted for this isolated path.
     c.trading_permissions_ready = lambda: True

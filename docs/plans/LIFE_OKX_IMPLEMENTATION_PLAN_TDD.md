@@ -34,6 +34,8 @@ Architecture and economics reviewed on 2026-10-01. Review findings are mapped to
 
 **Exact pending preparation/arm recovery (2026-10-12):** missing WAL/principal/subsidy and unknown-send checkpoints can now complete using original request cut/writer fingerprints and fresh complete account facts. Existing holds deduplicate in their original UTC buckets; cold or expired completion remains unarmed. Native no-ops, foreign scope and older partial formats without provenance deny completion. This closes another file-storage subitem, while PG1 settlement/product/control-plane/controller/runner integration, PostgreSQL authority and O.8/demo/live gates remain open in the [PG plan](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md).
 
+**Further PG1 offline work (2026-10-12):** closed inventory-cycle subsidy settlement now verifies terminal fills/fees and net-flat LIFE, retains pending budget overlays and preserves execution-loss spending. Signed Ed25519 lifecycle/approval and supported import services retain only public verifier keys at runtime; cold readback never activates. Opt-in bounded V2 create dispatch and awaited spot/SWAP final checks, plus typed actual-controller runtime binding/UID/owner/local fences, have offline tests. The PG plan keeps remaining product/recorder ports, legacy Path/proof removal, full application/observation migration and all O.8/demo/live gates open; no full PG1 closure is claimed.
+
 ## 1. Objectives and Scope
 
 Build a market-making system for LIFE–USDT on OKX that can be tested before LIFE is listed. Support spot and linear perpetual swaps when OKX opens each market for trading. Session duration is configurable; four hours is only an example.

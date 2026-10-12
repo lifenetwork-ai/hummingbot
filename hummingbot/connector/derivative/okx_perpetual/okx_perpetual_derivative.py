@@ -1,6 +1,6 @@
 import asyncio
 from decimal import Decimal, InvalidOperation, localcontext
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple, Union
 
 from bidict import bidict
 
@@ -61,6 +61,18 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
 
         super().__init__(balance_asset_limit, rate_limits_share_pct)
 
+    async def get_account_uid(self) -> str:
+        response = await self._api_get(path_url=CONSTANTS.REST_GET_ACCOUNT_CONFIG[CONSTANTS.ENDPOINT],
+                                       is_auth_required=True)
+        rows = response.get('data') if isinstance(response, dict) else None
+        if (not isinstance(response, dict) or response.get('code') != '0'
+                or not isinstance(rows, list) or len(rows) != 1 or not isinstance(rows[0], dict)):
+            raise ValueError('ACCOUNT_UID_UNAVAILABLE')
+        uid = rows[0].get('uid')
+        if not isinstance(uid, str) or not uid.isascii() or not uid.isdecimal():
+            raise ValueError('ACCOUNT_UID_UNAVAILABLE')
+        return uid
+
     def enable_protected_trading_pair(self, trading_pair: str) -> None:
         if not isinstance(trading_pair, str) or not trading_pair:
             raise ValueError("protected trading pair required")
@@ -68,9 +80,10 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
 
     def submit_protected_order(self, *, order_id: str, trading_pair: str, amount: Decimal,
                                trade_type: TradeType, order_type: OrderType, price: Decimal,
-                               position_action: PositionAction, pre_send_check, on_ack) -> str:
+                               position_action: PositionAction, pre_send_check, on_ack, async_pre_send_check=None) -> str:
         """Schedule an opt-in WAL-owned post-only SWAP order, without a retry fallback."""
         if (not order_id or not callable(pre_send_check) or not callable(on_ack)
+                or async_pre_send_check is not None and not callable(async_pre_send_check)
                 or trading_pair not in self._protected_trading_pairs
                 or order_type != OrderType.LIMIT_MAKER
                 or position_action not in (PositionAction.OPEN, PositionAction.CLOSE)):
@@ -78,7 +91,8 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
         safe_ensure_future(self._create_order(
             trade_type=trade_type, order_id=order_id, trading_pair=trading_pair,
             amount=amount, price=price, order_type=order_type, position_action=position_action,
-            pre_send_check=pre_send_check, on_ack=on_ack))
+            pre_send_check=pre_send_check, on_ack=on_ack,
+            **({'async_pre_send_check': async_pre_send_check} if async_pre_send_check is not None else {})))
         return order_id
 
     @property
@@ -282,7 +296,12 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
         **kwargs,
     ) -> Tuple[str, float]:
         pre_send_check = kwargs.pop("pre_send_check", None)
+        async_pre_send_check = kwargs.pop('async_pre_send_check', None)
         on_ack = kwargs.pop("on_ack", None)
+        if async_pre_send_check is not None and (
+                not callable(async_pre_send_check) or not callable(pre_send_check) or not callable(on_ack)
+                or order_type != OrderType.LIMIT_MAKER or position_action not in (PositionAction.OPEN, PositionAction.CLOSE)):
+            raise ValueError('PROTECTED_SWAP_ASYNC_CHECK_INVALID')
         if (trading_pair in getattr(self, "_protected_trading_pairs", set())
                 and (not callable(pre_send_check) or not callable(on_ack))):
             raise PermissionError("PROTECTED_ORDER_REQUIRED")
@@ -322,6 +341,7 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
             trading_pair=ex_trading_pair,
             headers={"referer": CONSTANTS.HBOT_BROKER_ID},
             **({"pre_send_check": lambda: pre_send_check(data)} if pre_send_check is not None else {}),
+            **({'async_pre_send_check': lambda: async_pre_send_check(data)} if async_pre_send_check is not None else {}),
             **kwargs,
         )
 
@@ -961,6 +981,7 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
                            limit_id: Optional[str] = None,
                            trading_pair: Optional[str] = None,
                            pre_send_check: Optional[Callable[[], None]] = None,
+                           async_pre_send_check: Optional[Callable[[], Awaitable[None]]] = None,
                            **kwargs) -> Dict[str, Any]:
 
         rest_assistant = await self._web_assistants_factory.get_rest_assistant()
@@ -980,6 +1001,7 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
             return_err=return_err,
             throttler_limit_id=limit_id if limit_id else path_url,
             **({"pre_send_check": pre_send_check} if pre_send_check is not None else {}),
+            **({'async_pre_send_check': async_pre_send_check} if async_pre_send_check is not None else {}),
         )
         return resp
 

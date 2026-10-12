@@ -79,6 +79,57 @@ All capacity values must be supplied; no live defaults are inferred. Tests use
 **synthetic** `max_pending=2`, `max_checkpoint_bytes=1 MiB`, `max_operations=16`.
 Capacity is recorded in the checkpoint policy except the process-local queue cap.
 
+## Later PG1 settlement, control and runtime seams
+
+`settlement.py` / `settlement_adapter.py` add opt-in, explicitly bound settlement
+policy and commands for terminal, fully attributed, physically net-flat spot
+inventory cycles. LIFE fees affect asset closure. Per-fill subsidy floors remain;
+any additional realized inventory cost belongs to the closing fill. An incomplete
+receipt overlays prior campaign/day/session subsidy amounts even after native
+settlement. Completion and cold resume do not reset execution-loss budgets,
+repeat money writes, change ownership or activate trading.
+
+`control_plane.py` / `control_adapter.py` add Ed25519 approvals for named operator
+roles, exact namespace/request/facts/cut and UTC validity. Private signing keys
+belong to the operator; the initialized runtime retains only public verifier keys.
+Explicit synthetic bootstrap can temporarily sign its own offline seed. Private
+operator keys are rejected for non-offline runtime configuration. Persisted seed,
+command signatures and owner/approval projections are audited on read. This
+protects these signed control records, not the complete arbitrary financial
+history or an old exchange credential-bearing process.
+
+New-generation activation requires verified complete account facts, no outstanding
+orders and a valid session. Drain revokes local admission before queue waits.
+Repeated/cold activation receipt lookup never activates a process. Cashflow
+approvals append exact bill/currency/amount/time terms; existing terms cannot be
+changed. Signed import can restore a hash-proven original prepare request or adopt
+an already approved native cashflow with complete causal projection and no further
+money write. Missing historical arm provenance and unknown formats are explicitly
+unsupported; broader archived-format/import/policy/handoff services remain open.
+
+`async_dispatch.py` provides explicit bounded create admission/shutdown budgets,
+detached identity/deduplication, asynchronous qualification/projection hooks and
+fresh local fences after awaits. Stops dispatch immediately, and late storage
+replies cannot launch executors after shutdown. A stalled callback cannot extend
+the scheduler's declared close budget. The storage worker still owns and drains
+its physical admitted work; the scheduler does not promise bounded disk/flock time.
+
+`runtime.py` is an opt-in actual LIFE controller authorization seam. Installation
+requires complete `storage_binding`, exact strategy hash and explicit file backend;
+PostgreSQL fails before legacy file bootstrap. UID collection and repository calls
+are asynchronous, and the existing complete controller/sender checks run on the
+bounded owning worker. Local owner generation, expiry, stop, config and payload
+fences are independent of the repository reply. Action qualification caches are
+bounded and cleared on rejection/dispatch. Protected spot/SWAP requests await fresh
+authority after throttling, then run the original local check. The production
+release method remains false. A runtime owner checkpoint is not account-wide
+financial migration or a live permission artifact.
+
+Remaining PG1 work includes the full product/recorder ports, migration of legacy
+controller/proof Path/cache access and complete coupled financial/recorder/source
+application. The new seams preserve those requirements; they do not close PG1,
+PostgreSQL financial authority, O.8, deployment, demo or live eligibility.
+
 ## Tests
 
 ```sh

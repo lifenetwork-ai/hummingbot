@@ -43,6 +43,8 @@ from hummingbot.strategy_v2.life_liquidity.storage.contracts import (
     thaw,
     utc,
 )
+from hummingbot.strategy_v2.life_liquidity.storage.control_adapter import LegacyControlAdapter
+from hummingbot.strategy_v2.life_liquidity.storage.control_plane import OperatorKeys, OperatorVerifier
 from hummingbot.strategy_v2.life_liquidity.storage.file import FileCheckpointStore
 from hummingbot.strategy_v2.life_liquidity.storage.financial import (
     AckReceipt,
@@ -66,6 +68,8 @@ from hummingbot.strategy_v2.life_liquidity.storage.financial import (
 from hummingbot.strategy_v2.life_liquidity.storage.prepare_recovery import LegacyPrepareRecoveryAdapter
 from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancialRecoveryPolicy
 from hummingbot.strategy_v2.life_liquidity.storage.recovery_adapter import LegacyFinancialRecoveryAdapter
+from hummingbot.strategy_v2.life_liquidity.storage.settlement import SpotSettlementPolicy
+from hummingbot.strategy_v2.life_liquidity.storage.settlement_adapter import LegacySettlementAdapter
 from hummingbot.strategy_v2.life_liquidity.storage.terminal import SpotTerminalPolicy
 from hummingbot.strategy_v2.life_liquidity.storage.terminal_adapter import LegacyTerminalAdapter
 
@@ -91,12 +95,13 @@ class LegacySpotFiles:
         return {key: value for key, value in self.__dict__.items() if key != 'binding'}
 
 
-class LegacySpotStore(LegacyPrepareRecoveryAdapter, LegacyFinancialRecoveryAdapter, LegacyTerminalAdapter, FileCheckpointStore):
+class LegacySpotStore(LegacyControlAdapter, LegacySettlementAdapter, LegacyPrepareRecoveryAdapter, LegacyFinancialRecoveryAdapter,
+                      LegacyTerminalAdapter, FileCheckpointStore):
     atomic_scope = AtomicScope.RECOVERABLE_SAGA
 
     def __init__(self, files, binding, limits, risk_limits, subsidy_policy, loss_policy,
                  config_version, account_lock_root, clock, fill_policy=None, accounting_policy=None, terminal_policy=None,
-                 recovery_policy=None):
+                 recovery_policy=None, settlement_policy=None, operator_keys=None):
         if (not isinstance(files, LegacySpotFiles) or not isinstance(risk_limits, RiskLimits)
                 or not isinstance(subsidy_policy, BudgetPolicy) or not isinstance(loss_policy, BudgetPolicy)
                 or type(config_version) is not int or config_version < 1):
@@ -120,6 +125,15 @@ class LegacySpotStore(LegacyPrepareRecoveryAdapter, LegacyFinancialRecoveryAdapt
         if recovery_policy is not None and (not isinstance(recovery_policy, SpotFinancialRecoveryPolicy) or accounting_policy is None):
             raise StorageError('SPOT_FINANCIAL_RECOVERY_POLICY_INVALID')
         self._recovery_policy = recovery_policy
+        if settlement_policy is not None and (not isinstance(settlement_policy, SpotSettlementPolicy) or terminal_policy is None):
+            raise StorageError('SPOT_SETTLEMENT_POLICY_INVALID')
+        self._settlement_policy = settlement_policy
+        if operator_keys is not None and not isinstance(operator_keys, (OperatorKeys, OperatorVerifier)):
+            raise StorageError('OPERATOR_KEYS_INVALID')
+        if isinstance(operator_keys, OperatorKeys) and self.binding.environment != 'OFFLINE_SIMULATION':
+            raise StorageError('RUNTIME_PRIVATE_OPERATOR_KEY_FORBIDDEN')
+        self._operator_seed_signer = operator_keys if isinstance(operator_keys, OperatorKeys) else None
+        self._operator_keys = operator_keys.verifier() if isinstance(operator_keys, OperatorKeys) else operator_keys
         self._policy['legacy_spot'] = {
             'paths': {key: str(value) for key, value in files.journals().items()},
             'account_lock_root': str(Path(account_lock_root)),
@@ -133,7 +147,12 @@ class LegacySpotStore(LegacyPrepareRecoveryAdapter, LegacyFinancialRecoveryAdapt
             self._policy['legacy_spot']['terminal_policy'] = {'max_fact_age_ms': terminal_policy.max_fact_age_ms}
         if recovery_policy is not None:
             self._policy['legacy_spot']['financial_recovery_policy'] = {'max_fact_age_ms': recovery_policy.max_fact_age_ms}
+        if settlement_policy is not None:
+            self._policy['legacy_spot']['settlement_policy'] = {'max_fact_age_ms': settlement_policy.max_fact_age_ms}
+        if operator_keys is not None:
+            self._policy['legacy_spot']['operator_keys'] = self._operator_keys.policy()
         self._cold_unarmed = True
+        self._admission_generation = None
         self._cleanup_future = None
 
     def unit_of_work(self, *args, **kwargs):
@@ -157,6 +176,7 @@ class LegacySpotStore(LegacyPrepareRecoveryAdapter, LegacyFinancialRecoveryAdapt
         return {name: hashlib.sha256(raw).hexdigest() for name, raw in images.items()}
 
     def _initialize_spot(self, create, owner):
+        seed_signer, self._operator_seed_signer = self._operator_seed_signer, None
         if type(create) is not bool or create and self.binding.environment != 'OFFLINE_SIMULATION':
             raise StorageError('SPOT_BOOTSTRAP_OFFLINE_ONLY')
         if not create and owner is not None:
@@ -178,9 +198,16 @@ class LegacySpotStore(LegacyPrepareRecoveryAdapter, LegacyFinancialRecoveryAdapt
                 raise StorageError('SPOT_CONFIG_VERSION_MISMATCH')
             self._session_identity = (record.session_id, record.epoch, record.expires_at.isoformat())
             self._monotonic_deadline = time.monotonic() + max(0, (record.expires_at - utc(self._clock())).total_seconds())
-            initial = encode({'commands': {}, 'journal_hashes': self._hashes(images)})
+            initial_values = {'commands': {}, 'journal_hashes': self._hashes(images)}
+            if create and self._operator_keys is not None:
+                if seed_signer is None:
+                    raise StorageError('OFFLINE_CONTROL_SEED_SIGNATURE_REQUIRED')
+                initial_values['control_seed'] = seed_signer.seed(self.binding, {
+                    'mode': 'ACTIVE' if owner else 'UNARMED', 'token': owner.json() if owner else None})
+            initial = encode(initial_values)
             super()._initialize(create, initial, owner)
             self._cold_unarmed = not create
+            self._admission_generation = self._read().ownership.token.generation if self._read().ownership.token else None
             self._snapshot()
         except (ValueError, KeyError, TypeError, OSError, ArithmeticError):
             raise StorageUnavailable('SPOT_LEGACY_JOURNAL_INVALID') from None
@@ -211,9 +238,17 @@ class LegacySpotStore(LegacyPrepareRecoveryAdapter, LegacyFinancialRecoveryAdapt
                 self._verify_capital_projection(meta.resources['commands'], meta.resources.get('fills', {}),
                                                 meta.resources.get('cashflows', {}))
             if self._terminal_policy is not None and not partial:
+                self._verify_inventory_projection(meta.resources)
                 self._verify_terminal_projection(meta.resources)
             fee_base, fee_quote, fee_overrun = self._fee_claims(meta.resources['commands'])
             pending_base, pending_quote = self._pending_terminal_principal(meta.resources)
+            extra_session, extra_day, extra_campaign = self._pending_inventory_subsidy(meta.resources, record.session_id, now)
+            subsidy_session = subsidy.session_committed_quote + extra_session
+            subsidy_day = subsidy.day_committed_quote + extra_day
+            subsidy_campaign = subsidy.campaign_committed_quote + extra_campaign
+            subsidy_available = max(Decimal('0'), min(self._subsidy_policy.session_limit_quote - subsidy_session,
+                                                      self._subsidy_policy.day_limit_quote - subsidy_day,
+                                                      self._subsidy_policy.campaign_limit_quote - subsidy_campaign))
             return SpotSnapshot(
                 FinancialCut(meta.cut, tuple(sorted(hashes.items()))),
                 SpotSession(record.session_id, record.epoch, record.config_version, record.started_at, record.expires_at,
@@ -222,8 +257,8 @@ class LegacySpotStore(LegacyPrepareRecoveryAdapter, LegacyFinancialRecoveryAdapt
                             self._ledger.reserved_usdt + fee_quote + pending_quote,
                             self._ledger.life_balance - self._ledger.reserved_life - fee_base - pending_base,
                             self._ledger.usdt_balance - self._ledger.reserved_usdt - fee_quote - pending_quote, fee_base, fee_quote),
-                SpotBudget(subsidy.session_committed_quote, subsidy.day_committed_quote, subsidy.campaign_committed_quote,
-                           subsidy.available_quote, loss.session_loss_quote, loss.day_loss_quote,
+                SpotBudget(subsidy_session, subsidy_day, subsidy_campaign,
+                           subsidy_available, loss.session_loss_quote, loss.day_loss_quote,
                            loss.campaign_loss_quote, loss.exhausted),
                 partial or fee_overrun or self._cold_unarmed or any(row.state == 'SEND_UNKNOWN' for row in self._wal.active_records()))
         except (ValueError, KeyError, TypeError, OSError, ArithmeticError):
@@ -449,7 +484,8 @@ class LegacySpotStore(LegacyPrepareRecoveryAdapter, LegacyFinancialRecoveryAdapt
     @staticmethod
     def _incomplete(resources):
         return (any(item['state'] in PARTIAL_PHASES for item in resources['commands'].values())
-                or any(item['state'] != 'APPLIED' for item in resources.get('cashflow_operations', {}).values()))
+                or any(item['state'] != 'APPLIED' for item in resources.get('cashflow_operations', {}).values())
+                or any(item['state'] != 'SETTLED' for item in resources.get('settlement_operations', {}).values()))
 
     def _publish_ack(self, key, owner, commands, acknowledgements, hashes):
         meta = super()._read()
@@ -736,8 +772,7 @@ class LegacySpotStore(LegacyPrepareRecoveryAdapter, LegacyFinancialRecoveryAdapt
         return CashflowSpot(**values)
 
     def _validate_cashflow_value(self, command):
-        policy = self._accounting_policy
-        expected = next((row for row in policy.approved_cashflows if row.bill_id == command.bill_id), None)
+        expected = self._approved_cashflows().get(command.bill_id)
         if expected is None or (expected.currency, expected.signed_amount, expected.transfer_at_ms) != (
                 command.currency, command.signed_amount, command.transfer_at_ms):
             raise StorageError('SPOT_CASHFLOW_UNAPPROVED')
@@ -972,9 +1007,10 @@ class LegacySpotStore(LegacyPrepareRecoveryAdapter, LegacyFinancialRecoveryAdapt
 async def open_legacy_spot(files, *, binding, limits, risk_limits, subsidy_policy, loss_policy,
                            config_version, account_lock_root, create_binding=False, owner=None,
                            clock=lambda: datetime.now(timezone.utc), fill_policy=None, accounting_policy=None, terminal_policy=None,
-                           recovery_policy=None):
+                           recovery_policy=None, settlement_policy=None, operator_keys=None):
     store = LegacySpotStore(files, binding, limits, risk_limits, subsidy_policy, loss_policy,
-                            config_version, account_lock_root, clock, fill_policy, accounting_policy, terminal_policy, recovery_policy)
+                            config_version, account_lock_root, clock, fill_policy, accounting_policy, terminal_policy,
+                            recovery_policy, settlement_policy, operator_keys)
     try:
         await store._call(store._initialize_spot, create_binding, owner)
         return store

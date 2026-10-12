@@ -1,7 +1,7 @@
 """Opt-in LIFE spot send bridge with persisted OKX wire identity."""
 
 from decimal import Decimal, InvalidOperation
-from typing import Callable
+from typing import Awaitable, Callable
 
 from hummingbot.connector.utils import get_new_client_order_id
 from hummingbot.core.data_type.common import OrderType, TradeType
@@ -13,13 +13,17 @@ from hummingbot.strategy_v2.life_liquidity.state import IntentWAL
 class ProtectedSpotGateway:
     def __init__(self, connector, wal: IntentWAL,
                  authorize: Callable[[SendPermit], bool],
-                 request_budget: AccountRequestBudget | None = None):
+                 request_budget: AccountRequestBudget | None = None,
+                 async_authorize: Callable[[SendPermit], Awaitable[bool]] | None = None):
         if request_budget is not None and not isinstance(request_budget, AccountRequestBudget):
             raise ValueError("REQUEST_BUDGET_INVALID")
         self.connector = connector
         self.wal = wal
         self.authorize = authorize
         self.request_budget = request_budget
+        if async_authorize is not None and not callable(async_authorize):
+            raise ValueError('SPOT_ASYNC_AUTHORITY_INVALID')
+        self._async_authorize = async_authorize
         self._allocated_ids: dict[str, tuple[str, str]] = {}
         self.event_observer = None
 
@@ -125,10 +129,15 @@ class ProtectedSpotGateway:
                 except Exception:
                     pass  # Diagnostics cannot discard an exchange ACK.
 
+        async def async_final_check(_wire):
+            if await self._async_authorize(permit) is not True:
+                raise PermissionError('SPOT_ASYNC_AUTHORITY_DENIED')
+
         return self.connector.submit_protected_order(
             order_id=permit.client_order_id, trading_pair=trading_pair,
             amount=permit.quantity_base,
             trade_type=TradeType.BUY if side == "BUY" else TradeType.SELL,
             order_type=order_type, price=permit.price_usdt,
             pre_send_check=check_permission,
-            on_ack=acknowledged)
+            on_ack=acknowledged,
+            **({'async_pre_send_check': async_final_check} if self._async_authorize is not None else {}))

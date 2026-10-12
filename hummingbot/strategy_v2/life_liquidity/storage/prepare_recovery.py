@@ -57,6 +57,7 @@ class LegacyPrepareRecoveryAdapter:
                 or any(row['state'] != 'APPLIED' for row in meta.resources.get('fill_operations', {}).values())
                 or any(row['state'] != 'APPLIED' for row in meta.resources.get('cashflow_operations', {}).values())
                 or any(row['state'] != 'ACKED' for row in meta.resources.get('acknowledgements', {}).values())
+                or any(row['state'] != 'SETTLED' for row in meta.resources.get('settlement_operations', {}).values())
                 or any(row['state'] != 'TERMINAL' for row in meta.resources.get('terminal_operations', {}).values())):
             raise StorageError('SPOT_FINANCIAL_OTHER_RECOVERY_PENDING')
         age = (now - facts.observed_at).total_seconds() * 1000
