@@ -28,6 +28,8 @@ Architecture and economics reviewed on 2026-10-01. Review findings are mapped to
 
 **Spot terminal/exact-resume storage (2026-10-12):** an explicit complete order/account/fill/fee/bill/runner observation cut now qualifies offline terminal release. Native partial release remains behind a durable principal overlay and retained fee claims until final receipt; zero-fill subsidy settles to verified 0 while filled subsidy/loss remains for inventory/exit economics. Exact terminal recovery can complete one pending saga with fresh facts and the original bound writer, including cold read-only stores, without rearm/resend. General recovery, authenticated controller/gateway/history/ownership integration, filled economic settlement, PostgreSQL transactions and existing O.8/demo/live gates remain open in the [PG plan](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md).
 
+**Exact financial recovery storage (2026-10-12):** the [PG plan](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md) now records exact pending FILLING/CASHFLOWING resume with immutable original command/writer/valuation facts and fresh account qualification. Actual native-subset and final expected accounting projections reject unmatched activity; native checkpoints, fees, loss and subsidy are deduplicated across restart without rearm/resend or refunds. General prepare/arm/ACK recovery, control-plane repair/import, filled inventory/exit settlement, authenticated controller/gateway integration and PostgreSQL/O.8 gates remain open.
+
 ## 1. Objectives and Scope
 
 Build a market-making system for LIFE–USDT on OKX that can be tested before LIFE is listed. Support spot and linear perpetual swaps when OKX opens each market for trading. Session duration is configurable; four hours is only an example.

@@ -363,13 +363,62 @@ returns exact readback without a second release. Cold-unarmed state and expired/
 draining normal-admission guards remain in force after recovery. The single-host
 account lock and writer token do not establish external OKX sender exclusion.
 
-This scope cannot resolve incomplete prepare/arm/ACK/fill/cashflow operations,
-change approval/owner policies or settle filled inventory. Those recovery/grant/
-import contracts stay open. Complete financial/postgres equivalence, power-loss
+The terminal port does not resolve incomplete prepare/arm/ACK/fill/cashflow
+operations, change approval/owner policies or settle filled inventory. Exact
+fill/cashflow resume is the separate port below; broader recovery/grant/import
+contracts stay open. Complete financial/postgres equivalence, power-loss
 durability and O.8 performance remain unqualified; retained history checks still
 scan file projections. Tests include native no-ops, partial/full/zero fills,
 freshness/identity/scope conflicts, cancellation ownership and real process exits
 after principal release, subsidy settlement and final coordinator publication.
+
+### Exact fill/cashflow recovery
+
+`recovery.py` adds immutable `SpotFinancialRecoveryPolicy` and fresh account/
+bill/runner qualification facts, plus exact `resume_fill`/`resume_cashflow` ports.
+The optional policy requires an explicit positive freshness limit and the bound
+accounting/fill policies. It cannot be silently enabled or changed on restore.
+`recovery_adapter.py` runs on the same owning worker/account lock. No returned
+receipt grants sends, ownership transfer, normal admission or reservation release.
+
+Recovery requires an existing durable FILLING/CASHFLOWING operation, its exact
+original command fingerprint and writer token, fresh binding/cut and complete
+account balances, zero liabilities, trade/cashflow IDs and accepted-order/runner
+scope. Fresh facts may arrive hours after the original fill/transfer observation;
+the immutable original fill-time valuation/fee/bill/approval facts are not replaced
+by a current price. These source facts and completeness flags require the pending
+authenticated bridge; they do not authenticate an exchange or prove account-wide
+coverage by themselves.
+
+Before writes, recovery builds both the final expected capital projection and
+the actually applied native subset of that projection. Native trades/fees/bills,
+balances, intent/session/wire/slot identities and remaining principal must match
+that subset; extra external activity, foreign identities, changed facts or other
+partial commands deny adoption. The final projection must match the fresh account
+facts exactly. Thus a mismatched journal hash does not permit arbitrary native
+money or identity state to become authoritative.
+
+The pending operation records fresh recovery facts and performs the same native
+deduplicated fill/fee, loss/subsidy floor or approved cashflow writes, verifies
+postconditions and publishes APPLIED. Normal fill publication now persists the
+original WAL attempt state so recovery cannot infer ACKED from a fill or upgrade
+SEND_UNKNOWN. Interrupted older coordinators without this field require qualified
+import rather than guessed state. Money, actual fees, loss and subsidy charges
+already applied are not applied again; missing checkpoints are completed in the
+original units and UTC buckets. An already APPLIED operation returns its historical
+receipt without another write, not proof that a later account cut is healthy.
+
+Cancellation, failed publication and killed processes preserve pending state and
+native amounts; the owning lock is retained until admitted work finishes. Another
+failure requires cold readback before retry. Cold resume stays unarmed, including
+after expiry or an unknown send. It does not capture a new ACK, create/cancel/
+resend an order, refund fees/subsidy, reset budgets, complete another operation,
+issue grants or change approved policies. Native states that cannot produce a
+healthy spendable snapshot, including an underfunded withdrawal with outstanding
+claims, remain blocked for the separately qualified control-plane/import workflow.
+General prepare/arm/ACK recovery, approval changes and filled economic settlement
+remain open. Retained projection/native checks still scan history; this is not an
+O.8 performance or PostgreSQL/full-product equivalence milestone.
 
 ### Spot test commands
 
@@ -384,6 +433,8 @@ conda run -n hummingbot python -m pytest -q \
   test/hummingbot/strategy_v2/life_liquidity/storage/test_spot_capital_contracts.py
 conda run -n hummingbot python -m pytest -q \
   test/hummingbot/strategy_v2/life_liquidity/storage/test_spot_terminal_contracts.py
+conda run -n hummingbot python -m pytest -q \
+  test/hummingbot/strategy_v2/life_liquidity/storage/test_spot_financial_recovery.py
 ```
 
 Tests exercise the actual journals, BUY/SELL and fee claims, budget limits/spending
