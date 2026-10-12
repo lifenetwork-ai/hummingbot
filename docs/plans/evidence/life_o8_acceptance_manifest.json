@@ -427,7 +427,8 @@
         "test/hummingbot/strategy_v2/life_liquidity/test_lazy_journals.py",
         "test/hummingbot/strategy_v2/life_liquidity/test_hedge_wal_scope.py",
         "test/hummingbot/strategy_v2/life_liquidity/test_spot_journal_proof.py",
-        "test/hummingbot/strategy_v2/life_liquidity/test_active_reservation_admission.py"
+        "test/hummingbot/strategy_v2/life_liquidity/test_active_reservation_admission.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_attribution_financial_proof.py"
       ]
     },
     "A25": {
@@ -653,7 +654,8 @@
         "test/hummingbot/strategy_v2/life_liquidity/test_lazy_journals.py",
         "test/hummingbot/strategy_v2/life_liquidity/test_hedge_wal_scope.py",
         "test/hummingbot/strategy_v2/life_liquidity/test_spot_journal_proof.py",
-        "test/hummingbot/strategy_v2/life_liquidity/test_active_reservation_admission.py"
+        "test/hummingbot/strategy_v2/life_liquidity/test_active_reservation_admission.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_attribution_financial_proof.py"
       ]
     },
     "A36": {
@@ -689,7 +691,8 @@
         "test/hummingbot/strategy_v2/life_liquidity/test_lazy_journals.py",
         "test/hummingbot/strategy_v2/life_liquidity/test_hedge_wal_scope.py",
         "test/hummingbot/strategy_v2/life_liquidity/test_spot_journal_proof.py",
-        "test/hummingbot/strategy_v2/life_liquidity/test_active_reservation_admission.py"
+        "test/hummingbot/strategy_v2/life_liquidity/test_active_reservation_admission.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_attribution_financial_proof.py"
       ]
     },
     "A37": {
@@ -2962,7 +2965,7 @@
       "owner": "strategy/executor maintainer",
       "remaining": [
         "WAL/reservation terminal maps use segment-bounded lazy decoded caches and cold validation scratch indexes. Archived active cancel/unknown checkpoints and new zero-fill reservation admission preserve terminal descriptors without enumerating historical rows or reloading financial state. Exact disk/memory verification, writer fencing, fsync/CAS, duplicate and capacity checks remain binding. Legacy admission and fills/fees/cash flows/terminal financial writes, other financial/ownership journals, qualification and final-send loops still need bounded cooperative work, future settlement capacity and unchanged scale gate proof. O.8.4/O.8.7 remain open.",
-        "Hedge permission uses verified WAL cuts and exact pending identity checks. Quote/executor WAL-reservation consistency uses a complete ownership proof bound to independently verified immutable cuts, with active checks on every use and full requalification after settled-cut changes or cold restore. Sender tuple materialization and archived new-hold financial reloads are removed; proposal action/runner history, attribution validation, remaining financial writes, exact-byte reads, working-set/storage bounds and unchanged full scale/completion gates remain required."
+        "Hedge permission uses verified WAL cuts and exact pending identity checks. Quote/executor WAL-reservation consistency uses a complete ownership proof bound to independently verified immutable cuts, with active checks on every use and full requalification after settled-cut changes or cold restore. Sender tuple materialization and archived new-hold financial reloads are removed. Archived financial readiness now reuses a verified financial cut across zero-fill holds and lifecycle-only updates, with independent disk/memory verification on every use and complete revalidation after financial/provenance/settled-cut changes. Mutable policy snapshots and initial proof-publication races are fenced. Proposal action/runner history, cold/changed attribution replay, remaining financial writes, exact-byte reads, working-set/storage bounds and unchanged full scale/completion gates remain required."
       ],
       "requirements": [
         "P4.14",
@@ -2985,7 +2988,8 @@
         "test/hummingbot/strategy_v2/life_liquidity/test_lazy_journals.py",
         "test/hummingbot/strategy_v2/life_liquidity/test_hedge_wal_scope.py",
         "test/hummingbot/strategy_v2/life_liquidity/test_spot_journal_proof.py",
-        "test/hummingbot/strategy_v2/life_liquidity/test_active_reservation_admission.py"
+        "test/hummingbot/strategy_v2/life_liquidity/test_active_reservation_admission.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_attribution_financial_proof.py"
       ]
     },
     "O.8.5": {

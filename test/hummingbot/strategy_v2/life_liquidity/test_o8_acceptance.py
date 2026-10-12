@@ -57,3 +57,11 @@ def test_active_reservation_admission_cannot_be_dropped_from_acceptance():
         "test/hummingbot/strategy_v2/life_liquidity/test_active_reservation_admission.py")
     with pytest.raises(ValueError):
         audit.validate_manifest(m, require_closed=False)
+
+
+def test_attribution_financial_proof_cannot_be_dropped_from_acceptance():
+    m = json.loads(audit.MANIFEST.read_text())
+    m["review_evidence"]["O.8.4"]["tests"].remove(
+        "test/hummingbot/strategy_v2/life_liquidity/test_attribution_financial_proof.py")
+    with pytest.raises(ValueError):
+        audit.validate_manifest(m, require_closed=False)

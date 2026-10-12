@@ -395,7 +395,7 @@ class ReconciledFillAttributor:
         if detach:
             def snapshot(mapping):
                 return mapping if isinstance(mapping, (MappingProxyType, PartitionMap)) else dict(mapping.items())
-            memory = (memory[0], {k: dict(v) for k, v in self._events.items()},
+            memory = (copy.deepcopy(memory[0]), {k: dict(v) for k, v in self._events.items()},
                       {k: dict(v) for k, v in self._cashflows.items()}, snapshot(self.wal._records),
                       *memory[4:7], snapshot(self.reservations._reservations),
                       snapshot(self.reservations._trades), snapshot(self.reservations._account_events),
@@ -404,12 +404,54 @@ class ReconciledFillAttributor:
                             for budget, (policy, campaign, entries) in zip(budgets, memory[-1])))
         return disk, memory
 
+    @staticmethod
+    def _financial_cut(cut):
+        """Project an independently verified archived cut onto financial inputs.
+
+        Settled descriptors and all financial maps stay binding. Active holds
+        without fills and order lifecycle fields do not affect financial replay.
+        Filled active intents retain their complete reservation intent and WAL
+        provenance. This grants no order/session/terminal or send permission.
+        Legacy cuts retain whole-cut invalidation. No proof persists on restart.
+        """
+        disk, memory = cut
+        wal, reservations = memory[3], memory[7]
+        if not isinstance(wal, PartitionMap) or not isinstance(reservations, PartitionMap):
+            return None
+        active = []
+        for key, item in reservations.active.items():
+            if item.filled_base == 0:
+                continue
+            record = wal[key]
+            provenance = (record.intent_id, record.client_order_id, record.session_id,
+                          record.epoch, record.reservation_id, record.slot_market,
+                          record.slot_side, record.slot_level)
+            active.append((key, item.intent, item.filled_base, provenance))
+        # WAL/reservation root bytes change on nonfinancial checkpoints. Their
+        # exact disk/memory verification already ran in _readiness_cut; retain
+        # source paths, settled cuts, balances, fills, fees and account events.
+        financial_disk = tuple((path, None if i in (1, 2) else raw)
+                               for i, (path, raw) in enumerate(disk))
+        return (financial_disk, memory[:3], wal.settled, reservations.settled,
+                memory[4:7], memory[8:], tuple(sorted(active)))
+
     def ready(self) -> bool:
         try:
             cut = self._readiness_cut()
             cached = getattr(self, "_ready_cut", None)
             if cached is not None and cached == cut:
                 return True
+            if cached is not None:
+                financial = self._financial_cut(cut)
+                if financial is not None and financial == self._financial_cut(cached):
+                    return True
+            # Freeze mutable inputs before a cache-miss replay. A live dict
+            # reference could otherwise change underneath both cut comparisons
+            # and publish proof for data that the replay never validated.
+            before = self._readiness_cut(detach=True)
+            if before != cut:
+                return False
+            cut = before
             if self._durable_sources_match() is None:
                 return False
             capital = self.capital()
