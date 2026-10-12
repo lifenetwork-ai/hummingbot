@@ -255,7 +255,60 @@ integration. Retained journal/projection checks still scan history; O.8 performa
 and full file/PostgreSQL equivalence remain open. Native filesystem durability
 semantics are retained; process-kill tests do not qualify power-loss durability.
 
-### Spot tests
+### Approved cashflows and recorded NAV
+
+`capital.py` adds immutable `SpotAccountingPolicy`, `ApprovedSpotCashflow`,
+`CashflowSpot`, `ObserveSpotNAV`, capital views/receipts and async capital ports.
+The optional accounting policy binds exact opening balances, independent opening
+value/time, numeric bill anchor and a fixed tuple of approved transfer identities,
+signed amounts, currencies and millisecond timestamps. It requires the explicit
+fill policy. No starting capital is inferred from current balances, nor can
+restore silently change approvals/opening values. Adding approvals to an existing
+policy requires a future qualified policy/import command; no runtime approval
+editing service exists in this slice.
+
+`apply_cashflow()` rejects mismatched approved facts before writing. LIFE transfers
+require an independent transfer-time value within the bound skew; USDT uses the
+explicit quote unit value 1. The caller's bound DTO is not proof of an authenticated
+OKX bill, complete pagination/anchor coverage, independent source provenance or
+operator approval; those belong to the pending bridge. A proposed CASHFLOWING
+operation persists before the actual native ledger transfer, and APPLIED is
+published only after exact bill and capital projection checks. Same operation or
+bill replays cannot apply money twice. Transfer amounts never reset subsidy/loss
+spending or release order/fee holds. Actual withdrawals may underfund existing
+holds: the native debit/proposed facts remain, completion becomes unknown and a
+healthy spendable snapshot is denied instead of fabricating balances or releases.
+
+Capital projections reuse `CapitalLedger`, merging approved transfers and stored
+fills by timestamp, cashflow before fill on an equal timestamp and lexical ID
+within kind, matching the existing attributor. This is the existing offline causal
+ordering convention, not a venue-established total order. Earlier transfers
+cannot borrow funds from a later fill during replay. Existing starting-inventory
+consumption/fee and execution-loss semantics are retained. Exact replayed LIFE/
+USDT balances and cashflow identities must match native journals; joint funding
+events and unmatched legacy financial history require qualified import/other
+product ports, not an empty projection bootstrap.
+
+`observe_nav()` records an independently priced NAV, net-cashflow-adjusted NAV,
+drawdown, execution loss and starting inventory PnL. It validates fresh price/time,
+writer and cut, forbids regressing the latest valuation/receipt clocks, and stores
+the measurement plus monotonic highwater in one coordinator checkpoint. Deposits
+are excluded from profit and withdrawals cannot reset highwater; restart preserves
+observed highwater. Historical prices never observed by this API are not reconstructed.
+Fills/transfers invalidate the financial fingerprint of a previous measurement;
+`current` denotes matching financial facts only, not live price freshness, health,
+ownership, account-history completeness or permission to trade. Old operation
+replays return their historical measurement without replacing the latest one.
+
+Late same-writer transfers can be recorded without rearming expiry. Interrupted
+operations block preparation/arming/NAV writes and preserve native funds. Cold
+objects remain unarmed/read-only, expose completed or pending receipts, and never
+automatically finish partial cashflow operations. Process exits after a native
+transfer or a committed NAV preserve readback. Controller bill/valuation wiring,
+recovery completion, qualified terminal release, markout/shared-capital/recorder
+paths, PostgreSQL transactions and production durability/performance remain open.
+
+### Spot test commands
 
 ```sh
 conda run -n hummingbot python -m pytest -q \
@@ -264,6 +317,8 @@ conda run -n hummingbot python -m pytest -q \
   test/hummingbot/strategy_v2/life_liquidity/storage/test_spot_ack_contracts.py
 conda run -n hummingbot python -m pytest -q \
   test/hummingbot/strategy_v2/life_liquidity/storage/test_spot_fill_contracts.py
+conda run -n hummingbot python -m pytest -q \
+  test/hummingbot/strategy_v2/life_liquidity/storage/test_spot_capital_contracts.py
 ```
 
 Tests exercise the actual journals, BUY/SELL and fee claims, budget limits/spending

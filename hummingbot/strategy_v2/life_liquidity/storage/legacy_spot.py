@@ -13,11 +13,20 @@ from decimal import Decimal
 from pathlib import Path
 
 from hummingbot.strategy_v2.life_liquidity.account_lock import AccountRiskPoolLock
+from hummingbot.strategy_v2.life_liquidity.accounting import CapitalLedger
 from hummingbot.strategy_v2.life_liquidity.economics import SubsidyBudgetLedger
 from hummingbot.strategy_v2.life_liquidity.loss_budget import LossBudgetLedger
 from hummingbot.strategy_v2.life_liquidity.risk import ReservationLedger, RiskLimits, SpotIntent
 from hummingbot.strategy_v2.life_liquidity.session import SessionStore
 from hummingbot.strategy_v2.life_liquidity.state import IntentWAL
+from hummingbot.strategy_v2.life_liquidity.storage.capital import (
+    CashflowReceipt,
+    CashflowSpot,
+    NavReceipt,
+    ObserveSpotNAV,
+    SpotAccountingPolicy,
+    SpotCapitalView,
+)
 from hummingbot.strategy_v2.life_liquidity.storage.contracts import (
     AtomicScope,
     CommitUnknown,
@@ -80,7 +89,7 @@ class LegacySpotStore(FileCheckpointStore):
     atomic_scope = AtomicScope.RECOVERABLE_SAGA
 
     def __init__(self, files, binding, limits, risk_limits, subsidy_policy, loss_policy,
-                 config_version, account_lock_root, clock, fill_policy=None):
+                 config_version, account_lock_root, clock, fill_policy=None, accounting_policy=None):
         if (not isinstance(files, LegacySpotFiles) or not isinstance(risk_limits, RiskLimits)
                 or not isinstance(subsidy_policy, BudgetPolicy) or not isinstance(loss_policy, BudgetPolicy)
                 or type(config_version) is not int or config_version < 1):
@@ -95,6 +104,9 @@ class LegacySpotStore(FileCheckpointStore):
         if fill_policy is not None and not isinstance(fill_policy, SpotFillPolicy):
             raise StorageError('SPOT_FILL_POLICY_INVALID')
         self._fill_policy = fill_policy
+        if accounting_policy is not None and (not isinstance(accounting_policy, SpotAccountingPolicy) or fill_policy is None):
+            raise StorageError('SPOT_ACCOUNTING_POLICY_INVALID')
+        self._accounting_policy = accounting_policy
         self._policy['legacy_spot'] = {
             'paths': {key: str(value) for key, value in files.journals().items()},
             'account_lock_root': str(Path(account_lock_root)),
@@ -102,6 +114,8 @@ class LegacySpotStore(FileCheckpointStore):
             'subsidy': subsidy_policy.json(), 'execution_loss': loss_policy.json(), 'config_version': config_version}
         if fill_policy is not None:
             self._policy['legacy_spot']['fill_policy'] = {'max_reference_skew_ms': fill_policy.max_reference_skew_ms}
+        if accounting_policy is not None:
+            self._policy['legacy_spot']['accounting_policy'] = accounting_policy.json()
         self._cold_unarmed = True
         self._cleanup_future = None
 
@@ -171,9 +185,14 @@ class LegacySpotStore(FileCheckpointStore):
                 raise StorageUnavailable('SPOT_JOURNAL_CHANGED_DURING_READ')
             hashes = self._hashes(before)
             partial = (hashes != dict(meta.resources['journal_hashes'])
-                       or any(item['state'] in PARTIAL_PHASES for item in meta.resources['commands'].values()))
+                       or self._incomplete(meta.resources))
             if self._fill_policy is not None and not partial:
                 self._verify_fill_projection(meta.resources['commands'], meta.resources.get('fills', {}))
+            if self._accounting_policy is not None and not partial:
+                if self._accounting_policy.opened_at > now:
+                    raise StorageUnavailable('SPOT_OPENING_CAPITAL_TIME_INVALID')
+                self._verify_capital_projection(meta.resources['commands'], meta.resources.get('fills', {}),
+                                                meta.resources.get('cashflows', {}))
             fee_base, fee_quote, fee_overrun = self._fee_claims(meta.resources['commands'])
             return SpotSnapshot(
                 FinancialCut(meta.cut, tuple(sorted(hashes.items()))),
@@ -398,9 +417,14 @@ class LegacySpotStore(FileCheckpointStore):
                 or meta.ownership.mode not in (OwnerMode.ACTIVE, OwnerMode.DRAINING, OwnerMode.RECOVERY_ONLY)
                 or now < owner.valid_from
                 or dict(view.cut.components) != dict(meta.resources['journal_hashes'])
-                or any(item['state'] in PARTIAL_PHASES for item in meta.resources['commands'].values())):
+                or self._incomplete(meta.resources)):
             raise StorageError('SPOT_ACK_OWNER_OR_RECOVERY_GATE')
         return meta
+
+    @staticmethod
+    def _incomplete(resources):
+        return (any(item['state'] in PARTIAL_PHASES for item in resources['commands'].values())
+                or any(item['state'] != 'APPLIED' for item in resources.get('cashflow_operations', {}).values()))
 
     def _publish_ack(self, key, owner, commands, acknowledgements, hashes):
         meta = super()._read()
@@ -627,6 +651,8 @@ class LegacySpotStore(FileCheckpointStore):
             if row.trade_id in fills and fills[row.trade_id] != stable:
                 raise StorageConflict('SPOT_FILL_IDENTITY_CONFLICT')
             fills[row.trade_id] = stable
+        if self._accounting_policy is not None:
+            self._capital_ledger(commands, fills, meta.resources.get('cashflows', {}))  # Causal preflight before writes.
         loss = sum((row.loss(command.side) for row in command.fills), Decimal('0'))
         operations[command.operation_id] = {'command': command.json(), 'fingerprint': command_hash,
                                             'state': 'FILLING', 'execution_loss_usdt': str(loss)}
@@ -648,6 +674,8 @@ class LegacySpotStore(FileCheckpointStore):
                                   at_utc=datetime.fromtimestamp(row.fill_at_ms / 1000, timezone.utc))
             self._subsidy.record_fill_floor(command.intent_id, loss)
             self._verify_fill_projection(commands, fills)
+            if self._accounting_policy is not None:
+                self._verify_capital_projection(commands, fills, meta.resources.get('cashflows', {}))
             verified = self._snapshot()
             record['state'] = original_state
             operations[command.operation_id]['state'] = 'APPLIED'
@@ -663,6 +691,235 @@ class LegacySpotStore(FileCheckpointStore):
         self._assert_binding(cut.checkpoint.binding)
         try:
             return await self._call(self._apply_fills, command, cut, owner)
+        except asyncio.CancelledError:
+            self._uncertain = True
+            raise
+
+    def _require_accounting(self):
+        if self._accounting_policy is None:
+            raise UnsupportedBackend('SPOT_ACCOUNTING_POLICY_REQUIRED')
+
+    @staticmethod
+    def _cashflow_from_json(data):
+        values = dict(data)
+        values['signed_amount'] = Decimal(values['signed_amount'])
+        values['independent_price_usdt'] = Decimal(values['independent_price_usdt'])
+        values['observed_at'] = datetime.fromisoformat(values['observed_at'])
+        return CashflowSpot(**values)
+
+    def _validate_cashflow_value(self, command):
+        policy = self._accounting_policy
+        expected = next((row for row in policy.approved_cashflows if row.bill_id == command.bill_id), None)
+        if expected is None or (expected.currency, expected.signed_amount, expected.transfer_at_ms) != (
+                command.currency, command.signed_amount, command.transfer_at_ms):
+            raise StorageError('SPOT_CASHFLOW_UNAPPROVED')
+        receipt_ms = int(command.observed_at.timestamp() * 1000)
+        if (command.transfer_at_ms > receipt_ms or command.reference_observed_at_ms > receipt_ms
+                or command.observed_at > utc(self._clock())
+                or abs(command.value_at_ms - command.transfer_at_ms) > self._fill_policy.max_reference_skew_ms
+                or abs(command.reference_observed_at_ms - command.transfer_at_ms) > self._fill_policy.max_reference_skew_ms):
+            raise StorageError('SPOT_CASHFLOW_VALUE_UNQUALIFIED')
+
+    def _capital_ledger(self, commands, fills, cashflows):
+        self._require_accounting()
+        policy = self._accounting_policy
+        capital = CapitalLedger(opening_life=policy.opening_base_life, opening_usdt=policy.opening_quote_usdt,
+                                opening_independent_price_usdt=policy.opening_independent_price_usdt)
+        timeline = []
+        for trade_id, data in fills.items():
+            row = SpotFillObservation.from_json(data['fill'])
+            if row.fill_at_ms < int(policy.opened_at.timestamp() * 1000):
+                raise StorageError('SPOT_CAPITAL_PREOPEN_FILL')
+            side = PrepareSpot.from_json(commands[data['prepare_operation_id']]['command']).side
+            timeline.append((row.fill_at_ms, 1, trade_id, (side, row)))
+        for bill_id, data in cashflows.items():
+            row = self._cashflow_from_json(data)
+            if bill_id != row.bill_id:
+                raise StorageError('SPOT_CAPITAL_CASHFLOW_IDENTITY_INVALID')
+            self._validate_cashflow_value(row)
+            timeline.append((row.transfer_at_ms, 0, bill_id, row))
+        try:
+            # Preserve existing attributor ordering: cashflow before fill at an
+            # equal timestamp; lexical ID within kind. No invented clock order.
+            for _, kind, event_id, event in sorted(timeline, key=lambda item: item[:3]):
+                if kind == 0:
+                    capital.record_asset_cashflow(event_id, event.currency, event.signed_amount,
+                                                  independent_value_usdt=event.independent_price_usdt)
+                else:
+                    side, row = event
+                    fee_cost = -row.signed_fee * (row.independent_price_usdt if row.fee_currency == 'LIFE' else Decimal('1'))
+                    capital.record_fill(event_id, side, row.quantity_base_life, row.price_usdt, fee_cost,
+                                        independent_value_usdt=row.independent_price_usdt,
+                                        fee_currency=row.fee_currency, signed_fee=row.signed_fee)
+            return capital
+        except (ValueError, ArithmeticError):
+            raise StorageError('SPOT_CAPITAL_CAUSAL_REPLAY_INVALID') from None
+
+    def _verify_capital_projection(self, commands, fills, cashflows):
+        native = {bill_id: (row['currency'], Decimal(row['signed_amount'])) for bill_id, row in cashflows.items()}
+        capital = self._capital_ledger(commands, fills, cashflows)
+        if (self._ledger.cashflow_events != native or self._ledger.joint_cash_events
+                or capital.life_balance != self._ledger.life_balance or capital.usdt_balance != self._ledger.usdt_balance):
+            raise StorageUnavailable('SPOT_CAPITAL_PROJECTION_UNVERIFIED')
+        return capital
+
+    @staticmethod
+    def _cashflow_receipt(binding, row, state, replayed):
+        return CashflowReceipt(binding, row['command']['operation_id'], row['command']['bill_id'],
+                               state, replayed, AtomicScope.RECOVERABLE_SAGA)
+
+    def _lookup_cashflow(self, operation_id):
+        view = self._snapshot()
+        meta = super()._read()
+        row = meta.resources.get('cashflow_operations', {}).get(operation_id)
+        if row is None:
+            return None
+        partial = row['state'] != 'APPLIED' or dict(view.cut.components) != dict(meta.resources['journal_hashes'])
+        return self._cashflow_receipt(self.binding, row, 'RECOVERY_REQUIRED' if partial else 'APPLIED', True)
+
+    async def lookup_cashflow(self, operation_id, binding):
+        self._assert_binding(binding)
+        identifier(operation_id)
+        return await self._call(self._lookup_cashflow, operation_id)
+
+    def _publish_cashflow(self, key, owner, operations, cashflows, hashes):
+        meta = super()._read()
+        return super()._commit(meta.cut, owner, key, (
+            ('cashflow_operations', encode(operations)), ('cashflows', encode(cashflows)),
+            ('journal_hashes', encode(hashes))), observation=True)
+
+    def _apply_cashflow(self, command, cut, owner):
+        self._require_accounting()
+        view = self._snapshot()
+        meta = self._ack_guard(view, owner)
+        operations = thaw(meta.resources.get('cashflow_operations', {}))
+        cashflows = thaw(meta.resources.get('cashflows', {}))
+        command_hash = fingerprint({'command': command.json(), 'owner': owner.json()})
+        previous = operations.get(command.operation_id)
+        if previous is not None:
+            if previous['fingerprint'] != command_hash:
+                raise StorageConflict('SPOT_CASHFLOW_OPERATION_CONFLICT')
+            if previous['state'] != 'APPLIED':
+                raise StorageError('SPOT_CASHFLOW_RECONCILE_BEFORE_RETRY')
+            return self._cashflow_receipt(self.binding, previous, 'APPLIED', True)
+        if view.cut != cut:
+            raise StorageConflict('SPOT_CUT_STALE')
+        self._validate_cashflow_value(command)
+        # Same bill under a new operation may only repeat the original facts;
+        # local receipt time/operation are stored once, not economic identity.
+        stable = command.json()
+        if command.bill_id in cashflows:
+            prior = cashflows[command.bill_id]
+            if any(prior[key] != value for key, value in stable.items() if key not in ('operation_id', 'observed_at')):
+                raise StorageConflict('SPOT_CASHFLOW_BILL_CONFLICT')
+        else:
+            cashflows[command.bill_id] = stable
+        self._capital_ledger(meta.resources['commands'], meta.resources.get('fills', {}), cashflows)
+        operations[command.operation_id] = {'command': command.json(), 'fingerprint': command_hash, 'state': 'CASHFLOWING'}
+        try:
+            self._publish_cashflow('cash-start:' + command.operation_id, owner, operations,
+                                   thaw(meta.resources.get('cashflows', {})), dict(view.cut.components))
+            self._ledger.record_cashflow(command.bill_id, command.currency, command.signed_amount)
+            self._verify_capital_projection(meta.resources['commands'], meta.resources.get('fills', {}), cashflows)
+            verified = self._snapshot()
+            operations[command.operation_id]['state'] = 'APPLIED'
+            self._publish_cashflow('cash-done:' + command.operation_id, owner, operations, cashflows, dict(verified.cut.components))
+            return self._cashflow_receipt(self.binding, operations[command.operation_id], 'APPLIED', False)
+        except BaseException:
+            self._uncertain = True
+            raise CommitUnknown('SPOT_CASHFLOW_APPLICATION_UNKNOWN') from None
+
+    async def apply_cashflow(self, command, *, cut, owner):
+        if not isinstance(command, CashflowSpot) or not isinstance(cut, FinancialCut) or not isinstance(owner, OwnerToken):
+            raise StorageError('SPOT_COMMAND_INVALID')
+        self._assert_binding(cut.checkpoint.binding)
+        try:
+            return await self._call(self._apply_cashflow, command, cut, owner)
+        except asyncio.CancelledError:
+            self._uncertain = True
+            raise
+
+    @staticmethod
+    def _money_fingerprint(resources):
+        return fingerprint({'fills': resources.get('fills', {}), 'cashflows': resources.get('cashflows', {})})
+
+    def _nav_view(self, view, meta, row):
+        values = {key: Decimal(value) for key, value in row['measurement'].items()}
+        command = row['command']
+        return SpotCapitalView(self.binding, view.cut, **values, independent_price_usdt=Decimal(command['independent_price_usdt']),
+                               value_at_ms=command['value_at_ms'], observed_at=datetime.fromisoformat(command['observed_at']),
+                               current=(row['financial_fingerprint'] == self._money_fingerprint(meta.resources)
+                                        and not self._incomplete(meta.resources)
+                                        and dict(view.cut.components) == dict(meta.resources['journal_hashes'])))
+
+    def _capital(self):
+        self._require_accounting()
+        view = self._snapshot()
+        meta = super()._read()
+        if self._incomplete(meta.resources) or dict(view.cut.components) != dict(meta.resources['journal_hashes']):
+            raise StorageUnavailable('SPOT_CAPITAL_RECOVERY_REQUIRED')
+        latest = meta.resources.get('capital', {}).get('latest_operation_id')
+        return None if latest is None else self._nav_view(view, meta, meta.resources['nav_operations'][latest])
+
+    async def capital(self, binding):
+        self._assert_binding(binding)
+        return await self._call(self._capital)
+
+    def _observe_nav(self, command, cut, owner):
+        self._require_accounting()
+        view = self._snapshot()
+        meta = self._ack_guard(view, owner)
+        operations = thaw(meta.resources.get('nav_operations', {}))
+        command_hash = fingerprint({'command': command.json(), 'owner': owner.json()})
+        previous = operations.get(command.operation_id)
+        if previous is not None:
+            if previous['fingerprint'] != command_hash:
+                raise StorageConflict('SPOT_NAV_OPERATION_CONFLICT')
+            return NavReceipt(self.binding, command.operation_id, self._nav_view(view, meta, previous), True, self.atomic_scope)
+        if view.cut != cut:
+            raise StorageConflict('SPOT_CUT_STALE')
+        now = utc(self._clock())
+        latest = meta.resources.get('capital', {}).get('latest_operation_id')
+        if latest is not None:
+            latest_command = operations[latest]['command']
+            if (command.observed_at < datetime.fromisoformat(latest_command['observed_at'])
+                    or command.value_at_ms < latest_command['value_at_ms']
+                    or command.reference_observed_at_ms < latest_command['reference_observed_at_ms']):
+                raise StorageError('SPOT_NAV_OBSERVATION_REGRESSION')
+        if (command.observed_at > now or command.reference_observed_at_ms > int(command.observed_at.timestamp() * 1000)
+                or abs(int(now.timestamp() * 1000) - command.value_at_ms) > self._fill_policy.max_reference_skew_ms
+                or abs(int(now.timestamp() * 1000) - command.reference_observed_at_ms) > self._fill_policy.max_reference_skew_ms):
+            raise StorageError('SPOT_NAV_VALUE_UNQUALIFIED')
+        capital = self._verify_capital_projection(meta.resources['commands'], meta.resources.get('fills', {}),
+                                                  meta.resources.get('cashflows', {}))
+        capital.highwater_quote = max(capital.highwater_quote, Decimal(meta.resources.get('capital', {}).get('highwater_usdt', '0')))
+        measurement = capital.measure(command.independent_price_usdt, source_kind='independent_market')
+        values = {key: str(getattr(measurement, native)) for key, native in (
+            ('nav_usdt', 'nav_quote'), ('adjusted_nav_usdt', 'adjusted_nav_quote'), ('highwater_usdt', 'highwater_quote'),
+            ('drawdown_bps', 'drawdown_bps'), ('execution_loss_usdt', 'execution_loss_quote'),
+            ('starting_inventory_pnl_usdt', 'starting_inventory_pnl_quote'))}
+        values['net_cashflows_usdt'] = str(capital.net_cashflows_quote)
+        operations[command.operation_id] = {'command': command.json(), 'fingerprint': command_hash, 'measurement': values,
+                                            'financial_fingerprint': self._money_fingerprint(meta.resources)}
+        try:
+            super()._commit(meta.cut, owner, 'nav:' + command.operation_id, (
+                ('nav_operations', encode(operations)),
+                ('capital', encode({'latest_operation_id': command.operation_id, 'highwater_usdt': values['highwater_usdt']}))),
+                observation=True)
+            completed = self._snapshot()
+            current_meta = super()._read()
+            return NavReceipt(self.binding, command.operation_id,
+                              self._nav_view(completed, current_meta, operations[command.operation_id]), False, self.atomic_scope)
+        except BaseException:
+            self._uncertain = True
+            raise CommitUnknown('SPOT_NAV_PUBLICATION_UNKNOWN') from None
+
+    async def observe_nav(self, command, *, cut, owner):
+        if not isinstance(command, ObserveSpotNAV) or not isinstance(cut, FinancialCut) or not isinstance(owner, OwnerToken):
+            raise StorageError('SPOT_COMMAND_INVALID')
+        self._assert_binding(cut.checkpoint.binding)
+        try:
+            return await self._call(self._observe_nav, command, cut, owner)
         except asyncio.CancelledError:
             self._uncertain = True
             raise
@@ -686,9 +943,9 @@ class LegacySpotStore(FileCheckpointStore):
 
 async def open_legacy_spot(files, *, binding, limits, risk_limits, subsidy_policy, loss_policy,
                            config_version, account_lock_root, create_binding=False, owner=None,
-                           clock=lambda: datetime.now(timezone.utc), fill_policy=None):
+                           clock=lambda: datetime.now(timezone.utc), fill_policy=None, accounting_policy=None):
     store = LegacySpotStore(files, binding, limits, risk_limits, subsidy_policy, loss_policy,
-                            config_version, account_lock_root, clock, fill_policy)
+                            config_version, account_lock_root, clock, fill_policy, accounting_policy)
     try:
         await store._call(store._initialize_spot, create_binding, owner)
         return store

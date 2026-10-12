@@ -24,6 +24,8 @@ Architecture and economics reviewed on 2026-10-01. Review findings are mapped to
 
 **Spot fill/fee storage extension (2026-10-12):** complete cumulative trade/fee snapshots now update the actual reservation ledger, execution-loss ledger and subsidy fill floor behind a recoverable FILLING barrier. Paid fees consume matching LIFE/USDT buffers; fee overruns close new-risk admission and filled quantity alone releases no terminal holds. Explicit independent valuation/skew, immutable identities, replay/cold readback and actual killed-process cases are covered in the [PG plan](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md). Cashflows/full NAV, qualified terminal/recovery, authenticated bridge/controller integration, PostgreSQL financial schema and O.8 remain open.
 
+**Spot cashflow/NAV storage checkpoint (2026-10-12):** bound opening capital and immutable bill approvals now support replayable signed LIFE/USDT transfers, existing causal CapitalLedger projection, net-cashflow-adjusted NAV and recorded highwater. Transfers preserve loss/subsidy spending; partial cashflow writes retain funds and recovery barriers. Independent prices/bills remain caller-supplied facts requiring the authenticated bridge; controller/recovery/terminal integration, PostgreSQL schema and O.8/demo/live gates remain open in the [PG plan](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md).
+
 ## 1. Objectives and Scope
 
 Build a market-making system for LIFE–USDT on OKX that can be tested before LIFE is listed. Support spot and linear perpetual swaps when OKX opens each market for trading. Session duration is configurable; four hours is only an example.
