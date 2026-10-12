@@ -1,4 +1,4 @@
-"""Complete a durable fill/cashflow saga without rearm, replacement or transport.
+"""Complete a durable ACK/fill/cashflow saga without rearm, replacement or transport.
 
 All live journal access stays on LegacySpotStore's owning bounded worker. Current
 account facts must come from the pending authenticated bridge; flags are not
@@ -27,7 +27,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.financial import (
     PrepareSpot,
     SpotFillObservation,
 )
-from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancialRecoveryFacts
+from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotAckRecoveryFacts, SpotFinancialRecoveryFacts
 
 
 class LegacyFinancialRecoveryAdapter:
@@ -40,7 +40,7 @@ class LegacyFinancialRecoveryAdapter:
         if (meta.ownership.token != owner or meta.ownership.mode not in (
                 OwnerMode.ACTIVE, OwnerMode.DRAINING, OwnerMode.RECOVERY_ONLY) or now < owner.valid_from):
             raise StorageError('SPOT_FINANCIAL_RECOVERY_OWNER_INVALID')
-        resource = 'fill_operations' if kind == 'fill' else 'cashflow_operations'
+        resource = {'fill': 'fill_operations', 'cash': 'cashflow_operations', 'ack': 'acknowledgements'}[kind]
         previous = meta.resources.get(resource, {}).get(command.operation_id)
         if previous is None:
             raise StorageError('SPOT_FINANCIAL_RECOVERY_NOT_STARTED')
@@ -48,25 +48,26 @@ class LegacyFinancialRecoveryAdapter:
             raise StorageConflict('SPOT_FINANCIAL_RECOVERY_OPERATION_CONFLICT')
         # A completed operation is readback only. It cannot trigger a new write
         # even when fresh facts would describe a different account cut.
-        if previous['state'] == 'APPLIED':
+        if previous['state'] == ('ACKED' if kind == 'ack' else 'APPLIED'):
             return view, meta, previous
         if view.cut != cut:
             raise StorageConflict('SPOT_CUT_STALE')
-        expected_phase = 'FILLING' if kind == 'fill' else 'CASHFLOWING'
+        expected_phase = {'fill': 'FILLING', 'cash': 'CASHFLOWING', 'ack': 'ACKING'}[kind]
         if previous['state'] != expected_phase:
             raise StorageError('SPOT_FINANCIAL_RECOVERY_PHASE_INVALID')
-        target = command.prepare_operation_id if kind == 'fill' else None
+        target = command.prepare_operation_id if kind in ('fill', 'ack') else None
         for key, record in meta.resources['commands'].items():
             if record['state'] in ('PREPARING', 'ARMING', 'ACKING', 'FILLING', 'TERMINATING'):
-                if kind != 'fill' or key != target or record['state'] != 'FILLING':
+                if kind not in ('fill', 'ack') or key != target or record['state'] != expected_phase:
                     raise StorageError('SPOT_FINANCIAL_OTHER_RECOVERY_PENDING')
-        for name in ('fill_operations', 'cashflow_operations'):
+        for name in ('fill_operations', 'cashflow_operations', 'acknowledgements'):
             for op, row in meta.resources.get(name, {}).items():
-                if row['state'] != 'APPLIED' and (name != resource or op != command.operation_id):
+                complete = 'ACKED' if name == 'acknowledgements' else 'APPLIED'
+                if row['state'] != complete and (name != resource or op != command.operation_id):
                     raise StorageError('SPOT_FINANCIAL_OTHER_RECOVERY_PENDING')
         if any(row['state'] != 'TERMINAL' for row in meta.resources.get('terminal_operations', {}).values()):
             raise StorageError('SPOT_FINANCIAL_OTHER_RECOVERY_PENDING')
-        if kind == 'fill' and meta.resources['commands'][target]['state'] != 'FILLING':
+        if kind in ('fill', 'ack') and meta.resources['commands'][target]['state'] != expected_phase:
             raise StorageError('SPOT_FINANCIAL_RECOVERY_PHASE_INVALID')
         age_ms = (now - facts.observed_at).total_seconds() * 1000
         if (not 0 <= age_ms <= self._recovery_policy.max_fact_age_ms
@@ -126,6 +127,44 @@ class LegacyFinancialRecoveryAdapter:
                     or record['state'] != 'TERMINAL' and (reservation.state == 'TERMINAL' or wal.state == 'TERMINAL'
                                                           or reservation.remaining_base != original.quantity_base - native_quantity)):
                 raise StorageError('SPOT_FINANCIAL_RECOVERY_NATIVE_HOLD_MISMATCH')
+
+    def _resume_ack(self, command, facts, cut, owner):
+        view, meta, previous = self._financial_recovery_guard(command, facts.account, cut, owner, 'ack')
+        if previous['state'] == 'ACKED':
+            return self._ack_receipt(self.binding, previous['command'], 'ACKED', True)
+        commands = thaw(meta.resources['commands'])
+        acknowledgements = thaw(meta.resources['acknowledgements'])
+        record = commands[command.prepare_operation_id]
+        prepared = PrepareSpot.from_json(record['command'])
+        if ((facts.client_order_id, facts.exchange_order_id, facts.market, facts.side,
+             facts.quantity_base_life, facts.limit_price_usdt) != (
+                command.client_order_id, command.exchange_order_id, command.market, command.side,
+                prepared.quantity_base, prepared.limit_price_usdt)
+                or facts.cumulative_base_life != self._ledger.reservation_state(command.intent_id).filled_base
+                or command.client_order_id not in facts.account.accepted_wire_ids):
+            raise StorageError('SPOT_ACK_RECOVERY_ORDER_MISMATCH')
+        self._ack_evidence(command, record)
+        fills, cashflows = meta.resources.get('fills', {}), meta.resources.get('cashflows', {})
+        self._verify_recovery_projection(commands, fills, cashflows, facts.account)
+        self._verify_fill_projection(commands, fills)
+        self._verify_capital_projection(commands, fills, cashflows)
+        acknowledgements[command.operation_id]['recovery_facts'] = facts.json()
+        stage = 'ack-resume:' + fingerprint({'operation': command.operation_id, 'facts': facts.json(), 'cut': cut.json()})
+        try:
+            self._publish_ack(stage, owner, commands, acknowledgements, dict(view.cut.components))
+            self._wal.acknowledge(command.intent_id, command.exchange_order_id)
+            wal = self._wal.get(command.intent_id)
+            if wal.state != 'ACKED' or wal.exchange_order_id != command.exchange_order_id:
+                raise StorageError('SPOT_ACK_PUBLICATION_INCOMPLETE')
+            verified = self._snapshot()
+            record['state'] = 'ACKED'
+            acknowledgements[command.operation_id]['state'] = 'ACKED'
+            self._publish_ack('ack-done:' + command.operation_id, owner, commands, acknowledgements,
+                              dict(verified.cut.components))
+            return self._ack_receipt(self.binding, command.json(), 'ACKED', False)
+        except BaseException:
+            self._uncertain = True
+            raise CommitUnknown('SPOT_ACK_RESUME_UNKNOWN') from None
 
     def _resume_fill(self, command, facts, cut, owner):
         view, meta, previous = self._financial_recovery_guard(command, facts, cut, owner, 'fill')
@@ -212,14 +251,15 @@ class LegacyFinancialRecoveryAdapter:
             raise CommitUnknown('SPOT_CASHFLOW_RESUME_UNKNOWN') from None
 
     async def _financial_resume_command(self, command, facts, cut, owner, kind):
-        expected = FillSpot if kind == 'fill' else CashflowSpot
-        if (not isinstance(command, expected) or not isinstance(facts, SpotFinancialRecoveryFacts)
+        expected = {'fill': FillSpot, 'cash': CashflowSpot, 'ack': AckSpot}[kind]
+        fact_type = SpotAckRecoveryFacts if kind == 'ack' else SpotFinancialRecoveryFacts
+        if (not isinstance(command, expected) or not isinstance(facts, fact_type)
                 or not isinstance(cut, FinancialCut) or not isinstance(owner, OwnerToken)):
             raise StorageError('SPOT_FINANCIAL_RECOVERY_COMMAND_INVALID')
         self._assert_binding(cut.checkpoint.binding)
-        self._assert_binding(facts.binding)
+        self._assert_binding(facts.account.binding if kind == 'ack' else facts.binding)
         try:
-            function = self._resume_fill if kind == 'fill' else self._resume_cashflow
+            function = {'fill': self._resume_fill, 'cash': self._resume_cashflow, 'ack': self._resume_ack}[kind]
             return await self._call(function, command, facts, cut, owner)
         except asyncio.CancelledError:
             self._uncertain = True
@@ -230,3 +270,6 @@ class LegacyFinancialRecoveryAdapter:
 
     async def resume_cashflow(self, command, *, facts, cut, owner):
         return await self._financial_resume_command(command, facts, cut, owner, 'cash')
+
+    async def resume_ack(self, command, *, facts, cut, owner):
+        return await self._financial_resume_command(command, facts, cut, owner, 'ack')

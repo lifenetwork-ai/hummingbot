@@ -198,8 +198,8 @@ changes neither ownership nor capital/budget values. Generic checkpoint UoWs
 still require ACTIVE and unexpired ownership. An ACK does not clear session
 expiry, owner mode or another unknown attempt. External session/journal changes
 still require qualified reconciliation; this slice does not bypass a mismatched
-cut to capture arbitrary observations. Terminal attempts, recovery completion
-and transport authentication remain future command/bridge work. ACK after an
+cut to capture arbitrary observations. Qualified terminal and exact pending
+recovery ports are described below; transport authentication remains bridge work. ACK after an
 already applied fill validates the partially filled reservation and retained
 subsidy claim, rather than requiring an unfilled hold.
 
@@ -416,9 +416,35 @@ resend an order, refund fees/subsidy, reset budgets, complete another operation,
 issue grants or change approved policies. Native states that cannot produce a
 healthy spendable snapshot, including an underfunded withdrawal with outstanding
 claims, remain blocked for the separately qualified control-plane/import workflow.
-General prepare/arm/ACK recovery, approval changes and filled economic settlement
+General prepare/arm recovery, approval changes and filled economic settlement
 remain open. Retained projection/native checks still scan history; this is not an
 O.8 performance or PostgreSQL/full-product equivalence milestone.
+
+### Exact pending ACK recovery
+
+`resume_ack()` completes only an existing durable ACKING operation using its
+immutable original ACK command and writer. `SpotAckRecoveryFacts` adds fresh order
+wire/exchange ID, LIFE-USDT side, quantity, limit price, cumulative fill and exchange
+status to the complete account facts above. Identity and terms must match the
+prepared order; cumulative quantity must match already accounted native fills.
+Unaccounted fills require their separately qualified workflow before ACK recovery.
+The original optional recovery freshness policy remains bound to the coordinator.
+
+Before writing, account, native capital, trade/fee/bill, loss/subsidy and retained
+hold projections must agree. Unrelated partial operations or foreign native state
+deny recovery. Fresh recovery facts are recorded separately from the original
+command. Recovery writes the exact WAL ACK, verifies ACKED/exchange ID, then
+publishes the coordinator receipt; completed replay returns historical readback
+without another write or a new account-health assertion.
+
+LIVE, PARTIALLY_FILLED, FILLED and CANCELED are observation states with validated
+cumulative quantities. Even FILLED/CANCELED facts do not terminalize the attempt,
+release principal/fee/subsidy claims or settle inventory economics. Cold resume
+stays unarmed after completion or expiry. Cancellation retains account exclusion
+until the admitted worker finishes; failed writes require cold readback. Tests
+cover actual process exits after native ACK and final receipt publication. Source
+facts still require the pending authenticated account/order/runner bridge; these
+offline tests do not qualify that bridge, power-loss durability or PostgreSQL.
 
 ### Spot test commands
 
@@ -435,6 +461,8 @@ conda run -n hummingbot python -m pytest -q \
   test/hummingbot/strategy_v2/life_liquidity/storage/test_spot_terminal_contracts.py
 conda run -n hummingbot python -m pytest -q \
   test/hummingbot/strategy_v2/life_liquidity/storage/test_spot_financial_recovery.py
+conda run -n hummingbot python -m pytest -q \
+  test/hummingbot/strategy_v2/life_liquidity/storage/test_spot_ack_recovery.py
 ```
 
 Tests exercise the actual journals, BUY/SELL and fee claims, budget limits/spending

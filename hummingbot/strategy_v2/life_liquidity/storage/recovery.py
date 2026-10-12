@@ -12,7 +12,14 @@ from hummingbot.strategy_v2.life_liquidity.storage.contracts import (
     identifier,
     utc,
 )
-from hummingbot.strategy_v2.life_liquidity.storage.financial import FillReceipt, FillSpot, FinancialCut, decimal
+from hummingbot.strategy_v2.life_liquidity.storage.financial import (
+    AckReceipt,
+    AckSpot,
+    FillReceipt,
+    FillSpot,
+    FinancialCut,
+    decimal,
+)
 from hummingbot.strategy_v2.life_liquidity.storage.terminal import SpotTerminalRepository
 
 
@@ -64,7 +71,43 @@ class SpotFinancialRecoveryFacts:
                 list(value) if type(value) is tuple else value for key, value in self.__dict__.items()}
 
 
+@dataclass(frozen=True)
+class SpotAckRecoveryFacts:
+    account: SpotFinancialRecoveryFacts
+    client_order_id: str
+    exchange_order_id: str
+    market: str
+    side: str
+    quantity_base_life: Decimal
+    limit_price_usdt: Decimal
+    cumulative_base_life: Decimal
+    exchange_state: str
+
+    def __post_init__(self):
+        if not isinstance(self.account, SpotFinancialRecoveryFacts):
+            raise StorageError('SPOT_ACK_RECOVERY_FACTS_INVALID')
+        AckSpot('validate', 'validate', 'validate', self.client_order_id, self.market, self.side,
+                'validate', 1, self.exchange_order_id, self.account.observed_at)
+        for key in ('quantity_base_life', 'limit_price_usdt', 'cumulative_base_life'):
+            object.__setattr__(self, key, decimal(getattr(self, key)))
+        quantity, cumulative = self.quantity_base_life, self.cumulative_base_life
+        if (quantity <= 0 or self.limit_price_usdt <= 0 or not 0 <= cumulative <= quantity
+                or self.exchange_state not in ('LIVE', 'PARTIALLY_FILLED', 'FILLED', 'CANCELED')
+                or self.exchange_state == 'LIVE' and cumulative != 0
+                or self.exchange_state == 'PARTIALLY_FILLED' and not 0 < cumulative < quantity
+                or self.exchange_state == 'FILLED' and cumulative != quantity):
+            raise StorageError('SPOT_ACK_RECOVERY_FACTS_INVALID')
+
+    def json(self):
+        return {key: value.json() if isinstance(value, SpotFinancialRecoveryFacts) else
+                str(value) if type(value) is Decimal else value for key, value in self.__dict__.items()}
+
+
 class SpotFinancialRecoveryRepository(SpotTerminalRepository, Protocol):
+    async def resume_ack(self, command: AckSpot, *, facts: SpotAckRecoveryFacts,
+                         cut: FinancialCut, owner: OwnerToken) -> AckReceipt:
+        ...
+
     async def resume_fill(self, command: FillSpot, *, facts: SpotFinancialRecoveryFacts,
                           cut: FinancialCut, owner: OwnerToken) -> FillReceipt:
         ...

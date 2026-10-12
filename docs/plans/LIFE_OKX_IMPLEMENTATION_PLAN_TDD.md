@@ -30,6 +30,8 @@ Architecture and economics reviewed on 2026-10-01. Review findings are mapped to
 
 **Exact financial recovery storage (2026-10-12):** the [PG plan](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md) now records exact pending FILLING/CASHFLOWING resume with immutable original command/writer/valuation facts and fresh account qualification. Actual native-subset and final expected accounting projections reject unmatched activity; native checkpoints, fees, loss and subsidy are deduplicated across restart without rearm/resend or refunds. General prepare/arm/ACK recovery, control-plane repair/import, filled inventory/exit settlement, authenticated controller/gateway integration and PostgreSQL/O.8 gates remain open.
 
+**Exact pending ACK recovery storage (2026-10-12):** `resume_ack()` now requires the original durable ACK/writer and fresh account/order facts matching wire, exchange ID, side, quantity, price and already accounted fills. Native capital, fee, loss and subsidy projections gate WAL ACK and receipt publication; failed/cancelled/killed operations retain recovery barriers. FILLED/CANCELED observations release no holds, and cold completion grants no trading permission. Prepare/arm recovery, filled inventory/exit settlement, authenticated bridge/controller integration, PostgreSQL financial authority and O.8/demo/live gates remain open in the [PG plan](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md).
+
 ## 1. Objectives and Scope
 
 Build a market-making system for LIFE–USDT on OKX that can be tested before LIFE is listed. Support spot and linear perpetual swaps when OKX opens each market for trading. Session duration is configurable; four hours is only an example.
