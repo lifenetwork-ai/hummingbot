@@ -168,8 +168,35 @@ original command/cut/writer and flat native before images allow cold recovery
 after wallet, loss or receipt interruption. Unknown formats fail before money;
 archived-format reconstruction remains an import gate. No cash receipt rearms.
 
-This mode rejects any SPOT claim before native settlement: one coupled batch
-for spot fills, fees, subsidy and SWAP settlements still needs implementation.
+Cash-only mode rejects SPOT claims before native settlement. Explicit
+`couple_cash=True, couple_spot=True` additionally requires a terminal policy and
+rejects a competing native fill attributor. Call
+`reconcile(binding, owner, spot_fills=(...), spot_facts=...)` with frozen
+`FillSpot` snapshots and fresh `SpotFinancialRecoveryFacts`. Source facts must
+match the native proof's exact observation time, account/wire/trade/bill scope
+and zero spot liabilities. New trades require independent fill-time prices;
+historical references and original full fill commands are restored from the
+verified journal. A current index price never replaces a missing old price.
+
+`JointCashSpot.spot_fills` extends the accounting saga without changing old
+cash-only command encodings. One native wallet checkpoint applies spot fills,
+LIFE/USDT fees/rebates and SWAP settlements in causal order (spot before joint
+cash at equal time). Loss/fill-floor postconditions precede the final combined
+projection. Original flat before images admit only the exact wallet before or
+after and known partial loss/floor changes during cold repair. Later activity
+can extend a pending batch after repairing its original command. It cannot
+rewrite an old fee, price or reference.
+
+Working spot orders retain their unknown-send state and holds; a fill receipt
+does not manufacture an ACK. Complete native terminal and explicit account facts
+run the store's existing terminal saga before shared-capital release. Multiple
+owned orders are accepted only through the complete native proof. Zero-fill
+termination releases proven unused subsidy; filled subsidy stays held for its
+economic settlement. Wallet/loss/floor/receipt/terminal/capital interruptions
+repair on fresh objects without another send or fee. Cold repair never rearms.
+
+SPOT unsent preparations and composition with unrelated pending ACK/fill/cashflow
+sagas still require application/readback work; they are not silently adopted.
 Controller installation in these tests is explicit isolated fixture assembly,
 not a complete configured service factory. SWAP submit/ACK, hedge
 child/retry application, controller planning/events and configured startup remain

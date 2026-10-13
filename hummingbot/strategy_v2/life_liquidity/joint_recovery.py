@@ -532,7 +532,7 @@ class JointRecovery:
             self.journal.commit(state)
         self.sender.request_budget.charge("STATUS", "joint:" + uuid.uuid4().hex)
 
-    def _complete_reconciliation(self, bundle, context, prepared):
+    def _complete_reconciliation(self, bundle, context, prepared, spot_fills=(), spot_facts=None):
         # This flag belongs to the physical checkpoint section. Cancelling an
         # awaiter cannot remove release qualification from an admitted worker.
         self._busy = True
@@ -549,7 +549,8 @@ class JointRecovery:
                 cash_settlement = None
                 if self._repository_application is not None:
                     cash_settlement = self._repository_application.prepare_cash_settlement(
-                        orders, events, encoded, obs, digest(encoded) if prepared is None else prepared.proof_id)
+                        orders, events, encoded, obs, digest(encoded) if prepared is None else prepared.proof_id,
+                        spot_fills, spot_facts)
                 # A COMMITTED immutable terminal cut has already completed
                 # all cross-journal checkpoints. Re-qualify all facts, but
                 # do not replay durable financial writes for settled orders.
@@ -570,9 +571,9 @@ class JointRecovery:
                              valuation=valuation, highwater=valuation["highwater_quote"])
                 self.journal.commit(state)  # Intent-to-settle precedes every financial/WAL checkpoint.
                 if cash_settlement is not None:
-                    self._repository_application.apply_cash_settlement(cash_settlement)
+                    self._repository_application.apply_cash_settlement(cash_settlement, orders, spot_facts)
                 if not no_settlement:
-                    self._apply({k: o for k, o in orders.items() if k not in completed}, events, state["proof_id"])
+                    self._apply({k: o for k, o in orders.items() if k not in completed}, events, state["proof_id"], spot_facts)
                     if coordinator is not None:
                         coordinator.reconcile_joint_preparations(authority=self, proof_id=state["proof_id"])
                 if (self.reservations.life_balance, self.reservations.usdt_balance) != (
@@ -594,7 +595,7 @@ class JointRecovery:
             return await application.reconcile(application.binding, application.owner)
         return await self._reconcile()
 
-    async def _reconcile(self):
+    async def _reconcile(self, spot_fills=(), spot_facts=None):
         async with self._mutex:
             if self._repository_application is None:
                 self._busy = True
@@ -613,7 +614,7 @@ class JointRecovery:
                 prepared = None
                 if self.history_worker is not None:
                     prepared = await self._prepare_history(bundle, context)
-                return await self._checkpoint(self._complete_reconciliation, bundle, context, prepared)
+                return await self._checkpoint(self._complete_reconciliation, bundle, context, prepared, spot_fills, spot_facts)
             except asyncio.CancelledError:
                 self._healthy = False
                 self._armed = False
@@ -709,7 +710,8 @@ class JointRecovery:
             if key in active or record is None or record.state not in ("TERMINAL", "ABORTED_BEFORE_SEND"):
                 continue
             if order.claim.product == "SPOT" and order.state != "unsent":
-                if order.trades and attributor is None:
+                if order.trades and attributor is None and not (
+                        self._repository_application is not None and self._repository_application._couple_spot):
                     continue
                 item = reservations.get(key)
                 if item is None or item.state != "TERMINAL" or item.filled_base != sum((t.quantity_base for t in order.trades), ZERO):
@@ -724,7 +726,7 @@ class JointRecovery:
             completed.add(key)
         return completed
 
-    def _apply(self, orders, events, proof_id):
+    def _apply(self, orders, events, proof_id, spot_facts=None):
         records_by_product = {"SPOT": {r.intent_id: r for r in self.spot_wal.all_records()},
                               "SWAP": {r.intent_id: r for r in self.sender.wal.all_records()}}
         spot = tuple((o.claim.intent_id, tuple((t.trade_id, t.quantity_base, t.price_usdt,
@@ -732,9 +734,10 @@ class JointRecovery:
                      for o in orders.values() if o.claim.product == "SPOT" and o.state != "unsent")
         self.reservations.apply_joint_snapshot(spot, events)
         gateway = self.controller._order_safety_gateway
+        coupled_spot = self._repository_application is not None and self._repository_application._couple_spot
         attribution = []
         for order in orders.values():
-            if order.claim.product == "SPOT" and order.state != "unsent":
+            if order.claim.product == "SPOT" and order.state != "unsent" and not coupled_spot:
                 fills = tuple(SpotFill(t.trade_id, t.quantity_base, t.price_usdt, t.fee_currency, t.signed_fee, t.at_ms)
                               for t in order.trades)
                 total = sum((t.quantity_base for t in order.trades), ZERO)
@@ -748,6 +751,11 @@ class JointRecovery:
             raise ValueError("JOINT_SPOT_ATTRIBUTION_REQUIRED")
         for order in orders.values():
             c = order.claim
+            if c.product == 'SPOT' and coupled_spot:
+                self._repository_application.apply_spot_order(order, spot_facts)
+                if order.state in TERMINAL:
+                    self.capital.settle(c, proof_id, authority=self)
+                continue
             wal = self.spot_wal if c.product == "SPOT" else self.sender.wal
             records = records_by_product[c.product]
             total = sum((t.quantity_base for t in order.trades), ZERO)

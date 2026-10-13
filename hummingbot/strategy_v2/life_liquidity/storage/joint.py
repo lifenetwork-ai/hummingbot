@@ -27,6 +27,9 @@ from hummingbot.strategy_v2.life_liquidity.storage.contracts import (
     utc,
 )
 from hummingbot.strategy_v2.life_liquidity.storage.file import FileCheckpointStore
+from hummingbot.strategy_v2.life_liquidity.storage.financial import FillSpot, PrepareSpot, SpotFillObservation
+from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancialRecoveryFacts
+from hummingbot.strategy_v2.life_liquidity.storage.terminal import SpotTerminalFacts, TerminalSpot
 
 
 @dataclass(frozen=True)
@@ -38,6 +41,12 @@ class JointLimits:
     def __post_init__(self):
         if any(type(v) is not int or v <= 0 for v in vars(self).values()):
             raise StorageError('JOINT_CAPACITY_INVALID')
+
+
+@dataclass(frozen=True)
+class _SpotFillProjection:
+    spot_fills: tuple[FillSpot, ...]
+    observed_at: datetime
 
 
 @dataclass(frozen=True)
@@ -61,7 +70,8 @@ class SwapFinancialView:
 
 
 class JointRepository(Protocol):
-    async def reconcile(self, binding: StateBinding, owner: OwnerToken) -> bool:
+    async def reconcile(self, binding: StateBinding, owner: OwnerToken, *,
+                        spot_fills: tuple[FillSpot, ...] = (), spot_facts: SpotFinancialRecoveryFacts | None = None) -> bool:
         ...
 
     async def cancel_working_swaps(self, binding: StateBinding, owner: OwnerToken) -> None:
@@ -78,13 +88,13 @@ class FileJointRepository:
     """Native checkpoints share the owning store worker.
 
 Explicit cash coupling publishes SWAP cash and loss provenance to the spot
-store. Batches containing SPOT claims still require the joint fill port.
+store. Spot coupling additionally requires independent fill and account facts.
 """
     atomic_scope = AtomicScope.RECOVERABLE_SAGA
 
-    def __init__(self, store, recovery, owner, limits, couple_cash=False):
+    def __init__(self, store, recovery, owner, limits, couple_cash=False, couple_spot=False):
         from hummingbot.strategy_v2.life_liquidity.storage.legacy_spot import LegacySpotStore
-        if (type(couple_cash) is not bool
+        if (type(couple_cash) is not bool or type(couple_spot) is not bool or couple_spot and not couple_cash
                 or type(store) is not (LegacySpotStore if couple_cash else FileCheckpointStore)
                 or type(recovery) is not JointRecovery
                 or not isinstance(owner, OwnerToken) or not isinstance(limits, JointLimits)
@@ -94,10 +104,13 @@ store. Batches containing SPOT claims still require the joint fill port.
         self.store, self.binding = store, store.binding
         self.owner, self._recovery, self.limits = owner, recovery, limits
         self._couple_cash = couple_cash
+        self._couple_spot = couple_spot
         if couple_cash and (store._ledger is not recovery.reservations or store._wal is not recovery.spot_wal
                             or recovery.controller._execution_loss_budget is not store._loss
                             or store._accounting_policy is None or store._recovery_policy is None):
             raise StorageError('JOINT_CASH_LEDGER_BINDING_MISMATCH')
+        if couple_spot and (store._terminal_policy is None or recovery.controller._fill_attributor is not None):
+            raise StorageError('JOINT_SPOT_APPLICATION_ASSEMBLY_UNSUPPORTED')
         self._revoked = False
         self._admitted = set()
         self._capture_policy = HistoryWorkerPolicy(limits.max_orders, limits.max_trades,
@@ -128,16 +141,23 @@ store. Batches containing SPOT claims still require the joint fill port.
                     or c._execution_loss_budget is not self.store._loss):
                 raise StorageError('JOINT_CASH_LEDGER_BINDING_MISMATCH')
             result['coupled_cash'] = True
+        if self._couple_spot:
+            if c._fill_attributor is not None or self.store._terminal_policy is None:
+                raise StorageError('JOINT_SPOT_APPLICATION_ASSEMBLY_UNSUPPORTED')
+            result['coupled_spot'] = True
         return result
 
-    def prepare_cash_settlement(self, orders, events, encoded, observation, proof_id):
+    def prepare_cash_settlement(self, orders, events, encoded, observation, proof_id, spot_fills=(), spot_facts=None):
         if not self._couple_cash:
             return None
-        if any(order.claim.product == 'SPOT' for order in orders.values()):
+        spot_orders = {key: o for key, o in orders.items() if o.claim.product == 'SPOT'}
+        if spot_orders and not self._couple_spot:
             raise StorageError('JOINT_SPOT_BATCH_PORT_REQUIRED')
         from hummingbot.strategy_v2.life_liquidity.storage.joint_settlement import JointCashEvent, JointCashSpot
         source_events = {}
         for order in orders.values():
+            if order.claim.product != 'SWAP':
+                continue
             for trade in order.trades:
                 key = f'JOINT:{trade.at_ms}:TRADE:{trade.trade_id}'
                 source_events[key] = JointCashEvent(key, trade.realized_pnl_quote + trade.signed_fee,
@@ -148,19 +168,90 @@ store. Batches containing SPOT claims still require the joint fill port.
         if {key: v.signed_amount_usdt for key, v in source_events.items()} != events:
             raise StorageError('JOINT_CASH_SOURCE_MISMATCH')
         resources = self.store._read().resources
+        qualified_fills = self._prepare_spot_fills(spot_orders, spot_fills, spot_facts, resources,
+                                                   observation, encoded, proof_id)
         retained = {key: JointCashEvent.from_json(v['event']) for key, v in resources.get('joint_cashflows', {}).items()}
         for key, value in source_events.items():
             if key in retained and retained[key] != value:
                 raise StorageError('JOINT_CASH_SOURCE_MISMATCH')
             retained[key] = value
-        if not retained:
+        if not retained and not spot_orders:
             return None
         return JointCashSpot('joint:' + proof_id, self.binding, proof_id,
                              datetime.fromtimestamp(encoded['observed_at_ms'] / 1000, timezone.utc),
                              tuple(retained.values()), observation.spot_life_base, observation.spot_cash_quote,
-                             True, True, 'okx_joint_reconciled')
+                             True, True, 'okx_joint_reconciled', qualified_fills)
 
-    def apply_cash_settlement(self, command):
+    def _prepare_spot_fills(self, orders, supplied, facts, resources, observation, encoded, proof_id):
+        if not orders:
+            if supplied or facts is not None:
+                raise StorageError('JOINT_SPOT_SOURCE_SCOPE_MISMATCH')
+            return ()
+        if (facts is None or facts.binding != self.binding
+                or facts.observed_at != datetime.fromtimestamp(encoded['observed_at_ms'] / 1000, timezone.utc)
+                or (facts.account_base_life, facts.account_quote_usdt) != (
+                    observation.spot_life_base, observation.spot_cash_quote)
+                or not facts.order_scope_complete or not facts.bill_scope_complete or not facts.runner_scope_complete
+                or facts.liability_base_life != 0 or facts.liability_quote_usdt != 0
+                or set(facts.accepted_wire_ids) != {o.claim.wire_id for o in orders.values()}
+                or not set(facts.runner_wire_ids).issubset({r.client_order_id for r in self.store._wal.all_records()})
+                or any(o.state == 'unsent' for o in orders.values())):
+            raise StorageError('JOINT_SPOT_ACCOUNT_FACTS_REQUIRED')
+        source = {v.intent_id: v for v in supplied}
+        if len(source) != len(supplied) or not set(source).issubset(orders):
+            raise StorageError('JOINT_SPOT_SOURCE_SCOPE_MISMATCH')
+        retained = {key: SpotFillObservation.from_json(row['fill']) for key, row in resources.get('fills', {}).items()}
+        previous_rows = [FillSpot.from_json(v['command']) for v in resources.get('fill_operations', {}).values()]
+        from hummingbot.strategy_v2.life_liquidity.storage.joint_settlement import JointCashSpot
+        for operation in resources.get('joint_cash_operations', {}).values():
+            for row in JointCashSpot.from_json(operation['command']).spot_fills:
+                previous_rows.append(row)
+                for fill in row.fills:
+                    previous = retained.setdefault(fill.trade_id, fill)
+                    if previous != fill:
+                        raise StorageError('JOINT_SPOT_SOURCE_HISTORY_CHANGED')
+        result = []
+        for key, order in orders.items():
+            matches = [v for v in resources['commands'].values() if v['command']['intent_id'] == key]
+            if len(matches) != 1:
+                raise StorageError('JOINT_SPOT_PREPARATION_REQUIRED')
+            prepared = PrepareSpot.from_json(matches[0]['command'])
+            claim = order.claim
+            if (claim.wire_id, claim.session_id, claim.epoch, claim.config_version, claim.side,
+                    claim.quantity_base, claim.price_usdt) != (
+                    prepared.client_order_id, prepared.session_id, prepared.epoch, prepared.config_version,
+                    prepared.side, prepared.quantity_base, prepared.limit_price_usdt):
+                raise StorageError('JOINT_SPOT_CLAIM_MISMATCH')
+            if not order.trades:
+                if key in source:
+                    raise StorageError('JOINT_SPOT_SOURCE_SCOPE_MISMATCH')
+                continue
+            row = source.get(key)
+            if row is None:
+                if any(t.trade_id not in retained for t in order.trades):
+                    raise StorageError('JOINT_SPOT_FILL_REFERENCE_REQUIRED')
+                ids = {t.trade_id for t in order.trades}
+                row = next((v for v in previous_rows if v.intent_id == key
+                            and {f.trade_id for f in v.fills} == ids), None)
+                if row is None:
+                    raise StorageError('JOINT_SPOT_FILL_REFERENCE_REQUIRED')
+            expected = {(t.trade_id, t.quantity_base, t.price_usdt, t.fee_currency, t.signed_fee, t.at_ms)
+                        for t in order.trades}
+            if ((row.prepare_operation_id, row.client_order_id, row.market, row.side, row.session_id, row.epoch,
+                 row.exchange_order_id) != (prepared.operation_id, claim.wire_id, prepared.market, claim.side,
+                                            claim.session_id, claim.epoch, order.exchange_order_id)
+                    or {(f.trade_id, f.quantity_base_life, f.price_usdt, f.fee_currency, f.signed_fee, f.fill_at_ms)
+                        for f in row.fills} != expected
+                    or any(f.trade_id in retained and retained[f.trade_id] != f for f in row.fills)):
+                raise StorageError('JOINT_SPOT_SOURCE_HISTORY_CHANGED')
+            result.append(row)
+        candidate = _SpotFillProjection(tuple(result), facts.observed_at)
+        fills, _ = self.store._joint_fill_projection(candidate, resources, self.owner)
+        if set(facts.account_trade_ids) != set(fills) or set(facts.account_cashflow_ids) != set(resources.get('cashflows', {})):
+            raise StorageError('JOINT_SPOT_ACCOUNT_FACTS_REQUIRED')
+        return tuple(result)
+
+    def apply_cash_settlement(self, command, orders=None, spot_facts=None):
         if command is None:
             return
         from hummingbot.strategy_v2.life_liquidity.storage.financial import FinancialCut
@@ -170,10 +261,50 @@ store. Batches containing SPOT claims still require the joint fill port.
                 continue
             original = JointCashSpot.from_json(thaw(row['command']))
             self.store._apply_joint_cash(original, FinancialCut.from_json(thaw(row['cut'])), self.owner, True)
+        if self._couple_spot:
+            for row in self.store._read().resources.get('terminal_operations', {}).values():
+                if row['state'] != 'TERMINAL':
+                    order = orders.get(row['command']['intent_id'])
+                    if order is None:
+                        raise StorageError('JOINT_SPOT_TERMINAL_SOURCE_MISSING')
+                    self.apply_spot_order(order, spot_facts)
         previous = self.store._read().resources.get('joint_cash_operations', {}).get(command.operation_id)
         cut = (FinancialCut.from_json(thaw(previous['cut'])) if previous is not None
                else self.store._snapshot().cut)
         self.store._apply_joint_cash(command, cut, self.owner, recovery_authority=self._recovery)
+
+    def apply_spot_order(self, order, facts):
+        if not self._couple_spot or not self._recovery.authorizes_order(order, self._recovery.journal._state['proof_id']):
+            raise StorageError('JOINT_SPOT_ORDER_AUTHORITY_INVALID')
+        # A working order stays conservatively SEND_UNKNOWN until terminal
+        # qualification. A recorded fill is not an ACK or a resend permission.
+        if order.state not in ('filled', 'canceled'):
+            return
+        resources = self.store._read().resources
+        rows = [r for r in resources['commands'].values() if r['command']['intent_id'] == order.claim.intent_id]
+        if len(rows) != 1 or facts is None:
+            raise StorageError('JOINT_SPOT_TERMINAL_SOURCE_MISSING')
+        prepared = PrepareSpot.from_json(rows[0]['command'])
+        recorded = tuple(SpotFillObservation.from_json(r['fill']) for r in resources.get('fills', {}).values()
+                         if r['intent_id'] == order.claim.intent_id)
+        wires = {r.client_order_id for r in self.store._wal.all_records()}
+        pending = tuple(v for v in self._recovery.journal._state['bundle']['pending_wire_ids'] if v in wires)
+        exchange = tuple(r.exchange_order_id for r in self.store._wal.all_records()
+                         if r.client_order_id in pending and r.exchange_order_id is not None)
+        terminal_facts = SpotTerminalFacts(
+            self.binding, facts.observed_at, 'FILLED' if order.state == 'filled' else 'CANCELED',
+            sum((f.quantity_base_life for f in recorded), Decimal('0')), prepared.quantity_base,
+            prepared.limit_price_usdt, recorded, facts.account_base_life, facts.account_quote_usdt,
+            facts.liability_base_life, facts.liability_quote_usdt, facts.account_trade_ids, facts.account_cashflow_ids,
+            pending, exchange, facts.runner_wire_ids, facts.order_scope_complete, facts.bill_scope_complete,
+            facts.runner_scope_complete)
+        operation_id = 'jointterm:' + fingerprint({'intent': order.claim.intent_id, 'exchange': order.exchange_order_id})
+        command = TerminalSpot(operation_id, prepared.operation_id, prepared.intent_id, prepared.client_order_id,
+                               prepared.market, prepared.side, prepared.session_id, prepared.epoch,
+                               order.exchange_order_id, terminal_facts)
+        previous = resources.get('terminal_operations', {}).get(operation_id)
+        self.store._confirm_terminal(command, self.store._snapshot().cut, self.owner, previous is not None,
+                                     joint_authority=self._recovery)
 
     def _guard(self):
         self.store.assert_worker_thread()
@@ -286,11 +417,19 @@ store. Batches containing SPOT claims still require the joint fill port.
         self._admitted.add(task)
         return task
 
-    async def reconcile(self, binding, owner):
+    async def reconcile(self, binding, owner, *, spot_fills=(), spot_facts=None):
         self._request(binding, owner)
+        if (type(spot_fills) is not tuple or any(type(v) is not FillSpot for v in spot_fills)
+                or spot_facts is not None and type(spot_facts) is not SpotFinancialRecoveryFacts
+                or len(spot_fills) > self.limits.max_orders
+                or sum(len(v.fills) for v in spot_fills) > self.limits.max_trades
+                or len(encode({'fills': [v.json() for v in spot_fills],
+                               'facts': None if spot_facts is None else spot_facts.json()})) > self.limits.max_snapshot_bytes
+                or not self._couple_spot and (spot_fills or spot_facts is not None)):
+            raise StorageError('JOINT_SPOT_CAPTURE_INVALID_OR_CAPACITY')
         task = self._admit()
         try:
-            return await self._recovery._reconcile()
+            return await self._recovery._reconcile(spot_fills, spot_facts)
         except asyncio.CancelledError:
             self.revoke()
             raise
@@ -336,8 +475,8 @@ store. Batches containing SPOT claims still require the joint fill port.
         return await self._checkpoint(self._swap_state)
 
 
-async def open_file_joint(store, *, recovery, owner, limits, couple_cash=False):
-    repo = FileJointRepository(store, recovery, owner, limits, couple_cash)
+async def open_file_joint(store, *, recovery, owner, limits, couple_cash=False, couple_spot=False):
+    repo = FileJointRepository(store, recovery, owner, limits, couple_cash, couple_spot)
     try:
         await store._call(repo._initialize)
     except asyncio.CancelledError:

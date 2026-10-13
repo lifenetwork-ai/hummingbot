@@ -28,7 +28,8 @@ from hummingbot.strategy_v2.life_liquidity.storage.contracts import (
     thaw,
     utc,
 )
-from hummingbot.strategy_v2.life_liquidity.storage.financial import FinancialCut, decimal, signed_decimal
+from hummingbot.strategy_v2.life_liquidity.storage.financial import FillSpot, FinancialCut, decimal, signed_decimal
+from hummingbot.strategy_v2.life_liquidity.storage.joint_fills import LegacyJointFillAdapter
 
 
 @dataclass(frozen=True)
@@ -91,6 +92,7 @@ class JointCashSpot:
     order_scope_complete: bool
     bill_scope_complete: bool
     source_kind: str
+    spot_fills: tuple[FillSpot, ...] = ()
 
     def __post_init__(self):
         identifier(self.operation_id)
@@ -103,14 +105,20 @@ class JointCashSpot:
                 or any(type(v) is not bool for v in (self.order_scope_complete, self.bill_scope_complete))
                 or self.source_kind != 'okx_joint_reconciled'):
             raise StorageError('JOINT_CASH_COMMAND_INVALID')
+        if (type(self.spot_fills) is not tuple or any(type(v) is not FillSpot for v in self.spot_fills)
+                or len({v.intent_id for v in self.spot_fills}) != len(self.spot_fills)
+                or len({v.operation_id for v in self.spot_fills}) != len(self.spot_fills)
+                or len({f.trade_id for v in self.spot_fills for f in v.fills}) != sum(len(v.fills) for v in self.spot_fills)):
+            raise StorageError('JOINT_SPOT_FILL_SCOPE_INVALID')
+        object.__setattr__(self, 'spot_fills', tuple(sorted(self.spot_fills, key=lambda v: v.intent_id)))
         object.__setattr__(self, 'account_base_life', decimal(self.account_base_life))
         object.__setattr__(self, 'account_quote_usdt', decimal(self.account_quote_usdt))
         object.__setattr__(self, 'events', tuple(sorted(self.events, key=lambda v: (v.at_ms, v.event_id))))
 
     def json(self):
-        return {key: (v.json() if key == 'binding' else [item.json() for item in v] if key == 'events'
+        return {key: (v.json() if key == 'binding' else [item.json() for item in v] if key in ('events', 'spot_fills')
                       else str(v) if isinstance(v, Decimal) else v.isoformat() if isinstance(v, datetime) else v)
-                for key, v in vars(self).items()}
+                for key, v in vars(self).items() if key != 'spot_fills' or v}
 
     @classmethod
     def from_json(cls, data):
@@ -118,6 +126,7 @@ class JointCashSpot:
         values['binding'] = StateBinding.from_json(values['binding'])
         values['observed_at'] = datetime.fromisoformat(values['observed_at'])
         values['events'] = tuple(JointCashEvent.from_json(v) for v in values['events'])
+        values['spot_fills'] = tuple(FillSpot.from_json(v) for v in values.get('spot_fills', ()))
         for key in ('account_base_life', 'account_quote_usdt'):
             values[key] = Decimal(values[key])
         return cls(**values)
@@ -142,7 +151,23 @@ class JointCashRepository(Protocol):
         ...
 
 
-class LegacyJointCashAdapter:
+class LegacyJointCashAdapter(LegacyJointFillAdapter):
+    def _joint_recovery_observation_guard(self, view, owner, authority, proof_id):
+        meta = self._read()
+        now = utc(self._clock())
+        if (authority.reservations is not self._ledger or authority.spot_wal is not self._wal
+                or authority.controller._joint_recovery is not authority
+                or authority._repository_application is None or authority._repository_application.store is not self
+                or not authority._busy or authority.journal._state['phase'] != 'APPLYING'
+                or authority.journal._state['proof_id'] != proof_id
+                or authority.journal._read() != authority.journal._state
+                or meta.ownership.token != owner or meta.ownership.mode not in (
+                    OwnerMode.ACTIVE, OwnerMode.DRAINING, OwnerMode.RECOVERY_ONLY)
+                or now < owner.valid_from or self._incomplete(meta.resources)
+                or dict(view.cut.components) != dict(meta.resources['journal_hashes'])):
+            raise StorageError('JOINT_CASH_RECOVERY_AUTHORITY_INVALID')
+        return meta
+
     @staticmethod
     def _joint_cash_native_images(raw):
         # This saga can repair flat native before/after images. Archived-format
@@ -167,6 +192,7 @@ class LegacyJointCashAdapter:
                                                           'cut': row['cut']})):
                 raise StorageUnavailable('JOINT_CASH_PROJECTION_UNVERIFIED')
             command = JointCashSpot.from_json(row['command'])
+            self._verify_joint_fill_operations(command, resources)
             for event in command.events:
                 previous = expected_events.setdefault(event.event_id, event.json())
                 if previous != event.json():
@@ -184,11 +210,14 @@ class LegacyJointCashAdapter:
                     at_utc=datetime.fromtimestamp(event.at_ms / 1000, timezone.utc)):
                 raise StorageUnavailable('JOINT_CASH_LOSS_UNVERIFIED')
 
-    def _publish_joint_cash(self, key, owner, operations, events, hashes):
+    def _publish_joint_cash(self, key, owner, operations, events, hashes, fill_updates=None):
         meta = self._read()
-        return self._commit(meta.cut, owner, key, (
+        changes = (
             ('joint_cash_operations', encode(operations)), ('joint_cashflows', encode(events)),
-            ('journal_hashes', encode(hashes))), observation=True)
+            ('journal_hashes', encode(hashes)))
+        if fill_updates is not None:
+            changes += tuple((name, encode(value)) for name, value in fill_updates.items())
+        return self._commit(meta.cut, owner, key, changes, observation=True)
 
     def _apply_joint_cash(self, command, cut, owner, resume=False, *, recovery_authority=None):
         self._require_accounting()
@@ -218,17 +247,8 @@ class LegacyJointCashAdapter:
         if not resume:
             if recovery_authority is None:
                 self._ack_guard(view, owner)
-            elif (recovery_authority.reservations is not self._ledger
-                  or recovery_authority.spot_wal is not self._wal
-                  or recovery_authority.controller._joint_recovery is not recovery_authority
-                  or recovery_authority._repository_application is None
-                  or recovery_authority._repository_application.store is not self
-                  or not recovery_authority._busy
-                  or recovery_authority.journal._state['phase'] != 'APPLYING'
-                  or recovery_authority.journal._state['proof_id'] != command.proof_id
-                  or self._incomplete(meta.resources)
-                  or dict(view.cut.components) != dict(meta.resources['journal_hashes'])):
-                raise StorageError('JOINT_CASH_RECOVERY_AUTHORITY_INVALID')
+            else:
+                self._joint_recovery_observation_guard(view, owner, recovery_authority, command.proof_id)
             if view.cut != cut:
                 raise StorageConflict('SPOT_CUT_STALE')
             age_ms = (now - command.observed_at).total_seconds() * 1000
@@ -256,11 +276,21 @@ class LegacyJointCashAdapter:
             if key in events and events[key]['event'] != event.json():
                 raise StorageConflict('JOINT_CASH_EVENT_CONFLICT')
             events.setdefault(key, {'event': event.json(), 'operation_id': command.operation_id})
-        capital = self._capital_ledger(meta.resources['commands'], meta.resources.get('fills', {}),
+        fills, fill_operations = self._joint_fill_projection(command, meta.resources, owner)
+        capital = self._capital_ledger(meta.resources['commands'], fills,
                                        meta.resources.get('cashflows', {}), events)
         if (capital.life_balance, capital.usdt_balance) != (command.account_base_life, command.account_quote_usdt):
             raise StorageError('JOINT_CASH_ACCOUNT_MISMATCH')
         expected_loss = self._loss.verified_events()
+        for row in command.spot_fills:
+            for fill in row.fills:
+                loss_key = 'fill:' + fill.trade_id
+                loss = {'session_id': row.session_id,
+                        'day': datetime.fromtimestamp(fill.fill_at_ms / 1000, timezone.utc).date().isoformat(),
+                        'loss_quote': str(fill.loss(row.side))}
+                if loss_key in expected_loss and expected_loss[loss_key] != loss:
+                    raise StorageConflict('JOINT_CASH_LOSS_CONFLICT')
+                expected_loss[loss_key] = loss
         for key, event in supplied.items():
             if event.session_id is None:
                 continue
@@ -274,29 +304,32 @@ class LegacyJointCashAdapter:
         if resume:
             before = {name: bytes.fromhex(value) for name, value in previous['before_native'].items()}
             current = self._raw()
-            if any(current[name] != before[name] for name in ('session', 'wal', 'subsidy')):
+            if any(current[name] != before[name] for name in ('session', 'wal')):
                 raise StorageError('JOINT_CASH_RECOVERY_NATIVE_MISMATCH')
             loss_image, before_wallet = self._joint_cash_native_images(before)
             _, current_wallet = self._joint_cash_native_images(current)
             before_loss = loss_image['events']
             if (any(expected_loss.get(key) != value for key, value in before_loss.items())
                     or set(expected_loss) != set(before_loss) | {
-                        'swap:' + key.split(':')[3] for key, v in supplied.items() if v.session_id is not None}):
+                        'swap:' + key.split(':')[3] for key, v in supplied.items() if v.session_id is not None}
+                    | {'fill:' + fill.trade_id for row in command.spot_fills for fill in row.fills}):
                 raise StorageError('JOINT_CASH_RECOVERY_NATIVE_MISMATCH')
             # Monetary contents are checked below; all other native reservations,
             # fills and account-event provenance must remain the same.
-            for name in ('reservations', 'trades'):
-                if before_wallet[name] != current_wallet[name]:
+            if not command.spot_fills:
+                for name in ('reservations', 'trades'):
+                    if before_wallet[name] != current_wallet[name]:
+                        raise StorageError('JOINT_CASH_RECOVERY_NATIVE_MISMATCH')
+                if ({key: v for key, v in before_wallet['account_events'].items() if v[0] != 'JOINT'}
+                        != {key: v for key, v in current_wallet['account_events'].items() if v[0] != 'JOINT'}):
                     raise StorageError('JOINT_CASH_RECOVERY_NATIVE_MISMATCH')
-            if ({key: v for key, v in before_wallet['account_events'].items() if v[0] != 'JOINT'}
-                    != {key: v for key, v in current_wallet['account_events'].items() if v[0] != 'JOINT'}):
-                raise StorageError('JOINT_CASH_RECOVERY_NATIVE_MISMATCH')
             actual_cash = self._ledger.joint_cash_events
             before_cash = {key: Decimal(v['event']['signed_amount_usdt']) for key, v in old_events.items()}
             after_cash = {key: event.signed_amount_usdt for key, event in supplied.items()}
             if actual_cash not in (before_cash, after_cash):
                 raise StorageError('JOINT_CASH_RECOVERY_NATIVE_MISMATCH')
-            current_capital = self._capital_ledger(meta.resources['commands'], meta.resources.get('fills', {}),
+            current_capital = self._capital_ledger(meta.resources['commands'],
+                                                   {key: fills[key] for key in self._ledger.trade_ids},
                                                    meta.resources.get('cashflows', {}),
                                                    {key: events[key] for key in actual_cash})
             if (current_capital.life_balance, current_capital.usdt_balance) != (
@@ -308,11 +341,14 @@ class LegacyJointCashAdapter:
             previous = {'command': command.json(), 'cut': cut.json(), 'owner': owner.json(), 'fingerprint': identity,
                         'state': 'APPLYING', 'before_native': {name: data.hex() for name, data in raw.items()}}
             operations[command.operation_id] = previous
+        before = {name: bytes.fromhex(value) for name, value in previous['before_native'].items()}
+        self._joint_fill_native_preflight(command, before, self._raw(), resume)
         try:
             if not resume:
                 self._publish_joint_cash('joint-start:' + command.operation_id, owner, operations, old_events,
                                          dict(view.cut.components))
-            self._ledger.apply_joint_snapshot((), {key: event.signed_amount_usdt for key, event in supplied.items()})
+            self._ledger.apply_joint_snapshot(self._joint_fill_snapshots(command),
+                                              {key: event.signed_amount_usdt for key, event in supplied.items()})
             if self._ledger.joint_cash_events != {key: event.signed_amount_usdt for key, event in supplied.items()}:
                 raise StorageError('JOINT_CASH_PUBLICATION_INCOMPLETE')
             for key, event in supplied.items():
@@ -320,15 +356,22 @@ class LegacyJointCashAdapter:
                     self._loss.record('swap:' + key.split(':')[3], event.execution_loss_usdt,
                                       session_id=event.session_id,
                                       at_utc=datetime.fromtimestamp(event.at_ms / 1000, timezone.utc))
+            for row in command.spot_fills:
+                for fill in row.fills:
+                    self._loss.record('fill:' + fill.trade_id, fill.loss(row.side), session_id=row.session_id,
+                                      at_utc=datetime.fromtimestamp(fill.fill_at_ms / 1000, timezone.utc))
+                self._subsidy.record_fill_floor(row.intent_id, sum((f.loss(row.side) for f in row.fills), Decimal('0')))
             if self._loss.verified_events() != expected_loss:
                 raise StorageError('JOINT_CASH_LOSS_PUBLICATION_INCOMPLETE')
-            self._verify_capital_projection(meta.resources['commands'], meta.resources.get('fills', {}),
+            self._verify_fill_projection(meta.resources['commands'], fills)
+            self._verify_capital_projection(meta.resources['commands'], fills,
                                             meta.resources.get('cashflows', {}), events)
             previous['state'] = 'APPLIED'
             self._verify_joint_cash_projection({**thaw(meta.resources), 'joint_cash_operations': operations,
-                                                'joint_cashflows': events})
+                                                'joint_cashflows': events, 'fills': fills, 'fill_operations': fill_operations})
             self._publish_joint_cash('joint-done:' + command.operation_id, owner, operations, events,
-                                     self._hashes(self._raw()))
+                                     self._hashes(self._raw()),
+                                     {'fills': fills, 'fill_operations': fill_operations} if command.spot_fills else None)
             return JointCashReceipt(self.binding, command.operation_id, 'APPLIED', False)
         except BaseException:
             self._uncertain = True

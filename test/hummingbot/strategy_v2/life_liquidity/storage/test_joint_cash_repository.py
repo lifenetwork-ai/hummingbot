@@ -25,9 +25,10 @@ from hummingbot.strategy_v2.life_liquidity.storage.financial import SpotFillPoli
 from hummingbot.strategy_v2.life_liquidity.storage.joint import JointLimits, open_file_joint
 from hummingbot.strategy_v2.life_liquidity.storage.legacy_spot import LegacySpotFiles, open_legacy_spot
 from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancialRecoveryPolicy
+from hummingbot.strategy_v2.life_liquidity.storage.terminal import SpotTerminalPolicy
 
 
-async def fixture(tmp_path):
+async def fixture(tmp_path, *, spot=False):
     recovery, values, bundle, _ = setup_recovery(tmp_path / 'native')
     c, _, _, _, _, _, clock, _, _, _, _, _ = values
     _, binding, owner = create_fixture(tmp_path / 'seed')
@@ -48,12 +49,13 @@ async def fixture(tmp_path):
                                    account_lock_root=tmp_path / 'account-locks', owner=owner,
                                    create_binding=True, clock=lambda: clock.wall,
                                    fill_policy=SpotFillPolicy(1000), accounting_policy=accounting,
-                                   recovery_policy=SpotFinancialRecoveryPolicy(1000))
+                                   recovery_policy=SpotFinancialRecoveryPolicy(1000),
+                                   terminal_policy=SpotTerminalPolicy(1000) if spot else None)
     # Explicit isolated test assembly: the restored store objects are the sole
     # wallet/WAL; production controller installation is a separate PG1 gate.
     bind(store, recovery)
     repo = await open_file_joint(store, recovery=recovery, owner=owner,
-                                 limits=JointLimits(16, 64, 64 * 1024), couple_cash=True)
+                                 limits=JointLimits(16, 64, 64 * 1024), couple_cash=True, couple_spot=spot)
     return repo, store, recovery, values, bundle, owner
 
 
@@ -77,11 +79,13 @@ async def reopen(tmp_path, store, recovery, values, owner):
                                       risk_limits=store._risk_limits, subsidy_policy=BUDGET, loss_policy=BUDGET,
                                       config_version=1, account_lock_root=tmp_path / 'account-locks',
                                       clock=lambda: values[6].wall, fill_policy=store._fill_policy,
-                                      accounting_policy=store._accounting_policy, recovery_policy=store._recovery_policy)
+                                      accounting_policy=store._accounting_policy, recovery_policy=store._recovery_policy,
+                                      terminal_policy=store._terminal_policy)
     try:
         bind(restored, joint)
         repo = await open_file_joint(restored, recovery=joint, owner=owner,
-                                     limits=JointLimits(16, 64, 64 * 1024), couple_cash=True)
+                                     limits=JointLimits(16, 64, 64 * 1024), couple_cash=True,
+                                     couple_spot=recovery._repository_application._couple_spot)
     except BaseException:
         await restored.close()
         raise

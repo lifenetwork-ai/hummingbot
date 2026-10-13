@@ -28,6 +28,16 @@ from hummingbot.strategy_v2.life_liquidity.storage.terminal import TerminalRecei
 
 class LegacyTerminalAdapter:
     @staticmethod
+    def _joint_known_order(row, authority):
+        if authority is None:
+            return False
+        return any((source['claim']['intent_id'], source['claim']['wire_id'], source['claim']['session_id'],
+                    source['claim']['epoch'], source['claim']['product']) == (
+                        row.intent_id, row.client_order_id, row.session_id, row.epoch, 'SPOT')
+                   and source['state'] in ('live', 'partially_filled', 'filled', 'canceled')
+                   for source in authority.journal._state['bundle']['orders'])
+
+    @staticmethod
     def _terminal_core(command):
         data = command.json()
         data['facts'] = {key: data['facts'][key] for key in (
@@ -65,7 +75,7 @@ class LegacyTerminalAdapter:
             raise StorageError('SPOT_TERMINAL_OTHER_RECOVERY_PENDING')
         return meta
 
-    def _terminal_evidence(self, command, view, meta, *, resume=False):
+    def _terminal_evidence(self, command, view, meta, *, resume=False, joint_authority=None):
         facts = command.facts
         self._assert_binding(facts.binding)
         if (not facts.order_scope_complete or not facts.bill_scope_complete or not facts.runner_scope_complete
@@ -111,7 +121,8 @@ class LegacyTerminalAdapter:
                 or not set(facts.pending_wire_ids).issubset(pending_wires)
                 or not set(facts.pending_exchange_order_ids).issubset(known_exchange)
                 or not set(facts.runner_wire_ids).issubset(known_wires)
-                or any(row.intent_id != prepared.intent_id and row.state == 'SEND_UNKNOWN' for row in rows)):
+                or any(row.intent_id != prepared.intent_id and row.state == 'SEND_UNKNOWN'
+                       and not self._joint_known_order(row, joint_authority) for row in rows)):
             raise StorageError('SPOT_TERMINAL_ORDER_OR_RUNNER_SCOPE_INVALID')
         self._verify_lifecycle_projection(meta.resources)
         for value in meta.resources['commands'].values():
@@ -262,9 +273,15 @@ class LegacyTerminalAdapter:
         self._publish_terminal('term-done:' + command.operation_id, owner, commands, operations, self._hashes(self._raw()))
         return self._terminal_receipt(row, 'TERMINAL', False)
 
-    def _confirm_terminal(self, command, cut, owner, resume):
+    def _confirm_terminal(self, command, cut, owner, resume, *, joint_authority=None):
         view = self._snapshot()
-        meta = self._terminal_guard(view, owner, resume=resume, operation_id=command.operation_id)
+        if not resume and joint_authority is not None:
+            if self._terminal_policy is None:
+                raise UnsupportedBackend('SPOT_TERMINAL_POLICY_REQUIRED')
+            meta = self._joint_recovery_observation_guard(view, owner, joint_authority,
+                                                          joint_authority.journal._state['proof_id'])
+        else:
+            meta = self._terminal_guard(view, owner, resume=resume, operation_id=command.operation_id)
         operations = thaw(meta.resources.get('terminal_operations', {}))
         commands = thaw(meta.resources['commands'])
         payload_hash = fingerprint({'command': command.json(), 'owner': owner.json()})
@@ -282,7 +299,7 @@ class LegacyTerminalAdapter:
             raise StorageError('SPOT_TERMINAL_RECOVERY_NOT_STARTED')
         if view.cut != cut:
             raise StorageConflict('SPOT_CUT_STALE')
-        prepared, reservation = self._terminal_evidence(command, view, meta, resume=resume)
+        prepared, reservation = self._terminal_evidence(command, view, meta, resume=resume, joint_authority=joint_authority)
         if previous is None:
             operations[command.operation_id] = {
                 'command': command.json(), 'fingerprint': payload_hash, 'core_fingerprint': core_hash,
