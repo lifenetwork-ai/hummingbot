@@ -94,6 +94,14 @@ class SpotFillObservation:
 
 
 @dataclass(frozen=True)
+class RecordedSpotFill:
+    prepare_operation_id: str
+    intent_id: str
+    exchange_order_id: str
+    fill: SpotFillObservation
+
+
+@dataclass(frozen=True)
 class FillSpot:
     operation_id: str
     prepare_operation_id: str
@@ -370,6 +378,8 @@ class SpotAttempt:
     market: str | None
     side: str | None
     quote_level: int | None
+    cancel_attempts: int = 0
+    last_cancel_attempt_at: datetime | None = None
 
 
 @dataclass(frozen=True)

@@ -580,3 +580,39 @@ can bind the product repository to the actual installed component identities;
 a second native cache is rejected. Pending product/outbox publication denies
 runtime authorization. Legacy file installation/proof migration and complete
 automatic service assembly remain PG1 work; PostgreSQL remains unsupported here.
+
+### Coupled spot quote application and observations
+
+`spot_application.py` installs the actual LIFE controller/OrderExecutor hook on
+the same LegacySpotStore session, WAL and ledgers. The bounded application
+prepares and arms through repository commands before protected OKX placement.
+An awaited ACK callback publishes the exact exchange identity through the
+repository before connector completion. Fresh UID, owner, config, session and
+native sender checks run after the REST throttler; a single-use local fence
+checks the wire payload immediately before HTTP. Durable facts alone never
+authorize a send. Late ACKs remain observational after local revocation.
+
+`spot_observation.py` uses the connector's account-wide fill/bill/order/balance
+methods and a read-only bill reader. It requires exact approved cashflows,
+signed fees and balance changes, independent valuations, complete pending
+order/algo coverage and actual runner wire provenance. It previews the complete
+causal capital timeline before applying missing financial commands, then
+qualifies terminal release. Any unsupported or conflicting source facts deny
+publication/release. HTTP is synthetic in these tests; no real authentication,
+history availability or oracle qualification is inferred.
+
+`spot_lifecycle.py` implements proven-unsent abort and cancel-intent/attempt
+sagas. Cancel records count/time before transport, with immutable per-intent
+retry intervals; exact cold resume cannot increment the attempt again. The
+application never sends from a replayed cancel receipt. One cycle cap spans
+all requested scopes, including durable orders absent from the process's issued
+cache. Cancel ACK and timeout both leave money/budget holds intact. Values are
+explicit controller configuration, not implicit live defaults.
+
+This assembly is **quote-only and opt-in**. It refuses shared-capital,
+inventory/exit routes and the legacy native session tick rather than permitting
+an uncoordinated writer. Automatic session/watchdog/recovery/recorder assembly,
+request-budget ports, complete product routes, backend-neutral runner proof,
+and bounded retained-history observation remain PG1 work. Normal production
+release remains disabled. Tests explicitly override it only inside isolated
+offline fixtures.

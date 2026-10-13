@@ -53,6 +53,16 @@ class RuntimeAuthorizationRepository(Protocol):
     def forget_action(self, intent_id: str) -> None:
         ...
 
+    @property
+    def handles_financial_spot(self) -> bool:
+        ...
+
+    def submit_spot(self, config, **kwargs) -> str:
+        ...
+
+    def cancel_spot_local(self, intent_id: str) -> bool:
+        ...
+
 
 class FileControllerRuntime:
     backend = Backend.FILE
@@ -63,6 +73,7 @@ class FileControllerRuntime:
         self.store, self.controller, self.owner = store, controller, owner
         self.binding = store.binding
         self._products = products
+        self._spot_application = None
         self._action_hashes = {}
         self._revoked = False
         self._assert_config()
@@ -73,6 +84,24 @@ class FileControllerRuntime:
 
     def owns_controller(self, controller):
         return controller is self.controller
+
+    def bind_spot_application(self, application):
+        if (self._spot_application is not None or application.store is not self.store
+                or application.owner != self.owner or application.owns_controller(self.controller) is not True):
+            raise StorageError('RUNTIME_SPOT_APPLICATION_MISMATCH')
+        self._spot_application = application
+
+    @property
+    def handles_financial_spot(self):
+        return self._spot_application is not None
+
+    def submit_spot(self, config, **kwargs):
+        if self._spot_application is None:
+            raise StorageError('RUNTIME_SPOT_APPLICATION_REQUIRED')
+        return self._spot_application.submit(config, **kwargs)
+
+    def cancel_spot_local(self, intent_id):
+        return self._spot_application is not None and self._spot_application.cancel_local(intent_id)
 
     def validate_binding(self, binding, config_hash):
         if binding != self.binding or config_hash != self.binding.config_hash:
@@ -216,3 +245,5 @@ class FileControllerRuntime:
     def revoke(self):
         self._revoked = True
         self._action_hashes.clear()
+        if self._spot_application is not None:
+            self._spot_application.revoke()

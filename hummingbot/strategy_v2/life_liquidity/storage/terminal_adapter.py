@@ -52,10 +52,12 @@ class LegacyTerminalAdapter:
             if op != operation_id and row['state'] != 'TERMINAL':
                 raise StorageError('SPOT_TERMINAL_OTHER_RECOVERY_PENDING')
         target = operations[operation_id]['command']['prepare_operation_id']
-        if (any(row['state'] in ('PREPARING', 'ARMING', 'ACKING', 'FILLING')
+        if (any(row['state'] in ('PREPARING', 'ARMING', 'ACKING', 'FILLING', 'ABORTING', 'CANCELING')
                 or key != target and row['state'] == 'TERMINATING'
                 for key, row in meta.resources['commands'].items())
                 or any(row['state'] != 'APPLIED' for row in meta.resources.get('cashflow_operations', {}).values())
+                or any(row['state'] != 'APPLIED' for row in meta.resources.get('lifecycle_operations', {}).values())
+                or any(row['state'] != 'APPLIED' for row in meta.resources.get('product_operations', {}).values())
                 or any(row['state'] != 'SETTLED' for row in meta.resources.get('settlement_operations', {}).values())):
             raise StorageError('SPOT_TERMINAL_OTHER_RECOVERY_PENDING')
         return meta
@@ -108,6 +110,7 @@ class LegacyTerminalAdapter:
                 or not set(facts.runner_wire_ids).issubset(known_wires)
                 or any(row.intent_id != prepared.intent_id and row.state == 'SEND_UNKNOWN' for row in rows)):
             raise StorageError('SPOT_TERMINAL_ORDER_OR_RUNNER_SCOPE_INVALID')
+        self._verify_lifecycle_projection(meta.resources)
         for value in meta.resources['commands'].values():
             original = PrepareSpot.from_json(value['command'])
             wal = self._wal.get(original.intent_id)
@@ -118,6 +121,14 @@ class LegacyTerminalAdapter:
                         original.client_order_id, original.intent_id, original.session_id, original.epoch,
                         original.market, original.side, original.quote_level)):
                 raise StorageError('SPOT_TERMINAL_NATIVE_IDENTITY_MISMATCH')
+            if value['state'] == 'ABORTED_BEFORE_SEND':
+                # The original lifecycle receipt and exact native zero-fill
+                # postconditions must verify before treating this sibling as closed.
+                if (wal.state != 'ABORTED_BEFORE_SEND' or reservation.state != 'TERMINAL'
+                        or reservation.remaining_base != 0 or reservation.filled_base != 0
+                        or any(row['intent_id'] == original.intent_id for row in meta.resources.get('fills', {}).values())):
+                    raise StorageError('SPOT_TERMINAL_NATIVE_HOLD_MISMATCH')
+                continue
             expected_quantity = sum((Decimal(row['fill']['quantity_base_life']) for row in meta.resources.get('fills', {}).values()
                                      if row['intent_id'] == original.intent_id), Decimal('0'))
             if (reservation.filled_base != expected_quantity

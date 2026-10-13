@@ -70,10 +70,11 @@ from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancial
 from hummingbot.strategy_v2.life_liquidity.storage.recovery_adapter import LegacyFinancialRecoveryAdapter
 from hummingbot.strategy_v2.life_liquidity.storage.settlement import SpotSettlementPolicy
 from hummingbot.strategy_v2.life_liquidity.storage.settlement_adapter import LegacySettlementAdapter
+from hummingbot.strategy_v2.life_liquidity.storage.spot_lifecycle import LegacySpotLifecycleAdapter
 from hummingbot.strategy_v2.life_liquidity.storage.terminal import SpotTerminalPolicy
 from hummingbot.strategy_v2.life_liquidity.storage.terminal_adapter import LegacyTerminalAdapter
 
-PARTIAL_PHASES = ('PREPARING', 'ARMING', 'ACKING', 'FILLING', 'TERMINATING')
+PARTIAL_PHASES = ('PREPARING', 'ARMING', 'ACKING', 'FILLING', 'TERMINATING', 'ABORTING', 'CANCELING')
 
 
 @dataclass(frozen=True)
@@ -95,7 +96,7 @@ class LegacySpotFiles:
         return {key: value for key, value in self.__dict__.items() if key != 'binding'}
 
 
-class LegacySpotStore(LegacyControlAdapter, LegacySettlementAdapter, LegacyPrepareRecoveryAdapter, LegacyFinancialRecoveryAdapter,
+class LegacySpotStore(LegacySpotLifecycleAdapter, LegacyControlAdapter, LegacySettlementAdapter, LegacyPrepareRecoveryAdapter, LegacyFinancialRecoveryAdapter,
                       LegacyTerminalAdapter, FileCheckpointStore):
     atomic_scope = AtomicScope.RECOVERABLE_SAGA
 
@@ -208,6 +209,7 @@ class LegacySpotStore(LegacyControlAdapter, LegacySettlementAdapter, LegacyPrepa
             super()._initialize(create, initial, owner)
             self._cold_unarmed = not create
             self._admission_generation = self._read().ownership.token.generation if self._read().ownership.token else None
+            self._observation_generation = self._admission_generation if create else None
             self._snapshot()
         except (ValueError, KeyError, TypeError, OSError, ArithmeticError):
             raise StorageUnavailable('SPOT_LEGACY_JOURNAL_INVALID') from None
@@ -240,9 +242,18 @@ class LegacySpotStore(LegacyControlAdapter, LegacySettlementAdapter, LegacyPrepa
             if self._terminal_policy is not None and not partial:
                 self._verify_inventory_projection(meta.resources)
                 self._verify_terminal_projection(meta.resources)
+            if not partial:
+                self._verify_lifecycle_projection(meta.resources)
             fee_base, fee_quote, fee_overrun = self._fee_claims(meta.resources['commands'])
             pending_base, pending_quote = self._pending_terminal_principal(meta.resources)
             extra_session, extra_day, extra_campaign = self._pending_inventory_subsidy(meta.resources, record.session_id, now)
+            abort_base, abort_quote, abort_session, abort_day, abort_campaign = self._pending_lifecycle_holds(
+                meta.resources, record.session_id, now)
+            pending_base += abort_base
+            pending_quote += abort_quote
+            extra_session += abort_session
+            extra_day += abort_day
+            extra_campaign += abort_campaign
             subsidy_session = subsidy.session_committed_quote + extra_session
             subsidy_day = subsidy.day_committed_quote + extra_day
             subsidy_campaign = subsidy.campaign_committed_quote + extra_campaign
@@ -284,7 +295,8 @@ class LegacySpotStore(LegacyControlAdapter, LegacySettlementAdapter, LegacyPrepa
         row = self._wal.get(intent_id)
         return SpotAttempt(row.intent_id, row.client_order_id, row.reservation_id, row.session_id, row.epoch,
                            AttemptState(row.state), row.exchange_order_id, row.cancel_requested,
-                           row.slot_market, row.slot_side, row.slot_level)
+                           row.slot_market, row.slot_side, row.slot_level, row.cancel_attempts,
+                           None if row.last_cancel_attempt_at is None else datetime.fromisoformat(row.last_cancel_attempt_at))
 
     async def attempt(self, intent_id, binding):
         self._assert_binding(binding)
@@ -473,7 +485,7 @@ class LegacySpotStore(LegacyControlAdapter, LegacySettlementAdapter, LegacyPrepa
         """Accept late observations from the same writer; never return send authority."""
         meta = super()._read()
         now = utc(self._clock())
-        if (self._cold_unarmed or meta.ownership.token != owner
+        if (self._observation_generation != owner.generation or meta.ownership.token != owner
                 or meta.ownership.mode not in (OwnerMode.ACTIVE, OwnerMode.DRAINING, OwnerMode.RECOVERY_ONLY)
                 or now < owner.valid_from
                 or dict(view.cut.components) != dict(meta.resources['journal_hashes'])
@@ -486,6 +498,7 @@ class LegacySpotStore(LegacyControlAdapter, LegacySettlementAdapter, LegacyPrepa
         return (any(item['state'] in PARTIAL_PHASES for item in resources['commands'].values())
                 or any(item['state'] != 'APPLIED' for item in resources.get('cashflow_operations', {}).values())
                 or any(item['state'] != 'APPLIED' for item in resources.get('product_operations', {}).values())
+                or any(item['state'] != 'APPLIED' for item in resources.get('lifecycle_operations', {}).values())
                 or any(item['state'] != 'SETTLED' for item in resources.get('settlement_operations', {}).values()))
 
     def _publish_ack(self, key, owner, commands, acknowledgements, hashes):
@@ -597,7 +610,7 @@ class LegacySpotStore(LegacyControlAdapter, LegacySettlementAdapter, LegacyPrepa
         base = quote = Decimal('0')
         overrun = False
         for record in commands.values():
-            if record['state'] == 'TERMINAL':
+            if record['state'] in ('TERMINAL', 'ABORTED_BEFORE_SEND'):
                 continue  # Release fee claims only after complete terminal publication.
             command = PrepareSpot.from_json(record['command'])
             debits = paid.get(command.intent_id, {'LIFE': Decimal('0'), 'USDT': Decimal('0')})
@@ -611,7 +624,8 @@ class LegacySpotStore(LegacyControlAdapter, LegacySettlementAdapter, LegacyPrepa
         if reservation is None or reservation.intent != self._intent(prepared) or reservation.state == 'TERMINAL':
             return False
         if reservation.filled_base == 0:
-            return (self._ledger.matches_open_intent(self._intent(prepared))
+            return (reservation.state in ('OPEN', 'CANCEL_PENDING', 'UNKNOWN')
+                    and reservation.remaining_base == prepared.quantity_base
                     and self._subsidy.matches_reservation(prepared.intent_id, prepared.subsidy_quote_usdt,
                                                           session_id=prepared.session_id,
                                                           at_utc=datetime.fromisoformat(record['prepared_at'])))

@@ -78,6 +78,24 @@ async def test_zero_fill_terminal_releases_principal_fees_and_unused_subsidy(ter
 
 
 @pytest.mark.asyncio
+async def test_verified_unsent_aborted_sibling_does_not_block_terminal_release(terminal_bundle):
+    from test.hummingbot.strategy_v2.life_liquidity.storage.test_spot_financial_contracts import order
+
+    from hummingbot.strategy_v2.life_liquidity.storage.spot_lifecycle import SpotLifecycleCommand
+    store, _, binding, owner, _ = terminal_bundle
+    sibling = replace(order(owner), operation_id='sibling-operation', intent_id='sibling-intent',
+                      client_order_id='siblingwire')
+    await store.prepare(sibling, cut=(await store.snapshot(binding)).cut, owner=owner)
+    await store.apply_lifecycle(SpotLifecycleCommand('abort-sibling', sibling.operation_id, sibling.intent_id,
+                                                     sibling.client_order_id, 'ABORT_PREPARED'),
+                                cut=(await store.snapshot(binding)).cut, owner=owner)
+    await prepare_arm(store, binding, owner)
+    receipt = await store.confirm_terminal(terminal(binding, owner), cut=(await store.snapshot(binding)).cut, owner=owner)
+    assert receipt.state == 'TERMINAL'
+    assert (await store.snapshot(binding)).balance.reserved_quote_usdt == 0
+
+
+@pytest.mark.asyncio
 async def test_partial_fill_terminal_releases_order_holds_but_keeps_economic_subsidy(terminal_bundle):
     store, _, binding, owner, _ = terminal_bundle
     await prepare_arm(store, binding, owner)

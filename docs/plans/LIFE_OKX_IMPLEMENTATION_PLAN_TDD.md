@@ -38,6 +38,8 @@ Architecture and economics reviewed on 2026-10-01. Review findings are mapped to
 
 ## 1. Objectives and Scope
 
+**Coupled PG1 spot assembly (2026-10-12):** repository-owned prepare/arm/async ACK, complete fill/bill/wallet observation and durable abort/cancel attempts now run through the actual controller/executor/OKX REST chain with fake transport. Independent checks after throttler waits reject stop, expiry and configuration changes. Cancel receipts never release money; interrupted attempts retain retry timing and holds. This remains an opt-in quote slice: legacy session ticks are rejected to prevent writes outside the coordinator, and full session/watchdog/recovery/product/recorder assembly remains open in the [PG plan](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md). Production trading remains disabled.
+
 Build a market-making system for LIFE–USDT on OKX that can be tested before LIFE is listed. Support spot and linear perpetual swaps when OKX opens each market for trading. Session duration is configurable; four hours is only an example.
 
 | ID | Capability | Expected outcome |

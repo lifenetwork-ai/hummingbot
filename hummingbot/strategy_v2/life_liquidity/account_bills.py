@@ -56,6 +56,86 @@ class CashflowApprovals:
             raise ValueError("CASHFLOW_APPROVAL_INVALID") from exc
 
 
+async def _read_bills_since_anchor(connector, anchor_bill_id, max_pages) -> list[dict]:
+    rows = []
+    cursor = None
+    previous_id = None
+    for _ in range(max_pages):
+        response = await connector.get_account_bills_page(after=cursor)
+        if (not isinstance(response, dict) or response.get("code") != "0"
+                or not isinstance(response.get("data"), list)
+                or len(response["data"]) > 100):
+            raise ValueError("ACCOUNT_BILLS_UNTRUSTED")
+        page = response["data"]
+        for row in page:
+            bill_id = row["billId"]
+            if (not _bill_id(bill_id) or previous_id is not None
+                    and int(bill_id) >= previous_id):
+                raise ValueError("ACCOUNT_BILLS_UNTRUSTED")
+            previous_id = int(bill_id)
+            if bill_id == anchor_bill_id:
+                return rows
+            if previous_id < int(anchor_bill_id):
+                raise ValueError("ACCOUNT_BILL_ANCHOR_MISSING")
+            rows.append(row)
+        if len(page) < 100:
+            raise ValueError("ACCOUNT_BILL_ANCHOR_MISSING")
+        cursor = page[-1]["billId"]
+    raise ValueError("ACCOUNT_BILLS_INCOMPLETE")
+
+
+async def _read_spot_fills_since_anchor(connector, anchor_bill_id, max_fill_pages) -> dict[str, dict]:
+    """Cross-check every account-wide SPOT fill newer than the bill anchor."""
+    read_page = getattr(connector, "get_all_spot_fill_history_page", None)
+    if not callable(read_page):
+        raise ValueError("ACCOUNT_FILL_HISTORY_UNAVAILABLE")
+    rows = {}
+    cursor = None
+    previous_id = None
+    anchor = int(anchor_bill_id)
+    for _ in range(max_fill_pages):
+        response = await read_page(after=cursor)
+        if (not isinstance(response, dict) or response.get("code") != "0"
+                or not isinstance(response.get("data"), list)
+                or len(response["data"]) > 100):
+            raise ValueError("ACCOUNT_FILL_HISTORY_UNTRUSTED")
+        page = response["data"]
+        for row in page:
+            bill_id = row["billId"]
+            if (not _bill_id(bill_id) or previous_id is not None
+                    and int(bill_id) >= previous_id):
+                raise ValueError("ACCOUNT_FILL_HISTORY_UNTRUSTED")
+            previous_id = int(bill_id)
+            if previous_id <= anchor:
+                return rows
+            trade_id = row["tradeId"]
+            if (row["instType"] != "SPOT" or not isinstance(trade_id, str)
+                    or not trade_id or trade_id in rows):
+                raise ValueError("ACCOUNT_FILL_HISTORY_UNTRUSTED")
+            rows[trade_id] = row
+        if len(page) < 100:
+            return rows
+        cursor = page[-1]["billId"]
+    raise ValueError("ACCOUNT_FILL_HISTORY_INCOMPLETE")
+
+
+class SpotAccountBillReader:
+    """Read-only authenticated history parser shared by both storage applications."""
+
+    def __init__(self, connector, *, anchor_bill_id, max_pages, max_fill_pages):
+        if (not _bill_id(anchor_bill_id) or type(max_pages) is not int or max_pages <= 0
+                or type(max_fill_pages) is not int or max_fill_pages <= 0):
+            raise ValueError("ACCOUNT_BILL_READER_POLICY_INVALID")
+        self.connector, self.anchor = connector, anchor_bill_id
+        self.max_pages, self.max_fill_pages = max_pages, max_fill_pages
+
+    async def bills_since_anchor(self):
+        return await _read_bills_since_anchor(self.connector, self.anchor, self.max_pages)
+
+    async def spot_fills_since_anchor(self):
+        return await _read_spot_fills_since_anchor(self.connector, self.anchor, self.max_fill_pages)
+
+
 class SpotBillReconciler:
     MAX_PAGES = 6
     # Offline bound only; calibrate account history volume before live eligibility.
@@ -70,66 +150,11 @@ class SpotBillReconciler:
         self.approvals = approvals
         self.on_cashflows_applied = on_cashflows_applied
 
-    async def _since_anchor(self) -> list[dict]:
-        rows = []
-        cursor = None
-        previous_id = None
-        for _ in range(self.MAX_PAGES):
-            response = await self.connector.get_account_bills_page(after=cursor)
-            if (not isinstance(response, dict) or response.get("code") != "0"
-                    or not isinstance(response.get("data"), list)
-                    or len(response["data"]) > 100):
-                raise ValueError("ACCOUNT_BILLS_UNTRUSTED")
-            page = response["data"]
-            for row in page:
-                bill_id = row["billId"]
-                if (not _bill_id(bill_id) or previous_id is not None
-                        and int(bill_id) >= previous_id):
-                    raise ValueError("ACCOUNT_BILLS_UNTRUSTED")
-                previous_id = int(bill_id)
-                if bill_id == self.approvals.anchor_bill_id:
-                    return rows
-                if previous_id < int(self.approvals.anchor_bill_id):
-                    raise ValueError("ACCOUNT_BILL_ANCHOR_MISSING")
-                rows.append(row)
-            if len(page) < 100:
-                raise ValueError("ACCOUNT_BILL_ANCHOR_MISSING")
-            cursor = page[-1]["billId"]
-        raise ValueError("ACCOUNT_BILLS_INCOMPLETE")
+    async def _since_anchor(self):
+        return await _read_bills_since_anchor(self.connector, self.approvals.anchor_bill_id, self.MAX_PAGES)
 
-    async def _spot_fills_since_anchor(self) -> dict[str, dict]:
-        """Cross-check every account-wide SPOT fill newer than the bill anchor."""
-        read_page = getattr(self.connector, "get_all_spot_fill_history_page", None)
-        if not callable(read_page):
-            raise ValueError("ACCOUNT_FILL_HISTORY_UNAVAILABLE")
-        rows = {}
-        cursor = None
-        previous_id = None
-        anchor = int(self.approvals.anchor_bill_id)
-        for _ in range(self.MAX_FILL_PAGES):
-            response = await read_page(after=cursor)
-            if (not isinstance(response, dict) or response.get("code") != "0"
-                    or not isinstance(response.get("data"), list)
-                    or len(response["data"]) > 100):
-                raise ValueError("ACCOUNT_FILL_HISTORY_UNTRUSTED")
-            page = response["data"]
-            for row in page:
-                bill_id = row["billId"]
-                if (not _bill_id(bill_id) or previous_id is not None
-                        and int(bill_id) >= previous_id):
-                    raise ValueError("ACCOUNT_FILL_HISTORY_UNTRUSTED")
-                previous_id = int(bill_id)
-                if previous_id <= anchor:
-                    return rows
-                trade_id = row["tradeId"]
-                if (row["instType"] != "SPOT" or not isinstance(trade_id, str)
-                        or not trade_id or trade_id in rows):
-                    raise ValueError("ACCOUNT_FILL_HISTORY_UNTRUSTED")
-                rows[trade_id] = row
-            if len(page) < 100:
-                return rows
-            cursor = page[-1]["billId"]
-        raise ValueError("ACCOUNT_FILL_HISTORY_INCOMPLETE")
+    async def _spot_fills_since_anchor(self):
+        return await _read_spot_fills_since_anchor(self.connector, self.approvals.anchor_bill_id, self.MAX_FILL_PAGES)
 
     async def reconcile(self) -> bool:
         try:

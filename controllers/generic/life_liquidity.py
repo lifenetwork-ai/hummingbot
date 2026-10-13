@@ -1490,6 +1490,9 @@ class LifeLiquidityController(ControllerBase):
 
     def on_runner_stop_action(self, action) -> None:
         """Revoke an already dispatched intent before the runner stops its executor."""
+        if (self._storage_runtime is not None and action.controller_id == self.config.id
+                and self._storage_runtime.cancel_spot_local(action.executor_id)):
+            return
         sender = self._protected_swap_sender
         if sender is not None and action.controller_id == self.config.id and sender.owns_intent(action.executor_id):
             self._runner_stop_revoked_ids.add(action.executor_id)
@@ -1541,6 +1544,9 @@ class LifeLiquidityController(ControllerBase):
     def submit_executor_spot_order(self, config, *, amount: Decimal,
                                    price: Decimal, order_type) -> str:
         # Historical runner hook name; SWAP orders must use their own permit.
+        if (not self._is_swap_config(config) and self._storage_runtime is not None
+                and self._storage_runtime.handles_financial_spot):
+            return self._storage_runtime.submit_spot(config, amount=amount, price=price, order_type=order_type)
         if self._is_swap_config(config):
             if self._protected_swap_sender is None:
                 raise PermissionError("LIFE_SWAP_TRADING_DISABLED")
@@ -1825,6 +1831,13 @@ class LifeLiquidityController(ControllerBase):
     def on_safety_tick(self, timestamp: float) -> None:
         """Persist expiry and run order cancellation independent of quote readiness."""
         if self._order_safety_stopped:
+            return
+        runtime = self._storage_runtime
+        if runtime is not None and runtime.handles_financial_spot:
+            # The repository quote assembly does not yet own session transitions.
+            # A native tick here would write outside its financial coordinator.
+            runtime.revoke()
+            self.order_safety_reason_code = "SPOT_REPOSITORY_SESSION_APPLICATION_REQUIRED"
             return
         if self._inventory_executor is not None:
             self._inventory_executor.on_safety_tick()

@@ -111,13 +111,16 @@ class OkxExchange(ExchangePyBase):
 
     def submit_protected_order(self, *, order_id: str, trading_pair: str, amount: Decimal,
                                trade_type: TradeType, order_type: OrderType, price: Decimal,
-                               pre_send_check, on_ack, async_pre_send_check=None) -> str:
+                               pre_send_check, on_ack=None, async_pre_send_check=None, async_on_ack=None) -> str:
         """Schedule an order with an externally persisted ID and final-send check.
 
         The caller must commit the ID/reservation/epoch to its WAL before this
         method is invoked. Ordinary connector orders keep their existing path.
         """
-        if (not order_id or not callable(pre_send_check) or not callable(on_ack)
+        if (not order_id or not callable(pre_send_check)
+                or (on_ack is None) == (async_on_ack is None)
+                or on_ack is not None and not callable(on_ack)
+                or async_on_ack is not None and not callable(async_on_ack)
                 or async_pre_send_check is not None and not callable(async_pre_send_check)
                 or order_type != OrderType.LIMIT_MAKER
                 or trading_pair not in self._protected_trading_pairs):
@@ -126,7 +129,8 @@ class OkxExchange(ExchangePyBase):
             trade_type=trade_type, order_id=order_id, trading_pair=trading_pair,
             amount=amount, order_type=order_type, price=price,
             pre_send_check=pre_send_check, on_ack=on_ack,
-            **({"async_pre_send_check": async_pre_send_check} if async_pre_send_check is not None else {})))
+            **({"async_pre_send_check": async_pre_send_check} if async_pre_send_check is not None else {}),
+            **({"async_on_ack": async_on_ack} if async_on_ack is not None else {})))
         return order_id
 
     def _is_request_exception_related_to_time_synchronizer(self, request_exception: Exception):
@@ -220,8 +224,11 @@ class OkxExchange(ExchangePyBase):
         pre_send_check = kwargs.pop("pre_send_check", None)
         async_pre_send_check = kwargs.pop("async_pre_send_check", None)
         on_ack = kwargs.pop("on_ack", None)
+        async_on_ack = kwargs.pop("async_on_ack", None)
+        if on_ack is not None and async_on_ack is not None:
+            raise ValueError('PROTECTED_ACK_CALLBACK_CONFLICT')
         if (trading_pair in self._protected_trading_pairs
-                and (pre_send_check is None or on_ack is None)):
+                and (pre_send_check is None or on_ack is None and async_on_ack is None)):
             raise PermissionError("PROTECTED_ORDER_REQUIRED")
 
         data = {
@@ -255,6 +262,8 @@ class OkxExchange(ExchangePyBase):
             raise IOError(f"Error submitting order {order_id}: {data['sMsg']}")
         if on_ack is not None:
             on_ack(str(data["ordId"]))
+        if async_on_ack is not None:
+            await async_on_ack(str(data["ordId"]))
         return str(data["ordId"]), self.current_timestamp
 
     async def _place_cancel(self, order_id: str, tracked_order: InFlightOrder):

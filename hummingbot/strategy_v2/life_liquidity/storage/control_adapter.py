@@ -180,6 +180,10 @@ class LegacyControlAdapter:
         if not replayed:
             self._cold_unarmed = command.mode is not OwnerMode.ACTIVE
             self._admission_generation = command.token.generation if command.token else None
+            if command.mode in (OwnerMode.ACTIVE, OwnerMode.RECOVERY_ONLY):
+                self._observation_generation = command.token.generation
+            elif command.mode is OwnerMode.UNARMED:
+                self._observation_generation = None
         return ControlReceipt(self.binding, command.operation_id, command.mode, command.token, replayed)
 
     def _approved_cashflows(self):
