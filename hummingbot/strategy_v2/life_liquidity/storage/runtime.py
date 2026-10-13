@@ -32,6 +32,9 @@ class RuntimeAuthorizationRepository(Protocol):
     async def authorize_action(self, action) -> bool:
         ...
 
+    async def before_dispatch(self, action) -> bool:
+        ...
+
     async def authorize_spot(self, permit) -> bool:
         ...
 
@@ -77,6 +80,7 @@ class FileControllerRuntime:
         self.binding = store.binding
         self._products = products
         self._spot_application = None
+        self._recorder_application = None
         self._action_hashes = {}
         self._revoked = False
         self._assert_config()
@@ -87,6 +91,17 @@ class FileControllerRuntime:
 
     def owns_controller(self, controller):
         return controller is self.controller
+
+    def bind_recorder_application(self, application):
+        if (self._recorder_application is not None or application.store is not self.store
+                or application.runtime is not self or application.binding != self.binding):
+            raise StorageError('RUNTIME_RECORDER_APPLICATION_MISMATCH')
+        self._recorder_application = application
+
+    async def before_dispatch(self, action):
+        if self._recorder_application is None:
+            return True
+        return await self._recorder_application.before_dispatch(action)
 
     def bind_spot_application(self, application):
         if (self._spot_application is not None or application.store is not self.store
@@ -142,6 +157,8 @@ class FileControllerRuntime:
 
     def _local_ready(self):
         try:
+            if self._recorder_application is not None and not self._recorder_application.ready:
+                return False
             if self._spot_application is not None and not self._spot_application.local_ready():
                 return False
             self._assert_config()
@@ -188,6 +205,8 @@ class FileControllerRuntime:
         if any(row['state'] != 'APPLIED' for row in meta.resources.get('product_operations', {}).values()):
             return False
         if any(row['state'] != 'APPLIED' for row in meta.resources.get('recorder_outbox', {}).values()):
+            return False
+        if any(row['state'] != 'APPLIED' for row in meta.resources.get('recorder_progress', {}).values()):
             return False
         if self._products is not None:
             self._products.validate_controller(self.controller)

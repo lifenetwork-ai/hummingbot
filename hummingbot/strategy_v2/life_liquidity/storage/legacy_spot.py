@@ -342,7 +342,8 @@ class LegacySpotStore(LegacyRecoveryBatchAdapter, LegacyPendingAdapter, LegacySe
         meta = super()._read()
         now = utc(self._clock())
         session = view.session
-        if (view.recovery_required or self._cold_unarmed or meta.ownership.mode is not OwnerMode.ACTIVE
+        if (view.recovery_required or self._cold_unarmed or self._reporting_pending(meta.resources)
+                or meta.ownership.mode is not OwnerMode.ACTIVE
                 or meta.ownership.token != owner or not owner.valid_from <= now < owner.expires_at):
             raise StorageError('SPOT_OWNER_OR_RECOVERY_GATE')
         if (session.state != 'ACTIVE' or session.rollback_latched or not session.started_at <= now < session.expires_at
@@ -498,6 +499,11 @@ class LegacySpotStore(LegacyRecoveryBatchAdapter, LegacyPendingAdapter, LegacySe
                 or self._incomplete(meta.resources)):
             raise StorageError('SPOT_ACK_OWNER_OR_RECOVERY_GATE')
         return meta
+
+    @staticmethod
+    def _reporting_pending(resources):
+        return any(row['state'] != 'APPLIED' for name in ('recorder_outbox', 'recorder_progress')
+                   for row in resources.get(name, {}).values())
 
     @staticmethod
     def _ancillary_recovery_pending(resources):

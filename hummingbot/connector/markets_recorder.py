@@ -248,6 +248,24 @@ class MarketsRecorder:
             session.add(Executors(**payload))
             session.commit()
 
+    def update_executor_info(self, info):
+        """Update a qualified reporting snapshot without replacing its provenance.
+
+        The repository sequences and repairs these updates. This independent SQL
+        projection is never the balance ledger or exchange submission authority.
+        """
+        from hummingbot.strategy_v2.life_liquidity.storage.recorder_progress import progress_transition
+        payload = json.loads(info.model_dump_json())
+        with self._sql_manager.get_new_session() as session:
+            previous = session.query(Executors).filter(Executors.id == info.id).one_or_none()
+            if previous is None:
+                raise ValueError('RECORDER_PROGRESS_PROJECTION_REQUIRED')
+            actual = json.loads(previous.to_executor_info().model_dump_json())
+            progress_transition(actual, payload)
+            for attr, value in payload.items():
+                setattr(previous, attr, value)
+            session.commit()
+
     def store_position(self, position: Position):
         with self._sql_manager.get_new_session() as session:
             session.add(position)

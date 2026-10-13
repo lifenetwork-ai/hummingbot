@@ -203,6 +203,7 @@ class ExecutorOrchestrator:
     Orchestrator for various executors.
     """
     _logger = None
+    _repository_reporting = None
     _executor_mapping = {
         "position_executor": PositionExecutor,
         "grid_executor": GridExecutor,
@@ -224,7 +225,8 @@ class ExecutorOrchestrator:
                  strategy: "StrategyV2Base",
                  executors_update_interval: float = 1.0,
                  executors_max_retries: int = 10,
-                 initial_positions_by_controller: Optional[dict] = None):
+                 initial_positions_by_controller: Optional[dict] = None,
+                 repository_reporting: Optional[dict] = None):
         self.strategy = strategy
         self.executors_update_interval = executors_update_interval
         self.executors_max_retries = executors_max_retries
@@ -234,6 +236,12 @@ class ExecutorOrchestrator:
         self.cached_performance = {}
         self.initial_positions_by_controller = initial_positions_by_controller or {}
         self._initial_positions_initialized = False
+        self._repository_reporting = repository_reporting
+        self._repository_stored_ids = set()
+        if repository_reporting is not None and (
+                set(repository_reporting) != set(strategy.controllers)
+                or any(app.runtime.controller is not strategy.controllers[key] for key, app in repository_reporting.items())):
+            raise ValueError('RECORDER_RUNNER_SCOPE_MISMATCH')
         self._initialize_cached_performance()
 
     def _initialize_cached_performance(self):
@@ -246,6 +254,15 @@ class ExecutorOrchestrator:
                 self.cached_performance[controller_id] = PerformanceReport()
                 self.active_executors[controller_id] = []
                 self.positions_held[controller_id] = []
+        if self._repository_reporting is not None:
+            # Applications were asynchronously repaired/read before construction.
+            # Recovery never creates an executor from a reporting row.
+            for controller_id, app in self._repository_reporting.items():
+                for info in app.startup_infos:
+                    if info.status == RunnableStatus.TERMINATED:
+                        self._update_cached_performance(controller_id, info.model_copy(deep=True))
+                        self._repository_stored_ids.add((controller_id, info.id))
+            return
         db_executors = MarketsRecorder.get_instance().get_all_executors()
         for executor in db_executors:
             controller_id = executor.controller_id
@@ -270,6 +287,9 @@ class ExecutorOrchestrator:
 
     def get_stored_executors_by_controller(self, controller_id: str) -> tuple[ExecutorInfo, ...]:
         """Read a fresh database snapshot for recovery; no cached PnL view is authoritative."""
+        reporting = self.__dict__.get('_repository_reporting')
+        if reporting is not None:
+            return reporting[controller_id].fresh_stored_infos()
         return tuple(MarketsRecorder.get_instance().get_executors_by_controller(controller_id))
 
     def _update_cached_performance(self, controller_id: str, executor_info: ExecutorInfo):
@@ -470,6 +490,10 @@ class ExecutorOrchestrator:
         """
         Store or update all positions in the database.
         """
+        if self._repository_reporting is not None:
+            if any(self.positions_held.values()):
+                raise ValueError('RECORDER_POSITION_REPOSITORY_REQUIRED')
+            return
         markets_recorder = MarketsRecorder.get_instance()
         for controller_id, positions_list in self.positions_held.items():
             if controller_id is None:
@@ -508,6 +532,11 @@ class ExecutorOrchestrator:
         self.positions_held.clear()
 
     def store_all_executors(self):
+        if self._repository_reporting is not None:
+            for controller_id, executors in tuple(self.active_executors.items()):
+                for executor in tuple(executors):
+                    self._enqueue_repository_report(controller_id, executor)
+            return
         for controller_id, executors_list in self.active_executors.items():
             for executor in executors_list:
                 # Store the executor in the database
@@ -568,6 +597,8 @@ class ExecutorOrchestrator:
 
         executor.start()
         self.active_executors[controller_id].append(executor)
+        if self._repository_reporting is not None:
+            self._repository_reporting[controller_id].enqueue(executor.executor_info)
         # MarketsRecorder.get_instance().store_or_update_executor(executor)
         self.logger().debug(f"Created {type(executor).__name__} for controller {controller_id}")
 
@@ -714,6 +745,9 @@ class ExecutorOrchestrator:
         if executor.is_active:
             self.logger().error(f"Executor ID {executor_id} is still active.")
             return
+        if self._repository_reporting is not None:
+            self._enqueue_repository_report(controller_id, executor)
+            return
         try:
             MarketsRecorder.get_instance().store_or_update_executor(executor)
             self._update_cached_performance(controller_id, executor.executor_info)
@@ -724,6 +758,23 @@ class ExecutorOrchestrator:
         self.active_executors[controller_id].remove(executor)
         del executor
         # Trigger garbage collection after executor cleanup
+
+    def _enqueue_repository_report(self, controller_id, executor):
+        captured = executor.executor_info.model_copy(deep=True)
+
+        def committed(_receipt):
+            key = (controller_id, captured.id)
+            if captured.status == RunnableStatus.TERMINATED and key not in self._repository_stored_ids:
+                self._update_cached_performance(controller_id, captured)
+                self._repository_stored_ids.add(key)
+            active = self.active_executors.get(controller_id, [])
+            if executor in active and not executor.is_active:
+                active.remove(executor)
+        return self._repository_reporting[controller_id].enqueue(captured, on_committed=committed)
+
+    async def drain_repository_reporting(self):
+        if self._repository_reporting is not None:
+            await asyncio.gather(*(app.drain() for app in self._repository_reporting.values()))
 
     def get_executors_report(self) -> Dict[str, List[ExecutorInfo]]:
         """

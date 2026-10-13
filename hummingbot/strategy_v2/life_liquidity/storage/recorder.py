@@ -7,6 +7,7 @@ Financial decimal authority stays in the domain repositories.
 import asyncio
 import hashlib
 import json
+import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -26,6 +27,11 @@ from hummingbot.strategy_v2.life_liquidity.storage.contracts import (
     thaw,
     utc,
 )
+from hummingbot.strategy_v2.life_liquidity.storage.recorder_progress import (
+    PROVENANCE_KEYS,
+    FileRecorderProgressAdapter,
+    RecorderProgressRepository,
+)
 from hummingbot.strategy_v2.models.executors_info import ExecutorInfo
 
 
@@ -41,6 +47,11 @@ class ExecutorProjection:
             raise StorageError('RECORDER_PROJECTION_INVALID')
         try:
             info = ExecutorInfo.model_validate_json(self.payload_json)
+            if (any(not getattr(info, key).is_finite() for key in ('net_pnl_pct', 'net_pnl_quote', 'cum_fees_quote', 'filled_amount_quote'))
+                    or not math.isfinite(info.timestamp) or info.timestamp != info.config.timestamp
+                    or info.close_timestamp is not None and not math.isfinite(info.close_timestamp)
+                    or info.filled_amount_quote < 0):
+                raise StorageError('RECORDER_REPORT_VALUE_INVALID')
             if (info.id != info.config.id or info.controller_id != info.config.controller_id
                     or info.type != 'order_executor' or not info.controller_id
                     or info.config.connector_name not in ('okx', 'okx_perpetual')
@@ -86,15 +97,28 @@ class ProjectionReceipt:
     atomic_scope: AtomicScope = AtomicScope.RECOVERABLE_SAGA
 
 
-class RecorderRepository(Protocol):
+@dataclass(frozen=True)
+class PendingExecutorProjection:
+    command: ExecutorProjection
+    original_cut: StateCut
+    owner: OwnerToken
+
+
+class RecorderRepository(RecorderProgressRepository, Protocol):
     async def read(self, binding: StateBinding) -> tuple[RecorderRow, ...]:
         ...
 
     async def project(self, command: ExecutorProjection, cut: StateCut, owner: OwnerToken) -> ProjectionReceipt:
         ...
 
+    async def pending_projections(self, binding: StateBinding) -> tuple[PendingExecutorProjection, ...]:
+        ...
 
-class FileRecorderRepository:
+    async def assert_supported_positions(self, binding: StateBinding) -> None:
+        ...
+
+
+class FileRecorderRepository(FileRecorderProgressAdapter):
     """One bounded store worker owns outbox publication and actual SQLite calls."""
 
     def __init__(self, store, recorder, controller_id):
@@ -131,6 +155,33 @@ class FileRecorderRepository:
     async def read(self, binding):
         self.store._assert_binding(binding)
         return await self.store._call(self._read)
+
+    def _assert_supported_positions(self):
+        self._verify_binding(self.store._read())
+        if any(row.controller_id == self.controller_id for row in self._recorder.get_all_positions()):
+            raise StorageError('RECORDER_POSITION_REPOSITORY_REQUIRED')
+
+    async def assert_supported_positions(self, binding):
+        self.store._assert_binding(binding)
+        await self.store._call(self._assert_supported_positions)
+
+    def _pending_projections(self):
+        self._verify_binding(self.store._read())
+        result = []
+        for row in self.store._read().resources.get('recorder_outbox', {}).values():
+            if row['state'] == 'APPLIED':
+                continue
+            value = row['command']
+            command = ExecutorProjection(value['operation_id'], StateBinding.from_json(value['binding']), value['payload_json'])
+            cut, owner = StateCut.from_json(row['cut']), OwnerToken.from_json(row['owner'])
+            if row['identity'] != fingerprint({'command': command.json(), 'cut': cut.json(), 'owner': owner.json()}):
+                raise StorageError('RECORDER_OUTBOX_ORIGIN_UNVERIFIED')
+            result.append(PendingExecutorProjection(command, cut, owner))
+        return tuple(result)
+
+    async def pending_projections(self, binding):
+        self.store._assert_binding(binding)
+        return await self.store._call(self._pending_projections)
 
     def _project(self, command, cut, owner):
         self.store._assert_binding(command.binding)
@@ -169,14 +220,24 @@ class FileRecorderRepository:
             self.store._commit(meta.cut, owner, 'recorder-start:' + command.operation_id,
                                (('recorder_outbox', encode(operations)), ('recorder_binding', encode(self._identity))))
         try:
-            self._recorder.project_executor_info(info)
+            head = meta.resources.get('recorder_progress_heads', {}).get(info.id)
+            if head is None:
+                self._recorder.project_executor_info(info)
+            else:
+                rows = self._recorder.get_executors_by_ids([info.id])
+                if not rows:
+                    self._recorder.project_executor_info(ExecutorInfo.model_validate_json(head['payload_json']))
+                if self._row_projection(info.id).payload_json != head['payload_json']:
+                    raise StorageUnavailable('RECORDER_PROGRESS_HEAD_UNVERIFIED')
             rows = self._recorder.get_executors_by_ids([info.id])
             if len(rows) != 1:
                 raise StorageUnavailable('RECORDER_NATIVE_POSTCONDITION_FAILED')
             actual = ExecutorProjection('verify', self.binding, rows[0].to_executor_info().model_dump_json())
             intended = json.loads(command.payload_json)
             observed = json.loads(actual.payload_json)
-            if any(observed[key] != intended[key] for key in ('id', 'config', 'custom_info', 'controller_id')):
+            immutable = ('id', 'config', 'controller_id') + (() if head is not None else ('custom_info',))
+            if (any(observed[key] != intended[key] for key in immutable)
+                    or any(observed['custom_info'].get(key) != intended['custom_info'].get(key) for key in PROVENANCE_KEYS)):
                 raise StorageUnavailable('RECORDER_NATIVE_POSTCONDITION_FAILED')
             if previous is None or previous['state'] != 'APPLIED':
                 operations[command.operation_id]['state'] = 'APPLIED'

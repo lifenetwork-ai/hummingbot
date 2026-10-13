@@ -675,6 +675,9 @@ class LifeLiquidityController(ControllerBase):
     async def async_authorize_runner_create_action(self, action):
         return self._storage_runtime is not None and await self._storage_runtime.authorize_action(action) is True
 
+    async def async_before_runner_dispatch(self, action):
+        return self._storage_runtime is not None and await self._storage_runtime.before_dispatch(action) is True
+
     def local_runner_create_fence(self, action):
         return self._storage_runtime is not None and self._storage_runtime.local_fence(action) is True
 

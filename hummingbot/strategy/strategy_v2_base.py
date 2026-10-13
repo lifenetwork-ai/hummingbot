@@ -398,6 +398,9 @@ class StrategyV2Base(StrategyPyBase):
         await self.executor_orchestrator.stop(self.max_executors_close_attempts)
         self.market_data_provider.stop()
         self.executor_orchestrator.store_all_executors()
+        drain_reporting = getattr(self.executor_orchestrator, 'drain_repository_reporting', None)
+        if callable(drain_reporting):
+            await drain_reporting()
         if self.mqtt_enabled:
             self._pub({controller_id: {} for controller_id in self.controllers.keys()})
             self._pub = None

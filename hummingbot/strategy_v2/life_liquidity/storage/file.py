@@ -7,6 +7,7 @@ its physical completion; no thread is killed and no rollback is inferred.
 """
 import asyncio
 import json
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -98,6 +99,7 @@ class FileCheckpointStore:
         self._clock = clock
         self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='life-file-store')
         self._pending, self._closed, self._uncertain = set(), False, False
+        self._worker_thread_id = None
         self._policy = {'storage_contract': 1, 'binding': binding.json(), 'capacity': {
             'max_checkpoint_bytes': limits.max_checkpoint_bytes, 'max_operations': limits.max_operations}}
 
@@ -114,7 +116,14 @@ class FileCheckpointStore:
             raise StorageUnavailable('STORAGE_CLOSED_OR_UNCERTAIN')
         if len(self._pending) >= self.limits.max_pending:
             raise StorageUnavailable('STORAGE_BACKPRESSURE')
-        future = asyncio.get_running_loop().run_in_executor(self._executor, function, *args)
+
+        def invoke():
+            current = threading.get_ident()
+            if self._worker_thread_id is None:
+                self._worker_thread_id = current
+            self.assert_worker_thread()
+            return function(*args)
+        future = asyncio.get_running_loop().run_in_executor(self._executor, invoke)
         self._pending.add(future)
 
         def completed(item):
@@ -124,6 +133,10 @@ class FileCheckpointStore:
 
         future.add_done_callback(completed)
         return await asyncio.shield(future)
+
+    def assert_worker_thread(self):
+        if self._worker_thread_id is None or threading.get_ident() != self._worker_thread_id:
+            raise StorageError('STORAGE_WORKER_REQUIRED')
 
     def _initialize(self, create, initial, owner):
         if type(create) is not bool:

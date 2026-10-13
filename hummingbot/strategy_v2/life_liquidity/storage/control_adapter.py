@@ -161,7 +161,8 @@ class LegacyControlAdapter:
                     or str(token.session_id) != view.session.session_id or token.epoch != view.session.epoch
                     or view.session.state != 'ACTIVE' or view.session.rollback_latched or now < view.session.last_seen_at
                     or not view.session.started_at <= now < view.session.expires_at
-                    or self._incomplete(meta.resources) or dict(view.cut.components) != dict(meta.resources['journal_hashes'])
+                    or self._incomplete(meta.resources) or self._reporting_pending(meta.resources)
+                    or dict(view.cut.components) != dict(meta.resources['journal_hashes'])
                     or any(row.state not in ('TERMINAL', 'ABORTED_BEFORE_SEND') for row in self._wal.all_records())
                     or facts.accepted_wire_ids or facts.runner_wire_ids
                     or not facts.order_scope_complete or not facts.bill_scope_complete or not facts.runner_scope_complete

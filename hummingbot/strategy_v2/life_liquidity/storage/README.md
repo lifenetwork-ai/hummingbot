@@ -132,6 +132,25 @@ PostgreSQL financial authority, O.8, deployment, demo or live eligibility.
 
 ## Tests
 
+`recorder_progress.py` adds versioned reporting commands and exact pending
+readback. Wire history can grow but cannot shrink; configuration/namespace,
+status order and filled-volume order remain binding. Historical repairs use the
+latest verified reporting cut, including reconstruction of a missing SQL row.
+Legacy SQL Float conversion is compared as reporting representation only.
+
+`FileRecorderApplication.install(repository, runtime, max_pending=...,
+shutdown_timeout_s=...)` asynchronously repairs/reads reporting before
+`ExecutorOrchestrator(..., repository_reporting={controller_id: application})`
+construction. The dispatcher calls the LIFE controller's awaited projection hook
+before creating a child. The actual orchestrator then publishes detached progress
+through the owning worker and removes a stored child only after its receipt.
+Fresh history calls from financial proof code require that worker; callers on the
+event loop are rejected. Stop revokes immediately; shutdown drains bounded
+reporting work. No reporting receipt releases financial holds or rearms a writer.
+Raw market-event SQL, held-position reporting and the full CLI/headless factory
+remain separate PG1 work. Existing bound position rows are explicitly rejected
+until their reporting port is assembled.
+
 `recovery_batch.py` adds a typed account recovery saga for pending ACK/fill/bill
 commands with later qualified activity. Full source coverage, final causal capital
 and the already applied native subset must agree before writes. Original commands,

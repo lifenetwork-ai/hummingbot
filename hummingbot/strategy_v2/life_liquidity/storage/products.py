@@ -292,6 +292,9 @@ class FileProductRepository:
             raise StorageError('PRODUCT_OWNER_REVOKED_OR_EXPIRED')
         if any(item['state'] != 'APPLIED' for item in operations.values()):
             raise StorageUnavailable('PRODUCT_OPERATION_REQUIRES_RECOVERY')
+        if any(row['state'] != 'APPLIED' for name in ('recorder_outbox', 'recorder_progress')
+               for row in meta.resources.get(name, {}).values()):
+            raise StorageUnavailable('PRODUCT_REPORTING_REPAIR_REQUIRED')
         if hasattr(self.store, '_incomplete') and self.store._incomplete(meta.resources):
             raise StorageUnavailable('PRODUCT_FINANCIAL_RECOVERY_REQUIRED')
         if self._cut() != cut:
