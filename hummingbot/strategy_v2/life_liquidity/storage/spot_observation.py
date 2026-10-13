@@ -29,6 +29,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.financial import (
 )
 from hummingbot.strategy_v2.life_liquidity.storage.pending import PendingSpotCommand
 from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotAckRecoveryFacts, SpotFinancialRecoveryFacts
+from hummingbot.strategy_v2.life_liquidity.storage.recovery_batch import SpotRecoveryBatch
 from hummingbot.strategy_v2.life_liquidity.storage.terminal import SpotTerminalFacts, TerminalSpot
 
 
@@ -42,6 +43,7 @@ class SpotObservationContext:
     fills: tuple[RecordedSpotFill, ...]
     cashflows: tuple[CashflowSpot, ...]
     pending: tuple[PendingSpotCommand, ...] = ()
+    recovery_batches: tuple[SpotRecoveryBatch, ...] = ()
 
 
 class SpotObservationRepository(Protocol):
@@ -199,6 +201,14 @@ class OkxSpotRepositoryObserver:
                     if fill.trade_id in existing and existing[fill.trade_id] != original:
                         raise StorageError('SPOT_OBSERVATION_PENDING_FILL_CONFLICT')
                     existing[fill.trade_id] = original
+        for batch in context.recovery_batches:
+            for command in batch.fills:
+                for fill in command.fills:
+                    original = RecordedSpotFill(command.prepare_operation_id, command.intent_id,
+                                                command.exchange_order_id, fill)
+                    if fill.trade_id in existing and existing[fill.trade_id] != original:
+                        raise StorageError('SPOT_OBSERVATION_PENDING_FILL_CONFLICT')
+                    existing[fill.trade_id] = original
         helper = SpotAccountBillReader(self.connector, anchor_bill_id=context.policy.anchor_bill_id,
                                        max_pages=self.max_pages, max_fill_pages=self.max_pages)
         raw_bills = await helper.bills_since_anchor()
@@ -285,6 +295,11 @@ class OkxSpotRepositoryObserver:
     def _financial_timeline(self, context, combined, transfers, balances, now):
         cashflows = {row.bill_id: row for row in context.cashflows}
         cashflows.update({row.command.bill_id: row.command for row in context.pending if row.kind == 'CASHFLOW'})
+        for batch in context.recovery_batches:
+            for command in batch.cashflows:
+                if command.bill_id in cashflows and cashflows[command.bill_id] != command:
+                    raise StorageError('SPOT_OBSERVATION_PENDING_CASHFLOW_CONFLICT')
+                cashflows[command.bill_id] = command
         timeline = []
         for bill_id, raw in sorted(transfers.items(), key=lambda item: (int(item[1]['ts']), int(item[0]))):
             at, currency, amount = int(raw['ts']), raw['ccy'], Decimal(raw['balChg'])
@@ -329,19 +344,21 @@ class OkxSpotRepositoryObserver:
     async def recover_pending(self):
         """Complete exact journal commands under an explicit observation grant.
 
-        Newer external activity that the stored command does not cover remains
-        a recovery gate; original prices/fees/identities are never replaced.
+        Qualified newer activity joins a durable accounting batch. Prices of
+        original pending observations survive collection, interruption and replay.
         """
         async with self._lock:
             context, orders, fills, combined, transfers, pending, balances, runner_wires = await self._collect()
             now = utc(self.store._clock())
-            self._financial_timeline(context, combined, transfers, balances, now)
+            timeline = self._financial_timeline(context, combined, transfers, balances, now)
             if (await self.store.snapshot(self.binding)).cut != context.cut:
                 raise StorageError('SPOT_OBSERVATION_STATE_CHANGED_DURING_COLLECTION')
             if not context.pending:
                 return ()
-            if len(context.pending) != 1:
-                raise StorageError('SPOT_RECOVERY_BATCH_REQUIRED')
+            if all(row.kind in ('ACK', 'FILL', 'CASHFLOW') for row in context.pending):
+                return (await self._recover_financial_batch(context, orders, combined, timeline, balances, runner_wires, now),)
+            if len(context.pending) != 1 or context.recovery_batches:
+                raise StorageError('SPOT_RECOVERY_BATCH_UNSUPPORTED_PARTIAL')
             step = context.pending[0]
             if step.owner != self.application.owner:
                 raise StorageError('SPOT_RECOVERY_ORIGINAL_OWNER_MISMATCH')
@@ -368,6 +385,52 @@ class OkxSpotRepositoryObserver:
             else:
                 receipt = await self.store.apply_lifecycle(command, cut=context.cut, owner=step.owner)
             return (receipt,)
+
+    async def _recover_financial_batch(self, context, orders, combined, timeline, balances, runner_wires, now):
+        if any(row.owner != self.application.owner for row in context.pending):
+            raise StorageError('SPOT_RECOVERY_ORIGINAL_OWNER_MISMATCH')
+        facts = SpotFinancialRecoveryFacts(self.binding, now, balances['LIFE'], balances['USDT'], Decimal('0'), Decimal('0'),
+                                           tuple(combined), tuple(event_id for _, kind, event_id, _ in timeline if kind == 0),
+                                           tuple(row['clOrdId'] for row in orders.values()), runner_wires, True, True, True)
+        pending_acks = tuple(row.command for row in context.pending if row.kind == 'ACK')
+        ack_facts = tuple(SpotAckRecoveryFacts(facts, command.client_order_id, orders[command.intent_id]['ordId'],
+                                               command.market, command.side, Decimal(orders[command.intent_id]['sz']),
+                                               Decimal(orders[command.intent_id]['px']), Decimal(orders[command.intent_id]['accFillSz']),
+                                               orders[command.intent_id]['state'].upper()) for command in pending_acks)
+        if context.recovery_batches:
+            candidates = [row for row in context.recovery_batches if set(row.supersedes) == {
+                other.operation_id for other in context.recovery_batches if other != row}]
+            if len(candidates) != 1:
+                raise StorageError('SPOT_RECOVERY_BATCH_UNSUPPORTED_PARTIAL')
+            batch = candidates[0]
+            covered_fills = {row.fill.trade_id for row in context.fills} | {
+                fill.trade_id for row in batch.fills for fill in row.fills}
+            covered_cash = {row.bill_id for row in context.cashflows} | {row.bill_id for row in batch.cashflows}
+            if covered_fills == set(combined) and covered_cash == set(facts.account_cashflow_ids):
+                return await self.store.recover_spot_batch(batch, facts=facts, acknowledgements=ack_facts,
+                                                           cut=context.cut, owner=self.application.owner)
+        known = {row.fill.trade_id for row in context.fills}
+        affected = {command.intent_id for trade_id, (command, _, _) in combined.items() if trade_id not in known}
+        affected.update(row.command.intent_id for row in context.pending if row.kind == 'FILL')
+        affected.update(row.intent_id for batch in context.recovery_batches for row in batch.fills)
+        snapshots = []
+        for intent_id in sorted(affected):
+            rows = tuple(value for value in combined.values() if value[0].intent_id == intent_id)
+            prepared, exchange_id, _ = rows[0]
+            snapshot = tuple(fill for _, _, fill in rows)
+            operation = 'recovery-fill:' + fingerprint([fill.json() for fill in snapshot])
+            snapshots.append(FillSpot(operation, prepared.operation_id, intent_id, prepared.client_order_id,
+                                      prepared.market, prepared.side, prepared.session_id, prepared.epoch, exchange_id,
+                                      sum((fill.quantity_base_life for fill in snapshot), Decimal('0')), snapshot, now))
+        known_cash = {row.bill_id for row in context.cashflows}
+        cashflows = tuple(event for _, kind, event_id, event in timeline if kind == 0 and event_id not in known_cash)
+        payload = {'fills': [row.json() for row in snapshots], 'cashflows': [row.json() for row in cashflows],
+                   'acknowledgements': [row.json() for row in pending_acks]}
+        supersedes = tuple(sorted(row.operation_id for row in context.recovery_batches))
+        payload['supersedes'] = supersedes
+        batch = SpotRecoveryBatch('recovery-batch:' + fingerprint(payload), tuple(snapshots), cashflows, pending_acks, supersedes)
+        return await self.store.recover_spot_batch(batch, facts=facts, acknowledgements=ack_facts,
+                                                   cut=context.cut, owner=self.application.owner)
 
     async def control_snapshot(self):
         """API-qualified facts for an external signer, without accounting writes."""

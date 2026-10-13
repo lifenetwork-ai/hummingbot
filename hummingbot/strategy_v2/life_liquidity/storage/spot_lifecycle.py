@@ -106,7 +106,7 @@ class LegacySpotLifecycleAdapter:
                                                              row['exchange_order_id'], SpotFillObservation.from_json(row['fill']))
                                             for _, row in sorted(resources.get('fills', {}).items())),
                                       tuple(self._cashflow_from_json(row) for _, row in sorted(resources.get('cashflows', {}).items())),
-                                      self._pending_spot_commands())
+                                      self._pending_spot_commands(), self._pending_recovery_batches())
 
     async def observation_context(self, binding):
         self._assert_binding(binding)
@@ -196,6 +196,7 @@ class LegacySpotLifecycleAdapter:
                     or any(row['state'] != 'APPLIED' for row in meta.resources.get('cashflow_operations', {}).values())
                     or any(row['state'] != 'APPLIED' for row in meta.resources.get('product_operations', {}).values())
                     or any(row['state'] != 'APPLIED' for row in meta.resources.get('session_operations', {}).values())
+                    or any(row['state'] != 'APPLIED' for row in meta.resources.get('recovery_batches', {}).values())
                     or any(row['state'] != 'SETTLED' for row in meta.resources.get('settlement_operations', {}).values())):
                 raise StorageError('SPOT_LIFECYCLE_OTHER_RECOVERY_REQUIRED')
         self._verify_fill_projection(commands, meta.resources.get('fills', {}))

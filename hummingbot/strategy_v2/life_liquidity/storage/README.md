@@ -132,6 +132,17 @@ PostgreSQL financial authority, O.8, deployment, demo or live eligibility.
 
 ## Tests
 
+`recovery_batch.py` adds a typed account recovery saga for pending ACK/fill/bill
+commands with later qualified activity. Full source coverage, final causal capital
+and the already applied native subset must agree before writes. Original commands,
+fees, independent fill/transfer values and spending identities remain binding.
+The batch barrier blocks unrelated financial work; cold exact readback and an
+explicit superseding batch preserve uncertainty until every native postcondition
+is verified. Recovery does not send orders, release reservations, terminalize an
+attempt or activate an owner. The spot observer reuses stored values and collects
+new values only for new facts. Unsupported preparation/lifecycle combinations
+remain explicit recovery gates.
+
 ```sh
 conda run -n hummingbot python -m pytest -q \
   test/hummingbot/strategy_v2/life_liquidity/storage/test_storage_contracts.py

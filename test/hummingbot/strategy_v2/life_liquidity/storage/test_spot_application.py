@@ -430,6 +430,89 @@ async def test_cold_application_recovers_original_fill_price_and_spending_withou
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('kind', ['ACK', 'FILL'])
+async def test_observer_recovers_later_activity_after_pending_write_without_resend(tmp_path, monkeypatch, kind):
+    from hummingbot.strategy_v2.life_liquidity.fill_attribution import IndependentFillObservation
+    from hummingbot.strategy_v2.life_liquidity.storage.contracts import CommitUnknown
+    from hummingbot.strategy_v2.life_liquidity.storage.financial import AckSpot, FillSpot, SpotFillObservation
+    from hummingbot.strategy_v2.life_liquidity.storage.spot_observation import OkxSpotRepositoryObserver
+
+    def transport(request, sent, clock):
+        body = filled_transport(request, sent, clock)
+        path = request['url']
+        if path.endswith(okx_constants.OKX_TRADE_FILLS_HISTORY_PATH):
+            first = {**body['data'][0], 'fillSz': '1', 'fee': '-.01'}
+            second = {**first, 'tradeId': 'trade-2', 'billId': '5'}
+            body['data'] = [second, first]
+        elif path.endswith(okx_constants.OKX_ACCOUNT_BILLS_ARCHIVE_PATH):
+            quote, base, anchor = body['data']
+            quote = {**quote, 'fee': '-.01', 'balChg': '-1.01'}
+            base = {**base, 'balChg': '1'}
+            body['data'] = [{**quote, 'tradeId': 'trade-2', 'billId': '5'},
+                            {**base, 'tradeId': 'trade-2', 'billId': '4'}, quote, base, anchor]
+        return body
+
+    app, store, controller, executor, sent, clock = await setup(tmp_path, observation_transport=transport)
+    executor.place_open_order()
+    await app.drain()
+    prepared = app._issued[executor.config.id]
+    at = int(NOW.timestamp() * 1000)
+    if kind == 'ACK':
+        command = AckSpot('original-ack', prepared.operation_id, prepared.intent_id, prepared.client_order_id,
+                          prepared.market, prepared.side, prepared.session_id, prepared.epoch, '123456789', NOW)
+        monkeypatch.setattr(store._wal, 'acknowledge', lambda *args: (_ for _ in ()).throw(OSError('interrupted ACK')))
+        with pytest.raises(CommitUnknown):
+            await store.acknowledge(command, cut=(await store.snapshot(store.binding)).cut, owner=app.owner)
+    else:
+        fill = SpotFillObservation('trade-1', Decimal('1'), Decimal('1'), 'USDT', Decimal('-.01'), at,
+                                   Decimal('.9'), at, at, 'independent_market')
+        command = FillSpot('original-fill', prepared.operation_id, prepared.intent_id, prepared.client_order_id,
+                           prepared.market, prepared.side, prepared.session_id, prepared.epoch, '123456789',
+                           Decimal('1'), (fill,), NOW)
+        original = store._ledger.apply_fills_snapshot
+
+        def interrupted(*args, **kwargs):
+            original(*args, **kwargs)
+            raise OSError('interrupted native fill')
+        monkeypatch.setattr(store._ledger, 'apply_fills_snapshot', interrupted)
+        with pytest.raises(CommitUnknown):
+            await store.apply_fills(command, cut=(await store.snapshot(store.binding)).cut, owner=app.owner)
+    settings = dict(binding=store.binding, limits=CAPACITY, risk_limits=RISK, subsidy_policy=BUDGET, loss_policy=BUDGET,
+                    config_version=1, account_lock_root=tmp_path / 'locks', clock=lambda: clock['now'],
+                    fill_policy=store._fill_policy, accounting_policy=store._accounting_policy,
+                    terminal_policy=store._terminal_policy, recovery_policy=store._recovery_policy)
+    files, owner = store._files, app.owner
+    await app.close()
+    await store.close()
+    cold = await open_legacy_spot(files, **settings)
+    restored_controller = LifeLiquidityController(controller.config, MagicMock(), asyncio.Queue())
+    restored = await FileSpotApplication.install(cold, restored_controller, app.connector, owner,
+                                                 admission=app.admission, authorize_permit=app.authorize_permit,
+                                                 risk_epoch=app.risk_epoch, max_pending=1,
+                                                 ack_timeout_s=2, shutdown_timeout_s=.1)
+    restored_controller._runner_orchestrator = controller._runner_orchestrator
+    looked_up = []
+
+    def value(key, at):
+        looked_up.append(key)
+        return IndependentFillObservation(Decimal('.8'), at, at, 'independent_market')
+    restored.install_observer(OkxSpotRepositoryObserver(restored, independent_fill_value=value,
+                                                        independent_cashflow_value=lambda *args: None, max_pages=2))
+    try:
+        receipts = await restored.recover_pending()
+        view = await cold.snapshot(cold.binding)
+        assert receipts[0].state == 'APPLIED' and await cold.pending_spot_commands(cold.binding) == ()
+        assert (view.balance.total_base_life, view.balance.total_quote_usdt) == (Decimal('7'), Decimal('7.98'))
+        assert view.budget.session_execution_loss_usdt == Decimal('.42' if kind == 'ACK' else '.32')
+        assert set(looked_up) == ({'trade-1', 'trade-2'} if kind == 'ACK' else {'trade-2'})
+        assert (await cold.attempt(executor.config.id, cold.binding)).state.value == 'ACKED'
+        assert cold._cold_unarmed and not restored.local_ready() and len(sent) == 1
+    finally:
+        await restored.close()
+        await cold.close()
+
+
+@pytest.mark.asyncio
 async def test_control_application_requires_source_bound_signature_and_replay_cannot_rearm(tmp_path):
     from datetime import timedelta
     from test.hummingbot.strategy_v2.life_liquidity.storage.test_control_plane import KEYS

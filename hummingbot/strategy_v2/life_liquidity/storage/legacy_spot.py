@@ -69,6 +69,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.pending import LegacyPendingA
 from hummingbot.strategy_v2.life_liquidity.storage.prepare_recovery import LegacyPrepareRecoveryAdapter
 from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancialRecoveryPolicy
 from hummingbot.strategy_v2.life_liquidity.storage.recovery_adapter import LegacyFinancialRecoveryAdapter
+from hummingbot.strategy_v2.life_liquidity.storage.recovery_batch import LegacyRecoveryBatchAdapter
 from hummingbot.strategy_v2.life_liquidity.storage.session import LegacySessionAdapter
 from hummingbot.strategy_v2.life_liquidity.storage.settlement import SpotSettlementPolicy
 from hummingbot.strategy_v2.life_liquidity.storage.settlement_adapter import LegacySettlementAdapter
@@ -98,7 +99,7 @@ class LegacySpotFiles:
         return {key: value for key, value in self.__dict__.items() if key != 'binding'}
 
 
-class LegacySpotStore(LegacyPendingAdapter, LegacySessionAdapter, LegacySpotLifecycleAdapter, LegacyControlAdapter, LegacySettlementAdapter, LegacyPrepareRecoveryAdapter, LegacyFinancialRecoveryAdapter,
+class LegacySpotStore(LegacyRecoveryBatchAdapter, LegacyPendingAdapter, LegacySessionAdapter, LegacySpotLifecycleAdapter, LegacyControlAdapter, LegacySettlementAdapter, LegacyPrepareRecoveryAdapter, LegacyFinancialRecoveryAdapter,
                       LegacyTerminalAdapter, FileCheckpointStore):
     atomic_scope = AtomicScope.RECOVERABLE_SAGA
 
@@ -234,6 +235,7 @@ class LegacySpotStore(LegacyPendingAdapter, LegacySessionAdapter, LegacySpotLife
             hashes = self._hashes(before)
             partial = (hashes != dict(meta.resources['journal_hashes'])
                        or self._incomplete(meta.resources))
+            self._verify_recovery_batches(meta.resources)
             if not partial:
                 self._verify_session_projection(meta.resources)
             if self._fill_policy is not None and not partial:
@@ -500,7 +502,7 @@ class LegacySpotStore(LegacyPendingAdapter, LegacySessionAdapter, LegacySpotLife
     @staticmethod
     def _ancillary_recovery_pending(resources):
         return any(row['state'] != 'APPLIED' for name in (
-            'session_operations', 'lifecycle_operations', 'product_operations')
+            'session_operations', 'lifecycle_operations', 'product_operations', 'recovery_batches')
             for row in resources.get(name, {}).values())
 
     @staticmethod
