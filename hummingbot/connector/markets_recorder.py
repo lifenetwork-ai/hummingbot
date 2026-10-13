@@ -73,7 +73,8 @@ class MarketsRecorder:
                  markets: List[ConnectorBase],
                  config_file_path: str,
                  strategy_name: str,
-                 market_data_collection: MarketDataCollectionConfigMap):
+                 market_data_collection: MarketDataCollectionConfigMap,
+                 defer_history_restore: bool = False):
         if threading.current_thread() != threading.main_thread():
             raise EnvironmentError("MarketsRecorded can only be initialized from the main thread.")
 
@@ -84,8 +85,13 @@ class MarketsRecorder:
         self._strategy_name: str = strategy_name
         self._market_data_collection_config: MarketDataCollectionConfigMap = market_data_collection
         self._market_data_collection_task: Optional[asyncio.Task] = None
+        if type(defer_history_restore) is not bool:
+            raise ValueError('RECORDER_DEFER_HISTORY_INVALID')
+        self._defer_history_restore = defer_history_restore
+        self._repository_event_sink = None
+        self._repository_events_started = False
         # Internal collection of trade fills in connector will be used for remote/local history reconciliation
-        for market in self._markets:
+        for market in (() if defer_history_restore else self._markets):
             trade_fills = self.get_trades_for_config(self._config_file_path, 2000)
             market.add_trade_fills_from_market_recorder({TradeFillOrderDetails(tf.market,
                                                                                tf.exchange_trade_id,
@@ -171,6 +177,12 @@ class MarketsRecorder:
         return int(time.time() * 1e3)
 
     def start(self):
+        if self.__dict__.get('_defer_history_restore') and self.__dict__.get('_repository_event_sink') is None:
+            raise ValueError('RECORDER_ASYNC_HISTORY_REQUIRED')
+        if self.__dict__.get('_repository_event_sink') is not None:
+            if self._repository_events_started:
+                return
+            self._repository_events_started = True
         for market in self._markets:
             for event_pair in self._event_pairs:
                 market.add_listener(event_pair[0], event_pair[1])
@@ -179,6 +191,8 @@ class MarketsRecorder:
 
     def add_market(self, market: ConnectorBase):
         """Add a new market/connector dynamically."""
+        if self.__dict__.get('_repository_event_sink') is not None:
+            raise ValueError('RECORDER_ASYNC_SOURCE_INSTALL_REQUIRED')
         if market not in self._markets:
             self._markets.append(market)
 
@@ -208,6 +222,7 @@ class MarketsRecorder:
             self._markets.remove(market)
 
     def stop(self):
+        self._repository_events_started = False
         for market in self._markets:
             for event_pair in self._event_pairs:
                 market.remove_listener(event_pair[0], event_pair[1])
@@ -303,6 +318,26 @@ class MarketsRecorder:
                     for key, value in position_values(incoming).items():
                         setattr(current, key, value)
             session.commit()
+
+    def project_market_event(self, effect_json):
+        from hummingbot.strategy_v2.life_liquidity.storage.recorder_events import persist_event
+        persist_event(self, effect_json)
+
+    def install_repository_event_sink(self, sink, markets):
+        if (self.__dict__.get('_repository_event_sink') is not None
+                or self._market_data_collection_config.market_data_collection_enabled
+                or self._markets and (len(markets) != len(self._markets)
+                                      or any(left is not right for left, right in zip(markets, self._markets)))):
+            raise ValueError('RECORDER_EVENT_INSTALL_INVALID')
+        self._markets = list(markets)
+        self._repository_event_sink = sink
+
+    def _forward_repository_event(self, event_tag, market, evt):
+        sink = self.__dict__.get('_repository_event_sink')
+        if sink is None:
+            return False
+        sink.capture(event_tag, market, evt)
+        return True
 
     def update_or_store_position(self, position: Position):
         with self._sql_manager.get_new_session() as session:
@@ -412,6 +447,8 @@ class MarketsRecorder:
             session.add(market_states)
 
     def restore_market_states(self, config_file_path: str, market: ConnectorBase):
+        if self.__dict__.get('_defer_history_restore') or self.__dict__.get('_repository_event_sink') is not None:
+            raise ValueError('RECORDER_QUALIFIED_TRACKER_RECOVERY_REQUIRED')
         with self._sql_manager.get_new_session() as session:
             market_states: Optional[MarketState] = self.get_market_states(config_file_path, market, session=session)
 
@@ -435,6 +472,9 @@ class MarketsRecorder:
                           evt: Union[BuyOrderCreatedEvent, SellOrderCreatedEvent]):
         if threading.current_thread() != threading.main_thread():
             self._ev_loop.call_soon_threadsafe(self._did_create_order, event_tag, market, evt)
+            return
+
+        if self._forward_repository_event(event_tag, market, evt):
             return
 
         base_asset, quote_asset = evt.trading_pair.split("-")
@@ -473,6 +513,9 @@ class MarketsRecorder:
                         evt: OrderFilledEvent):
         if threading.current_thread() != threading.main_thread():
             self._ev_loop.call_soon_threadsafe(self._did_fill_order, event_tag, market, evt)
+            return
+
+        if self._forward_repository_event(event_tag, market, evt):
             return
 
         base_asset, quote_asset = evt.trading_pair.split("-")
@@ -538,6 +581,9 @@ class MarketsRecorder:
             self._ev_loop.call_soon_threadsafe(self._did_complete_funding_payment, event_tag, market, evt)
             return
 
+        if self._forward_repository_event(event_tag, market, evt):
+            return
+
         timestamp: float = evt.timestamp
 
         with self._sql_manager.get_new_session() as session:
@@ -594,6 +640,9 @@ class MarketsRecorder:
             self._ev_loop.call_soon_threadsafe(self._update_order_status, event_tag, market, evt)
             return
 
+        if self._forward_repository_event(event_tag, market, evt):
+            return
+
         timestamp: int = self.db_timestamp
         event_type: MarketEvent = self.market_event_tag_map[event_tag]
         order_id: str = evt.order_id
@@ -641,6 +690,9 @@ class MarketsRecorder:
                                    evt: Union[RangePositionLiquidityAddedEvent, RangePositionLiquidityRemovedEvent]):
         if threading.current_thread() != threading.main_thread():
             self._ev_loop.call_soon_threadsafe(self._did_update_range_position, event_tag, connector, evt)
+            return
+
+        if self._forward_repository_event(event_tag, connector, evt):
             return
 
         timestamp: int = self.db_timestamp

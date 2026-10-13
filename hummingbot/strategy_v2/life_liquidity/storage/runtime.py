@@ -81,6 +81,7 @@ class FileControllerRuntime:
         self._products = products
         self._spot_application = None
         self._recorder_application = None
+        self._recorder_startup_pending = False
         self._action_hashes = {}
         self._revoked = False
         self._assert_config()
@@ -157,6 +158,8 @@ class FileControllerRuntime:
 
     def _local_ready(self):
         try:
+            if self._recorder_startup_pending:
+                return False
             if self._recorder_application is not None and not self._recorder_application.ready:
                 return False
             if self._spot_application is not None and not self._spot_application.local_ready():
@@ -209,6 +212,8 @@ class FileControllerRuntime:
         if any(row['state'] != 'APPLIED' for row in meta.resources.get('recorder_progress', {}).values()):
             return False
         if any(row['state'] != 'APPLIED' for row in meta.resources.get('recorder_positions', {}).values()):
+            return False
+        if any(row['state'] != 'APPLIED' for row in meta.resources.get('recorder_events', {}).values()):
             return False
         if self._products is not None:
             self._products.validate_controller(self.controller)

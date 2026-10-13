@@ -163,7 +163,59 @@ retains them until a receipt, preserves any exposure accrued during that wait,
 and restores exact aggregates/order IDs from asynchronously loaded snapshots.
 Stop revokes immediately even while SQL is blocked. Unsupported initial-position
 overrides require qualified import instead of replacing this provenance.
-Raw market-event SQL and the full CLI/headless factory remain separate PG1 work.
+`recorder_events.py` / `recorder_event_application.py` port supported OKX order,
+fill, status and SWAP funding reporting. Callbacks capture frozen JSON on the loop;
+the worker verifies recorded/native wire provenance and publishes SQL behind a
+PROJECTING/APPLIED outbox. BEGIN IMMEDIATE serializes the complete before/after
+projection. Exact cold repair handles an absent or already committed transaction;
+mixed SQL cuts, altered effects and changed permanent event/trade facts fail.
+Connector trade/exchange-ID caches update only after receipt. These observations
+never book financial fills, settle funding, release funds or grant authority.
+OKX funding timestamps stay in milliseconds; order/fill seconds convert once.
+Legacy rows require qualified import; SQL tracking states remain diagnostics,
+never an automatic SDK tracker restore. LP and market-data telemetry are outside
+this LIFE order/SWAP assembly; no synchronous fallback is installed for them.
+
+`open_file_recorder` in `recorder_factory.py` constructs the actual SQLite manager
+and schema on the owning worker, defers legacy constructor history reads and
+qualifies all connector UIDs/history before listener installation. Startup blocks
+new-risk admission. SQL cleanup is a fixed FIFO worker job before account-lock
+handoff; cancelled startup/close callers do not release a physically busy worker.
+The factory selects SQLite explicitly and takes a database path and queue/shutdown
+budgets; it does not consume credential-bearing DB environment defaults.
+
+After asynchronous reporting setup, the actual headless runner can be constructed:
+
+```python
+reporting = await open_file_recorder(
+    spot_application.runtime,
+    database_path=absolute_sqlite_path,
+    config_file_path=config_name,
+    strategy_name="v2",
+    connectors=(connector,),
+    max_pending=report_queue_capacity,
+    shutdown_timeout_s=report_shutdown_budget,
+)
+runner = StrategyV2Base(
+    {"okx": connector},
+    repository_reporting={controller.config.id: reporting},
+    dispatch_max_pending=create_queue_capacity,
+    dispatch_shutdown_timeout_s=create_shutdown_budget,
+)
+# On shutdown, revoke/drain applications before closing their owning store.
+await runner.on_stop()
+await reporting.close()
+await spot_application.close()
+await store.close()
+```
+
+This explicit preassembled mode reuses bound controllers/provider/action queue and
+verified connector identities; it performs no global recorder SQL or YAML reads
+in the runner constructor. A separate script config, pending action queue and
+unqualified scope/provider/connector changes are rejected. No startup snapshot
+reconstructs executors or rearms a writer. Full CLI/config-driven service assembly,
+controller config reporting/hot reload and complete product/control application
+remain open PG1 requirements.
 
 `recovery_batch.py` adds a typed account recovery saga for pending ACK/fill/bill
 commands with later qualified activity. Full source coverage, final causal capital

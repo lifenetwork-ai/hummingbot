@@ -2,6 +2,7 @@ import asyncio
 import importlib
 import inspect
 import logging
+import math
 import os
 from decimal import Decimal
 from typing import Any, Callable, Dict, List, Optional, Set
@@ -253,13 +254,44 @@ class StrategyV2Base(StrategyPyBase):
             interval=interval
         )
 
-    def __init__(self, connectors: Dict[str, ConnectorBase], config: Optional[BaseModel] = None):
+    def __init__(self, connectors: Dict[str, ConnectorBase], config: Optional[BaseModel] = None, *,
+                 repository_reporting: Optional[dict] = None, dispatch_max_pending: Optional[int] = None,
+                 dispatch_shutdown_timeout_s: Optional[float] = None):
         """
         Initialize the strategy.
 
         :param connectors: A dictionary of connector names and their corresponding connector.
         :param config: Optional configuration. If StrategyV2ConfigBase, enables controller orchestration.
         """
+        prepared_controllers = None
+        prepared_queue = None
+        prepared_provider = None
+        prepared_markets = {}
+        if repository_reporting is not None:
+            from hummingbot.strategy_v2.life_liquidity.storage.recorder_application import FileRecorderApplication
+            if (type(repository_reporting) is not dict or not repository_reporting or config is not None
+                    or type(dispatch_max_pending) is not int or dispatch_max_pending <= 0
+                    or type(dispatch_shutdown_timeout_s) not in (int, float)
+                    or not math.isfinite(dispatch_shutdown_timeout_s) or dispatch_shutdown_timeout_s <= 0):
+                raise ValueError('REPOSITORY_RUNNER_STARTUP_INVALID')
+            prepared_controllers = {}
+            for key, app in repository_reporting.items():
+                if (not isinstance(app, FileRecorderApplication) or not app.ready or app._event_application is None
+                        or key != app.runtime.controller.config.id
+                        or app.runtime._recorder_application is not app
+                        or any(connectors.get(source.market) is not actual for actual, source in app._event_application.sources)):
+                    raise ValueError('REPOSITORY_RUNNER_STARTUP_INVALID')
+                controller = app.runtime.controller
+                if (not isinstance(controller.actions_queue, asyncio.Queue) or controller.actions_queue.qsize()
+                        or prepared_queue is not None and controller.actions_queue is not prepared_queue
+                        or prepared_provider is not None and controller.market_data_provider is not prepared_provider):
+                    raise ValueError('REPOSITORY_RUNNER_STARTUP_INVALID')
+                prepared_queue = controller.actions_queue
+                prepared_provider = controller.market_data_provider
+                for _, source in app._event_application.sources:
+                    prepared_markets.setdefault(source.market, set()).add('LIFE-USDT')
+                prepared_controllers[key] = controller
+            repository_reporting = dict(repository_reporting)
         super().__init__()
         self.connectors: Dict[str, ConnectorBase] = connectors
         self.ready_to_trade: bool = False
@@ -267,15 +299,17 @@ class StrategyV2Base(StrategyPyBase):
         self.config = config
 
         # Always initialize V2 infrastructure
-        self.controllers: Dict[str, ControllerBase] = {}
+        self.controllers: Dict[str, ControllerBase] = {} if prepared_controllers is None else prepared_controllers
         self.controller_reports: Dict[str, Dict] = {}
-        self.market_data_provider = MarketDataProvider(connectors)
+        self.market_data_provider = MarketDataProvider(connectors) if prepared_provider is None else prepared_provider
+        if repository_reporting is not None:
+            self.markets = prepared_markets
         self._is_stop_triggered = False
         self._async_action_dispatcher = None
         self.mqtt_enabled = False
         self._pub: Optional[ETopicPublisher] = None
 
-        self.actions_queue = asyncio.Queue()
+        self.actions_queue = asyncio.Queue() if prepared_queue is None else prepared_queue
         self.listen_to_executor_actions_task: asyncio.Task = asyncio.create_task(self.listen_to_executor_actions())
 
         # Initialize controllers from config if available
@@ -284,10 +318,16 @@ class StrategyV2Base(StrategyPyBase):
             # Initialize candles after controllers are set up
             self.initialize_candles()
 
-        self.executor_orchestrator = _get_executor_orchestrator_class()(
-            strategy=self,
-            initial_positions_by_controller=self._collect_initial_positions()
-        )
+        orchestrator_options = {'strategy': self, 'initial_positions_by_controller': (
+            self._collect_initial_positions() if repository_reporting is None else {})}
+        if repository_reporting is not None:
+            orchestrator_options['repository_reporting'] = repository_reporting
+        self.executor_orchestrator = _get_executor_orchestrator_class()(**orchestrator_options)
+        if repository_reporting is not None:
+            for controller in self.controllers.values():
+                controller._runner_orchestrator = self.executor_orchestrator
+            self.install_async_action_dispatcher(max_pending=dispatch_max_pending,
+                                                 shutdown_timeout_s=dispatch_shutdown_timeout_s)
 
     # -------------------------------------------------------------------------
     # Shared methods (simple + V2 modes)
@@ -399,7 +439,7 @@ class StrategyV2Base(StrategyPyBase):
         self.market_data_provider.stop()
         self.executor_orchestrator.store_all_executors()
         drain_reporting = getattr(self.executor_orchestrator, 'drain_repository_reporting', None)
-        if callable(drain_reporting):
+        if inspect.iscoroutinefunction(drain_reporting):
             await drain_reporting()
         if self.mqtt_enabled:
             self._pub({controller_id: {} for controller_id in self.controllers.keys()})

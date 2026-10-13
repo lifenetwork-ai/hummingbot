@@ -294,7 +294,7 @@ class FilePositionAdapter:
         if previous is None:
             if meta.cut != cut:
                 raise StorageConflict('STORAGE_CUT_STALE')
-            if any(row['state'] != 'APPLIED' for name in ('recorder_outbox', 'recorder_progress', 'recorder_positions')
+            if any(row['state'] != 'APPLIED' for name in ('recorder_outbox', 'recorder_progress', 'recorder_positions', 'recorder_events')
                    for row in meta.resources.get(name, {}).values()):
                 raise StorageUnavailable('RECORDER_OUTBOX_REPAIR_REQUIRED')
             operations[command.operation_id] = {'identity': identity, 'command': command.json(), 'cut': cut.json(),

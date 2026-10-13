@@ -28,6 +28,7 @@ class FileRecorderApplication:
         self._closed, self._busy, self._healthy = False, False, False
         self._startup_infos = ()
         self._startup_positions = ()
+        self._event_application = None
 
     @classmethod
     async def install(cls, repository, runtime, *, max_pending, shutdown_timeout_s):
@@ -62,6 +63,8 @@ class FileRecorderApplication:
                 await self.repository.update_progress(item.command, cut=item.original_cut, owner=item.owner)
             for item in await self.repository.pending_positions(self.binding):
                 await self.repository.report_positions(item.command, cut=item.original_cut, owner=item.owner)
+            for item in await self.repository.pending_events(self.binding):
+                await self.repository.project_event(item.command, cut=item.original_cut, owner=item.owner)
             rows = await self.repository.read(self.binding)
             self._startup_infos = tuple(ExecutorInfo.model_validate_json(row.payload_json) for row in rows)
             self._startup_positions = (await self.repository.positions(self.binding)).positions
@@ -164,6 +167,19 @@ class FileRecorderApplication:
                 callback(receipt)
             return receipt
 
+    async def install_event_sources(self, connectors):
+        from hummingbot.strategy_v2.life_liquidity.storage.recorder_event_application import RecorderEventApplication
+        if self._event_application is not None or not self.ready:
+            raise StorageError('RECORDER_EVENT_INSTALL_INVALID')
+        self._busy = True
+        try:
+            self._event_application = await RecorderEventApplication.install(self, connectors)
+        except BaseException:
+            self.invalidate()
+            raise
+        finally:
+            self._busy = False
+
     async def drain(self):
         tasks = tuple(row[0] for row in self._pending.values())
         if tasks:
@@ -174,6 +190,8 @@ class FileRecorderApplication:
     async def close(self):
         self._closed = True
         self.runtime.revoke()
+        if self._event_application is not None:
+            self._event_application.stop()
         tasks = tuple(row[0] for row in self._pending.values())
         if tasks:
             _, pending = await asyncio.wait(tasks, timeout=self.shutdown_timeout_s)

@@ -100,6 +100,8 @@ class FileCheckpointStore:
         self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='life-file-store')
         self._pending, self._closed, self._uncertain = set(), False, False
         self._worker_thread_id = None
+        self._worker_finalizers = {}
+        self._cleanup_future = None
         self._policy = {'storage_contract': 1, 'binding': binding.json(), 'capacity': {
             'max_checkpoint_bytes': limits.max_checkpoint_bytes, 'max_operations': limits.max_operations}}
 
@@ -137,6 +139,20 @@ class FileCheckpointStore:
     def assert_worker_thread(self):
         if self._worker_thread_id is None or threading.get_ident() != self._worker_thread_id:
             raise StorageError('STORAGE_WORKER_REQUIRED')
+
+    def _register_worker_finalizer(self, key, finalizer):
+        """One explicitly owned recorder resource; not a financial command."""
+        self.assert_worker_thread()
+        if key != 'recorder_sql' or key in self._worker_finalizers or not callable(finalizer):
+            raise StorageError('STORAGE_RESOURCE_BINDING_INVALID')
+        self._worker_finalizers[key] = finalizer
+
+    def _finalize_worker_resources(self):
+        self.assert_worker_thread()
+        finalizers = tuple(self._worker_finalizers.values())
+        self._worker_finalizers.clear()
+        for finalizer in finalizers:
+            finalizer()
 
     def _initialize(self, create, initial, owner):
         if type(create) is not bool:
@@ -320,12 +336,13 @@ class FileCheckpointStore:
 
     async def close(self):
         self._closed = True
-        try:
-            if self._pending:
-                await asyncio.shield(asyncio.gather(*tuple(self._pending), return_exceptions=True))
-        finally:
-            # Even cancelled close waits leave the worker scheduled to drain and exit.
+        if self._cleanup_future is None:
+            # A fixed FIFO cleanup job also catches resources registered by an
+            # admitted initializer after its awaiting caller was cancelled.
+            self._cleanup_future = asyncio.get_running_loop().run_in_executor(self._executor, self._finalize_worker_resources)
+            self._cleanup_future.add_done_callback(lambda result: result.exception() if not result.cancelled() else None)
             self._executor.shutdown(wait=False, cancel_futures=False)
+        await asyncio.shield(self._cleanup_future)
 
 
 async def open_store(backend, *, path, binding, limits, create=False, initial=None, owner=None,

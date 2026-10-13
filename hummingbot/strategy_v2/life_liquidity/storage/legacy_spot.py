@@ -502,7 +502,7 @@ class LegacySpotStore(LegacyRecoveryBatchAdapter, LegacyPendingAdapter, LegacySe
 
     @staticmethod
     def _reporting_pending(resources):
-        return any(row['state'] != 'APPLIED' for name in ('recorder_outbox', 'recorder_progress', 'recorder_positions')
+        return any(row['state'] != 'APPLIED' for name in ('recorder_outbox', 'recorder_progress', 'recorder_positions', 'recorder_events')
                    for row in resources.get(name, {}).values())
 
     @staticmethod
@@ -1022,8 +1022,11 @@ class LegacySpotStore(LegacyRecoveryBatchAdapter, LegacyPendingAdapter, LegacySe
             raise
 
     def _release_account_lock(self):
-        if self._account_lock is not None:
-            self._account_lock.release()
+        try:
+            self._finalize_worker_resources()
+        finally:
+            if self._account_lock is not None:
+                self._account_lock.release()
 
     async def close(self):
         self._closed = True

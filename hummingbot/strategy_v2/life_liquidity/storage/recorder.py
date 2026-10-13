@@ -27,6 +27,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.contracts import (
     thaw,
     utc,
 )
+from hummingbot.strategy_v2.life_liquidity.storage.recorder_events import EventRepository, FileEventAdapter
 from hummingbot.strategy_v2.life_liquidity.storage.recorder_positions import FilePositionAdapter, PositionRepository
 from hummingbot.strategy_v2.life_liquidity.storage.recorder_progress import (
     PROVENANCE_KEYS,
@@ -105,7 +106,7 @@ class PendingExecutorProjection:
     owner: OwnerToken
 
 
-class RecorderRepository(RecorderProgressRepository, PositionRepository, Protocol):
+class RecorderRepository(RecorderProgressRepository, PositionRepository, EventRepository, Protocol):
     async def read(self, binding: StateBinding) -> tuple[RecorderRow, ...]:
         ...
 
@@ -119,7 +120,7 @@ class RecorderRepository(RecorderProgressRepository, PositionRepository, Protoco
         ...
 
 
-class FileRecorderRepository(FileRecorderProgressAdapter, FilePositionAdapter):
+class FileRecorderRepository(FileRecorderProgressAdapter, FilePositionAdapter, FileEventAdapter):
     """One bounded store worker owns outbox publication and actual SQLite calls."""
 
     def __init__(self, store, recorder, controller_id):
@@ -213,7 +214,7 @@ class FileRecorderRepository(FileRecorderProgressAdapter, FilePositionAdapter):
             if meta.cut != cut:
                 raise StorageConflict('STORAGE_CUT_STALE')
             if (any(row['state'] != 'APPLIED' for row in operations.values())
-                    or any(row['state'] != 'APPLIED' for name in ('recorder_progress', 'recorder_positions')
+                    or any(row['state'] != 'APPLIED' for name in ('recorder_progress', 'recorder_positions', 'recorder_events')
                            for row in meta.resources.get(name, {}).values())):
                 raise StorageUnavailable('RECORDER_OUTBOX_REPAIR_REQUIRED')
             operations[command.operation_id] = {'identity': identity, 'command': command.json(),
