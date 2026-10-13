@@ -158,6 +158,7 @@ class JointRecovery:
         self._receipt_context = None
         self.reason_code = "JOINT_RECOVERY_REQUIRED"
         self._mutex = asyncio.Lock()
+        self._repository_application = None
         # Cancellation must not wait for a collector holding the recovery lock.
         # Each checkpoint section is synchronous; only transport yields here.
         self._cancel_mutex = asyncio.Lock()
@@ -209,6 +210,8 @@ class JointRecovery:
             raise ValueError("JOINT_RECOVERY_ANCHOR_INVALID")
 
     def _verify_storage(self):
+        if self._repository_application is not None:
+            self._repository_application.store.assert_worker_thread()
         for wal in (self.spot_wal, self.sender.wal):
             wal.assert_verified()
         self.reservations.verify_memory()
@@ -217,6 +220,26 @@ class JointRecovery:
                 ownership is None or ownership._fd is None
                 or ownership.path.name != f"okx-{self.capital.policy.account_uid}.lock"):
             raise ValueError("JOINT_ACCOUNT_OWNERSHIP_REQUIRED")
+
+    def _swap_account(self, obs, now):
+        """One unit/mode/snapshot check shared by recovery and typed reads."""
+        a = self.sender.account_observation()
+        ct = self.capital.policy.contract_value_life
+        long = max(a.net_contracts, ZERO) if obs.position_mode == "ONEWAY" else a.long_contracts
+        short = max(-a.net_contracts, ZERO) if obs.position_mode == "ONEWAY" else a.short_contracts
+        if (a.account_uid != obs.account_uid or a.account_mode != obs.account_mode
+                or a.position_mode.name != obs.position_mode or a.margin_mode != obs.margin_mode
+                or a.leverage != obs.leverage or a.connector_ready is not True
+                or type(a.snapshot_sequence) is not int or a.snapshot_sequence != obs.sequence
+                or type(a.observed_at_ms) is not int or not 0 <= now - a.observed_at_ms <= self.max_age_ms
+                or any(not finite(v) for v in (a.net_contracts, a.long_contracts, a.short_contracts,
+                                               a.pending_close_buy_contracts, a.pending_close_sell_contracts))
+                or min(a.long_contracts, a.short_contracts, a.pending_close_buy_contracts, a.pending_close_sell_contracts) < 0
+                or obs.position_mode == "ONEWAY" and (a.long_contracts != 0 or a.short_contracts != 0)
+                or obs.position_mode == "HEDGE" and a.net_contracts != 0
+                or (long * ct, short * ct) != (obs.long_base, obs.short_base)):
+            raise ValueError("JOINT_SWAP_ACCOUNT_MISMATCH")
+        return a
 
     def _qualify(self, bundle, state, now, prepared=None):
         obs = self.capital.qualified_snapshot()
@@ -250,22 +273,8 @@ class JointRecovery:
                 or bundle.snapshot_sequence == state["sequence"] and encoded != state["bundle"]
                 or bundle.observed_at_ms < state["bundle"]["observed_at_ms"]):
             raise ValueError("JOINT_HISTORY_REPLAY_OR_MUTATION")
-        a = self.sender.account_observation()
+        self._swap_account(obs, now)
         ct = self.capital.policy.contract_value_life
-        long = max(a.net_contracts, ZERO) if obs.position_mode == "ONEWAY" else a.long_contracts
-        short = max(-a.net_contracts, ZERO) if obs.position_mode == "ONEWAY" else a.short_contracts
-        if (a.account_uid != obs.account_uid or a.account_mode != obs.account_mode
-                or a.position_mode.name != obs.position_mode or a.margin_mode != obs.margin_mode
-                or a.leverage != obs.leverage or a.connector_ready is not True
-                or type(a.snapshot_sequence) is not int or a.snapshot_sequence != obs.sequence
-                or type(a.observed_at_ms) is not int or not 0 <= now - a.observed_at_ms <= self.max_age_ms
-                or any(not finite(v) for v in (a.net_contracts, a.long_contracts, a.short_contracts,
-                                               a.pending_close_buy_contracts, a.pending_close_sell_contracts))
-                or min(a.long_contracts, a.short_contracts, a.pending_close_buy_contracts, a.pending_close_sell_contracts) < 0
-                or obs.position_mode == "ONEWAY" and (a.long_contracts != 0 or a.short_contracts != 0)
-                or obs.position_mode == "HEDGE" and a.net_contracts != 0
-                or (long * ct, short * ct) != (obs.long_base, obs.short_base)):
-            raise ValueError("JOINT_SWAP_ACCOUNT_MISMATCH")
         claims = self.capital.claims(include_settled=True)
         records = {r.intent_id: r for r in self._records() if r.intent_id not in state["excluded"]}
         if len(records) != len([r for r in self._records() if r.intent_id not in state["excluded"]]):
@@ -360,6 +369,8 @@ class JointRecovery:
 
     def runner_provenance_complete(self, records):
         try:
+            if self._repository_application is not None:
+                self._repository_application.store.assert_worker_thread()
             claims = self.capital.claims(include_settled=True)
             with self.sender.journal.locked() as state:
                 for r in records:
@@ -503,68 +514,100 @@ class JointRecovery:
                      "unrealized_quote": str(unrealized), "external_flows_quote": str(external_flows)}
         return events, valuation
 
+    async def _checkpoint(self, function, *args):
+        application = self._repository_application
+        if application is None:
+            return function(*args)
+        return await application._checkpoint(function, *args)
+
+    def _begin_reconciliation(self):
+        self._healthy = False
+        self._verify_storage()
+        now = self.clock_ms()
+        with self.journal.locked(shallow=True) as state:
+            self._validate_state(state)
+            if type(now) is not int or now < 0 or state["last_ms"] is not None and now < state["last_ms"]:
+                raise ValueError("JOINT_CLOCK_ROLLBACK")
+            state["last_ms"] = state["last_poll_ms"] = now
+            self.journal.commit(state)
+        self.sender.request_budget.charge("STATUS", "joint:" + uuid.uuid4().hex)
+
+    def _complete_reconciliation(self, bundle, context, prepared):
+        # This flag belongs to the physical checkpoint section. Cancelling an
+        # awaiter cannot remove release qualification from an admitted worker.
+        self._busy = True
+        try:
+            if context != self._context():
+                raise ValueError("JOINT_CONTEXT_CHANGED_DURING_REFRESH")
+            now = self.clock_ms()
+            with self.journal.locked(shallow=True) as state:
+                self._validate_state(state)
+                if type(now) is not int or now < state["last_ms"]:
+                    raise ValueError("JOINT_CLOCK_ROLLBACK")
+                state["last_ms"] = now
+                obs, orders, events, encoded, valuation = self._qualify(bundle, state, now, prepared)
+                # A COMMITTED immutable terminal cut has already completed
+                # all cross-journal checkpoints. Re-qualify all facts, but
+                # do not replay durable financial writes for settled orders.
+                completed = self._completed_orders(state, orders)
+                coordinator = self.controller._hedge_coordinator
+                hedge_idle = coordinator is None
+                if coordinator is not None:
+                    with coordinator.journal.inspect() as hedge:
+                        coordinator._validate_state(hedge)
+                        hedge_idle = all(e["status"] == "TERMINAL" for e in hedge["orders"].values())
+                known_cash = self.reservations.joint_cash_events
+                no_settlement = (state["phase"] == "COMMITTED" and len(completed) == len(orders)
+                                 and hedge_idle and all(known_cash.get(k) == v
+                                                        for k, v in events.items()))
+                state.update(sequence=obs.sequence, bundle=encoded,
+                             proof_id=digest(encoded) if prepared is None else prepared.proof_id,
+                             phase="COMMITTED" if no_settlement else "APPLYING",
+                             valuation=valuation, highwater=valuation["highwater_quote"])
+                self.journal.commit(state)  # Intent-to-settle precedes every financial/WAL checkpoint.
+                if not no_settlement:
+                    self._apply({k: o for k, o in orders.items() if k not in completed}, events, state["proof_id"])
+                    if coordinator is not None:
+                        coordinator.reconcile_joint_preparations(authority=self, proof_id=state["proof_id"])
+                if (self.reservations.life_balance, self.reservations.usdt_balance) != (
+                        obs.spot_life_base, obs.spot_cash_quote):
+                    raise ValueError("JOINT_LEDGER_ACCOUNT_MISMATCH")
+                state["phase"] = "COMMITTED"
+                state["runner_fills"], state["runner_cancels"] = {}, {}
+                self.journal.commit(state)  # Cross-journal completion is last.
+            self._healthy = True
+            self._receipt_context = context
+            self.reason_code = "JOINT_RECONCILED" if self._armed else "JOINT_OPERATOR_REARM_REQUIRED"
+            return True
+        finally:
+            self._busy = False
+
     async def reconcile(self):
+        if self._repository_application is not None:
+            application = self._repository_application
+            return await application.reconcile(application.binding, application.owner)
+        return await self._reconcile()
+
+    async def _reconcile(self):
         async with self._mutex:
-            self._busy = True
+            if self._repository_application is None:
+                self._busy = True
             try:
-                context = self._context()
+                context = await self._checkpoint(self._context)
                 if self.history_worker is not None:
                     await self._prime_reservations(context)
-                self._verify_storage()
-                now = self.clock_ms()
-                with self.journal.locked(shallow=True) as state:
-                    self._validate_state(state)
-                    if type(now) is not int or now < 0 or state["last_ms"] is not None and now < state["last_ms"]:
-                        raise ValueError("JOINT_CLOCK_ROLLBACK")
-                    state["last_ms"] = state["last_poll_ms"] = now
-                    self.journal.commit(state)
-                self.sender.request_budget.charge("STATUS", "joint:" + uuid.uuid4().hex)
+                await self._checkpoint(self._begin_reconciliation)
+                if self._repository_application is not None:
+                    self._repository_application.assert_transport_ready()
                 bundle = await asyncio.wait_for(self.collect(), self.max_age_ms / 1000)
-                if context != self._context():
+                if self._repository_application is not None:
+                    bundle = self._repository_application.capture(bundle)
+                if context != await self._checkpoint(self._context):
                     raise ValueError("JOINT_CONTEXT_CHANGED_DURING_REFRESH")
                 prepared = None
                 if self.history_worker is not None:
                     prepared = await self._prepare_history(bundle, context)
-                now = self.clock_ms()
-                with self.journal.locked(shallow=True) as state:
-                    self._validate_state(state)
-                    if type(now) is not int or now < state["last_ms"]:
-                        raise ValueError("JOINT_CLOCK_ROLLBACK")
-                    state["last_ms"] = now
-                    obs, orders, events, encoded, valuation = self._qualify(bundle, state, now, prepared)
-                    # A COMMITTED immutable terminal cut has already completed
-                    # all cross-journal checkpoints. Re-qualify all facts, but
-                    # do not replay durable financial writes for settled orders.
-                    completed = self._completed_orders(state, orders)
-                    coordinator = self.controller._hedge_coordinator
-                    hedge_idle = coordinator is None
-                    if coordinator is not None:
-                        with coordinator.journal.inspect() as hedge:
-                            coordinator._validate_state(hedge)
-                            hedge_idle = all(e["status"] == "TERMINAL" for e in hedge["orders"].values())
-                    known_cash = self.reservations.joint_cash_events
-                    no_settlement = (state["phase"] == "COMMITTED" and len(completed) == len(orders)
-                                     and hedge_idle and all(known_cash.get(k) == v
-                                                            for k, v in events.items()))
-                    state.update(sequence=obs.sequence, bundle=encoded,
-                                 proof_id=digest(encoded) if prepared is None else prepared.proof_id,
-                                 phase="COMMITTED" if no_settlement else "APPLYING",
-                                 valuation=valuation, highwater=valuation["highwater_quote"])
-                    self.journal.commit(state)  # Intent-to-settle precedes every financial/WAL checkpoint.
-                    if not no_settlement:
-                        self._apply({k: o for k, o in orders.items() if k not in completed}, events, state["proof_id"])
-                        if coordinator is not None:
-                            coordinator.reconcile_joint_preparations(authority=self, proof_id=state["proof_id"])
-                    if (self.reservations.life_balance, self.reservations.usdt_balance) != (
-                            obs.spot_life_base, obs.spot_cash_quote):
-                        raise ValueError("JOINT_LEDGER_ACCOUNT_MISMATCH")
-                    state["phase"] = "COMMITTED"
-                    state["runner_fills"], state["runner_cancels"] = {}, {}
-                    self.journal.commit(state)  # Cross-journal completion is last.
-                self._healthy = True
-                self._receipt_context = context
-                self.reason_code = "JOINT_RECONCILED" if self._armed else "JOINT_OPERATOR_REARM_REQUIRED"
-                return True
+                return await self._checkpoint(self._complete_reconciliation, bundle, context, prepared)
             except asyncio.CancelledError:
                 self._healthy = False
                 self._armed = False
@@ -576,7 +619,8 @@ class JointRecovery:
                 self.reason_code = str(exc) if str(exc).startswith("JOINT_") else "JOINT_RECONCILIATION_UNAVAILABLE"
                 return False
             finally:
-                self._busy = False
+                if self._repository_application is None:
+                    self._busy = False
 
     async def _prime_reservations(self, context):
         """Decode a cold reservation cut in the same bounded read-only worker."""
@@ -732,6 +776,8 @@ class JointRecovery:
 
     def authorizes_release(self, claim, proof_id):
         try:
+            if self._repository_application is not None:
+                self._repository_application.store.assert_worker_thread()
             data = self.journal._read()
             if (not self._busy or data != self.journal._state or data["phase"] != "APPLYING"
                     or data["proof_id"] != proof_id):
@@ -748,6 +794,8 @@ class JointRecovery:
 
     def authorizes_order(self, order, proof_id):
         try:
+            if self._repository_application is not None:
+                self._repository_application.store.assert_worker_thread()
             state = self.journal._read()
             return (self._busy and state == self.journal._state and state["phase"] == "APPLYING"
                     and state["proof_id"] == proof_id and encode_order(order) in state["bundle"]["orders"])
@@ -803,6 +851,8 @@ class JointRecovery:
         Joint → capital is the only lock order. The yielded validator has no
         authority outside these locks and must never cross an await.
         """
+        if self._repository_application is not None:
+            self._repository_application.store.assert_worker_thread()
         if capital is not self.capital or capital._recovery is not self or capital.journal._locked:
             raise ValueError("CAPITAL_JOINT_RECOVERY_REQUIRED")
         if self.journal.archive is not None:
@@ -832,6 +882,8 @@ class JointRecovery:
 
     def observe_runner_fill(self, event):
         """Persist tracker hints; only complete exchange evidence may consume them."""
+        if self._repository_application is not None:
+            self._repository_application.store.assert_worker_thread()
         r = self.sender.wal.find_by_client_order_id(event.order_id)
         fee = event.trade_fee
         if (event.trading_pair != self.sender.contract.trading_pair or r.slot_market != self.sender.contract.instrument
@@ -855,6 +907,8 @@ class JointRecovery:
             self.journal.commit(state)
 
     def observe_runner_cancel(self, event):
+        if self._repository_application is not None:
+            self._repository_application.store.assert_worker_thread()
         r = self.sender.wal.find_by_client_order_id(event.order_id)
         if r.state == "ABORTED_BEFORE_SEND" or event.exchange_order_id not in (None, r.exchange_order_id):
             if r.exchange_order_id is not None or r.state == "ABORTED_BEFORE_SEND":
@@ -869,6 +923,8 @@ class JointRecovery:
 
     def allocation_ready(self):
         try:
+            if self._repository_application is not None:
+                self._repository_application.store.assert_worker_thread()
             if self.journal.archive is not None:
                 self.journal.archive.assert_capacity()
             return self._armed and self._fresh() is not None
@@ -899,6 +955,8 @@ class JointRecovery:
             return False
 
     def manual_rearm(self, *, operator_id):
+        if self._repository_application is not None:
+            raise ValueError('JOINT_REPOSITORY_SIGNED_REARM_REQUIRED')
         self._armed = False
         if not isinstance(operator_id, str) or not operator_id.strip():
             raise ValueError("JOINT_OPERATOR_REQUIRED")
@@ -921,6 +979,8 @@ class JointRecovery:
 
     def reconciliation_due(self):
         try:
+            if self._repository_application is not None:
+                self._repository_application.store.assert_worker_thread()
             with self.journal.inspect() as state:
                 self._validate_state(state)
                 return state["last_poll_ms"] is None or self.clock_ms() - state["last_poll_ms"] >= self.poll_interval_ms
@@ -928,6 +988,12 @@ class JointRecovery:
             return True  # Attempt recovery, never infer health from a read error.
 
     async def cancel_working_swaps(self):
+        if self._repository_application is not None:
+            application = self._repository_application
+            return await application.cancel_working_swaps(application.binding, application.owner)
+        return await self._cancel_with_failure_guard()
+
+    async def _cancel_with_failure_guard(self):
         try:
             return await self._cancel_working_swaps()
         except BaseException:
@@ -935,34 +1001,58 @@ class JointRecovery:
             self.reason_code = "JOINT_CANCEL_RECONCILIATION_REQUIRED"
             raise
 
+    def _begin_cancel_cycle(self):
+        self._verify_storage()
+        now = self.clock_ms()
+        with self.journal.locked(shallow=True) as state:
+            self._validate_state(state)
+            if type(now) is not int or now < 0 or state["last_ms"] is not None and now < state["last_ms"]:
+                raise ValueError("JOINT_CLOCK_ROLLBACK")
+            state["last_ms"] = now
+            self.journal.commit(state)
+        return tuple(r.intent_id for r in self.sender.wal.all_records())
+
+    def _prepare_cancel(self, intent_id):
+        self._verify_storage()
+        now = self.clock_ms()
+        with self.journal.locked(shallow=True) as state:
+            self._validate_state(state)
+            if (type(now) is not int or now < 0
+                    or state['last_ms'] is not None and now < state['last_ms']):
+                raise ValueError('JOINT_CLOCK_ROLLBACK')
+            if now != state['last_ms']:
+                state['last_ms'] = now
+                self.journal.commit(state)
+        # A collection may settle it while the prior transport is suspended.
+        record = self.sender.wal.get(intent_id)
+        if record.state not in ("SEND_UNKNOWN", "ACKED"):
+            return None
+        if record.last_cancel_attempt_at is not None:
+            previous = int(datetime.fromisoformat(record.last_cancel_attempt_at).timestamp() * 1000)
+            if now < previous:
+                raise ValueError("JOINT_CLOCK_ROLLBACK")
+            if now - previous < self.cancel_retry_ms:
+                return None
+        claim = self.capital.claims().get(record.intent_id)
+        if claim is None or claim.product != "SWAP" or claim.wire_id != record.client_order_id:
+            raise ValueError("JOINT_CANCEL_CLAIM_MISMATCH")
+        self.sender.wal.mark_cancel_attempt(record.intent_id, at=datetime.fromtimestamp(now / 1000, timezone.utc))
+        self.sender._revoked.add(record.intent_id)
+        self.sender.request_budget.charge("CANCEL", f"joint:{record.client_order_id}:{record.cancel_attempts + 1}")
+        return claim
+
     async def _cancel_working_swaps(self):
         """Persist attempts before transport; retry ACKs do not release claims."""
         async with self._cancel_mutex:
-            self._verify_storage()
-            now = self.clock_ms()
-            with self.journal.locked(shallow=True) as state:
-                self._validate_state(state)
-                if type(now) is not int or now < 0 or state["last_ms"] is not None and now < state["last_ms"]:
-                    raise ValueError("JOINT_CLOCK_ROLLBACK")
-                state["last_ms"] = now
-                self.journal.commit(state)
+            intent_ids = await self._checkpoint(self._begin_cancel_cycle)
             count = 0
-            claims = self.capital.claims()
-            for r in self.sender.wal.all_records():
-                r = self.sender.wal.get(r.intent_id)  # Collection may settle it during prior cancel I/O.
-                if r.state not in ("SEND_UNKNOWN", "ACKED"):
-                    continue
-                if r.last_cancel_attempt_at is not None:
-                    previous = int(datetime.fromisoformat(r.last_cancel_attempt_at).timestamp() * 1000)
-                    if now - previous < self.cancel_retry_ms:
-                        continue
+            for intent_id in intent_ids:
                 if count >= self.max_cancels_per_cycle:
                     break
-                c = claims.get(r.intent_id)
-                if c is None or c.product != "SWAP" or c.wire_id != r.client_order_id:
-                    raise ValueError("JOINT_CANCEL_CLAIM_MISMATCH")
-                self.sender.wal.mark_cancel_attempt(r.intent_id, at=datetime.fromtimestamp(now / 1000, timezone.utc))
-                self.sender._revoked.add(r.intent_id)
-                self.sender.request_budget.charge("CANCEL", f"joint:{r.client_order_id}:{r.cancel_attempts + 1}")
+                claim = await self._checkpoint(self._prepare_cancel, intent_id)
+                if claim is None:
+                    continue
+                if self._repository_application is not None:
+                    self._repository_application.assert_transport_ready()
                 count += 1
-                await asyncio.wait_for(self.cancel_swap(c), self.max_age_ms / 1000)
+                await asyncio.wait_for(self.cancel_swap(claim), self.max_age_ms / 1000)

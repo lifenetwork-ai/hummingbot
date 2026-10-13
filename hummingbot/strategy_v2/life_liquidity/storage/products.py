@@ -317,6 +317,17 @@ class FileProductRepository:
                 raise StorageError('PRODUCT_NATIVE_IMPORT_REQUIRED')
         elif self._hedge is None:
             raise StorageError('PRODUCT_ROUTE_NOT_INSTALLED')
+        else:
+            try:
+                changed = self._hedge.validate_target(command.operation_id,
+                                                      expected_version=command.expected_version,
+                                                      target_base=command.target_base_life)
+            except ValueError as exc:
+                raise StorageError(str(exc) if str(exc).startswith('HEDGE_')
+                                   else 'PRODUCT_NATIVE_UNVERIFIED') from None
+            if not changed:
+                # An unrecorded native update is an import, not a new command.
+                raise StorageError('PRODUCT_NATIVE_IMPORT_REQUIRED')
         row = {'identity': identity, 'state': 'APPLYING', 'payload': payload,
                'owner': owner.json(), 'cut': cut.json(), 'result': None}
         operations[command.operation_id] = row

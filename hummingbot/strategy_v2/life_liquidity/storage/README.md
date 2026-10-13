@@ -132,6 +132,41 @@ PostgreSQL financial authority, O.8, deployment, demo or live eligibility.
 
 ## Tests
 
+### Native joint recovery ports
+
+`open_file_joint(store, recovery=..., owner=..., limits=JointLimits(...))` binds
+the actual native `JointRecovery` to one existing `FileCheckpointStore` worker.
+The explicit offline factory verifies the account/session, complete controller
+configuration, native policies and capture bounds. Its public async reconcile
+and cancel entry points delegate to the repository; checkpoint sections never
+run on the event loop. Collection and cancellation transport remain asynchronous.
+Admission bounds also cover callers waiting for the recovery/cancel locks.
+
+`state(binding)` returns an immutable diagnostic view; `swap_state(binding)`
+requires a fresh complete joint receipt and returns detached capital/account
+facts and settled signed payments. Capital positions use LIFE, SDK positions use
+contracts, margin/collateral/funding use USDT and payment timestamps use
+milliseconds. Neither view grants send/rearm permission. Funding and realized
+cash affect the wallet once; collateral is not added a second time to NAV.
+
+The native APPLYING/COMMITTED saga remains the financial authority. Partial fills
+keep claims; complete terminal evidence qualifies release. Interrupted native
+cash/WAL/capital/completion checkpoints replay without another fee or wire send.
+Cold startup and expiry disable native send eligibility. Caller cancellation
+latches uncertainty and retains the physical worker until completion; a late
+result cannot restore health/rearm. Native unsigned rearm is refused.
+
+This factory rejects `LegacySpotStore` and a separate history worker. Coupling
+native joint cash writes to that store's verified fill/cashflow/budget projections
+is required before shared-account application assembly. SWAP submit/ACK, hedge
+child/retry application, controller planning/events and configured startup remain
+explicit PG1 work. The tests here establish offline contracts, not provider
+authentication, external sender exclusion, performance acceptance or live readiness.
+
+Hedge target updates share read-only native preflight. Invalid versions, pending
+children, faults and clock rollback fail before creating a product saga, leaving
+the store usable. Existing unrecorded native updates require qualified import.
+
 `recorder_progress.py` adds versioned reporting commands and exact pending
 readback. Wire history can grow but cannot shrink; configuration/namespace,
 status order and filled-volume order remain binding. Historical repairs use the

@@ -172,6 +172,28 @@ async def test_actual_hedge_target_port_retains_version_and_idempotency(tmp_path
 
 
 @pytest.mark.asyncio
+async def test_invalid_hedge_target_leaves_store_usable_and_has_no_saga(tmp_path):
+    from test.hummingbot.strategy_v2.life_liquidity.test_hedge_coordinator import setup_coordinator
+
+    from hummingbot.strategy_v2.life_liquidity.storage.products import UpdateHedgeTarget
+    hedge, values, _, _ = setup_coordinator(tmp_path / 'native')
+    _, binding, owner = create_fixture(tmp_path / 'spot')
+    store = await open_store(Backend.FILE, path=tmp_path / 'products.json', binding=binding,
+                             limits=CAPACITY, create=True, initial={}, owner=owner, clock=lambda: owner.valid_from)
+    try:
+        repo = await open_file_products(store, capital=values[1], hedge=hedge)
+        cut = await repo.cut(binding)
+        with pytest.raises(StorageError, match='HEDGE_TARGET_VERSION_OR_PENDING'):
+            await repo.update_target(UpdateHedgeTarget('bad-version', 99, Decimal('11')), cut, owner)
+        assert not store._uncertain
+        assert await repo.cut(binding) == cut
+        assert not (await store.read(binding)).resources['product_operations']
+        assert (await repo.update_target(UpdateHedgeTarget('valid', 0, Decimal('11')), cut, owner)).changed
+    finally:
+        await store.close()
+
+
+@pytest.mark.asyncio
 async def test_product_cancellation_does_not_block_loop_or_free_physical_capacity(tmp_path, monkeypatch):
     import asyncio
     import threading

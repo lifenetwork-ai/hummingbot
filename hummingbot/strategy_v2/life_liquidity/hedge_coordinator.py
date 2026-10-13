@@ -152,23 +152,41 @@ class HedgeCoordinator:
         state["last_ms"] = now
         return now
 
-    def update_target(self, update_id, *, expected_version, target_base):
+    def _target_update(self, state, update_id, expected_version, target_base):
         if (not isinstance(update_id, str) or not update_id or type(expected_version) is not int
                 or expected_version < 0 or not number(target_base)):
             raise ValueError("HEDGE_TARGET_INVALID")
         update = {"expected_version": expected_version, "target": str(target_base)}
+        old = state["updates"].get(update_id)
+        if old is not None:
+            if old != update:
+                raise ValueError("HEDGE_TARGET_ID_CONFLICT")
+            return update, False
+        if not self._runtime_enabled:
+            raise ValueError("HEDGE_RECOVERY_REQUIRED")
+        if (state["target_version"] != expected_version
+                or any(o["status"] != "TERMINAL" for o in state["orders"].values())):
+            raise ValueError("HEDGE_TARGET_VERSION_OR_PENDING")
+        return update, True
+
+    def validate_target(self, update_id, *, expected_version, target_base):
+        """Read-only preflight; update_target independently rechecks its writer cut."""
+        with self.journal.inspect() as state:
+            self._validate_state(state)
+            now = self.sender.clock_ms()
+            if state["fault"] is not None or self._faulted:
+                raise ValueError("HEDGE_RECONCILIATION_FAULT_LATCHED")
+            if (type(now) is not int or now < 0
+                    or state["last_ms"] is not None and now < state["last_ms"]):
+                raise ValueError("HEDGE_CLOCK_ROLLBACK")
+            return self._target_update(state, update_id, expected_version, target_base)[1]
+
+    def update_target(self, update_id, *, expected_version, target_base):
         with self.journal.locked() as state:
             self._clock(state)
-            old = state["updates"].get(update_id)
-            if old is not None:
-                if old != update:
-                    raise ValueError("HEDGE_TARGET_ID_CONFLICT")
+            update, changed = self._target_update(state, update_id, expected_version, target_base)
+            if not changed:
                 return False
-            if not self._runtime_enabled:
-                raise ValueError("HEDGE_RECOVERY_REQUIRED")
-            if (state["target_version"] != expected_version
-                    or any(o["status"] != "TERMINAL" for o in state["orders"].values())):
-                raise ValueError("HEDGE_TARGET_VERSION_OR_PENDING")
             state["updates"][update_id] = update
             state["target"], state["target_version"] = str(target_base), expected_version + 1
             self.journal.commit(state)
