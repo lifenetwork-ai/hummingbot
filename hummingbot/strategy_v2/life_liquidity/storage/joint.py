@@ -6,7 +6,7 @@ snapshot, successful refresh or reporting row activates a successor writer.
 """
 import asyncio
 from dataclasses import dataclass, replace
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Protocol
 
@@ -75,22 +75,29 @@ class JointRepository(Protocol):
 
 
 class FileJointRepository:
-    """Only this store worker runs native checkpoints, never an independent pool.
+    """Native checkpoints share the owning store worker.
 
-LegacySpotStore has separate fill/cashflow projections. Mixing its ledger with
-native joint cash writes requires a coupled projection command and is rejected
-here, rather than blessing unrelated native mutations as imported provenance.
+Explicit cash coupling publishes SWAP cash and loss provenance to the spot
+store. Batches containing SPOT claims still require the joint fill port.
 """
     atomic_scope = AtomicScope.RECOVERABLE_SAGA
 
-    def __init__(self, store, recovery, owner, limits):
-        if (type(store) is not FileCheckpointStore or type(recovery) is not JointRecovery
+    def __init__(self, store, recovery, owner, limits, couple_cash=False):
+        from hummingbot.strategy_v2.life_liquidity.storage.legacy_spot import LegacySpotStore
+        if (type(couple_cash) is not bool
+                or type(store) is not (LegacySpotStore if couple_cash else FileCheckpointStore)
+                or type(recovery) is not JointRecovery
                 or not isinstance(owner, OwnerToken) or not isinstance(limits, JointLimits)
                 or recovery.history_worker is not None or recovery._repository_application is not None
                 or store.binding.environment != 'OFFLINE_SIMULATION'):
             raise StorageError('JOINT_REPOSITORY_ASSEMBLY_UNSUPPORTED')
         self.store, self.binding = store, store.binding
         self.owner, self._recovery, self.limits = owner, recovery, limits
+        self._couple_cash = couple_cash
+        if couple_cash and (store._ledger is not recovery.reservations or store._wal is not recovery.spot_wal
+                            or recovery.controller._execution_loss_budget is not store._loss
+                            or store._accounting_policy is None or store._recovery_policy is None):
+            raise StorageError('JOINT_CASH_LEDGER_BINDING_MISMATCH')
         self._revoked = False
         self._admitted = set()
         self._capture_policy = HistoryWorkerPolicy(limits.max_orders, limits.max_trades,
@@ -113,9 +120,60 @@ here, rather than blessing unrelated native mutations as imported provenance.
         products = {}
         for key, component in (('hedge', c._hedge_coordinator), ('carry', c._carry_monitor)):
             products[key] = None if component is None else fingerprint(component.journal.policy)
-        return {'binding': self.binding.json(), 'native': fingerprint(recovery.journal.policy),
-                'limits': vars(self.limits), 'controller': c.config.id,
-                'configuration': fingerprint(c.config.model_dump(mode='json')), 'products': products}
+        result = {'binding': self.binding.json(), 'native': fingerprint(recovery.journal.policy),
+                  'limits': vars(self.limits), 'controller': c.config.id,
+                  'configuration': fingerprint(c.config.model_dump(mode='json')), 'products': products}
+        if self._couple_cash:
+            if (recovery.reservations is not self.store._ledger or recovery.spot_wal is not self.store._wal
+                    or c._execution_loss_budget is not self.store._loss):
+                raise StorageError('JOINT_CASH_LEDGER_BINDING_MISMATCH')
+            result['coupled_cash'] = True
+        return result
+
+    def prepare_cash_settlement(self, orders, events, encoded, observation, proof_id):
+        if not self._couple_cash:
+            return None
+        if any(order.claim.product == 'SPOT' for order in orders.values()):
+            raise StorageError('JOINT_SPOT_BATCH_PORT_REQUIRED')
+        from hummingbot.strategy_v2.life_liquidity.storage.joint_settlement import JointCashEvent, JointCashSpot
+        source_events = {}
+        for order in orders.values():
+            for trade in order.trades:
+                key = f'JOINT:{trade.at_ms}:TRADE:{trade.trade_id}'
+                source_events[key] = JointCashEvent(key, trade.realized_pnl_quote + trade.signed_fee,
+                                                    trade.realized_pnl_quote, trade.signed_fee, order.claim.session_id)
+        for payment in encoded['payments']:
+            key = f"JOINT:{payment['at_ms']}:FUNDING:{payment['bill_id']}"
+            source_events[key] = JointCashEvent(key, Decimal(payment['signed_amount_quote']))
+        if {key: v.signed_amount_usdt for key, v in source_events.items()} != events:
+            raise StorageError('JOINT_CASH_SOURCE_MISMATCH')
+        resources = self.store._read().resources
+        retained = {key: JointCashEvent.from_json(v['event']) for key, v in resources.get('joint_cashflows', {}).items()}
+        for key, value in source_events.items():
+            if key in retained and retained[key] != value:
+                raise StorageError('JOINT_CASH_SOURCE_MISMATCH')
+            retained[key] = value
+        if not retained:
+            return None
+        return JointCashSpot('joint:' + proof_id, self.binding, proof_id,
+                             datetime.fromtimestamp(encoded['observed_at_ms'] / 1000, timezone.utc),
+                             tuple(retained.values()), observation.spot_life_base, observation.spot_cash_quote,
+                             True, True, 'okx_joint_reconciled')
+
+    def apply_cash_settlement(self, command):
+        if command is None:
+            return
+        from hummingbot.strategy_v2.life_liquidity.storage.financial import FinancialCut
+        from hummingbot.strategy_v2.life_liquidity.storage.joint_settlement import JointCashSpot
+        for row in self.store._read().resources.get('joint_cash_operations', {}).values():
+            if row['state'] == 'APPLIED':
+                continue
+            original = JointCashSpot.from_json(thaw(row['command']))
+            self.store._apply_joint_cash(original, FinancialCut.from_json(thaw(row['cut'])), self.owner, True)
+        previous = self.store._read().resources.get('joint_cash_operations', {}).get(command.operation_id)
+        cut = (FinancialCut.from_json(thaw(previous['cut'])) if previous is not None
+               else self.store._snapshot().cut)
+        self.store._apply_joint_cash(command, cut, self.owner, recovery_authority=self._recovery)
 
     def _guard(self):
         self.store.assert_worker_thread()
@@ -278,8 +336,8 @@ here, rather than blessing unrelated native mutations as imported provenance.
         return await self._checkpoint(self._swap_state)
 
 
-async def open_file_joint(store, *, recovery, owner, limits):
-    repo = FileJointRepository(store, recovery, owner, limits)
+async def open_file_joint(store, *, recovery, owner, limits, couple_cash=False):
+    repo = FileJointRepository(store, recovery, owner, limits, couple_cash)
     try:
         await store._call(repo._initialize)
     except asyncio.CancelledError:

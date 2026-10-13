@@ -246,7 +246,8 @@ class LegacyRecoveryBatchAdapter:
                 or not facts.order_scope_complete or not facts.bill_scope_complete or not facts.runner_scope_complete
                 or facts.liability_base_life != 0 or facts.liability_quote_usdt != 0):
             raise StorageError('SPOT_RECOVERY_BATCH_FACTS_UNQUALIFIED')
-        if (any(row['state'] != 'APPLIED' for name in ('session_operations', 'lifecycle_operations', 'product_operations')
+        if (any(row['state'] != 'APPLIED' for name in ('session_operations', 'lifecycle_operations', 'product_operations',
+                                                       'joint_cash_operations')
                 for row in resources.get(name, {}).values())
                 or any(row['state'] != 'TERMINAL' for row in resources.get('terminal_operations', {}).values())
                 or any(row['state'] != 'SETTLED' for row in resources.get('settlement_operations', {}).values())

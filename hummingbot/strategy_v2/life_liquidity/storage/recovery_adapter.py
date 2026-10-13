@@ -42,6 +42,8 @@ class LegacyFinancialRecoveryAdapter:
             raise StorageError('SPOT_FINANCIAL_RECOVERY_OWNER_INVALID')
         resource = {'fill': 'fill_operations', 'cash': 'cashflow_operations', 'ack': 'acknowledgements'}[kind]
         previous = meta.resources.get(resource, {}).get(command.operation_id)
+        if any(row['state'] != 'APPLIED' for row in meta.resources.get('joint_cash_operations', {}).values()):
+            raise StorageError('SPOT_FINANCIAL_OTHER_RECOVERY_PENDING')
         if previous is None:
             raise StorageError('SPOT_FINANCIAL_RECOVERY_NOT_STARTED')
         if previous['fingerprint'] != fingerprint({'command': command.json(), 'owner': owner.json()}):
@@ -93,7 +95,9 @@ class LegacyFinancialRecoveryAdapter:
         baseline = self._read().resources
         if (not set(baseline.get('fills', {})).issubset(native_trades) or not native_trades.issubset(fills)
                 or not set(baseline.get('cashflows', {})).issubset(native_cash) or not set(native_cash).issubset(cashflows)
-                or self._ledger.joint_cash_events):
+                or self._ledger.joint_cash_events != {
+                    key: Decimal(row['event']['signed_amount_usdt'])
+                    for key, row in baseline.get('joint_cashflows', {}).items()}):
             raise StorageError('SPOT_FINANCIAL_RECOVERY_NATIVE_SCOPE_MISMATCH')
         for trade_id in native_trades:
             data = fills[trade_id]

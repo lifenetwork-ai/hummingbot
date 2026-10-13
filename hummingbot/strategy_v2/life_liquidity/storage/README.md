@@ -156,9 +156,22 @@ Cold startup and expiry disable native send eligibility. Caller cancellation
 latches uncertainty and retains the physical worker until completion; a late
 result cannot restore health/rearm. Native unsigned rearm is refused.
 
-This factory rejects `LegacySpotStore` and a separate history worker. Coupling
-native joint cash writes to that store's verified fill/cashflow/budget projections
-is required before shared-account application assembly. SWAP submit/ACK, hedge
+The default factory rejects `LegacySpotStore` and a separate history worker.
+Explicit `couple_cash=True` instead requires the actual `LegacySpotStore` wallet,
+WAL and execution-loss ledger, installed accounting/recovery policies and the
+same native recovery authority. Qualified SWAP trade PnL/fees and signed funding
+publish `JointCashSpot` provenance through an APPLYING/APPLIED storage saga.
+The cumulative history preserves source identities and updates that wallet once;
+these settlements are internal earnings/costs, never external capital transfers.
+They invalidate the prior NAV and retain execution-loss accounting. Immutable
+original command/cut/writer and flat native before images allow cold recovery
+after wallet, loss or receipt interruption. Unknown formats fail before money;
+archived-format reconstruction remains an import gate. No cash receipt rearms.
+
+This mode rejects any SPOT claim before native settlement: one coupled batch
+for spot fills, fees, subsidy and SWAP settlements still needs implementation.
+Controller installation in these tests is explicit isolated fixture assembly,
+not a complete configured service factory. SWAP submit/ACK, hedge
 child/retry application, controller planning/events and configured startup remain
 explicit PG1 work. The tests here establish offline contracts, not provider
 authentication, external sender exclusion, performance acceptance or live readiness.

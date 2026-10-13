@@ -503,7 +503,7 @@ class JointRecovery:
         if (life, cash, long, short) != (obs.spot_life_base, obs.spot_cash_quote, obs.long_base, obs.short_base):
             raise ValueError("JOINT_ACCOUNT_REPLAY_MISMATCH")
         known = {**state["opening_joint"], **{k: str(v) for k, v in events.items()}}
-        if any(known.get(k) != str(v) for k, v in self.reservations.joint_cash_events.items()):
+        if any(k not in known or Decimal(known[k]) != v for k, v in self.reservations.joint_cash_events.items()):
             raise ValueError("JOINT_CASH_HISTORY_CHANGED")
         unrealized = long * (obs.mark_price_usdt - entries["long"]) + short * (entries["short"] - obs.mark_price_usdt)
         nav = cash + life * obs.index_price_usdt + unrealized
@@ -546,6 +546,10 @@ class JointRecovery:
                     raise ValueError("JOINT_CLOCK_ROLLBACK")
                 state["last_ms"] = now
                 obs, orders, events, encoded, valuation = self._qualify(bundle, state, now, prepared)
+                cash_settlement = None
+                if self._repository_application is not None:
+                    cash_settlement = self._repository_application.prepare_cash_settlement(
+                        orders, events, encoded, obs, digest(encoded) if prepared is None else prepared.proof_id)
                 # A COMMITTED immutable terminal cut has already completed
                 # all cross-journal checkpoints. Re-qualify all facts, but
                 # do not replay durable financial writes for settled orders.
@@ -562,9 +566,11 @@ class JointRecovery:
                                                         for k, v in events.items()))
                 state.update(sequence=obs.sequence, bundle=encoded,
                              proof_id=digest(encoded) if prepared is None else prepared.proof_id,
-                             phase="COMMITTED" if no_settlement else "APPLYING",
+                             phase="COMMITTED" if no_settlement and cash_settlement is None else "APPLYING",
                              valuation=valuation, highwater=valuation["highwater_quote"])
                 self.journal.commit(state)  # Intent-to-settle precedes every financial/WAL checkpoint.
+                if cash_settlement is not None:
+                    self._repository_application.apply_cash_settlement(cash_settlement)
                 if not no_settlement:
                     self._apply({k: o for k, o in orders.items() if k not in completed}, events, state["proof_id"])
                     if coordinator is not None:
@@ -760,7 +766,9 @@ class JointRecovery:
                 wal.mark_terminal(c.intent_id, order.exchange_order_id)
             elif wal.get(c.intent_id).state == "SEND_UNKNOWN":
                 wal.acknowledge(c.intent_id, order.exchange_order_id)
-            if c.product == "SWAP" and self.controller._execution_loss_budget is not None:
+            coupled_cash = (self._repository_application is not None
+                            and self._repository_application._couple_cash)
+            if c.product == "SWAP" and self.controller._execution_loss_budget is not None and not coupled_cash:
                 for t in order.trades:
                     self.controller._execution_loss_budget.record(
                         "swap:" + t.trade_id, max(ZERO, -t.realized_pnl_quote) + max(ZERO, -t.signed_fee),

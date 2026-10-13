@@ -65,6 +65,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.financial import (
     SpotSession,
     SpotSnapshot,
 )
+from hummingbot.strategy_v2.life_liquidity.storage.joint_settlement import JointCashEvent, LegacyJointCashAdapter
 from hummingbot.strategy_v2.life_liquidity.storage.pending import LegacyPendingAdapter
 from hummingbot.strategy_v2.life_liquidity.storage.prepare_recovery import LegacyPrepareRecoveryAdapter
 from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancialRecoveryPolicy
@@ -99,7 +100,7 @@ class LegacySpotFiles:
         return {key: value for key, value in self.__dict__.items() if key != 'binding'}
 
 
-class LegacySpotStore(LegacyRecoveryBatchAdapter, LegacyPendingAdapter, LegacySessionAdapter, LegacySpotLifecycleAdapter, LegacyControlAdapter, LegacySettlementAdapter, LegacyPrepareRecoveryAdapter, LegacyFinancialRecoveryAdapter,
+class LegacySpotStore(LegacyJointCashAdapter, LegacyRecoveryBatchAdapter, LegacyPendingAdapter, LegacySessionAdapter, LegacySpotLifecycleAdapter, LegacyControlAdapter, LegacySettlementAdapter, LegacyPrepareRecoveryAdapter, LegacyFinancialRecoveryAdapter,
                       LegacyTerminalAdapter, FileCheckpointStore):
     atomic_scope = AtomicScope.RECOVERABLE_SAGA
 
@@ -250,6 +251,7 @@ class LegacySpotStore(LegacyRecoveryBatchAdapter, LegacyPendingAdapter, LegacySe
                 self._verify_terminal_projection(meta.resources)
             if not partial:
                 self._verify_lifecycle_projection(meta.resources)
+                self._verify_joint_cash_projection(meta.resources)
             fee_base, fee_quote, fee_overrun = self._fee_claims(meta.resources['commands'])
             pending_base, pending_quote = self._pending_terminal_principal(meta.resources)
             extra_session, extra_day, extra_campaign = self._pending_inventory_subsidy(meta.resources, record.session_id, now)
@@ -508,7 +510,7 @@ class LegacySpotStore(LegacyRecoveryBatchAdapter, LegacyPendingAdapter, LegacySe
     @staticmethod
     def _ancillary_recovery_pending(resources):
         return any(row['state'] != 'APPLIED' for name in (
-            'session_operations', 'lifecycle_operations', 'product_operations', 'recovery_batches')
+            'session_operations', 'lifecycle_operations', 'product_operations', 'recovery_batches', 'joint_cash_operations')
             for row in resources.get(name, {}).values())
 
     @staticmethod
@@ -816,7 +818,7 @@ class LegacySpotStore(LegacyRecoveryBatchAdapter, LegacyPendingAdapter, LegacySe
                 or abs(command.reference_observed_at_ms - command.transfer_at_ms) > self._fill_policy.max_reference_skew_ms):
             raise StorageError('SPOT_CASHFLOW_VALUE_UNQUALIFIED')
 
-    def _capital_ledger(self, commands, fills, cashflows):
+    def _capital_ledger(self, commands, fills, cashflows, joint_cashflows=None):
         self._require_accounting()
         policy = self._accounting_policy
         capital = CapitalLedger(opening_life=policy.opening_base_life, opening_usdt=policy.opening_quote_usdt,
@@ -834,6 +836,15 @@ class LegacySpotStore(LegacyRecoveryBatchAdapter, LegacyPendingAdapter, LegacySe
                 raise StorageError('SPOT_CAPITAL_CASHFLOW_IDENTITY_INVALID')
             self._validate_cashflow_value(row)
             timeline.append((row.transfer_at_ms, 0, bill_id, row))
+        if joint_cashflows is None:
+            joint_cashflows = self._read().resources.get('joint_cashflows', {})
+        for event_id, data in joint_cashflows.items():
+            event = JointCashEvent.from_json(data['event'])
+            if event.event_id != event_id or event.at_ms < int(policy.opened_at.timestamp() * 1000):
+                raise StorageError('JOINT_CASH_EVENT_INVALID')
+            # Native joint wallet ordering is spot fill before settled cash at
+            # equal time. A later settlement cannot finance an earlier fill.
+            timeline.append((event.at_ms, 2, event_id, event))
         try:
             # Preserve existing attributor ordering: cashflow before fill at an
             # equal timestamp; lexical ID within kind. No invented clock order.
@@ -841,20 +852,28 @@ class LegacySpotStore(LegacyRecoveryBatchAdapter, LegacyPendingAdapter, LegacySe
                 if kind == 0:
                     capital.record_asset_cashflow(event_id, event.currency, event.signed_amount,
                                                   independent_value_usdt=event.independent_price_usdt)
-                else:
+                elif kind == 1:
                     side, row = event
                     fee_cost = -row.signed_fee * (row.independent_price_usdt if row.fee_currency == 'LIFE' else Decimal('1'))
                     capital.record_fill(event_id, side, row.quantity_base_life, row.price_usdt, fee_cost,
                                         independent_value_usdt=row.independent_price_usdt,
                                         fee_currency=row.fee_currency, signed_fee=row.signed_fee)
+                else:
+                    if capital.usdt_balance + event.signed_amount_usdt < 0:
+                        raise ValueError('settled cash exceeds wallet balance')
+                    capital.record_funding(event_id, -event.signed_amount_usdt)
+                    capital.execution_loss_quote += event.execution_loss_usdt
             return capital
         except (ValueError, ArithmeticError):
             raise StorageError('SPOT_CAPITAL_CAUSAL_REPLAY_INVALID') from None
 
-    def _verify_capital_projection(self, commands, fills, cashflows):
+    def _verify_capital_projection(self, commands, fills, cashflows, joint_cashflows=None):
         native = {bill_id: (row['currency'], Decimal(row['signed_amount'])) for bill_id, row in cashflows.items()}
-        capital = self._capital_ledger(commands, fills, cashflows)
-        if (self._ledger.cashflow_events != native or self._ledger.joint_cash_events
+        if joint_cashflows is None:
+            joint_cashflows = self._read().resources.get('joint_cashflows', {})
+        expected_joint = {key: Decimal(row['event']['signed_amount_usdt']) for key, row in joint_cashflows.items()}
+        capital = self._capital_ledger(commands, fills, cashflows, joint_cashflows)
+        if (self._ledger.cashflow_events != native or self._ledger.joint_cash_events != expected_joint
                 or capital.life_balance != self._ledger.life_balance or capital.usdt_balance != self._ledger.usdt_balance):
             raise StorageUnavailable('SPOT_CAPITAL_PROJECTION_UNVERIFIED')
         return capital
@@ -938,7 +957,10 @@ class LegacySpotStore(LegacyRecoveryBatchAdapter, LegacyPendingAdapter, LegacySe
 
     @staticmethod
     def _money_fingerprint(resources):
-        return fingerprint({'fills': resources.get('fills', {}), 'cashflows': resources.get('cashflows', {})})
+        values = {'fills': resources.get('fills', {}), 'cashflows': resources.get('cashflows', {})}
+        if resources.get('joint_cashflows'):
+            values['joint_cashflows'] = resources['joint_cashflows']
+        return fingerprint(values)
 
     def _nav_view(self, view, meta, row):
         values = {key: Decimal(value) for key, value in row['measurement'].items()}

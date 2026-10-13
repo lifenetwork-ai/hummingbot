@@ -197,6 +197,7 @@ class LegacySpotLifecycleAdapter:
                     or any(row['state'] != 'APPLIED' for row in meta.resources.get('product_operations', {}).values())
                     or any(row['state'] != 'APPLIED' for row in meta.resources.get('session_operations', {}).values())
                     or any(row['state'] != 'APPLIED' for row in meta.resources.get('recovery_batches', {}).values())
+                    or any(row['state'] != 'APPLIED' for row in meta.resources.get('joint_cash_operations', {}).values())
                     or any(row['state'] != 'SETTLED' for row in meta.resources.get('settlement_operations', {}).values())):
                 raise StorageError('SPOT_LIFECYCLE_OTHER_RECOVERY_REQUIRED')
         self._verify_fill_projection(commands, meta.resources.get('fills', {}))

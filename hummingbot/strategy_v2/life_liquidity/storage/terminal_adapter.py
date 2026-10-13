@@ -40,6 +40,8 @@ class LegacyTerminalAdapter:
         if not resume:
             return self._ack_guard(view, owner)
         meta = self._read()
+        if any(row['state'] != 'APPLIED' for row in meta.resources.get('joint_cash_operations', {}).values()):
+            raise StorageError('SPOT_TERMINAL_OTHER_RECOVERY_PENDING')
         now = utc(self._clock())
         if (meta.ownership.token != owner or meta.ownership.mode not in (
                 OwnerMode.ACTIVE, OwnerMode.DRAINING, OwnerMode.RECOVERY_ONLY)

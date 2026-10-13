@@ -168,7 +168,9 @@ class LegacySessionAdapter:
                 or facts.liability_base_life != 0 or facts.liability_quote_usdt != 0
                 or not 0 <= (now - facts.observed_at).total_seconds() * 1000 <= command.max_reconciliation_age_ms
                 or any(row.state not in ('TERMINAL', 'ABORTED_BEFORE_SEND') for row in self._wal.all_records())
-                or self._ledger.joint_cash_events):
+                or self._ledger.joint_cash_events != {
+                    key: Decimal(row['event']['signed_amount_usdt'])
+                    for key, row in resources.get('joint_cashflows', {}).items()}):
             raise StorageError('SESSION_RECONCILIATION_UNQUALIFIED')
         self._verify_recovery_projection(resources['commands'], resources.get('fills', {}),
                                          resources.get('cashflows', {}), facts)
