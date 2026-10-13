@@ -557,3 +557,26 @@ interruptions after principal reservation and durable unknown-send publication.
 All balances, UIDs, policies, clock values and capacity (2 normal submissions,
 1 MiB journal/coordinator capacity, 128 coordinator stage IDs plus one cleanup
 slot) are explicit synthetic fixtures. They provide no actual exchange proof.
+
+### Product and independent recorder ports
+
+`products.py` defines async shared-capital, carry, hedge-target and NAV/markout
+ports over actual native file implementations. `ProductCut` includes both the
+bound coordinator cut and independently verified native checkpoints. Commands
+use immutable full-namespace ownership/session facts, permanent identities and
+an APPLYING/APPLIED recoverable saga. A pending command cannot be automatically
+retried or converted to a send grant. Interrupted product-command recovery and
+full SWAP/joint/hedge lifecycle application remain unfinished.
+
+`recorder.py` supplies a separate file-backed SQLite outbox against actual
+MarketsRecorder. It inserts or verifies configuration/recovery provenance,
+checks the independent DB result and supports exact same-writer cold repair.
+It never overwrites later reporting progress on replay. Existing floating SQL
+reporting fields are not financial authority. It does not yet replace the
+orchestrator's complete projection/event stream or authenticated account bridge.
+
+Both adapters use the existing bounded store worker and are opt-in. Controllers
+can bind the product repository to the actual installed component identities;
+a second native cache is rejected. Pending product/outbox publication denies
+runtime authorization. Legacy file installation/proof migration and complete
+automatic service assembly remain PG1 work; PostgreSQL remains unsupported here.

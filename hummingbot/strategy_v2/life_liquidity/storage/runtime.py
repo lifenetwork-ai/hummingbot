@@ -57,14 +57,19 @@ class RuntimeAuthorizationRepository(Protocol):
 class FileControllerRuntime:
     backend = Backend.FILE
 
-    def __init__(self, store, controller, owner):
+    def __init__(self, store, controller, owner, *, products=None):
         if not isinstance(store, FileCheckpointStore) or not isinstance(owner, OwnerToken):
             raise StorageError('RUNTIME_FILE_REPOSITORY_REQUIRED')
         self.store, self.controller, self.owner = store, controller, owner
         self.binding = store.binding
+        self._products = products
         self._action_hashes = {}
         self._revoked = False
         self._assert_config()
+        if products is not None:
+            if products.store is not store or products.binding != self.binding:
+                raise StorageError('RUNTIME_PRODUCT_REPOSITORY_MISMATCH')
+            products.validate_controller(controller)
 
     def owns_controller(self, controller):
         return controller is self.controller
@@ -141,6 +146,13 @@ class FileControllerRuntime:
         meta = self.store._read()
         if meta.ownership.mode is not OwnerMode.ACTIVE or meta.ownership.token != self.owner:
             return False
+        if any(row['state'] != 'APPLIED' for row in meta.resources.get('product_operations', {}).values()):
+            return False
+        if any(row['state'] != 'APPLIED' for row in meta.resources.get('recorder_outbox', {}).values()):
+            return False
+        if self._products is not None:
+            self._products.validate_controller(self.controller)
+            self._products._native_cuts()
         if hasattr(self.store, '_snapshot'):
             view = self.store._snapshot()
             # A durable SEND_UNKNOWN is expected for final authorization;

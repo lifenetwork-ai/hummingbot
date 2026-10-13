@@ -229,6 +229,25 @@ class MarketsRecorder:
                 session.add(new_executor)
             session.commit()
 
+    def project_executor_info(self, info):
+        """Insert immutable recovery provenance, or verify it without overwriting progress.
+
+        This is an independent projection, not the financial ledger. Existing
+        executor status/PnL stays owned by the normal recorder event stream.
+        Conflicting provenance is never silently adopted by an outbox repair.
+        """
+        payload = json.loads(info.model_dump_json())
+        keys = ('id', 'controller_id', 'config', 'custom_info')
+        with self._sql_manager.get_new_session() as session:
+            previous = session.query(Executors).filter(Executors.id == info.id).one_or_none()
+            if previous is not None:
+                actual = json.loads(previous.to_executor_info().model_dump_json())
+                if any(actual[key] != payload[key] for key in keys):
+                    raise ValueError('RECORDER_PROVENANCE_CONFLICT')
+                return
+            session.add(Executors(**payload))
+            session.commit()
+
     def store_position(self, position: Position):
         with self._sql_manager.get_new_session() as session:
             session.add(position)

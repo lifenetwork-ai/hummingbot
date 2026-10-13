@@ -485,6 +485,7 @@ class LegacySpotStore(LegacyControlAdapter, LegacySettlementAdapter, LegacyPrepa
     def _incomplete(resources):
         return (any(item['state'] in PARTIAL_PHASES for item in resources['commands'].values())
                 or any(item['state'] != 'APPLIED' for item in resources.get('cashflow_operations', {}).values())
+                or any(item['state'] != 'APPLIED' for item in resources.get('product_operations', {}).values())
                 or any(item['state'] != 'SETTLED' for item in resources.get('settlement_operations', {}).values()))
 
     def _publish_ack(self, key, owner, commands, acknowledgements, hashes):

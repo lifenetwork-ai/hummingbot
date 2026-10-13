@@ -27,6 +27,10 @@ from hummingbot.strategy_v2.life_liquidity.storage.contracts import (
     utc,
 )
 from hummingbot.strategy_v2.life_liquidity.storage.financial import FinancialCut
+from hummingbot.strategy_v2.life_liquidity.storage.import_commands import (
+    ImportApprovedCashflows,
+    ImportPreparationOrigin,
+)
 from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancialRecoveryFacts
 
 ROLES = frozenset(('ACTIVATE', 'DRAIN', 'RECOVER', 'REVOKE', 'APPROVE_CASHFLOW', 'IMPORT'))
@@ -197,6 +201,11 @@ class ControlReceipt:
 
 
 class ControlPlaneRepository(Protocol):
+    async def import_legacy(self, command: ImportApprovedCashflows | ImportPreparationOrigin, *,
+                            approval: OperatorApproval, facts: SpotFinancialRecoveryFacts,
+                            cut: FinancialCut) -> ControlReceipt:
+        ...
+
     async def approve_cashflow(self, command: ApproveSpotCashflow, *, approval: OperatorApproval,
                                facts: SpotFinancialRecoveryFacts, cut: FinancialCut) -> ControlReceipt:
         ...

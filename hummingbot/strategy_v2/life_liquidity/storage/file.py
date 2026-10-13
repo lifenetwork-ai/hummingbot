@@ -128,6 +128,7 @@ class FileCheckpointStore:
     def _initialize(self, create, initial, owner):
         if type(create) is not bool:
             raise StorageError('STORAGE_CONFIG_INVALID')
+        self._created_offline = create and self.binding.environment == 'OFFLINE_SIMULATION'
         if create and self.binding.environment != 'OFFLINE_SIMULATION':
             raise StorageError('STORAGE_BOOTSTRAP_OFFLINE_ONLY')
         if create and (initial is None or owner is not None and not isinstance(owner, OwnerToken)):
