@@ -147,9 +147,23 @@ through the owning worker and removes a stored child only after its receipt.
 Fresh history calls from financial proof code require that worker; callers on the
 event loop are rejected. Stop revokes immediately; shutdown drains bounded
 reporting work. No reporting receipt releases financial holds or rearms a writer.
-Raw market-event SQL, held-position reporting and the full CLI/headless factory
-remain separate PG1 work. Existing bound position rows are explicitly rejected
-until their reporting port is assembled.
+`recorder_positions.py` adds sequenced held-position reporting. Frozen snapshots
+retain the exact Decimal aggregates and permanent order-ID set; the independent
+SQLite summary keeps its existing six-decimal representation. Namespace-derived
+row IDs and the verified outbox bind scope without adopting unscoped legacy rows.
+Position reports use PROJECTING/APPLIED and compare the complete SQL set before
+and after the write. SQLite BEGIN IMMEDIATE excludes competing writers before
+the compare read; the entire projection commits in that transaction. Exact cold repair handles missing or already committed
+updates; historical lookup reconstructs deleted rows from the latest verified
+head. Changed SQL rows, shrinking order history, stale versions and overflow
+fail closed. Reporting never qualifies an exchange position or releases funds.
+
+The actual orchestrator captures positions without SQL on the event loop,
+retains them until a receipt, preserves any exposure accrued during that wait,
+and restores exact aggregates/order IDs from asynchronously loaded snapshots.
+Stop revokes immediately even while SQL is blocked. Unsupported initial-position
+overrides require qualified import instead of replacing this provenance.
+Raw market-event SQL and the full CLI/headless factory remain separate PG1 work.
 
 `recovery_batch.py` adds a typed account recovery saga for pending ACK/fill/bill
 commands with later qualified activity. Full source coverage, final causal capital

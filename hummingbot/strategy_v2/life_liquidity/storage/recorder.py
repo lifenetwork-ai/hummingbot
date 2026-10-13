@@ -27,6 +27,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.contracts import (
     thaw,
     utc,
 )
+from hummingbot.strategy_v2.life_liquidity.storage.recorder_positions import FilePositionAdapter, PositionRepository
 from hummingbot.strategy_v2.life_liquidity.storage.recorder_progress import (
     PROVENANCE_KEYS,
     FileRecorderProgressAdapter,
@@ -104,7 +105,7 @@ class PendingExecutorProjection:
     owner: OwnerToken
 
 
-class RecorderRepository(RecorderProgressRepository, Protocol):
+class RecorderRepository(RecorderProgressRepository, PositionRepository, Protocol):
     async def read(self, binding: StateBinding) -> tuple[RecorderRow, ...]:
         ...
 
@@ -118,7 +119,7 @@ class RecorderRepository(RecorderProgressRepository, Protocol):
         ...
 
 
-class FileRecorderRepository(FileRecorderProgressAdapter):
+class FileRecorderRepository(FileRecorderProgressAdapter, FilePositionAdapter):
     """One bounded store worker owns outbox publication and actual SQLite calls."""
 
     def __init__(self, store, recorder, controller_id):
@@ -157,9 +158,7 @@ class FileRecorderRepository(FileRecorderProgressAdapter):
         return await self.store._call(self._read)
 
     def _assert_supported_positions(self):
-        self._verify_binding(self.store._read())
-        if any(row.controller_id == self.controller_id for row in self._recorder.get_all_positions()):
-            raise StorageError('RECORDER_POSITION_REPOSITORY_REQUIRED')
+        self._positions()
 
     async def assert_supported_positions(self, binding):
         self.store._assert_binding(binding)
@@ -213,7 +212,9 @@ class FileRecorderRepository(FileRecorderProgressAdapter):
                 raise StorageError('RECORDER_OWNER_REVOKED_OR_EXPIRED')
             if meta.cut != cut:
                 raise StorageConflict('STORAGE_CUT_STALE')
-            if any(row['state'] != 'APPLIED' for row in operations.values()):
+            if (any(row['state'] != 'APPLIED' for row in operations.values())
+                    or any(row['state'] != 'APPLIED' for name in ('recorder_progress', 'recorder_positions')
+                           for row in meta.resources.get(name, {}).values())):
                 raise StorageUnavailable('RECORDER_OUTBOX_REPAIR_REQUIRED')
             operations[command.operation_id] = {'identity': identity, 'command': command.json(),
                                                 'owner': owner.json(), 'cut': cut.json(), 'state': 'PROJECTING'}

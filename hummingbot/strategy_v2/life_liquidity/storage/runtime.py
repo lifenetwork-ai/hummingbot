@@ -208,6 +208,8 @@ class FileControllerRuntime:
             return False
         if any(row['state'] != 'APPLIED' for row in meta.resources.get('recorder_progress', {}).values()):
             return False
+        if any(row['state'] != 'APPLIED' for row in meta.resources.get('recorder_positions', {}).values()):
+            return False
         if self._products is not None:
             self._products.validate_controller(self.controller)
             self._products._native_cuts()

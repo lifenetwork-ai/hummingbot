@@ -6,6 +6,7 @@ from decimal import Decimal
 
 from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError, fingerprint
 from hummingbot.strategy_v2.life_liquidity.storage.recorder import ExecutorProjection, FileRecorderRepository
+from hummingbot.strategy_v2.life_liquidity.storage.recorder_positions import PositionReport
 from hummingbot.strategy_v2.life_liquidity.storage.recorder_progress import ExecutorProgress
 from hummingbot.strategy_v2.models.base import RunnableStatus
 from hummingbot.strategy_v2.models.executors_info import ExecutorInfo
@@ -26,6 +27,7 @@ class FileRecorderApplication:
         self._mutex = asyncio.Lock()
         self._closed, self._busy, self._healthy = False, False, False
         self._startup_infos = ()
+        self._startup_positions = ()
 
     @classmethod
     async def install(cls, repository, runtime, *, max_pending, shutdown_timeout_s):
@@ -38,9 +40,17 @@ class FileRecorderApplication:
     def ready(self):
         return self._healthy and not self._closed and not self._busy and not self._pending
 
+    def invalidate(self):
+        self._healthy = False
+        self.runtime.revoke()
+
     @property
     def startup_infos(self):
         return tuple(info.model_copy(deep=True) for info in self._startup_infos)
+
+    @property
+    def startup_positions(self):
+        return self._startup_positions  # Frozen snapshots; never mutable ORM objects.
 
     async def recover(self):
         """Repair original reporting commands only; never construct/send an executor."""
@@ -50,11 +60,11 @@ class FileRecorderApplication:
                 await self.repository.project(item.command, item.original_cut, item.owner)
             for item in await self.repository.pending_progress(self.binding):
                 await self.repository.update_progress(item.command, cut=item.original_cut, owner=item.owner)
+            for item in await self.repository.pending_positions(self.binding):
+                await self.repository.report_positions(item.command, cut=item.original_cut, owner=item.owner)
             rows = await self.repository.read(self.binding)
             self._startup_infos = tuple(ExecutorInfo.model_validate_json(row.payload_json) for row in rows)
-            # Position reporting requires its own bound port, never adoption of
-            # unscoped legacy SQLite rows through the executor recovery path.
-            await self.repository.assert_supported_positions(self.binding)
+            self._startup_positions = (await self.repository.positions(self.binding)).positions
             self._healthy = True
 
     async def before_dispatch(self, action):
@@ -88,11 +98,25 @@ class FileRecorderApplication:
                      if json.loads(row.payload_json)['status'] == RunnableStatus.TERMINATED.value)
 
     def enqueue(self, info, *, on_committed=None):
+        try:
+            captured = ExecutorProjection.from_info('capture', self.binding, info)
+        except Exception:
+            self.invalidate()
+            raise
+        return self._enqueue(('executor', captured.executor_id, fingerprint({'payload': captured.payload_json})),
+                             captured, self._update, on_committed)
+
+    def enqueue_positions(self, positions, timestamp_ms, *, on_committed=None):
+        try:
+            captured = PositionReport('capture', self.binding, self.repository.controller_id, 0, timestamp_ms, tuple(positions))
+        except Exception:
+            self.invalidate()
+            raise
+        return self._enqueue(('positions', fingerprint(captured.json())), captured, self._update_positions, on_committed)
+
+    def _enqueue(self, key, captured, update, on_committed):
         if self._closed or not self._healthy:
             raise StorageError('RECORDER_APPLICATION_UNAVAILABLE')
-        captured = ExecutorProjection.from_info('capture', self.binding, info)
-        digest = fingerprint({'payload': captured.payload_json})
-        key = (info.id, digest)
         previous = self._pending.get(key)
         if previous is not None:
             if on_committed is not None:
@@ -103,7 +127,7 @@ class FileRecorderApplication:
             self.runtime.revoke()
             raise StorageError('RECORDER_APPLICATION_BACKPRESSURE')
         callbacks = [] if on_committed is None else [on_committed]
-        task = asyncio.create_task(self._update(captured, callbacks))
+        task = asyncio.create_task(update(captured, callbacks))
         self._pending[key] = (task, callbacks)
 
         def completed(result):
@@ -126,6 +150,16 @@ class FileRecorderApplication:
                                                                   'payload': captured.payload_json}),
                                        self.binding, sequence, captured.payload_json)
             receipt = await self.repository.update_progress(command, cut=snapshot.cut, owner=self.runtime.owner)
+            for callback in tuple(callbacks):
+                callback(receipt)
+            return receipt
+
+    async def _update_positions(self, captured, callbacks):
+        async with self._mutex:
+            state = await self.repository.positions(self.binding)
+            command = PositionReport('positions:' + fingerprint({'capture': captured.json(), 'sequence': state.sequence}),
+                                     self.binding, captured.controller_id, state.sequence, captured.timestamp_ms, captured.positions)
+            receipt = await self.repository.report_positions(command, cut=state.cut, owner=self.runtime.owner)
             for callback in tuple(callbacks):
                 callback(receipt)
             return receipt

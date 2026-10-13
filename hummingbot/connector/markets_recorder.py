@@ -271,6 +271,39 @@ class MarketsRecorder:
             session.add(position)
             session.commit()
 
+    def project_position_reports(self, controller_id, before, positions):
+        """CAS the whole bound reporting set in one SQLite transaction.
+
+        The file outbox owns provenance/sequence. Never adopt legacy rows by
+        market/side, and update realized PnL as well as remaining exposure.
+        """
+        from hummingbot.strategy_v2.life_liquidity.storage.recorder_positions import position_values
+        if self._sql_manager.engine.dialect.name != 'sqlite':
+            raise ValueError('RECORDER_FILE_SQLITE_REQUIRED')
+        with self._sql_manager.get_new_session() as session:
+            # sqlite3 legacy transaction mode does not begin a transaction for
+            # SELECT. Acquire the writer slot before the CAS read; competing
+            # processes must read the committed set after this writer finishes.
+            session.connection().exec_driver_sql('BEGIN IMMEDIATE')
+            existing = session.query(Position).filter(Position.controller_id == controller_id).all()
+            actual = tuple(sorted((position_values(row) for row in existing), key=lambda row: row['id']))
+            after = tuple(sorted((position_values(row) for row in positions), key=lambda row: row['id']))
+            if actual == after:
+                return
+            if actual != before or any(row.controller_id != controller_id for row in positions):
+                raise ValueError('RECORDER_POSITION_SQL_CONFLICT')
+            by_id = {row.id: row for row in existing}
+            for incoming in positions:
+                current = by_id.get(incoming.id)
+                if current is None:
+                    # A primary-key collision outside this controller is never
+                    # overwritten; the DB constraint rolls back the command.
+                    session.add(incoming)
+                else:
+                    for key, value in position_values(incoming).items():
+                        setattr(current, key, value)
+            session.commit()
+
     def update_or_store_position(self, position: Position):
         with self._sql_manager.get_new_session() as session:
             # Check if a position already exists for this controller, connector, trading pair, and side

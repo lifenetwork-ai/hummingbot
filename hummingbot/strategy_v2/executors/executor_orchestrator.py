@@ -240,7 +240,8 @@ class ExecutorOrchestrator:
         self._repository_stored_ids = set()
         if repository_reporting is not None and (
                 set(repository_reporting) != set(strategy.controllers)
-                or any(app.runtime.controller is not strategy.controllers[key] for key, app in repository_reporting.items())):
+                or any(app.runtime.controller is not strategy.controllers[key] for key, app in repository_reporting.items())
+                or self.initial_positions_by_controller):
             raise ValueError('RECORDER_RUNNER_SCOPE_MISMATCH')
         self._initialize_cached_performance()
 
@@ -258,6 +259,7 @@ class ExecutorOrchestrator:
             # Applications were asynchronously repaired/read before construction.
             # Recovery never creates an executor from a reporting row.
             for controller_id, app in self._repository_reporting.items():
+                self.positions_held[controller_id] = [snapshot.restore() for snapshot in app.startup_positions]
                 for info in app.startup_infos:
                     if info.status == RunnableStatus.TERMINATED:
                         self._update_cached_performance(controller_id, info.model_copy(deep=True))
@@ -484,15 +486,38 @@ class ExecutorOrchestrator:
         self.store_all_positions()
         self.store_all_executors()
         # Clear executors and trigger garbage collection
-        self.active_executors.clear()
+        if self._repository_reporting is None:
+            self.active_executors.clear()
 
     def store_all_positions(self):
         """
         Store or update all positions in the database.
         """
         if self._repository_reporting is not None:
-            if any(self.positions_held.values()):
-                raise ValueError('RECORDER_POSITION_REPOSITORY_REQUIRED')
+            from hummingbot.strategy_v2.life_liquidity.storage.recorder_positions import HeldPosition
+            for controller_id, positions in tuple(self.positions_held.items()):
+                if not positions:
+                    continue
+                app = self._repository_reporting[controller_id]
+                captured = []
+                try:
+                    for position in positions:
+                        price = self.strategy.market_data_provider.get_price_by_type(
+                            position.connector_name, position.trading_pair, PriceType.MidPrice)
+                        captured.append(HeldPosition.capture(position, price))
+                except Exception:
+                    app.invalidate()
+                    raise
+                captured = tuple(captured)
+
+                def committed(_receipt, key=controller_id, snapshots=captured):
+                    # Preserve new exposure/order IDs accrued while SQL waited.
+                    current = self.positions_held.get(key, [])
+                    if (len(current) == len(snapshots)
+                            and all(HeldPosition.capture(hold, snapshot.mark_price) == snapshot
+                                    for hold, snapshot in zip(current, snapshots))):
+                        self.positions_held[key] = []
+                app.enqueue_positions(captured, int(self.strategy.current_timestamp * 1e3), on_committed=committed)
             return
         markets_recorder = MarketsRecorder.get_instance()
         for controller_id, positions_list in self.positions_held.items():

@@ -182,7 +182,8 @@ class FileRecorderProgressAdapter:
             if meta.cut != cut:
                 raise StorageConflict('STORAGE_CUT_STALE')
             if (any(row['state'] != 'APPLIED' for row in operations.values())
-                    or any(row['state'] != 'APPLIED' for row in meta.resources.get('recorder_outbox', {}).values())):
+                    or any(row['state'] != 'APPLIED' for name in ('recorder_outbox', 'recorder_positions')
+                           for row in meta.resources.get(name, {}).values())):
                 raise StorageUnavailable('RECORDER_OUTBOX_REPAIR_REQUIRED')
             origins = [row for row in meta.resources.get('recorder_outbox', {}).values()
                        if json.loads(row['command']['payload_json'])['id'] == info.id and row['state'] == 'APPLIED']

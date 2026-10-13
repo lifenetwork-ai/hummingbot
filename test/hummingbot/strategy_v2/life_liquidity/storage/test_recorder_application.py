@@ -23,6 +23,153 @@ from hummingbot.strategy_v2.models.base import RunnableStatus
 from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction, StoreExecutorAction
 
 
+@pytest.mark.asyncio
+async def test_actual_runner_positions_wait_for_sql_receipt_and_restore_exactly(tmp_path, monkeypatch):
+    from test.hummingbot.strategy_v2.life_liquidity.storage.test_recorder_positions import held
+
+    from hummingbot.strategy_v2.life_liquidity.storage.recorder_positions import HeldPosition
+    app, reporting, repo, runner, _, _, _ = await assembly(tmp_path, monkeypatch)
+    entered, release = threading.Event(), threading.Event()
+    position = held()
+    runner.positions_held['life'] = [position]
+    runner.strategy.current_timestamp = 1.0
+    runner.strategy.market_data_provider = SimpleNamespace(get_price_by_type=lambda *args: Decimal('1'))
+    original = repo._recorder.project_position_reports
+
+    def blocked(*args, **kwargs):
+        entered.set()
+        assert release.wait(5)
+        return original(*args, **kwargs)
+    monkeypatch.setattr(repo._recorder, 'project_position_reports', blocked)
+    try:
+        runner.store_all_positions()
+        assert await asyncio.to_thread(entered.wait, 3)
+        assert runner.positions_held['life'] == [position]
+        app.controller.stop()
+        assert not app.runtime._local_ready()
+        release.set()
+        await runner.drain_repository_reporting()
+        assert runner.positions_held['life'] == []
+        assert (await repo.positions(app.binding)).positions == (HeldPosition.capture(position, Decimal('1')),)
+        await reporting.recover()
+        restarted = ExecutorOrchestrator(runner.strategy, repository_reporting={'life': reporting})
+        restored = restarted.positions_held['life'][0]
+        assert restored.net_amount_base == position.net_amount_base and restored.order_ids == {'wire-1'}
+        assert restored.realized_pnl_quote == position.realized_pnl_quote
+        assert not app.runtime._local_ready()  # Reporting never rearms financial admission.
+    finally:
+        release.set()
+        await reporting.close()
+        await app.close()
+        await app.store.close()
+
+
+@pytest.mark.asyncio
+async def test_runner_position_failure_retains_snapshot_and_closes_admission(tmp_path, monkeypatch):
+    from test.hummingbot.strategy_v2.life_liquidity.storage.test_recorder_positions import held
+    app, reporting, repo, runner, _, _, _ = await assembly(tmp_path, monkeypatch)
+    position = held()
+    runner.positions_held['life'] = [position]
+    runner.strategy.current_timestamp = 1.0
+    runner.strategy.market_data_provider = SimpleNamespace(get_price_by_type=lambda *args: Decimal('1'))
+    monkeypatch.setattr(repo._recorder, 'project_position_reports', lambda *args: (_ for _ in ()).throw(OSError('synthetic')))
+    try:
+        runner.store_all_positions()
+        with pytest.raises(StorageError):
+            await runner.drain_repository_reporting()
+        assert runner.positions_held['life'] == [position]
+        assert not reporting.ready and not app.runtime._local_ready()
+    finally:
+        with pytest.raises(StorageError):
+            await reporting.close()
+        await app.close()
+        await app.store.close()
+
+
+@pytest.mark.asyncio
+async def test_runner_keeps_new_exposure_accrued_while_position_report_waits(tmp_path, monkeypatch):
+    from test.hummingbot.strategy_v2.life_liquidity.storage.test_recorder_positions import held
+    app, reporting, repo, runner, _, _, _ = await assembly(tmp_path, monkeypatch)
+    entered, release = threading.Event(), threading.Event()
+    position = held()
+    runner.positions_held['life'] = [position]
+    runner.strategy.current_timestamp = 1.0
+    runner.strategy.market_data_provider = SimpleNamespace(get_price_by_type=lambda *args: Decimal('1'))
+    original = repo._recorder.project_position_reports
+
+    def blocked(*args, **kwargs):
+        entered.set()
+        assert release.wait(5)
+        return original(*args, **kwargs)
+    monkeypatch.setattr(repo._recorder, 'project_position_reports', blocked)
+    try:
+        runner.store_all_positions()
+        assert await asyncio.to_thread(entered.wait, 3)
+        position.net_amount_base += 1
+        position.order_ids.add('new-wire')
+        release.set()
+        await reporting.drain()
+        assert runner.positions_held['life'] == [position]
+        runner.store_all_positions()
+        await reporting.drain()
+        assert (await repo.positions(app.binding)).positions[0].order_ids == ('new-wire', 'wire-1')
+    finally:
+        release.set()
+        await reporting.close()
+        await app.close()
+        await app.store.close()
+
+
+@pytest.mark.asyncio
+async def test_runner_stop_keeps_children_until_report_receipt(tmp_path, monkeypatch):
+    app, reporting, repo, runner, action, _, _ = await assembly(tmp_path, monkeypatch)
+    entered, release = threading.Event(), threading.Event()
+    try:
+        assert await app.controller.async_before_runner_dispatch(action)
+        runner.execute_action(action)
+        await reporting.drain()
+        executor = runner.active_executors['life'][0]
+        executor._status = RunnableStatus.TERMINATED
+        original = repo._recorder.update_executor_info
+
+        def blocked(info):
+            entered.set()
+            assert release.wait(5)
+            return original(info)
+        monkeypatch.setattr(repo._recorder, 'update_executor_info', blocked)
+        await runner.stop()
+        assert await asyncio.to_thread(entered.wait, 3)
+        assert runner.active_executors['life'] == [executor]
+        release.set()
+        await runner.drain_repository_reporting()
+        assert runner.active_executors['life'] == []
+    finally:
+        release.set()
+        await reporting.close()
+        await app.close()
+        await app.store.close()
+
+
+@pytest.mark.asyncio
+async def test_invalid_position_capture_retains_state_and_revokes_admission(tmp_path, monkeypatch):
+    from test.hummingbot.strategy_v2.life_liquidity.storage.test_recorder_positions import held
+    app, reporting, repo, runner, _, _, _ = await assembly(tmp_path, monkeypatch)
+    position = held()
+    runner.positions_held['life'] = [position]
+    runner.strategy.current_timestamp = 1.0
+    runner.strategy.market_data_provider = SimpleNamespace(get_price_by_type=lambda *args: Decimal('NaN'))
+    try:
+        with pytest.raises(StorageError):
+            runner.store_all_positions()
+        assert runner.positions_held['life'] == [position]
+        assert not reporting.ready and not app.runtime._local_ready()
+        assert await repo.pending_positions(app.binding) == ()
+    finally:
+        await reporting.close()
+        await app.close()
+        await app.store.close()
+
+
 async def assembly(tmp_path, monkeypatch):
     app, store, controller, prototype, sent, clock = await setup(tmp_path)
     recorder = _recorder(tmp_path / 'recorder.sqlite')
