@@ -37,6 +37,19 @@ ROLES = frozenset(('ACTIVATE', 'DRAIN', 'RECOVER', 'REVOKE', 'APPROVE_CASHFLOW',
 
 
 @dataclass(frozen=True)
+class ControlSnapshot:
+    binding: StateBinding
+    cut: FinancialCut
+    facts: SpotFinancialRecoveryFacts
+
+    def __post_init__(self):
+        if (not isinstance(self.binding, StateBinding) or not isinstance(self.cut, FinancialCut)
+                or not isinstance(self.facts, SpotFinancialRecoveryFacts)
+                or self.cut.checkpoint.binding != self.binding or self.facts.binding != self.binding):
+            raise StorageError('CONTROL_SNAPSHOT_BINDING_INVALID')
+
+
+@dataclass(frozen=True)
 class OperatorApproval:
     operator_id: str
     binding: StateBinding

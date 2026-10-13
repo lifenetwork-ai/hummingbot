@@ -142,8 +142,9 @@ class LegacySettlementAdapter:
             raise StorageError('SPOT_SETTLEMENT_COLD_UNARMED')
         if view.cut != cut:
             raise StorageConflict('SPOT_CUT_STALE')
-        if (any(row['state'] in ('PREPARING', 'ARMING', 'ACKING', 'FILLING', 'TERMINATING')
-                for row in meta.resources['commands'].values())
+        if (self._ancillary_recovery_pending(meta.resources)
+                or any(row['state'] in ('PREPARING', 'ARMING', 'ACKING', 'FILLING', 'TERMINATING')
+                       for row in meta.resources['commands'].values())
                 or any(row['state'] != 'APPLIED' for row in meta.resources.get('cashflow_operations', {}).values())
                 or any(op != command.operation_id and row['state'] != 'SETTLED' for op, row in operations.items())):
             raise StorageError('SPOT_SETTLEMENT_OTHER_RECOVERY_PENDING')

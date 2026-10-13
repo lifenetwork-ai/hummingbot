@@ -65,6 +65,8 @@ class LegacyFinancialRecoveryAdapter:
                 complete = 'ACKED' if name == 'acknowledgements' else 'APPLIED'
                 if row['state'] != complete and (name != resource or op != command.operation_id):
                     raise StorageError('SPOT_FINANCIAL_OTHER_RECOVERY_PENDING')
+        if self._ancillary_recovery_pending(meta.resources):
+            raise StorageError('SPOT_FINANCIAL_OTHER_RECOVERY_PENDING')
         if any(row['state'] != 'TERMINAL' for row in meta.resources.get('terminal_operations', {}).values()):
             raise StorageError('SPOT_FINANCIAL_OTHER_RECOVERY_PENDING')
         if any(row['state'] != 'SETTLED' for row in meta.resources.get('settlement_operations', {}).values()):

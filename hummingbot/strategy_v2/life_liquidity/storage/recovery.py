@@ -72,6 +72,17 @@ class SpotFinancialRecoveryFacts:
                 str(value) if type(value) is Decimal else value.isoformat() if isinstance(value, datetime) else
                 list(value) if type(value) is tuple else value for key, value in self.__dict__.items()}
 
+    @classmethod
+    def from_json(cls, value):
+        data = dict(value)
+        data['binding'] = StateBinding.from_json(data['binding'])
+        data['observed_at'] = datetime.fromisoformat(data['observed_at'])
+        for key in ('account_base_life', 'account_quote_usdt', 'liability_base_life', 'liability_quote_usdt'):
+            data[key] = Decimal(data[key])
+        for key in ('account_trade_ids', 'account_cashflow_ids', 'accepted_wire_ids', 'runner_wire_ids'):
+            data[key] = tuple(data[key])
+        return cls(**data)
+
 
 @dataclass(frozen=True)
 class SpotAckRecoveryFacts:

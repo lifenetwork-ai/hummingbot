@@ -1,5 +1,6 @@
 """Operator-approved file lifecycle updates; cold readback is never activation."""
 import asyncio
+import time
 from datetime import datetime
 from decimal import Decimal
 
@@ -173,13 +174,29 @@ class LegacyControlAdapter:
             self._verify_capital_projection(meta.resources['commands'], meta.resources.get('fills', {}),
                                             meta.resources.get('cashflows', {}))
         elif command.mode is not OwnerMode.UNARMED and command.token != current:
-            raise StorageError('CONTROL_OBSERVATION_OWNER_MISMATCH')
+            if command.mode is not OwnerMode.RECOVERY_ONLY or current is not None:
+                raise StorageError('CONTROL_OBSERVATION_OWNER_MISMATCH')
+            # REVOKE removes admission, not the provenance needed to account
+            # outstanding attempts. Explicit signed RECOVER restores only the
+            # latest signature-audited writer and never an arbitrary token.
+            historical = self._operator_keys.verify_seed(meta.resources['control_seed'], self.binding)['token']
+            for _, row in sorted(meta.resources.get('control_operations', {}).items(), key=lambda item: item[1]['revision']):
+                if row['approval']['role'] in ('ACTIVATE', 'DRAIN', 'RECOVER') and row['payload']['token'] is not None:
+                    historical = row['payload']['token']
+            if historical is None or command.token.json() != historical:
+                raise StorageError('CONTROL_OBSERVATION_OWNER_MISMATCH')
         replayed = self._control_commit(command.operation_id, cut, approval, command.json(),
                                         {'mode': command.mode.value,
                                          'token': command.token.json() if command.token is not None else None}, facts)
         if not replayed:
             self._cold_unarmed = command.mode is not OwnerMode.ACTIVE
             self._admission_generation = command.token.generation if command.token else None
+            if command.mode is OwnerMode.ACTIVE:
+                # A successor tick changes logical session facts only. Update
+                # process admission deadlines solely after a new signed grant.
+                self._session_identity = (view.session.session_id, view.session.epoch,
+                                          view.session.expires_at.isoformat())
+                self._monotonic_deadline = time.monotonic() + max(0, (view.session.expires_at - now).total_seconds())
             if command.mode in (OwnerMode.ACTIVE, OwnerMode.RECOVERY_ONLY):
                 self._observation_generation = command.token.generation
             elif command.mode is OwnerMode.UNARMED:

@@ -130,6 +130,12 @@ class StateBinding:
     def json(self):
         return {**asdict(self), 'lineage': str(self.lineage)}
 
+    @classmethod
+    def from_json(cls, value):
+        data = dict(value)
+        data['lineage'] = UUID(data['lineage'])
+        return cls(**data)
+
 
 @dataclass(frozen=True)
 class ResourceVersion:
@@ -164,6 +170,13 @@ class StateCut:
         return {'binding': self.binding.json(), 'revision': self.revision, 'event_version': self.event_version,
                 'resource_versions': [asdict(v) for v in self.resource_versions], 'state_digest': self.state_digest}
 
+    @classmethod
+    def from_json(cls, value):
+        data = dict(value)
+        data['binding'] = StateBinding.from_json(data['binding'])
+        data['resource_versions'] = tuple(ResourceVersion(**row) for row in data['resource_versions'])
+        return cls(**data)
+
 
 @dataclass(frozen=True)
 class OwnerToken:
@@ -189,6 +202,15 @@ class OwnerToken:
         return {'process_id': str(self.process_id), 'generation': str(self.generation), 'epoch': self.epoch,
                 'session_id': str(self.session_id), 'valid_from': self.valid_from.isoformat(),
                 'expires_at': self.expires_at.isoformat()}
+
+    @classmethod
+    def from_json(cls, value):
+        data = dict(value)
+        for key in ('process_id', 'generation', 'session_id'):
+            data[key] = UUID(data[key])
+        for key in ('valid_from', 'expires_at'):
+            data[key] = datetime.fromisoformat(data[key])
+        return cls(**data)
 
 
 @dataclass(frozen=True)

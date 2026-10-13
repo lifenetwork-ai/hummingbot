@@ -28,7 +28,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.legacy_spot import open_legac
 from hummingbot.strategy_v2.life_liquidity.storage.spot_application import FileSpotApplication, SpotAdmission
 
 
-async def setup(tmp_path, *, delay=None, observation_transport=None):
+async def setup(tmp_path, *, delay=None, observation_transport=None, operator_keys=None):
     config = LifeLiquidityConfig(id='life', recovery_account_uid='12345', recovery_reconciliation_max_age_ms=1000,
                                  cancel_retry_interval_ms=100, cancel_max_requests_per_cycle=1)
     controller = LifeLiquidityController(config, MagicMock(), asyncio.Queue())
@@ -38,6 +38,7 @@ async def setup(tmp_path, *, delay=None, observation_transport=None):
     clock = {'now': NOW}
     from hummingbot.strategy_v2.life_liquidity.storage.capital import SpotAccountingPolicy
     from hummingbot.strategy_v2.life_liquidity.storage.financial import SpotFillPolicy
+    from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancialRecoveryPolicy
     from hummingbot.strategy_v2.life_liquidity.storage.terminal import SpotTerminalPolicy
     store = await open_legacy_spot(files, binding=binding, limits=CAPACITY, risk_limits=RISK,
                                    subsidy_policy=BUDGET, loss_policy=BUDGET, config_version=1,
@@ -45,7 +46,8 @@ async def setup(tmp_path, *, delay=None, observation_transport=None):
                                    clock=lambda: clock['now'], fill_policy=SpotFillPolicy(1000),
                                    accounting_policy=SpotAccountingPolicy(Decimal('5'), Decimal('10'), Decimal('1'),
                                                                           NOW, '1', ()),
-                                   terminal_policy=SpotTerminalPolicy(1000))
+                                   terminal_policy=SpotTerminalPolicy(1000), recovery_policy=SpotFinancialRecoveryPolicy(1000),
+                                   operator_keys=operator_keys)
     sent = []
 
     class Response:
@@ -125,17 +127,97 @@ async def test_real_executor_prepare_arm_transport_and_ack_share_exact_repositor
 
 
 @pytest.mark.asyncio
-async def test_unassembled_native_session_tick_cannot_mutate_repository_owned_journal(tmp_path):
-    app, store, controller, _, _, _ = await setup(tmp_path)
+async def test_watchdog_uses_repository_session_tick_without_native_side_writer(tmp_path):
+    from hummingbot.strategy_v2.life_liquidity.storage.spot_observation import OkxSpotRepositoryObserver
+    app, store, controller, _, _, _ = await setup(tmp_path, observation_transport=empty_transport)
+    controller._runner_orchestrator.active_executors['life'] = []
+    app.install_observer(OkxSpotRepositoryObserver(app, independent_fill_value=lambda key, at: None,
+                                                   independent_cashflow_value=lambda key, at: None, max_pages=2))
     try:
-        before = (await store.snapshot(store.binding)).cut
+        before = await store.snapshot(store.binding)
         controller._order_safety_manager.tick = MagicMock(side_effect=AssertionError('native writer forbidden'))
         controller.on_safety_tick(1)
+        first_task = controller.order_safety_task
+        controller.on_safety_tick(2)
+        assert controller.order_safety_task is first_task
+        await first_task
         controller._order_safety_manager.tick.assert_not_called()
-        assert controller.order_safety_reason_code == 'SPOT_REPOSITORY_SESSION_APPLICATION_REQUIRED'
+        assert controller.order_safety_reason_code == 'OLD_ORDERS_RECONCILED'
         assert not app.local_ready()
-        assert (await store.snapshot(store.binding)).cut == before
+        after = await store.snapshot(store.binding)
+        assert after.session.state == 'PAUSED' and not after.recovery_required
+        assert (after.balance, after.budget) == (before.balance, before.budget)
     finally:
+        await app.close()
+        await store.close()
+
+
+def empty_transport(request, sent, clock):
+    path = request['url']
+    if path.endswith(okx_constants.OKX_ACCOUNT_BILLS_ARCHIVE_PATH):
+        return {'code': '0', 'data': [{'billId': '1'}]}
+    if path.endswith(okx_constants.OKX_BALANCE_PATH):
+        return {'code': '0', 'data': [{'details': [{'ccy': 'LIFE', 'cashBal': '5', 'liab': '0'},
+                                                   {'ccy': 'USDT', 'cashBal': '10', 'liab': '0'}]}]}
+    return {'code': '0', 'data': []}
+
+
+@pytest.mark.asyncio
+async def test_expiry_watchdog_cancels_and_accounts_fills_without_resetting_deadline(tmp_path):
+    from hummingbot.strategy_v2.life_liquidity.fill_attribution import IndependentFillObservation
+    from hummingbot.strategy_v2.life_liquidity.storage.spot_observation import OkxSpotRepositoryObserver
+    app, store, controller, executor, _, clock = await setup(tmp_path, observation_transport=filled_transport)
+    app.install_observer(OkxSpotRepositoryObserver(
+        app, independent_fill_value=lambda key, at: IndependentFillObservation(Decimal('.9'), at, at, 'independent_market'),
+        independent_cashflow_value=lambda key, at: None, max_pages=2))
+    app.connector.cancel_by_exchange_order_id = AsyncMock(return_value=True)
+    try:
+        executor.place_open_order()
+        await app.drain()
+        before = await store.snapshot(store.binding)
+        clock['now'] = before.session.expires_at
+        controller.on_safety_tick(1)
+        await controller.order_safety_task
+        after = await store.snapshot(store.binding)
+        assert after.session.state == 'EXPIRED' and after.session.expires_at == before.session.expires_at
+        assert controller._order_safety_manager.state == 'EXPIRED'
+        assert after.balance.reserved_quote_usdt == 0
+        assert after.budget.session_execution_loss_usdt == Decimal('.22')
+        assert (await store.attempt(executor.config.id, store.binding)).cancel_attempts == 1
+        assert controller.order_safety_reason_code == 'OLD_ORDERS_RECONCILED'
+        assert not app.local_ready()
+    finally:
+        await app.close()
+        await store.close()
+
+
+@pytest.mark.asyncio
+async def test_stop_while_watchdog_worker_waits_revokes_without_session_or_money_write(tmp_path, monkeypatch):
+    import threading
+    app, store, controller, _, sent, _ = await setup(tmp_path)
+    entered, release = threading.Event(), threading.Event()
+    original = app._session_inputs
+
+    def delayed():
+        entered.set()
+        assert release.wait(5)
+        return original()
+    monkeypatch.setattr(app, '_session_inputs', delayed)
+    try:
+        before = await store.snapshot(store.binding)
+        controller.on_safety_tick(1)
+        assert await asyncio.to_thread(entered.wait, 2)
+        controller.stop()
+        assert not app.local_ready()
+        await asyncio.wait_for(asyncio.sleep(0), .1)
+        release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await controller.order_safety_task
+        after = await store.snapshot(store.binding)
+        assert (after.balance, after.budget, after.session) == (before.balance, before.budget, before.session)
+        assert sent == []
+    finally:
+        release.set()
         await app.close()
         await store.close()
 
@@ -251,6 +333,135 @@ def filled_transport(request, sent, clock):
         return {'code': '0', 'data': [{'details': [{'ccy': 'LIFE', 'cashBal': '7', 'liab': '0'},
                                                    {'ccy': 'USDT', 'cashBal': '7.98', 'liab': '0'}]}]}
     return {'code': '0', 'data': []}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('conflict', [False, True])
+async def test_runner_fill_hint_is_verified_against_source_before_and_ledger_after_publication(tmp_path, conflict):
+    from hummingbot.core.data_type.trade_fee import AddedToCostTradeFee, TokenAmount
+    from hummingbot.core.event.events import OrderFilledEvent
+    from hummingbot.strategy_v2.life_liquidity.fill_attribution import IndependentFillObservation
+    from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError
+    from hummingbot.strategy_v2.life_liquidity.storage.spot_observation import OkxSpotRepositoryObserver
+    app, store, controller, executor, _, _ = await setup(tmp_path, observation_transport=filled_transport)
+    app.install_observer(OkxSpotRepositoryObserver(
+        app, independent_fill_value=lambda key, at: IndependentFillObservation(Decimal('.9'), at, at, 'independent_market'),
+        independent_cashflow_value=lambda key, at: None, max_pages=2))
+    try:
+        executor.place_open_order()
+        await app.drain()
+        wire = (await store.attempt(executor.config.id, store.binding)).client_order_id
+        controller.on_runner_order_filled(OrderFilledEvent(
+            1, wire, 'LIFE-USDT', TradeType.BUY, OrderType.LIMIT_MAKER, Decimal('1'),
+            Decimal('1') if conflict else Decimal('2'),
+            AddedToCostTradeFee(flat_fees=[TokenAmount('USDT', Decimal('.02'))]),
+            exchange_trade_id='trade-1', exchange_order_id='123456789'))
+        assert not controller.verify_runner_fill_events()
+        before = await store.snapshot(store.binding)
+        if conflict:
+            with pytest.raises(StorageError, match='SPOT_OBSERVATION_RUNNER_FILL_CONFLICT'):
+                await app.reconcile(str(app.owner.session_id), app.owner.epoch)
+            after = await store.snapshot(store.binding)
+            assert (after.balance, after.budget) == (before.balance, before.budget)
+        else:
+            await app.reconcile(str(app.owner.session_id), app.owner.epoch)
+            assert controller.verify_runner_fill_events()
+            assert (await store.attempt(executor.config.id, store.binding)).state.value == 'TERMINAL'
+    finally:
+        await app.close()
+        await store.close()
+
+
+@pytest.mark.asyncio
+async def test_cold_application_recovers_original_fill_price_and_spending_without_resend(tmp_path, monkeypatch):
+    from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError
+    from hummingbot.strategy_v2.life_liquidity.storage.financial import FillSpot, SpotFillObservation
+    from hummingbot.strategy_v2.life_liquidity.storage.spot_observation import OkxSpotRepositoryObserver
+    app, store, controller, executor, sent, clock = await setup(tmp_path, observation_transport=filled_transport)
+    executor.place_open_order()
+    await app.drain()
+    at = int(NOW.timestamp() * 1000)
+    prepared = app._issued[executor.config.id]
+    fill = SpotFillObservation('trade-1', Decimal('2'), Decimal('1'), 'USDT', Decimal('-.02'), at,
+                               Decimal('.9'), at, at, 'independent_market')
+    command = FillSpot('original-fill', prepared.operation_id, prepared.intent_id, prepared.client_order_id,
+                       'LIFE-USDT', 'BUY', prepared.session_id, prepared.epoch, '123456789', Decimal('2'), (fill,), NOW)
+    original = store._ledger.apply_fills_snapshot
+
+    def fail(*args, **kwargs):
+        original(*args, **kwargs)
+        raise OSError('synthetic interruption after native money commit')
+    monkeypatch.setattr(store._ledger, 'apply_fills_snapshot', fail)
+    with pytest.raises(StorageError):
+        await store.apply_fills(command, cut=(await store.snapshot(store.binding)).cut, owner=app.owner)
+    settings = dict(binding=store.binding, limits=CAPACITY, risk_limits=RISK, subsidy_policy=BUDGET, loss_policy=BUDGET,
+                    config_version=1, account_lock_root=tmp_path / 'locks', clock=lambda: clock['now'],
+                    fill_policy=store._fill_policy, accounting_policy=store._accounting_policy,
+                    terminal_policy=store._terminal_policy, recovery_policy=store._recovery_policy)
+    files, owner = store._files, app.owner
+    await app.close()
+    await store.close()
+    cold = await open_legacy_spot(files, **settings)
+    restored_controller = LifeLiquidityController(controller.config, MagicMock(), asyncio.Queue())
+    restored = await FileSpotApplication.install(cold, restored_controller, app.connector, owner,
+                                                 admission=app.admission, authorize_permit=app.authorize_permit,
+                                                 risk_epoch=app.risk_epoch, max_pending=1,
+                                                 ack_timeout_s=2, shutdown_timeout_s=.1)
+    restored_controller._runner_orchestrator = controller._runner_orchestrator
+
+    def no_reprice(*args):
+        raise AssertionError('original pending valuation must be reused')
+    restored.install_observer(OkxSpotRepositoryObserver(restored, independent_fill_value=no_reprice,
+                                                        independent_cashflow_value=no_reprice, max_pages=2))
+    try:
+        pending = await cold.pending_spot_commands(cold.binding)
+        assert len(pending) == 1 and pending[0].kind == 'FILL' and pending[0].command == command
+        result = await restored.recover_pending()
+        assert result[0].state == 'APPLIED'
+        view = await cold.snapshot(cold.binding)
+        assert view.balance.total_base_life == Decimal('7') and view.balance.total_quote_usdt == Decimal('7.98')
+        assert view.budget.session_execution_loss_usdt == view.budget.session_subsidy_committed_usdt == Decimal('.22')
+        assert (await cold.attempt(executor.config.id, cold.binding)).state.value == 'ACKED'
+        assert await cold.pending_spot_commands(cold.binding) == ()
+        assert cold._cold_unarmed and not restored.local_ready() and len(sent) == 1
+    finally:
+        await restored.close()
+        await cold.close()
+
+
+@pytest.mark.asyncio
+async def test_control_application_requires_source_bound_signature_and_replay_cannot_rearm(tmp_path):
+    from datetime import timedelta
+    from test.hummingbot.strategy_v2.life_liquidity.storage.test_control_plane import KEYS
+    from uuid import UUID
+
+    from hummingbot.strategy_v2.life_liquidity.storage.contracts import OwnerMode, StorageError
+    from hummingbot.strategy_v2.life_liquidity.storage.control_plane import OwnerTransition
+    from hummingbot.strategy_v2.life_liquidity.storage.spot_observation import OkxSpotRepositoryObserver
+    app, store, controller, _, _, clock = await setup(tmp_path, observation_transport=empty_transport, operator_keys=KEYS)
+    controller._runner_orchestrator.active_executors['life'] = []
+    app.install_observer(OkxSpotRepositoryObserver(app, independent_fill_value=lambda key, at: None,
+                                                   independent_cashflow_value=lambda key, at: None, max_pages=2))
+    try:
+        snapshot = await app.prepare_control_snapshot()
+        assert snapshot.facts.runner_scope_complete and not app.local_ready()
+        token = replace(app.owner, generation=UUID(int=91))
+        command = OwnerTransition('activate-app', OwnerMode.ACTIVE, token)
+        signature = KEYS.sign('offline-operator', store.binding, 'ACTIVATE', command.json(), snapshot.cut, snapshot.facts,
+                              issued_at=clock['now'], expires_at=clock['now'] + timedelta(seconds=1))
+        with pytest.raises(StorageError, match='SOURCE_UNQUALIFIED'):
+            await app.apply_owner_transition(command, approval=signature,
+                                             snapshot=replace(snapshot, facts=replace(snapshot.facts, order_scope_complete=False)))
+        receipt = await app.apply_owner_transition(command, approval=signature, snapshot=snapshot)
+        assert not receipt.replayed and app.owner == app.runtime.owner == token and app.local_ready()
+        assert (await app.apply_owner_transition(command, approval=signature, snapshot=snapshot)).replayed
+        assert app.local_ready()  # Historical readback cannot close an existing fresh grant either.
+        app.runtime.revoke()
+        assert (await app.apply_owner_transition(command, approval=signature, snapshot=snapshot)).replayed
+        assert not app.local_ready()  # A stored activation receipt cannot reopen local admission.
+    finally:
+        await app.close()
+        await store.close()
 
 
 @pytest.mark.asyncio

@@ -58,6 +58,7 @@ class LegacyTerminalAdapter:
                 or any(row['state'] != 'APPLIED' for row in meta.resources.get('cashflow_operations', {}).values())
                 or any(row['state'] != 'APPLIED' for row in meta.resources.get('lifecycle_operations', {}).values())
                 or any(row['state'] != 'APPLIED' for row in meta.resources.get('product_operations', {}).values())
+                or any(row['state'] != 'APPLIED' for row in meta.resources.get('session_operations', {}).values())
                 or any(row['state'] != 'SETTLED' for row in meta.resources.get('settlement_operations', {}).values())):
             raise StorageError('SPOT_TERMINAL_OTHER_RECOVERY_PENDING')
         return meta

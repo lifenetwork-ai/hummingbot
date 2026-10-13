@@ -132,6 +132,14 @@ class FillSpot:
                       str(value) if type(value) is Decimal else value.isoformat() if isinstance(value, datetime) else value)
                 for key, value in self.__dict__.items()}
 
+    @classmethod
+    def from_json(cls, value):
+        data = dict(value)
+        data['cumulative_base_life'] = Decimal(data['cumulative_base_life'])
+        data['fills'] = tuple(SpotFillObservation.from_json(row) for row in data['fills'])
+        data['observed_at'] = datetime.fromisoformat(data['observed_at'])
+        return cls(**data)
+
 
 @dataclass(frozen=True)
 class FillReceipt:
@@ -288,6 +296,13 @@ class FinancialCut:
 
     def json(self):
         return {'checkpoint': self.checkpoint.json(), 'components': [list(v) for v in self.components]}
+
+    @classmethod
+    def from_json(cls, value):
+        data = dict(value)
+        data['checkpoint'] = StateCut.from_json(data['checkpoint'])
+        data['components'] = tuple(tuple(row) for row in data['components'])
+        return cls(**data)
 
 
 @dataclass(frozen=True)

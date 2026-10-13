@@ -1676,7 +1676,7 @@ class LifeLiquidityController(ControllerBase):
         except Exception:
             return False
 
-    def _runner_executor_scope_complete(self, *, quiescent=True) -> bool:
+    def _runner_executor_scope_complete(self, *, quiescent=True, verify_financial_events=True) -> bool:
         """Live and stored children must resolve to their protected product WAL."""
         from hummingbot.strategy_v2.executors.order_executor.data_types import OrderExecutorConfig
         from hummingbot.strategy_v2.executors.order_executor.order_executor import OrderExecutor
@@ -1686,7 +1686,7 @@ class LifeLiquidityController(ControllerBase):
         if (quiescent and not self._runner_halt_ok or self._runner_scope_invalid
                 or executors is None or self._order_safety_wal is None):
             return False
-        if not self.verify_runner_fill_events():
+        if verify_financial_events and not self.verify_runner_fill_events():
             return False
 
         def reject() -> bool:
@@ -1834,10 +1834,7 @@ class LifeLiquidityController(ControllerBase):
             return
         runtime = self._storage_runtime
         if runtime is not None and runtime.handles_financial_spot:
-            # The repository quote assembly does not yet own session transitions.
-            # A native tick here would write outside its financial coordinator.
-            runtime.revoke()
-            self.order_safety_reason_code = "SPOT_REPOSITORY_SESSION_APPLICATION_REQUIRED"
+            runtime.on_spot_safety_tick(timestamp)
             return
         if self._inventory_executor is not None:
             self._inventory_executor.on_safety_tick()

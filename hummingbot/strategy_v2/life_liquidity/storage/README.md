@@ -609,10 +609,42 @@ all requested scopes, including durable orders absent from the process's issued
 cache. Cancel ACK and timeout both leave money/budget holds intact. Values are
 explicit controller configuration, not implicit live defaults.
 
-This assembly is **quote-only and opt-in**. It refuses shared-capital,
-inventory/exit routes and the legacy native session tick rather than permitting
-an uncoordinated writer. Automatic session/watchdog/recovery/recorder assembly,
-request-budget ports, complete product routes, backend-neutral runner proof,
-and bounded retained-history observation remain PG1 work. Normal production
+This assembly is **quote-only and opt-in**. It refuses shared-capital and
+inventory/exit routes. Session/watchdog and exact pending-command recovery now
+use the same coordinator as described below. Recorder assembly, request-budget
+ports, complete product routes, backend-neutral runner proof, recovery batches
+with newer external activity and bounded retained-history observation remain
+PG1 work. Normal production
 release remains disabled. Tests explicitly override it only inside isolated
 offline fixtures.
+
+### Session, watchdog and control application
+
+`session.py` reuses SessionManager to plan an immutable journal, persists an
+APPLYING barrier, verifies native publication and commits APPLIED. Exact pending
+readback/resume retains the original writer/cut/target; it cannot adopt unrelated
+wallet/budget mutations or rearm a cold process. Pause, resume and expiry leave
+financial amounts unchanged. Successor transitions require full fresh account
+facts and closed attempts. A separate signed ACTIVATE updates the admitted
+session/deadline; session facts and historical activation receipts do not.
+
+The actual controller delegates safety ticks to one bounded async application
+task, independently of quote readiness. Native session writes execute on the
+storage worker, followed by qualified cancel/reconciliation. Immediate stop
+revokes local admission without waiting for that worker. The explicit
+reconciliation-age budget bounds cycle transport, while physical file work
+retains its slot/lock after cancellation. Unsupported/missing source data closes
+admission and preserves unresolved holds.
+
+`pending.py` exposes typed original prepare/arm/ACK/fill/cashflow/lifecycle
+commands. `recover_pending()` previews complete bill/fill/wallet facts and uses
+the original stored command, including its independent valuation. Exact pending
+completion never resends an order or issues admission. Newer activity outside
+that original command remains a gate for the future recovery batch service.
+
+The control application prepares API-qualified `ControlSnapshot` facts for an
+external signer. Runtime contains public verification keys only. New control
+commands require the bound source snapshot, namespace, cut and signature;
+historical replay preserves current local admission and cannot reopen it after
+revocation. Signed RECOVER after REVOKE may restore only the latest audited
+writer's observation identity; ACTIVE admission requires a new signed grant.

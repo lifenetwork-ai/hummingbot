@@ -50,6 +50,43 @@ def facts(binding):
 
 
 @pytest.mark.asyncio
+async def test_signed_recover_after_revoke_restores_only_latest_writer_observation_not_admission(tmp_path):
+    from test.hummingbot.strategy_v2.life_liquidity.storage.test_spot_ack_contracts import ack
+    from test.hummingbot.strategy_v2.life_liquidity.storage.test_spot_financial_contracts import order
+    files, binding, owner = create_fixture(tmp_path)
+    store = await open_it(files, binding, tmp_path, owner, True)
+    await store.prepare(order(owner), cut=(await store.snapshot(binding)).cut, owner=owner)
+    await store.arm('operation1', cut=(await store.snapshot(binding)).cut, owner=owner)
+    revoke = OwnerTransition('revoke', OwnerMode.UNARMED, None)
+    before = await store.snapshot(binding)
+    evidence = facts(binding)
+    approval = KEYS.sign('offline-operator', binding, 'REVOKE', revoke.json(), before.cut, evidence,
+                         issued_at=NOW, expires_at=NOW + timedelta(seconds=1))
+    await store.transition_owner(revoke, approval=approval, facts=evidence, cut=before.cut)
+    await store.close()
+    cold = await open_it(files, binding, tmp_path)
+    try:
+        recover = OwnerTransition('recover', OwnerMode.RECOVERY_ONLY, owner)
+        view = await cold.snapshot(binding)
+        wrong = replace(recover, token=replace(owner, generation=UUID(int=99)))
+        wrong_signature = KEYS.sign('offline-operator', binding, 'RECOVER', wrong.json(), view.cut, evidence,
+                                    issued_at=NOW, expires_at=NOW + timedelta(seconds=1))
+        with pytest.raises(StorageError, match='CONTROL_OBSERVATION_OWNER_MISMATCH'):
+            await cold.transition_owner(wrong, approval=wrong_signature, facts=evidence, cut=view.cut)
+        signature = KEYS.sign('offline-operator', binding, 'RECOVER', recover.json(), view.cut, evidence,
+                              issued_at=NOW, expires_at=NOW + timedelta(seconds=1))
+        await cold.transition_owner(recover, approval=signature, facts=evidence, cut=view.cut)
+        assert cold._cold_unarmed
+        await cold.acknowledge(ack(owner), cut=(await cold.snapshot(binding)).cut, owner=owner)
+        assert (await cold.snapshot(binding)).balance.reserved_quote_usdt == D('2')
+        assert not (await cold.check_spot_send(order(owner), owner=owner)).qualified
+        assert (await cold.transition_owner(recover, approval=signature, facts=evidence, cut=view.cut)).replayed
+        assert cold._cold_unarmed
+    finally:
+        await cold.close()
+
+
+@pytest.mark.asyncio
 async def test_cold_signed_new_generation_activation_requires_exact_account_cut_and_replays_without_rearm(tmp_path):
     files, binding, owner = create_fixture(tmp_path)
     store = await open_it(files, binding, tmp_path, owner, True)

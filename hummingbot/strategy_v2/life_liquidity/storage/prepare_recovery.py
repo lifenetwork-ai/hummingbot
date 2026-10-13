@@ -52,8 +52,9 @@ class LegacyPrepareRecoveryAdapter:
             raise StorageError('SPOT_PREPARE_RECOVERY_PHASE_INVALID')
         if view.cut != cut:
             raise StorageConflict('SPOT_CUT_STALE')
-        if (any(key != operation_id and row['state'] in ('PREPARING', 'ARMING', 'ACKING', 'FILLING', 'TERMINATING')
-                for key, row in meta.resources['commands'].items())
+        if (self._ancillary_recovery_pending(meta.resources)
+                or any(key != operation_id and row['state'] in ('PREPARING', 'ARMING', 'ACKING', 'FILLING', 'TERMINATING')
+                       for key, row in meta.resources['commands'].items())
                 or any(row['state'] != 'APPLIED' for row in meta.resources.get('fill_operations', {}).values())
                 or any(row['state'] != 'APPLIED' for row in meta.resources.get('cashflow_operations', {}).values())
                 or any(row['state'] != 'ACKED' for row in meta.resources.get('acknowledgements', {}).values())

@@ -65,9 +65,11 @@ from hummingbot.strategy_v2.life_liquidity.storage.financial import (
     SpotSession,
     SpotSnapshot,
 )
+from hummingbot.strategy_v2.life_liquidity.storage.pending import LegacyPendingAdapter
 from hummingbot.strategy_v2.life_liquidity.storage.prepare_recovery import LegacyPrepareRecoveryAdapter
 from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancialRecoveryPolicy
 from hummingbot.strategy_v2.life_liquidity.storage.recovery_adapter import LegacyFinancialRecoveryAdapter
+from hummingbot.strategy_v2.life_liquidity.storage.session import LegacySessionAdapter
 from hummingbot.strategy_v2.life_liquidity.storage.settlement import SpotSettlementPolicy
 from hummingbot.strategy_v2.life_liquidity.storage.settlement_adapter import LegacySettlementAdapter
 from hummingbot.strategy_v2.life_liquidity.storage.spot_lifecycle import LegacySpotLifecycleAdapter
@@ -96,7 +98,7 @@ class LegacySpotFiles:
         return {key: value for key, value in self.__dict__.items() if key != 'binding'}
 
 
-class LegacySpotStore(LegacySpotLifecycleAdapter, LegacyControlAdapter, LegacySettlementAdapter, LegacyPrepareRecoveryAdapter, LegacyFinancialRecoveryAdapter,
+class LegacySpotStore(LegacyPendingAdapter, LegacySessionAdapter, LegacySpotLifecycleAdapter, LegacyControlAdapter, LegacySettlementAdapter, LegacyPrepareRecoveryAdapter, LegacyFinancialRecoveryAdapter,
                       LegacyTerminalAdapter, FileCheckpointStore):
     atomic_scope = AtomicScope.RECOVERABLE_SAGA
 
@@ -232,6 +234,8 @@ class LegacySpotStore(LegacySpotLifecycleAdapter, LegacyControlAdapter, LegacySe
             hashes = self._hashes(before)
             partial = (hashes != dict(meta.resources['journal_hashes'])
                        or self._incomplete(meta.resources))
+            if not partial:
+                self._verify_session_projection(meta.resources)
             if self._fill_policy is not None and not partial:
                 self._verify_fill_projection(meta.resources['commands'], meta.resources.get('fills', {}))
             if self._accounting_policy is not None and not partial:
@@ -494,11 +498,16 @@ class LegacySpotStore(LegacySpotLifecycleAdapter, LegacyControlAdapter, LegacySe
         return meta
 
     @staticmethod
+    def _ancillary_recovery_pending(resources):
+        return any(row['state'] != 'APPLIED' for name in (
+            'session_operations', 'lifecycle_operations', 'product_operations')
+            for row in resources.get(name, {}).values())
+
+    @staticmethod
     def _incomplete(resources):
         return (any(item['state'] in PARTIAL_PHASES for item in resources['commands'].values())
                 or any(item['state'] != 'APPLIED' for item in resources.get('cashflow_operations', {}).values())
-                or any(item['state'] != 'APPLIED' for item in resources.get('product_operations', {}).values())
-                or any(item['state'] != 'APPLIED' for item in resources.get('lifecycle_operations', {}).values())
+                or LegacySpotStore._ancillary_recovery_pending(resources)
                 or any(item['state'] != 'SETTLED' for item in resources.get('settlement_operations', {}).values()))
 
     def _publish_ack(self, key, owner, commands, acknowledgements, hashes):
@@ -571,7 +580,8 @@ class LegacySpotStore(LegacySpotLifecycleAdapter, LegacyControlAdapter, LegacySe
             return self._ack_receipt(self.binding, command.json(), 'ACKED', True)
         if view.cut != cut:
             raise StorageConflict('SPOT_CUT_STALE')
-        acknowledgements[command.operation_id] = {'command': command.json(), 'fingerprint': command_hash, 'state': 'ACKING'}
+        acknowledgements[command.operation_id] = {'command': command.json(), 'fingerprint': command_hash,
+                                                  'owner': owner.json(), 'state': 'ACKING'}
         record['state'] = 'ACKING'
         try:
             self._publish_ack('ack-start:' + command.operation_id, owner, commands, acknowledgements, dict(view.cut.components))
@@ -733,7 +743,7 @@ class LegacySpotStore(LegacySpotLifecycleAdapter, LegacyControlAdapter, LegacySe
             self._capital_ledger(commands, fills, meta.resources.get('cashflows', {}))  # Causal preflight before writes.
         loss = sum((row.loss(command.side) for row in command.fills), Decimal('0'))
         operations[command.operation_id] = {'command': command.json(), 'fingerprint': command_hash,
-                                            'state': 'FILLING', 'execution_loss_usdt': str(loss),
+                                            'owner': owner.json(), 'state': 'FILLING', 'execution_loss_usdt': str(loss),
                                             'attempt_state_before_apply': record['state']}
         original_state = record['state']
         record['state'] = 'FILLING'
@@ -893,7 +903,8 @@ class LegacySpotStore(LegacySpotLifecycleAdapter, LegacyControlAdapter, LegacySe
         else:
             cashflows[command.bill_id] = stable
         self._capital_ledger(meta.resources['commands'], meta.resources.get('fills', {}), cashflows)
-        operations[command.operation_id] = {'command': command.json(), 'fingerprint': command_hash, 'state': 'CASHFLOWING'}
+        operations[command.operation_id] = {'command': command.json(), 'fingerprint': command_hash,
+                                            'owner': owner.json(), 'state': 'CASHFLOWING'}
         try:
             self._publish_cashflow('cash-start:' + command.operation_id, owner, operations,
                                    thaw(meta.resources.get('cashflows', {})), dict(view.cut.components))

@@ -16,6 +16,7 @@ from hummingbot.strategy_v2.life_liquidity.order_gateway import OkxSpotOrderGate
 from hummingbot.strategy_v2.life_liquidity.session import OrderReconciliation
 from hummingbot.strategy_v2.life_liquidity.storage.capital import CashflowSpot, SpotAccountingPolicy
 from hummingbot.strategy_v2.life_liquidity.storage.contracts import StateBinding, StorageError, fingerprint, utc
+from hummingbot.strategy_v2.life_liquidity.storage.control_plane import ControlSnapshot
 from hummingbot.strategy_v2.life_liquidity.storage.financial import (
     AckSpot,
     FillSpot,
@@ -26,6 +27,8 @@ from hummingbot.strategy_v2.life_liquidity.storage.financial import (
     SpotFillPolicy,
     signed_decimal,
 )
+from hummingbot.strategy_v2.life_liquidity.storage.pending import PendingSpotCommand
+from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotAckRecoveryFacts, SpotFinancialRecoveryFacts
 from hummingbot.strategy_v2.life_liquidity.storage.terminal import SpotTerminalFacts, TerminalSpot
 
 
@@ -38,6 +41,7 @@ class SpotObservationContext:
     commands: tuple[PrepareSpot, ...]
     fills: tuple[RecordedSpotFill, ...]
     cashflows: tuple[CashflowSpot, ...]
+    pending: tuple[PendingSpotCommand, ...] = ()
 
 
 class SpotObservationRepository(Protocol):
@@ -55,6 +59,8 @@ class OkxSpotRepositoryObserver:
         self.fill_value, self.cashflow_value, self.max_pages = independent_fill_value, independent_cashflow_value, max_pages
         self.reason_code = 'SPOT_OBSERVATION_NOT_COLLECTED'
         self._lock = asyncio.Lock()
+        self.last_account_facts = None
+        self.last_account_cut = None
 
     async def _pages(self, read_page, cursor_key):
         cursor, previous, result = None, None, []
@@ -153,12 +159,28 @@ class OkxSpotRepositoryObserver:
                     raise StorageError('SPOT_OBSERVATION_BILL_AMOUNT_OR_FEE_MISMATCH')
         return transfers
 
-    async def _runner_wires(self):
+    async def _runner_wires(self, combined, orders):
         c = self.application.controller
-        if await self.store._call(lambda: c._runner_executor_scope_complete(quiescent=False)) is not True:
+        # Source collection cannot require a newly reported fill to have been
+        # booked already. Financial permission callers retain the default check.
+        if await self.store._call(lambda: c._runner_executor_scope_complete(
+                quiescent=False, verify_financial_events=False)) is not True:
             raise StorageError('SPOT_OBSERVATION_RUNNER_SCOPE_INCOMPLETE')
 
         def collect():
+            for trade_id, value in dict(c._runner_fill_observations).items():
+                source = combined.get(trade_id)
+                if source is None:
+                    raise StorageError('SPOT_OBSERVATION_RUNNER_FILL_CONFLICT')
+                command, exchange_id, fill = source
+                if value != (command.intent_id, command.client_order_id, exchange_id, fill.quantity_base_life,
+                             fill.price_usdt, fill.fee_currency, fill.signed_fee):
+                    raise StorageError('SPOT_OBSERVATION_RUNNER_FILL_CONFLICT')
+            by_wire = {value['clOrdId']: value for value in orders.values()}
+            for wire, exchange_id in dict(c._runner_cancel_observations).items():
+                order = by_wire.get(wire)
+                if order is None or exchange_id not in (None, order['ordId']):
+                    raise StorageError('SPOT_OBSERVATION_RUNNER_CANCEL_CONFLICT')
             wires = set(c._runner_wire_owners)
             for executor in c._runner_executors():
                 wires.update(executor.recovery_order_ids())
@@ -169,6 +191,14 @@ class OkxSpotRepositoryObserver:
         await self.application._uid()
         context = await self.store.observation_context(self.binding)
         existing = {row.fill.trade_id: row for row in context.fills}
+        for row in context.pending:
+            if row.kind == 'FILL':
+                for fill in row.command.fills:
+                    original = RecordedSpotFill(row.command.prepare_operation_id, row.command.intent_id,
+                                                row.command.exchange_order_id, fill)
+                    if fill.trade_id in existing and existing[fill.trade_id] != original:
+                        raise StorageError('SPOT_OBSERVATION_PENDING_FILL_CONFLICT')
+                    existing[fill.trade_id] = original
         helper = SpotAccountBillReader(self.connector, anchor_bill_id=context.policy.anchor_bill_id,
                                        max_pages=self.max_pages, max_fill_pages=self.max_pages)
         raw_bills = await helper.bills_since_anchor()
@@ -176,7 +206,9 @@ class OkxSpotRepositoryObserver:
         orders, fills, combined = {}, {}, {}
         for command in context.commands:
             attempt = await self.store.attempt(command.intent_id, self.binding)
-            if attempt.state.value in ('PREPARED', 'ABORTED_BEFORE_SEND'):
+            if (attempt is None or attempt.state.value in ('PREPARED', 'ABORTED_BEFORE_SEND')
+                    or any(row.kind in ('PREPARE', 'ARM') and row.command.intent_id == command.intent_id
+                           for row in context.pending)):
                 continue
             response = await self.connector.get_order_by_client_id('LIFE-USDT', command.client_order_id)
             order = OkxSpotOrderGateway._one_order(response, command.client_order_id)
@@ -235,7 +267,7 @@ class OkxSpotRepositoryObserver:
             balances[currency] = value
         if not {'LIFE', 'USDT'} <= balances.keys():
             raise StorageError('SPOT_OBSERVATION_ACCOUNT_CURRENCY_MISSING')
-        runner_wires = await self._runner_wires()
+        runner_wires = await self._runner_wires(combined, orders)
         await self.application._uid()
         return context, orders, fills, combined, transfers, pending, balances, runner_wires
 
@@ -250,11 +282,9 @@ class OkxSpotRepositoryObserver:
                 self.reason_code = 'SPOT_OBSERVATION_UNTRUSTED'
                 raise StorageError(self.reason_code) from None
 
-    async def _reconcile(self, session_id, epoch):
-        context, orders, fills, combined, transfers, pending, balances, runner_wires = await self._collect()
-        existing = {row.fill.trade_id for row in context.fills}
+    def _financial_timeline(self, context, combined, transfers, balances, now):
         cashflows = {row.bill_id: row for row in context.cashflows}
-        now = utc(self.store._clock())
+        cashflows.update({row.command.bill_id: row.command for row in context.pending if row.kind == 'CASHFLOW'})
         timeline = []
         for bill_id, raw in sorted(transfers.items(), key=lambda item: (int(item[1]['ts']), int(item[0]))):
             at, currency, amount = int(raw['ts']), raw['ccy'], Decimal(raw['balChg'])
@@ -294,8 +324,82 @@ class OkxSpotRepositoryObserver:
                                     fee_currency=fill.fee_currency, signed_fee=fill.signed_fee)
         if (preview.life_balance, preview.usdt_balance) != (balances['LIFE'], balances['USDT']):
             raise StorageError('SPOT_OBSERVATION_ACCOUNT_PROJECTION_MISMATCH')
+        return timeline
+
+    async def recover_pending(self):
+        """Complete exact journal commands under an explicit observation grant.
+
+        Newer external activity that the stored command does not cover remains
+        a recovery gate; original prices/fees/identities are never replaced.
+        """
+        async with self._lock:
+            context, orders, fills, combined, transfers, pending, balances, runner_wires = await self._collect()
+            now = utc(self.store._clock())
+            self._financial_timeline(context, combined, transfers, balances, now)
+            if (await self.store.snapshot(self.binding)).cut != context.cut:
+                raise StorageError('SPOT_OBSERVATION_STATE_CHANGED_DURING_COLLECTION')
+            if not context.pending:
+                return ()
+            if len(context.pending) != 1:
+                raise StorageError('SPOT_RECOVERY_BATCH_REQUIRED')
+            step = context.pending[0]
+            if step.owner != self.application.owner:
+                raise StorageError('SPOT_RECOVERY_ORIGINAL_OWNER_MISMATCH')
+            facts = SpotFinancialRecoveryFacts(self.binding, now, balances['LIFE'], balances['USDT'],
+                                               Decimal('0'), Decimal('0'), tuple(combined), tuple(transfers),
+                                               tuple(row['clOrdId'] for row in orders.values()), runner_wires,
+                                               True, True, True)
+            command = step.command
+            args = dict(facts=facts, cut=context.cut, owner=step.owner)
+            if step.kind == 'PREPARE':
+                receipt = await self.store.resume_prepare(command, **args)
+            elif step.kind == 'ARM':
+                receipt = await self.store.resume_arm(command.operation_id, **args)
+            elif step.kind == 'FILL':
+                receipt = await self.store.resume_fill(command, **args)
+            elif step.kind == 'CASHFLOW':
+                receipt = await self.store.resume_cashflow(command, **args)
+            elif step.kind == 'ACK':
+                order = orders[command.intent_id]
+                args['facts'] = SpotAckRecoveryFacts(facts, command.client_order_id, order['ordId'], command.market,
+                                                     command.side, Decimal(order['sz']), Decimal(order['px']),
+                                                     Decimal(order['accFillSz']), order['state'].upper())
+                receipt = await self.store.resume_ack(command, **args)
+            else:
+                receipt = await self.store.apply_lifecycle(command, cut=context.cut, owner=step.owner)
+            return (receipt,)
+
+    async def control_snapshot(self):
+        """API-qualified facts for an external signer, without accounting writes."""
+        async with self._lock:
+            context, orders, fills, combined, transfers, pending, balances, runner_wires = await self._collect()
+            now = utc(self.store._clock())
+            self._financial_timeline(context, combined, transfers, balances, now)
+            if (await self.store.snapshot(self.binding)).cut != context.cut:
+                raise StorageError('SPOT_OBSERVATION_STATE_CHANGED_DURING_COLLECTION')
+            quiescent = await self.store._call(lambda: self.application.controller._runner_executor_scope_complete(
+                quiescent=True, verify_financial_events=False))
+            active = set()
+            for command in context.commands:
+                attempt = await self.store.attempt(command.intent_id, self.binding)
+                if attempt is not None and attempt.state.value not in ('TERMINAL', 'ABORTED_BEFORE_SEND'):
+                    active.add(command.client_order_id)
+            facts = SpotFinancialRecoveryFacts(self.binding, now, balances['LIFE'], balances['USDT'],
+                                               Decimal('0'), Decimal('0'), tuple(combined), tuple(transfers),
+                                               tuple(row['clOrdId'] for row in pending),
+                                               tuple(sorted(active & set(runner_wires))), True, True, quiescent is True)
+            return ControlSnapshot(self.binding, context.cut, facts)
+
+    async def _reconcile(self, session_id, epoch):
+        self.last_account_facts = self.last_account_cut = None
+        context, orders, fills, combined, transfers, pending, balances, runner_wires = await self._collect()
+        existing = {row.fill.trade_id for row in context.fills}
+        cashflows = {row.bill_id: row for row in context.cashflows}
+        now = utc(self.store._clock())
+        timeline = self._financial_timeline(context, combined, transfers, balances, now)
         if (await self.store.snapshot(self.binding)).cut != context.cut:
             raise StorageError('SPOT_OBSERVATION_STATE_CHANGED_DURING_COLLECTION')
+        runner_wires = await self._runner_wires(combined, orders)
         # ACK every known accepted attempt first. This publishes no money and
         # allows the complete financial timeline to be applied in causal order.
         for command in context.commands:
@@ -329,6 +433,9 @@ class OkxSpotRepositoryObserver:
                                        observed, now)
                 await self.store.apply_fills(observation, cut=(await self.store.snapshot(self.binding)).cut,
                                              owner=self.application.owner)
+        runner_wires = await self._runner_wires(combined, orders)
+        if await self.store._call(self.application.controller.verify_runner_fill_events) is not True:
+            raise StorageError('SPOT_OBSERVATION_RUNNER_FINANCIAL_PROJECTION_INCOMPLETE')
         for command in context.commands:
             order = orders.get(command.intent_id)
             if order is None:
@@ -350,6 +457,17 @@ class OkxSpotRepositoryObserver:
                 operation = self.store.resume_terminal if previous is not None else self.store.confirm_terminal
                 await operation(terminal, cut=(await self.store.snapshot(self.binding)).cut, owner=self.application.owner)
         self.reason_code = 'SPOT_REPOSITORY_RECONCILED'
-        return OrderReconciliation(session_id=session_id, epoch=epoch, observed_at=utc(self.store._clock()),
+        active_wires = set()
+        for command in context.commands:
+            attempt = await self.store.attempt(command.intent_id, self.binding)
+            if attempt.state.value not in ('TERMINAL', 'ABORTED_BEFORE_SEND'):
+                active_wires.add(command.client_order_id)
+        quiescent = await self.store._call(self.application.controller._runner_executor_scope_complete)
+        self.last_account_facts = SpotFinancialRecoveryFacts(
+            self.binding, now, balances['LIFE'], balances['USDT'], Decimal('0'), Decimal('0'),
+            tuple(combined), tuple(transfers), tuple(row['clOrdId'] for row in pending),
+            tuple(sorted(active_wires & set(runner_wires))), True, True, quiescent is True)
+        self.last_account_cut = (await self.store.snapshot(self.binding)).cut
+        return OrderReconciliation(session_id=session_id, epoch=epoch, observed_at=now,
                                    open_order_ids=tuple(row['clOrdId'] for row in pending), unknown_order_ids=(),
                                    pending_cancel_ids=(), trade_events_reconciled=True, scope_complete=True)

@@ -63,6 +63,9 @@ class RuntimeAuthorizationRepository(Protocol):
     def cancel_spot_local(self, intent_id: str) -> bool:
         ...
 
+    def on_spot_safety_tick(self, timestamp: float) -> None:
+        ...
+
 
 class FileControllerRuntime:
     backend = Backend.FILE
@@ -103,6 +106,11 @@ class FileControllerRuntime:
     def cancel_spot_local(self, intent_id):
         return self._spot_application is not None and self._spot_application.cancel_local(intent_id)
 
+    def on_spot_safety_tick(self, timestamp):
+        if self._spot_application is None:
+            raise StorageError('RUNTIME_SPOT_APPLICATION_REQUIRED')
+        self._spot_application.on_safety_tick(timestamp)
+
     def validate_binding(self, binding, config_hash):
         if binding != self.binding or config_hash != self.binding.config_hash:
             raise StorageError('RUNTIME_BINDING_OR_CONFIG_MISMATCH')
@@ -134,6 +142,8 @@ class FileControllerRuntime:
 
     def _local_ready(self):
         try:
+            if self._spot_application is not None and not self._spot_application.local_ready():
+                return False
             self._assert_config()
             now = datetime.now(timezone.utc) if self.store._clock is None else self.store._clock()
             return (not self._revoked and not self.store._closed and not self.store._uncertain

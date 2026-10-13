@@ -11,6 +11,7 @@ import re
 from dataclasses import dataclass
 from datetime import timedelta
 from decimal import Decimal, InvalidOperation
+from uuid import uuid4
 
 from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.strategy_v2.executors.order_executor.data_types import ExecutionStrategy, OrderExecutorConfig
@@ -21,15 +22,22 @@ from hummingbot.strategy_v2.life_liquidity.risk import SpotIntent
 from hummingbot.strategy_v2.life_liquidity.send_gate import SendPermit
 from hummingbot.strategy_v2.life_liquidity.session import SessionManager
 from hummingbot.strategy_v2.life_liquidity.storage.contracts import (
+    OwnerMode,
     OwnerToken,
     StorageError,
     fingerprint,
     identifier,
     utc,
 )
+from hummingbot.strategy_v2.life_liquidity.storage.control_plane import (
+    ControlSnapshot,
+    OperatorApproval,
+    OwnerTransition,
+)
 from hummingbot.strategy_v2.life_liquidity.storage.financial import AckSpot, PrepareSpot, decimal
 from hummingbot.strategy_v2.life_liquidity.storage.legacy_spot import LegacySpotStore
 from hummingbot.strategy_v2.life_liquidity.storage.runtime import FileControllerRuntime
+from hummingbot.strategy_v2.life_liquidity.storage.session import SessionTick
 from hummingbot.strategy_v2.life_liquidity.storage.spot_lifecycle import SpotLifecycleCommand
 
 
@@ -99,6 +107,10 @@ class FileSpotApplication:
         self._observer = None
         self._cancel_policy = controller._configured_cancel_retry_policy()
         self._cancel_lock = asyncio.Lock()
+        self._safety_pending = False
+        self._reconciliation_age_ms = controller.config.recovery_reconciliation_max_age_ms
+        self._control_snapshot = None
+        self._process_id = owner.process_id
 
     @classmethod
     async def install(cls, store, controller, connector, owner, *, admission, authorize_permit, risk_epoch,
@@ -141,7 +153,8 @@ class FileSpotApplication:
             c, store = self.controller, self.store
             current = c._order_safety_manager.current_session
             now = utc(store._clock())
-            return (not self._revoked and not store._closed and not store._uncertain and not store._cold_unarmed
+            return (not self._revoked and not self._safety_pending and not store._closed
+                    and not store._uncertain and not store._cold_unarmed
                     and store._admission_generation == self.owner.generation
                     and self.owner.valid_from <= now < self.owner.expires_at
                     and current is not None and (current.session_id, current.epoch) == (
@@ -302,6 +315,128 @@ class FileSpotApplication:
     def revoke(self):
         self._revoked = True
 
+    def on_safety_tick(self, timestamp):
+        c = self.controller
+        if self._revoked or c._order_safety_stopped:
+            return
+        if c.order_safety_task is not None and not c.order_safety_task.done():
+            return
+        self._safety_pending = True
+        task = asyncio.create_task(self._safety_cycle())
+        c.order_safety_task = task
+        task.add_done_callback(c._on_order_safety_done)
+
+    def _session_inputs(self):
+        c = self.controller
+        view = self.store._snapshot()
+        if (self._revoked or c._order_safety_stopped or self.store._cold_unarmed
+                or fingerprint(c.config.model_dump(mode='json')) != self._configuration_hash
+                or c.config_update_state.order_permission() is not True):
+            return view.session, False, False
+        carry = c._carry_ready()
+        risk = (c._runtime_risk_ready() and c._spot_risk_ready() and c._joint_risk_ready()
+                and c._hedge_ready() and carry)
+        financial = risk and c._execution_loss_ready() and c._fill_attribution_ready() and c._markout_risk_ready()
+        planner = c._quote_action_planner
+        qualified = planner.session_snapshot() if financial and planner is not None else None
+        stop_pending = c._runner_stops_pending()
+        ready = (not stop_pending and financial and qualified is not None and c._spot_quote_gates_ready()
+                 and not c._pause_reconciliation_required)
+        exit_ready = not stop_pending and c._bounded_pending_ready()
+        return view.session, bool(ready or exit_ready), bool(
+            exit_ready or ready and qualified.market_reference_ready is True)
+
+    def _sync_session(self):
+        self.store._snapshot()
+        c, manager = self.controller, self.controller._order_safety_manager
+        previous = manager.state
+        manager._journal = self.store._sessions.load()
+        manager._monotonic_deadline = self.store._monotonic_deadline
+        if previous == 'ACTIVE' and manager.state == 'PAUSED':
+            c._pause_reconciliation_required = True
+        c._observed_session_state = manager.state
+        return manager.state
+
+    def _clear_closed_runner_events(self, session_id, epoch):
+        self.store._snapshot()
+        c = self.controller
+        if c.verify_runner_fill_events() is not True:
+            raise StorageError('SPOT_APPLICATION_RUNNER_FINANCIAL_PROJECTION_REQUIRED')
+        closed = {row.client_order_id for row in self.store._wal.scoped_records(session_id, epoch)
+                  if row.state in ('TERMINAL', 'ABORTED_BEFORE_SEND')}
+        c._runner_fill_observations = {key: value for key, value in c._runner_fill_observations.items()
+                                       if value[1] not in closed}
+        c._runner_cancel_observations = {key: value for key, value in c._runner_cancel_observations.items()
+                                         if key not in closed}
+
+    def _transition_anchor(self):
+        c = self.controller
+        if (self._revoked or c._order_safety_stopped or not c._runtime_risk_ready() or not c._joint_risk_ready()
+                or not c._hedge_ready() or not c._execution_loss_ready() or not c._fill_attribution_ready()
+                or not c._markout_risk_ready() or c.has_unverified_runner_order_events()
+                or not c._spot_quote_gates_ready() or c._quote_action_planner is None):
+            return None
+        qualified = c._quote_action_planner.session_snapshot()
+        anchor = qualified.market_anchor_usdt if qualified is not None and qualified.market_reference_ready is True else None
+        return anchor if isinstance(anchor, Decimal) and anchor.is_finite() and anchor > 0 else None
+
+    async def _safety_cycle(self):
+        c = self.controller
+        try:
+            # This is the explicit reconciliation freshness budget, also bounding
+            # cancel/status transport for this cycle; disk ownership stays with
+            # its physical worker even if the awaiting task times out.
+            async with asyncio.timeout(self._reconciliation_age_ms / 1000):
+                session, ready, market_ready = await self.store._call(self._session_inputs)
+                tick = SessionTick('watch:' + uuid4().hex, session.session_id, session.epoch,
+                                   ready, ready, market_ready, self._reconciliation_age_ms)
+                await self.store.tick_session(tick, cut=(await self.store.snapshot(self.binding)).cut, owner=self.owner)
+                state = await self.store._call(self._sync_session)
+                if state == 'ACTIVE' and ready:
+                    c.order_safety_reason_code = 'SESSION_ACTIVE'
+                    return
+                # Native runner stop remains immediate and performs no financial
+                # publication through this application. Cancel then uses ports.
+                c._runner_halt_ok = c._halt_runner_orders(spot_only=True)
+                context = await self.store.observation_context(self.binding)
+                scopes = tuple(sorted({(session.session_id, session.epoch)} | {
+                    (row.session_id, row.epoch) for row in context.commands}))
+                cancel_failed = False
+                try:
+                    await self.cancel_scopes(scopes)
+                except CancelRequestError:
+                    cancel_failed = True
+                primary = None
+                for session_id, epoch in scopes:
+                    result = await self.reconcile(session_id, epoch)
+                    if (not result.scope_complete or not result.trade_events_reconciled
+                            or result.open_order_ids or result.unknown_order_ids or result.pending_cancel_ids):
+                        c.order_safety_reason_code = 'CANCEL_REQUEST_FAILED' if cancel_failed else 'OLD_ORDERS_UNRESOLVED'
+                        return
+                    await self.store._call(self._clear_closed_runner_events, session_id, epoch)
+                    if (session_id, epoch) == (session.session_id, session.epoch):
+                        primary = result
+                if state == 'TRANSITIONING' and primary is not None:
+                    anchor = await self.store._call(self._transition_anchor)
+                    facts = self._observer.last_account_facts
+                    if facts is not None and anchor is not None:
+                        transition = SessionTick('successor:' + uuid4().hex, session.session_id, session.epoch,
+                                                 True, True, True, self._reconciliation_age_ms,
+                                                 primary, facts, anchor)
+                        await self.store.tick_session(transition, cut=self._observer.last_account_cut, owner=self.owner)
+                        await self.store._call(self._sync_session)
+                c.order_safety_reason_code = 'OLD_ORDERS_RECONCILED'
+                if state == 'PAUSED':
+                    c._pause_reconciliation_required = False
+        except asyncio.CancelledError:
+            self.revoke()
+            raise
+        except BaseException:
+            self.revoke()
+            raise
+        finally:
+            self._safety_pending = False
+
     def cancel_local(self, intent_id):
         self._revoked_ids.add(intent_id)
         self.controller._runner_stop_revoked_ids.add(intent_id)
@@ -383,6 +518,46 @@ class FileSpotApplication:
             raise StorageError('SPOT_APPLICATION_OBSERVER_REQUIRED')
         return await self._observer.reconcile(session_id, epoch)
 
+    async def recover_pending(self):
+        self.revoke()
+        if self._observer is None:
+            raise StorageError('SPOT_APPLICATION_OBSERVER_REQUIRED')
+        for pending in await self.store.pending_session_ticks(self.binding):
+            if pending.owner != self.owner:
+                raise StorageError('SPOT_RECOVERY_ORIGINAL_OWNER_MISMATCH')
+            await self.store.tick_session(pending.command, cut=pending.original_cut, owner=pending.owner)
+        await self.store._call(self._sync_session)
+        return await self._observer.recover_pending()
+
+    async def prepare_control_snapshot(self):
+        self.runtime.revoke()
+        if self._observer is None:
+            raise StorageError('SPOT_APPLICATION_OBSERVER_REQUIRED')
+        self.controller._runner_halt_ok = self.controller._halt_runner_orders(spot_only=True)
+        self._control_snapshot = await self._observer.control_snapshot()
+        return self._control_snapshot
+
+    async def apply_owner_transition(self, command, *, approval, snapshot):
+        if (not isinstance(command, OwnerTransition) or not isinstance(approval, OperatorApproval)
+                or not isinstance(snapshot, ControlSnapshot) or snapshot.binding != self.binding):
+            raise StorageError('SPOT_APPLICATION_CONTROL_INVALID')
+        previous = await self.store.lookup_operation('control:' + command.operation_id, self.binding)
+        if previous is None:
+            self.runtime.revoke()
+            if (snapshot != self._control_snapshot
+                    or not 0 <= (utc(self.store._clock()) - snapshot.facts.observed_at).total_seconds() * 1000
+                    <= self._reconciliation_age_ms):
+                raise StorageError('SPOT_APPLICATION_CONTROL_SOURCE_UNQUALIFIED')
+            await self._uid()
+        receipt = await self.store.transition_owner(command, approval=approval, facts=snapshot.facts, cut=snapshot.cut)
+        if (not receipt.replayed and command.mode is OwnerMode.ACTIVE and command.token.process_id == self._process_id
+                and not self.controller._order_safety_stopped
+                and fingerprint(self.controller.config.model_dump(mode='json')) == self._configuration_hash):
+            self.owner = self.runtime.owner = command.token
+            await self.store._call(self._sync_session)
+            self._revoked = self.runtime._revoked = False
+        return receipt
+
     def install_observer(self, observer):
         from hummingbot.strategy_v2.life_liquidity.storage.spot_observation import OkxSpotRepositoryObserver
         if self._observer is not None or not isinstance(observer, OkxSpotRepositoryObserver) or observer.application is not self:
@@ -398,7 +573,8 @@ class FileSpotApplication:
 
     async def close(self):
         self.revoke()
-        tasks = tuple(self._pending.values())
+        safety = self.controller.order_safety_task
+        tasks = tuple(self._pending.values()) + (() if safety is None or safety.done() else (safety,))
         for task in tasks:
             task.cancel()
         if tasks:
