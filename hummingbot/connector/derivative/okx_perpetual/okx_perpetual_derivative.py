@@ -80,9 +80,12 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
 
     def submit_protected_order(self, *, order_id: str, trading_pair: str, amount: Decimal,
                                trade_type: TradeType, order_type: OrderType, price: Decimal,
-                               position_action: PositionAction, pre_send_check, on_ack, async_pre_send_check=None) -> str:
+                               position_action: PositionAction, pre_send_check, on_ack=None,
+                               async_pre_send_check=None, async_on_ack=None) -> str:
         """Schedule an opt-in WAL-owned post-only SWAP order, without a retry fallback."""
-        if (not order_id or not callable(pre_send_check) or not callable(on_ack)
+        if (not order_id or not callable(pre_send_check) or (on_ack is None) == (async_on_ack is None)
+                or on_ack is not None and not callable(on_ack)
+                or async_on_ack is not None and (not callable(async_on_ack) or not callable(async_pre_send_check))
                 or async_pre_send_check is not None and not callable(async_pre_send_check)
                 or trading_pair not in self._protected_trading_pairs
                 or order_type != OrderType.LIMIT_MAKER
@@ -91,7 +94,9 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
         safe_ensure_future(self._create_order(
             trade_type=trade_type, order_id=order_id, trading_pair=trading_pair,
             amount=amount, price=price, order_type=order_type, position_action=position_action,
-            pre_send_check=pre_send_check, on_ack=on_ack,
+            pre_send_check=pre_send_check,
+            **({'on_ack': on_ack} if on_ack is not None else {}),
+            **({'async_on_ack': async_on_ack} if async_on_ack is not None else {}),
             **({'async_pre_send_check': async_pre_send_check} if async_pre_send_check is not None else {})))
         return order_id
 
@@ -298,17 +303,23 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
         pre_send_check = kwargs.pop("pre_send_check", None)
         async_pre_send_check = kwargs.pop('async_pre_send_check', None)
         on_ack = kwargs.pop("on_ack", None)
+        async_on_ack = kwargs.pop('async_on_ack', None)
+        if on_ack is not None and async_on_ack is not None:
+            raise ValueError('PROTECTED_SWAP_ACK_AMBIGUOUS')
+        ack_valid = callable(on_ack) or callable(async_on_ack)
         if async_pre_send_check is not None and (
-                not callable(async_pre_send_check) or not callable(pre_send_check) or not callable(on_ack)
+                not callable(async_pre_send_check) or not callable(pre_send_check) or not ack_valid
                 or order_type != OrderType.LIMIT_MAKER or position_action not in (PositionAction.OPEN, PositionAction.CLOSE)):
             raise ValueError('PROTECTED_SWAP_ASYNC_CHECK_INVALID')
         if (trading_pair in getattr(self, "_protected_trading_pairs", set())
-                and (not callable(pre_send_check) or not callable(on_ack))):
+                and (not callable(pre_send_check) or not ack_valid)):
             raise PermissionError("PROTECTED_ORDER_REQUIRED")
         if pre_send_check is not None and (
-                not callable(pre_send_check) or not callable(on_ack) or order_type != OrderType.LIMIT_MAKER
+                not callable(pre_send_check) or not ack_valid or order_type != OrderType.LIMIT_MAKER
                 or position_action not in (PositionAction.OPEN, PositionAction.CLOSE)):
             raise ValueError("PROTECTED_SWAP_ORDER_INVALID")
+        if async_on_ack is not None and (not callable(async_on_ack) or not callable(async_pre_send_check)):
+            raise ValueError('PROTECTED_SWAP_ASYNC_ACK_INVALID')
         if position_action == PositionAction.NIL:
             raise NotImplementedError
         ex_trading_pair = await self.exchange_symbol_associated_to_pair(trading_pair)
@@ -353,6 +364,8 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
             raise IOError("ORDER_ACK_UNAVAILABLE")
         if on_ack is not None:
             on_ack(exchange_id)
+        elif async_on_ack is not None:
+            await async_on_ack(exchange_id)
         return exchange_id, self.current_timestamp
 
     async def _place_cancel(self, order_id: str, tracked_order: InFlightOrder):

@@ -121,3 +121,79 @@ async def test_swap_protected_scheduler_requires_post_only_and_persisted_identit
                                          price=D("1"), trade_type=TradeType.SELL, order_type=order_type,
                                          position_action=PositionAction.OPEN,
                                          pre_send_check=lambda _: None, on_ack=lambda _: None)
+
+
+@pytest.mark.asyncio
+async def test_async_swap_ack_finishes_before_transport_returns():
+    connector, throttle, sent = connector_with_transport({'data': [{'sCode': '0', 'ordId': '123456789'}]})
+    connector.enable_protected_trading_pair('LIFE-USDT')
+    ack_entered, ack_release = asyncio.Event(), asyncio.Event()
+    checks, acknowledgments = [], []
+
+    async def authority(wire):
+        assert sent == []
+        checks.append(('authority', wire))
+
+    def final_check(wire):
+        checks.append(('final', wire))
+
+    async def ack(exchange_id):
+        assert len(sent) == 1
+        ack_entered.set()
+        await ack_release.wait()
+        acknowledgments.append(exchange_id)
+
+    pending = asyncio.create_task(connector._place_order(
+        'wire1', 'LIFE-USDT', D('.5'), TradeType.SELL, OrderType.LIMIT_MAKER, D('1'), PositionAction.CLOSE,
+        pre_send_check=final_check, async_pre_send_check=authority, async_on_ack=ack))
+    try:
+        await asyncio.wait_for(throttle.entered.wait(), 2)
+        assert checks == [] and sent == []
+        throttle.release.set()
+        await asyncio.wait_for(ack_entered.wait(), 2)
+        assert not pending.done() and acknowledgments == []
+        assert [kind for kind, _ in checks] == ['authority', 'final']
+        ack_release.set()
+        assert (await pending)[0] == '123456789'
+        assert acknowledgments == ['123456789'] and len(sent) == 1
+    finally:
+        pending.cancel()
+        await asyncio.gather(pending, return_exceptions=True)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('failure', ['error', 'cancel'])
+async def test_async_ack_failure_never_retries_transport(failure):
+    connector, throttle, sent = connector_with_transport()
+    connector.enable_protected_trading_pair('LIFE-USDT')
+    throttle.release.set()
+
+    async def authority(_):
+        pass
+
+    async def ack(_):
+        if failure == 'cancel':
+            raise asyncio.CancelledError
+        raise OSError('synthetic ACK checkpoint unavailable')
+
+    with pytest.raises(asyncio.CancelledError if failure == 'cancel' else OSError):
+        await connector._place_order(
+            'wire1', 'LIFE-USDT', D('.5'), TradeType.SELL, OrderType.LIMIT_MAKER, D('1'), PositionAction.CLOSE,
+            pre_send_check=lambda _: None, async_pre_send_check=authority, async_on_ack=ack)
+    assert len(sent) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('kwargs', [
+    {'async_on_ack': lambda _: None},
+    {'async_on_ack': 1, 'async_pre_send_check': lambda _: None},
+    {'on_ack': lambda _: None, 'async_on_ack': lambda _: None, 'async_pre_send_check': lambda _: None},
+])
+async def test_ambiguous_or_unqualified_async_ack_is_refused_before_http(kwargs):
+    connector, throttle, sent = connector_with_transport()
+    connector.enable_protected_trading_pair('LIFE-USDT')
+    throttle.release.set()
+    with pytest.raises((ValueError, PermissionError)):
+        await connector._place_order('wire1', 'LIFE-USDT', D('.5'), TradeType.SELL, OrderType.LIMIT_MAKER,
+                                     D('1'), PositionAction.CLOSE, pre_send_check=lambda _: None, **kwargs)
+    assert sent == []

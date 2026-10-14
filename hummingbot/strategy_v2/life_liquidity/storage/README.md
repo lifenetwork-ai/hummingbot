@@ -819,3 +819,44 @@ commands require the bound source snapshot, namespace, cut and signature;
 historical replay preserves current local admission and cannot reopen it after
 revocation. Signed RECOVER after REVOKE may restore only the latest audited
 writer's observation identity; ACTIVE admission requires a new signed grant.
+
+### Protected SWAP worker/application
+
+`open_file_swap(joint)` explicitly binds the installed native protected SWAP
+sender to the existing joint store worker. `PrepareSwap.from_config(...)` detaches
+an exact executor configuration; `prepare`, `arm` and `acknowledge` retain original
+command/cut/writer identity, native WAL/action images and shared-capital terms.
+`resume_prepare` / `resume_arm` and the exact recorded ACK command repair partial
+checkpoints. Cold readback never restores volatile permits, issues a new ACK,
+releases a claim, activates a process or resends a request. Unknown outcomes
+require fresh objects and exact readback.
+
+For the isolated offline application, construct `FileSwapApplication(repository,
+max_pending=..., ack_timeout_s=..., shutdown_timeout_s=...)` with explicit positive
+bounds, then await `application.propose(config)` before executor dispatch. The
+installed sender delegates its executor submit/authorization hooks to this
+application; calling its old synchronous proposal method from the event loop is
+rejected. Account UID collection and HTTP remain asynchronous. Native financial,
+session, position, carry and risk checks run on the worker, including a fresh
+post-throttler check. Clock/risk-epoch callbacks used by the final local fence must
+be cache-only. Checked source timestamps bound the final qualification lifetime;
+a receipt alone is never a send grant.
+
+Request charging follows a durable one-shot boundary. Async ACK publication
+finishes before connector completion; a late original-writer ACK can be recorded
+after local stop/expiry. Timeout/cancellation retains an unknown dispatch slot
+until a qualified original ACK, while preserving WAL uncertainty and financial
+holds. Slot release after qualified joint recovery is not implemented here.
+Application caches also have the store's permanent-operation bound. Cold unresolved
+wire diagnostics come from a worker-loaded snapshot, even before an application
+is installed; the process cache can conservatively overretain issued wires. Factory
+cancellation latches uncertainty and revokes admission while the physical worker
+retains ownership.
+
+Tests cover original-command cold interruption, duplicate/conflicting identities,
+worker-only journal writes, the actual executor hook, the actual REST throttler
+with fake HTTP, independent final fences, async ACK failures and timeout capacity.
+The production release gate remains disabled. This explicit assembly does not
+complete configured controller/service startup, hedge child/retry application,
+general cross-family recovery or the PostgreSQL backend. Native history reads and
+full byte verification remain; no O.8 performance gate is closed.

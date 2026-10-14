@@ -88,6 +88,11 @@ class ProtectedSwapExecutorSender:
         self._boundary_attempts = set()
         self._authorized_sends = set()
         self._runtime_enabled = create
+        self._storage_repository = None
+
+    def _repository_worker(self):
+        if self._storage_repository is not None:
+            self._storage_repository.store.assert_worker_thread()
 
     def _policy(self):
         policy = {"controller_id": self.controller.config.id,
@@ -102,6 +107,9 @@ class ProtectedSwapExecutorSender:
         return policy
 
     def unresolved_order_ids(self):
+        if self._storage_repository is not None:
+            app = self._storage_repository.application
+            return self._storage_repository._known_wires if app is None else app.unresolved_order_ids()
         return tuple(r.client_order_id for r in self.wal.all_records()
                      if r.state not in ("TERMINAL", "ABORTED_BEFORE_SEND"))
 
@@ -121,6 +129,11 @@ class ProtectedSwapExecutorSender:
                 self.journal.commit(state)
 
     def _check(self, config, permit, *, issued=True):
+        self._repository_worker()
+        if self._storage_repository is not None and self._storage_repository.application is not None:
+            app = self._storage_repository.application
+            if not app.local_ready() or config.id in app._revoked_ids:
+                raise PermissionError('SWAP_PERMISSION_REVOKED')
         try:
             self._validate(config)
             if (self.controller.trading_permissions_ready() is not True
@@ -223,6 +236,7 @@ class ProtectedSwapExecutorSender:
                     raise ValueError("SWAP_ACTION_JOURNAL_MISMATCH")
                 state["last_checked_ms"] = now
                 self.journal.commit(state)
+            return obs
         except Exception as exc:
             raise PermissionError("SWAP_PERMISSION_REVOKED") from exc
 
@@ -250,7 +264,8 @@ class ProtectedSwapExecutorSender:
                 "permit": {k: str(v) if isinstance(v, Decimal) else v.name if isinstance(v, Enum) else v
                            for k, v in asdict(permit).items()}}
 
-    def propose(self, config):
+    def _permit_for(self, config, wire_id):
+        self._repository_worker()
         self._validate(config)
         spot_wal = self.controller._order_safety_wal
         if spot_wal is not None and any(r.intent_id == config.id for r in spot_wal.all_records()):
@@ -261,7 +276,8 @@ class ProtectedSwapExecutorSender:
         epoch = self.risk_epoch()
         if type(epoch) is not int or epoch < 1:
             raise PermissionError("RISK_EPOCH_INVALID")
-        wire_id = "HBOT" + uuid.uuid4().hex[:28]
+        if not isinstance(wire_id, str) or re.fullmatch(r'[A-Za-z0-9]{1,32}', wire_id) is None:
+            raise ValueError('SWAP_WIRE_INVALID')
         permit = SwapSendPermit(
             config.id, wire_id, config.id, current.session_id, current.epoch,
             current.config_version, epoch, config.price, config.amount, config.side,
@@ -269,13 +285,17 @@ class ProtectedSwapExecutorSender:
             self.contract.contract_value_life, self.contract.instrument,
             PositionMode[self.controller.config.strategy.perpetual.position_mode],
             config.leverage, self.controller.config.recovery_account_uid)
+        return permit
+
+    def _prepare_permit(self, config, permit):
+        self._repository_worker()
         self._check(config, permit, issued=False)
         capital = self.controller._shared_capital_authority
         if capital is not None:
             decision = capital.swap(permit, self.account_observation(), reserve=True)
             if not decision.allowed:
                 raise PermissionError(decision.reason_code)
-        self.wal.begin(config.id, client_order_id=wire_id, session_id=permit.session_id,
+        self.wal.begin(config.id, client_order_id=permit.client_order_id, session_id=permit.session_id,
                        epoch=permit.epoch, reservation_id=permit.reservation_id,
                        slot_market=self.contract.instrument, slot_side=config.side.name,
                        slot_level=int(config.level_id))
@@ -288,7 +308,14 @@ class ProtectedSwapExecutorSender:
         self._permits[config.id] = permit
         return CreateExecutorAction(controller_id=self.controller.config.id, executor_config=config)
 
+    def propose(self, config):
+        self._repository_worker()
+        return self._prepare_permit(config, self._permit_for(config, "HBOT" + uuid.uuid4().hex[:28]))
+
     def authorizes_config(self, config):
+        if self._storage_repository is not None:
+            application = self._storage_repository.application
+            return application is not None and application.authorizes_config(config)
         try:
             self._check(config, self._permits[config.id])
             return self.wal.get(config.id).state == "PREPARED"
@@ -296,11 +323,20 @@ class ProtectedSwapExecutorSender:
             return False
 
     def revoke(self, intent_id):
+        if self._storage_repository is not None:
+            if self._storage_repository.application is not None:
+                self._storage_repository.application.revoke_intent(intent_id)
+            return
         if intent_id in self._permits:
             self._revoked.add(intent_id)
             self.wal.mark_cancel_requested(intent_id)
 
     def submit(self, config, *, amount, price, order_type):
+        if self._storage_repository is not None:
+            application = self._storage_repository.application
+            if application is None:
+                raise PermissionError('SWAP_REPOSITORY_APPLICATION_REQUIRED')
+            return application.submit(config, amount=amount, price=price, order_type=order_type)
         if (not isinstance(amount, Decimal) or not amount.is_finite()
                 or not isinstance(price, Decimal) or not price.is_finite()
                 or amount != config.amount or price != config.price or order_type != OrderType.LIMIT_MAKER

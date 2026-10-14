@@ -73,6 +73,8 @@ Build a market-making system for LIFE–USDT on OKX that can be tested before LI
 
 A benchmark is an input to the quoting model. It does not imply that LIFE will follow the source token's price. Historical price-path experiments belong in simulation. Live benchmark use requires a qualified LIFE valuation, model-divergence checks, and risk limits. Membership in the same ecosystem does not establish correlation.
 
+**PG1 protected SWAP application (2026-10-15):** explicit file assembly now moves preparation/shared-capital hold, WAL arm, request charge and asynchronous ACK onto the existing owning worker. Exact cold prepare/arm/ACK readback preserves original commands and holds without restoring send permission. Actual executor hooks and fake HTTP through the real REST throttler reject changed local gates and stale qualifications; unknown attempts retain bounded dispatch capacity. This closes the isolated worker/application slice. Configured controller/service startup, hedge child/retry and remaining cross-family/control/import application still keep [PG1](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md) open.
+
 ## 2. Existing Components and Gaps
 
 | Reviewed component | Reusable capabilities | Required work or limitation |
