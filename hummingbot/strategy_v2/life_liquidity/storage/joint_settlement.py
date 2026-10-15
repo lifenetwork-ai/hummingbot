@@ -190,8 +190,8 @@ class LegacyJointCashAdapter(LegacyJointFillAdapter, LegacyJointCashflowAdapter,
         meta = self._read()
         scope = meta.resources if command is None else self._joint_recovery_resources(meta.resources, command)
         cut_matches = (dict(view.cut.components) == dict(meta.resources['journal_hashes'])
-                       or self._joint_partial_cashflow_cut(view, meta.resources, command)
                        or self._joint_partial_fill_cut(view, meta.resources, command)
+                       or self._joint_partial_cashflow_cut(view, meta.resources, command)
                        or self._joint_partial_ack_cut(view, meta.resources, command)
                        or self._joint_partial_prepared_receipt_cut(view, meta.resources, command))
         now = utc(self._clock())
@@ -233,6 +233,7 @@ class LegacyJointCashAdapter(LegacyJointFillAdapter, LegacyJointCashflowAdapter,
                 raise StorageUnavailable('JOINT_CASH_PROJECTION_UNVERIFIED')
             command = JointCashSpot.from_json(row['command'])
             self._verify_joint_fill_operations(command, resources)
+            self._verify_joint_cashflow_operations(command, resources)
             self._verify_joint_prepared_receipts(command, resources, row['owner'])
             for event in command.events:
                 previous = expected_events.setdefault(event.event_id, event.json())
@@ -326,7 +327,8 @@ class LegacyJointCashAdapter(LegacyJointFillAdapter, LegacyJointCashflowAdapter,
                 target = prepared_commands[operation['command']['prepare_operation_id']]
                 if target['state'] == 'FILLING':
                     target['state'] = operation['attempt_state_before_apply']
-        cashflows, cashflow_operations = self._joint_cashflow_projection(command, meta.resources, owner)
+        cashflows, cashflow_operations = self._joint_cashflow_projection(
+            command, meta.resources, owner, allow_new=recovery_authority is not None or resume)
         capital = self._capital_ledger(meta.resources['commands'], fills,
                                        cashflows, events)
         if (capital.life_balance, capital.usdt_balance) != (command.account_base_life, command.account_quote_usdt):
@@ -378,9 +380,13 @@ class LegacyJointCashAdapter(LegacyJointFillAdapter, LegacyJointCashflowAdapter,
             after_cash = {key: event.signed_amount_usdt for key, event in supplied.items()}
             if actual_cash not in (before_cash, after_cash):
                 raise StorageError('JOINT_CASH_RECOVERY_NATIVE_MISMATCH')
+            native_flows = self._ledger.cashflow_events
+            if any(key not in cashflows or (cashflows[key]['currency'], Decimal(cashflows[key]['signed_amount'])) != value
+                   for key, value in native_flows.items()):
+                raise StorageError('JOINT_CASH_RECOVERY_NATIVE_MISMATCH')
             current_capital = self._capital_ledger(meta.resources['commands'],
                                                    {key: fills[key] for key in self._ledger.trade_ids},
-                                                   meta.resources.get('cashflows', {}),
+                                                   {key: cashflows[key] for key in native_flows},
                                                    {key: events[key] for key in actual_cash})
             if (current_capital.life_balance, current_capital.usdt_balance) != (
                     self._ledger.life_balance, self._ledger.usdt_balance):

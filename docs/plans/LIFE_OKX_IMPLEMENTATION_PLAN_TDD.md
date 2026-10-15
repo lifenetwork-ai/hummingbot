@@ -93,6 +93,8 @@ A benchmark is an input to the quoting model. It does not imply that LIFE will f
 
 **PG1 configuration application (2026-10-15):** the configured file service now owns sequenced controller reporting/outbox recovery, bounded operational reload and SIGHUP. Invalid config retains the prior state and blocks actual post-throttler sends; rejection requires a later valid report and fresh signed activation, while kill remains latched across clear-field/replay/restart. Only `manual_kill_switch` is operationally updatable. Nested financial strategy/duration/reference changes remain in the approved policy/lineage transition contract. The existing `Controllers` SQL table is reused; no evidence file or new migration is created. PG1 remains open for the explicit remaining contracts in the [PostgreSQL/service plan](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md).
 
+**PG1 recovery composition (2026-10-15):** typed configured joint inputs now admit previously unadmitted approved LIFE/USDT transfer observations alongside an original pending ACK or fill and newer SPOT/SWAP activity. Native intent and financial saga retain original transfer-time values across cold restart; complete independent account facts still gate money. Targeted crash/replay/denial and configured service cases pass **46 tests** with six existing Pydantic warnings. This closes the named composition slice only. Other simultaneous pending families, full parity, policy/lineage and production source qualification remain open in the [service plan](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md).
+
 ## 2. Existing Components and Gaps
 
 | Reviewed component | Reusable capabilities | Required work or limitation |

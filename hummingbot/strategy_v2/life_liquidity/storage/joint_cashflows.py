@@ -6,12 +6,29 @@ from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageConfl
 
 
 class LegacyJointCashflowAdapter:
-    def _joint_cashflow_projection(self, command, resources, owner):
+    def _verify_joint_cashflow_operations(self, command, resources):
+        for value in command.spot_cashflows:
+            row = resources.get('cashflow_operations', {}).get(value.operation_id)
+            if (row is None or row['state'] != 'APPLIED' or row['command'] != value.json()
+                    or row['fingerprint'] != fingerprint({'command': value.json(), 'owner': row['owner']})
+                    or resources.get('cashflows', {}).get(value.bill_id) != value.json()):
+                raise StorageError('JOINT_CASHFLOW_PROJECTION_UNVERIFIED')
+
+    def _joint_cashflow_projection(self, command, resources, owner, *, allow_new=False):
         flows = thaw(resources.get('cashflows', {}))
         operations = thaw(resources.get('cashflow_operations', {}))
         for value in command.spot_cashflows:
             self._validate_cashflow_value(value)
+            if value.observed_at > command.observed_at:
+                raise StorageError('JOINT_CASHFLOW_OBSERVATION_FUTURE')
             original = operations.get(value.operation_id)
+            if original is None and allow_new:
+                if any(row['command']['bill_id'] == value.bill_id and row['command'] != value.json()
+                       for row in operations.values()):
+                    raise StorageConflict('JOINT_CASHFLOW_HISTORY_CHANGED')
+                original = {'command': value.json(), 'owner': owner.json(), 'state': 'CASHFLOWING',
+                            'fingerprint': fingerprint({'command': value.json(), 'owner': owner.json()})}
+                operations[value.operation_id] = original
             if (original is None or original['command'] != value.json()
                     or original['state'] not in ('CASHFLOWING', 'APPLIED')
                     or original['fingerprint'] != fingerprint({'command': value.json(), 'owner': original['owner']})
@@ -59,7 +76,7 @@ class LegacyJointCashflowAdapter:
         if any(actual[k] != value for k, value in original.items() if k in ('session', 'wal')):
             return False
         fills, _ = self._joint_fill_projection(command, resources, self._read().ownership.token)
-        flows, _ = self._joint_cashflow_projection(command, resources, self._read().ownership.token)
+        flows, _ = self._joint_cashflow_projection(command, resources, self._read().ownership.token, allow_new=True)
         # The final account comparison is performed against the qualified joint
         # command. This helper verifies only the actual native monetary subset.
 

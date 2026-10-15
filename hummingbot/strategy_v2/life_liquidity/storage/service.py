@@ -392,14 +392,18 @@ class FileLiquidityService:
                             await self.swap.repository.acknowledge(key, exchange_order_id=row['exchange_order_id'],
                                                                    owner=self.swap.owner)
                 if self.joint is not None:
-                    fills, facts = (), None
+                    fills, facts, cashflows = (), None, ()
                     if self.sources.joint_spot_recovery is not None:
                         result = self.sources.joint_spot_recovery()
                         if inspect.isawaitable(result):
                             result = await result
-                        if type(result) is not tuple or len(result) != 2:
+                        from hummingbot.strategy_v2.life_liquidity.storage.joint import JointSpotRecoveryInputs
+                        if type(result) is JointSpotRecoveryInputs:
+                            fills, facts, cashflows = result.fills, result.facts, result.cashflows
+                        elif type(result) is tuple and len(result) == 2:
+                            fills, facts = result
+                        else:
                             raise StorageError('SERVICE_JOINT_SPOT_SOURCE_INVALID')
-                        fills, facts = result
                     if facts is not None:
                         pending = await self.store.pending_spot_commands(self.store.binding)
                         for item in pending:
@@ -414,7 +418,7 @@ class FileLiquidityService:
                             elif item.kind == 'ARM':
                                 await self.joint.restore_original_arm_bookkeeping(item.command.operation_id, facts)
                     if not await self.joint.reconcile(self.store.binding, self.joint.owner,
-                                                      spot_fills=fills, spot_facts=facts):
+                                                      spot_fills=fills, spot_facts=facts, spot_cashflows=cashflows):
                         raise StorageError(self.joint._recovery.reason_code)
                     self._qualified_hint_generation = hint_generation
                     settled = await self.store._call(lambda: tuple(r.intent_id for r in self.swap.sender.wal.all_records()

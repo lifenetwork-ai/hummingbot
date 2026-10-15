@@ -1158,6 +1158,46 @@ timeouts here do not qualify the later PG7 overall termination-budget gate.
 Tests run native Clock and a real subprocess with fake/disconnected OKX sources,
 including SIGTERM, cold restart, cancellation and blocked-worker exclusion.
 
+### Newly observed transfers during joint recovery
+
+`joint.JointSpotRecoveryInputs(fills, facts, cashflows=())` is the detached return
+type for the configured `sources.joint_spot_recovery` callback. Existing
+`(fills, facts)` callbacks remain supported. The joint repository also accepts
+`reconcile(binding, owner, spot_fills=..., spot_facts=..., spot_cashflows=...)`.
+Transfer proposals require the explicitly coupled SPOT/joint route, complete
+account-wide facts and bounded tuple/count/byte inputs. They are observations;
+they neither approve transfers nor grant ownership/send permission.
+
+Supply only new transfers as `CashflowSpot` observations. Each bill must already
+match configured or signed approval, currency, signed amount and transfer time.
+LIFE requires its original independent transfer-time value. The native joint
+source and exact account/bill/trade/runner projection must agree before money.
+Unapproved/changed bills, missing coverage, liabilities, foreign UID, stale
+reference, later-than-snapshot receipt and changed immutable terms are rejected.
+The durable proof budget includes retained repository transfers and ACKs.
+
+The verified native joint intent captures these original transfer values before
+the financial saga starts. The financial command then captures the original
+cut/owner/full cumulative transfer history before publishing native money.
+Cold recovery can restore a captured transfer from either original intent,
+including a crash between the two publications. Independent fill/reference
+observations remain required wherever they have not already been captured.
+A direct `JointCashSpot` without native recovery authority cannot admit a new
+transfer; exact saga resume can complete only its original stored command.
+
+Tests combine an original pending ACK or FILLING operation with newly observed
+approved deposits/withdrawals, later SPOT fills and settled SWAP fees. Native
+cash/fill subsets are independently checked rather than adopting changed hashes.
+Wallet/loss/floor/receipt/ACK/native-completion interruptions replay without
+double accounting or another send. Transfer receipts are audited with the joint
+projection, and external flows remain excluded from adjusted NAV. Principal,
+remaining fee buffers and shared claims remain held for working orders. Replays
+and cold startup remain unarmed.
+
+This qualifies those specific compositions. Arbitrary simultaneous
+hold/arm/lifecycle/terminal/settlement combinations, full coupled parity,
+production provider authentication, PostgreSQL and performance gates remain open.
+
 ### Controller configuration audit and operational reload
 
 `recorder_configuration.py` defines immutable configuration report/state/receipt

@@ -13,8 +13,8 @@ from hummingbot.strategy_v2.life_liquidity.storage.financial import AckSpot, Fil
 from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancialRecoveryFacts
 
 
-async def scenario(tmp_path):
-    repo, store, recovery, values, bundle, owner = await fixture(tmp_path, spot=True)
+async def scenario(tmp_path, *, approvals=()):
+    repo, store, recovery, values, bundle, owner = await fixture(tmp_path, spot=True, approvals=approvals)
     assert await repo.reconcile(store.binding, owner)
     claim = CapitalClaim('intent1', 'wire1', store.binding.account_uid, str(owner.session_id), owner.epoch,
                          1, 1, 'SPOT', 'BUY', 'OPEN', D('2'), D('1'), 1)

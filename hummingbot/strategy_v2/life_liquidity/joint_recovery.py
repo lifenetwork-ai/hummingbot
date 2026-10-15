@@ -241,7 +241,7 @@ class JointRecovery:
             raise ValueError("JOINT_SWAP_ACCOUNT_MISMATCH")
         return a
 
-    def _qualify(self, bundle, state, now, prepared=None):
+    def _qualify(self, bundle, state, now, prepared=None, spot_cashflows=()):
         obs = self.capital.qualified_snapshot()
         if (not isinstance(bundle, RecoveryBundle) or bundle.source != "okx_joint_reconciled"
                 or bundle.account_uid != self.capital.policy.account_uid
@@ -356,7 +356,7 @@ class JointRecovery:
             order = orders[intent_id]
             if order.state not in TERMINAL or exchange_id not in (None, order.exchange_order_id):
                 raise ValueError("JOINT_RUNNER_CANCEL_UNPROVEN")
-        cash_events, valuation = self._financial_replay(bundle, state, obs, trades)
+        cash_events, valuation = self._financial_replay(bundle, state, obs, trades, spot_cashflows)
         coordinator = self.controller._hedge_coordinator
         if coordinator is not None:
             with coordinator.journal.locked() as hedge:
@@ -399,7 +399,7 @@ class JointRecovery:
         except Exception:
             return False
 
-    def _financial_replay(self, bundle, state, obs, trades):
+    def _financial_replay(self, bundle, state, obs, trades, spot_cashflows=()):
         anchor = state["anchor"]
         life, cash = Decimal(anchor["spot_life_base"]), Decimal(anchor["spot_cash_quote"])
         long, short = Decimal(anchor["long_base"]), Decimal(anchor["short_base"])
@@ -477,7 +477,7 @@ class JointRecovery:
                         or funding["coverage_through_ms"] < bundle.observed_at_ms):
                     raise ValueError("JOINT_CARRY_HISTORY_MISMATCH")
         external_flows = ZERO
-        repository_flows = (self._repository_application.qualified_cashflows()
+        repository_flows = (self._repository_application.qualified_cashflows(spot_cashflows)
                             if self._repository_application is not None else None)
         if repository_flows is not None:
             for previous in (state['bundle'] or {}).get('repository_cashflows', ()):
@@ -545,7 +545,7 @@ class JointRecovery:
             self.journal.commit(state)
         self.sender.request_budget.charge("STATUS", "joint:" + uuid.uuid4().hex)
 
-    def _complete_reconciliation(self, bundle, context, prepared, spot_fills=(), spot_facts=None):
+    def _complete_reconciliation(self, bundle, context, prepared, spot_fills=(), spot_facts=None, spot_cashflows=()):
         # This flag belongs to the physical checkpoint section. Cancelling an
         # awaiter cannot remove release qualification from an admitted worker.
         self._busy = True
@@ -558,21 +558,22 @@ class JointRecovery:
                 if type(now) is not int or now < state["last_ms"]:
                     raise ValueError("JOINT_CLOCK_ROLLBACK")
                 state["last_ms"] = now
-                obs, orders, events, encoded, valuation = self._qualify(bundle, state, now, prepared)
+                obs, orders, events, encoded, valuation = self._qualify(bundle, state, now, prepared, spot_cashflows)
                 if self._repository_application is not None:
-                    transfers = self._repository_application.qualified_cashflows()
+                    transfers = self._repository_application.qualified_cashflows(spot_cashflows)
                     if transfers:
                         encoded = {**encoded, 'repository_cashflows': [v.json() for _, v in sorted(transfers.items())]}
                     if self._repository_application._couple_spot:
                         acks = self._repository_application.qualified_acks(orders)
                         if acks:
                             encoded = {**encoded, 'repository_acks': [v.json() for v in acks]}
+                    self._repository_application.assert_settlement_capacity(encoded)
                 qualified_proof_id = digest(encoded)
                 cash_settlement = None
                 if self._repository_application is not None:
                     cash_settlement = self._repository_application.prepare_cash_settlement(
                         orders, events, encoded, obs, qualified_proof_id,
-                        spot_fills, spot_facts)
+                        spot_fills, spot_facts, spot_cashflows)
                 # A COMMITTED immutable terminal cut has already completed
                 # all cross-journal checkpoints. Re-qualify all facts, but
                 # do not replay durable financial writes for settled orders.
@@ -617,7 +618,7 @@ class JointRecovery:
             return await application.reconcile(application.binding, application.owner)
         return await self._reconcile()
 
-    async def _reconcile(self, spot_fills=(), spot_facts=None):
+    async def _reconcile(self, spot_fills=(), spot_facts=None, spot_cashflows=()):
         async with self._mutex:
             if self._repository_application is None:
                 self._busy = True
@@ -636,7 +637,7 @@ class JointRecovery:
                 prepared = None
                 if self.history_worker is not None:
                     prepared = await self._prepare_history(bundle, context)
-                return await self._checkpoint(self._complete_reconciliation, bundle, context, prepared, spot_fills, spot_facts)
+                return await self._checkpoint(self._complete_reconciliation, bundle, context, prepared, spot_fills, spot_facts, spot_cashflows)
             except asyncio.CancelledError:
                 self._healthy = False
                 self._armed = False
