@@ -216,10 +216,19 @@ store. Spot coupling additionally requires independent fill and account facts.
         transfers = self.qualified_cashflows()
         if not retained and not spot_orders and not transfers:
             return None
-        return JointCashSpot('joint:' + proof_id, self.binding, proof_id,
+        operation_id = 'joint:' + proof_id
+        existing = resources.get('joint_cash_operations', {}).get(operation_id)
+        receipts = (tuple(PrepareSpot.from_json(v) for v in existing['command'].get('spot_prepared_receipts', ()))
+                    if existing is not None else tuple(PrepareSpot.from_json(row['command']) for row in resources['commands'].values()
+                                                       if row['state'] == 'PREPARING'))
+        for prepared in receipts:
+            source = spot_orders.get(prepared.intent_id)
+            if source is None or source.state != 'unsent':
+                raise StorageError('JOINT_PREPARED_RECEIPT_UNSENT_SOURCE_REQUIRED')
+        return JointCashSpot(operation_id, self.binding, proof_id,
                              datetime.fromtimestamp(encoded['observed_at_ms'] / 1000, timezone.utc),
                              tuple(retained.values()), observation.spot_life_base, observation.spot_cash_quote,
-                             True, True, 'okx_joint_reconciled', qualified_fills, tuple(transfers.values()), self.qualified_acks(orders))
+                             True, True, 'okx_joint_reconciled', qualified_fills, tuple(transfers.values()), self.qualified_acks(orders), receipts)
 
     def _prepare_spot_fills(self, orders, supplied, facts, resources, observation, encoded, proof_id):
         if not orders:

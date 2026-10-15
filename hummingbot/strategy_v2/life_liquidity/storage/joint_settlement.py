@@ -33,11 +33,13 @@ from hummingbot.strategy_v2.life_liquidity.storage.financial import (
     AckSpot,
     FillSpot,
     FinancialCut,
+    PrepareSpot,
     decimal,
     signed_decimal,
 )
 from hummingbot.strategy_v2.life_liquidity.storage.joint_cashflows import LegacyJointCashflowAdapter
 from hummingbot.strategy_v2.life_liquidity.storage.joint_fills import LegacyJointFillAdapter
+from hummingbot.strategy_v2.life_liquidity.storage.joint_preparation import LegacyJointPreparationAdapter
 
 
 @dataclass(frozen=True)
@@ -103,6 +105,7 @@ class JointCashSpot:
     spot_fills: tuple[FillSpot, ...] = ()
     spot_cashflows: tuple[CashflowSpot, ...] = ()
     spot_acks: tuple[AckSpot, ...] = ()
+    spot_prepared_receipts: tuple[PrepareSpot, ...] = ()
 
     def __post_init__(self):
         identifier(self.operation_id)
@@ -126,6 +129,11 @@ class JointCashSpot:
         if (type(self.spot_acks) is not tuple or any(type(v) is not AckSpot for v in self.spot_acks)
                 or len({v.operation_id for v in self.spot_acks}) != len(self.spot_acks)):
             raise StorageError('JOINT_ACK_SCOPE_INVALID')
+        if (type(self.spot_prepared_receipts) is not tuple or any(type(v) is not PrepareSpot for v in self.spot_prepared_receipts)
+                or len({v.operation_id for v in self.spot_prepared_receipts}) != len(self.spot_prepared_receipts)
+                or len({v.intent_id for v in self.spot_prepared_receipts}) != len(self.spot_prepared_receipts)):
+            raise StorageError('JOINT_PREPARED_RECEIPT_SCOPE_INVALID')
+        object.__setattr__(self, 'spot_prepared_receipts', tuple(sorted(self.spot_prepared_receipts, key=lambda v: v.operation_id)))
         object.__setattr__(self, 'spot_acks', tuple(sorted(self.spot_acks, key=lambda v: v.operation_id)))
         object.__setattr__(self, 'spot_cashflows', tuple(sorted(self.spot_cashflows, key=lambda v: int(v.bill_id))))
         object.__setattr__(self, 'spot_fills', tuple(sorted(self.spot_fills, key=lambda v: v.intent_id)))
@@ -134,9 +142,9 @@ class JointCashSpot:
         object.__setattr__(self, 'events', tuple(sorted(self.events, key=lambda v: (v.at_ms, v.event_id))))
 
     def json(self):
-        return {key: (v.json() if key == 'binding' else [item.json() for item in v] if key in ('events', 'spot_fills', 'spot_cashflows', 'spot_acks')
+        return {key: (v.json() if key == 'binding' else [item.json() for item in v] if key in ('events', 'spot_fills', 'spot_cashflows', 'spot_acks', 'spot_prepared_receipts')
                       else str(v) if isinstance(v, Decimal) else v.isoformat() if isinstance(v, datetime) else v)
-                for key, v in vars(self).items() if key not in ('spot_fills', 'spot_cashflows', 'spot_acks') or v}
+                for key, v in vars(self).items() if key not in ('spot_fills', 'spot_cashflows', 'spot_acks', 'spot_prepared_receipts') or v}
 
     @classmethod
     def from_json(cls, data):
@@ -148,6 +156,7 @@ class JointCashSpot:
         from hummingbot.strategy_v2.life_liquidity.storage.legacy_spot import LegacySpotStore
         values['spot_cashflows'] = tuple(LegacySpotStore._cashflow_from_json(v) for v in values.get('spot_cashflows', ()))
         values['spot_acks'] = tuple(LegacySpotStore._ack_from_json(v) for v in values.get('spot_acks', ()))
+        values['spot_prepared_receipts'] = tuple(PrepareSpot.from_json(v) for v in values.get('spot_prepared_receipts', ()))
         for key in ('account_base_life', 'account_quote_usdt'):
             values[key] = Decimal(values[key])
         return cls(**values)
@@ -163,6 +172,10 @@ class JointCashReceipt:
 
 
 class JointCashRepository(Protocol):
+    async def prepared_receipt_ready(self, prepared: PrepareSpot, *, owner: OwnerToken,
+                                     observed_at: datetime) -> bool:
+        ...
+
     async def apply_joint_cash(self, command: JointCashSpot, *, cut: FinancialCut,
                                owner: OwnerToken) -> JointCashReceipt:
         ...
@@ -172,14 +185,15 @@ class JointCashRepository(Protocol):
         ...
 
 
-class LegacyJointCashAdapter(LegacyJointFillAdapter, LegacyJointCashflowAdapter):
+class LegacyJointCashAdapter(LegacyJointFillAdapter, LegacyJointCashflowAdapter, LegacyJointPreparationAdapter):
     def _joint_recovery_observation_guard(self, view, owner, authority, proof_id, command=None):
         meta = self._read()
         scope = meta.resources if command is None else self._joint_recovery_resources(meta.resources, command)
         cut_matches = (dict(view.cut.components) == dict(meta.resources['journal_hashes'])
                        or self._joint_partial_cashflow_cut(view, meta.resources, command)
                        or self._joint_partial_fill_cut(view, meta.resources, command)
-                       or self._joint_partial_ack_cut(view, meta.resources, command))
+                       or self._joint_partial_ack_cut(view, meta.resources, command)
+                       or self._joint_partial_prepared_receipt_cut(view, meta.resources, command))
         now = utc(self._clock())
         if (authority.reservations is not self._ledger or authority.spot_wal is not self._wal
                 or authority.controller._joint_recovery is not authority
@@ -219,6 +233,7 @@ class LegacyJointCashAdapter(LegacyJointFillAdapter, LegacyJointCashflowAdapter)
                 raise StorageUnavailable('JOINT_CASH_PROJECTION_UNVERIFIED')
             command = JointCashSpot.from_json(row['command'])
             self._verify_joint_fill_operations(command, resources)
+            self._verify_joint_prepared_receipts(command, resources, row['owner'])
             for event in command.events:
                 previous = expected_events.setdefault(event.event_id, event.json())
                 if previous != event.json():
@@ -271,6 +286,8 @@ class LegacyJointCashAdapter(LegacyJointFillAdapter, LegacyJointCashflowAdapter)
                 OwnerMode.ACTIVE, OwnerMode.DRAINING, OwnerMode.RECOVERY_ONLY) or now < owner.valid_from):
             raise StorageError('JOINT_CASH_OWNER_INVALID')
         if not resume:
+            if command.spot_prepared_receipts and recovery_authority is None:
+                raise StorageError('JOINT_PREPARED_RECEIPT_AUTHORITY_REQUIRED')
             if recovery_authority is None:
                 self._ack_guard(view, owner)
             else:
@@ -303,7 +320,7 @@ class LegacyJointCashAdapter(LegacyJointFillAdapter, LegacyJointCashflowAdapter)
                 raise StorageConflict('JOINT_CASH_EVENT_CONFLICT')
             events.setdefault(key, {'event': event.json(), 'operation_id': command.operation_id})
         fills, fill_operations = self._joint_fill_projection(command, meta.resources, owner)
-        prepared_commands = thaw(meta.resources['commands'])
+        prepared_commands = self._joint_prepared_receipt_projection(command, meta.resources, owner)
         for operation in fill_operations.values():
             if operation['command']['intent_id'] in {row.intent_id for row in command.spot_fills}:
                 target = prepared_commands[operation['command']['prepare_operation_id']]
@@ -408,7 +425,7 @@ class LegacyJointCashAdapter(LegacyJointFillAdapter, LegacyJointCashflowAdapter)
                                      self._hashes(self._raw()),
                                      {'commands': prepared_commands, 'fills': fills, 'fill_operations': fill_operations, 'cashflows': cashflows,
                                       'cashflow_operations': cashflow_operations}
-                                     if command.spot_fills or command.spot_cashflows else None)
+                                     if command.spot_fills or command.spot_cashflows or command.spot_prepared_receipts else None)
             return JointCashReceipt(self.binding, command.operation_id, 'APPLIED', False)
         except BaseException:
             self._uncertain = True

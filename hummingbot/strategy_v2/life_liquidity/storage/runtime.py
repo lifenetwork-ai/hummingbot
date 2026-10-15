@@ -42,6 +42,9 @@ class RuntimeAuthorizationRepository(Protocol):
     async def authorize_swap(self, permit) -> bool:
         ...
 
+    def pre_send_provenance_complete(self, records) -> bool:
+        ...
+
     def local_fence(self, action) -> bool:
         ...
 
@@ -95,6 +98,12 @@ class FileControllerRuntime:
 
     def owns_controller(self, controller):
         return controller is self.controller
+
+    def pre_send_provenance_complete(self, records):
+        if self._service is None or self._spot_application is None:
+            return False
+        from hummingbot.strategy_v2.life_liquidity.storage.spot_provenance import prepared_runner_provenance
+        return prepared_runner_provenance(self._spot_application, records)
 
     def bind_products(self, products):
         self.store.assert_worker_thread()

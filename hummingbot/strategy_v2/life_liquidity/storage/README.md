@@ -939,10 +939,35 @@ Independent mark/index/funding/fee-terms/account streams remain mandatory; faile
 carry qualification stops planning and does not book settlement cash. Joint
 reconciliation remains the only settlement path. Cold startup never rearms.
 
+### Lost prepared receipt and newer joint activity
+
+If the original PREPARING request already has its exact WAL, principal, shared
+claim and subsidy, the service defers completion to the qualified joint batch.
+`JointCashSpot.spot_prepared_receipts` retains the original request. Original
+account/lineage cut, writer and preparation time, risk/slot terms, all native holds
+and prior accounted money must agree before the joint APPLYING publication.
+Newer funding, SWAP fees and independently valued SPOT fills then share the
+existing cash saga. Final receipt publication precedes qualified unsent abort
+and shared release. Cold wallet/receipt/abort/subsidy/release repair never repeats
+money, sends a request or restores activation. An expired original writer may
+complete observations without extending its session. Legacy JSON omits an empty
+receipt list, preserving existing fingerprints.
+
+For this cold unsent case, `runtime.pre_send_provenance_complete` checks original
+account-bound initial/progress outboxes, the matching actual SQLite row and the
+native PREPARED/hold chain on the worker. The initial reporting operation must
+finish before the original preparation cut. Initial executor configuration must
+match the original request, including price, size, side, slot, controller and UTC
+lifetime. Missing or changed reporting provenance denies scope; SQL reporting
+amounts never supply financial authority. The complete independent native joint
+account/order proof still owns money and release. No volatile executor or sender
+permit is restored from a report.
+
 Current service scope is an explicit offline library assembly. Inventory/exit,
 markout/risk, configured signed grant/policy/import and archive transitions,
 controller configuration reporting/hot reload and a headless launch lifecycle
-remain open. Simultaneous original partial preparation plus newer unrelated joint
-money needs a complete mixed recovery contract. Unsupported archived formats are
+remain open. Missing native preparation/arm checkpoints, simultaneous other partial families
+and unadmitted external transfers with newer joint money still need their full
+mixed recovery contract. Unsupported archived formats are
 not silently adopted. PG1 remains open for these routes and full coupled parity;
 O.8, PostgreSQL, demo, live and deployment gates remain unchanged.

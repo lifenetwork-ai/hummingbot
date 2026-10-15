@@ -298,6 +298,8 @@ class FileLiquidityService:
                             if item.owner != self.spot.owner:
                                 raise StorageError('SERVICE_RECOVERY_WRITER_MISMATCH')
                             if item.kind == 'PREPARE':
+                                if await self.store.prepared_receipt_ready(item.command, owner=self.spot.owner, observed_at=facts.observed_at):
+                                    continue  # Qualified joint batch completes this original receipt.
                                 await self.store.resume_prepare(item.command, facts=facts,
                                                                 cut=(await self.store.snapshot(self.store.binding)).cut, owner=self.spot.owner)
                             elif item.kind == 'ARM':

@@ -1598,6 +1598,9 @@ class LifeLiquidityController(ControllerBase):
 
     def _pre_send_provenance_complete(self, missing_records) -> bool:
         """Verify account-bound journals when the late executor checkpoint is absent."""
+        runtime = self._storage_runtime
+        if runtime is not None and runtime._service is not None:
+            return runtime.pre_send_provenance_complete(missing_records)
         wal = self._order_safety_wal
         reservations = self._order_safety_reservations
         directory = self.config.recovery_state_dir
