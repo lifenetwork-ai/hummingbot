@@ -10,7 +10,7 @@ from unittest.mock import MagicMock
 import pytest
 
 
-async def quote_service(tmp_path, *, objective='profit_mm', fee_buffers=(D('0'), D('0')), risk_config=None, risk_sources=None, control_config=None, control_seed=None, inventory_config=None, settlement_policy=None):
+async def quote_service(tmp_path, *, objective='profit_mm', fee_buffers=(D('0'), D('0')), risk_config=None, risk_sources=None, control_config=None, control_seed=None, inventory_config=None, settlement_policy=None, session_config=None):
     from hummingbot.connector.exchange.okx.okx_exchange import OkxExchange
     from hummingbot.strategy_v2.life_liquidity.config import EconomicsConfig, QuotesConfig
     from hummingbot.strategy_v2.life_liquidity.economics import EconomicPolicy
@@ -23,6 +23,16 @@ async def quote_service(tmp_path, *, objective='profit_mm', fee_buffers=(D('0'),
     from hummingbot.strategy_v2.life_liquidity.storage.service_config import FileServiceConfig, QuoteServiceConfig
     from hummingbot.strategy_v2.life_liquidity.storage.spot_application import SpotAdmission
     cfg = await settings(tmp_path)
+    if session_config is not None:
+        from pathlib import Path
+
+        from hummingbot.strategy_v2.life_liquidity.session import SessionStore
+        strategy = cfg.controller.strategy.model_copy(update={'session': session_config})
+        cfg = cfg.model_copy(update={'controller': cfg.controller.model_copy(update={'strategy': strategy})})
+        sessions = SessionStore(Path(cfg.state_dir) / 'session.json')
+        journal = sessions.load()
+        sessions.save(replace(journal, on_expiry=session_config.on_expiry,
+                              successor_duration_seconds=session_config.successor_duration_seconds))
     economics = EconomicsConfig(objective=objective, min_net_edge_bps='0', uncertainty_buffer_bps='0', fee_policy='pause', fee_max_age='1s',
                                 subsidy_budget_quote={'campaign': '10', 'day': '5', 'session': '2'} if objective == 'liquidity_service' else None)
     strategy = cfg.controller.strategy.model_copy(update={'economics': economics,

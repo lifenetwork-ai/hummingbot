@@ -414,6 +414,33 @@ store. Spot coupling additionally requires independent fill and account facts.
         self.store._confirm_terminal(command, self.store._snapshot().cut, self.owner, previous is not None,
                                      joint_authority=self._recovery)
 
+    def _session_context_matches(self, meta):
+        """An expired primary may observe its verified quiescent successor.
+
+        This bridge never transfers the old writer's grant. It only lets the
+        account collector obtain the fresh cut required for a new signed grant.
+        """
+        context = self._recovery._context()
+        if context[:2] == (str(self.owner.session_id), self.owner.epoch):
+            return True
+        journal = self.store._sessions.load()
+        parent, successor = journal.primary, journal.successor
+        if (successor is None or context[:2] != (successor.session_id, successor.epoch)
+                or (str(self.owner.session_id), self.owner.epoch) != (parent.session_id, parent.epoch)
+                or utc(self.store._clock()) < parent.expires_at or self.owner.expires_at > parent.expires_at
+                or journal.clock_rollback_latched or not meta.resources.get('session_operations')
+                or self.store._incomplete(meta.resources) or self.store._reporting_pending(meta.resources)
+                or self._recovery.capital.claim_ids()
+                or any(r.state not in ('TERMINAL', 'ABORTED_BEFORE_SEND') for r in self._recovery._records())):
+            return False
+        self.store._verify_session_projection(meta.resources)
+        view = self.store._snapshot()
+        if dict(view.cut.components) != dict(meta.resources['journal_hashes']):
+            return False
+        self._recovery._armed = False
+        self._recovery.sender._runtime_enabled = False
+        return True
+
     def _guard(self, *, observation=False):
         self.store.assert_worker_thread()
         if self._revoked and not observation:
@@ -434,8 +461,7 @@ store. Spot coupling additionally requires independent fill and account facts.
         with self.store._state.inspect() as state:
             if state['checked_at'] is not None and now < datetime.fromisoformat(state['checked_at']):
                 raise StorageError('JOINT_CLOCK_ROLLBACK')
-        context = self._recovery._context()
-        if context[:2] != (str(self.owner.session_id), self.owner.epoch):
+        if not self._session_context_matches(meta):
             raise StorageError('JOINT_SESSION_MISMATCH')
         if any(row['state'] != 'APPLIED' for name in (
                 'product_operations', 'recorder_outbox', 'recorder_progress', 'recorder_positions', 'recorder_events')
@@ -449,7 +475,7 @@ store. Spot coupling additionally requires independent fill and account facts.
         meta = self.store._read()
         policy = self._policy()
         if (meta.ownership.token != self.owner
-                or self._recovery._context()[:2] != (str(self.owner.session_id), self.owner.epoch)):
+                or not self._session_context_matches(meta)):
             raise StorageError('JOINT_OWNER_OR_SESSION_MISMATCH')
         previous = meta.resources.get('joint_repository_policy')
         if previous is None:

@@ -70,7 +70,7 @@ async def test_configured_spot_service_assembles_controller_and_runner_then_star
         await cold.close()
 
 
-async def joint_service(tmp_path, *, create=True, hedge=True, carry=False, config_extra=None, source_extra=None):
+async def joint_service(tmp_path, *, create=True, hedge=True, carry=False, config_extra=None, source_extra=None, session_config=None):
     from test.hummingbot.strategy_v2.life_liquidity.test_hedge_coordinator import setup_coordinator
 
     from hummingbot.connector.derivative.okx_perpetual.okx_perpetual_derivative import OkxPerpetualDerivative
@@ -84,6 +84,13 @@ async def joint_service(tmp_path, *, create=True, hedge=True, carry=False, confi
     basic = await settings(tmp_path)
     native, values, market, _ = setup_coordinator(tmp_path / 'reference', budget_capacity=50)
     strategy = values[0].config.strategy
+    if session_config is not None:
+        from hummingbot.strategy_v2.life_liquidity.session import SessionStore
+        strategy = strategy.model_copy(update={'session': session_config})
+        sessions = SessionStore(tmp_path / 'state' / 'session.json')
+        journal = sessions.load()
+        sessions.save(replace(journal, on_expiry=session_config.on_expiry,
+                              successor_duration_seconds=session_config.successor_duration_seconds))
     binding = replace(basic.controller.storage_binding, config_hash=fingerprint(strategy.model_dump(mode='json')))
     controller = basic.controller.model_copy(update={'strategy': strategy, 'storage_binding': binding})
     config = FileServiceConfig.model_validate({**{key: getattr(basic, key) for key in FileServiceConfig.model_fields}, 'controller': controller,

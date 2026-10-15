@@ -140,3 +140,29 @@ def test_persistence_failure_cannot_create_an_active_in_memory_session(tmp_path,
         begin(active)
     assert active.current_session is None
     assert not active.can_quote(reference_ready=True, all_gates_ready=True)
+
+
+def test_observation_only_successor_clock_keeps_pause_and_durably_latches_rollback(tmp_path):
+    from hummingbot.strategy_v2.life_liquidity.session import OrderReconciliation
+    clock = FakeClock()
+    active = manager(tmp_path, clock)
+    parent = begin(active, SessionConfig(duration="10s", on_expiry="switch_to_market_reference", successor_duration="30m"))
+    clock.advance(10)
+    assert active.tick(reference_ready=False, all_gates_ready=False) == "TRANSITIONING"
+    proof = OrderReconciliation(parent.session_id, parent.epoch, clock.wall, True, (), (), (), True)
+    assert active.tick(reference_ready=True, all_gates_ready=True, market_reference_ready=True,
+                       reconciliation=proof, market_anchor_usdt=Decimal("1")) == "ACTIVE"
+    deadline = active.current_session.expires_at
+    clock.advance(1)
+    assert active.tick(reference_ready=False, all_gates_ready=False) == "PAUSED"
+    clock.advance(1)
+    assert active.observe_successor_clock() == "PAUSED"  # This is never a gate resume.
+    assert active._journal.last_seen_at == clock.wall
+    assert active.current_session.expires_at == deadline
+    clock.wall -= timedelta(milliseconds=1)
+    assert active.observe_successor_clock() == "PAUSED"
+    assert active.reason_code == "CLOCK_ROLLBACK" and active._journal.clock_rollback_latched
+    restored = manager(tmp_path, clock)
+    clock.advance(2)
+    assert restored.observe_successor_clock() == "PAUSED"
+    assert restored._journal.clock_rollback_latched and restored.current_session.expires_at == deadline

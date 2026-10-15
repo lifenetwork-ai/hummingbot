@@ -1021,8 +1021,40 @@ fresh independent native joint proof must then qualify all SPOT/SWAP effects and
 the existing final accounting/release saga. Partial restoration stays uncertain;
 no new permit, resend or volatile child is reconstructed.
 
+### Configured session successors
+
+The SPOT and joint safety loops use the same worker session application. Native
+session decisions keep their original UTC start/deadline. A joint expiry first
+cancels owned scope, recollects complete SPOT/SWAP/account/runner facts and then
+qualifies a market reference. Outstanding native claims/orders and proposed quote
+actions block successor publication. A changed cut requires recollection; no old
+facts are relabelled with a new cut. Initial safety input/cut/publication stays on
+one worker turn, with a stop check after source callbacks return.
+
+Startup completes only exact original pending session decisions before product
+and recorder assembly. Before-native/after-native/final-receipt interruptions
+retain original writer, facts and target expiry. Neither completion nor readback
+supplies activation. The expired primary can observe a verified quiescent native
+successor to obtain the fresh cut for a new externally signed owner grant.
+Foreign/mutated/unprojected successor state fails validation. The original sender,
+shared allocation and runtime grant stay disabled throughout that bridge.
+
+A separate worker cache tracks the successor's observation deadline; it never
+extends the original admission deadline. While waiting for a new grant, the
+watchdog keeps reconciling/cancelling and durably checkpoints clock/expiry with
+`SessionTick(observe_only_successor=True)`. That command rejects gate/reference
+assertions and cannot resume an existing pause or clear rollback. Existing JSON
+omits the option when false, preserving original fingerprints. It reports
+`SESSION_SUCCESSOR_AWAITING_GRANT`; absence of that grant cannot prematurely
+expire or irreversibly pause the already qualified successor. Real expiry and
+rollback checks remain effective. A new signed grant still runs all existing
+owner/session/account checks and native rearm; historical replay cannot rearm.
+Cold initiation of a transition without an original recorded decision remains
+unsupported pending its explicit signed observation-grant application.
+
 Current service scope remains an explicit offline library assembly. Separate
-native exit/recovery-probe/session-successor routes, simultaneous other partial
+native exit/recovery-probe routes, cold initiation of unrecorded successor
+decisions, simultaneous other partial
 families and unadmitted external transfers, broader signed policy/lineage/archive
 transitions, controller configuration reporting/hot reload and a supported
 headless launch lifecycle remain open. Actual runner/REST tests use explicit

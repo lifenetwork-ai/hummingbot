@@ -307,6 +307,23 @@ class SessionManager:
             return False
         return bool(reference_ready and all_gates_ready and not self._deadline_reached())
 
+    def observe_successor_clock(self) -> str:
+        """Checkpoint time/expiry without resuming gates or issuing authority."""
+        current = self._journal
+        if current is None or current.successor is None:
+            raise ValueError("SESSION_SUCCESSOR_REQUIRED")
+        now = _utc(self.wall_clock())
+        if now < current.last_seen_at:
+            self._commit(replace(current, state="PAUSED", reason_code="CLOCK_ROLLBACK",
+                                 clock_rollback_latched=True))
+        elif not current.clock_rollback_latched:
+            if self._deadline_reached():
+                self._commit(replace(current, state="EXPIRED", reason_code="SUCCESSOR_DEADLINE_REACHED",
+                                     last_seen_at=now))
+            else:
+                self._commit(replace(current, last_seen_at=now))
+        return self.state
+
     def tick(self, *, reference_ready: bool, all_gates_ready: bool,
              reconciliation: OrderReconciliation | None = None, market_reference_ready: bool = False,
              market_anchor_usdt: Decimal | None = None) -> str:

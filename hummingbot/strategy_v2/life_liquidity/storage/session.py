@@ -41,6 +41,7 @@ class SessionTick:
     reconciliation: OrderReconciliation | None = None
     account: SpotFinancialRecoveryFacts | None = None
     market_anchor_usdt: Decimal | None = None
+    observe_only_successor: bool = False
 
     def __post_init__(self):
         identifier(self.operation_id)
@@ -53,11 +54,17 @@ class SessionTick:
                 or self.reconciliation is not None and (not isinstance(self.reconciliation, OrderReconciliation)
                                                         or not isinstance(self.account, SpotFinancialRecoveryFacts))):
             raise StorageError('SESSION_TICK_INVALID')
+        if (type(self.observe_only_successor) is not bool or self.observe_only_successor and (
+                self.reference_ready or self.all_gates_ready or self.market_reference_ready
+                or self.reconciliation is not None or self.market_anchor_usdt is not None)):
+            raise StorageError('SESSION_OBSERVATION_ONLY_REQUIRED')
         if self.market_anchor_usdt is not None:
             object.__setattr__(self, 'market_anchor_usdt', decimal(self.market_anchor_usdt, positive=True))
 
     def json(self):
         data = dict(self.__dict__)
+        if not self.observe_only_successor:
+            data.pop('observe_only_successor')  # Preserve original command fingerprints.
         data['market_anchor_usdt'] = None if self.market_anchor_usdt is None else str(self.market_anchor_usdt)
         data['account'] = None if self.account is None else self.account.json()
         data['reconciliation'] = None if self.reconciliation is None else {
@@ -175,6 +182,34 @@ class LegacySessionAdapter:
         self._verify_recovery_projection(resources['commands'], resources.get('fills', {}),
                                          resources.get('cashflows', {}), facts)
 
+    def _successor_clock_guard(self, view, meta, owner, now):
+        journal = self._sessions.load()
+        if (journal.successor is None or meta.ownership.token != owner
+                or meta.ownership.mode not in (OwnerMode.ACTIVE, OwnerMode.DRAINING, OwnerMode.RECOVERY_ONLY)
+                or (str(owner.session_id), owner.epoch) != (journal.primary.session_id, journal.primary.epoch)
+                or now < owner.valid_from or now < journal.primary.expires_at
+                or owner.expires_at > journal.primary.expires_at
+                or not meta.resources.get('session_operations')
+                or self._incomplete(meta.resources) or self._reporting_pending(meta.resources)
+                or dict(view.cut.components) != dict(meta.resources['journal_hashes'])
+                or any(r.state not in ('TERMINAL', 'ABORTED_BEFORE_SEND') for r in self._wal.all_records())):
+            raise StorageError('SESSION_SUCCESSOR_OBSERVATION_OWNER_OR_SCOPE_INVALID')
+        self._verify_session_projection(meta.resources)
+
+    def _session_decision_deadline(self, journal):
+        # A successor can exist before its separately signed owner grant. Its
+        # observation-only state machine must not inherit the expired primary's
+        # monotonic deadline. This cache never extends admission authority.
+        record = journal.successor or journal.primary
+        identity = (record.session_id, record.epoch, record.expires_at.isoformat())
+        if identity == self._session_identity:
+            return self._monotonic_deadline
+        if getattr(self, '_decision_session_identity', None) != identity:
+            self._decision_session_identity = identity
+            self._decision_monotonic_deadline = time.monotonic() + max(
+                0, (record.expires_at - utc(self._clock())).total_seconds())
+        return self._decision_monotonic_deadline
+
     def _tick_session(self, command, cut, owner):
         self._assert_binding(cut.checkpoint.binding)
         view, meta = self._snapshot(), self._read()
@@ -188,7 +223,10 @@ class LegacySessionAdapter:
             return SessionTickReceipt(self.binding, command.operation_id, journal.state, journal.reason_code, True)
         now = utc(self._clock())
         if previous is None:
-            self._ack_guard(view, owner)
+            if command.observe_only_successor:
+                self._successor_clock_guard(view, meta, owner, now)
+            else:
+                self._ack_guard(view, owner)
             if cut != view.cut:
                 raise StorageConflict('SESSION_CUT_STALE')
             current = self._sessions.load()
@@ -207,10 +245,13 @@ class LegacySessionAdapter:
             manager = SessionManager(planned, wall_clock=lambda: now,
                                      max_reconciliation_age_ms=command.max_reconciliation_age_ms,
                                      monotonic_clock=lambda: mono)
-            manager._monotonic_deadline = self._monotonic_deadline
-            manager.tick(reference_ready=command.reference_ready, all_gates_ready=command.all_gates_ready,
-                         market_reference_ready=command.market_reference_ready,
-                         reconciliation=command.reconciliation, market_anchor_usdt=command.market_anchor_usdt)
+            manager._monotonic_deadline = self._session_decision_deadline(current)
+            if command.observe_only_successor:
+                manager.observe_successor_clock()
+            else:
+                manager.tick(reference_ready=command.reference_ready, all_gates_ready=command.all_gates_ready,
+                             market_reference_ready=command.market_reference_ready,
+                             reconciliation=command.reconciliation, market_anchor_usdt=command.market_anchor_usdt)
             operations[command.operation_id] = {'identity': identity, 'command': command.json(), 'cut': cut.json(),
                                                 'owner': owner.json(), 'state': 'APPLYING', 'sequence': len(operations) + 1,
                                                 'before': current.to_dict(), 'after': planned.load().to_dict()}
@@ -242,6 +283,7 @@ class LegacySessionAdapter:
                                   command.operation_id, dict(verified.cut.components))
             self._snapshot()
             journal = SessionJournal.from_dict(row['after'])
+            self._session_decision_deadline(journal)
             return SessionTickReceipt(self.binding, command.operation_id, journal.state, journal.reason_code,
                                       previous is not None)
         except BaseException:

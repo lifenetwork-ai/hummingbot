@@ -20,7 +20,7 @@ from hummingbot.strategy_v2.life_liquidity.order_gateway import CancelRequestErr
 from hummingbot.strategy_v2.life_liquidity.protected_send import ProtectedSpotGateway
 from hummingbot.strategy_v2.life_liquidity.risk import SpotIntent
 from hummingbot.strategy_v2.life_liquidity.send_gate import SendPermit
-from hummingbot.strategy_v2.life_liquidity.session import SessionManager
+from hummingbot.strategy_v2.life_liquidity.session import OrderReconciliation, SessionManager
 from hummingbot.strategy_v2.life_liquidity.storage.contracts import (
     OwnerMode,
     OwnerToken,
@@ -392,6 +392,28 @@ class FileSpotApplication:
         return view.session, bool(ready or exit_ready), bool(
             exit_ready or ready and qualified.market_reference_ready is True)
 
+    def _tick_safety_session(self, operation_id, max_age_ms):
+        # Capture and publication share one worker turn. Session sources may
+        # update NAV, so a cut captured by a separate await would be stale.
+        self.store.assert_worker_thread()
+        session, ready, market_ready = self._session_inputs()
+        # Cancellation cannot kill the physical worker. Recheck a stop learned
+        # while source qualification waited before starting a new session write.
+        if self._revoked or self.controller._order_safety_stopped:
+            return session, 'STOPPED', False
+        journal = self.store._sessions.load()
+        current = journal.successor
+        observing = bool(current is not None
+                         and (str(self.owner.session_id), self.owner.epoch) == (journal.primary.session_id, journal.primary.epoch))
+        tick = SessionTick(operation_id, session.session_id, session.epoch,
+                           False if observing else ready, False if observing else ready,
+                           False if observing else market_ready, max_age_ms, observe_only_successor=observing)
+        self.store._tick_session(tick, self.store._snapshot().cut, self.owner)
+        state = self._sync_session()
+        if observing and state == 'ACTIVE':
+            return session, 'AWAITING_GRANT', False
+        return session, state, ready and not observing
+
     def _sync_session(self):
         self.store._snapshot()
         c, manager = self.controller, self.controller._order_safety_manager
@@ -417,7 +439,16 @@ class FileSpotApplication:
 
     def _transition_anchor(self):
         c = self.controller
-        if (self._revoked or c._order_safety_stopped or not c._runtime_risk_ready() or not c._joint_risk_ready()
+        service = self.runtime._service
+        if service is not None and service.joint is not None:
+            current = c._order_safety_manager.current_session
+            # Expiry already disabled allocation. Session bookkeeping requires
+            # a fresh complete account proof, never the old allocation grant.
+            joint_ready = service.joint._recovery.successor_ready(current.session_id, current.epoch)
+        else:
+            joint_ready = c._joint_recovery_ready()
+        if (self._revoked or c._order_safety_stopped or not joint_ready
+                or not c._runtime_risk_ready() or not c._joint_risk_ready()
                 or not c._hedge_ready() or not c._execution_loss_ready() or not c._fill_attribution_ready()
                 or not c._markout_risk_ready() or c.has_unverified_runner_order_events()
                 or not c._spot_quote_gates_ready() or c._quote_action_planner is None):
@@ -426,6 +457,61 @@ class FileSpotApplication:
         anchor = qualified.market_anchor_usdt if qualified is not None and qualified.market_reference_ready is True else None
         return anchor if isinstance(anchor, Decimal) and anchor.is_finite() and anchor > 0 else None
 
+    async def resume_session_ticks(self):
+        # Complete the original decision before building product/recorder graphs.
+        # Its recorded after-image is immutable; cold completion grants nothing.
+        for pending in await self.store.pending_session_ticks(self.binding):
+            if pending.owner != self.owner:
+                raise StorageError('SPOT_RECOVERY_ORIGINAL_OWNER_MISMATCH')
+            await self.store.tick_session(pending.command, cut=pending.original_cut, owner=pending.owner)
+        await self.store._call(self._sync_session)
+
+    def _complete_successor(self, snapshot):
+        self.store.assert_worker_thread()
+        c = self.controller
+        if self._revoked or c._order_safety_stopped or self.store._cold_unarmed:
+            return False
+        current = self.store._snapshot()
+        if current.session.state != 'TRANSITIONING':
+            return False
+        planner = c._quote_action_planner
+        if planner is not None and planner.action_journal.active_records():
+            c.order_safety_reason_code = 'SESSION_PROPOSALS_UNRESOLVED'
+            return False
+        service = self.runtime._service
+        if service is not None and service.joint is not None:
+            joint = service.joint
+            joint._guard()
+            if not joint._recovery.successor_ready(current.session.session_id, current.session.epoch):
+                c.order_safety_reason_code = 'SESSION_JOINT_SCOPE_UNQUALIFIED'
+                return False
+            if joint._recovery.capital.claim_ids() or any(
+                    r.state not in ('TERMINAL', 'ABORTED_BEFORE_SEND') for r in joint._recovery._records()):
+                return False
+        anchor = self._transition_anchor()
+        if anchor is None:
+            c.order_safety_reason_code = 'SESSION_MARKET_REFERENCE_UNAVAILABLE'
+            return False
+        # Risk valuation may publish a new cut while qualifying the anchor. A
+        # different cut requires fresh collection, never relabelled old facts.
+        if snapshot.binding != self.binding:
+            raise StorageError('SESSION_SUCCESSOR_BINDING_MISMATCH')
+        if snapshot.cut != self.store._snapshot().cut:
+            c.order_safety_reason_code = 'SESSION_SUCCESSOR_SOURCE_CUT_STALE'
+            return False
+        result = OrderReconciliation(current.session.session_id, current.session.epoch,
+                                     snapshot.facts.observed_at, True, (), (), (), True)
+        max_age_ms = (service.config.joint.max_age_ms if service is not None and service.joint is not None
+                      else self._reconciliation_age_ms)
+        tick = SessionTick('successor:' + uuid4().hex, current.session.session_id, current.session.epoch,
+                           True, True, True, max_age_ms, result, snapshot.facts, anchor)
+        receipt = self.store._tick_session(tick, snapshot.cut, self.owner)
+        self._sync_session()
+        c._pause_reconciliation_required = False  # This exact source cut proved the old scope quiescent.
+        c.order_safety_reason_code = ('SESSION_SUCCESSOR_AWAITING_GRANT' if receipt.state == 'ACTIVE'
+                                      else receipt.reason_code)
+        return True
+
     async def _safety_cycle(self):
         c = self.controller
         try:
@@ -433,11 +519,8 @@ class FileSpotApplication:
             # cancel/status transport for this cycle; disk ownership stays with
             # its physical worker even if the awaiting task times out.
             async with asyncio.timeout(self._reconciliation_age_ms / 1000):
-                session, ready, market_ready = await self.store._call(self._session_inputs)
-                tick = SessionTick('watch:' + uuid4().hex, session.session_id, session.epoch,
-                                   ready, ready, market_ready, self._reconciliation_age_ms)
-                await self.store.tick_session(tick, cut=(await self.store.snapshot(self.binding)).cut, owner=self.owner)
-                state = await self.store._call(self._sync_session)
+                session, state, ready = await self.store._call(
+                    self._tick_safety_session, 'watch:' + uuid4().hex, self._reconciliation_age_ms)
                 if state == 'ACTIVE' and ready:
                     c.order_safety_reason_code = 'SESSION_ACTIVE'
                     return
@@ -463,15 +546,14 @@ class FileSpotApplication:
                     if (session_id, epoch) == (session.session_id, session.epoch):
                         primary = result
                 if state == 'TRANSITIONING' and primary is not None:
-                    anchor = await self.store._call(self._transition_anchor)
                     facts = self._observer.last_account_facts
-                    if facts is not None and anchor is not None:
-                        transition = SessionTick('successor:' + uuid4().hex, session.session_id, session.epoch,
-                                                 True, True, True, self._reconciliation_age_ms,
-                                                 primary, facts, anchor)
-                        await self.store.tick_session(transition, cut=self._observer.last_account_cut, owner=self.owner)
-                        await self.store._call(self._sync_session)
-                c.order_safety_reason_code = 'OLD_ORDERS_RECONCILED'
+                    if facts is not None:
+                        snapshot = ControlSnapshot(self.binding, self._observer.last_account_cut, facts)
+                        await self.store._call(self._complete_successor, snapshot)
+                if state == 'AWAITING_GRANT':
+                    c.order_safety_reason_code = 'SESSION_SUCCESSOR_AWAITING_GRANT'
+                elif state != 'TRANSITIONING':
+                    c.order_safety_reason_code = 'OLD_ORDERS_RECONCILED'
                 if state == 'PAUSED':
                     c._pause_reconciliation_required = False
         except asyncio.CancelledError:
@@ -573,11 +655,7 @@ class FileSpotApplication:
         self.revoke()
         if self._observer is None:
             raise StorageError('SPOT_APPLICATION_OBSERVER_REQUIRED')
-        for pending in await self.store.pending_session_ticks(self.binding):
-            if pending.owner != self.owner:
-                raise StorageError('SPOT_RECOVERY_ORIGINAL_OWNER_MISMATCH')
-            await self.store.tick_session(pending.command, cut=pending.original_cut, owner=pending.owner)
-        await self.store._call(self._sync_session)
+        await self.resume_session_ticks()
         return await self._observer.recover_pending()
 
     async def prepare_control_snapshot(self):

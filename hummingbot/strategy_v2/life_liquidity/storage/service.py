@@ -126,6 +126,7 @@ class FileLiquidityService:
                                                              risk_epoch=sources.risk_epoch, max_pending=config.max_pending,
                                                              shutdown_timeout_s=config.shutdown_timeout_s, ack_timeout_s=config.ack_timeout_s, defer_runtime=True)
             service.runtime = service.spot.runtime
+            await service.spot.resume_session_ticks()
             if sources.independent_fill_value is not None or sources.independent_cashflow_value is not None:
                 from hummingbot.strategy_v2.life_liquidity.storage.spot_observation import OkxSpotRepositoryObserver
                 observer = OkxSpotRepositoryObserver(service.spot, independent_fill_value=sources.independent_fill_value,
@@ -407,7 +408,6 @@ class FileLiquidityService:
     async def _joint_safety_cycle(self):
         from uuid import uuid4
 
-        from hummingbot.strategy_v2.life_liquidity.storage.session import SessionTick
         try:
             async with asyncio.timeout(self.config.joint.max_age_ms / 1000):
                 await self.recover()
@@ -415,12 +415,8 @@ class FileLiquidityService:
                 # as recovery. It cannot race a proposal or a second watchdog.
                 async with self._recovery_lock:
                     self._recovering = True
-                    session, ready, market_ready = await self.store._call(self.spot._session_inputs)
-                    tick = SessionTick('jointwatch:' + uuid4().hex, session.session_id, session.epoch,
-                                       ready, ready, market_ready, self.config.joint.max_age_ms)
-                    await self.store.tick_session(tick, cut=(await self.store.snapshot(self.store.binding)).cut,
-                                                  owner=self.spot.owner)
-                    state = await self.store._call(self.spot._sync_session)
+                    session, state, ready = await self.store._call(
+                        self.spot._tick_safety_session, 'jointwatch:' + uuid4().hex, self.config.joint.max_age_ms)
                     if state != 'ACTIVE' or not ready:
                         self.controller._runner_halt_ok = self.controller._halt_runner_orders()
                         context = await self.store.observation_context(self.store.binding)
@@ -428,7 +424,24 @@ class FileLiquidityService:
                             (row.session_id, row.epoch) for row in context.commands}))
                         await self.spot.cancel_scopes(scopes)
                         await self.joint.cancel_working_swaps(self.store.binding, self.joint.owner)
-                    self.controller.order_safety_reason_code = 'JOINT_ORDERS_RECONCILED'
+                    self.controller.order_safety_reason_code = (
+                        'SESSION_SUCCESSOR_AWAITING_GRANT' if state == 'AWAITING_GRANT' else 'JOINT_ORDERS_RECONCILED')
+                    transitioning = state == 'TRANSITIONING'
+                if transitioning and self.control is not None:
+                    # Cancel replies are hints. A new complete joint proof must
+                    # observe the terminal effects before the successor decision.
+                    await self.recover()
+                    values = self.sources.joint_spot_recovery() if self.sources.joint_spot_recovery is not None else None
+                    if inspect.isawaitable(values):
+                        values = await values
+                    if values is not None:
+                        _, facts = values
+                        snapshot = await self.store._call(self.control._joint_snapshot, facts)
+                        await self.store._call(self.spot._complete_successor, snapshot)
+                    else:
+                        self.controller.order_safety_reason_code = 'SESSION_ACCOUNT_FACTS_UNAVAILABLE'
+                elif transitioning:
+                    self.controller.order_safety_reason_code = 'SESSION_CONTROL_SERVICE_REQUIRED'
         except BaseException:
             self.revoke()
             raise
