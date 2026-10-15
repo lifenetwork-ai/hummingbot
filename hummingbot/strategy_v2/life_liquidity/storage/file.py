@@ -124,6 +124,7 @@ class FileCheckpointStore:
             if self._worker_thread_id is None:
                 self._worker_thread_id = current
             self.assert_worker_thread()
+            self._before_call(function, args)
             return function(*args)
         future = asyncio.get_running_loop().run_in_executor(self._executor, invoke)
         self._pending.add(future)
@@ -135,6 +136,10 @@ class FileCheckpointStore:
 
         future.add_done_callback(completed)
         return await asyncio.shield(future)
+
+    def _before_call(self, function, args):
+        """Backend-specific maintenance fencing at physical execution."""
+        pass
 
     def assert_worker_thread(self):
         if self._worker_thread_id is None or threading.get_ident() != self._worker_thread_id:
@@ -288,6 +293,8 @@ class FileCheckpointStore:
         return _FileUnitOfWork(self, cut, owner)
 
     def _commit(self, cut, owner, operation_id, changes, *, observation=False, not_after=None):
+        if getattr(self, '_handoff_frozen', False):
+            raise StorageError('CONFIGURATION_HANDOFF_SOURCE_FROZEN')
         # Private observational publication for domain adapters only. Generic UoW
         # always uses the normal active/unexpired owner check. An observation can
         # persist late ACK/fill accounting without granting new-risk admission

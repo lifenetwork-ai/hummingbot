@@ -1,6 +1,7 @@
 """Configured signed control/import entry points with independently collected cuts."""
 import asyncio
 import inspect
+import json
 from dataclasses import replace
 from uuid import uuid4
 
@@ -15,6 +16,149 @@ class FileControlApplication:
         self._lock = asyncio.Lock()
         self._admitted = 0
         self.observer_id = uuid4()
+        self.configuration_state = None  # Display only; never an authorization cache.
+        from hummingbot.strategy_v2.life_liquidity.storage.service_source import FileServiceSourceCapture
+        self.store._handoff_capture = FileServiceSourceCapture(service)
+
+    async def propose_configuration_handoff(self, *, operation_id, target_binding, target_session_json, max_bytes, max_rows):
+        from hummingbot.strategy_v2.life_liquidity.storage.contracts import StateBinding, encode, identifier
+        from hummingbot.strategy_v2.life_liquidity.storage.handoff import (
+            AuthorizeConfigurationHandoff,
+            session_record,
+            validate_target,
+        )
+        self.service.runtime.revoke()
+        identifier(operation_id)
+        if len(operation_id) > 96 or type(target_binding) is not StateBinding:
+            raise StorageError('HANDOFF_COMMAND_INVALID')
+        session_record(target_session_json)
+        source = await self.financial_configuration_service_source(max_bytes=max_bytes, max_rows=max_rows)
+        snapshot = self._snapshot
+        if self._admitted >= self.service.config.max_pending:
+            raise StorageError('SERVICE_CONTROL_BACKPRESSURE')
+        self._admitted += 1
+        try:
+            async with self._lock, asyncio.timeout(self.service.config.recovery_policy.max_fact_age_ms / 1000):
+                if snapshot is None or self._snapshot is not snapshot or snapshot.cut != source.core.cut or self.service._revoked:
+                    raise StorageError('SERVICE_CONTROL_SOURCE_UNQUALIFIED')
+
+                def proposal():
+                    state = self.store._handoff_state()
+                    journal = self.store._sessions.load()
+                    command = AuthorizeConfigurationHandoff(operation_id, state.sequence, self.service.spot.owner,
+                                                            source.core.pending.operation_id, source.content_digest,
+                                                            encode((journal.successor or journal.primary).to_dict()).decode(),
+                                                            target_binding, target_session_json, max_bytes, max_rows)
+                    validate_target(command, source.core.pending, self.store.binding)
+                    return command
+                command = await self.store._call(proposal)
+                return command, snapshot
+        except BaseException:
+            self.service.runtime.revoke()
+            raise
+        finally:
+            self._admitted -= 1
+
+    async def financial_configuration_source(self):
+        """Capture core SPOT ancestry; this is neither import nor activation."""
+        self.service.runtime.revoke()
+        if self.service.joint is not None:
+            raise StorageError('CONFIG_HANDOFF_JOINT_SOURCE_UNSUPPORTED')
+        snapshot = await self.snapshot()
+        if self._admitted >= self.service.config.max_pending:
+            raise StorageError('SERVICE_CONTROL_BACKPRESSURE')
+        self._admitted += 1
+        try:
+            async with self._lock, asyncio.timeout(self.service.config.recovery_policy.max_fact_age_ms / 1000):
+                if self._snapshot is not snapshot or self.service._revoked:
+                    raise StorageError('SERVICE_CONTROL_SOURCE_UNQUALIFIED')
+                # The store audits signatures, cut and financial projections on
+                # its owner worker. Keep the control barrier closed afterward.
+                return await self.store.configuration_handoff_source(self.store.binding, facts=snapshot.facts, cut=snapshot.cut)
+        except BaseException:
+            self.service.runtime.revoke()
+            raise
+        finally:
+            self._admitted -= 1
+
+    async def financial_configuration_service_source(self, *, max_bytes, max_rows):
+        """Capture every declared ordinary-file participant and scoped SQL."""
+        return await self._service_source(None, max_bytes, max_rows)
+
+    async def validate_financial_configuration_service_source(self, source, *, max_bytes, max_rows):
+        from hummingbot.strategy_v2.life_liquidity.storage.service_source import FileServiceSource
+        if type(source) is not FileServiceSource:
+            self.service.runtime.revoke()
+            raise StorageError('SERVICE_HANDOFF_SOURCE_INVALID')
+        return await self._service_source(source, max_bytes, max_rows)
+
+    async def _service_source(self, source, max_bytes, max_rows):
+        from hummingbot.strategy_v2.life_liquidity.storage.recorder_source import capture_limits
+        from hummingbot.strategy_v2.life_liquidity.storage.service_source import FileServiceSourceCapture
+        self.service.runtime.revoke()
+        capture_limits(max_bytes, max_rows)
+        snapshot = await self.snapshot()
+        if self._admitted >= self.service.config.max_pending:
+            raise StorageError('SERVICE_CONTROL_BACKPRESSURE')
+        self._admitted += 1
+        try:
+            async with self._lock, asyncio.timeout(self.service.config.recovery_policy.max_fact_age_ms / 1000):
+                if self._snapshot is not snapshot or self.service._revoked:
+                    raise StorageError('SERVICE_CONTROL_SOURCE_UNQUALIFIED')
+                current = await self.store._call(FileServiceSourceCapture(self.service).capture, snapshot, max_bytes, max_rows)
+                if source is not None and current.content_digest != source.content_digest:
+                    raise StorageError('SERVICE_HANDOFF_SOURCE_CHANGED')
+                return current
+        except BaseException:
+            self.service.runtime.revoke()
+            raise
+        finally:
+            self._admitted -= 1
+
+    async def propose_financial_configuration(self, changes, *, operation_id):
+        """Capture a candidate and independently collected cut for external signing."""
+        from hummingbot.strategy_v2.life_liquidity.storage.contracts import identifier
+        identifier(operation_id)
+        self.service.runtime.invalidate_actions()
+        try:
+            if type(changes) is not dict or len(operation_id) > 96:
+                raise ValueError()
+            captured = json.dumps(changes, sort_keys=True, separators=(',', ':'), allow_nan=False)
+            if len(captured.encode()) > 65536:
+                raise ValueError()
+        except (ValueError, TypeError):
+            self.service.runtime.revoke()
+            raise StorageError('FINANCIAL_CONFIG_CANDIDATE_INVALID') from None
+        snapshot = await self.snapshot()
+        if self._admitted >= self.service.config.max_pending:
+            raise StorageError('SERVICE_CONTROL_BACKPRESSURE')
+        self._admitted += 1
+        try:
+            async with self._lock, asyncio.timeout(self.service.config.recovery_policy.max_fact_age_ms / 1000):
+                if self._snapshot is not snapshot or self.service._revoked:
+                    raise StorageError('SERVICE_CONTROL_SOURCE_UNQUALIFIED')
+                command = await self.store._call(self._configuration_candidate, captured, operation_id, snapshot)
+                return command, snapshot
+        except BaseException:
+            self.service.runtime.revoke()
+            raise
+        finally:
+            self._admitted -= 1
+
+    def _configuration_candidate(self, captured, operation_id, snapshot):
+        from hummingbot.strategy_v2.life_liquidity.config import apply_update
+        from hummingbot.strategy_v2.life_liquidity.storage.financial_configuration import StageFinancialConfiguration
+        view = self.store._snapshot()
+        state = self.store._financial_configuration()
+        if view.cut != snapshot.cut or state.pending is not None:
+            raise StorageError('FINANCIAL_CONFIG_SOURCE_OR_PENDING_CONFLICT')
+        source = self.service.controller.config.strategy
+        try:
+            candidate = apply_update(source, json.loads(captured))
+        except (TypeError, ValueError):
+            raise StorageError('FINANCIAL_CONFIG_CANDIDATE_INVALID') from None
+        return StageFinancialConfiguration(operation_id, state.sequence, self.service.spot.owner, view.session.expires_at,
+                                           source.model_dump_json(), candidate.model_dump_json())
 
     async def snapshot(self):
         s = self.service
@@ -94,6 +238,14 @@ class FileControlApplication:
                         if await connector.get_account_uid() != self.store.binding.account_uid:
                             raise StorageError('SERVICE_CONTROL_UID_MISMATCH')
                 from hummingbot.strategy_v2.life_liquidity.storage.control_plane import ApproveSpotCashflow
+                from hummingbot.strategy_v2.life_liquidity.storage.financial_configuration import (
+                    DiscardFinancialConfiguration,
+                    StageFinancialConfiguration,
+                )
+                from hummingbot.strategy_v2.life_liquidity.storage.handoff import (
+                    AuthorizeConfigurationHandoff,
+                    CancelConfigurationHandoff,
+                )
                 from hummingbot.strategy_v2.life_liquidity.storage.import_commands import (
                     ImportApprovedCashflows,
                     ImportPreparationOrigin,
@@ -102,10 +254,23 @@ class FileControlApplication:
                 from hummingbot.strategy_v2.life_liquidity.storage.session_observation import (
                     AuthorizeSessionObservation,
                 )
-                if type(command) is AuthorizeSessionObservation:
+                if type(command) in (AuthorizeConfigurationHandoff, CancelConfigurationHandoff):
+                    if replay is None:
+                        s.runtime.revoke()
+                    method = (self.store.authorize_configuration_handoff if type(command) is AuthorizeConfigurationHandoff
+                              else self.store.cancel_configuration_handoff)
+                    receipt = await method(command, approval=approval, facts=snapshot.facts, cut=snapshot.cut)
+                elif type(command) is AuthorizeSessionObservation:
                     if replay is None and command.observer_id != self.observer_id:
                         raise StorageError('SESSION_OBSERVATION_PROCESS_MISMATCH')
                     receipt = await self.store._call(self._authorize_observation, command, approval, snapshot)
+                elif type(command) in (StageFinancialConfiguration, DiscardFinancialConfiguration):
+                    if replay is None:
+                        s.runtime.revoke()  # Close queued/final sends before waiting for the worker.
+                    method = (self.store.stage_financial_configuration if type(command) is StageFinancialConfiguration
+                              else self.store.discard_financial_configuration)
+                    receipt = await method(command, approval=approval, facts=snapshot.facts, cut=snapshot.cut)
+                    self.configuration_state = await self.store.financial_configuration(self.store.binding)
                 elif type(command) is InventoryModeCommand:
                     if s.inventory is None:
                         raise StorageError('SERVICE_INVENTORY_ROUTE_DISABLED')

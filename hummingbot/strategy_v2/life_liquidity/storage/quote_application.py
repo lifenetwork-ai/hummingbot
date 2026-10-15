@@ -56,7 +56,7 @@ class FileQuoteApplication:
         c._account_uid_verified = True
         self.service.spot.admission = self.admission
 
-    def _snapshot(self):
+    def _verify_policy(self):
         self.store.assert_worker_thread()
         meta = self.store._read()
         engine = self.native.reference_engine
@@ -65,6 +65,9 @@ class FileQuoteApplication:
                 or engine.model_version != self.policy.model_version or engine.life_source_id != 'okx:LIFE-USDT'
                 or dict(engine.source_anchors_usdt) != {} or self.native.fee_binding.group_id != self.policy.fee_group_id):
             raise StorageError('SERVICE_QUOTE_POLICY_CHANGED')
+
+    def _snapshot(self):
+        self._verify_policy()
         observed = self.service.sources.quote_snapshot()
         economics = self.controller.config.strategy.economics
         if (type(observed) is not QuotePlanningSnapshot

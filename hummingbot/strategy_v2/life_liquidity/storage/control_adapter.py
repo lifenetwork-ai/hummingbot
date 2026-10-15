@@ -22,6 +22,11 @@ from hummingbot.strategy_v2.life_liquidity.storage.control_plane import (
     OwnerTransition,
 )
 from hummingbot.strategy_v2.life_liquidity.storage.financial import FinancialCut, PrepareSpot
+from hummingbot.strategy_v2.life_liquidity.storage.financial_configuration import (
+    configuration_projection,
+    empty_configuration_head,
+)
+from hummingbot.strategy_v2.life_liquidity.storage.handoff import empty_handoff_head, handoff_projection
 from hummingbot.strategy_v2.life_liquidity.storage.import_commands import (
     ImportApprovedCashflows,
     ImportPreparationOrigin,
@@ -40,6 +45,8 @@ class LegacyControlAdapter:
         try:
             ownership = self._operator_keys.verify_seed(snapshot.resources['control_seed'], self.binding)
             approved, inventory_mode, observation_grants = {}, None, {}
+            configuration = empty_configuration_head()
+            handoff = empty_handoff_head()
             for key, row in sorted(records.items(), key=lambda item: item[1]['revision']):
                 self._operator_keys.audit(row, self.binding)
                 entry = snapshot.resources['control_operations'][key]
@@ -50,13 +57,22 @@ class LegacyControlAdapter:
                         'approval': row['approval'], 'payload': row['payload']})):
                     raise StorageUnavailable('CONTROL_HISTORY_UNVERIFIED')
                 role = entry['approval']['role']
+                if handoff['active_operation_id'] is not None and row['payload'].get('kind') not in (
+                        'CANCEL_CONFIGURATION_HANDOFF', 'CONSUME_CONFIGURATION_HANDOFF'):
+                    raise StorageUnavailable('HANDOFF_FROZEN_HISTORY_UNVERIFIED')
                 if role in ('ACTIVATE', 'DRAIN', 'RECOVER', 'REVOKE'):
                     mode = OwnerMode(row['payload']['mode'])
                     expected_role = {OwnerMode.ACTIVE: 'ACTIVATE', OwnerMode.DRAINING: 'DRAIN',
                                      OwnerMode.RECOVERY_ONLY: 'RECOVER', OwnerMode.UNARMED: 'REVOKE'}[mode]
                     if role != expected_role:
                         raise StorageUnavailable('CONTROL_HISTORY_UNVERIFIED')
+                    if role == 'ACTIVATE' and configuration['pending_operation_id'] is not None:
+                        raise StorageUnavailable('CONFIGURATION_HANDOFF_REQUIRED')
                     ownership = {'mode': mode.value, 'token': row['payload']['token']}
+                elif role == 'CONFIGURE':
+                    configuration, ownership = configuration_projection(row['payload'], configuration, ownership, self.binding)
+                elif role == 'HANDOFF':
+                    handoff = handoff_projection(row['payload'], handoff, ownership, self.binding, configuration, records)
                 elif role == 'OBSERVE_SESSION':
                     payload = row['payload']
                     if payload['kind'] != 'OBSERVE_SESSION_SUCCESSOR' or payload['owner'] != ownership['token']:
@@ -98,8 +114,11 @@ class LegacyControlAdapter:
             elif 'inventory_mode' in snapshot.resources:
                 raise StorageUnavailable('CONTROL_INVENTORY_MODE_UNVERIFIED')
             if (actual != ownership or approved != snapshot.resources.get('additional_cashflow_approvals', {})
-                    or observation_grants != snapshot.resources.get('session_observation_grants', {})):
+                    or observation_grants != snapshot.resources.get('session_observation_grants', {})
+                    or configuration != snapshot.resources.get('financial_configuration', empty_configuration_head())
+                    or handoff != snapshot.resources.get('configuration_handoff', empty_handoff_head())):
                 raise StorageUnavailable('CONTROL_PROJECTION_UNVERIFIED')
+            self._handoff_frozen = handoff['active_operation_id'] is not None
         except (KeyError, ValueError, TypeError, StorageError):
             raise StorageUnavailable('CONTROL_HISTORY_UNVERIFIED') from None
         return snapshot
@@ -122,6 +141,9 @@ class LegacyControlAdapter:
                 if previous['fingerprint'] != command_hash:
                     raise StorageConflict('CONTROL_OPERATION_CONFLICT')
                 return True
+            if getattr(self, '_handoff_frozen', False) and payload.get('kind') not in (
+                    'CANCEL_CONFIGURATION_HANDOFF', 'CONSUME_CONFIGURATION_HANDOFF'):
+                raise StorageError('CONFIGURATION_HANDOFF_SOURCE_FROZEN')
             if self._cut(state) != cut.checkpoint:
                 raise StorageConflict('STORAGE_CUT_STALE')
             if not approval.issued_at <= now < approval.expires_at:
@@ -133,12 +155,26 @@ class LegacyControlAdapter:
                                 and ownership == state['ownership'])
             if observation_only and now >= datetime.fromisoformat(payload['expires_at']):
                 raise StorageError('SESSION_OBSERVATION_EXPIRED_AT_COMMIT')
+            if approval.role == 'CONFIGURE' and payload['kind'] == 'STAGE_FINANCIAL_CONFIGURATION' and now >= min(
+                    datetime.fromisoformat(payload['session_expires_at']), datetime.fromisoformat(payload['owner']['expires_at'])):
+                raise StorageError('FINANCIAL_CONFIG_EXPIRED_AT_COMMIT')
             if ownership['mode'] == 'ACTIVE' and not observation_only and not (
                     datetime.fromisoformat(ownership['token']['valid_from']) <= now
                     < datetime.fromisoformat(ownership['token']['expires_at'])):
                 raise StorageError('CONTROL_OWNER_EXPIRED_AT_COMMIT')
             if state['checked_at'] is not None and now < datetime.fromisoformat(state['checked_at']):
                 raise StorageError('CONTROL_CLOCK_ROLLBACK')
+            if approval.role == 'HANDOFF' and not 0 <= (now - facts.observed_at).total_seconds() * 1000 <= self._recovery_policy.max_fact_age_ms:
+                raise StorageError('HANDOFF_FACTS_EXPIRED_AT_COMMIT')
+            if approval.role == 'HANDOFF' and payload['kind'] == 'AUTHORIZE_CONFIGURATION_HANDOFF':
+                from hummingbot.strategy_v2.life_liquidity.storage.handoff import session_record
+                if now >= session_record(payload['target_session_json']).expires_at:
+                    raise StorageError('HANDOFF_TARGET_EXPIRED_AT_COMMIT')
+            if approval.role == 'HANDOFF' and payload['kind'] == 'CONSUME_CONFIGURATION_HANDOFF':
+                from hummingbot.strategy_v2.life_liquidity.storage.handoff import session_record
+                grant = state['resources']['control_operations'][payload['handoff_operation_id']]['payload']
+                if now >= session_record(grant['target_session_json']).expires_at:
+                    raise StorageError('HANDOFF_TARGET_EXPIRED_AT_COMMIT')
             records = state['resources'].setdefault('control_operations', {})
             revision = state['revision'] + 1
             records[operation_id] = {'payload': payload, 'approval': approval.body(), 'signature': approval.signature,
@@ -177,6 +213,8 @@ class LegacyControlAdapter:
             raise StorageConflict('SPOT_CUT_STALE')
         current = meta.ownership.token
         if command.mode is OwnerMode.ACTIVE:
+            if meta.resources.get('financial_configuration', {}).get('pending_operation_id') is not None:
+                raise StorageError('CONFIGURATION_HANDOFF_REQUIRED')
             if self._recovery_policy is None:
                 raise UnsupportedBackend('SPOT_FINANCIAL_RECOVERY_POLICY_REQUIRED')
             token = command.token

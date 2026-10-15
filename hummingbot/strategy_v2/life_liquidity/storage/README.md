@@ -8,11 +8,13 @@ financial reservation.
 
 ## Current implemented scope
 
-**Current status (2026-10-16, base `e6423fd52` plus C1/C2 work):** the configured file service and its
+**Current status (2026-10-16, base `799c648fe` plus C3 work):** the configured file service and its
 typed application adapters are described in the later sections. The early
 checkpoint descriptions below record the narrower foundation at its introduction.
-PG1-C1, PG1-C2 and PG1.2 are qualified. Approved financial configuration/lineage
-transitions (C3) and final file-runtime acceptance
+PG1-C1, PG1-C2, PG1.2 and C3.1 signed configuration staging/discard are qualified.
+Core and configured ordinary-file/scoped-SQL source capture prepare C3.2 without applying a revision.
+Actual financial configuration/policy/lineage handoff and archive/import/repair
+transitions (C3.2/C3.3) and final file-runtime acceptance
 (C4) stay open in the [current closure ledger](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg1-current-closure-ledger).
 PostgreSQL financial authority remains unsupported.
 
@@ -1347,3 +1349,197 @@ subsidy-hold mutation denial passes separately without a production-code change.
 Changed-file hooks pass. C3 approved configuration/policy/lineage/archive transitions and C4
 complete file-runtime acceptance remain open; PostgreSQL financial authority,
 O.8 performance and provider/demo/live gates are separate.
+
+## Signed next-session configuration revisions (PG1-C3.1)
+
+`financial_configuration.py` defines immutable stage/discard/state/receipt ports.
+The separately pinned public-key ACL must grant `CONFIGURE`; existing operators
+do not acquire that role automatically. The runtime retains verification keys
+only. The current contract accepts the existing declared `apply_update` fields:
+session duration, reference lookback and quote spread/size levels, with exactly
+the next configuration version. It rejects other policy changes under that role.
+
+Capture a proposal with the configured control application:
+
+```python
+command, snapshot = await service.control.propose_financial_configuration(
+    {"session": {"duration": "4h"}}, operation_id="next-session-config"
+)
+# An external operator signs CONFIGURE over command.json(), snapshot.cut and facts.
+receipt = await service.control.apply(command, approval=approval, snapshot=snapshot)
+state = await service.store.financial_configuration(service.store.binding)
+```
+
+Proposal capture closes action admission and collects independent account/cut
+facts. Signed publication atomically records the pending candidate and drains
+the owner. It retains the active controller configuration, original session
+deadline, native journals, balances, paid spending, holds and permanent IDs.
+Readback and cold startup retain the signed pending revision without applying it
+or activating trading. Local status displays the pending handoff without I/O.
+
+`DiscardFinancialConfiguration(operation_id, expected_sequence,
+pending_operation_id, owner)` uses the same signed application path. Discard
+appends a decision, preserves the original candidate and leaves the owner drained.
+Resuming the old configuration needs a separately qualified new ACTIVATE; a
+pending candidate blocks activation. Historical replay checks exact original
+signature/cut/facts and cannot resurrect a discarded draft or clear a later gate.
+
+The [C3.1 checklist and results](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg1-c31-signed-configuration-staging-and-qualification-2026-10-16)
+record 31 new cases, 75 targeted control/config regressions and the final expanded
+**2,204-test** regression (zero failures/errors/skips, 25 existing-category warnings
+in 348.04 seconds). Changed-file hooks pass. **C3 remains open** for actual use of
+the approved revision across policy/lineage and supported archive/import/repair.
+Staging is not a policy migration, a financial reset or an activation grant.
+
+## Core configuration handoff source (PG1-C3.2 prerequisite)
+
+After a signed stage, inspect its original core SPOT source with:
+
+```python
+source = await service.control.financial_configuration_source()
+# source.scope == "CORE_SPOT"; source.unresolved_intents reports open obligations.
+# source.checkpoint_bytes and source.journal_images retain the original bytes.
+```
+
+The control application revokes local sends, independently collects complete
+account facts and captures bounded original bytes on the file worker. It keeps
+admission closed. Signed configuration history, namespace, fresh exact cut,
+balances/debts, financial projections and incomplete/reporting barriers are
+verified. Open principal and economic holds are retained. Capture writes no
+financial state; cold capture retains the original deadline, spent budgets,
+cashflow-adjusted capital and permanent IDs.
+
+Before using the image in a future approved handoff, revalidate it with fresh
+independently collected facts and the current cut:
+
+```python
+snapshot = await service.control.snapshot()
+refreshed = await service.store.validate_configuration_handoff_source(
+    source, facts=snapshot.facts, cut=snapshot.cut
+)
+```
+
+A changed source cut, discard/revision or byte substitution rejects the old
+image. The content digest identifies source bytes; account facts are qualified
+separately. Neither a matching digest nor a caller-constructed image authorizes
+adopting state. The actual future publisher still needs a fresh publication
+fence, distinct signed target/session authorization and cold recovery.
+
+This image covers `LegacySpotFiles` plus coordinator metadata. It excludes
+ancillary quote-action/product journals and recorder SQL; JOINT service capture
+is explicitly denied. It is not a complete backup or an import format. Source
+retirement, target import, actual revision use and activation remain pending
+under C3.2. See the [source-capture checkpoint](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg1-c32-core-spot-source-capture-checkpoint-2026-10-16)
+for executable selectors and qualification scope.
+
+The new source cases and related control/financial/session/startup regressions
+pass **296 tests**, zero failures/errors/skips, six existing Pydantic warnings
+in 42.20 seconds. Hooks pass. This targeted run does not close C3.2 or C4.
+
+## Configured source composition (PG1-C3.2 prerequisite)
+
+Capture and revalidate the configured service source with explicit capacities:
+
+```python
+# Example offline inspection capacities, not production/live thresholds.
+limits = {"max_bytes": 8 * 1024 * 1024, "max_rows": 128}
+source = await service.control.financial_configuration_service_source(**limits)
+refreshed = await service.control.validate_financial_configuration_service_source(source, **limits)
+```
+
+`source.scope == 'FILE_SERVICE_SCOPED'`. Its frozen core, service JSON, ancillary
+byte images and scoped recorder image retain the source config and original
+namespace/IDs. The bounded worker verifies every declared installed participant:
+quote actions, safety/probes, shared capital, requests, SWAP WAL/actions, JOINT,
+hedge and carry. Inventory/exit histories and separate exit-budget bytes are
+retained in core. Missing/replaced/symlink/corrupt participants and archived
+formats deny; archived origins remain C3.3 work. A pending proposal is preserved,
+not inferred rejected or refunded.
+
+The recorder source port audits applied reporting provenance and captures eight
+supported table families in one explicit SQLite read transaction, with original
+primary keys, column schema and row values. It works in SQLite WAL mode, checks
+row/byte limits and refuses unknown columns or unproven/missing/conflicting rows.
+Unrelated namespaces are excluded. SQL floats, reporting rows and saved tracker
+diagnostics remain reporting only. The complete configured capture repeats the
+scoped SQL read and rechecks files/root/fact freshness to detect source drift.
+
+Local sends remain revoked. Snapshot collection uses existing independent
+account/reconciliation sources; after that snapshot, capture publishes no
+financial/configuration/native/SQL state. Cold readback remains unarmed and
+cancelled capture retains its physical worker/account exclusion through close.
+Content identity and source inspection do not retire the source, grant a target,
+import a revision or activate a process. The [configured checkpoint](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg1-c32-configured-source-composition-checkpoint-2026-10-16)
+records tests and remaining C3.2/C3.3/C4 requirements. This scoped image is not a
+complete database backup.
+
+The two configured-source selectors add **29 cases**. The final expanded PG1
+regression passes **2,255 tests**, zero failures/errors/skips, 25 existing-category
+warnings in 295.07 seconds; final hooks pass. This includes all storage selectors
+and the native financial/session/WAL/product/recorder/runner regressions recorded
+in the plan. This source-capture checkpoint precedes the signed freeze below.
+
+### Signed target reservation and reversible source freeze
+
+After staging a revision, call `service.control.propose_configuration_handoff`
+with an operation ID, same-account target binding, canonical target SessionRecord
+JSON and explicit `max_bytes`/`max_rows`. It returns the immutable command and
+independently collected snapshot for external signing. Apply it through
+`service.control.apply` using an explicitly configured `HANDOFF` role. Existing
+CONFIGURE/ACTIVATE roles do not acquire this permission.
+
+The target has a new lineage/session UUID and next epoch, the candidate config
+hash/version and original anchors/model identity. It starts no earlier than the
+original expiry and uses the candidate duration. Freeze requires no unresolved
+orders, pending proposals/children/events, principal reservations, shared claims,
+open derivative positions or funding liability. It preserves SPOT inventory,
+spent budgets, economic history, identities and the original session deadline.
+
+The worker fsyncs an immutable bounded runtime source image under
+`state_dir/handoff_sources`, rechecks source/fact freshness, then atomically
+records the signed freeze. An orphan image cannot authorize anything. Every
+queued worker callback is fenced at execution after freeze. Normal service
+startup rejects the frozen source before installing a controller or runner.
+
+Cold maintenance uses `open_legacy_spot` with the original binding, policies and
+public verifier. `configuration_handoff(binding)` reads the signed head and
+`frozen_configuration_source(binding)` verifies its retained image. This is
+historical readback, not fresh target import authority. Missing/tampered images
+leave the source frozen. `CancelConfigurationHandoff` needs a new HANDOFF approval
+and independently collected current facts/cut through the maintenance repository;
+the regular frozen-service snapshot flow is unavailable. Cancellation leaves the
+pending revision and DRAINING owner, adopts no observed cash differences and
+requires separate recovery/discard/activation. Replays never rearm or refreeze a
+later-cancelled source. Cancelled waiters/lost publication replies require cold
+readback; cleanup retains physical account exclusion until worker completion.
+
+`storage/test_handoff_authorization.py` covers 25 focused cases. The final expanded
+PG1 selector passes **2,280 tests**, zero failures/errors/skips, 24 existing-category
+warnings in 313.83 seconds; changed-file hooks pass. This prepared freeze is
+reversible: final retirement, consumed-grant/cancel exclusion, target
+import/cold resume and actual candidate use remain C3.2. Archive/repair remains
+C3.3, final acceptance C4 and cloud credential exclusion PG4. PG1 remains open.
+
+### Source-side irreversible consumption
+
+`ConsumeConfigurationHandoff(operation_id, expected_sequence, owner,
+handoff_operation_id, target_manifest_digest)` is a separate signed HANDOFF
+decision. Use `store.consume_configuration_handoff` with independently collected
+fresh facts and the current source cut through the maintenance repository.
+The worker verifies the retained artifact, unchanged native components, complete
+order/runner/bill scope, exact accounted cash and no debt or accepted wires.
+Approval and target expiry are rechecked at physical publication.
+
+`configuration_handoff(binding).consumed` returns the immutable consumption
+command. After consumption, cancellation and another consumer are permanently
+denied; exact replay never restores admission. Lost publication replies require
+cold readback. Original money, budgets, session deadlines and history stay intact.
+The manifest digest pins one intended import, but is not validation of the
+manifest's contents or a target startup/activation grant. The target manifest,
+inherited native/financial/reporting provenance, interrupted target installation
+and actual approved configuration use remain C3.2 work.
+
+`storage/test_handoff_consumption.py` adds 16 cases. Final expanded regression:
+**2,296 passed**, zero failures/errors/skips, 24 existing-category warnings in
+322.06 seconds; changed-file hooks and `git diff --check` pass. Target import and
+the C3.3/C4/PG1 parent gates remain open.

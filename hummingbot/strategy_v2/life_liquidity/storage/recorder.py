@@ -39,6 +39,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.recorder_progress import (
     FileRecorderProgressAdapter,
     RecorderProgressRepository,
 )
+from hummingbot.strategy_v2.life_liquidity.storage.recorder_source import FileRecorderSourceAdapter
 from hummingbot.strategy_v2.models.executors_info import ExecutorInfo
 
 
@@ -125,7 +126,7 @@ class RecorderRepository(RecorderProgressRepository, PositionRepository, EventRe
         ...
 
 
-class FileRecorderRepository(FileRecorderProgressAdapter, FilePositionAdapter, FileEventAdapter, FileConfigurationAdapter):
+class FileRecorderRepository(FileRecorderSourceAdapter, FileRecorderProgressAdapter, FilePositionAdapter, FileEventAdapter, FileConfigurationAdapter):
     """One bounded store worker owns outbox publication and actual SQLite calls."""
 
     def __init__(self, store, recorder, controller_id):

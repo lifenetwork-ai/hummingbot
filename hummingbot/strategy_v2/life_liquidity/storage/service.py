@@ -175,6 +175,8 @@ class FileLiquidityService:
                                                    settlement_policy=config.settlement_policy,
                                                    operator_keys=None if config.control is None else config.control.verifier(),
                                                    control_seed=seed, exit_subsidy_policy=None if config.exit is None else config.exit.budget)
+            if (await service.store.configuration_handoff(binding)).active is not None:
+                raise StorageError('SERVICE_HANDOFF_SOURCE_FROZEN_MAINTENANCE_REQUIRED')
             # Constructors contain no global SQL/config reads; native financial
             # installation is deferred to the owning store worker below.
             service.controller = LifeLiquidityController(config.controller, market_data_provider, asyncio.Queue())
@@ -235,6 +237,7 @@ class FileLiquidityService:
             if config.control is not None:
                 from hummingbot.strategy_v2.life_liquidity.storage.control_application import FileControlApplication
                 service.control = FileControlApplication(service)
+                service.control.configuration_state = await service.store.financial_configuration(service.store.binding)
             return service
         except BaseException:
             await service.close()
@@ -315,7 +318,7 @@ class FileLiquidityService:
         c.install_joint_recovery(recovery)
 
     async def plan(self):
-        if self._revoked:
+        if self._revoked or getattr(self.store, '_handoff_frozen', False):
             return []
         await self.drain_action_events()
         if self._revoked or self._recovering:
@@ -519,6 +522,11 @@ class FileLiquidityService:
             lines.append(f'Config revision {head.active_revision}: {reason}; pending {len(app._pending)}; '
                          f'rejection latched {head.rejection_latched}; kill latched {head.kill_latched}; '
                          f'last rejection {head.rejection_reason_code or "none"}')
+        if self.control is not None and self.control.configuration_state is not None:
+            head = self.control.configuration_state
+            if head.pending is not None:
+                lines.append(f'Financial config {head.pending.operation_id}: STAGED; policy handoff required; '
+                             f'active version {head.active_config_version}')
         return lines
 
     def on_safety_tick(self, timestamp):
@@ -761,7 +769,8 @@ class FileLiquidityService:
                     # shutdown records exposure immediately instead of waiting
                     # for a market loop that may already have stopped.
                     resource.max_executors_close_attempts = 0
-                    await resource.on_stop()
+                    if not getattr(self.store, '_handoff_frozen', False):
+                        await resource.on_stop()
                     resource.listen_to_executor_actions_task.cancel()
                     await asyncio.gather(resource.listen_to_executor_actions_task, return_exceptions=True)
                 else:
