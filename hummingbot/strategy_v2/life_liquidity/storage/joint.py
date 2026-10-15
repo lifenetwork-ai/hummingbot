@@ -28,6 +28,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.contracts import (
 )
 from hummingbot.strategy_v2.life_liquidity.storage.file import FileCheckpointStore
 from hummingbot.strategy_v2.life_liquidity.storage.financial import FillSpot, PrepareSpot, SpotFillObservation
+from hummingbot.strategy_v2.life_liquidity.storage.recorder_configuration import financial_controller_config
 from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotAckRecoveryFacts, SpotFinancialRecoveryFacts
 from hummingbot.strategy_v2.life_liquidity.storage.terminal import SpotTerminalFacts, TerminalSpot
 
@@ -161,7 +162,7 @@ store. Spot coupling additionally requires independent fill and account facts.
             products[key] = None if component is None else fingerprint(component.journal.policy)
         result = {'binding': self.binding.json(), 'native': fingerprint(recovery.journal.policy),
                   'limits': vars(self.limits), 'controller': c.config.id,
-                  'configuration': fingerprint(c.config.model_dump(mode='json')), 'products': products}
+                  'configuration': fingerprint(financial_controller_config(c.config)), 'products': products}
         if self._couple_cash:
             if (recovery.reservations is not self.store._ledger or recovery.spot_wal is not self.store._wal
                     or c._execution_loss_budget is not self.store._loss):
@@ -464,7 +465,7 @@ store. Spot coupling additionally requires independent fill and account facts.
         if not self._session_context_matches(meta):
             raise StorageError('JOINT_SESSION_MISMATCH')
         if any(row['state'] != 'APPLIED' for name in (
-                'product_operations', 'recorder_outbox', 'recorder_progress', 'recorder_positions', 'recorder_events')
+                'product_operations', 'recorder_outbox', 'recorder_progress', 'recorder_positions', 'recorder_events', 'recorder_configurations')
                 for row in meta.resources.get(name, {}).values()):
             raise StorageUnavailable('JOINT_REPOSITORY_REPAIR_REQUIRED')
         self._recovery._verify_storage()

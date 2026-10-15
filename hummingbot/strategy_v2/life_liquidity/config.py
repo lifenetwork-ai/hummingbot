@@ -472,7 +472,7 @@ class ConfigUpdateState:
     def order_permission(self) -> bool:
         return not self._rejected_update
 
-    def reject(self, reason_code: Literal["CONFIG_LOAD_FAILED", "CONFIG_UPDATE_UNSUPPORTED"]) -> ConfigUpdateDecision:
+    def reject(self, reason_code: Literal["CONFIG_LOAD_FAILED", "CONFIG_UPDATE_UNSUPPORTED", "CONFIG_VALIDATION_FAILED"]) -> ConfigUpdateDecision:
         """Record a rejection raised before a candidate reaches ``apply_update``."""
         decision = ConfigUpdateDecision(False, reason_code, self.config.config_version)
         self._rejected_update = True

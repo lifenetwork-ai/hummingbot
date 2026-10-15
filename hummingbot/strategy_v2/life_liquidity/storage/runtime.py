@@ -219,6 +219,7 @@ class FileControllerRuntime:
                     and getattr(self.store, '_admission_generation', self.owner.generation) == self.owner.generation
                     and self.owner.valid_from <= now < self.owner.expires_at
                     and not self.controller._order_safety_stopped
+                    and not self.controller.config.manual_kill_switch
                     and self.controller.config_update_state.order_permission() is True
                     and self.controller.trading_permissions_ready() is True)
         except Exception:
@@ -313,6 +314,10 @@ class FileControllerRuntime:
             return False
         if any(row['state'] != 'APPLIED' for row in meta.resources.get('recorder_events', {}).values()):
             return False
+        if any(row['state'] != 'APPLIED' for row in meta.resources.get('recorder_configurations', {}).values()):
+            return False
+        if self._service is not None and self._service.configuration is not None:
+            self._service.configuration.verify()
         if self._products is not None:
             self._products.validate_controller(self.controller)
             self._products._native_cuts()

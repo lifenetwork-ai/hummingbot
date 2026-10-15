@@ -323,6 +323,10 @@ class MarketsRecorder:
         from hummingbot.strategy_v2.life_liquidity.storage.recorder_events import persist_event
         persist_event(self, effect_json)
 
+    def project_configuration_reports(self, sql_id, before, after):
+        from hummingbot.strategy_v2.life_liquidity.storage.recorder_configuration import persist_configurations
+        persist_configurations(self, sql_id, before, after)
+
     def install_repository_event_sink(self, sink, markets):
         if (self.__dict__.get('_repository_event_sink') is not None
                 or self._market_data_collection_config.market_data_collection_enabled

@@ -5,6 +5,7 @@ import uuid
 
 from hummingbot.core.data_type.common import OrderType
 from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError, encode
+from hummingbot.strategy_v2.life_liquidity.storage.recorder_configuration import financial_controller_config
 from hummingbot.strategy_v2.life_liquidity.storage.swap import FileSwapRepository, PrepareSwap, wire_matches
 from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction
 
@@ -22,7 +23,7 @@ class FileSwapApplication:
         self._issued, self._seen, self._pending, self._failures = {}, set(), {}, {}
         self._unknown_attempts, self._acknowledged_ids = set(), set()
         self._revoked_ids, self._revoked, self._proposals = set(), False, 0
-        self._configuration = self.controller.config.model_dump_json()
+        self._configuration = encode(financial_controller_config(self.controller.config))
         repository.application = self
 
     def local_ready(self):
@@ -39,9 +40,9 @@ class FileSwapApplication:
                     and self.repository.joint._recovery._armed and self.repository.joint._recovery._healthy
                     and self.owner.valid_from <= self.store._clock() < self.owner.expires_at
                     and not getattr(self.store, '_cold_unarmed', False)
-                    and not c._order_safety_stopped and not c._safety_rearm_in_progress
+                    and not c.config.manual_kill_switch and not c._order_safety_stopped and not c._safety_rearm_in_progress
                     and not c._runner_scope_invalid and c.config_update_state.order_permission() is True
-                    and c.trading_permissions_ready() is True and c.config.model_dump_json() == self._configuration)
+                    and c.trading_permissions_ready() is True and encode(financial_controller_config(c.config)) == self._configuration)
         except Exception:
             return False
 

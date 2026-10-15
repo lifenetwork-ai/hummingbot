@@ -138,7 +138,7 @@ async def test_configured_quote_sources_cannot_bypass_native_proofs(tmp_path, fa
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize('change', ['none', 'book', 'fee', 'stop', 'risk'])
+@pytest.mark.parametrize('change', ['none', 'book', 'fee', 'stop', 'risk', 'config_invalid', 'config_kill', 'config_sql'])
 @pytest.mark.parametrize('objective', ['profit_mm', 'liquidity_service'])
 async def test_configured_quote_actual_runner_rest_reprices_after_throttle(tmp_path, change, objective, inventory_side=None, recovery_probe=False, markout_bootstrap=False, exit_route=False):
     from contextlib import asynccontextmanager
@@ -239,6 +239,21 @@ async def test_configured_quote_actual_runner_rest_reprices_after_throttle(tmp_p
             service.spot.cancel_local(config.id)
         elif change == 'risk':
             risk_state['risk'] = replace(risk_state['risk'], latency_ok=False)
+        elif change == 'config_invalid':
+            await service.reload_yaml(tmp_path / 'missing.yml', operation_id='throttle-invalid')
+        elif change == 'config_kill':
+            config_update = service.config.model_copy(update={'controller': service.controller.config.model_copy(update={'manual_kill_switch': True})})
+            await service.reload_config(config_update, operation_id='throttle-kill')
+        elif change == 'config_sql':
+            from hummingbot.model.controllers import Controllers
+
+            def corrupt():
+                repo = service.reporting.repository
+                with repo._recorder.sql_manager.get_new_session() as sql:
+                    row = sql.query(Controllers).filter(Controllers.id == repo._configuration_sql_id()).one()
+                    row.config = {'unsigned': True}
+                    sql.commit()
+            await service.store._call(corrupt)
         elif change == 'halt':
             await service.store._call(service.risk.gate.halt, 'OPERATOR_STOP')
         elif change == 'journal':

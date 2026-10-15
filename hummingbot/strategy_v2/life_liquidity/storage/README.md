@@ -1158,9 +1158,72 @@ timeouts here do not qualify the later PG7 overall termination-budget gate.
 Tests run native Clock and a real subprocess with fake/disconnected OKX sources,
 including SIGTERM, cold restart, cancellation and blocked-worker exclusion.
 
+### Controller configuration audit and operational reload
+
+`recorder_configuration.py` defines immutable configuration report/state/receipt
+ports and the file recorder adapter. A sequenced, permanent outbox binds each
+attempt to the complete namespace, original cut/owner, operation ID, candidate
+digest, prior active revision and stable outcome/reason. Native
+`MarketsRecorder.project_configuration_reports` uses `BEGIN IMMEDIATE` and the
+existing `Controllers` table under a namespace-specific ID. SQL is a reporting
+projection; its float timestamp never supplies financial time or authority.
+Missing verified rows can be rebuilt, while changed/extra/duplicate scoped rows
+are rejected. Lost SQL replies are repaired from original outbox commands at
+cold startup without applying an old config, resending or rearming.
+
+`configuration_application.FileConfigurationApplication` is installed by the
+service before runner construction. Configuration publication and SQL/history
+reads run on the existing worker. No second financial writer, SQL migration or
+new table is introduced. Existing pre-feature service state without a verified
+configuration history is refused with `CONFIG_APPROVED_IMPORT_REQUIRED`;
+approved legacy import is still a separate pending contract. Do not reset a
+financial state directory to bypass that check.
+
+```python
+receipt = await service.reload_config(candidate_service_config, operation_id="operator-config-001")
+receipt = await service.reload_yaml(absolute_yaml_path, operation_id="operator-config-002")
+head = await service.reporting.repository.configuration(service.store.binding)
+```
+
+The only declared operational update is `controller.manual_kill_switch`.
+Its `active_revision` is separate from `strategy.config_version`. All other
+controller/service settings, financial policies, bindings and strategy hashes
+must remain pinned. The financial adapters normalize the existing false kill
+default for policy comparison and check kill independently at local send fences.
+This preserves the previous default-false policy fingerprints. A new true kill
+in startup YAML is recorded; stale false YAML cannot overwrite a recorded kill.
+The disabled process may remain alive, but startup/reload never grants trading.
+
+Invalid YAML or unsupported updates preserve the active configuration, record
+`CONFIG_LOAD_FAILED`, `CONFIG_VALIDATION_FAILED` or `CONFIG_UPDATE_UNSUPPORTED`,
+invalidate cached actions and stop creates before awaits. Invalid input content
+is not stored in reporting/error output. A subsequent valid report does not
+clear rejection: a new, independently collected and signed ACTIVATE is required.
+Historical readback cannot clear a newer rejection or restore an earlier config.
+Setting kill false cannot clear its durable latch or native HALT. Nested quote,
+duration/reference and financial strategy changes require the separately planned
+approved policy/lineage transition; this application rejects them.
+
+`reload_config` / `reload_yaml` admit a bounded owned task before returning an
+awaitable. Caller cancellation does not cancel admitted physical publication.
+Pending configuration blocks preparation/final send and signed activation;
+close joins publication before SQL/store disposal. Capacity failure revokes
+process admission and cannot be cleared by another reload. Cold startup still
+requires separate activation. Config history/operation capacity remains explicit
+and fails closed rather than deleting permanent identities.
+
+The actual controller update/load-failure hooks use this application. The
+headless CLI also handles SIGHUP: it rereads the original absolute `--config`
+path with the same bounded YAML loader. Repeated signals coalesce to one active
+reload and one notification bit. It prints only a stable outcome and
+`activation_granted: false`; SIGTERM/SIGINT retain their existing joined cleanup.
+An integration subprocess qualifies malformed YAML, later valid YAML and shutdown
+with fake/disconnected sources. Actual REST/throttler tests qualify rejection,
+kill and changed SQL while a send waits; holds remain and HTTP is not issued.
+
 Current service scope remains an explicit offline library assembly. Simultaneous other partial
 families and unadmitted external transfers, broader signed policy/lineage/archive
-transitions, controller configuration reporting/hot reload and production source
+transitions, approved nested financial configuration changes and production source
 factory qualification remain open. Actual runner/REST tests use explicit
 synthetic listing/feed releases. PG1 stays open for those routes and complete
 coupled parity; O.8, PostgreSQL, demo, live and deployment gates are unchanged.

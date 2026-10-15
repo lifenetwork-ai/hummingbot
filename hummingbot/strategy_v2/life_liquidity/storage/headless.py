@@ -12,6 +12,7 @@ import math
 import signal
 import sys
 from pathlib import Path
+from uuid import uuid4
 
 from hummingbot.core.clock import Clock, ClockMode
 from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError
@@ -32,10 +33,11 @@ class FileServiceHost:
         self.service, self.inputs = service, inputs
         self.tick_seconds, self.shutdown_timeout_s = _seconds(tick_seconds), _seconds(shutdown_timeout_s)
         self._clock_task = self._stop_waiter = self._close_task = None
+        self._reload_task = None
         self._network_checks = set()
         self._ran = False
 
-    async def run(self, stop):
+    async def run(self, stop, *, reload_event=None, config_path=None, on_reload_result=None):
         if self._ran or not isinstance(stop, asyncio.Event):
             raise StorageError('HEADLESS_RUN_ALREADY_STARTED_OR_STOP_INVALID')
         self._ran = True
@@ -49,17 +51,23 @@ class FileServiceHost:
                     if not stop.is_set():
                         self._clock_task = asyncio.create_task(clock.run())
                         self._stop_waiter = asyncio.create_task(stop.wait())
-                        done, _ = await asyncio.wait((self._clock_task, self._stop_waiter),
+                        if reload_event is not None:
+                            self._reload_task = asyncio.create_task(self._reload(reload_event, config_path, on_reload_result))
+                        tasks = tuple(t for t in (self._clock_task, self._stop_waiter, self._reload_task) if t is not None)
+                        done, _ = await asyncio.wait(tasks,
                                                      return_when=asyncio.FIRST_COMPLETED)
                         if self._clock_task in done:
                             await self._clock_task
                             raise StorageError('HEADLESS_CLOCK_STOPPED_UNEXPECTEDLY')
+                        if self._reload_task in done:
+                            await self._reload_task
+                            raise StorageError('HEADLESS_RELOADER_STOPPED_UNEXPECTEDLY')
                 finally:
                     self.service.revoke()  # Before waiting for any persistence/network cleanup.
-                    for task in (self._clock_task, self._stop_waiter):
+                    for task in (self._clock_task, self._stop_waiter, self._reload_task):
                         if task is not None:
                             task.cancel()
-                    await asyncio.gather(*(t for t in (self._clock_task, self._stop_waiter) if t is not None),
+                    await asyncio.gather(*(t for t in (self._clock_task, self._stop_waiter, self._reload_task) if t is not None),
                                          return_exceptions=True)
                     # Keep native market/event registrations until the service
                     # has recorded executor uncertainty and closed its worker.
@@ -73,6 +81,20 @@ class FileServiceHost:
             # Native Clock exit schedules each tracked stop_network awaitable.
             # Startup-before-clock errors still get an explicit network stop.
             await self._stop_networks()
+
+    async def _reload(self, event, config_path, callback):
+        if not isinstance(event, asyncio.Event) or config_path is None:
+            raise StorageError('HEADLESS_RELOAD_CONFIG_REQUIRED')
+        while True:
+            await event.wait()
+            event.clear()  # Repeated signals coalesce to one additional reload.
+            try:
+                receipt = await self.service.reload_yaml(config_path, operation_id='sighup:' + uuid4().hex)
+                code = receipt.reason_code
+            except Exception:
+                code = 'CONFIG_RELOAD_FAILED'  # No raw YAML, source exception or credentials.
+            if callback is not None:
+                callback(code)
 
     async def close(self):
         self.service.revoke()
@@ -115,7 +137,7 @@ def load_factory(spec):
 
 
 async def launch(*, config_path, factory_spec, stop, tick_seconds, startup_timeout_s, shutdown_timeout_s,
-                 migration_config=None, create_offline_binding=False, on_started=None):
+                 migration_config=None, create_offline_binding=False, on_started=None, reload_event=None, on_reload_result=None):
     from hummingbot.strategy_v2.life_liquidity.storage.postgres.migrations import auto_migrate
     _seconds(tick_seconds)
     _seconds(startup_timeout_s)
@@ -142,7 +164,7 @@ async def launch(*, config_path, factory_spec, stop, tick_seconds, startup_timeo
             host = FileServiceHost(service, inputs, tick_seconds=tick_seconds, shutdown_timeout_s=shutdown_timeout_s)
         if on_started is not None:
             on_started(service)
-        await host.run(stop)
+        await host.run(stop, reload_event=reload_event, config_path=config_path, on_reload_result=on_reload_result)
     finally:
         if host is not None:
             try:
@@ -160,17 +182,21 @@ async def launch(*, config_path, factory_spec, stop, tick_seconds, startup_timeo
 
 async def _cli(args):
     from hummingbot.strategy_v2.life_liquidity.storage.postgres.config import load_config
-    stop, loop = asyncio.Event(), asyncio.get_running_loop()
+    stop, reload_event, loop = asyncio.Event(), asyncio.Event(), asyncio.get_running_loop()
     handled = []
     try:
         for sig in (signal.SIGTERM, signal.SIGINT):
             loop.add_signal_handler(sig, stop.set)
             handled.append(sig)
+        loop.add_signal_handler(signal.SIGHUP, reload_event.set)
+        handled.append(signal.SIGHUP)
         await launch(config_path=args.config, factory_spec=args.factory, stop=stop, tick_seconds=args.tick_seconds,
                      startup_timeout_s=args.startup_timeout, shutdown_timeout_s=args.shutdown_timeout,
                      migration_config=load_config(env_file=args.env_file, no_env_file=args.no_env_file),
                      create_offline_binding=args.create_offline_binding,
-                     on_started=lambda _: print('LIFE_SERVICE_STARTED_ACTIVATION_NOT_GRANTED', flush=True))
+                     on_started=lambda _: print('LIFE_SERVICE_STARTED_ACTIVATION_NOT_GRANTED', flush=True),
+                     reload_event=reload_event,
+                     on_reload_result=lambda code: print(json.dumps({'configuration': code, 'activation_granted': False}), flush=True))
     finally:
         for sig in handled:
             loop.remove_signal_handler(sig)

@@ -576,7 +576,7 @@ class LegacySpotStore(LegacySessionObservationAdapter, LegacyJointCashAdapter, L
 
     @staticmethod
     def _reporting_pending(resources):
-        return any(row['state'] != 'APPLIED' for name in ('recorder_outbox', 'recorder_progress', 'recorder_positions', 'recorder_events')
+        return any(row['state'] != 'APPLIED' for name in ('recorder_outbox', 'recorder_progress', 'recorder_positions', 'recorder_events', 'recorder_configurations')
                    for row in resources.get(name, {}).values())
 
     @staticmethod

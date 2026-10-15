@@ -104,6 +104,7 @@ class FileLiquidityService:
         service.quotes = service.products = service.risk = service.control = service.inventory = service.exit = None
         service._hint_generation = service._qualified_hint_generation = 0
         service._close_task = service._halt_task = None
+        service.configuration = None
         service._recovery_lock = asyncio.Lock()
         service.store = service.spot = service.swap = service.joint = service.hedge = service.reporting = service.runner = None
         root = Path(config.state_dir)
@@ -170,6 +171,10 @@ class FileLiquidityService:
             service.reporting = await open_file_recorder(service.runtime, database_path=config.recorder_path,
                                                          config_file_path=config.recorder_config_name, strategy_name='v2', connectors=tuple(connectors.values()),
                                                          max_pending=config.max_pending, shutdown_timeout_s=config.shutdown_timeout_s)
+            from hummingbot.strategy_v2.life_liquidity.storage.configuration_application import (
+                FileConfigurationApplication,
+            )
+            await FileConfigurationApplication.install(service, create_binding)
             from hummingbot.strategy_v2.life_liquidity.storage.service_runner import FileServiceRunner
             service.runner = FileServiceRunner(service)
             service.controller._runner_orchestrator = service.runner.executor_orchestrator
@@ -202,6 +207,16 @@ class FileLiquidityService:
     @classmethod
     async def open_yaml(cls, path, **kwargs):
         return await cls.open(await cls.read_yaml(path), **kwargs)
+
+    def reload_config(self, config, *, operation_id):
+        if self.configuration is None:
+            raise StorageError('CONFIG_APPLICATION_UNAVAILABLE')
+        return self.configuration.submit(config, operation_id=operation_id)
+
+    def reload_yaml(self, path, *, operation_id):
+        if self.configuration is None:
+            raise StorageError('CONFIG_APPLICATION_UNAVAILABLE')
+        return self.configuration.submit_yaml(path, operation_id=operation_id)
 
     def _install_products(self, create):
         self.store.assert_worker_thread()
@@ -437,8 +452,16 @@ class FileLiquidityService:
         reducing = self.exit is not None and self.exit.active
         state = ('STOPPED' if self._revoked else 'UNARMED' if not self.runtime._local_ready(allow_reduction=reducing)
                  else 'REDUCING' if reducing else 'READY')
-        return [f'LIFE file service: {state}; account {self.store.binding.account_uid}; '
-                f'spot/SWAP share one storage worker']
+        lines = [f'LIFE file service: {state}; account {self.store.binding.account_uid}; '
+                 f'spot/SWAP share one storage worker']
+        app = self.configuration
+        if app is not None and app.state is not None:
+            head = app.state  # Local display only; never synchronous SQL/history.
+            reason = 'CONFIG_REPAIR_REQUIRED' if app._poisoned else head.reason_code
+            lines.append(f'Config revision {head.active_revision}: {reason}; pending {len(app._pending)}; '
+                         f'rejection latched {head.rejection_latched}; kill latched {head.kill_latched}; '
+                         f'last rejection {head.rejection_reason_code or "none"}')
+        return lines
 
     def on_safety_tick(self, timestamp):
         if self._revoked or self._cycle is not None and not self._cycle.done():
@@ -533,6 +556,7 @@ class FileLiquidityService:
     @property
     def admission_paused(self):
         return bool(self._recovering or self._safety_pending or self._control_pending or self._pending_events
+                    or self.configuration is not None and not self.configuration.ready
                     or self.control is not None and self.control._admitted > 0
                     or self._hint_generation != self._qualified_hint_generation)
 
@@ -669,7 +693,7 @@ class FileLiquidityService:
             task.cancel()
         if hints:
             await asyncio.gather(*hints, return_exceptions=True)
-        resources = (self.runner, self.reporting, self.swap, self.spot, self.store)
+        resources = (self.configuration, self.runner, self.reporting, self.swap, self.spot, self.store)
         for resource in resources:
             if resource is None:
                 continue

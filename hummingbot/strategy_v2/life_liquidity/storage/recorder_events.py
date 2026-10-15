@@ -444,7 +444,7 @@ class FileEventAdapter:
         else:
             if meta.cut != cut:
                 raise StorageConflict('STORAGE_CUT_STALE')
-            if any(row['state'] != 'APPLIED' for name in ('recorder_outbox', 'recorder_progress', 'recorder_positions', 'recorder_events')
+            if any(row['state'] != 'APPLIED' for name in ('recorder_outbox', 'recorder_progress', 'recorder_positions', 'recorder_events', 'recorder_configurations')
                    for row in meta.resources.get(name, {}).values()):
                 raise StorageUnavailable('RECORDER_OUTBOX_REPAIR_REQUIRED')
             effect_json, status = self._effects(command, meta)

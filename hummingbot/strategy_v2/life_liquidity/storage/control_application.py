@@ -117,6 +117,8 @@ class FileControlApplication:
                                                                  or s.risk is not None and s.risk.gate.state == 'HALTED'):
                             raise StorageError('SERVICE_ACTIVATION_PROCESS_OR_HALT_INVALID')
                         if command.mode is OwnerMode.ACTIVE:
+                            if s.configuration is not None:
+                                await self.store._call(s.configuration.verify_activation)
                             if s.spot._pending or s.swap is not None and (s.swap._pending or s.swap._proposals):
                                 raise StorageError('SERVICE_ACTIVATION_INFLIGHT_REQUESTS')
                             if s.quotes is not None and await self.store._call(s.quotes.native.action_journal.active_records):
@@ -271,4 +273,6 @@ class FileControlApplication:
             s.risk.gate._manual_rearm_required = False
             s.risk.gate.invalidate('STARTUP_REVALIDATION')
         s.spot._sync_session()
+        if s.configuration is not None:
+            s.configuration.refresh()
         s.spot._revoked = s.runtime._revoked = False

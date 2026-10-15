@@ -177,7 +177,7 @@ class FileSwapRepository:
                 raise StorageUnavailable('HEDGE_PLAN_RECOVERY_REQUIRED')
             if (any(v['state'] in ('PREPARING', 'ARMING', 'ACKING') for v in meta.resources.get('swap_operations', {}).values())
                     or any(v['state'] != 'APPLIED' for key in ('product_operations', 'recorder_outbox', 'recorder_progress',
-                                                               'recorder_positions', 'recorder_events')
+                                                               'recorder_positions', 'recorder_events', 'recorder_configurations')
                            for v in meta.resources.get(key, {}).values())
                     or hasattr(self.store, '_incomplete') and self.store._incomplete(meta.resources)):
                 raise StorageUnavailable('SWAP_REPAIR_REQUIRED')

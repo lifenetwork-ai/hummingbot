@@ -91,6 +91,8 @@ A benchmark is an input to the quoting model. It does not imply that LIFE will f
 
 **PG1 protected SWAP application (2026-10-15):** explicit file assembly now moves preparation/shared-capital hold, WAL arm, request charge and asynchronous ACK onto the existing owning worker. Exact cold prepare/arm/ACK readback preserves original commands and holds without restoring send permission. Actual executor hooks and fake HTTP through the real REST throttler reject changed local gates and stale qualifications; unknown attempts retain bounded dispatch capacity. This closes the isolated worker/application slice. Configured controller/service startup, hedge child/retry and remaining cross-family/control/import application still keep [PG1](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md) open.
 
+**PG1 configuration application (2026-10-15):** the configured file service now owns sequenced controller reporting/outbox recovery, bounded operational reload and SIGHUP. Invalid config retains the prior state and blocks actual post-throttler sends; rejection requires a later valid report and fresh signed activation, while kill remains latched across clear-field/replay/restart. Only `manual_kill_switch` is operationally updatable. Nested financial strategy/duration/reference changes remain in the approved policy/lineage transition contract. The existing `Controllers` SQL table is reused; no evidence file or new migration is created. PG1 remains open for the explicit remaining contracts in the [PostgreSQL/service plan](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md).
+
 ## 2. Existing Components and Gaps
 
 | Reviewed component | Reusable capabilities | Required work or limitation |

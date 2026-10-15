@@ -1,5 +1,6 @@
 """Process/Clock lifecycle with explicit offline adapters and no network/DB."""
 import asyncio
+import json
 import os
 import signal
 import sys
@@ -13,6 +14,34 @@ from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError
 from hummingbot.strategy_v2.life_liquidity.storage.headless import launch
 
 FACTORY = 'test.hummingbot.strategy_v2.life_liquidity.storage.headless_fixture:build'
+
+
+@pytest.mark.asyncio
+async def test_headless_sighup_reloads_original_path_and_rejects_invalid_yaml_without_exit_or_activation(tmp_path):
+    config, path = await config_file(tmp_path)
+    command = [sys.executable, '-m', 'hummingbot.strategy_v2.life_liquidity.storage.headless', '--config', str(path),
+               '--factory', FACTORY, '--tick-seconds', '.01', '--startup-timeout', '5', '--shutdown-timeout', '2',
+               '--no-env-file', '--create-offline-binding']
+    child = await asyncio.create_subprocess_exec(*command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+                                                 env={**os.environ, 'LIFE_AUTO_MIGRATE': 'false'})
+    try:
+        async with asyncio.timeout(10):
+            assert (await child.stdout.readline()).strip() == b'LIFE_SERVICE_STARTED_ACTIVATION_NOT_GRANTED'
+            for body, reason in (('bad: [synthetic-private-data', 'CONFIG_LOAD_FAILED'),
+                                 (config.model_dump_json(), 'CONFIG_UNCHANGED')):
+                path.write_text(body)
+                child.send_signal(signal.SIGHUP)
+                line = await child.stdout.readline()
+                assert json.loads(line) == {'configuration': reason, 'activation_granted': False}
+                assert child.returncode is None
+            child.send_signal(signal.SIGTERM)
+            _, errors = await child.communicate()
+            assert child.returncode == 0, errors.decode()
+            assert b'synthetic-private-data' not in errors
+    finally:
+        if child.returncode is None:
+            child.kill()
+            await child.communicate()
 
 
 async def config_file(tmp_path):
@@ -80,6 +109,32 @@ async def test_actual_headless_clock_stays_disabled_when_disconnected_and_joins_
         assert service.controller.order_safety_watchdog_task.done()
         assert service.runner.listen_to_executor_actions_task.done()
         assert all(t.done() for t in service.connectors['okx'].__dict__['_headless_network_stops'])
+    finally:
+        stop.set()
+        await asyncio.wait_for(task, 3)
+
+
+@pytest.mark.asyncio
+async def test_headless_startup_kill_keeps_disabled_process_alive_until_stop(tmp_path):
+    config, path = await config_file(tmp_path)
+    config = config.model_copy(update={'controller': config.controller.model_copy(update={'manual_kill_switch': True})})
+    path.write_text(config.model_dump_json())
+    stop, started, services = asyncio.Event(), asyncio.Event(), []
+
+    def capture(service):
+        services.append(service)
+        started.set()
+    task = asyncio.create_task(launch(config_path=path, factory_spec=FACTORY, stop=stop, tick_seconds=.01,
+                                      startup_timeout_s=3, shutdown_timeout_s=2, migration_config=migration_off(),
+                                      create_offline_binding=True, on_started=capture))
+    try:
+        await asyncio.wait_for(started.wait(), 3)
+        await asyncio.sleep(.03)
+        assert not task.done()
+        service = services[0]
+        assert service.configuration.state.kill_latched and service._revoked
+        assert not service.runtime._local_ready() and not service.store._wal.all_records()
+        assert service.controller._control_loop_task is not None
     finally:
         stop.set()
         await asyncio.wait_for(task, 3)

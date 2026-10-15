@@ -15,7 +15,10 @@ class FileServiceRunner(StrategyV2Base):
                          dispatch_shutdown_timeout_s=service.config.shutdown_timeout_s)
 
     def start(self, clock, timestamp):
-        if self._is_stop_triggered or self.service._revoked or self._started_headless:
+        configuration = self.service.configuration
+        stopped = self.service._revoked and not (configuration is not None and configuration._healthy
+                                                 and configuration.state is not None and configuration.state.kill_latched)
+        if self._is_stop_triggered or stopped or self._started_headless:
             raise StorageError('SERVICE_RUNNER_ALREADY_STARTED_OR_STOPPED')
         self._started_headless = True
         self._last_timestamp = timestamp

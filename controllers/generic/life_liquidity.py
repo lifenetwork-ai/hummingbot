@@ -655,6 +655,11 @@ class LifeLiquidityController(ControllerBase):
             self.logger().error("LIFE order-safety watchdog stopped unexpectedly")
 
     def update_config(self, new_config: LifeLiquidityConfig):
+        service = getattr(self._storage_runtime, '_service', None)
+        if service is not None and service.configuration is not None:
+            from uuid import uuid4
+            return service.reload_config(service.config.model_copy(update={'controller': new_config}),
+                                         operation_id='controller-config:' + uuid4().hex)
         if new_config.storage_backend != self.config.storage_backend or new_config.storage_binding != self.config.storage_binding:
             self.config_update_state.reject('CONFIG_UPDATE_UNSUPPORTED')
             raise ValueError('LIFE storage binding changes require restart')
@@ -664,6 +669,9 @@ class LifeLiquidityController(ControllerBase):
         super().update_config(new_config)
 
     def on_config_load_failure(self):
+        service = getattr(self._storage_runtime, '_service', None)
+        if service is not None and service.configuration is not None:
+            return service.configuration.submit_load_failure()
         return self.config_update_state.reject("CONFIG_LOAD_FAILED")
 
     def trading_permissions_ready(self) -> bool:

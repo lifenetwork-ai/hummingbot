@@ -568,7 +568,7 @@ async def test_service_runner_hint_backpressure_revokes_without_unbounded_queue(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("stop_stage", ["none", "throttler", "ack"])
+@pytest.mark.parametrize("stop_stage", ["none", "throttler", "ack", "config_invalid", "config_kill", "config_sql"])
 async def test_configured_service_actual_runner_executor_and_rest_ack_share_repository(tmp_path, stop_stage):
     from test.hummingbot.strategy_v2.life_liquidity.test_protected_swap_send import connector_with_transport
     from types import SimpleNamespace
@@ -604,7 +604,7 @@ async def test_configured_service_actual_runner_executor_and_rest_ack_share_repo
                 return Response()
         assistant = RESTAssistant(connection=RESTConnection(Session()), throttler=throttle)
         connector._web_assistants_factory = SimpleNamespace(get_rest_assistant=AsyncMock(return_value=assistant))
-    if stop_stage != 'throttler':
+    if stop_stage not in ('throttler', 'config_invalid', 'config_kill', 'config_sql'):
         throttle.release.set()
     connector._set_current_timestamp(NOW.timestamp())
     service.runner._set_current_timestamp(NOW.timestamp())
@@ -614,9 +614,25 @@ async def test_configured_service_actual_runner_executor_and_rest_ack_share_repo
         action, = await service.plan()
         service.runner._async_action_dispatcher.submit([action])
         await service.runner._async_action_dispatcher.drain()
-        if stop_stage == 'throttler':
+        if stop_stage in ('throttler', 'config_invalid', 'config_kill', 'config_sql'):
             await asyncio.wait_for(throttle.entered.wait(), 3)
-            service.revoke()
+            if stop_stage == 'throttler':
+                service.revoke()
+            elif stop_stage == 'config_invalid':
+                await service.reload_yaml(tmp_path / 'missing.yml', operation_id='swap-invalid')
+            elif stop_stage == 'config_kill':
+                kill = service.config.model_copy(update={'controller': service.controller.config.model_copy(update={'manual_kill_switch': True})})
+                await service.reload_config(kill, operation_id='swap-kill')
+            else:
+                from hummingbot.model.controllers import Controllers
+
+                def corrupt():
+                    repo = service.reporting.repository
+                    with repo._recorder.sql_manager.get_new_session() as sql:
+                        row = sql.query(Controllers).filter(Controllers.id == repo._configuration_sql_id()).one()
+                        row.config = {'unsigned': True}
+                        sql.commit()
+                await service.store._call(corrupt)
             throttle.release.set()
             await service.swap.drain()
             await service.reporting.drain()

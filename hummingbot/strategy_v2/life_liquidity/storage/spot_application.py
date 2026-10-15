@@ -36,6 +36,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.control_plane import (
 )
 from hummingbot.strategy_v2.life_liquidity.storage.financial import AckSpot, PrepareSpot, decimal
 from hummingbot.strategy_v2.life_liquidity.storage.legacy_spot import LegacySpotStore
+from hummingbot.strategy_v2.life_liquidity.storage.recorder_configuration import financial_controller_config
 from hummingbot.strategy_v2.life_liquidity.storage.runtime import FileControllerRuntime
 from hummingbot.strategy_v2.life_liquidity.storage.session import SessionTick
 from hummingbot.strategy_v2.life_liquidity.storage.spot_lifecycle import SpotLifecycleCommand
@@ -96,7 +97,7 @@ class FileSpotApplication:
             raise StorageError('SPOT_APPLICATION_BINDING_MISMATCH')
         self.store, self.controller, self.connector, self.owner = store, controller, connector, owner
         self.binding = store.binding
-        self._configuration_hash = fingerprint(controller.config.model_dump(mode='json'))
+        self._configuration_hash = fingerprint(financial_controller_config(controller.config))
         self.admission, self.risk_epoch = admission, risk_epoch
         self.authorize_permit = authorize_permit
         self.max_pending, self.shutdown_timeout_s = max_pending, shutdown_timeout_s
@@ -168,10 +169,10 @@ class FileSpotApplication:
                         str(self.owner.session_id), self.owner.epoch)
                     and c._order_safety_manager.state == 'ACTIVE' and now < current.expires_at
                     and c.config.storage_binding == self.binding and c.config.storage_backend == 'file'
-                    and fingerprint(c.config.model_dump(mode='json')) == self._configuration_hash
+                    and fingerprint(financial_controller_config(c.config)) == self._configuration_hash
                     and fingerprint(c.config.strategy.model_dump(mode='json')) == self.binding.config_hash
                     and c.config_update_state.order_permission() is True
-                    and not c._order_safety_stopped and c.trading_permissions_ready() is True)
+                    and not c.config.manual_kill_switch and not c._order_safety_stopped and c.trading_permissions_ready() is True)
         except Exception:
             return False
 
@@ -246,6 +247,9 @@ class FileSpotApplication:
         return terms
 
     def _qualify_prepared(self, config, digest, permit, original_terms):
+        service = self.runtime._service
+        if service is not None and service.configuration is not None:
+            service.configuration.verify()
         self.store.assert_worker_thread()
         c = self.controller
         service = self.runtime._service
@@ -380,7 +384,7 @@ class FileSpotApplication:
         c = self.controller
         view = self.store._snapshot()
         if (self._revoked or c._order_safety_stopped or self.store._cold_unarmed
-                or fingerprint(c.config.model_dump(mode='json')) != self._configuration_hash
+                or fingerprint(financial_controller_config(c.config)) != self._configuration_hash
                 or c.config_update_state.order_permission() is not True):
             return view.session, False, False
         carry = c._carry_ready()
@@ -703,7 +707,7 @@ class FileSpotApplication:
         receipt = await self.store.transition_owner(command, approval=approval, facts=snapshot.facts, cut=snapshot.cut)
         if (not receipt.replayed and command.mode is OwnerMode.ACTIVE and command.token.process_id == self._process_id
                 and not self.controller._order_safety_stopped
-                and fingerprint(self.controller.config.model_dump(mode='json')) == self._configuration_hash):
+                and fingerprint(financial_controller_config(self.controller.config)) == self._configuration_hash):
             self.owner = self.runtime.owner = command.token
             await self.store._call(self._sync_session)
             self._revoked = self.runtime._revoked = False

@@ -27,6 +27,11 @@ from hummingbot.strategy_v2.life_liquidity.storage.contracts import (
     thaw,
     utc,
 )
+from hummingbot.strategy_v2.life_liquidity.storage.recorder_configuration import (
+    ConfigurationReport,
+    ConfigurationRepository,
+    FileConfigurationAdapter,
+)
 from hummingbot.strategy_v2.life_liquidity.storage.recorder_events import EventRepository, FileEventAdapter
 from hummingbot.strategy_v2.life_liquidity.storage.recorder_positions import FilePositionAdapter, PositionRepository
 from hummingbot.strategy_v2.life_liquidity.storage.recorder_progress import (
@@ -106,7 +111,7 @@ class PendingExecutorProjection:
     owner: OwnerToken
 
 
-class RecorderRepository(RecorderProgressRepository, PositionRepository, EventRepository, Protocol):
+class RecorderRepository(RecorderProgressRepository, PositionRepository, EventRepository, ConfigurationRepository, Protocol):
     async def read(self, binding: StateBinding) -> tuple[RecorderRow, ...]:
         ...
 
@@ -120,7 +125,7 @@ class RecorderRepository(RecorderProgressRepository, PositionRepository, EventRe
         ...
 
 
-class FileRecorderRepository(FileRecorderProgressAdapter, FilePositionAdapter, FileEventAdapter):
+class FileRecorderRepository(FileRecorderProgressAdapter, FilePositionAdapter, FileEventAdapter, FileConfigurationAdapter):
     """One bounded store worker owns outbox publication and actual SQLite calls."""
 
     def __init__(self, store, recorder, controller_id):
@@ -225,7 +230,7 @@ class FileRecorderRepository(FileRecorderProgressAdapter, FilePositionAdapter, F
             if meta.cut != cut:
                 raise StorageConflict('STORAGE_CUT_STALE')
             if (any(row['state'] != 'APPLIED' for row in operations.values())
-                    or any(row['state'] != 'APPLIED' for name in ('recorder_progress', 'recorder_positions', 'recorder_events')
+                    or any(row['state'] != 'APPLIED' for name in ('recorder_progress', 'recorder_positions', 'recorder_events', 'recorder_configurations')
                            for row in meta.resources.get(name, {}).values())):
                 raise StorageUnavailable('RECORDER_OUTBOX_REPAIR_REQUIRED')
             operations[command.operation_id] = {'identity': identity, 'command': command.json(),
@@ -270,7 +275,8 @@ class FileRecorderRepository(FileRecorderProgressAdapter, FilePositionAdapter, F
         routes = {'projection': (ExecutorProjection, 'recorder_outbox', self._project),
                   'progress': (ExecutorProgress, 'recorder_progress', self._update_progress),
                   'positions': (PositionReport, 'recorder_positions', self._report_positions),
-                  'event': (EventProjection, 'recorder_events', self._project_event)}
+                  'event': (EventProjection, 'recorder_events', self._project_event),
+                  'configuration': (ConfigurationReport, 'recorder_configurations', self._report_configuration)}
         expected, resource, apply = routes[kind]
         if type(command) is not expected or type(owner) is not OwnerToken:
             raise StorageError('RECORDER_COMMAND_INVALID')
@@ -285,7 +291,7 @@ class FileRecorderRepository(FileRecorderProgressAdapter, FilePositionAdapter, F
         return apply(command, cut, owner)
 
     async def publish_current(self, kind, command, *, owner):
-        if kind not in ('projection', 'progress', 'positions', 'event'):
+        if kind not in ('projection', 'progress', 'positions', 'event', 'configuration'):
             raise StorageError('RECORDER_COMMAND_INVALID')
         try:
             return await self.store._call(self._publish_current, kind, command, owner)

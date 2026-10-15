@@ -57,6 +57,9 @@ class FileRecorderApplication:
         """Repair original reporting commands only; never construct/send an executor."""
         async with self._mutex:
             self._healthy = False
+            for item in await self.repository.pending_configurations(self.binding):
+                await self.repository.publish_current('configuration', item.command, owner=item.owner)
+            await self.store._call(self.repository._repair_configurations)
             for item in await self.repository.pending_projections(self.binding):
                 await self.repository.project(item.command, item.original_cut, item.owner)
             for item in await self.repository.pending_progress(self.binding):
