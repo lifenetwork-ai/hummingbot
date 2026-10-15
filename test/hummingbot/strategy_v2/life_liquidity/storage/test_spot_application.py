@@ -353,12 +353,15 @@ async def test_runner_fill_hint_is_verified_against_source_before_and_ledger_aft
         executor.place_open_order()
         await app.drain()
         wire = (await store.attempt(executor.config.id, store.binding)).client_order_id
-        controller.on_runner_order_filled(OrderFilledEvent(
+        # This isolated application has no service event queue. Native hint
+        # helpers must be invoked on its repository worker; the configured
+        # runner's loop callback is covered by the service/boundary tests.
+        await store._call(controller.on_runner_order_filled, OrderFilledEvent(
             1, wire, 'LIFE-USDT', TradeType.BUY, OrderType.LIMIT_MAKER, Decimal('1'),
             Decimal('1') if conflict else Decimal('2'),
             AddedToCostTradeFee(flat_fees=[TokenAmount('USDT', Decimal('.02'))]),
             exchange_trade_id='trade-1', exchange_order_id='123456789'))
-        assert not controller.verify_runner_fill_events()
+        assert not await store._call(controller.verify_runner_fill_events)
         before = await store.snapshot(store.binding)
         if conflict:
             with pytest.raises(StorageError, match='SPOT_OBSERVATION_RUNNER_FILL_CONFLICT'):
@@ -367,7 +370,7 @@ async def test_runner_fill_hint_is_verified_against_source_before_and_ledger_aft
             assert (after.balance, after.budget) == (before.balance, before.budget)
         else:
             await app.reconcile(str(app.owner.session_id), app.owner.epoch)
-            assert controller.verify_runner_fill_events()
+            assert await store._call(controller.verify_runner_fill_events)
             assert (await store.attempt(executor.config.id, store.binding)).state.value == 'TERMINAL'
     finally:
         await app.close()

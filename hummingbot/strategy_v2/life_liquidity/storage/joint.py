@@ -298,10 +298,27 @@ store. Spot coupling additionally requires independent fill and account facts.
             source = spot_orders.get(prepared.intent_id)
             if source is None or source.state != 'unsent':
                 raise StorageError('JOINT_PREPARED_RECEIPT_UNSENT_SOURCE_REQUIRED')
+        terminal_ids = (tuple(existing['command'].get('spot_terminal_operations', ())) if existing is not None
+                        else tuple(k for k, row in resources.get('terminal_operations', {}).items() if row['state'] != 'TERMINAL'))
+        for key in terminal_ids:
+            original = resources['terminal_operations'][key]['command']
+            source = spot_orders.get(original['intent_id'])
+            expected = original['facts']
+            if (source is None or source.state not in ('filled', 'canceled')
+                    or source.exchange_order_id != original['exchange_order_id']
+                    or ('FILLED' if source.state == 'filled' else 'CANCELED') != expected['exchange_state']
+                    or source.claim.quantity_base != Decimal(expected['quantity_base_life'])
+                    or source.claim.price_usdt != Decimal(expected['limit_price_usdt'])
+                    or {t.trade_id for t in source.trades} != {f['trade_id'] for f in expected['fills']}
+                    or sum((t.quantity_base for t in source.trades), Decimal('0')) != Decimal(expected['cumulative_base_life'])):
+                raise StorageError('JOINT_TERMINAL_SOURCE_CHANGED')
+        settlement_ids = (tuple(existing['command'].get('spot_settlement_operations', ())) if existing is not None
+                          else tuple(k for k, row in resources.get('settlement_operations', {}).items() if row['state'] != 'SETTLED'))
         return JointCashSpot(operation_id, self.binding, proof_id,
                              datetime.fromtimestamp(encoded['observed_at_ms'] / 1000, timezone.utc),
                              tuple(retained.values()), observation.spot_life_base, observation.spot_cash_quote,
-                             True, True, 'okx_joint_reconciled', qualified_fills, tuple(transfers.values()), self.qualified_acks(orders), receipts)
+                             True, True, 'okx_joint_reconciled', qualified_fills, tuple(transfers.values()), self.qualified_acks(orders), receipts,
+                             terminal_ids, settlement_ids)
 
     def _prepare_spot_fills(self, orders, supplied, facts, resources, observation, encoded, proof_id, transfers=None):
         if not orders and facts is None:
@@ -388,6 +405,10 @@ store. Spot coupling additionally requires independent fill and account facts.
                 continue
             original = JointCashSpot.from_json(thaw(row['command']))
             self.store._apply_joint_cash(original, FinancialCut.from_json(thaw(row['cut'])), self.owner, True)
+        previous = self.store._read().resources.get('joint_cash_operations', {}).get(command.operation_id)
+        cut = (FinancialCut.from_json(thaw(previous['cut'])) if previous is not None
+               else self.store._snapshot().cut)
+        self.store._apply_joint_cash(command, cut, self.owner, recovery_authority=self._recovery)
         if self._couple_spot:
             for row in self.store._read().resources.get('lifecycle_operations', {}).values():
                 if row['state'] != 'APPLIED':
@@ -402,10 +423,13 @@ store. Spot coupling additionally requires independent fill and account facts.
                     if order is None:
                         raise StorageError('JOINT_SPOT_TERMINAL_SOURCE_MISSING')
                     self.apply_spot_order(order, spot_facts)
-        previous = self.store._read().resources.get('joint_cash_operations', {}).get(command.operation_id)
-        cut = (FinancialCut.from_json(thaw(previous['cut'])) if previous is not None
-               else self.store._snapshot().cut)
-        self.store._apply_joint_cash(command, cut, self.owner, recovery_authority=self._recovery)
+            from hummingbot.strategy_v2.life_liquidity.storage.settlement import SettleSpotInventory
+            for row in self.store._read().resources.get('settlement_operations', {}).values():
+                if row['state'] != 'SETTLED':
+                    original = row['command']
+                    self.store._settle_inventory(SettleSpotInventory(original['operation_id'], original['cycle_id'],
+                                                                     tuple(original['intent_ids'])),
+                                                 spot_facts, self.store._snapshot().cut, self.owner, True)
 
     def apply_spot_order(self, order, facts):
         if not self._couple_spot or not self._recovery.authorizes_order(order, self._recovery.journal._state['proof_id']):
@@ -426,7 +450,13 @@ store. Spot coupling additionally requires independent fill and account facts.
                 raise StorageError('JOINT_SPOT_UNSENT_ORIGIN_REQUIRED')
             prepared = PrepareSpot.from_json(rows[0]['command'])
             from hummingbot.strategy_v2.life_liquidity.storage.spot_lifecycle import SpotLifecycleCommand
-            command = SpotLifecycleCommand('jointunsent:' + fingerprint(prepared.json()), prepared.operation_id,
+            originals = [row['command'] for row in resources.get('lifecycle_operations', {}).values()
+                         if row['command']['prepare_operation_id'] == prepared.operation_id
+                         and row['command']['action'] == 'ABORT_PREPARED']
+            if len(originals) > 1:
+                raise StorageError('JOINT_SPOT_UNSENT_ORIGIN_CONFLICT')
+            operation_id = originals[0]['operation_id'] if originals else 'jointunsent:' + fingerprint(prepared.json())
+            command = SpotLifecycleCommand(operation_id, prepared.operation_id,
                                            prepared.intent_id, prepared.client_order_id, 'ABORT_PREPARED')
             self.store._apply_lifecycle(command, self.store._snapshot().cut, self.owner,
                                         joint_authority=self._recovery)
@@ -454,6 +484,12 @@ store. Spot coupling additionally requires independent fill and account facts.
             pending, exchange, facts.runner_wire_ids, facts.order_scope_complete, facts.bill_scope_complete,
             facts.runner_scope_complete)
         operation_id = 'jointterm:' + fingerprint({'intent': order.claim.intent_id, 'exchange': order.exchange_order_id})
+        originals = [key for key, row in resources.get('terminal_operations', {}).items()
+                     if (row['command']['intent_id'], row['command']['exchange_order_id']) == (order.claim.intent_id, order.exchange_order_id)]
+        if len(originals) > 1:
+            raise StorageError('JOINT_SPOT_TERMINAL_ORIGIN_CONFLICT')
+        if originals:
+            operation_id = originals[0]
         command = TerminalSpot(operation_id, prepared.operation_id, prepared.intent_id, prepared.client_order_id,
                                prepared.market, prepared.side, prepared.session_id, prepared.epoch,
                                order.exchange_order_id, terminal_facts)
@@ -604,6 +640,19 @@ store. Spot coupling additionally requires independent fill and account facts.
             raise StorageUnavailable('JOINT_REPOSITORY_BACKPRESSURE')
         self._admitted.add(task)
         return task
+
+    def resume_original_lifecycle(self):
+        # These are original local abort/cancel bookkeeping requests. Completing
+        # them issues no transport, books no money and grants no activation.
+        # Keep their existing native/projection/owner checks; never synthesize a
+        # request from an external order observation.
+        if not self._couple_spot:
+            return
+        from hummingbot.strategy_v2.life_liquidity.storage.spot_lifecycle import SpotLifecycleCommand
+        for row in self.store._read().resources.get('lifecycle_operations', {}).values():
+            if row['state'] != 'APPLIED':
+                command = SpotLifecycleCommand.from_json(thaw(row['command']))
+                self.store._apply_lifecycle(command, self.store._snapshot().cut, self.owner)
 
     async def reconcile(self, binding, owner, *, spot_fills=(), spot_facts=None, spot_cashflows=()):
         self._request(binding, owner)

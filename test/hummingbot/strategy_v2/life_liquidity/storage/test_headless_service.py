@@ -4,6 +4,7 @@ import json
 import os
 import signal
 import sys
+from contextlib import asynccontextmanager
 from test.hummingbot.strategy_v2.life_liquidity.storage.headless_fixture import build
 from test.hummingbot.strategy_v2.life_liquidity.storage.test_service_startup import settings
 from unittest.mock import patch
@@ -14,6 +15,138 @@ from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError
 from hummingbot.strategy_v2.life_liquidity.storage.headless import launch
 
 FACTORY = 'test.hummingbot.strategy_v2.life_liquidity.storage.headless_fixture:build'
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('failure', [None, 'startup', 'run', 'invalid-result'])
+async def test_managed_source_factory_is_joined_after_service_cleanup(tmp_path, failure):
+    _, path = await config_file(tmp_path)
+    events, services = [], []
+    stop = asyncio.Event()
+
+    @asynccontextmanager
+    async def factory(config):
+        events.append('enter')
+        try:
+            yield object() if failure == 'invalid-result' else build(config)
+        finally:
+            if services:
+                assert services[0].store._closed
+                assert services[0]._close_task.done()
+            await asyncio.sleep(0)
+            events.append('closed')
+
+    def started(service):
+        services.append(service)
+        stop.set()
+        if failure == 'run':
+            raise RuntimeError('synthetic run failure')
+
+    async def startup(*args, **kwargs):
+        raise RuntimeError('synthetic startup failure')
+
+    from contextlib import ExitStack
+    with ExitStack() as patches:
+        patches.enter_context(patch('hummingbot.strategy_v2.life_liquidity.storage.headless.load_factory', return_value=factory))
+        if failure == 'startup':
+            patches.enter_context(patch('hummingbot.strategy_v2.life_liquidity.storage.headless.FileLiquidityService.open', startup))
+        run = launch(config_path=path, factory_spec=FACTORY, stop=stop, tick_seconds=.01,
+                     startup_timeout_s=3, shutdown_timeout_s=2, migration_config=migration_off(),
+                     create_offline_binding=True, on_started=started)
+        if failure is None:
+            await run
+        else:
+            with pytest.raises((RuntimeError, StorageError)):
+                await run
+    assert events == ['enter', 'closed']
+
+
+@pytest.mark.asyncio
+async def test_managed_source_close_timeout_retains_one_owned_cleanup(tmp_path):
+    _, path = await config_file(tmp_path)
+    entered, release, closed = asyncio.Event(), asyncio.Event(), asyncio.Event()
+    services, exits = [], []
+    stop = asyncio.Event()
+
+    @asynccontextmanager
+    async def factory(config):
+        try:
+            yield build(config)
+        finally:
+            entered.set()
+            await release.wait()
+            exits.append('closed')
+            closed.set()
+
+    def started(service):
+        services.append(service)
+        stop.set()
+
+    with patch('hummingbot.strategy_v2.life_liquidity.storage.headless.load_factory', return_value=factory):
+        task = asyncio.create_task(launch(config_path=path, factory_spec=FACTORY, stop=stop, tick_seconds=.01,
+                                          startup_timeout_s=3, shutdown_timeout_s=.03, migration_config=migration_off(),
+                                          create_offline_binding=True, on_started=started))
+        try:
+            await asyncio.wait_for(entered.wait(), 3)
+            with pytest.raises(TimeoutError):
+                await asyncio.wait_for(task, 2)
+            assert exits == []
+            assert services[0].store._closed
+        finally:
+            release.set()
+            await asyncio.wait_for(closed.wait(), 2)
+            if not task.done():
+                await task
+    assert exits == ['closed']
+
+
+@pytest.mark.asyncio
+async def test_managed_source_lifetime_survives_host_timeout_with_physical_work(tmp_path):
+    import threading
+    _, path = await config_file(tmp_path)
+    started, closed = asyncio.Event(), asyncio.Event()
+    entered, release = threading.Event(), threading.Event()
+    stop, services = asyncio.Event(), []
+
+    @asynccontextmanager
+    async def factory(config):
+        try:
+            yield build(config)
+        finally:
+            assert services[0].store._closed
+            closed.set()
+
+    def capture(service):
+        services.append(service)
+        started.set()
+
+    def block():
+        entered.set()
+        assert release.wait(5)
+
+    with patch('hummingbot.strategy_v2.life_liquidity.storage.headless.load_factory', return_value=factory):
+        task = asyncio.create_task(launch(config_path=path, factory_spec=FACTORY, stop=stop, tick_seconds=.01,
+                                          startup_timeout_s=3, shutdown_timeout_s=.03, migration_config=migration_off(),
+                                          create_offline_binding=True, on_started=capture))
+        worker = None
+        try:
+            await asyncio.wait_for(started.wait(), 3)
+            worker = asyncio.create_task(services[0].store._call(block))
+            assert await asyncio.to_thread(entered.wait, 2)
+            stop.set()
+            with pytest.raises(TimeoutError):
+                await asyncio.wait_for(task, 2)
+            assert not closed.is_set()
+            release.set()
+            await worker
+            await asyncio.wait_for(closed.wait(), 2)
+        finally:
+            release.set()
+            stop.set()
+            if worker is not None:
+                await worker
+            if not task.done():
+                await task
 
 
 @pytest.mark.asyncio

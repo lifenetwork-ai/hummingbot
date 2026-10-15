@@ -536,6 +536,10 @@ class JointRecovery:
     def _begin_reconciliation(self):
         self._healthy = False
         self._verify_storage()
+        if self._repository_application is not None:
+            # Original local bookkeeping runs on the same owning checkpoint,
+            # inside the reconciliation mutex and its failure/cancel guard.
+            self._repository_application.resume_original_lifecycle()
         now = self.clock_ms()
         with self.journal.locked(shallow=True) as state:
             self._validate_state(state)

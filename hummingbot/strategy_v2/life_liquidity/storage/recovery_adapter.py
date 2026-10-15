@@ -92,7 +92,7 @@ class LegacyFinancialRecoveryAdapter:
             raise StorageError('SPOT_FINANCIAL_RECOVERY_ACCOUNT_MISMATCH')
         self._verify_native_financial_subset(commands, fills, cashflows, facts)
 
-    def _verify_native_financial_subset(self, commands, fills, cashflows, facts):
+    def _verify_native_financial_subset(self, commands, fills, cashflows, facts, *, terminal_intents=frozenset()):
         native_trades = self._ledger.trade_ids
         native_cash = self._ledger.cashflow_events
         baseline = self._read().resources
@@ -133,10 +133,23 @@ class LegacyFinancialRecoveryAdapter:
                 raise StorageError('SPOT_FINANCIAL_RECOVERY_NATIVE_IDENTITY_MISMATCH')
             native_quantity = sum((Decimal(fills[key]['fill']['quantity_base_life']) for key in native_trades
                                    if fills[key]['intent_id'] == original.intent_id), Decimal('0'))
+            if record['state'] == 'ABORTED_BEFORE_SEND':
+                self._verify_lifecycle_projection(baseline)
+                proven_abort = any(row['state'] == 'APPLIED' and row['command']['action'] == 'ABORT_PREPARED'
+                                   and row['command']['prepare_operation_id'] == original.operation_id
+                                   for row in baseline.get('lifecycle_operations', {}).values())
+                if (not proven_abort or wal.state != 'ABORTED_BEFORE_SEND' or wal.exchange_order_id is not None
+                        or record.get('arm_fingerprint') is not None or native_quantity != 0
+                        or reservation.state != 'TERMINAL' or reservation.remaining_base != 0):
+                    raise StorageError('SPOT_FINANCIAL_RECOVERY_ABORT_UNPROVEN')
+                continue
+            terminal_subset = record['state'] == 'TERMINATING' and original.intent_id in terminal_intents
             if (reservation.filled_base != native_quantity or native_quantity > original.quantity_base
                     or record['state'] == 'TERMINAL' and (reservation.state != 'TERMINAL' or wal.state != 'TERMINAL')
-                    or record['state'] != 'TERMINAL' and (reservation.state == 'TERMINAL' or wal.state == 'TERMINAL'
-                                                          or reservation.remaining_base != original.quantity_base - native_quantity)):
+                    or terminal_subset and reservation.remaining_base != (
+                        0 if reservation.state == 'TERMINAL' else original.quantity_base - native_quantity)
+                    or record['state'] != 'TERMINAL' and not terminal_subset and (reservation.state == 'TERMINAL' or wal.state == 'TERMINAL'
+                                                                                  or reservation.remaining_base != original.quantity_base - native_quantity)):
                 raise StorageError('SPOT_FINANCIAL_RECOVERY_NATIVE_HOLD_MISMATCH')
 
     def _resume_ack(self, command, facts, cut, owner):

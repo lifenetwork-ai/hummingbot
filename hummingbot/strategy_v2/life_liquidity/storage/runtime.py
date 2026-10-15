@@ -18,12 +18,20 @@ from hummingbot.strategy_v2.life_liquidity.storage.contracts import (
     StorageError,
     fingerprint,
 )
+from hummingbot.strategy_v2.life_liquidity.storage.controller_port import ControllerApplicationPort
 from hummingbot.strategy_v2.life_liquidity.storage.file import FileCheckpointStore
 
 
 class RuntimeAuthorizationRepository(Protocol):
     binding: StateBinding
     backend: Backend
+
+    @property
+    def application(self) -> ControllerApplicationPort | None:
+        ...
+
+    def assert_native_context(self) -> None:
+        ...
 
     def owns_controller(self, controller) -> bool:
         ...
@@ -102,6 +110,15 @@ class FileControllerRuntime:
 
     def owns_controller(self, controller):
         return controller is self.controller
+
+    @property
+    def application(self) -> ControllerApplicationPort | None:
+        return self._service
+
+    def assert_native_context(self):
+        # Even standalone mechanism fixtures must not expose a synchronous
+        # financial escape hatch once their runtime has been installed.
+        self.store.assert_worker_thread()
 
     def pre_send_provenance_complete(self, records):
         if self._service is None or self._spot_application is None:

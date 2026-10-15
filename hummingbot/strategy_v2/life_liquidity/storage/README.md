@@ -8,6 +8,14 @@ financial reservation.
 
 ## Current implemented scope
 
+**Current status (2026-10-16, base `e6423fd52` plus C1/C2 work):** the configured file service and its
+typed application adapters are described in the later sections. The early
+checkpoint descriptions below record the narrower foundation at its introduction.
+PG1-C1, PG1-C2 and PG1.2 are qualified. Approved financial configuration/lineage
+transitions (C3) and final file-runtime acceptance
+(C4) stay open in the [current closure ledger](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg1-current-closure-ledger).
+PostgreSQL financial authority remains unsupported.
+
 `file.py` implements these checkpoint protocols with the existing `PolicyState`
 file lock, policy comparison, verified memory/disk reads, atomic replace and
 fsync behavior. Logical resource updates and an operation deduplication record
@@ -1261,9 +1269,81 @@ An integration subprocess qualifies malformed YAML, later valid YAML and shutdow
 with fake/disconnected sources. Actual REST/throttler tests qualify rejection,
 kill and changed SQL while a send waits; holds remain and HTTP is not issued.
 
-Current service scope remains an explicit offline library assembly. Simultaneous other partial
-families and unadmitted external transfers, broader signed policy/lineage/archive
-transitions, approved nested financial configuration changes and production source
-factory qualification remain open. Actual runner/REST tests use explicit
-synthetic listing/feed releases. PG1 stays open for those routes and complete
-coupled parity; O.8, PostgreSQL, demo, live and deployment gates are unchanged.
+Current service scope remains an explicit offline file-service assembly. New
+approved transfers alongside original ACK/fill recovery are implemented as
+described above. C1 controller/source boundary contracts are qualified. Other
+simultaneous partial families, broader signed policy/lineage/archive transitions,
+approved nested financial changes and complete file-runtime equivalence remain
+open in the PG1 closure ledger. Actual runner/REST tests use
+explicit synthetic listing/feed releases; production source qualification belongs
+to the later environment gates. O.8, PostgreSQL, demo, live and deployment gates
+are unchanged.
+
+## Controller application boundary (PG1-C1)
+
+`ControllerApplicationPort` is the public callback/application contract exposed
+through `RuntimeAuthorizationRepository.application`. The actual controller uses
+it for events, config/reload, settlement, planning, financial gates, watchdog/stop
+and status. It does not access a runtime's private service or store. File-specific
+installation and proof helpers are isolated in `file_controller.py`; the original
+non-repository controller retains its legacy behavior.
+
+Installed repository runtimes require their owning context for native proof,
+planning and journal access. This includes markout/probe capacity and legacy
+financial telemetry. Loop callers cannot use those helpers as a synchronous
+fallback. Unsigned `manual_rearm()` and private legacy async reconciliation are
+rejected before touching journals; use the existing signed control application
+and repository reconciliation routes. Standalone mechanism fixtures invoke their
+native proof checks explicitly through the worker. A new backend must implement
+the actual application ports; a fabricated file path is not an adapter.
+
+Headless factories with extra source clients/tasks may return an async context
+manager yielding `HeadlessInputs`. The factory owns acquisition and its context
+exit must join/close those resources. The host awaits exit after service and
+physical-worker cleanup, using the configured shutdown timeout and one owned
+cleanup task. Caller cancellation/timeout does not close source clients ahead of
+pending worker/ACK/reporting work. Direct/awaited `HeadlessInputs` remain supported
+for factories with no additional owned resources; connector cleanup stays owned
+by the host. Actual production source qualification and the aggregate deployed
+termination budget remain separate gates.
+
+The [C1 route matrix](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg1-c1-route-matrix-and-qualification-2026-10-15)
+maps each declared route to executable selectors. Final expanded regression:
+**2,087 passed**, zero failures/errors/skips, 25 existing-category warnings in
+239.23 seconds. The later C2 qualification is below; C3/C4, PostgreSQL and O.8
+performance gates remain open.
+
+## Joint recovery compositions (PG1-C2)
+
+The configured file service supports original cancel bookkeeping, terminal
+release and net-flat inventory settlement interrupted while later independently
+qualified SPOT fills, SWAP fees/funding or approved LIFE/USDT transfers arrive.
+These extend the existing preparation/hold/arm/prepared-receipt/ACK/fill/cashflow
+recovery contracts. Recovery retains the original operation IDs and captured
+values; it never reconstructs a different abort, terminal or inventory cycle.
+
+`JointCashSpot` optionally carries IDs of existing terminal/settlement operations.
+Those IDs do not admit new work or grant authority. `joint_pending.py` verifies
+their immutable origins and native partial subsets. A copied admission view
+covers only those operations; actual pending receipts and principal/subsidy
+overlays remain in force. The qualified joint monetary batch completes before
+original terminal/cycle receipts resume against the actual final account facts.
+Execution-loss spending is not refunded by release or external transfers.
+
+Original cancel/abort bookkeeping completes on the existing reconciliation
+checkpoint under its mutex and failure/cancellation guard. It does not issue
+transport or repeat cancel attempts. New unrelated commands cannot create a
+second partial saga while recovery is pending. Cold replay can repair the
+original terminal/cycle together with its own interrupted joint cash operation,
+then extend accounting with newer facts. Changed terminal fills, incomplete
+scope, debt, wrong owners, missing valuations and unrelated session/loss/WAL
+mutations are rejected. Neither recovery nor readback activates trading.
+
+The [C2 recovery matrix](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg1-c2-recovery-matrix-and-qualification-2026-10-16)
+maps pending families, activities, crash cuts and denials to executable selectors.
+The final expanded regression passes **2,172 tests**, zero failures/errors/skips,
+24 warnings in 277.96 seconds, including 85 added composition cases. One additional
+subsidy-hold mutation denial passes separately without a production-code change.
+Changed-file hooks pass. C3 approved configuration/policy/lineage/archive transitions and C4
+complete file-runtime acceptance remain open; PostgreSQL financial authority,
+O.8 performance and provider/demo/live gates are separate.

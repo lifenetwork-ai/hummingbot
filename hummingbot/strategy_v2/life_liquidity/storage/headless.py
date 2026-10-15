@@ -11,6 +11,7 @@ import json
 import math
 import signal
 import sys
+from contextlib import AbstractAsyncContextManager, AsyncExitStack
 from pathlib import Path
 from uuid import uuid4
 
@@ -27,7 +28,7 @@ def _seconds(value):
 
 
 class FileServiceHost:
-    def __init__(self, service, inputs, *, tick_seconds, shutdown_timeout_s):
+    def __init__(self, service, inputs, *, tick_seconds, shutdown_timeout_s, source_stack=None):
         if service.connectors != inputs.connectors or service.controller.market_data_provider is not inputs.market_data_provider:
             raise StorageError('HEADLESS_SERVICE_INPUTS_MISMATCH')
         self.service, self.inputs = service, inputs
@@ -35,6 +36,7 @@ class FileServiceHost:
         self._clock_task = self._stop_waiter = self._close_task = None
         self._reload_task = None
         self._network_checks = set()
+        self._source_stack = source_stack
         self._ran = False
 
     async def run(self, stop, *, reload_event=None, config_path=None, on_reload_result=None):
@@ -100,11 +102,20 @@ class FileServiceHost:
         self.service.revoke()
         self._cancel_network_checks()
         if self._close_task is None:
-            self._close_task = asyncio.create_task(self.service.close())
+            self._close_task = asyncio.create_task(self._close_service_and_sources())
         async with asyncio.timeout(self.shutdown_timeout_s):
             # A timeout/cancel cannot release a still-running file worker or
             # certify terminal exchange state. The owning close task remains.
             await asyncio.shield(self._close_task)
+
+    async def _close_service_and_sources(self):
+        try:
+            await self.service.close()
+        finally:
+            if self._source_stack is not None:
+                # Retain factory-owned clients until worker/ACK/reporting cleanup
+                # has finished. A caller timeout does not cancel this owned task.
+                await self._source_stack.aclose()
 
     def _cancel_network_checks(self):
         for connector in self.inputs.connectors.values():
@@ -143,6 +154,7 @@ async def launch(*, config_path, factory_spec, stop, tick_seconds, startup_timeo
     _seconds(startup_timeout_s)
     _seconds(shutdown_timeout_s)
     inputs = service = host = None
+    source_stack = AsyncExitStack()
     # This await precedes even importing factory code or constructing connectors.
     await auto_migrate(migration_config)
     try:
@@ -156,12 +168,15 @@ async def launch(*, config_path, factory_spec, stop, tick_seconds, startup_timeo
             inputs = factory(config)
             if inspect.isawaitable(inputs):
                 inputs = await inputs
+            if isinstance(inputs, AbstractAsyncContextManager):
+                inputs = await source_stack.enter_async_context(inputs)
             if type(inputs) is not HeadlessInputs:
                 raise StorageError('HEADLESS_FACTORY_RESULT_INVALID')
             service = await FileLiquidityService.open(config, connectors=inputs.connectors, sources=inputs.sources,
                                                       market_data_provider=inputs.market_data_provider,
                                                       create_binding=create_offline_binding)
-            host = FileServiceHost(service, inputs, tick_seconds=tick_seconds, shutdown_timeout_s=shutdown_timeout_s)
+            host = FileServiceHost(service, inputs, tick_seconds=tick_seconds, shutdown_timeout_s=shutdown_timeout_s,
+                                   source_stack=source_stack)
         if on_started is not None:
             on_started(service)
         await host.run(stop, reload_event=reload_event, config_path=config_path, on_reload_result=on_reload_result)
@@ -171,13 +186,22 @@ async def launch(*, config_path, factory_spec, stop, tick_seconds, startup_timeo
                 await host.close()
             finally:
                 await host._stop_networks()
-        elif service is not None:
-            await service.close()
-        if inputs is not None and host is None:
-            for connector in inputs.connectors.values():
-                connector.stop_network()
+        else:
+            async def cleanup_startup():
+                try:
+                    if service is not None:
+                        await service.close()
+                finally:
+                    try:
+                        if type(inputs) is HeadlessInputs:
+                            for connector in inputs.connectors.values():
+                                connector.stop_network()
+                            await asyncio.gather(*(c.join_network_shutdown() for c in inputs.connectors.values()))
+                    finally:
+                        await source_stack.aclose()
+            cleanup = asyncio.create_task(cleanup_startup())
             async with asyncio.timeout(shutdown_timeout_s):
-                await asyncio.gather(*(c.join_network_shutdown() for c in inputs.connectors.values()))
+                await asyncio.shield(cleanup)
 
 
 async def _cli(args):

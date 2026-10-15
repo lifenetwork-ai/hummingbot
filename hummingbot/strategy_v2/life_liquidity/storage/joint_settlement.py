@@ -39,6 +39,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.financial import (
 )
 from hummingbot.strategy_v2.life_liquidity.storage.joint_cashflows import LegacyJointCashflowAdapter
 from hummingbot.strategy_v2.life_liquidity.storage.joint_fills import LegacyJointFillAdapter
+from hummingbot.strategy_v2.life_liquidity.storage.joint_pending import LegacyJointPendingAdapter
 from hummingbot.strategy_v2.life_liquidity.storage.joint_preparation import LegacyJointPreparationAdapter
 
 
@@ -106,11 +107,20 @@ class JointCashSpot:
     spot_cashflows: tuple[CashflowSpot, ...] = ()
     spot_acks: tuple[AckSpot, ...] = ()
     spot_prepared_receipts: tuple[PrepareSpot, ...] = ()
+    spot_terminal_operations: tuple[str, ...] = ()
+    spot_settlement_operations: tuple[str, ...] = ()
 
     def __post_init__(self):
         identifier(self.operation_id)
         digest(self.proof_id)
         utc(self.observed_at)
+        for name in ('spot_terminal_operations', 'spot_settlement_operations'):
+            values = getattr(self, name)
+            if type(values) is not tuple or len(set(values)) != len(values):
+                raise StorageError('JOINT_PENDING_SCOPE_INVALID')
+            for key in values:
+                identifier(key)
+            object.__setattr__(self, name, tuple(sorted(values)))
         if (len(self.operation_id) > 96 or not isinstance(self.binding, StateBinding)
                 or type(self.events) is not tuple or any(type(v) is not JointCashEvent for v in self.events)
                 or len({v.event_id for v in self.events}) != len(self.events)
@@ -143,8 +153,10 @@ class JointCashSpot:
 
     def json(self):
         return {key: (v.json() if key == 'binding' else [item.json() for item in v] if key in ('events', 'spot_fills', 'spot_cashflows', 'spot_acks', 'spot_prepared_receipts')
+                      else list(v) if key in ('spot_terminal_operations', 'spot_settlement_operations')
                       else str(v) if isinstance(v, Decimal) else v.isoformat() if isinstance(v, datetime) else v)
-                for key, v in vars(self).items() if key not in ('spot_fills', 'spot_cashflows', 'spot_acks', 'spot_prepared_receipts') or v}
+                for key, v in vars(self).items() if key not in ('spot_fills', 'spot_cashflows', 'spot_acks', 'spot_prepared_receipts',
+                                                                'spot_terminal_operations', 'spot_settlement_operations') or v}
 
     @classmethod
     def from_json(cls, data):
@@ -157,6 +169,8 @@ class JointCashSpot:
         values['spot_cashflows'] = tuple(LegacySpotStore._cashflow_from_json(v) for v in values.get('spot_cashflows', ()))
         values['spot_acks'] = tuple(LegacySpotStore._ack_from_json(v) for v in values.get('spot_acks', ()))
         values['spot_prepared_receipts'] = tuple(PrepareSpot.from_json(v) for v in values.get('spot_prepared_receipts', ()))
+        for name in ('spot_terminal_operations', 'spot_settlement_operations'):
+            values[name] = tuple(values.get(name, ()))
         for key in ('account_base_life', 'account_quote_usdt'):
             values[key] = Decimal(values[key])
         return cls(**values)
@@ -185,11 +199,12 @@ class JointCashRepository(Protocol):
         ...
 
 
-class LegacyJointCashAdapter(LegacyJointFillAdapter, LegacyJointCashflowAdapter, LegacyJointPreparationAdapter):
+class LegacyJointCashAdapter(LegacyJointFillAdapter, LegacyJointCashflowAdapter, LegacyJointPreparationAdapter, LegacyJointPendingAdapter):
     def _joint_recovery_observation_guard(self, view, owner, authority, proof_id, command=None):
         meta = self._read()
         scope = meta.resources if command is None else self._joint_recovery_resources(meta.resources, command)
-        cut_matches = (dict(view.cut.components) == dict(meta.resources['journal_hashes'])
+        side_effects = self._joint_partial_side_effect_cut(view, meta.resources, command)
+        cut_matches = (side_effects or dict(view.cut.components) == dict(meta.resources['journal_hashes'])
                        or self._joint_partial_fill_cut(view, meta.resources, command)
                        or self._joint_partial_cashflow_cut(view, meta.resources, command)
                        or self._joint_partial_ack_cut(view, meta.resources, command)
@@ -232,6 +247,8 @@ class LegacyJointCashAdapter(LegacyJointFillAdapter, LegacyJointCashflowAdapter,
                                                           'cut': row['cut']})):
                 raise StorageUnavailable('JOINT_CASH_PROJECTION_UNVERIFIED')
             command = JointCashSpot.from_json(row['command'])
+            if command.spot_terminal_operations or command.spot_settlement_operations:
+                self._joint_pending_resources(resources, command, owner=OwnerToken.from_json(row['owner']))
             self._verify_joint_fill_operations(command, resources)
             self._verify_joint_cashflow_operations(command, resources)
             self._verify_joint_prepared_receipts(command, resources, row['owner'])
@@ -289,6 +306,8 @@ class LegacyJointCashAdapter(LegacyJointFillAdapter, LegacyJointCashflowAdapter,
         if not resume:
             if command.spot_prepared_receipts and recovery_authority is None:
                 raise StorageError('JOINT_PREPARED_RECEIPT_AUTHORITY_REQUIRED')
+            if (command.spot_terminal_operations or command.spot_settlement_operations) and recovery_authority is None:
+                raise StorageError('JOINT_PENDING_RECOVERY_AUTHORITY_REQUIRED')
             if recovery_authority is None:
                 self._ack_guard(view, owner)
             else:
@@ -307,7 +326,7 @@ class LegacyJointCashAdapter(LegacyJointFillAdapter, LegacyJointCashflowAdapter,
                         or any(row['state'] != 'APPLIED' for name in ('cashflow_operations', 'session_operations',
                                                                       'lifecycle_operations', 'product_operations', 'recovery_batches')
                                for row in self._joint_recovery_resources(meta.resources, command).get(name, {}).values())
-                        or any(row['state'] != 'SETTLED' for row in meta.resources.get('settlement_operations', {}).values()))):
+                        or any(row['state'] != 'SETTLED' for row in self._joint_recovery_resources(meta.resources, command).get('settlement_operations', {}).values()))):
             raise StorageError('JOINT_CASH_OTHER_RECOVERY_PENDING')
         old_events = dict(events)
         supplied = {event.event_id: event for event in command.events}

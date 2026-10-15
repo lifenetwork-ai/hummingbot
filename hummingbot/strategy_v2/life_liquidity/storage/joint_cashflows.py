@@ -119,7 +119,7 @@ class LegacyJointCashflowAdapter:
         return tuple((row.bill_id, row.currency, row.signed_amount, row.transfer_at_ms) for row in command.spot_cashflows)
 
     def _joint_recovery_resources(self, resources, command):
-        values = thaw(resources)
+        values = self._joint_pending_resources(resources, command)
         if command.spot_prepared_receipts:
             values['commands'] = self._joint_prepared_receipt_projection(command, resources, self._read().ownership.token)
         covered = {row.bill_id for row in command.spot_cashflows}

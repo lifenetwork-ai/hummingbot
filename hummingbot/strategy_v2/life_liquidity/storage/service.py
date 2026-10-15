@@ -51,6 +51,60 @@ class ServiceSources:
 
 
 class FileLiquidityService:
+    def update_controller_config(self, config):
+        if self.configuration is None:
+            raise StorageError('SERVICE_CONFIGURATION_REQUIRED')
+        from uuid import uuid4
+        return self.reload_config(self.config.model_copy(update={'controller': config}),
+                                  operation_id='controller-config:' + uuid4().hex)
+
+    def config_load_failed(self):
+        if self.configuration is None:
+            raise StorageError('SERVICE_CONFIGURATION_REQUIRED')
+        return self.configuration.submit_load_failure()
+
+    async def settle_inventory(self, cycle_id, intent_ids):
+        if self.control is None:
+            raise StorageError('SERVICE_SETTLEMENT_CONTROL_REQUIRED')
+        return await self.control.settle_inventory(cycle_id, intent_ids)
+
+    def check_financial_gate(self, gate):
+        self.store.assert_worker_thread()
+        if gate == 'risk':
+            return self.risk is None or self.risk.ready()
+        if gate == 'loss':
+            return self.financial_ready(check_loss=True)
+        if gate == 'attribution':
+            return self.financial_ready()
+        if gate == 'markout':
+            return self.risk is None or self.risk.markout_permissions_ready()
+        if gate == 'mm':
+            return (self.exit is None or not self.exit.active) and (self.inventory is None or self.inventory.mm_ready())
+        if gate == 'bounded':
+            if self.exit is not None and self.exit.active:
+                return self.exit.pending_exit_ready()
+            return self.inventory is not None and self.inventory.pending_exit_ready()
+        if gate == 'reduction':
+            return self.exit is not None and self.exit.permissions()
+        raise StorageError('SERVICE_FINANCIAL_GATE_INVALID')
+
+    def planner_for(self, config):
+        # Selection is cache-only; the returned port's financial methods are
+        # used by worker qualification, never as a loop-local send grant.
+        for planner in (self.exit, self.inventory):
+            if planner is not None and planner.handles(config):
+                return planner
+        return None
+
+    def on_runner_safety_tick(self, timestamp):
+        reducing = self.exit is not None and self.exit.active
+        if not self.runtime._local_ready(allow_reduction=reducing):
+            self.controller._runner_halt_ok = self.controller._halt_runner_orders()
+        self.on_safety_tick(timestamp)
+
+    async def refresh_processed_data(self):
+        await self.store._call(self.controller._update_processed_data_sync)
+
     @classmethod
     async def open(cls, config, *, connectors, sources, market_data_provider, create_binding=False):
         if type(config) is not FileServiceConfig or type(sources) is not ServiceSources or type(create_binding) is not bool:

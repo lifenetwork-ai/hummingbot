@@ -13,7 +13,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.financial import AckSpot, Fil
 from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancialRecoveryFacts
 
 
-async def scenario(tmp_path, *, approvals=()):
+async def scenario(tmp_path, *, approvals=(), swap_terminal=True):
     repo, store, recovery, values, bundle, owner = await fixture(tmp_path, spot=True, approvals=approvals)
     assert await repo.reconcile(store.binding, owner)
     claim = CapitalClaim('intent1', 'wire1', store.binding.account_uid, str(owner.session_id), owner.epoch,
@@ -23,13 +23,14 @@ async def scenario(tmp_path, *, approvals=()):
                         cut=(await store.snapshot(store.binding)).cut, owner=owner)
     await store.arm('operation1', cut=(await store.snapshot(store.binding)).cut, owner=owner)
     swap_claim = await store._call(send_close, values)
-    swap_proof = report(values, bundle, swap_claim)
+    swap_proof = report(values, bundle, swap_claim, terminal=swap_terminal)
     at = recovery.clock_ms()
     proof = RecoveryOrder(claim, '123456789', 'partially_filled',
                           (RecoveryTrade('spot-trade', D('1'), D('1'), 'USDT', D('-.02'), D('0'), at),))
     values[8]['snapshot'] = replace(values[8]['snapshot'], spot_life_base=D('11'), spot_cash_quote=D('8.979'),
-                                    pending=(claim,))
-    bundle['value'] = replace(bundle['value'], orders=(swap_proof, proof), pending_wire_ids=(claim.wire_id,))
+                                    pending=(claim,) + (() if swap_terminal else (swap_claim,)))
+    bundle['value'] = replace(bundle['value'], orders=(swap_proof, proof),
+                              pending_wire_ids=(claim.wire_id,) + (() if swap_terminal else (swap_claim.wire_id,)))
     fill = SpotFillObservation('spot-trade', D('1'), D('1'), 'USDT', D('-.02'), at,
                                D('.9'), at, at, 'independent_market')
     row = FillSpot('joint-spot-fill', 'operation1', claim.intent_id, claim.wire_id, 'LIFE-USDT', 'BUY',

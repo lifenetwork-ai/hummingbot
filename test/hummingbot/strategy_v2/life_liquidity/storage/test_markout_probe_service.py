@@ -63,7 +63,7 @@ async def test_actual_accounted_fill_requires_complete_nonadverse_horizon_before
                 D('.5') if horizon == 'adverse' else D('1.01'), at, at, 'independent_market'))
         await service.store._call(service.risk.ready)
         assert await service.store._call(service.risk.ready) is (horizon == 'good')
-        assert not service.controller.markout_probe_active()  # Pending/adverse or already sufficient.
+        assert not await service.store._call(service.controller.markout_probe_active)  # Pending/adverse or sufficient.
     finally:
         await service.close()
 
