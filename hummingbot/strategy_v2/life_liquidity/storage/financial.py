@@ -191,6 +191,7 @@ class PrepareSpot:
     quote_level: int
     fee_buffer_quote_usdt: Decimal
     fee_buffer_base_life: Decimal
+    risk_epoch: int | None = None  # Required by configured shared-capital preparation.
 
     def __post_init__(self):
         for value in (self.operation_id, self.intent_id, self.session_id):
@@ -208,10 +209,12 @@ class PrepareSpot:
             raise StorageError('SPOT_SLOT_INVALID')
         if any(type(v) is not int or v < 1 for v in (self.epoch, self.config_version)):
             raise StorageError('SPOT_VERSION_INVALID')
+        if self.risk_epoch is not None and (type(self.risk_epoch) is not int or self.risk_epoch < 1):
+            raise StorageError('SPOT_RISK_EPOCH_INVALID')
 
     def json(self):
         return {key: str(value) if type(value) is Decimal else value
-                for key, value in self.__dict__.items()}
+                for key, value in self.__dict__.items() if key != 'risk_epoch' or value is not None}
 
     @classmethod
     def from_json(cls, data):

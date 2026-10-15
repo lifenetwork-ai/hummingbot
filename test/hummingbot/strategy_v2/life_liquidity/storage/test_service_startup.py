@@ -70,7 +70,7 @@ async def test_configured_spot_service_assembles_controller_and_runner_then_star
         await cold.close()
 
 
-async def joint_service(tmp_path, *, create=True):
+async def joint_service(tmp_path, *, create=True, hedge=True, carry=False):
     from test.hummingbot.strategy_v2.life_liquidity.test_hedge_coordinator import setup_coordinator
 
     from hummingbot.connector.derivative.okx_perpetual.okx_perpetual_derivative import OkxPerpetualDerivative
@@ -88,7 +88,7 @@ async def joint_service(tmp_path, *, create=True):
     controller = basic.controller.model_copy(update={'strategy': strategy, 'storage_binding': binding})
     config = FileServiceConfig.model_validate({**{key: getattr(basic, key) for key in FileServiceConfig.model_fields}, 'controller': controller,
                                                'capital_policy': values[1].policy, 'swap_contract': values[2].contract,
-                                               'request_policy': values[2].request_budget.policy, 'hedge_policy': native.policy,
+                                               'request_policy': values[2].request_budget.policy, 'hedge_policy': native.policy if hedge else None,
                                                'joint': JointServiceConfig(limits=JointLimits(16, 64, 65536),
                                                                            max_age_ms=1000, cancel_retry_ms=100, max_cancels_per_cycle=2, poll_interval_ms=250,
                                                                            opening_long_entry=Decimal('1'), opening_short_entry=Decimal('0'))})
@@ -106,6 +106,27 @@ async def joint_service(tmp_path, *, create=True):
                              spot_admission=lambda _: SpotAdmission(Decimal('1'), Decimal('.1'), Decimal('0'), Decimal('0')),
                              capital_snapshot=lambda: capital, swap_account=lambda: account, joint_collect=collect,
                              cancel_swap=cancel, hedge_market=lambda: replace(market['value'], observed_at_ms=at))
+    if carry:
+        from hummingbot.strategy_v2.life_liquidity.carry_monitor import (
+            CarryAccount,
+            CarryBundle,
+            CarryFunding,
+            CarryPolicy,
+            CarryPrice,
+            CarryTerms,
+        )
+        policy = CarryPolicy(binding.account_uid, 'LIFE-USDT-SWAP', at - 10000, 1000, 500,
+                             4 * 3600000, 16 * 3600000, Decimal('.002'), Decimal('10'), Decimal('100'))
+        feed = CarryBundle(CarryAccount(capital, (), True, True),
+                           CarryPrice('LIFE-USDT-SWAP', 1, at, capital.mark_price_usdt, 'okx_mark'),
+                           CarryPrice('LIFE-USDT-SWAP', 1, at, capital.index_price_usdt, 'okx_index'),
+                           CarryFunding(binding.account_uid, 'LIFE-USDT-SWAP', 1, at, Decimal('.001'),
+                                        at + 1000, at + 1000 + 4 * 3600000, policy.anchor_ms, at, (), True, 'okx_funding'),
+                           CarryTerms(binding.account_uid, 'LIFE-USDT-SWAP', 1, at, Decimal('.001'), Decimal('.002'),
+                                      config.capital_policy.tiers, True, 'okx_account_terms'))
+        config = FileServiceConfig.model_validate({**{key: getattr(config, key) for key in FileServiceConfig.model_fields},
+                                                   'carry_policy': policy})
+        sources = replace(sources, carry_observation=lambda: feed)
     spot = OkxExchange('', '', '', trading_pairs=['LIFE-USDT'], trading_required=False)
     swap = OkxPerpetualDerivative(trading_pairs=['LIFE-USDT'], trading_required=False)
     swap._perpetual_trading._position_mode = PositionMode.ONEWAY

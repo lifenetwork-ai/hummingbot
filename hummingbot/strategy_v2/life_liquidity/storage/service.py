@@ -39,6 +39,10 @@ class ServiceSources:
     independent_fill_value: Callable | None = None
     independent_cashflow_value: Callable | None = None
     joint_spot_recovery: Callable | None = None
+    quote_snapshot: Callable | None = None
+    fee_snapshot: Callable | None = None
+    monotonic_clock: Callable | None = None
+    carry_observation: Callable | None = None
 
 
 class FileLiquidityService:
@@ -67,12 +71,19 @@ class FileLiquidityService:
             raise StorageError('SERVICE_JOINT_SOURCE_REQUIRED')
         if config.hedge_policy is not None and not callable(sources.hedge_market):
             raise StorageError('SERVICE_HEDGE_SOURCE_REQUIRED')
+        if config.quotes is not None and any(not callable(v) for v in (
+                sources.quote_snapshot, sources.fee_snapshot, sources.monotonic_clock)):
+            raise StorageError('SERVICE_QUOTE_SOURCES_REQUIRED')
+        if config.carry_policy is not None and not callable(sources.carry_observation):
+            raise StorageError('SERVICE_CARRY_SOURCE_REQUIRED')
         service = cls()
         service.config, service.sources, service.connectors = config, sources, connectors
         service._revoked, service._cycle = False, None
         service._recovering = service._safety_pending = False
         service._recovery_admitted = 0
         service._pending_events = {}
+        service._action_events = {}
+        service.quotes = service.products = None
         service._hint_generation = service._qualified_hint_generation = 0
         service._close_task = None
         service._recovery_lock = asyncio.Lock()
@@ -105,12 +116,23 @@ class FileLiquidityService:
                 await service.store._call(service._install_products, create_binding)
                 service.joint = await open_file_joint(service.store, recovery=service.controller._joint_recovery,
                                                       owner=config.owner, limits=config.joint.limits, couple_cash=True, couple_spot=True)
+                from hummingbot.strategy_v2.life_liquidity.storage.shared_spot import bind_shared_spot
+                await bind_shared_spot(service.joint)
                 swap_repo = await open_file_swap(service.joint)
                 service.swap = FileSwapApplication(swap_repo, max_pending=config.max_pending,
                                                    ack_timeout_s=config.ack_timeout_s, shutdown_timeout_s=config.shutdown_timeout_s)
                 service.runtime.bind_swap_application(service.swap)
                 if config.hedge_policy is not None:
                     service.hedge = await FileHedgeApplication.install(service.swap, service.controller._hedge_coordinator)
+            if config.carry_policy is not None:
+                from hummingbot.strategy_v2.life_liquidity.storage.products import open_file_products
+                service.products = await open_file_products(service.store,
+                                                            capital=service.controller._shared_capital_authority, carry=service.controller._carry_monitor,
+                                                            hedge=service.controller._hedge_coordinator)
+                await service.store._call(service.runtime.bind_products, service.products)
+            if config.quotes is not None:
+                from hummingbot.strategy_v2.life_liquidity.storage.quote_application import FileQuoteApplication
+                service.quotes = await FileQuoteApplication.install(service)
             service.controller.install_storage_runtime(service.runtime)
             service.runtime.bind_service(service)
             service.reporting = await open_file_recorder(service.runtime, database_path=config.recorder_path,
@@ -166,6 +188,11 @@ class FileLiquidityService:
                                              account_mode=cfg.capital_policy.account_mode, request_budget=budget, create=create,
                                              async_authorize=self.runtime.authorize_swap)
         c.install_protected_swap_sender(sender)
+        if cfg.carry_policy is not None:
+            from hummingbot.strategy_v2.life_liquidity.carry_monitor import CarryMonitor
+            monitor = CarryMonitor(root / 'carry.json', policy=cfg.carry_policy, capital=capital,
+                                   observation=src.carry_observation, clock_ms=sender.clock_ms, create=create)
+            c.install_carry_monitor(monitor)
         c._execution_loss_budget = self.store._loss
         c._execution_loss_utc_clock = src.clock
         if cfg.hedge_policy is not None:
@@ -181,8 +208,20 @@ class FileLiquidityService:
         c.install_joint_recovery(recovery)
 
     async def plan(self):
+        if self._revoked:
+            return []
+        await self.drain_action_events()
         if self._revoked or self._recovering or not self.runtime._local_ready():
             return []
+        if self.config.carry_policy is not None:
+            def carry_stops():
+                c = self.controller
+                allowed = c._carry_ready()
+                return allowed, tuple(a.executor_id for a in c._carry_stops()) if not allowed else ()
+            allowed, stops = await self.store._call(carry_stops)
+            if not allowed:
+                from hummingbot.strategy_v2.models.executor_actions import StopExecutorAction
+                return [StopExecutorAction(controller_id=self.controller.config.id, executor_id=key) for key in stops]
         if self.hedge is not None:
             market = self.sources.hedge_market()
             if inspect.isawaitable(market):
@@ -199,9 +238,9 @@ class FileLiquidityService:
         planner = self.controller._quote_action_planner
         if planner is None:
             return []
-        payloads = await self.store._call(lambda: tuple(a.model_dump_json() for a in planner.propose()))
-        from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction
-        return [CreateExecutorAction.model_validate_json(raw) for raw in payloads] if not self._revoked else []
+        from hummingbot.strategy_v2.life_liquidity.storage.quote_application import FileQuoteApplication
+        payloads = await self.store._call(lambda: tuple(FileQuoteApplication.capture(a) for a in planner.propose()))
+        return [FileQuoteApplication.restore(raw) for raw in payloads] if not self._revoked else []
 
     async def recover(self):
         from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageUnavailable
@@ -253,6 +292,17 @@ class FileLiquidityService:
                         if type(result) is not tuple or len(result) != 2:
                             raise StorageError('SERVICE_JOINT_SPOT_SOURCE_INVALID')
                         fills, facts = result
+                    if facts is not None:
+                        pending = await self.store.pending_spot_commands(self.store.binding)
+                        for item in pending:
+                            if item.owner != self.spot.owner:
+                                raise StorageError('SERVICE_RECOVERY_WRITER_MISMATCH')
+                            if item.kind == 'PREPARE':
+                                await self.store.resume_prepare(item.command, facts=facts,
+                                                                cut=(await self.store.snapshot(self.store.binding)).cut, owner=self.spot.owner)
+                            elif item.kind == 'ARM':
+                                await self.store.resume_arm(item.command.operation_id, facts=facts,
+                                                            cut=(await self.store.snapshot(self.store.binding)).cut, owner=self.spot.owner)
                     if not await self.joint.reconcile(self.store.binding, self.joint.owner,
                                                       spot_fills=fills, spot_facts=facts):
                         raise StorageError(self.joint._recovery.reason_code)
@@ -340,7 +390,34 @@ class FileLiquidityService:
         # loop callback consumes only the one-use in-memory dispatch fence.
         allowed = self.runtime.local_fence(action)
         self.runtime.forget_action(action.executor_config.id)
+        if self.quotes is not None and not self.controller._is_swap_config(action.executor_config):
+            self._enqueue_action_event(action, 'DISPATCHED')
         return allowed
+
+    def _enqueue_action_event(self, action, state):
+        # Capture before yielding; no file I/O on this runner callback.
+        key = (state, action.executor_config.id)
+        if key in self._action_events:
+            return
+        if self._revoked or len(self._action_events) >= self.config.max_pending:
+            self.revoke()
+            return
+        raw = self.quotes.capture(action)
+        task = asyncio.create_task(self.store._call(self.quotes.transition, raw, state))
+        self._action_events[key] = task
+
+        def completed(result):
+            self._action_events.pop(key, None)
+            if result.cancelled() or result.exception() is not None or result.result() is not True:
+                self.revoke()
+        task.add_done_callback(completed)
+
+    async def drain_action_events(self):
+        tasks = tuple(self._action_events.values())
+        if tasks:
+            await asyncio.gather(*tasks)
+        if self._revoked:
+            raise StorageError('SERVICE_REVOKED')
 
     @property
     def admission_paused(self):
@@ -397,6 +474,8 @@ class FileLiquidityService:
         return True
 
     def rejected(self, action):
+        if self.quotes is not None and not self.controller._is_swap_config(action.executor_config):
+            self._enqueue_action_event(action, 'REJECTED')
         self.runtime.forget_action(action.executor_config.id)
         self.controller._runner_stop_revoked_ids.add(action.executor_config.id)
         if self.swap is not None and action.executor_config.connector_name == self.swap.connector.name:
@@ -426,7 +505,7 @@ class FileLiquidityService:
         if self._cycle is not None and not self._cycle.done():
             self._cycle.cancel()
             await asyncio.gather(self._cycle, return_exceptions=True)
-        hints = tuple(self._pending_events.values())
+        hints = tuple(self._pending_events.values()) + tuple(self._action_events.values())
         for task in hints:
             task.cancel()
         if hints:

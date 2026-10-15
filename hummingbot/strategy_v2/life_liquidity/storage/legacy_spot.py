@@ -118,6 +118,7 @@ class LegacySpotStore(LegacyJointCashAdapter, LegacyRecoveryBatchAdapter, Legacy
         if not self._account_lock_root.is_absolute():
             raise StorageError('SPOT_ACCOUNT_LOCK_ROOT_INVALID')
         self._account_lock = None
+        self._shared_spot = None
         if fill_policy is not None and not isinstance(fill_policy, SpotFillPolicy):
             raise StorageError('SPOT_FILL_POLICY_INVALID')
         self._fill_policy = fill_policy
@@ -366,6 +367,8 @@ class LegacySpotStore(LegacyJointCashAdapter, LegacyRecoveryBatchAdapter, Legacy
         return super()._commit(meta.cut, owner, key, (('commands', encode(commands)), ('journal_hashes', encode(hashes))))
 
     def _prepare(self, command, cut, owner):
+        if self._shared_spot is not None:
+            self._shared_spot.validate(command)
         view = self._snapshot()
         meta = self._guard(view, owner)
         command_hash = fingerprint({'command': command.json(), 'cut': cut.json(), 'owner': owner.json()})
@@ -407,12 +410,16 @@ class LegacySpotStore(LegacyJointCashAdapter, LegacyRecoveryBatchAdapter, Legacy
         decision = self._ledger.preview().check_and_hold(self._intent(command), reference_price=command.reference_price_usdt)
         if not decision.allowed or view.budget.loss_exhausted or command.subsidy_quote_usdt > view.budget.subsidy_available_usdt:
             raise StorageError('SPOT_CAPITAL_OR_BUDGET_DENIED')
+        if self._shared_spot is not None:
+            self._shared_spot.preflight(command)
         commands = thaw(meta.resources['commands'])
         commands[command.operation_id] = {'command': command.json(), 'fingerprint': command_hash,
                                           'state': 'PREPARING', 'prepared_at': utc(self._clock()).isoformat(),
                                           'original_cut': cut.json(), 'original_owner': owner.json()}
         try:
             self._publish('prepare:' + command.operation_id, owner, commands, dict(view.cut.components))
+            if self._shared_spot is not None:
+                self._shared_spot.reserve(command)
             self._wal.begin(command.intent_id, client_order_id=command.client_order_id,
                             session_id=command.session_id, epoch=command.epoch, reservation_id=command.intent_id,
                             slot_market=command.market, slot_side=command.side, slot_level=command.quote_level)
@@ -431,6 +438,8 @@ class LegacySpotStore(LegacyJointCashAdapter, LegacyRecoveryBatchAdapter, Legacy
             raise CommitUnknown('SPOT_PREPARATION_UNKNOWN') from None
 
     def _assert_holds(self, command, record):
+        if self._shared_spot is not None:
+            self._shared_spot.verify_hold(command)
         self._wal.assert_verified()
         self._ledger.verify_memory()
         attempt = self._wal.get(command.intent_id)
@@ -442,6 +451,31 @@ class LegacySpotStore(LegacyJointCashAdapter, LegacyRecoveryBatchAdapter, Legacy
                 or not self._subsidy.matches_reservation(command.intent_id, command.subsidy_quote_usdt,
                                                          session_id=command.session_id, at_utc=datetime.fromisoformat(record['prepared_at']))):
             raise StorageError('SPOT_PREPARE_EVIDENCE_INCOMPLETE')
+
+    async def prepare_current(self, command, *, owner):
+        if type(command) is not PrepareSpot or type(owner) is not OwnerToken:
+            raise StorageError('SPOT_COMMAND_INVALID')
+
+        def apply():
+            return self._prepare(command, self._snapshot().cut, owner)
+        try:
+            return await self._call(apply)
+        except asyncio.CancelledError:
+            self._uncertain = True
+            raise
+
+    async def arm_current(self, operation_id, *, owner):
+        identifier(operation_id)
+        if type(owner) is not OwnerToken:
+            raise StorageError('SPOT_COMMAND_INVALID')
+
+        def apply():
+            return self._arm(operation_id, self._snapshot().cut, owner)
+        try:
+            return await self._call(apply)
+        except asyncio.CancelledError:
+            self._uncertain = True
+            raise
 
     async def prepare(self, command, *, cut, owner):
         if not isinstance(command, PrepareSpot) or not isinstance(cut, FinancialCut) or not isinstance(owner, OwnerToken):

@@ -780,8 +780,9 @@ all requested scopes, including durable orders absent from the process's issued
 cache. Cancel ACK and timeout both leave money/budget holds intact. Values are
 explicit controller configuration, not implicit live defaults.
 
-This assembly is **quote-only and opt-in**. It refuses shared-capital and
-inventory/exit routes. Session/watchdog and exact pending-command recovery now
+This assembly is **quote-only and opt-in**. Shared-capital SPOT requires the
+explicit coupled preparation context installed by the configured service below;
+inventory/exit routes remain rejected. Session/watchdog and exact pending-command recovery now
 use the same coordinator as described below. Recorder assembly, request-budget
 ports, complete product routes, backend-neutral runner proof, recovery batches
 with newer external activity and bounded retained-history observation remain
@@ -903,11 +904,45 @@ Position and child shutdown projections drain sequentially even at capacity one.
 release the account lock before the physical worker finishes. This is not a
 promise that non-cooperative disk I/O finishes within a cloud shutdown deadline.
 
-Current service scope is an explicit offline library assembly. It does not
-construct a SPOT quote planner, inventory/exit/carry/markout graph, CLI launcher,
-signed ownership/policy/import service or PostgreSQL financial backend. SPOT
-submission with shared capital remains rejected until its coupled preparation
-application is installed. Unsupported or archived journal formats require
-qualified import; they are not silently adopted. PG1 remains open for these
-routes and their complete acceptance tests. Existing O.8, demo, live and deployment
-gates are unchanged.
+### Configured shared SPOT, quotes and carry
+
+The joint service installs `shared_spot.SharedSpotPreparation`: combined capital
+preflight precedes original PREPARING publication; the original shared claim then
+precedes WAL/principal/subsidy publication on the same worker. Optional
+`PrepareSpot.risk_epoch` is mandatory on this route and absent from legacy JSON
+when unset. Recovery restores only the original admitted hold, validates writer,
+risk provenance and matching qualified wallet facts, and never grants a permit.
+Qualified joint unsent/terminal proof exclusively releases both hold families.
+
+Optional `FileServiceConfig.quotes: QuoteServiceConfig` supplies the reference
+policy/anchor/model, fee group, action capacity and explicit LIFE/USDT fee buffers.
+It requires `ServiceSources.quote_snapshot`, `fee_snapshot` and `monotonic_clock`
+cache callbacks plus complete configured own-depth and economic policies. The
+service creates the actual native planner and fee/reference binding on the
+worker. Sources cannot replace native book/sequence/own-order/rules/reference/fee
+checks or configured minimum edge, uncertainty or subsidy policy. Admission
+computes subsidy from the current economic candidate; configured fee buffers
+must cover a positive maker fee in either possible charged currency. No callback
+can substitute its arbitrary subsidy amount. Missing history or changed quote
+policy on cold startup requires qualified import, not a fresh empty journal.
+
+Typed order-config captures retain the full subclass and explicit UTC timestamp.
+Bounded dispatch/rejection callbacks detach payloads on the loop and publish native
+quote state on the worker. Final post-throttler qualification rechecks held quote
+permits; a pre-preparation config authorization is invalid once WAL exists.
+Non-planner admission terms must remain unchanged. Denied or uncertain attempts
+retain principal/subsidy and never cause a transport retry.
+
+Optional `carry_policy` and `ServiceSources.carry_observation` install the actual
+`CarryMonitor` and typed product repository on the same worker/capital authority.
+Independent mark/index/funding/fee-terms/account streams remain mandatory; failed
+carry qualification stops planning and does not book settlement cash. Joint
+reconciliation remains the only settlement path. Cold startup never rearms.
+
+Current service scope is an explicit offline library assembly. Inventory/exit,
+markout/risk, configured signed grant/policy/import and archive transitions,
+controller configuration reporting/hot reload and a headless launch lifecycle
+remain open. Simultaneous original partial preparation plus newer unrelated joint
+money needs a complete mixed recovery contract. Unsupported archived formats are
+not silently adopted. PG1 remains open for these routes and full coupled parity;
+O.8, PostgreSQL, demo, live and deployment gates remain unchanged.

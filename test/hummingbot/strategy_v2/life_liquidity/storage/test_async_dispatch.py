@@ -174,3 +174,32 @@ async def test_async_required_controller_has_no_sync_authorization_fallback():
     controller.allow_create_executor_actions = lambda: True
     value = runner(controller)
     assert value._filter_authorized_actions([action()]) == []
+
+
+@pytest.mark.parametrize('field,value', [('amount', Decimal('2')), ('price', Decimal('.5')),
+                                         ('side', TradeType.SELL), ('level_id', '1'), ('connector_name', 'other'), ('trading_pair', 'OTHER-USDT')])
+def test_authorization_digest_binds_all_subclass_order_terms(field, value):
+    from hummingbot.strategy_v2.life_liquidity.storage.runtime import FileControllerRuntime
+    original = action()
+    changed = original.model_copy(deep=True)
+    setattr(changed.executor_config, field, value)
+    assert AsyncActionDispatcher._payload(original) != AsyncActionDispatcher._payload(changed)
+    assert FileControllerRuntime._action_digest(original) != FileControllerRuntime._action_digest(changed)
+
+
+@pytest.mark.asyncio
+async def test_payload_mutation_during_projection_cannot_dispatch_previously_qualified_action():
+    class MutatingController(Controller):
+        async def async_before_runner_dispatch(self, proposed):
+            proposed.executor_config.amount = Decimal('1000')
+            return True
+    controller = MutatingController()
+    controller.release.set()
+    value = runner(controller)
+    dispatch = AsyncActionDispatcher(value, max_pending=1, shutdown_timeout_s=.05)
+    try:
+        dispatch.submit([action()])
+        await dispatch.drain()
+        assert not value.executor_orchestrator.execute_action.called
+    finally:
+        await dispatch.close()

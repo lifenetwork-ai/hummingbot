@@ -261,7 +261,7 @@ async def test_cancel_uses_durable_commands_and_bounds_retries_without_releasing
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize('change', ['stop', 'expiry', 'config'])
+@pytest.mark.parametrize('change', ['stop', 'expiry', 'config', 'admission'])
 async def test_repository_spot_rechecks_authority_after_real_throttler_wait(tmp_path, change):
     from contextlib import asynccontextmanager
     app, store, controller, executor, sent, clock = await setup(tmp_path)
@@ -296,6 +296,8 @@ async def test_repository_spot_rechecks_authority_after_real_throttler_wait(tmp_
             app.cancel_local(executor.config.id)
         elif change == 'expiry':
             clock['now'] = app.owner.expires_at
+        elif change == 'admission':
+            app.admission = lambda _: SpotAdmission(Decimal('2'), Decimal('.1'), Decimal('0'), Decimal('0'))
         else:
             controller.config = controller.config.model_copy(update={'cancel_retry_interval_ms': 101})
         release.set()

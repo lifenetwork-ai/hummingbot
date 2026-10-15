@@ -260,6 +260,8 @@ store. Spot coupling additionally requires independent fill and account facts.
                     prepared.client_order_id, prepared.session_id, prepared.epoch, prepared.config_version,
                     prepared.side, prepared.quantity_base, prepared.limit_price_usdt):
                 raise StorageError('JOINT_SPOT_CLAIM_MISMATCH')
+            if prepared.risk_epoch is not None and claim.risk_epoch != prepared.risk_epoch:
+                raise StorageError('JOINT_SPOT_RISK_PROVENANCE_MISMATCH')
             if not order.trades:
                 if key in source:
                     raise StorageError('JOINT_SPOT_SOURCE_SCOPE_MISMATCH')

@@ -148,6 +148,8 @@ class LegacyPrepareRecoveryAdapter:
         try:
             self._publish_prepare_recovery(stage, owner, commands, dict(view.cut.components))
             if not arm:
+                if self._shared_spot is not None:
+                    self._shared_spot.recover_hold(prepared, facts, owner)
                 if wal is None:
                     self._wal.begin(prepared.intent_id, client_order_id=prepared.client_order_id,
                                     session_id=prepared.session_id, epoch=prepared.epoch, reservation_id=prepared.intent_id,

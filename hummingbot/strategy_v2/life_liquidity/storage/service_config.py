@@ -6,8 +6,10 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, model_validator
 
 from controllers.generic.life_liquidity import LifeLiquidityConfig
+from hummingbot.strategy_v2.life_liquidity.carry_monitor import CarryPolicy
 from hummingbot.strategy_v2.life_liquidity.hedge_coordinator import HedgeExecutionPolicy
 from hummingbot.strategy_v2.life_liquidity.market_data import LinearSwapContract
+from hummingbot.strategy_v2.life_liquidity.reference import ReferencePolicy
 from hummingbot.strategy_v2.life_liquidity.request_budget import RequestBudgetPolicy
 from hummingbot.strategy_v2.life_liquidity.risk import RiskLimits
 from hummingbot.strategy_v2.life_liquidity.shared_capital import CapitalPolicy
@@ -39,6 +41,26 @@ class JointServiceConfig(BaseModel):
         return self
 
 
+class QuoteServiceConfig(BaseModel):
+    model_config = ConfigDict(extra='forbid', frozen=True, strict=True)
+    reference_policy: ReferencePolicy
+    life_anchor_usdt: Decimal
+    model_version: str
+    fee_group_id: str
+    max_actions_per_tick: int
+    fee_buffer_quote_usdt: Decimal
+    fee_buffer_base_life: Decimal
+
+    @model_validator(mode='after')
+    def validate_values(self):
+        if (not self.life_anchor_usdt.is_finite() or self.life_anchor_usdt <= 0
+                or not self.model_version or not self.fee_group_id
+                or self.max_actions_per_tick <= 0
+                or any(not v.is_finite() or v < 0 for v in (self.fee_buffer_quote_usdt, self.fee_buffer_base_life))):
+            raise StorageError('SERVICE_QUOTE_CONFIG_INVALID')
+        return self
+
+
 class FileServiceConfig(BaseModel):
     model_config = ConfigDict(extra='forbid', frozen=True, strict=True)
     controller: LifeLiquidityConfig
@@ -65,6 +87,8 @@ class FileServiceConfig(BaseModel):
     request_policy: RequestBudgetPolicy | None = None
     joint: JointServiceConfig | None = None
     hedge_policy: HedgeExecutionPolicy | None = None
+    quotes: QuoteServiceConfig | None = None
+    carry_policy: CarryPolicy | None = None
 
     @model_validator(mode='after')
     def validate_values(self):
@@ -84,8 +108,23 @@ class FileServiceConfig(BaseModel):
         incomplete = any(v is None for v in required) if enabled else any(v is not None for v in required)
         if incomplete:
             raise StorageError('SERVICE_PRODUCT_CONFIG_INCOMPLETE')
-        if self.hedge_policy is not None and not enabled:
-            raise StorageError('SERVICE_HEDGE_REQUIRES_SWAP')
+        if (self.hedge_policy is not None or self.carry_policy is not None) and not enabled:
+            raise StorageError('SERVICE_HEDGE_OR_CARRY_REQUIRES_SWAP')
+        if self.carry_policy is not None and self.carry_policy.account_uid != binding.account_uid:
+            raise StorageError('SERVICE_CARRY_UID_MISMATCH')
         if enabled and self.capital_policy.account_uid != binding.account_uid:
             raise StorageError('SERVICE_CAPITAL_UID_MISMATCH')
+        if self.quotes is not None:
+            economics = self.controller.strategy.economics
+            if (self.quotes.max_actions_per_tick > self.max_pending
+                    or self.controller.strategy.reference.mode != 'market'
+                    or any(v is None for v in (self.controller.own_depth_max_observation_skew_ms,
+                                               self.controller.own_depth_max_book_age_ms, self.controller.own_depth_max_distance_bps,
+                                               economics.min_net_edge_bps, economics.uncertainty_buffer_bps, economics.fee_policy, economics.fee_max_age))):
+                raise StorageError('SERVICE_QUOTE_PROOF_CONFIG_REQUIRED')
+            budget = economics.subsidy_budget_quote
+            if economics.objective == 'liquidity_service' and (
+                    budget.campaign, budget.day or budget.campaign, budget.session or budget.day or budget.campaign) != (
+                    self.subsidy_policy.campaign_limit_quote, self.subsidy_policy.day_limit_quote, self.subsidy_policy.session_limit_quote):
+                raise StorageError('SERVICE_QUOTE_SUBSIDY_MISMATCH')
         return self

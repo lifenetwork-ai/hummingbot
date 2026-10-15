@@ -199,7 +199,9 @@ class FileSpotApplication:
             raise PermissionError('LIFE_TRADING_DISABLED')
         if len(self._pending) >= self.max_pending or len(self._attempted) >= self.store.limits.max_operations:
             raise StorageError('SPOT_APPLICATION_BACKPRESSURE')
-        if (c._shared_capital_authority is not None or c._inventory_executor is not None
+        shared = self.store._shared_spot
+        if (c._shared_capital_authority is not None and (shared is None or shared.capital is not c._shared_capital_authority)
+                or c._inventory_executor is not None
                 or c._spot_exit_planner is not None):
             raise StorageError('SPOT_APPLICATION_PRODUCT_ASSEMBLY_REQUIRED')
         sender = c._protected_spot_sender
@@ -236,12 +238,31 @@ class FileSpotApplication:
             raise PermissionError('SPOT_APPLICATION_REVOKED')
         return terms
 
+    def _qualify_prepared(self, config, digest, permit, original_terms):
+        self.store.assert_worker_thread()
+        c = self.controller
+        if not self.local_ready() or self._digest(config) != digest or config.id in self._revoked_ids:
+            raise PermissionError('SPOT_APPLICATION_REVOKED')
+        from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction
+        action = CreateExecutorAction(controller_id=c.config.id, executor_config=config)
+        if c.allow_executor_action(action) is not True:
+            raise PermissionError('SPOT_APPLICATION_ACTION_UNQUALIFIED')
+        if c._quote_action_planner is None:
+            if (c.authorize_runner_create_action(action) is not True
+                    or self.admission(config.model_copy(deep=True)) != original_terms):
+                raise PermissionError('SPOT_APPLICATION_ADMISSION_CHANGED')
+        elif c._quote_action_planner.authorizes_permit(permit) is not True:
+            raise PermissionError('SPOT_APPLICATION_QUOTE_CHANGED')
+        if not self.local_ready() or config.id in self._revoked_ids:
+            raise PermissionError('SPOT_APPLICATION_REVOKED')
+
     async def _uid(self):
         if await self.connector.get_account_uid() != self.binding.account_uid:
             raise PermissionError('SPOT_APPLICATION_UID_MISMATCH')
 
     async def _submit(self, config, wire, digest):
         await self._uid()
+        await self.runtime.await_reporting()
         terms = await self.store._call(self._qualify_config, config, digest)
         risk_epoch = self.risk_epoch()
         if type(risk_epoch) is not int or risk_epoch <= 0:
@@ -251,10 +272,14 @@ class FileSpotApplication:
         command = PrepareSpot(key, config.id, wire, 'LIFE-USDT', config.side.name, config.amount, config.price,
                               terms.reference_price_usdt, terms.subsidy_quote_usdt,
                               current.session_id, current.epoch, current.config_version, int(config.level_id),
-                              terms.fee_buffer_quote_usdt, terms.fee_buffer_base_life)
+                              terms.fee_buffer_quote_usdt, terms.fee_buffer_base_life,
+                              risk_epoch=risk_epoch if self.store._shared_spot is not None else None)
         self._issued[config.id] = command
-        await self.store.prepare(command, cut=(await self.store.snapshot(self.binding)).cut, owner=self.owner)
+        await self.runtime.await_reporting()
+        await self.store.prepare_current(command, owner=self.owner)
         if not self.local_ready() or config.id in self._revoked_ids:
+            if self.store._shared_spot is not None:
+                return  # Joint source proof exclusively releases shared claims.
             await self.store.apply_lifecycle(SpotLifecycleCommand('abort:' + key, key, config.id, wire, 'ABORT_PREPARED'),
                                              cut=(await self.store.snapshot(self.binding)).cut, owner=self.owner)
             return
@@ -266,7 +291,7 @@ class FileSpotApplication:
         sender._issued_slots[config.id] = int(config.level_id)
         permit = SendPermit(config.id, wire, config.id, current.session_id, current.epoch,
                             current.config_version, risk_epoch, config.price, config.amount)
-        await self.store.arm(key, cut=(await self.store.snapshot(self.binding)).cut, owner=self.owner)
+        await self.store.arm_current(key, owner=self.owner)
         acknowledged = asyncio.Event()
         request_started = False
         qualified = False
@@ -275,8 +300,12 @@ class FileSpotApplication:
             nonlocal qualified
             if request_started or not self.local_ready() or config.id in self._revoked_ids:
                 raise PermissionError('SPOT_APPLICATION_REVOKED')
+            await self.runtime.await_reporting()
             await self._uid()
-            await self.store._call(self._qualify_config, config, digest)
+            # Configuration admission is for a not-yet-prepared proposal.
+            # After WAL publication the native sender verifies the exact issued
+            # config/claim, held principal/subsidy and freshly repriced permit.
+            await self.store._call(self._qualify_prepared, config, digest, permit, terms)
             result = await self.store.check_spot_send(command, owner=self.owner)
             if (not result.qualified or not self.local_ready()
                     or await self.store._call(sender._authorized, permit) is not True):

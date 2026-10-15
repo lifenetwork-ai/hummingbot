@@ -625,6 +625,7 @@ class QuoteActionPlanner:
             used_ids.add(intent_id)
             config = OrderExecutorConfig(
                 id=intent_id, controller_id=self.controller.config.id,
+                timestamp=self.subsidy_utc_clock().timestamp() if callable(self.subsidy_utc_clock) else None,
                 connector_name=self.controller.config.strategy.spot.connector,
                 trading_pair=self.slots.market,
                 side=TradeType.BUY if candidate.side == "BUY" else TradeType.SELL,

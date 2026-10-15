@@ -96,6 +96,13 @@ class FileControllerRuntime:
     def owns_controller(self, controller):
         return controller is self.controller
 
+    def bind_products(self, products):
+        self.store.assert_worker_thread()
+        if self._products is not None or products.store is not self.store or products.binding != self.binding:
+            raise StorageError('RUNTIME_PRODUCT_REPOSITORY_MISMATCH')
+        products.validate_controller(self.controller)
+        self._products = products
+
     def bind_service(self, service):
         if self._service is not None or service.runtime is not self or service.store is not self.store:
             raise StorageError('RUNTIME_SERVICE_MISMATCH')
@@ -114,6 +121,8 @@ class FileControllerRuntime:
         self._recorder_application = application
 
     async def await_reporting(self):
+        if self._service is not None:
+            await self._service.drain_action_events()
         if self._revoked:
             raise StorageError('RUNTIME_REVOKED')
         if self._recorder_application is not None:
