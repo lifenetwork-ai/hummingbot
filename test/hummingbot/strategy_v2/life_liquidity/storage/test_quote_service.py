@@ -10,7 +10,7 @@ from unittest.mock import MagicMock
 import pytest
 
 
-async def quote_service(tmp_path, *, objective='profit_mm', fee_buffers=(D('0'), D('0'))):
+async def quote_service(tmp_path, *, objective='profit_mm', fee_buffers=(D('0'), D('0')), risk_config=None, risk_sources=None, control_config=None, control_seed=None, inventory_config=None, settlement_policy=None):
     from hummingbot.connector.exchange.okx.okx_exchange import OkxExchange
     from hummingbot.strategy_v2.life_liquidity.config import EconomicsConfig, QuotesConfig
     from hummingbot.strategy_v2.life_liquidity.economics import EconomicPolicy
@@ -35,6 +35,13 @@ async def quote_service(tmp_path, *, objective='profit_mm', fee_buffers=(D('0'),
     values.update(controller=controller, quotes=QuoteServiceConfig(reference_policy=market_engine().policy,
                                                                    life_anchor_usdt=D('1'), model_version='test-v1', fee_group_id='1', max_actions_per_tick=1,
                                                                    fee_buffer_quote_usdt=fee_buffers[0], fee_buffer_base_life=fee_buffers[1]))
+    values['risk'] = risk_config
+    values['control'] = control_config
+    values['inventory'] = inventory_config
+    values['settlement_policy'] = settlement_policy
+    if inventory_config is not None:
+        from hummingbot.strategy_v2.life_liquidity.storage.settlement import SpotSettlementPolicy
+        values['settlement_policy'] = SpotSettlementPolicy(1000)
     cfg = FileServiceConfig.model_validate(values)
     connector = OkxExchange('', '', '', trading_pairs=['LIFE-USDT'], trading_required=False)
 
@@ -52,6 +59,9 @@ async def quote_service(tmp_path, *, objective='profit_mm', fee_buffers=(D('0'),
     source = ServiceSources(clock=lambda: cfg.owner.valid_from, risk_epoch=lambda: 1, authorize_permit=lambda _: True,
                             spot_admission=lambda _: SpotAdmission(D('1'), D('99'), D('0'), D('0')),
                             quote_snapshot=lambda: state['snapshot'], fee_snapshot=lambda: state['fee'], monotonic_clock=lambda: 2.05)
+    source = replace(source, control_seed=control_seed)
+    if risk_sources is not None:
+        source = replace(source, **risk_sources)
     provider = MagicMock()
     provider.get_connector_with_fallback.return_value = connector
     service = await FileLiquidityService.open(cfg, connectors={'okx': connector}, sources=source,
@@ -115,9 +125,9 @@ async def test_configured_quote_sources_cannot_bypass_native_proofs(tmp_path, fa
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize('change', ['none', 'book', 'fee', 'stop'])
+@pytest.mark.parametrize('change', ['none', 'book', 'fee', 'stop', 'risk'])
 @pytest.mark.parametrize('objective', ['profit_mm', 'liquidity_service'])
-async def test_configured_quote_actual_runner_rest_reprices_after_throttle(tmp_path, change, objective):
+async def test_configured_quote_actual_runner_rest_reprices_after_throttle(tmp_path, change, objective, inventory_side=None):
     from contextlib import asynccontextmanager
     from types import SimpleNamespace
     from unittest.mock import AsyncMock
@@ -126,7 +136,23 @@ async def test_configured_quote_actual_runner_rest_reprices_after_throttle(tmp_p
     from hummingbot.connector.trading_rule import TradingRule
     from hummingbot.core.web_assistant.connections.rest_connection import RESTConnection
     from hummingbot.core.web_assistant.rest_assistant import RESTAssistant
-    service, state = await quote_service(tmp_path, objective=objective)
+    risk_state, extra = None, {}
+    if inventory_side is not None:
+        from test.hummingbot.strategy_v2.life_liquidity.storage.test_inventory_service import (
+            activate_inventory,
+            inventory_service,
+        )
+        service, risk_state, state, signer = await inventory_service(tmp_path, side=inventory_side)
+        await activate_inventory(service, signer)
+    else:
+        if change == 'risk':
+            from test.hummingbot.strategy_v2.life_liquidity.storage.test_risk_service import policy, sources
+            risk_state, callbacks = sources()
+            extra = dict(risk_config=policy(), risk_sources=callbacks)
+        service, state = await quote_service(tmp_path, objective=objective, **extra)
+        if change == 'risk':
+            assert not await service.store._call(service.risk.ready)
+            assert await service.store._call(service.risk.ready)
     connector = service.connectors['okx']
     entered, release, completed = asyncio.Event(), asyncio.Event(), asyncio.Event()
     sent, failures = [], []
@@ -183,12 +209,14 @@ async def test_configured_quote_actual_runner_rest_reprices_after_throttle(tmp_p
             state['fee'] = replace(state['fee'], maker_cost_rate=D('.01'))
         elif change == 'stop':
             service.spot.cancel_local(config.id)
+        elif change == 'risk':
+            risk_state['risk'] = replace(risk_state['risk'], latency_ok=False)
         release.set()
         await asyncio.wait_for(completed.wait(), 3)
         await service.reporting.drain()
         attempt = await service.store.attempt(config.id, service.store.binding)
         view = await service.store.snapshot(service.store.binding)
-        assert view.balance.reserved_quote_usdt == config.price * config.amount
+        assert view.balance.reserved_quote_usdt == (config.price * config.amount if config.side.name == 'BUY' else 0)
         assert view.balance.total_quote_usdt == D('10')
         # Actual economic cost, not the source callback's arbitrary 99 USDT.
         assert view.budget.session_subsidy_committed_usdt == (D('.01') if objective == 'liquidity_service' else 0)
@@ -247,3 +275,32 @@ async def test_configured_positive_maker_fee_requires_buffers_in_both_possible_f
         assert (await service.store.snapshot(service.store.binding)).balance.reserved_quote_usdt == 0
     finally:
         await service.close()
+
+
+@pytest.mark.asyncio
+async def test_quote_service_stop_cannot_release_physical_account_lock_before_worker_drains(tmp_path):
+    import threading
+
+    from hummingbot.strategy_v2.life_liquidity.account_lock import AccountLockUnavailable, AccountRiskPoolLock
+    service, _ = await quote_service(tmp_path)
+    entered, release = threading.Event(), threading.Event()
+
+    def blocked():
+        entered.set()
+        assert release.wait(5)
+    running = asyncio.create_task(service.store._call(blocked))
+    await asyncio.to_thread(entered.wait, 2)
+    closing = asyncio.create_task(service.close())
+    try:
+        await asyncio.sleep(.05)
+        assert not closing.done()
+        assert service.store._account_lock._fd is not None
+        competing = AccountRiskPoolLock(service.store.binding.account_uid, service.config.account_lock_root)
+        with pytest.raises(AccountLockUnavailable):
+            await asyncio.to_thread(competing.acquire)
+    finally:
+        release.set()
+        await running
+        await closing
+    await asyncio.to_thread(competing.acquire)
+    competing.release()

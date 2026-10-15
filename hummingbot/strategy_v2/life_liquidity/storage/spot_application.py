@@ -155,6 +155,9 @@ class FileSpotApplication:
             runtime = c._storage_runtime
             if runtime is not None and runtime._service is not None and runtime._service.admission_paused:
                 return False
+            if (runtime is not None and runtime._service is not None and runtime._service.risk is not None
+                    and not runtime._service.risk.local_ready()):
+                return False
             current = c._order_safety_manager.current_session
             now = utc(store._clock())
             return (not self._revoked and not self._safety_pending and not store._closed
@@ -227,6 +230,9 @@ class FileSpotApplication:
         if not self.local_ready() or self._digest(config) != digest or config.id in self._revoked_ids:
             raise PermissionError('SPOT_APPLICATION_REVOKED')
         c = self.controller
+        service = self.runtime._service
+        if service is not None and service.risk is not None and not service.risk.ready():
+            raise PermissionError('SPOT_APPLICATION_RISK_UNQUALIFIED')
         from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction
         action = CreateExecutorAction(controller_id=c.config.id, executor_config=config)
         if c.allow_executor_action(action) is not True or c.authorize_runner_create_action(action) is not True:
@@ -241,13 +247,20 @@ class FileSpotApplication:
     def _qualify_prepared(self, config, digest, permit, original_terms):
         self.store.assert_worker_thread()
         c = self.controller
+        service = self.runtime._service
+        if service is not None and service.risk is not None and not service.risk.ready():
+            raise PermissionError('SPOT_APPLICATION_RISK_UNQUALIFIED')
         if not self.local_ready() or self._digest(config) != digest or config.id in self._revoked_ids:
             raise PermissionError('SPOT_APPLICATION_REVOKED')
         from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction
         action = CreateExecutorAction(controller_id=c.config.id, executor_config=config)
         if c.allow_executor_action(action) is not True:
             raise PermissionError('SPOT_APPLICATION_ACTION_UNQUALIFIED')
-        if c._quote_action_planner is None:
+        bounded = c.bounded_spot_planner(config)
+        if bounded is not None:
+            if bounded.authorizes_permit(permit, c._protected_spot_sender._issued_intents[config.id]) is not True:
+                raise PermissionError('SPOT_APPLICATION_INVENTORY_CHANGED')
+        elif c._quote_action_planner is None:
             if (c.authorize_runner_create_action(action) is not True
                     or self.admission(config.model_copy(deep=True)) != original_terms):
                 raise PermissionError('SPOT_APPLICATION_ADMISSION_CHANGED')

@@ -70,7 +70,7 @@ async def test_configured_spot_service_assembles_controller_and_runner_then_star
         await cold.close()
 
 
-async def joint_service(tmp_path, *, create=True, hedge=True, carry=False):
+async def joint_service(tmp_path, *, create=True, hedge=True, carry=False, config_extra=None, source_extra=None):
     from test.hummingbot.strategy_v2.life_liquidity.test_hedge_coordinator import setup_coordinator
 
     from hummingbot.connector.derivative.okx_perpetual.okx_perpetual_derivative import OkxPerpetualDerivative
@@ -127,6 +127,10 @@ async def joint_service(tmp_path, *, create=True, hedge=True, carry=False):
         config = FileServiceConfig.model_validate({**{key: getattr(config, key) for key in FileServiceConfig.model_fields},
                                                    'carry_policy': policy})
         sources = replace(sources, carry_observation=lambda: feed)
+    if config_extra is not None:
+        config = FileServiceConfig.model_validate({**{k: getattr(config, k) for k in FileServiceConfig.model_fields}, **config_extra})
+    if source_extra is not None:
+        sources = replace(sources, **source_extra(config, sources))
     spot = OkxExchange('', '', '', trading_pairs=['LIFE-USDT'], trading_required=False)
     swap = OkxPerpetualDerivative(trading_pairs=['LIFE-USDT'], trading_required=False)
     swap._perpetual_trading._position_mode = PositionMode.ONEWAY

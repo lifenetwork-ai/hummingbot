@@ -39,7 +39,7 @@ class LegacyControlAdapter:
             return snapshot
         try:
             ownership = self._operator_keys.verify_seed(snapshot.resources['control_seed'], self.binding)
-            approved = {}
+            approved, inventory_mode = {}, None
             for key, row in sorted(records.items(), key=lambda item: item[1]['revision']):
                 self._operator_keys.audit(row, self.binding)
                 entry = snapshot.resources['control_operations'][key]
@@ -62,6 +62,13 @@ class LegacyControlAdapter:
                     if bill['bill_id'] in approved and approved[bill['bill_id']] != bill:
                         raise StorageUnavailable('CONTROL_APPROVAL_CONFLICT')
                     approved[bill['bill_id']] = bill
+                elif role == 'INVENTORY':
+                    payload = row['payload']
+                    if (payload['kind'] != 'INVENTORY_MODE' or payload['mode'] not in ('MM', 'INVENTORY')
+                            or payload['campaign_id'] != snapshot.resources['inventory_service_policy']['campaign_id']
+                            or payload['policy_digest'] != fingerprint(thaw(snapshot.resources['inventory_service_policy']))):
+                        raise StorageUnavailable('CONTROL_INVENTORY_MODE_UNVERIFIED')
+                    inventory_mode = {'mode': payload['mode'], 'control_operation': key}
                 elif role == 'IMPORT':
                     payload = row['payload']
                     if payload['kind'] == 'IMPORT_PREPARATION_ORIGIN':
@@ -79,6 +86,12 @@ class LegacyControlAdapter:
                     raise StorageUnavailable('CONTROL_COMMAND_SCHEMA_UNSUPPORTED')
             actual = {'mode': snapshot.ownership.mode.value,
                       'token': snapshot.ownership.token.json() if snapshot.ownership.token is not None else None}
+            if 'inventory_service_policy' in snapshot.resources:
+                expected_mode = inventory_mode or {'mode': 'MM', 'control_operation': None}
+                if snapshot.resources.get('inventory_mode') != expected_mode:
+                    raise StorageUnavailable('CONTROL_INVENTORY_MODE_UNVERIFIED')
+            elif 'inventory_mode' in snapshot.resources:
+                raise StorageUnavailable('CONTROL_INVENTORY_MODE_UNVERIFIED')
             if actual != ownership or approved != snapshot.resources.get('additional_cashflow_approvals', {}):
                 raise StorageUnavailable('CONTROL_PROJECTION_UNVERIFIED')
         except (KeyError, ValueError, TypeError, StorageError):

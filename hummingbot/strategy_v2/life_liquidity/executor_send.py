@@ -38,6 +38,11 @@ class ProtectedSpotExecutorSender:
         self.gateway.authorize = self._authorized
 
     def _exit_planner(self, intent_id):
+        runtime = getattr(self.controller, '_storage_runtime', None)
+        if runtime is not None and runtime._service is not None and runtime._service.inventory is not None:
+            inventory = runtime._service.inventory
+            if intent_id in inventory._configs:
+                return inventory
         inventory = self.controller._inventory_executor
         if inventory is not None and intent_id in inventory._configs:
             return inventory
@@ -57,9 +62,14 @@ class ProtectedSpotExecutorSender:
         current = self.manager.current_session
         if permit.intent_id in self.controller._runner_stop_revoked_ids:
             return False
-        allowed = ((self.controller.allow_inventory_execution_actions() if exit_planner is self.controller._inventory_executor
-                    else self.controller.allow_risk_reduction_actions()) if exit_planner is not None
-                   else self.controller.allow_create_executor_actions())
+        runtime = getattr(self.controller, '_storage_runtime', None)
+        if (exit_planner is not None and runtime is not None and runtime._service is not None
+                and exit_planner is runtime._service.inventory):
+            allowed = exit_planner.permissions()
+        else:
+            allowed = ((self.controller.allow_inventory_execution_actions() if exit_planner is self.controller._inventory_executor
+                        else self.controller.allow_risk_reduction_actions()) if exit_planner is not None
+                       else self.controller.allow_create_executor_actions())
         session_ready = (self.manager.can_reduce() if exit_planner is not None else self.manager.can_quote(
             reference_ready=True, all_gates_ready=True, market_reference_ready=True))
         if (allowed is not True
@@ -108,6 +118,9 @@ class ProtectedSpotExecutorSender:
 
     def submit(self, config: OrderExecutorConfig, *, amount: Decimal,
                price: Decimal, order_type: OrderType) -> str:
+        runtime = getattr(self.controller, '_storage_runtime', None)
+        if runtime is not None and runtime.handles_financial_spot:
+            raise ValueError('SPOT_REPOSITORY_APPLICATION_REQUIRED')
         pair = self.controller.config.strategy.spot.pair
         connector_name = self.controller.config.strategy.spot.connector
         if (not isinstance(config, OrderExecutorConfig) or not config.id

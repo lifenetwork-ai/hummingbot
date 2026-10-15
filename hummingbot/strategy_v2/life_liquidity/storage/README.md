@@ -963,11 +963,68 @@ amounts never supply financial authority. The complete independent native joint
 account/order proof still owns money and release. No volatile executor or sender
 permit is restored from a report.
 
-Current service scope is an explicit offline library assembly. Inventory/exit,
-markout/risk, configured signed grant/policy/import and archive transitions,
-controller configuration reporting/hot reload and a headless launch lifecycle
-remain open. Missing native preparation/arm checkpoints, simultaneous other partial families
-and unadmitted external transfers with newer joint money still need their full
-mixed recovery contract. Unsupported archived formats are
-not silently adopted. PG1 remains open for these routes and full coupled parity;
-O.8, PostgreSQL, demo, live and deployment gates remain unchanged.
+### Configured risk, inventory and signed control
+
+Optional `FileServiceConfig.risk` installs `FileRiskApplication` on the existing
+worker. `nav_observation`, `safety_observation` and `monotonic_clock` are explicit
+cache-only source callbacks; configured markout also requires
+`horizon_observation(trade_id, horizon_ms)`. Independent source, valuation time,
+observation time, freshness and cohort terms are checked. The repository remains
+the sole wallet/NAV/highwater writer. Actual available cash caps SPOT margin;
+joint measurements retain SWAP positions/collateral without double counting.
+`risk.local_ready()` reads caches only and closes SPOT/SWAP/runner admission for
+known bad/changed/expired data after worker or transport waits. A timestamp-only
+refresh cannot extend the old proof. Cold state requires a new signed grant;
+a HALT cannot be cleared by activation, diagnostics or recovery.
+
+Optional `FileServiceConfig.control` contains public Ed25519 keys and roles.
+Fresh offline bootstrap requires a `control_seed(binding, owner)` startup callback
+returning an externally signed seed; the callback and any signing provider are
+not retained by the service. `control.snapshot()` stops cached admission, drains
+reporting/hints and obtains independently qualified SPOT/joint facts.
+`control.apply(command, approval=..., snapshot=...)` supports owner transitions,
+cashflow approval, existing preparation-origin/approved-cashflow imports and the
+configured inventory-mode command. Sign outside the runtime. Activation requires
+a new same-process grant plus fresh native joint proof where enabled; replay has
+no volatile rearm effect. Other policy/lineage/archive commands remain unsupported.
+
+Optional `FileServiceConfig.inventory` requires quotes, risk, control and an
+explicit `settlement_policy`. Campaign target, benchmark, deadline, child size,
+participation, impact and loss limits are fixed. `inventory_observation` supplies
+independent volume/market inputs; native quote own-depth/reference/rules/fee
+proofs still apply. Signed `InventoryModeCommand` binds the exact policy digest.
+The worker plans one bounded child at a time through the actual asynchronous
+runner/SPOT application, using existing financial holds and actual accumulated
+fills/costs. Partial terminal retries cannot reset target, budget or deadline.
+Cold readback restores no child config or send permit. This application does not
+install a second attributor, wallet or exit-loss ledger.
+
+For `liquidity_service`,
+`await controller.settle_service_inventory(cycle_id, intent_ids)` routes through
+`control.settle_inventory()`. Fresh independent account/order/bill/runner scope
+and the original terminal physically net-flat cycle determine actual subsidy
+cost; callers provide no release amount. Native settlement receipts deduplicate
+replay and cold resume, preserving balances and cumulative execution loss.
+Unknown publication locks the store until reopen and never grants activation.
+Manual `controller.manual_kill_switch()` revokes locally at once, then coalesces
+durable HALT/cancellation work on the existing worker. Physical account exclusion
+lasts until FIFO store cleanup completes, including after a controller stop.
+
+### Original missing-hold and arm recovery
+
+The joint service can conservatively restore an original admitted shared claim,
+WAL, principal and subsidy hold when a preparation checkpoint is missing. Exact
+original writer/cut/fingerprint, policy and actually applied native money remain
+mandatory. It may similarly finish original unknown-send arm bookkeeping.
+These steps neither account newer money nor complete a receipt/release. A full
+fresh independent native joint proof must then qualify all SPOT/SWAP effects and
+the existing final accounting/release saga. Partial restoration stays uncertain;
+no new permit, resend or volatile child is reconstructed.
+
+Current service scope remains an explicit offline library assembly. Separate
+native exit/recovery-probe/session-successor routes, simultaneous other partial
+families and unadmitted external transfers, broader signed policy/lineage/archive
+transitions, controller configuration reporting/hot reload and a supported
+headless launch lifecycle remain open. Actual runner/REST tests use explicit
+synthetic listing/feed releases. PG1 stays open for those routes and complete
+coupled parity; O.8, PostgreSQL, demo, live and deployment gates are unchanged.

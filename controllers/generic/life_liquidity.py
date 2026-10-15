@@ -917,6 +917,10 @@ class LifeLiquidityController(ControllerBase):
 
     def manual_kill_switch(self) -> None:
         """Persist an operator HALT and start the existing cancel/reconcile loop."""
+        runtime = self._storage_runtime
+        if runtime is not None and runtime._service is not None and runtime._service.risk is not None:
+            runtime._service.request_halt()
+            return
         if self._runtime_risk_gate is None:
             raise ValueError("RUNTIME_RISK_GATE_NOT_INSTALLED")
         try:
@@ -1131,6 +1135,9 @@ class LifeLiquidityController(ControllerBase):
             return False
 
     def _runtime_risk_ready(self) -> bool:
+        runtime = self._storage_runtime
+        if runtime is not None and runtime._service is not None and runtime._service.risk is not None:
+            return runtime._service.risk.ready()
         gate = self._runtime_risk_gate
         if gate is None:
             return True  # Production permission remains disabled separately.
@@ -1217,6 +1224,9 @@ class LifeLiquidityController(ControllerBase):
         self.execution_loss_reason_code = "EXECUTION_LOSS_BUDGET_STARTUP_REVALIDATION"
 
     def _execution_loss_ready(self) -> bool:
+        runtime = self._storage_runtime
+        if runtime is not None and runtime._service is not None and self._execution_loss_budget is None:
+            return runtime._service.financial_ready(check_loss=True)
         ledger = self._execution_loss_budget
         if ledger is None:
             return True  # Production order permission remains disabled separately.
@@ -1304,6 +1314,13 @@ class LifeLiquidityController(ControllerBase):
 
     async def settle_service_inventory(self, cycle_id: str, intent_ids: tuple[str, ...]) -> bool:
         """Requery exchange/account scope before releasing a closed inventory hold."""
+        runtime = self._storage_runtime
+        if runtime is not None and runtime._service is not None:
+            service = runtime._service
+            if service.control is None:
+                from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError
+                raise StorageError('SERVICE_SETTLEMENT_CONTROL_REQUIRED')
+            return await service.control.settle_inventory(cycle_id, intent_ids)
         attributor, gateway = self._fill_attributor, self._order_safety_gateway
         if (self.config.strategy.economics.objective != "liquidity_service"
                 or attributor is None or attributor.subsidy_budget is None or gateway is None
@@ -1321,6 +1338,9 @@ class LifeLiquidityController(ControllerBase):
         return attributor.settle_inventory_cycle(cycle_id, intent_ids)
 
     def _fill_attribution_ready(self) -> bool:
+        runtime = self._storage_runtime
+        if runtime is not None and runtime._service is not None:
+            return runtime._service.financial_ready()
         if self._fill_attributor is None:
             return self.config.strategy.economics.objective != "liquidity_service"
         if (self.config.strategy.economics.objective == "liquidity_service"
@@ -1379,6 +1399,9 @@ class LifeLiquidityController(ControllerBase):
             side, quantity_base, exclude_open_intent=exclude_open_intent))
 
     def _markout_risk_ready(self) -> bool:
+        runtime = self._storage_runtime
+        if runtime is not None and runtime._service is not None and runtime._service.risk is not None:
+            return runtime._service.risk.markout_ready()
         monitor = self._markout_monitor
         if monitor is None:
             return True  # Production order permission remains disabled separately.
@@ -1408,9 +1431,17 @@ class LifeLiquidityController(ControllerBase):
         return self._inventory_executor is not None and self._inventory_executor.allows_mm()
 
     def _mm_mode_ready(self) -> bool:
+        runtime = self._storage_runtime
+        if runtime is not None and runtime._service is not None and runtime._service.inventory is not None:
+            return runtime._service.inventory.mm_ready()
         return self._inventory_executor is None or self._inventory_executor.allows_mm()
 
     def bounded_spot_planner(self, config):
+        runtime = self._storage_runtime
+        if runtime is not None and runtime._service is not None and runtime._service.inventory is not None:
+            inventory = runtime._service.inventory
+            if inventory.handles(config):
+                return inventory
         if self._inventory_executor is not None and self._inventory_executor.handles(config):
             return self._inventory_executor
         if self._spot_exit_planner is not None and self._spot_exit_planner.handles(config):
@@ -1418,6 +1449,9 @@ class LifeLiquidityController(ControllerBase):
         return None
 
     def _bounded_pending_ready(self):
+        runtime = self._storage_runtime
+        if runtime is not None and runtime._service is not None and runtime._service.inventory is not None:
+            return runtime._service.inventory.pending_exit_ready()
         return ((self._spot_exit_planner is not None and self._spot_exit_planner.pending_exit_ready())
                 or (self._inventory_executor is not None and self._inventory_executor.pending_exit_ready()))
 
@@ -2128,6 +2162,12 @@ class LifeLiquidityController(ControllerBase):
             self._release_account_lock()
 
     def _release_account_lock(self) -> None:
+        runtime = self._storage_runtime
+        if runtime is not None and runtime.handles_financial_spot is True:
+            # The repository owns physical exclusion until its FIFO cleanup
+            # drains every admitted financial/reporting job, including late ACKs.
+            self._release_account_lock_on_task_done = False
+            return
         if self._order_safety_account_lock is not None:
             self._order_safety_account_lock.release()
             self._order_safety_account_lock = None

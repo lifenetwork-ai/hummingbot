@@ -995,6 +995,24 @@ class JointRecovery:
     def manual_rearm(self, *, operator_id):
         if self._repository_application is not None:
             raise ValueError('JOINT_REPOSITORY_SIGNED_REARM_REQUIRED')
+        return self._rearm(operator_id)
+
+    def _signed_rearm(self, operator_id, *, authority):
+        if self._repository_application is not authority:
+            raise ValueError('JOINT_REPOSITORY_SIGNED_REARM_REQUIRED')
+        authority.store.assert_worker_thread()
+        meta = authority.store._read()
+        if (meta.ownership.mode.value != 'ACTIVE' or meta.ownership.token != authority.owner
+                or authority.store._cold_unarmed):
+            raise ValueError('JOINT_REPOSITORY_SIGNED_REARM_REQUIRED')
+        # Only an exact signature-audited fresh ACTIVATE can reach this call.
+        records = meta.resources.get('control_operations', {}).values()
+        if not any(row['approval']['role'] == 'ACTIVATE' and row['approval']['operator_id'] == operator_id
+                   and row['payload']['token'] == authority.owner.json() for row in records):
+            raise ValueError('JOINT_REPOSITORY_SIGNED_REARM_REQUIRED')
+        return self._rearm(operator_id)
+
+    def _rearm(self, operator_id):
         self._armed = False
         if not isinstance(operator_id, str) or not operator_id.strip():
             raise ValueError("JOINT_OPERATOR_REQUIRED")

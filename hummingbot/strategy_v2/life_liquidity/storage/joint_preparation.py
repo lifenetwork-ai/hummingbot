@@ -10,6 +10,79 @@ from hummingbot.strategy_v2.life_liquidity.storage.financial import FinancialCut
 
 
 class LegacyJointPreparationAdapter:
+    def _restore_original_preparation_holds(self, prepared, facts, owner, authority):
+        self.assert_worker_thread()
+        if self._shared_spot is None or self._shared_spot.joint is not authority or authority.store is not self:
+            raise StorageError('JOINT_ORIGINAL_HOLD_AUTHORITY_REQUIRED')
+        authority._guard()
+        meta = self._read()
+        self._prepared_request_origin(prepared, meta.resources['commands'].get(prepared.operation_id), owner)
+        view, meta, record, original, completed = self._prepare_recovery_guard(
+            prepared.operation_id, prepared, facts, self._snapshot().cut, owner, False)
+        if completed:
+            return
+        # A hold is a liability, never income or a release. Reconstruct only
+        # admitted original zero-fill holds over verified prior native money.
+        # Final account comparison belongs to the subsequent complete joint
+        # proof; PREPARING remains durable throughout this conservative repair.
+        wal, principal, subsidy = self._prepare_recovery_evidence(original, record, view, meta, facts, False, hold_only=True)
+        commands = thaw(meta.resources['commands'])
+        commands[prepared.operation_id]['hold_recovery_facts'] = facts.json()
+        try:
+            self._publish_prepare_recovery('hold-restore:' + fingerprint({'operation': prepared.operation_id, 'cut': view.cut.json()}),
+                                           owner, commands, dict(view.cut.components))
+            self._shared_spot.recover_hold(original, facts, owner)
+            if wal is None:
+                self._wal.begin(original.intent_id, client_order_id=original.client_order_id, session_id=original.session_id,
+                                epoch=original.epoch, reservation_id=original.intent_id, slot_market=original.market,
+                                slot_side=original.side, slot_level=original.quote_level)
+            if principal is None:
+                if not self._ledger.reserve(self._intent(original), reference_price=original.reference_price_usdt).allowed:
+                    raise StorageError('JOINT_ORIGINAL_PRINCIPAL_INCOMPLETE')
+            if not subsidy:
+                if not self._subsidy.reserve(original.intent_id, original.subsidy_quote_usdt, session_id=original.session_id,
+                                             at_utc=datetime.fromisoformat(record['prepared_at'])):
+                    raise StorageError('JOINT_ORIGINAL_SUBSIDY_INCOMPLETE')
+            self._assert_original_prepared_receipt(original, record, owner, facts.observed_at)
+            self._publish_prepare_recovery('holds-restored:' + original.operation_id, owner, commands,
+                                           self._hashes(self._raw()))
+        except BaseException:
+            self._uncertain = True
+            raise
+
+    def _restore_original_arm_bookkeeping(self, operation_id, facts, owner, authority):
+        self.assert_worker_thread()
+        if self._shared_spot is None or self._shared_spot.joint is not authority or authority.store is not self:
+            raise StorageError('JOINT_ORIGINAL_HOLD_AUTHORITY_REQUIRED')
+        authority._guard()
+        record = self._read().resources['commands'].get(operation_id)
+        if record is None:
+            raise StorageError('JOINT_ORIGINAL_ARM_REQUIRED')
+        prepared = PrepareSpot.from_json(record['command'])
+        self._prepared_request_origin(prepared, record, owner)
+        view, meta, record, prepared, completed = self._prepare_recovery_guard(
+            operation_id, None, facts, self._snapshot().cut, owner, True)
+        if completed:
+            return
+        if FinancialCut.from_json(record['arm_cut']).checkpoint.binding != self.binding:
+            raise StorageError('JOINT_ORIGINAL_ARM_NAMESPACE_MISMATCH')
+        wal, _, _ = self._prepare_recovery_evidence(prepared, record, view, meta, facts, True, hold_only=True)
+        commands = thaw(meta.resources['commands'])
+        commands[operation_id]['arm_hold_recovery_facts'] = facts.json()
+        try:
+            self._publish_prepare_recovery('arm-hold-restore:' + fingerprint({'operation': operation_id, 'cut': view.cut.json()}),
+                                           owner, commands, dict(view.cut.components))
+            if wal.state == 'PREPARED':
+                self._assert_holds(prepared, record)
+                self._wal.arm_send(prepared.intent_id, client_order_id=prepared.client_order_id,
+                                   session_id=prepared.session_id, epoch=prepared.epoch, reservation_id=prepared.intent_id)
+            self._prepare_recovery_evidence(prepared, record, self._snapshot(), meta, facts, True, hold_only=True)
+            commands[operation_id]['state'] = 'SEND_UNKNOWN'
+            self._publish_prepare_recovery('armed:' + operation_id, owner, commands, self._hashes(self._raw()))
+        except BaseException:
+            self._uncertain = True
+            raise
+
     def _prepared_request_origin(self, prepared, record, owner):
         if (record is None or record['command'] != prepared.json() or record.get('original_owner') != owner.json()
                 or 'original_cut' not in record or record['fingerprint'] != fingerprint({'command': prepared.json(),

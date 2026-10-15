@@ -60,6 +60,9 @@ class RuntimeAuthorizationRepository(Protocol):
     def forget_action(self, intent_id: str) -> None:
         ...
 
+    def invalidate_actions(self) -> None:
+        ...
+
     @property
     def handles_financial_spot(self) -> bool:
         ...
@@ -202,6 +205,8 @@ class FileControllerRuntime:
         try:
             if self._recorder_startup_pending or self._service is not None and self._service.admission_paused:
                 return False
+            if self._service is not None and self._service.risk is not None and not self._service.risk.local_ready():
+                return False
             if self._recorder_application is not None and not self._recorder_application.ready:
                 return False
             if self._spot_application is not None and not self._spot_application.local_ready():
@@ -227,6 +232,9 @@ class FileControllerRuntime:
         return (self._local_ready() and action.controller_id == self.controller.config.id
                 and action.executor_config.id not in self.controller._runner_stop_revoked_ids)
 
+    def invalidate_actions(self):
+        self._action_hashes.clear()
+
     def forget_action(self, intent_id):
         self._action_hashes.pop(intent_id, None)
 
@@ -243,6 +251,8 @@ class FileControllerRuntime:
 
     def _worker_check(self, kind, value):
         if not self._local_ready():
+            return False
+        if self._service is not None and self._service.risk is not None and not self._service.risk.ready():
             return False
         meta = self.store._read()
         if meta.ownership.mode is not OwnerMode.ACTIVE or meta.ownership.token != self.owner:

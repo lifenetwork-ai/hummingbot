@@ -83,6 +83,12 @@ class JointRepository(Protocol):
     async def swap_state(self, binding: StateBinding) -> SwapFinancialView:
         ...
 
+    async def restore_original_spot_holds(self, command: PrepareSpot, facts: SpotFinancialRecoveryFacts) -> None:
+        ...
+
+    async def restore_original_arm_bookkeeping(self, operation_id: str, facts: SpotFinancialRecoveryFacts) -> None:
+        ...
+
 
 class FileJointRepository:
     """Native checkpoints share the owning store worker.
@@ -115,6 +121,26 @@ store. Spot coupling additionally requires independent fill and account facts.
         self._admitted = set()
         self._capture_policy = HistoryWorkerPolicy(limits.max_orders, limits.max_trades,
                                                    limits.max_snapshot_bytes, recovery.max_age_ms)
+
+    async def restore_original_spot_holds(self, command, facts):
+        if not self._couple_spot or type(command) is not PrepareSpot or type(facts) is not SpotFinancialRecoveryFacts:
+            raise StorageError('JOINT_ORIGINAL_HOLD_COMMAND_INVALID')
+        self.store._assert_binding(facts.binding)
+        try:
+            await self.store._call(self.store._restore_original_preparation_holds, command, facts, self.owner, self)
+        except asyncio.CancelledError:
+            self.store._uncertain = True
+            raise
+
+    async def restore_original_arm_bookkeeping(self, operation_id, facts):
+        if not self._couple_spot or type(operation_id) is not str or type(facts) is not SpotFinancialRecoveryFacts:
+            raise StorageError('JOINT_ORIGINAL_ARM_COMMAND_INVALID')
+        self.store._assert_binding(facts.binding)
+        try:
+            await self.store._call(self.store._restore_original_arm_bookkeeping, operation_id, facts, self.owner, self)
+        except asyncio.CancelledError:
+            self.store._uncertain = True
+            raise
 
     def _policy(self):
         recovery = self._recovery
@@ -231,8 +257,8 @@ store. Spot coupling additionally requires independent fill and account facts.
                              True, True, 'okx_joint_reconciled', qualified_fills, tuple(transfers.values()), self.qualified_acks(orders), receipts)
 
     def _prepare_spot_fills(self, orders, supplied, facts, resources, observation, encoded, proof_id):
-        if not orders:
-            if supplied or facts is not None:
+        if not orders and facts is None:
+            if supplied:
                 raise StorageError('JOINT_SPOT_SOURCE_SCOPE_MISMATCH')
             return ()
         if (facts is None or facts.binding != self.binding
@@ -244,6 +270,11 @@ store. Spot coupling additionally requires independent fill and account facts.
                 or set(facts.accepted_wire_ids) != {o.claim.wire_id for o in orders.values() if o.state != 'unsent'}
                 or not set(facts.runner_wire_ids).issubset({r.client_order_id for r in self.store._wal.all_records()})):
             raise StorageError('JOINT_SPOT_ACCOUNT_FACTS_REQUIRED')
+        if not orders:
+            if (supplied or set(facts.account_trade_ids) != set(resources.get('fills', {}))
+                    or set(facts.account_cashflow_ids) != set(self.qualified_cashflows() or {})):
+                raise StorageError('JOINT_SPOT_SOURCE_SCOPE_MISMATCH')
+            return ()
         source = {v.intent_id: v for v in supplied}
         if len(source) != len(supplied) or not set(source).issubset(orders):
             raise StorageError('JOINT_SPOT_SOURCE_SCOPE_MISMATCH')

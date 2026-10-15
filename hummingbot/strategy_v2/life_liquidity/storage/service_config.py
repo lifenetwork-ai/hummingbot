@@ -1,5 +1,6 @@
 """Explicit file-service settings. Values are detached before worker startup."""
 import math
+from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 
@@ -8,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, model_validator
 from controllers.generic.life_liquidity import LifeLiquidityConfig
 from hummingbot.strategy_v2.life_liquidity.carry_monitor import CarryPolicy
 from hummingbot.strategy_v2.life_liquidity.hedge_coordinator import HedgeExecutionPolicy
+from hummingbot.strategy_v2.life_liquidity.inventory_execution import InventoryExecutionPolicy
 from hummingbot.strategy_v2.life_liquidity.market_data import LinearSwapContract
 from hummingbot.strategy_v2.life_liquidity.reference import ReferencePolicy
 from hummingbot.strategy_v2.life_liquidity.request_budget import RequestBudgetPolicy
@@ -19,6 +21,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.file import FileLimits
 from hummingbot.strategy_v2.life_liquidity.storage.financial import BudgetPolicy, SpotFillPolicy
 from hummingbot.strategy_v2.life_liquidity.storage.joint import JointLimits
 from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancialRecoveryPolicy
+from hummingbot.strategy_v2.life_liquidity.storage.settlement import SpotSettlementPolicy
 from hummingbot.strategy_v2.life_liquidity.storage.terminal import SpotTerminalPolicy
 
 
@@ -61,6 +64,86 @@ class QuoteServiceConfig(BaseModel):
         return self
 
 
+class InventoryServiceConfig(BaseModel):
+    model_config = ConfigDict(extra='forbid', frozen=True, strict=True)
+    campaign_id: str
+    started_at: datetime
+    policy: InventoryExecutionPolicy
+    max_age_ms: int
+
+    @model_validator(mode='after')
+    def validate_values(self):
+        from hummingbot.strategy_v2.life_liquidity.storage.contracts import identifier, utc
+        identifier(self.campaign_id)
+        utc(self.started_at)
+        if self.started_at >= self.policy.deadline_utc or self.max_age_ms <= 0:
+            raise StorageError('SERVICE_INVENTORY_CONFIG_INVALID')
+        return self
+
+
+class ControlServiceConfig(BaseModel):
+    model_config = ConfigDict(extra='forbid', frozen=True, strict=True)
+    public_keys: dict[str, str]
+    roles: dict[str, tuple[str, ...]]
+
+    @model_validator(mode='after')
+    def validate_values(self):
+        self.verifier()
+        return self
+
+    def verifier(self):
+        from hummingbot.strategy_v2.life_liquidity.storage.control_plane import OperatorVerifier
+        try:
+            return OperatorVerifier({k: bytes.fromhex(v) for k, v in self.public_keys.items()},
+                                    {k: frozenset(v) for k, v in self.roles.items()})
+        except (ValueError, TypeError):
+            raise StorageError('SERVICE_OPERATOR_PUBLIC_KEYS_INVALID') from None
+
+
+class MarkoutServiceConfig(BaseModel):
+    model_config = ConfigDict(extra='forbid', frozen=True, strict=True)
+    horizons_ms: tuple[int, ...]
+    min_samples: int
+    size_cutoff_base: Decimal
+    cohort_window_ms: int
+    max_horizon_lag_ms: int
+    min_mean_markout_quote: Decimal
+    monitored_cohorts: tuple[tuple[str, str, int], ...]
+
+    @model_validator(mode='after')
+    def validate_values(self):
+        if (not self.horizons_ms or any(v <= 0 for v in self.horizons_ms)
+                or len(set(self.horizons_ms)) != len(self.horizons_ms) or self.min_samples < 1
+                or not self.size_cutoff_base.is_finite() or self.size_cutoff_base <= 0
+                or self.cohort_window_ms <= max(self.horizons_ms) or self.max_horizon_lag_ms < 0
+                or not self.min_mean_markout_quote.is_finite() or not self.monitored_cohorts
+                or len(set(self.monitored_cohorts)) != len(self.monitored_cohorts)
+                or any(s not in ('BUY', 'SELL') or b not in ('small', 'large') or h not in self.horizons_ms
+                       for s, b, h in self.monitored_cohorts)):
+            raise StorageError('SERVICE_MARKOUT_CONFIG_INVALID')
+        return self
+
+
+class RiskServiceConfig(BaseModel):
+    model_config = ConfigDict(extra='forbid', frozen=True, strict=True)
+    max_drawdown_bps: Decimal
+    min_margin_buffer_quote: Decimal
+    stable_data_ms: int
+    recovery_probe_base: Decimal
+    max_observation_age_ms: int
+    max_value_age_ms: int
+    markout: MarkoutServiceConfig | None = None
+
+    @model_validator(mode='after')
+    def validate_values(self):
+        if (not self.max_drawdown_bps.is_finite() or self.max_drawdown_bps <= 0
+                or not self.min_margin_buffer_quote.is_finite() or self.min_margin_buffer_quote < 0
+                or not self.recovery_probe_base.is_finite() or self.recovery_probe_base <= 0
+                or self.stable_data_ms < 0 or self.max_observation_age_ms <= 0 or self.max_value_age_ms <= 0):
+            raise StorageError('SERVICE_RISK_CONFIG_INVALID')
+        return self
+
+
 class FileServiceConfig(BaseModel):
     model_config = ConfigDict(extra='forbid', frozen=True, strict=True)
     controller: LifeLiquidityConfig
@@ -89,6 +172,10 @@ class FileServiceConfig(BaseModel):
     hedge_policy: HedgeExecutionPolicy | None = None
     quotes: QuoteServiceConfig | None = None
     carry_policy: CarryPolicy | None = None
+    risk: RiskServiceConfig | None = None
+    control: ControlServiceConfig | None = None
+    inventory: InventoryServiceConfig | None = None
+    settlement_policy: SpotSettlementPolicy | None = None
 
     @model_validator(mode='after')
     def validate_values(self):
@@ -114,6 +201,9 @@ class FileServiceConfig(BaseModel):
             raise StorageError('SERVICE_CARRY_UID_MISMATCH')
         if enabled and self.capital_policy.account_uid != binding.account_uid:
             raise StorageError('SERVICE_CAPITAL_UID_MISMATCH')
+        if self.inventory is not None and (self.quotes is None or self.risk is None or self.control is None
+                                           or self.settlement_policy is None or self.inventory.policy.deadline_utc > self.owner.expires_at):
+            raise StorageError('SERVICE_INVENTORY_GRAPH_INCOMPLETE')
         if self.quotes is not None:
             economics = self.controller.strategy.economics
             if (self.quotes.max_actions_per_tick > self.max_pending

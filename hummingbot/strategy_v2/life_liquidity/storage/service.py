@@ -1,7 +1,7 @@
 """Configured headless file service. Startup/recovery never grants activation."""
 import asyncio
 import inspect
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Callable
 
@@ -43,6 +43,11 @@ class ServiceSources:
     fee_snapshot: Callable | None = None
     monotonic_clock: Callable | None = None
     carry_observation: Callable | None = None
+    nav_observation: Callable | None = None
+    safety_observation: Callable | None = None
+    horizon_observation: Callable | None = None
+    control_seed: Callable | None = None
+    inventory_observation: Callable | None = None
 
 
 class FileLiquidityService:
@@ -76,16 +81,27 @@ class FileLiquidityService:
             raise StorageError('SERVICE_QUOTE_SOURCES_REQUIRED')
         if config.carry_policy is not None and not callable(sources.carry_observation):
             raise StorageError('SERVICE_CARRY_SOURCE_REQUIRED')
+        if config.risk is not None and (any(not callable(v) for v in (
+                sources.nav_observation, sources.safety_observation, sources.monotonic_clock))
+                or config.risk.markout is not None and not callable(sources.horizon_observation)):
+            raise StorageError('SERVICE_RISK_SOURCES_REQUIRED')
+        if create_binding and config.control is not None and not callable(sources.control_seed):
+            raise StorageError('SERVICE_CONTROL_SEED_REQUIRED')
+        seed = sources.control_seed(binding, config.owner) if create_binding and config.control is not None else None
+        # Signing/seed providers are startup inputs, never retained by runtime.
+        sources = replace(sources, control_seed=None)
+        if config.inventory is not None and not callable(sources.inventory_observation):
+            raise StorageError('SERVICE_INVENTORY_SOURCE_REQUIRED')
         service = cls()
         service.config, service.sources, service.connectors = config, sources, connectors
         service._revoked, service._cycle = False, None
-        service._recovering = service._safety_pending = False
+        service._recovering = service._safety_pending = service._control_pending = False
         service._recovery_admitted = 0
         service._pending_events = {}
         service._action_events = {}
-        service.quotes = service.products = None
+        service.quotes = service.products = service.risk = service.control = service.inventory = None
         service._hint_generation = service._qualified_hint_generation = 0
-        service._close_task = None
+        service._close_task = service._halt_task = None
         service._recovery_lock = asyncio.Lock()
         service.store = service.spot = service.swap = service.joint = service.hedge = service.reporting = service.runner = None
         root = Path(config.state_dir)
@@ -97,7 +113,10 @@ class FileLiquidityService:
                                                    config_version=config.config_version, account_lock_root=config.account_lock_root,
                                                    create_binding=create_binding, owner=config.owner if create_binding else None, clock=sources.clock,
                                                    fill_policy=config.fill_policy, accounting_policy=config.accounting_policy,
-                                                   terminal_policy=config.terminal_policy, recovery_policy=config.recovery_policy)
+                                                   terminal_policy=config.terminal_policy, recovery_policy=config.recovery_policy,
+                                                   settlement_policy=config.settlement_policy,
+                                                   operator_keys=None if config.control is None else config.control.verifier(),
+                                                   control_seed=seed)
             # Constructors contain no global SQL/config reads; native financial
             # installation is deferred to the owning store worker below.
             service.controller = LifeLiquidityController(config.controller, market_data_provider, asyncio.Queue())
@@ -133,6 +152,12 @@ class FileLiquidityService:
             if config.quotes is not None:
                 from hummingbot.strategy_v2.life_liquidity.storage.quote_application import FileQuoteApplication
                 service.quotes = await FileQuoteApplication.install(service)
+            if config.risk is not None:
+                from hummingbot.strategy_v2.life_liquidity.storage.risk_application import FileRiskApplication
+                service.risk = await FileRiskApplication.install(service, create_binding)
+            if config.inventory is not None:
+                from hummingbot.strategy_v2.life_liquidity.storage.inventory_application import FileInventoryApplication
+                service.inventory = await FileInventoryApplication.install(service, create_binding)
             service.controller.install_storage_runtime(service.runtime)
             service.runtime.bind_service(service)
             service.reporting = await open_file_recorder(service.runtime, database_path=config.recorder_path,
@@ -141,6 +166,9 @@ class FileLiquidityService:
             service.runner = StrategyV2Base(connectors, repository_reporting={config.controller.id: service.reporting},
                                             dispatch_max_pending=config.max_pending, dispatch_shutdown_timeout_s=config.shutdown_timeout_s)
             service.controller._runner_orchestrator = service.runner.executor_orchestrator
+            if config.control is not None:
+                from hummingbot.strategy_v2.life_liquidity.storage.control_application import FileControlApplication
+                service.control = FileControlApplication(service)
             return service
         except BaseException:
             await service.close()
@@ -211,7 +239,11 @@ class FileLiquidityService:
         if self._revoked:
             return []
         await self.drain_action_events()
-        if self._revoked or self._recovering or not self.runtime._local_ready():
+        if self._revoked or self._recovering:
+            return []
+        if self.risk is not None and not await self.store._call(self.risk.ready):
+            return []
+        if not self.runtime._local_ready():
             return []
         if self.config.carry_policy is not None:
             def carry_stops():
@@ -233,6 +265,10 @@ class FileLiquidityService:
                 return actions
             if not await self.store._call(self.hedge.native.allows_spot):
                 return []
+        if self.inventory is not None and not await self.store._call(self.inventory.mm_ready):
+            from hummingbot.strategy_v2.life_liquidity.storage.quote_application import FileQuoteApplication
+            raw = await self.store._call(self.inventory.propose)
+            return [FileQuoteApplication.restore(v) for v in raw] if not self._revoked else []
         # Existing quote planner remains a worker-only adapter. No financial
         # publication occurs on the controller event loop.
         planner = self.controller._quote_action_planner
@@ -241,6 +277,16 @@ class FileLiquidityService:
         from hummingbot.strategy_v2.life_liquidity.storage.quote_application import FileQuoteApplication
         payloads = await self.store._call(lambda: tuple(FileQuoteApplication.capture(a) for a in planner.propose()))
         return [FileQuoteApplication.restore(raw) for raw in payloads] if not self._revoked else []
+
+    def financial_ready(self, *, check_loss=False):
+        self.store.assert_worker_thread()
+        try:
+            view, meta = self.store._snapshot(), self.store._read()
+            return (not self.store._incomplete(meta.resources)
+                    and dict(view.cut.components) == dict(meta.resources['journal_hashes'])
+                    and (not check_loss or not view.budget.loss_exhausted))
+        except Exception:
+            return False
 
     async def recover(self):
         from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageUnavailable
@@ -268,6 +314,8 @@ class FileLiquidityService:
                 await self.drain_runner_events()
                 hint_generation = self._hint_generation
                 await self.reporting.recover()
+                if self.inventory is not None:
+                    await self.store._call(self.inventory.recover)
                 resources = (await self.store.read(self.store.binding)).resources
                 if self.hedge is not None:
                     for key, row in resources.get('hedge_plans', {}).items():
@@ -300,11 +348,11 @@ class FileLiquidityService:
                             if item.kind == 'PREPARE':
                                 if await self.store.prepared_receipt_ready(item.command, owner=self.spot.owner, observed_at=facts.observed_at):
                                     continue  # Qualified joint batch completes this original receipt.
-                                await self.store.resume_prepare(item.command, facts=facts,
-                                                                cut=(await self.store.snapshot(self.store.binding)).cut, owner=self.spot.owner)
+                                await self.joint.restore_original_spot_holds(item.command, facts)
+                                # No prepared receipt, arm, transport or release
+                                # is inferred from conservative hold restoration.
                             elif item.kind == 'ARM':
-                                await self.store.resume_arm(item.command.operation_id, facts=facts,
-                                                            cut=(await self.store.snapshot(self.store.binding)).cut, owner=self.spot.owner)
+                                await self.joint.restore_original_arm_bookkeeping(item.command.operation_id, facts)
                     if not await self.joint.reconcile(self.store.binding, self.joint.owner,
                                                       spot_fills=fills, spot_facts=facts):
                         raise StorageError(self.joint._recovery.reason_code)
@@ -405,7 +453,8 @@ class FileLiquidityService:
             self.revoke()
             return
         raw = self.quotes.capture(action)
-        task = asyncio.create_task(self.store._call(self.quotes.transition, raw, state))
+        transition = self.inventory.transition if self.inventory is not None and self.inventory.handles(action.executor_config) else self.quotes.transition
+        task = asyncio.create_task(self.store._call(transition, raw, state))
         self._action_events[key] = task
 
         def completed(result):
@@ -423,7 +472,7 @@ class FileLiquidityService:
 
     @property
     def admission_paused(self):
-        return bool(self._recovering or self._safety_pending or self._pending_events
+        return bool(self._recovering or self._safety_pending or self._control_pending or self._pending_events
                     or self._hint_generation != self._qualified_hint_generation)
 
     def enqueue_runner_event(self, kind, event):
@@ -486,6 +535,48 @@ class FileLiquidityService:
             self.spot.cancel_local(action.executor_config.id)
         return False
 
+    def request_halt(self):
+        if self.risk is None:
+            raise StorageError('SERVICE_RISK_ROUTE_REQUIRED')
+        # Immediate loop-local revocation precedes worker admission. Keep the
+        # observational cancel port available until this one coalesced task ends.
+        self._revoked = True
+        self.runtime.revoke()
+        self.controller._runner_halt_ok = self.controller._halt_runner_orders()
+        if self._halt_task is not None:
+            return
+        self._halt_task = asyncio.create_task(self._persist_halt())
+
+        def completed(task):
+            if task.cancelled() or task.exception() is not None:
+                self.controller.order_safety_reason_code = 'SERVICE_HALT_CHECKPOINT_OR_CANCEL_FAILED'
+        self._halt_task.add_done_callback(completed)
+
+    async def _persist_halt(self):
+        from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageUnavailable
+        try:
+            async with asyncio.timeout(self.config.recovery_policy.max_fact_age_ms / 1000):
+                while True:
+                    try:
+                        await self.store._call(self.risk.gate.halt, 'MANUAL_KILL_SWITCH')
+                        break
+                    except StorageUnavailable as error:
+                        pending = tuple(self.store._pending)
+                        if error.code != 'STORAGE_BACKPRESSURE' or not pending:
+                            raise
+                        # One logical halt waits for physical admission capacity;
+                        # it neither queues another job nor frees a running one.
+                        await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
+                context = await self.store.observation_context(self.store.binding)
+                scopes = tuple(sorted({(row.session_id, row.epoch) for row in context.commands}))
+                if scopes:
+                    await self.spot.cancel_scopes(scopes)
+                if self.joint is not None:
+                    await self.joint.cancel_working_swaps(self.store.binding, self.joint.owner)
+        finally:
+            if self.joint is not None:
+                self.joint.revoke()
+
     def revoke(self):
         self._revoked = True
         runtime = getattr(self, 'runtime', None)
@@ -504,6 +595,11 @@ class FileLiquidityService:
 
     async def _close(self):
         failure = None
+        if self._halt_task is not None:
+            try:
+                await asyncio.shield(self._halt_task)
+            except BaseException as error:
+                failure = error
         if self._cycle is not None and not self._cycle.done():
             self._cycle.cancel()
             await asyncio.gather(self._cycle, return_exceptions=True)

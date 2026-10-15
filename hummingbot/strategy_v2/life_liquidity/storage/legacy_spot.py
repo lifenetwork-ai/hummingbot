@@ -7,6 +7,7 @@ bound coordinator records STARTED before journal writes and completion afterward
 """
 import asyncio
 import hashlib
+import json
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -106,7 +107,7 @@ class LegacySpotStore(LegacyJointCashAdapter, LegacyRecoveryBatchAdapter, Legacy
 
     def __init__(self, files, binding, limits, risk_limits, subsidy_policy, loss_policy,
                  config_version, account_lock_root, clock, fill_policy=None, accounting_policy=None, terminal_policy=None,
-                 recovery_policy=None, settlement_policy=None, operator_keys=None):
+                 recovery_policy=None, settlement_policy=None, operator_keys=None, control_seed=None):
         if (not isinstance(files, LegacySpotFiles) or not isinstance(risk_limits, RiskLimits)
                 or not isinstance(subsidy_policy, BudgetPolicy) or not isinstance(loss_policy, BudgetPolicy)
                 or type(config_version) is not int or config_version < 1):
@@ -138,6 +139,9 @@ class LegacySpotStore(LegacyJointCashAdapter, LegacyRecoveryBatchAdapter, Legacy
             raise StorageError('OPERATOR_KEYS_INVALID')
         if isinstance(operator_keys, OperatorKeys) and self.binding.environment != 'OFFLINE_SIMULATION':
             raise StorageError('RUNTIME_PRIVATE_OPERATOR_KEY_FORBIDDEN')
+        if control_seed is not None and (type(control_seed) is not bytes or len(control_seed) > 65536 or operator_keys is None):
+            raise StorageError('CONTROL_EXTERNAL_SEED_INVALID')
+        self._external_control_seed = None if control_seed is None else json.loads(control_seed)
         self._operator_seed_signer = operator_keys if isinstance(operator_keys, OperatorKeys) else None
         self._operator_keys = operator_keys.verifier() if isinstance(operator_keys, OperatorKeys) else operator_keys
         self._policy['legacy_spot'] = {
@@ -183,6 +187,7 @@ class LegacySpotStore(LegacyJointCashAdapter, LegacyRecoveryBatchAdapter, Legacy
 
     def _initialize_spot(self, create, owner):
         seed_signer, self._operator_seed_signer = self._operator_seed_signer, None
+        external_seed, self._external_control_seed = self._external_control_seed, None
         if type(create) is not bool or create and self.binding.environment != 'OFFLINE_SIMULATION':
             raise StorageError('SPOT_BOOTSTRAP_OFFLINE_ONLY')
         if not create and owner is not None:
@@ -206,10 +211,15 @@ class LegacySpotStore(LegacyJointCashAdapter, LegacyRecoveryBatchAdapter, Legacy
             self._monotonic_deadline = time.monotonic() + max(0, (record.expires_at - utc(self._clock())).total_seconds())
             initial_values = {'commands': {}, 'journal_hashes': self._hashes(images)}
             if create and self._operator_keys is not None:
-                if seed_signer is None:
+                ownership = {'mode': 'ACTIVE' if owner else 'UNARMED', 'token': owner.json() if owner else None}
+                if external_seed is not None:
+                    if self._operator_keys.verify_seed(external_seed, self.binding) != ownership:
+                        raise StorageError('CONTROL_EXTERNAL_SEED_OWNER_MISMATCH')
+                    initial_values['control_seed'] = external_seed
+                elif seed_signer is not None:
+                    initial_values['control_seed'] = seed_signer.seed(self.binding, ownership)
+                else:
                     raise StorageError('OFFLINE_CONTROL_SEED_SIGNATURE_REQUIRED')
-                initial_values['control_seed'] = seed_signer.seed(self.binding, {
-                    'mode': 'ACTIVE' if owner else 'UNARMED', 'token': owner.json() if owner else None})
             initial = encode(initial_values)
             super()._initialize(create, initial, owner)
             self._cold_unarmed = not create
@@ -1100,10 +1110,10 @@ class LegacySpotStore(LegacyJointCashAdapter, LegacyRecoveryBatchAdapter, Legacy
 async def open_legacy_spot(files, *, binding, limits, risk_limits, subsidy_policy, loss_policy,
                            config_version, account_lock_root, create_binding=False, owner=None,
                            clock=lambda: datetime.now(timezone.utc), fill_policy=None, accounting_policy=None, terminal_policy=None,
-                           recovery_policy=None, settlement_policy=None, operator_keys=None):
+                           recovery_policy=None, settlement_policy=None, operator_keys=None, control_seed=None):
     store = LegacySpotStore(files, binding, limits, risk_limits, subsidy_policy, loss_policy,
                             config_version, account_lock_root, clock, fill_policy, accounting_policy, terminal_policy,
-                            recovery_policy, settlement_policy, operator_keys)
+                            recovery_policy, settlement_policy, operator_keys, control_seed)
     try:
         await store._call(store._initialize_spot, create_binding, owner)
         return store

@@ -174,8 +174,8 @@ async def test_prepared_receipt_batch_refuses_unproven_origin_scope_or_holds_wit
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize('complete_holds,report_fault', [(True, None), (False, None), (True, 'initial'), (True, 'sql'), (True, 'origin'), (True, 'late_projection')])
-async def test_configured_service_routes_prepared_receipt_to_joint_proof_and_retains_incomplete_holds(tmp_path, monkeypatch, complete_holds, report_fault):
+@pytest.mark.parametrize('native_cut,report_fault', [('receipt', None), ('shared', None), ('wal', None), ('principal', None), ('subsidy', None), ('receipt', 'initial'), ('receipt', 'sql'), ('receipt', 'origin'), ('receipt', 'late_projection')])
+async def test_configured_service_restores_original_holds_then_requires_joint_and_runner_proof(tmp_path, monkeypatch, native_cut, report_fault):
     from test.hummingbot.strategy_v2.life_liquidity.storage.test_service_startup import joint_service
 
     from hummingbot.strategy_v2.life_liquidity.send_gate import SendPermit
@@ -201,11 +201,13 @@ async def test_configured_service_routes_prepared_receipt_to_joint_proof_and_ret
         service.runner._set_current_timestamp(sources.clock().timestamp())
         service.controller.trading_permissions_ready = lambda: True  # Synthetic offline release only.
         service.controller.allow_create_executor_actions = lambda: True
-        target, name = (service.store, '_publish') if complete_holds else (service.store._subsidy, 'reserve')
+        target, name = {'receipt': (service.store, '_publish'), 'shared': (service.store._shared_spot, 'reserve'),
+                        'wal': (service.store._wal, 'begin'), 'principal': (service.store._ledger, 'reserve'),
+                        'subsidy': (service.store._subsidy, 'reserve')}[native_cut]
         original = getattr(target, name)
 
         def interrupted(*args, **kwargs):
-            if complete_holds and not args[0].startswith('prepared:'):
+            if native_cut == 'receipt' and not args[0].startswith('prepared:'):
                 return original(*args, **kwargs)
             raise OSError('synthetic configured preparation interruption')
         with monkeypatch.context() as patches:
@@ -268,7 +270,7 @@ async def test_configured_service_routes_prepared_receipt_to_joint_proof_and_ret
                     cold.store._commit(meta.cut, owner, 'synthetic-report-corruption',
                                        (('recorder_outbox', encode(rows)),), observation=True)
             await cold.store._call(corrupt_reporting)
-        if complete_holds and report_fault is None:
+        if report_fault is None:
             await cold.recover()
             await cold.recover()
             assert (await cold.store.snapshot(cold.store.binding)).balance.total_quote_usdt == D('9.9')
@@ -374,5 +376,44 @@ async def test_prepared_receipt_plus_unrelated_spot_fill_and_funding_keep_origin
         after = await store.snapshot(store.binding)
         assert after.balance == view.balance and after.budget == view.budget
         assert values[3].sent == values[4].sent == [] and not recovery._armed
+    finally:
+        await store.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('cut', ['wal', 'receipt'])
+async def test_original_arm_repair_with_new_external_cash_only_marks_unknown_and_never_sends(tmp_path, monkeypatch, cut):
+    from hummingbot.strategy_v2.life_liquidity.storage.contracts import CommitUnknown
+    repo, store, recovery, values, bundle, owner = await fixture(tmp_path, spot=True)
+    try:
+        await bind_shared_spot(repo)
+        assert await repo.reconcile(store.binding, owner)
+        prepared = replace(order(owner), risk_epoch=1)
+        await store.prepare_current(prepared, owner=owner)
+        target, name = (store._wal, 'arm_send') if cut == 'wal' else (store, '_publish')
+        original = getattr(target, name)
+
+        def interrupted(*args, **kwargs):
+            if cut == 'receipt' and not args[0].startswith('armed:'):
+                return original(*args, **kwargs)
+            raise OSError('synthetic original arm crash')
+        with monkeypatch.context() as patches:
+            patches.setattr(target, name, interrupted)
+            with pytest.raises(CommitUnknown):
+                await store.arm_current(prepared.operation_id, owner=owner)
+        repo, store, recovery, values = await reopen(tmp_path, store, recovery, values, owner)
+        await bind_shared_spot(repo)
+        # The newer account cash cannot be used to rewrite prior capital. This
+        # port completes conservative unknown-send bookkeeping and holds only.
+        facts = SpotFinancialRecoveryFacts(store.binding, values[6].wall, D('10'), D('9.9'), D('0'), D('0'),
+                                           (), (), (), (), True, True, True)
+        await repo.restore_original_arm_bookkeeping(prepared.operation_id, facts)
+        await repo.restore_original_arm_bookkeeping(prepared.operation_id, facts)
+        assert (await store.attempt(prepared.intent_id, store.binding)).state.value == 'SEND_UNKNOWN'
+        assert (await store.snapshot(store.binding)).balance.total_quote_usdt == D('10')
+        assert (await store.read(store.binding)).resources['commands'][prepared.operation_id]['state'] == 'SEND_UNKNOWN'
+        assert await store._call(values[1].claim_ids) == (prepared.intent_id,)
+        assert values[3].sent == values[4].sent == []
+        assert store._cold_unarmed and not recovery._armed
     finally:
         await store.close()

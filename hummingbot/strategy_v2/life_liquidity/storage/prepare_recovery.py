@@ -72,7 +72,7 @@ class LegacyPrepareRecoveryAdapter:
             raise StorageError('SPOT_PREPARE_RECOVERY_FACTS_UNQUALIFIED')
         return view, meta, record, prepared, False
 
-    def _prepare_recovery_evidence(self, prepared, record, view, meta, facts, arm):
+    def _prepare_recovery_evidence(self, prepared, record, view, meta, facts, arm, *, hold_only=False):
         commands = meta.resources['commands']
         known = {row['command']['intent_id'] for row in commands.values()}
         wal_rows = self._wal.all_records()
@@ -84,7 +84,8 @@ class LegacyPrepareRecoveryAdapter:
         if any(row['intent_id'] == prepared.intent_id for row in fills.values()):
             raise StorageError('SPOT_PREPARE_RECOVERY_ALREADY_FILLED')
         others = {key: row for key, row in commands.items() if key != prepared.operation_id}
-        self._verify_recovery_projection(others, fills, cashflows, facts)
+        if not hold_only:
+            self._verify_recovery_projection(others, fills, cashflows, facts)
         self._verify_fill_projection(commands, fills)
         self._verify_capital_projection(commands, fills, cashflows)
         self._verify_terminal_projection(meta.resources)

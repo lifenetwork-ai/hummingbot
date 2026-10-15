@@ -31,6 +31,9 @@ class FileSwapApplication:
             runtime = c._storage_runtime
             if runtime is not None and runtime._service is not None and runtime._service.admission_paused:
                 return False
+            if (runtime is not None and runtime._service is not None and runtime._service.risk is not None
+                    and not runtime._service.risk.local_ready()):
+                return False
             return (not self._revoked and not self.store._closed and not self.store._uncertain
                     and not self.repository.joint._revoked and self.sender._runtime_enabled
                     and self.repository.joint._recovery._armed and self.repository.joint._recovery._healthy
