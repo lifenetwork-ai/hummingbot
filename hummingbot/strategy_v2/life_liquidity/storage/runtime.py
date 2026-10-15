@@ -4,6 +4,7 @@ The complete existing controller/sender checks run on the owning bounded worker;
 authenticated UID collection and dispatch remain asynchronous. PostgreSQL is an
 explicit future implementation, never a Path-compatible fallback.
 """
+import asyncio
 import hashlib
 from datetime import datetime, timezone
 from typing import Protocol
@@ -80,6 +81,8 @@ class FileControllerRuntime:
         self.binding = store.binding
         self._products = products
         self._spot_application = None
+        self._swap_application = None
+        self._service = None
         self._recorder_application = None
         self._recorder_startup_pending = False
         self._action_hashes = {}
@@ -93,11 +96,32 @@ class FileControllerRuntime:
     def owns_controller(self, controller):
         return controller is self.controller
 
+    def bind_service(self, service):
+        if self._service is not None or service.runtime is not self or service.store is not self.store:
+            raise StorageError('RUNTIME_SERVICE_MISMATCH')
+        self._service = service
+
+    def bind_swap_application(self, application):
+        if (self._swap_application is not None or application.store is not self.store
+                or application.owner != self.owner or application.controller is not self.controller):
+            raise StorageError('RUNTIME_SWAP_APPLICATION_MISMATCH')
+        self._swap_application = application
+
     def bind_recorder_application(self, application):
         if (self._recorder_application is not None or application.store is not self.store
                 or application.runtime is not self or application.binding != self.binding):
             raise StorageError('RUNTIME_RECORDER_APPLICATION_MISMATCH')
         self._recorder_application = application
+
+    async def await_reporting(self):
+        if self._revoked:
+            raise StorageError('RUNTIME_REVOKED')
+        if self._recorder_application is not None:
+            age_ms = self.controller.config.recovery_reconciliation_max_age_ms
+            async with asyncio.timeout(age_ms / 1000):
+                await self._recorder_application.drain()
+        if self._revoked:
+            raise StorageError('RUNTIME_REVOKED')
 
     async def before_dispatch(self, action):
         if self._recorder_application is None:
@@ -158,7 +182,7 @@ class FileControllerRuntime:
 
     def _local_ready(self):
         try:
-            if self._recorder_startup_pending:
+            if self._recorder_startup_pending or self._service is not None and self._service.admission_paused:
                 return False
             if self._recorder_application is not None and not self._recorder_application.ready:
                 return False
@@ -283,3 +307,5 @@ class FileControllerRuntime:
         self._action_hashes.clear()
         if self._spot_application is not None:
             self._spot_application.revoke()
+        if self._swap_application is not None:
+            self._swap_application.revoke()

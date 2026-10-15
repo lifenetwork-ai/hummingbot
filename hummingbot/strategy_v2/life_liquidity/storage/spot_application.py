@@ -114,7 +114,7 @@ class FileSpotApplication:
 
     @classmethod
     async def install(cls, store, controller, connector, owner, *, admission, authorize_permit, risk_epoch,
-                      max_pending, shutdown_timeout_s, ack_timeout_s):
+                      max_pending, shutdown_timeout_s, ack_timeout_s, defer_runtime=False):
         app = cls(store, controller, connector, owner, admission, authorize_permit, risk_epoch, max_pending,
                   shutdown_timeout_s, ack_timeout_s)
         # Construction of native file objects and their cold verification stay
@@ -122,7 +122,8 @@ class FileSpotApplication:
         await store._call(app._install_file_context)
         app.runtime = FileControllerRuntime(store, controller, owner)
         app.runtime.bind_spot_application(app)
-        controller.install_storage_runtime(app.runtime)
+        if not defer_runtime:
+            controller.install_storage_runtime(app.runtime)
         return app
 
     def _install_file_context(self):
@@ -151,6 +152,9 @@ class FileSpotApplication:
     def local_ready(self):
         try:
             c, store = self.controller, self.store
+            runtime = c._storage_runtime
+            if runtime is not None and runtime._service is not None and runtime._service.admission_paused:
+                return False
             current = c._order_safety_manager.current_session
             now = utc(store._clock())
             return (not self._revoked and not self._safety_pending and not store._closed
@@ -471,6 +475,11 @@ class FileSpotApplication:
                 self.cancel_local(command.intent_id)
                 attempt = await self.store.attempt(command.intent_id, self.binding)
                 if attempt.state.value == 'PREPARED':
+                    service = self.runtime._service
+                    if service is not None and service.joint is not None:
+                        # Joint source proof releases both claims behind one
+                        # accounting barrier; standalone abort cannot do so.
+                        continue
                     await self.store.apply_lifecycle(SpotLifecycleCommand('abort:' + command.operation_id,
                                                                           command.operation_id, command.intent_id,
                                                                           command.client_order_id, 'ABORT_PREPARED'),

@@ -572,7 +572,7 @@ class ReservationLedger:
             raise ValueError("JOINT_CASH_ID_INVALID")
         return self._record_account_event(event_id, "JOINT", "USDT", amount)
 
-    def apply_joint_snapshot(self, spot_snapshots, cash_events):
+    def apply_joint_snapshot(self, spot_snapshots, cash_events, cashflows=()):
         """Atomically checkpoint a qualified joint cut in chronological order.
 
         Use an isolated in-memory ledger so no cross-product debit is written
@@ -586,7 +586,9 @@ class ReservationLedger:
             staged._reservations = dict(self._reservations.items())
             staged._trades = dict(self._trades.items())
             staged._account_events = dict(self._account_events.items())
-            timeline = []
+            timeline = [(at_ms, -1, bill, currency, amount) for bill, currency, amount, at_ms in cashflows]
+            if any(type(item[0]) is not int or item[0] < 0 for item in timeline):
+                raise ValueError('CASHFLOW_TIME_INVALID')
             for key, fills in spot_snapshots:
                 prefix, cumulative = [], Decimal("0")
                 for trade_id, quantity, price, currency, fee, at_ms in sorted(fills, key=lambda f: (f[5], f[0])):
@@ -598,7 +600,9 @@ class ReservationLedger:
                     raise ValueError("JOINT_CASH_ID_INVALID")
                 timeline.append((int(event_id.split(":")[1]), 1, event_id, amount))
             for item in sorted(timeline, key=lambda v: v[:3]):
-                if item[1] == 1:
+                if item[1] == -1:
+                    staged.record_cashflow(item[2], item[3], item[4])
+                elif item[1] == 1:
                     staged.record_joint_cash(item[2], item[3])
                 else:
                     _, _, _, key, fills, cumulative = item

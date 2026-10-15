@@ -437,7 +437,8 @@ class StrategyV2Base(StrategyPyBase):
 
         await self.executor_orchestrator.stop(self.max_executors_close_attempts)
         self.market_data_provider.stop()
-        self.executor_orchestrator.store_all_executors()
+        if not isinstance(getattr(self.executor_orchestrator, '_repository_reporting', None), dict):
+            self.executor_orchestrator.store_all_executors()
         drain_reporting = getattr(self.executor_orchestrator, 'drain_repository_reporting', None)
         if inspect.iscoroutinefunction(drain_reporting):
             await drain_reporting()

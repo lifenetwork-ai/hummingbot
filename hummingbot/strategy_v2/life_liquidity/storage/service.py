@@ -1,0 +1,453 @@
+"""Configured headless file service. Startup/recovery never grants activation."""
+import asyncio
+import inspect
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Callable
+
+from controllers.generic.life_liquidity import LifeLiquidityController
+from hummingbot.strategy.strategy_v2_base import StrategyV2Base
+from hummingbot.strategy_v2.life_liquidity.hedge_coordinator import HedgeCoordinator
+from hummingbot.strategy_v2.life_liquidity.joint_recovery import JointRecovery
+from hummingbot.strategy_v2.life_liquidity.protected_swap import ProtectedSwapExecutorSender
+from hummingbot.strategy_v2.life_liquidity.request_budget import AccountRequestBudget
+from hummingbot.strategy_v2.life_liquidity.shared_capital import SharedCapitalAuthority
+from hummingbot.strategy_v2.life_liquidity.state import IntentWAL
+from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError
+from hummingbot.strategy_v2.life_liquidity.storage.hedge_application import FileHedgeApplication
+from hummingbot.strategy_v2.life_liquidity.storage.joint import open_file_joint
+from hummingbot.strategy_v2.life_liquidity.storage.legacy_spot import LegacySpotFiles, open_legacy_spot
+from hummingbot.strategy_v2.life_liquidity.storage.recorder_factory import open_file_recorder
+from hummingbot.strategy_v2.life_liquidity.storage.service_config import FileServiceConfig
+from hummingbot.strategy_v2.life_liquidity.storage.spot_application import FileSpotApplication
+from hummingbot.strategy_v2.life_liquidity.storage.swap import open_file_swap
+from hummingbot.strategy_v2.life_liquidity.storage.swap_application import FileSwapApplication
+
+
+@dataclass(frozen=True)
+class ServiceSources:
+    # Cache-only synchronous inputs; collection/HTTP callbacks remain async.
+    clock: Callable
+    risk_epoch: Callable
+    authorize_permit: Callable
+    spot_admission: Callable
+    capital_snapshot: Callable | None = None
+    swap_account: Callable | None = None
+    joint_collect: Callable | None = None
+    cancel_swap: Callable | None = None
+    hedge_market: Callable | None = None
+    independent_fill_value: Callable | None = None
+    independent_cashflow_value: Callable | None = None
+    joint_spot_recovery: Callable | None = None
+
+
+class FileLiquidityService:
+    @classmethod
+    async def open(cls, config, *, connectors, sources, market_data_provider, create_binding=False):
+        if type(config) is not FileServiceConfig or type(sources) is not ServiceSources or type(create_binding) is not bool:
+            raise StorageError('SERVICE_ASSEMBLY_INVALID')
+        # Detach mutable nested controller settings before the first await.
+        config = FileServiceConfig.model_validate_json(config.model_dump_json())
+        binding = config.controller.storage_binding
+        if create_binding and binding.environment != 'OFFLINE_SIMULATION':
+            raise StorageError('SERVICE_BOOTSTRAP_OFFLINE_ONLY')
+        routes = {config.controller.strategy.spot.connector}
+        if config.controller.strategy.perpetual.enabled:
+            routes.add(config.controller.strategy.perpetual.connector)
+        connectors = dict(connectors)
+        if (set(connectors) != routes or len({id(v) for v in connectors.values()}) != len(routes)
+                or any(not callable(getattr(v, 'get_account_uid', None)) or v.name != k for k, v in connectors.items())
+                or any(not callable(v) for v in (sources.clock, sources.risk_epoch, sources.authorize_permit, sources.spot_admission))):
+            raise StorageError('SERVICE_ROUTE_OR_SOURCE_INVALID')
+        for connector in connectors.values():
+            if await connector.get_account_uid() != binding.account_uid:
+                raise StorageError('SERVICE_UID_MISMATCH')
+        if config.joint is not None and any(not callable(v) for v in (
+                sources.capital_snapshot, sources.swap_account, sources.joint_collect, sources.cancel_swap)):
+            raise StorageError('SERVICE_JOINT_SOURCE_REQUIRED')
+        if config.hedge_policy is not None and not callable(sources.hedge_market):
+            raise StorageError('SERVICE_HEDGE_SOURCE_REQUIRED')
+        service = cls()
+        service.config, service.sources, service.connectors = config, sources, connectors
+        service._revoked, service._cycle = False, None
+        service._recovering = service._safety_pending = False
+        service._recovery_admitted = 0
+        service._pending_events = {}
+        service._hint_generation = service._qualified_hint_generation = 0
+        service._close_task = None
+        service._recovery_lock = asyncio.Lock()
+        service.store = service.spot = service.swap = service.joint = service.hedge = service.reporting = service.runner = None
+        root = Path(config.state_dir)
+        files = LegacySpotFiles(root / 'binding.json', root / 'session.json', root / 'wal.json',
+                                root / 'reservations.json', root / 'subsidy.json', root / 'loss.json')
+        try:
+            service.store = await open_legacy_spot(files, binding=binding, limits=config.file_limits,
+                                                   risk_limits=config.risk_limits, subsidy_policy=config.subsidy_policy, loss_policy=config.loss_policy,
+                                                   config_version=config.config_version, account_lock_root=config.account_lock_root,
+                                                   create_binding=create_binding, owner=config.owner if create_binding else None, clock=sources.clock,
+                                                   fill_policy=config.fill_policy, accounting_policy=config.accounting_policy,
+                                                   terminal_policy=config.terminal_policy, recovery_policy=config.recovery_policy)
+            # Constructors contain no global SQL/config reads; native financial
+            # installation is deferred to the owning store worker below.
+            service.controller = LifeLiquidityController(config.controller, market_data_provider, asyncio.Queue())
+            service.spot = await FileSpotApplication.install(service.store, service.controller,
+                                                             connectors[config.controller.strategy.spot.connector], config.owner,
+                                                             admission=sources.spot_admission, authorize_permit=sources.authorize_permit,
+                                                             risk_epoch=sources.risk_epoch, max_pending=config.max_pending,
+                                                             shutdown_timeout_s=config.shutdown_timeout_s, ack_timeout_s=config.ack_timeout_s, defer_runtime=True)
+            service.runtime = service.spot.runtime
+            if sources.independent_fill_value is not None or sources.independent_cashflow_value is not None:
+                from hummingbot.strategy_v2.life_liquidity.storage.spot_observation import OkxSpotRepositoryObserver
+                observer = OkxSpotRepositoryObserver(service.spot, independent_fill_value=sources.independent_fill_value,
+                                                     independent_cashflow_value=sources.independent_cashflow_value, max_pages=config.observation_max_pages)
+                service.spot.install_observer(observer)
+            if config.joint is not None:
+                await service.store._call(service._install_products, create_binding)
+                service.joint = await open_file_joint(service.store, recovery=service.controller._joint_recovery,
+                                                      owner=config.owner, limits=config.joint.limits, couple_cash=True, couple_spot=True)
+                swap_repo = await open_file_swap(service.joint)
+                service.swap = FileSwapApplication(swap_repo, max_pending=config.max_pending,
+                                                   ack_timeout_s=config.ack_timeout_s, shutdown_timeout_s=config.shutdown_timeout_s)
+                service.runtime.bind_swap_application(service.swap)
+                if config.hedge_policy is not None:
+                    service.hedge = await FileHedgeApplication.install(service.swap, service.controller._hedge_coordinator)
+            service.controller.install_storage_runtime(service.runtime)
+            service.runtime.bind_service(service)
+            service.reporting = await open_file_recorder(service.runtime, database_path=config.recorder_path,
+                                                         config_file_path=config.recorder_config_name, strategy_name='v2', connectors=tuple(connectors.values()),
+                                                         max_pending=config.max_pending, shutdown_timeout_s=config.shutdown_timeout_s)
+            service.runner = StrategyV2Base(connectors, repository_reporting={config.controller.id: service.reporting},
+                                            dispatch_max_pending=config.max_pending, dispatch_shutdown_timeout_s=config.shutdown_timeout_s)
+            service.controller._runner_orchestrator = service.runner.executor_orchestrator
+            return service
+        except BaseException:
+            await service.close()
+            raise
+
+    @classmethod
+    async def open_yaml(cls, path, **kwargs):
+        def load():
+            import json
+
+            import yaml
+            source = Path(path)
+            if not source.is_absolute() or source.is_symlink():
+                raise StorageError('SERVICE_CONFIG_PATH_INVALID')
+            with source.open('rb') as stream:
+                raw = stream.read(65537)
+            if len(raw) > 65536:
+                raise StorageError('SERVICE_CONFIG_TOO_LARGE')
+            # JSON validation allows standard YAML UUID/decimal strings while
+            # preserving strict integer/boolean distinction and nested DTOs.
+            return FileServiceConfig.model_validate_json(json.dumps(yaml.safe_load(raw)))
+        config = await asyncio.to_thread(load)
+        return await cls.open(config, **kwargs)
+
+    def _install_products(self, create):
+        self.store.assert_worker_thread()
+        c, cfg, src = self.controller, self.config, self.sources
+        root = Path(cfg.state_dir)
+        capital = SharedCapitalAuthority(root / 'shared_capital.json', policy=cfg.capital_policy,
+                                         observation=src.capital_snapshot, clock_ms=lambda: int(src.clock().timestamp() * 1000), create=create)
+        c.install_shared_capital_authority(capital, recover=not create)
+        budget = AccountRequestBudget(root / 'requests.json', account_uid=self.store.binding.account_uid,
+                                      policy=cfg.request_policy, clock=src.clock)
+        if create and not budget.path.exists():
+            budget.initialize_empty()
+        c._order_safety_gateway.request_budget = budget
+        c._protected_spot_sender.gateway.request_budget = budget
+        wal = IntentWAL(root / 'swap_wal.json')
+        if create:
+            wal.initialize_empty()
+        sender = ProtectedSwapExecutorSender(c, self.connectors[cfg.controller.strategy.perpetual.connector],
+                                             wal, cfg.swap_contract, root / 'swap_actions.json', account_observation=src.swap_account,
+                                             authorize_reservation=src.authorize_permit, risk_epoch=src.risk_epoch,
+                                             clock_ms=lambda: int(src.clock().timestamp() * 1000), max_age_ms=cfg.capital_policy.max_age_ms,
+                                             account_mode=cfg.capital_policy.account_mode, request_budget=budget, create=create,
+                                             async_authorize=self.runtime.authorize_swap)
+        c.install_protected_swap_sender(sender)
+        c._execution_loss_budget = self.store._loss
+        c._execution_loss_utc_clock = src.clock
+        if cfg.hedge_policy is not None:
+            native = HedgeCoordinator(c, root / 'hedge_coordinator.json', policy=cfg.hedge_policy,
+                                      market=lambda: self._hedge_market, settlement=lambda _: None, create=create)
+            c.install_hedge_coordinator(native)
+        params = cfg.joint
+        recovery = JointRecovery(root / 'joint_recovery.json', controller=c, collect=src.joint_collect,
+                                 cancel_swap=src.cancel_swap, clock_ms=sender.clock_ms, max_age_ms=params.max_age_ms,
+                                 cancel_retry_ms=params.cancel_retry_ms, max_cancels_per_cycle=params.max_cancels_per_cycle,
+                                 poll_interval_ms=params.poll_interval_ms, opening_long_entry=params.opening_long_entry,
+                                 opening_short_entry=params.opening_short_entry, create=create)
+        c.install_joint_recovery(recovery)
+
+    async def plan(self):
+        if self._revoked or self._recovering or not self.runtime._local_ready():
+            return []
+        if self.hedge is not None:
+            market = self.sources.hedge_market()
+            if inspect.isawaitable(market):
+                market = await market
+            self._hedge_market = market
+            import uuid
+            actions = await self.hedge.plan('cycle:' + uuid.uuid4().hex, market)
+            if actions:
+                return actions
+            if not await self.store._call(self.hedge.native.allows_spot):
+                return []
+        # Existing quote planner remains a worker-only adapter. No financial
+        # publication occurs on the controller event loop.
+        planner = self.controller._quote_action_planner
+        if planner is None:
+            return []
+        payloads = await self.store._call(lambda: tuple(a.model_dump_json() for a in planner.propose()))
+        from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction
+        return [CreateExecutorAction.model_validate_json(raw) for raw in payloads] if not self._revoked else []
+
+    async def recover(self):
+        from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageUnavailable
+        if self._revoked:
+            raise StorageError('SERVICE_RECOVERY_REVOKED')
+        if self._recovery_admitted >= self.config.max_pending:
+            raise StorageUnavailable('SERVICE_RECOVERY_BACKPRESSURE')
+        self._recovery_admitted += 1
+        try:
+            async with asyncio.timeout(self.config.recovery_policy.max_fact_age_ms / 1000):
+                await self._recover()
+        except BaseException:
+            self.revoke()
+            raise
+        finally:
+            self._recovery_admitted -= 1
+
+    async def _recover(self):
+        async with self._recovery_lock:
+            self._recovering = True
+            try:
+                for connector in self.connectors.values():
+                    if await connector.get_account_uid() != self.store.binding.account_uid:
+                        raise StorageError('SERVICE_RECOVERY_UID_MISMATCH')
+                await self.drain_runner_events()
+                hint_generation = self._hint_generation
+                await self.reporting.recover()
+                resources = (await self.store.read(self.store.binding)).resources
+                if self.hedge is not None:
+                    for key, row in resources.get('hedge_plans', {}).items():
+                        if row['state'] != 'PLANNED':
+                            await self.hedge.resume(key)
+                if self.swap is not None:
+                    resources = (await self.store.read(self.store.binding)).resources
+                    for key, row in resources.get('swap_operations', {}).items():
+                        if row['state'] == 'PREPARING':
+                            await self.swap.repository.resume_prepare(key, owner=self.swap.owner)
+                        elif row['state'] == 'ARMING':
+                            await self.swap.repository.resume_arm(key, owner=self.swap.owner)
+                        elif row['state'] == 'ACKING':
+                            await self.swap.repository.acknowledge(key, exchange_order_id=row['exchange_order_id'],
+                                                                   owner=self.swap.owner)
+                if self.joint is not None:
+                    fills, facts = (), None
+                    if self.sources.joint_spot_recovery is not None:
+                        result = self.sources.joint_spot_recovery()
+                        if inspect.isawaitable(result):
+                            result = await result
+                        if type(result) is not tuple or len(result) != 2:
+                            raise StorageError('SERVICE_JOINT_SPOT_SOURCE_INVALID')
+                        fills, facts = result
+                    if not await self.joint.reconcile(self.store.binding, self.joint.owner,
+                                                      spot_fills=fills, spot_facts=facts):
+                        raise StorageError(self.joint._recovery.reason_code)
+                    self._qualified_hint_generation = hint_generation
+                    settled = await self.store._call(lambda: tuple(r.intent_id for r in self.swap.sender.wal.all_records()
+                                                                   if r.state in ('TERMINAL', 'ABORTED_BEFORE_SEND')))
+                    for key in settled:
+                        self.swap._unknown_attempts.discard(key)
+                else:
+                    if self.spot._observer is None:
+                        raise StorageError('SERVICE_RECOVERY_OBSERVER_REQUIRED')
+                    for item in await self.store.pending_session_ticks(self.store.binding):
+                        if item.owner != self.spot.owner:
+                            raise StorageError('SERVICE_RECOVERY_WRITER_MISMATCH')
+                        await self.store.tick_session(item.command, cut=item.original_cut, owner=item.owner)
+                    await self.spot._observer.recover_pending()
+            except BaseException:
+                self.revoke()
+                raise
+            finally:
+                # Never clear revoke/cold/restore latches after a receipt.
+                self._recovering = False
+
+    def recognizes_config(self, config):
+        c = self.controller
+        if config.controller_id != c.config.id:
+            return False
+        if config.connector_name == c.config.strategy.spot.connector:
+            return config.trading_pair == c.config.strategy.spot.pair
+        if self.swap is None:
+            return False
+        from hummingbot.strategy_v2.life_liquidity.storage.contracts import encode
+        from hummingbot.strategy_v2.life_liquidity.storage.swap import _config_data
+        return self.swap.repository._known_configs.get(config.id) == encode(_config_data(config))
+
+    def status_lines(self):
+        state = 'STOPPED' if self._revoked else 'UNARMED' if not self.runtime._local_ready() else 'READY'
+        return [f'LIFE file service: {state}; account {self.store.binding.account_uid}; '
+                f'spot/SWAP share one storage worker']
+
+    def on_safety_tick(self, timestamp):
+        if self._revoked or self._cycle is not None and not self._cycle.done():
+            return
+        if self.joint is None:
+            self.spot.on_safety_tick(timestamp)
+            return
+        self._safety_pending = True
+        self._cycle = asyncio.create_task(self._joint_safety_cycle())
+        self.controller.order_safety_task = self._cycle
+        self._cycle.add_done_callback(self.controller._on_order_safety_done)
+
+    async def _joint_safety_cycle(self):
+        from uuid import uuid4
+
+        from hummingbot.strategy_v2.life_liquidity.storage.session import SessionTick
+        try:
+            async with asyncio.timeout(self.config.joint.max_age_ms / 1000):
+                await self.recover()
+                # Session/cancel bookkeeping shares the same admission barrier
+                # as recovery. It cannot race a proposal or a second watchdog.
+                async with self._recovery_lock:
+                    self._recovering = True
+                    session, ready, market_ready = await self.store._call(self.spot._session_inputs)
+                    tick = SessionTick('jointwatch:' + uuid4().hex, session.session_id, session.epoch,
+                                       ready, ready, market_ready, self.config.joint.max_age_ms)
+                    await self.store.tick_session(tick, cut=(await self.store.snapshot(self.store.binding)).cut,
+                                                  owner=self.spot.owner)
+                    state = await self.store._call(self.spot._sync_session)
+                    if state != 'ACTIVE' or not ready:
+                        self.controller._runner_halt_ok = self.controller._halt_runner_orders()
+                        context = await self.store.observation_context(self.store.binding)
+                        scopes = tuple(sorted({(session.session_id, session.epoch)} | {
+                            (row.session_id, row.epoch) for row in context.commands}))
+                        await self.spot.cancel_scopes(scopes)
+                        await self.joint.cancel_working_swaps(self.store.binding, self.joint.owner)
+                    self.controller.order_safety_reason_code = 'JOINT_ORDERS_RECONCILED'
+        except BaseException:
+            self.revoke()
+            raise
+        finally:
+            self._recovering = self._safety_pending = False
+
+    def dispatched(self, action):
+        # Async storage qualification already precedes runner creation. This
+        # loop callback consumes only the one-use in-memory dispatch fence.
+        allowed = self.runtime.local_fence(action)
+        self.runtime.forget_action(action.executor_config.id)
+        return allowed
+
+    @property
+    def admission_paused(self):
+        return bool(self._recovering or self._safety_pending or self._pending_events
+                    or self._hint_generation != self._qualified_hint_generation)
+
+    def enqueue_runner_event(self, kind, event):
+        from hummingbot.strategy_v2.life_liquidity.storage.runner_events import RunnerHint
+        try:
+            captured = RunnerHint.capture(kind, event)
+            key = (captured.kind, captured.payload)
+            if key in self._pending_events:
+                return
+            if self.store._closed or len(self._pending_events) >= self.config.max_pending:
+                raise StorageError('SERVICE_RUNNER_EVENT_BACKPRESSURE')
+            self._hint_generation += 1
+            task = asyncio.create_task(self.store._call(self._apply_runner_hint, captured))
+            self._pending_events[key] = task
+
+            def completed(result):
+                self._pending_events.pop(key, None)
+                if result.cancelled() or result.exception() is not None or self.controller._runner_scope_invalid:
+                    self.controller._runner_scope_invalid = True
+                    self.revoke()
+            task.add_done_callback(completed)
+        except Exception:
+            self.controller._runner_scope_invalid = True
+            self.revoke()
+
+    def _apply_runner_hint(self, captured):
+        self.store.assert_worker_thread()
+        callback = (self.controller._on_runner_order_filled_sync if captured.kind == 'fill'
+                    else self.controller._on_runner_order_canceled_sync)
+        callback(captured.event())
+        if self.controller._runner_scope_invalid:
+            raise StorageError('SERVICE_RUNNER_HINT_UNQUALIFIED')
+
+    async def drain_runner_events(self):
+        tasks = tuple(self._pending_events.values())
+        if tasks:
+            await asyncio.gather(*tasks)
+        if self.controller._runner_scope_invalid:
+            raise StorageError('SERVICE_RUNNER_HINT_UNQUALIFIED')
+
+    def stop_local(self, action):
+        if action.controller_id != self.controller.config.id:
+            return False
+        self.controller._runner_stop_revoked_ids.add(action.executor_id)
+        self.spot.cancel_local(action.executor_id)
+        if self.swap is not None:
+            self.swap.revoke_intent(action.executor_id)
+        # Source qualification owns durable cancel/terminal work. This callback
+        # must work even when the worker is blocked or native files are damaged.
+        return True
+
+    def rejected(self, action):
+        self.runtime.forget_action(action.executor_config.id)
+        self.controller._runner_stop_revoked_ids.add(action.executor_config.id)
+        if self.swap is not None and action.executor_config.connector_name == self.swap.connector.name:
+            self.swap.revoke_intent(action.executor_config.id)
+        else:
+            self.spot.cancel_local(action.executor_config.id)
+        return False
+
+    def revoke(self):
+        self._revoked = True
+        runtime = getattr(self, 'runtime', None)
+        if runtime is not None:
+            runtime.revoke()
+        if self.swap is not None:
+            self.swap.revoke()
+        if self.joint is not None:
+            self.joint.revoke()
+
+    async def close(self):
+        self.revoke()
+        if self._close_task is None:
+            self._close_task = asyncio.create_task(self._close())
+        await asyncio.shield(self._close_task)
+
+    async def _close(self):
+        failure = None
+        if self._cycle is not None and not self._cycle.done():
+            self._cycle.cancel()
+            await asyncio.gather(self._cycle, return_exceptions=True)
+        hints = tuple(self._pending_events.values())
+        for task in hints:
+            task.cancel()
+        if hints:
+            await asyncio.gather(*hints, return_exceptions=True)
+        resources = (self.runner, self.reporting, self.swap, self.spot, self.store)
+        for resource in resources:
+            if resource is None:
+                continue
+            try:
+                if resource is self.runner:
+                    # The file service retains exchange uncertainty in WAL;
+                    # shutdown records exposure immediately instead of waiting
+                    # for a market loop that may already have stopped.
+                    resource.max_executors_close_attempts = 0
+                    await resource.on_stop()
+                    resource.listen_to_executor_actions_task.cancel()
+                    await asyncio.gather(resource.listen_to_executor_actions_task, return_exceptions=True)
+                else:
+                    await resource.close()
+            except BaseException as error:
+                if failure is None:
+                    failure = error
+        if failure is not None:
+            raise failure

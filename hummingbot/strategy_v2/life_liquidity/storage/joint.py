@@ -28,7 +28,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.contracts import (
 )
 from hummingbot.strategy_v2.life_liquidity.storage.file import FileCheckpointStore
 from hummingbot.strategy_v2.life_liquidity.storage.financial import FillSpot, PrepareSpot, SpotFillObservation
-from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancialRecoveryFacts
+from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotAckRecoveryFacts, SpotFinancialRecoveryFacts
 from hummingbot.strategy_v2.life_liquidity.storage.terminal import SpotTerminalFacts, TerminalSpot
 
 
@@ -147,6 +147,44 @@ store. Spot coupling additionally requires independent fill and account facts.
             result['coupled_spot'] = True
         return result
 
+    def qualified_cashflows(self):
+        if not self._couple_cash:
+            return None
+        resources = self.store._read().resources
+        result = {key: self.store._cashflow_from_json(row) for key, row in resources.get('cashflows', {}).items()}
+        for row in resources.get('cashflow_operations', {}).values():
+            command = self.store._cashflow_from_json(row['command'])
+            if (row['fingerprint'] != fingerprint({'command': command.json(), 'owner': row['owner']})
+                    or row['state'] not in ('CASHFLOWING', 'APPLIED')
+                    or row['state'] != 'APPLIED' and row['owner'] != self.owner.json()):
+                raise StorageError('JOINT_CASHFLOW_ORIGIN_REQUIRED')
+            self.store._validate_cashflow_value(command)
+            previous = result.setdefault(command.bill_id, command)
+            if any(previous.json()[k] != v for k, v in command.json().items() if k not in ('operation_id', 'observed_at')):
+                raise StorageError('JOINT_CASHFLOW_HISTORY_CHANGED')
+        if any(key not in result or value != (result[key].currency, result[key].signed_amount)
+               for key, value in self.store._ledger.cashflow_events.items()):
+            raise StorageError('JOINT_CASHFLOW_NATIVE_HISTORY_CHANGED')
+        return result
+
+    def qualified_acks(self, orders):
+        if not self._couple_spot:
+            return ()
+        result = []
+        for operation in self.store._read().resources.get('acknowledgements', {}).values():
+            ack = self.store._ack_from_json(operation['command'])
+            if (operation['fingerprint'] != fingerprint({'command': ack.json(), 'owner': operation['owner']})
+                    or operation['state'] not in ('ACKED', 'ACKING')):
+                raise StorageError('JOINT_ACK_ORIGIN_INVALID')
+            if operation['state'] == 'ACKING':
+                order = orders.get(ack.intent_id)
+                if (operation['owner'] != self.owner.json() or order is None or order.state == 'unsent'
+                        or order.exchange_order_id != ack.exchange_order_id or order.claim.wire_id != ack.client_order_id
+                        or (order.claim.session_id, order.claim.epoch) != (ack.session_id, ack.epoch)):
+                    raise StorageError('JOINT_ACK_SOURCE_MISMATCH')
+            result.append(ack)
+        return tuple(result)
+
     def prepare_cash_settlement(self, orders, events, encoded, observation, proof_id, spot_fills=(), spot_facts=None):
         if not self._couple_cash:
             return None
@@ -175,12 +213,13 @@ store. Spot coupling additionally requires independent fill and account facts.
             if key in retained and retained[key] != value:
                 raise StorageError('JOINT_CASH_SOURCE_MISMATCH')
             retained[key] = value
-        if not retained and not spot_orders:
+        transfers = self.qualified_cashflows()
+        if not retained and not spot_orders and not transfers:
             return None
         return JointCashSpot('joint:' + proof_id, self.binding, proof_id,
                              datetime.fromtimestamp(encoded['observed_at_ms'] / 1000, timezone.utc),
                              tuple(retained.values()), observation.spot_life_base, observation.spot_cash_quote,
-                             True, True, 'okx_joint_reconciled', qualified_fills)
+                             True, True, 'okx_joint_reconciled', qualified_fills, tuple(transfers.values()), self.qualified_acks(orders))
 
     def _prepare_spot_fills(self, orders, supplied, facts, resources, observation, encoded, proof_id):
         if not orders:
@@ -193,9 +232,8 @@ store. Spot coupling additionally requires independent fill and account facts.
                     observation.spot_life_base, observation.spot_cash_quote)
                 or not facts.order_scope_complete or not facts.bill_scope_complete or not facts.runner_scope_complete
                 or facts.liability_base_life != 0 or facts.liability_quote_usdt != 0
-                or set(facts.accepted_wire_ids) != {o.claim.wire_id for o in orders.values()}
-                or not set(facts.runner_wire_ids).issubset({r.client_order_id for r in self.store._wal.all_records()})
-                or any(o.state == 'unsent' for o in orders.values())):
+                or set(facts.accepted_wire_ids) != {o.claim.wire_id for o in orders.values() if o.state != 'unsent'}
+                or not set(facts.runner_wire_ids).issubset({r.client_order_id for r in self.store._wal.all_records()})):
             raise StorageError('JOINT_SPOT_ACCOUNT_FACTS_REQUIRED')
         source = {v.intent_id: v for v in supplied}
         if len(source) != len(supplied) or not set(source).issubset(orders):
@@ -247,7 +285,7 @@ store. Spot coupling additionally requires independent fill and account facts.
             result.append(row)
         candidate = _SpotFillProjection(tuple(result), facts.observed_at)
         fills, _ = self.store._joint_fill_projection(candidate, resources, self.owner)
-        if set(facts.account_trade_ids) != set(fills) or set(facts.account_cashflow_ids) != set(resources.get('cashflows', {})):
+        if set(facts.account_trade_ids) != set(fills) or set(facts.account_cashflow_ids) != set(self.qualified_cashflows() or {}):
             raise StorageError('JOINT_SPOT_ACCOUNT_FACTS_REQUIRED')
         return tuple(result)
 
@@ -262,6 +300,13 @@ store. Spot coupling additionally requires independent fill and account facts.
             original = JointCashSpot.from_json(thaw(row['command']))
             self.store._apply_joint_cash(original, FinancialCut.from_json(thaw(row['cut'])), self.owner, True)
         if self._couple_spot:
+            for row in self.store._read().resources.get('lifecycle_operations', {}).values():
+                if row['state'] != 'APPLIED':
+                    operation = row['command']
+                    order = orders.get(operation['intent_id'])
+                    if operation['action'] != 'ABORT_PREPARED' or order is None or order.state != 'unsent':
+                        raise StorageError('JOINT_SPOT_LIFECYCLE_SOURCE_MISSING')
+                    self.apply_spot_order(order, spot_facts)
             for row in self.store._read().resources.get('terminal_operations', {}).values():
                 if row['state'] != 'TERMINAL':
                     order = orders.get(row['command']['intent_id'])
@@ -276,6 +321,27 @@ store. Spot coupling additionally requires independent fill and account facts.
     def apply_spot_order(self, order, facts):
         if not self._couple_spot or not self._recovery.authorizes_order(order, self._recovery.journal._state['proof_id']):
             raise StorageError('JOINT_SPOT_ORDER_AUTHORITY_INVALID')
+        for operation in self.store._read().resources.get('acknowledgements', {}).values():
+            if operation['state'] == 'ACKING' and operation['command']['intent_id'] == order.claim.intent_id:
+                ack = self.store._ack_from_json(operation['command'])
+                if facts is None or order.exchange_order_id != ack.exchange_order_id:
+                    raise StorageError('JOINT_ACK_SOURCE_MISMATCH')
+                ack_facts = SpotAckRecoveryFacts(facts, ack.client_order_id, ack.exchange_order_id, ack.market, ack.side,
+                                                 order.claim.quantity_base, order.claim.price_usdt,
+                                                 sum((v.quantity_base for v in order.trades), Decimal('0')), order.state.upper())
+                self.store._resume_ack(ack, ack_facts, self.store._snapshot().cut, self.owner)
+        if order.state == 'unsent':
+            resources = self.store._read().resources
+            rows = [r for r in resources['commands'].values() if r['command']['intent_id'] == order.claim.intent_id]
+            if len(rows) != 1 or order.trades or order.exchange_order_id is not None:
+                raise StorageError('JOINT_SPOT_UNSENT_ORIGIN_REQUIRED')
+            prepared = PrepareSpot.from_json(rows[0]['command'])
+            from hummingbot.strategy_v2.life_liquidity.storage.spot_lifecycle import SpotLifecycleCommand
+            command = SpotLifecycleCommand('jointunsent:' + fingerprint(prepared.json()), prepared.operation_id,
+                                           prepared.intent_id, prepared.client_order_id, 'ABORT_PREPARED')
+            self.store._apply_lifecycle(command, self.store._snapshot().cut, self.owner,
+                                        joint_authority=self._recovery)
+            return
         # A working order stays conservatively SEND_UNKNOWN until terminal
         # qualification. A recorded fill is not an ACK or a resend permission.
         if order.state not in ('filled', 'canceled'):
@@ -306,9 +372,9 @@ store. Spot coupling additionally requires independent fill and account facts.
         self.store._confirm_terminal(command, self.store._snapshot().cut, self.owner, previous is not None,
                                      joint_authority=self._recovery)
 
-    def _guard(self):
+    def _guard(self, *, observation=False):
         self.store.assert_worker_thread()
-        if self._revoked:
+        if self._revoked and not observation:
             raise StorageUnavailable('JOINT_REPOSITORY_REVOKED')
         meta = self.store._read()
         if thaw(meta.resources.get('joint_repository_policy')) != self._policy():

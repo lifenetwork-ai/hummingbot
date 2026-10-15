@@ -84,8 +84,7 @@ class FileRecorderApplication:
                                     filled_amount_quote=Decimal('0'), is_active=False, is_trading=False,
                                     custom_info={'recovery_account_uid': self.binding.account_uid, 'recovery_order_ids': []})
                 command = ExecutorProjection.from_info('initial:' + fingerprint({'config_json': config.model_dump_json()}), self.binding, info)
-                cut = (await self.store.read(self.binding)).cut
-                await self.repository.project(command, cut, self.runtime.owner)
+                await self.repository.publish_current('projection', command, owner=self.runtime.owner)
                 return not self._closed and not self.runtime._revoked
         except BaseException:
             self._healthy = False
@@ -152,7 +151,7 @@ class FileRecorderApplication:
             command = ExecutorProgress('progress:' + fingerprint({'id': captured.executor_id, 'sequence': sequence,
                                                                   'payload': captured.payload_json}),
                                        self.binding, sequence, captured.payload_json)
-            receipt = await self.repository.update_progress(command, cut=snapshot.cut, owner=self.runtime.owner)
+            receipt = await self.repository.publish_current('progress', command, owner=self.runtime.owner)
             for callback in tuple(callbacks):
                 callback(receipt)
             return receipt
@@ -162,7 +161,7 @@ class FileRecorderApplication:
             state = await self.repository.positions(self.binding)
             command = PositionReport('positions:' + fingerprint({'capture': captured.json(), 'sequence': state.sequence}),
                                      self.binding, captured.controller_id, state.sequence, captured.timestamp_ms, captured.positions)
-            receipt = await self.repository.report_positions(command, cut=state.cut, owner=self.runtime.owner)
+            receipt = await self.repository.publish_current('positions', command, owner=self.runtime.owner)
             for callback in tuple(callbacks):
                 callback(receipt)
             return receipt

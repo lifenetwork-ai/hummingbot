@@ -28,7 +28,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancial
 from hummingbot.strategy_v2.life_liquidity.storage.terminal import SpotTerminalPolicy
 
 
-async def fixture(tmp_path, *, spot=False):
+async def fixture(tmp_path, *, spot=False, approvals=()):
     recovery, values, bundle, _ = setup_recovery(tmp_path / 'native')
     c, _, _, _, _, _, clock, _, _, _, _, _ = values
     _, binding, owner = create_fixture(tmp_path / 'seed')
@@ -42,7 +42,7 @@ async def fixture(tmp_path, *, spot=False):
     SubsidyBudgetLedger(files.subsidy, **BUDGET.kwargs()).initialize_empty()
     LossBudgetLedger(files.loss, **BUDGET.kwargs()).record('opening', D('0'),
                                                            session_id=session.session_id, at_utc=clock.wall)
-    accounting = SpotAccountingPolicy(D('10'), D('10'), D('1'), clock.wall, '100', ())
+    accounting = SpotAccountingPolicy(D('10'), D('10'), D('1'), clock.wall, '100', approvals)
     store = await open_legacy_spot(files, binding=binding, limits=CAPACITY,
                                    risk_limits=c._order_safety_reservations.limits,
                                    subsidy_policy=BUDGET, loss_policy=BUDGET, config_version=1,
@@ -188,6 +188,58 @@ async def test_signed_funding_then_cold_refresh_updates_same_spot_wallet_once(tm
         assert view.balance.total_quote_usdt == D('9.94')
         assert view.budget.session_execution_loss_usdt == 0
         assert (await repo.state(store.binding)).measurement.adjusted_nav_quote == D('19.94')
+        assert store._cold_unarmed and not recovery._armed
+    finally:
+        await store.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('written', [False, True])
+@pytest.mark.parametrize('currency,amount', [('USDT', D('2')), ('USDT', D('-2')), ('LIFE', D('2')), ('LIFE', D('-2'))])
+async def test_pending_external_cashflow_and_new_swap_cash_share_qualified_replay(tmp_path, monkeypatch, written, currency, amount):
+    from datetime import datetime, timezone
+    from test.hummingbot.strategy_v2.life_liquidity.test_shared_capital_runner import setup_shared
+
+    from hummingbot.strategy_v2.life_liquidity.storage.capital import ApprovedSpotCashflow, CashflowSpot
+    from hummingbot.strategy_v2.life_liquidity.storage.contracts import CommitUnknown
+
+    # Match the explicit native fixture clock, never the host wall clock.
+    ref = setup_shared(tmp_path / 'clock-reference')[6].wall
+    at = int(ref.timestamp() * 1000)
+    approval = ApprovedSpotCashflow('101', currency, amount, at)
+    repo, store, recovery, values, bundle, owner = await fixture(tmp_path, approvals=(approval,))
+    try:
+        assert await repo.reconcile(store.binding, owner)
+        claim = await store._call(send_close, values)
+        price = D('1') if currency == 'USDT' else D('1.2')
+        expected_quote = D('9.999') + (amount if currency == 'USDT' else 0)
+        expected_base = D('10') + (amount if currency == 'LIFE' else 0)
+        command = CashflowSpot('cash1', '101', currency, amount, at, price, at, at,
+                               'quote_unit' if currency == 'USDT' else 'independent_market',
+                               datetime.fromtimestamp(at / 1000, timezone.utc))
+        original = store._ledger.record_cashflow
+
+        def interrupted(*args, **kwargs):
+            if written:
+                original(*args, **kwargs)
+            raise OSError('synthetic cashflow interruption')
+        with monkeypatch.context() as patches:
+            patches.setattr(store._ledger, 'record_cashflow', interrupted)
+            with pytest.raises(CommitUnknown):
+                await store.apply_cashflow(command, cut=(await store.snapshot(store.binding)).cut, owner=owner)
+        report(values, bundle, claim)
+        values[8]['snapshot'] = replace(values[8]['snapshot'], spot_cash_quote=expected_quote, spot_life_base=expected_base)
+        repo, store, recovery, values = await reopen(tmp_path, store, recovery, values, owner)
+        assert await repo.reconcile(store.binding, owner), recovery.reason_code
+        assert await repo.reconcile(store.binding, owner), recovery.reason_code
+        view = await store.snapshot(store.binding)
+        assert view.balance.total_quote_usdt == expected_quote and view.balance.total_base_life == expected_base
+        assert view.budget.session_execution_loss_usdt == D('.001')
+        receipt = await store.lookup_cashflow('cash1', store.binding)
+        assert receipt.state == 'APPLIED'
+        measurement = (await repo.state(store.binding)).measurement
+        assert measurement.adjusted_nav_quote == expected_quote + expected_base - amount * price
+        assert values[1].claim_ids() == () and len(values[4].sent) == 1
         assert store._cold_unarmed and not recovery._armed
     finally:
         await store.close()

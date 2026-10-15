@@ -270,7 +270,8 @@ class JointRecovery:
             encoded_orders = {id(order): value for order, value in zip(bundle.orders, prepared.orders)}
         if state["sequence"] is not None and (
                 bundle.snapshot_sequence < state["sequence"]
-                or bundle.snapshot_sequence == state["sequence"] and encoded != state["bundle"]
+                or bundle.snapshot_sequence == state["sequence"] and encoded != {
+                    k: v for k, v in state["bundle"].items() if k not in ("repository_cashflows", "repository_acks")}
                 or bundle.observed_at_ms < state["bundle"]["observed_at_ms"]):
             raise ValueError("JOINT_HISTORY_REPLAY_OR_MUTATION")
         self._swap_account(obs, now)
@@ -476,7 +477,16 @@ class JointRecovery:
                         or funding["coverage_through_ms"] < bundle.observed_at_ms):
                     raise ValueError("JOINT_CARRY_HISTORY_MISMATCH")
         external_flows = ZERO
-        for key, value in self.reservations.cashflow_events.items():
+        repository_flows = (self._repository_application.qualified_cashflows()
+                            if self._repository_application is not None else None)
+        if repository_flows is not None:
+            for previous in (state['bundle'] or {}).get('repository_cashflows', ()):
+                row = repository_flows.get(previous['bill_id'])
+                if row is None or row.json() != previous:
+                    raise ValueError('JOINT_CASHFLOW_HISTORY_CHANGED')
+        flow_values = (self.reservations.cashflow_events if repository_flows is None else
+                       {key: (v.currency, v.signed_amount) for key, v in repository_flows.items()})
+        for key, value in flow_values.items():
             encoded = _json(value)
             old = state["opening_cashflows"].get(key)
             if old is not None:
@@ -485,8 +495,8 @@ class JointRecovery:
                 continue
             currency, amount = value
             attributor = self.controller._fill_attributor
-            if (attributor is None or attributor.cashflow_approvals is None
-                    or attributor.cashflow_approvals.approved.get(key) != value):
+            if repository_flows is None and (attributor is None or attributor.cashflow_approvals is None
+                                             or attributor.cashflow_approvals.approved.get(key) != value):
                 raise ValueError("JOINT_TRANSFER_APPROVAL_REQUIRED")
             if currency == "USDT":
                 cash += amount
@@ -494,10 +504,13 @@ class JointRecovery:
             else:
                 life += amount
                 attributor = self.controller._fill_attributor
-                transfer = None if attributor is None else attributor._cashflows.get(key)
-                if transfer is None or not attributor._cashflow_matches(key, transfer):
-                    raise ValueError("JOINT_TRANSFER_VALUE_REQUIRED")
-                external_flows += amount * Decimal(transfer["independent_value_usdt"])
+                if repository_flows is not None:
+                    external_flows += amount * repository_flows[key].independent_price_usdt
+                else:
+                    transfer = None if attributor is None else attributor._cashflows.get(key)
+                    if transfer is None or not attributor._cashflow_matches(key, transfer):
+                        raise ValueError("JOINT_TRANSFER_VALUE_REQUIRED")
+                    external_flows += amount * Decimal(transfer["independent_value_usdt"])
         if not set(state["opening_cashflows"]) <= set(self.reservations.cashflow_events):
             raise ValueError("JOINT_CASHFLOW_MISSING")
         if (life, cash, long, short) != (obs.spot_life_base, obs.spot_cash_quote, obs.long_base, obs.short_base):
@@ -546,10 +559,19 @@ class JointRecovery:
                     raise ValueError("JOINT_CLOCK_ROLLBACK")
                 state["last_ms"] = now
                 obs, orders, events, encoded, valuation = self._qualify(bundle, state, now, prepared)
+                if self._repository_application is not None:
+                    transfers = self._repository_application.qualified_cashflows()
+                    if transfers:
+                        encoded = {**encoded, 'repository_cashflows': [v.json() for _, v in sorted(transfers.items())]}
+                    if self._repository_application._couple_spot:
+                        acks = self._repository_application.qualified_acks(orders)
+                        if acks:
+                            encoded = {**encoded, 'repository_acks': [v.json() for v in acks]}
+                qualified_proof_id = digest(encoded)
                 cash_settlement = None
                 if self._repository_application is not None:
                     cash_settlement = self._repository_application.prepare_cash_settlement(
-                        orders, events, encoded, obs, digest(encoded) if prepared is None else prepared.proof_id,
+                        orders, events, encoded, obs, qualified_proof_id,
                         spot_fills, spot_facts)
                 # A COMMITTED immutable terminal cut has already completed
                 # all cross-journal checkpoints. Re-qualify all facts, but
@@ -566,7 +588,7 @@ class JointRecovery:
                                  and hedge_idle and all(known_cash.get(k) == v
                                                         for k, v in events.items()))
                 state.update(sequence=obs.sequence, bundle=encoded,
-                             proof_id=digest(encoded) if prepared is None else prepared.proof_id,
+                             proof_id=qualified_proof_id,
                              phase="COMMITTED" if no_settlement and cash_settlement is None else "APPLYING",
                              valuation=valuation, highwater=valuation["highwater_quote"])
                 self.journal.commit(state)  # Intent-to-settle precedes every financial/WAL checkpoint.

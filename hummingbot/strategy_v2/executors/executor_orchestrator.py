@@ -483,11 +483,37 @@ class ExecutorOrchestrator:
         # while connector prices and strategy market registrations are still available.
         self._update_positions_from_done_executors()
         # Store all positions and executors
-        self.store_all_positions()
-        self.store_all_executors()
+        if self._repository_reporting is not None:
+            task = getattr(self, '_repository_stop_task', None)
+            if task is None:
+                self._repository_stop_task = asyncio.create_task(self.store_all_repository_reports())
+
+                def observed(result):
+                    if not result.cancelled():
+                        result.exception()  # Drain surfaces failure; never lose task errors.
+                self._repository_stop_task.add_done_callback(observed)
+        else:
+            self.store_all_positions()
+            self.store_all_executors()
         # Clear executors and trigger garbage collection
         if self._repository_reporting is None:
             self.active_executors.clear()
+
+    async def store_all_repository_reports(self):
+        """Drain each shutdown projection before admitting the next one.
+
+        A position and its child report must work with capacity one. Steady
+        state enqueue remains bounded and rejects excess concurrent work.
+        """
+        if self._repository_reporting is None:
+            raise ValueError('REPOSITORY_REPORTING_REQUIRED')
+        await self.drain_repository_reporting()
+        self.store_all_positions()
+        await self.drain_repository_reporting()
+        for controller_id, executors in tuple(self.active_executors.items()):
+            for executor in tuple(executors):
+                self._enqueue_repository_report(controller_id, executor)
+                await self.drain_repository_reporting()
 
     def store_all_positions(self):
         """
@@ -798,6 +824,9 @@ class ExecutorOrchestrator:
         return self._repository_reporting[controller_id].enqueue(captured, on_committed=committed)
 
     async def drain_repository_reporting(self):
+        task = getattr(self, '_repository_stop_task', None)
+        if task is not None and task is not asyncio.current_task():
+            await asyncio.shield(task)
         if self._repository_reporting is not None:
             await asyncio.gather(*(app.drain() for app in self._repository_reporting.values()))
 

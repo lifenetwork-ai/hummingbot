@@ -28,6 +28,9 @@ class FileSwapApplication:
     def local_ready(self):
         try:
             c = self.controller
+            runtime = c._storage_runtime
+            if runtime is not None and runtime._service is not None and runtime._service.admission_paused:
+                return False
             return (not self._revoked and not self.store._closed and not self.store._uncertain
                     and not self.repository.joint._revoked and self.sender._runtime_enabled
                     and self.repository.joint._recovery._armed and self.repository.joint._recovery._healthy
@@ -61,6 +64,17 @@ class FileSwapApplication:
             return CreateExecutorAction(controller_id=self.controller.config.id, executor_config=command.config())
         finally:
             self._proposals -= 1
+
+    def adopt_prepared(self, command, receipt):
+        # This local cache never replaces repository qualification at arm/send.
+        if (type(command) is not PrepareSwap or receipt is None or receipt.binding != self.repository.binding
+                or receipt.operation_id != command.operation_id or receipt.state != 'PREPARED'
+                or receipt.permit.intent_id != command.config().id or receipt.permit.client_order_id != command.client_order_id
+                or not self.local_ready() or command.config().id in self._seen
+                or len(self._seen) >= self.store.limits.max_operations):
+            raise StorageError('SWAP_PREPARED_ADOPTION_DENIED')
+        self._seen.add(command.config().id)
+        self._issued[command.config().id] = (command, receipt, False)
 
     def authorizes_config(self, config):
         try:
@@ -109,10 +123,13 @@ class FileSwapApplication:
 
     async def _submit(self, command, receipt):
         config, permit = command.config(), receipt.permit
+        runtime = self.controller._storage_runtime
+        if runtime is not None:
+            await runtime.await_reporting()
         await self._uid()
         if not self.local_ready() or config.id in self._revoked_ids:
             raise StorageError('SWAP_APPLICATION_FINAL_REVOKED')
-        await self.repository.arm(command.operation_id, cut=await self.repository.cut(self.repository.binding), owner=self.owner)
+        await self.repository.arm_prepared(command.operation_id, owner=self.owner)
         acknowledged = asyncio.Event()
         boundary_attempted, qualified, request_started = False, False, False
         checked_at_ms = valid_until_ms = None
@@ -124,6 +141,8 @@ class FileSwapApplication:
             boundary_attempted = True
             self._local_fence(command, receipt, wire)
             await self._uid()
+            if runtime is not None:
+                await runtime.await_reporting()
             if self.sender._async_authorize is not None and await self.sender._async_authorize(permit) is not True:
                 raise StorageError('SWAP_ASYNC_AUTHORITY_DENIED')
             boundary = await self.repository.authorize_boundary(command.operation_id, wire_payload=encode(wire), owner=self.owner)

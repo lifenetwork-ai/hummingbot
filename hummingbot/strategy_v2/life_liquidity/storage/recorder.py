@@ -133,9 +133,20 @@ class FileRecorderRepository(FileRecorderProgressAdapter, FilePositionAdapter, F
         url = recorder.sql_manager.engine.url
         if recorder.sql_manager.engine.dialect.name != 'sqlite' or url.database in (None, ':memory:'):
             raise StorageError('RECORDER_FILE_SQLITE_REQUIRED')
+        self._swap_repository = None
         self._database = Path(url.database).absolute()
         self._identity = {'backend': 'sqlite', 'controller_id': controller_id,
                           'database_sha256': hashlib.sha256(str(self._database.resolve()).encode()).hexdigest()}
+
+    def bind_swap_repository(self, repository):
+        from hummingbot.strategy_v2.life_liquidity.storage.swap import FileSwapRepository
+        self.store.assert_worker_thread()
+        if (type(repository) is not FileSwapRepository or self._swap_repository is not None
+                or repository.store is not self.store or repository.binding != self.binding
+                or repository.sender.controller.config.id != self.controller_id):
+            raise StorageError('RECORDER_SWAP_REPOSITORY_MISMATCH')
+        repository._guard()
+        self._swap_repository = repository
 
     def _verify_binding(self, meta):
         if not self._database.is_file() or self._database.is_symlink():
@@ -250,6 +261,37 @@ class FileRecorderRepository(FileRecorderProgressAdapter, FilePositionAdapter, F
         except Exception:
             self.store._uncertain = True
             raise StorageUnavailable('RECORDER_PROJECTION_UNKNOWN') from None
+
+    def _publish_current(self, kind, command, owner):
+        self.store.assert_worker_thread()
+        from hummingbot.strategy_v2.life_liquidity.storage.recorder_events import EventProjection
+        from hummingbot.strategy_v2.life_liquidity.storage.recorder_positions import PositionReport
+        from hummingbot.strategy_v2.life_liquidity.storage.recorder_progress import ExecutorProgress
+        routes = {'projection': (ExecutorProjection, 'recorder_outbox', self._project),
+                  'progress': (ExecutorProgress, 'recorder_progress', self._update_progress),
+                  'positions': (PositionReport, 'recorder_positions', self._report_positions),
+                  'event': (EventProjection, 'recorder_events', self._project_event)}
+        expected, resource, apply = routes[kind]
+        if type(command) is not expected or type(owner) is not OwnerToken:
+            raise StorageError('RECORDER_COMMAND_INVALID')
+        self.store._assert_binding(command.binding)
+        meta = self.store._read()
+        key = command.event_id if kind == 'event' else command.operation_id
+        previous = meta.resources.get(resource, {}).get(key)
+        cut = meta.cut if previous is None else StateCut.from_json(thaw(previous['cut']))
+        # Exact command/owner/sequence/native projection checks are retained by
+        # the original writer. An unrelated financial publication cannot race
+        # this new operation's read and write; replay uses its original cut.
+        return apply(command, cut, owner)
+
+    async def publish_current(self, kind, command, *, owner):
+        if kind not in ('projection', 'progress', 'positions', 'event'):
+            raise StorageError('RECORDER_COMMAND_INVALID')
+        try:
+            return await self.store._call(self._publish_current, kind, command, owner)
+        except asyncio.CancelledError:
+            self.store._uncertain = True
+            raise
 
     async def project(self, command, cut, owner):
         if not isinstance(command, ExecutorProjection) or not isinstance(cut, StateCut) or not isinstance(owner, OwnerToken):

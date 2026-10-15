@@ -90,6 +90,9 @@ class LegacyFinancialRecoveryAdapter:
         if (capital.life_balance != facts.account_base_life or capital.usdt_balance != facts.account_quote_usdt
                 or set(facts.account_trade_ids) != set(fills) or set(facts.account_cashflow_ids) != set(cashflows)):
             raise StorageError('SPOT_FINANCIAL_RECOVERY_ACCOUNT_MISMATCH')
+        self._verify_native_financial_subset(commands, fills, cashflows, facts)
+
+    def _verify_native_financial_subset(self, commands, fills, cashflows, facts):
         native_trades = self._ledger.trade_ids
         native_cash = self._ledger.cashflow_events
         baseline = self._read().resources

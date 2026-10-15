@@ -462,6 +462,12 @@ class LifeLiquidityController(ControllerBase):
 
     def on_runner_order_filled(self, event: OrderFilledEvent) -> None:
         """Hold runner evidence until authenticated exchange reconciliation agrees."""
+        if self._storage_runtime is not None and self._storage_runtime._service is not None:
+            self._storage_runtime._service.enqueue_runner_event('fill', event)
+            return
+        self._on_runner_order_filled_sync(event)
+
+    def _on_runner_order_filled_sync(self, event):
         if not isinstance(event, OrderFilledEvent):
             self._runner_scope_invalid = True
             return
@@ -518,6 +524,12 @@ class LifeLiquidityController(ControllerBase):
 
     def on_runner_order_canceled(self, event: OrderCancelledEvent) -> None:
         """A tracker cancel event is a hint, never exchange terminal proof."""
+        if self._storage_runtime is not None and self._storage_runtime._service is not None:
+            self._storage_runtime._service.enqueue_runner_event('cancel', event)
+            return
+        self._on_runner_order_canceled_sync(event)
+
+    def _on_runner_order_canceled_sync(self, event):
         if not isinstance(event, OrderCancelledEvent):
             self._runner_scope_invalid = True
             return
@@ -1493,6 +1505,9 @@ class LifeLiquidityController(ControllerBase):
 
     def on_runner_stop_action(self, action) -> None:
         """Revoke an already dispatched intent before the runner stops its executor."""
+        if self._storage_runtime is not None and self._storage_runtime._service is not None:
+            self._storage_runtime._service.stop_local(action)
+            return
         if (self._storage_runtime is not None and action.controller_id == self.config.id
                 and self._storage_runtime.cancel_spot_local(action.executor_id)):
             return
@@ -1519,6 +1534,8 @@ class LifeLiquidityController(ControllerBase):
         return True
 
     def on_runner_create_action_rejected(self, action) -> bool:
+        if self._storage_runtime is not None and self._storage_runtime._service is not None:
+            return self._storage_runtime._service.rejected(action)
         if self._storage_runtime is not None:
             self._storage_runtime.forget_action(action.executor_config.id)
         self._record_telemetry("QUEUE_REJECT", allowed=False, reason_code="RUNNER_ACTION_REJECTED",
@@ -1533,6 +1550,8 @@ class LifeLiquidityController(ControllerBase):
         return planner.on_runner_action_rejected(action) if planner is not None else False
 
     def on_runner_create_action_dispatched(self, action) -> bool:
+        if self._storage_runtime is not None and self._storage_runtime._service is not None:
+            return self._storage_runtime._service.dispatched(action)
         if self._storage_runtime is not None:
             self._storage_runtime.forget_action(action.executor_config.id)
         self._record_telemetry("QUEUE_DISPATCH", allowed=True, reason_code="RUNNER_ACTION_DISPATCHED",
@@ -1667,6 +1686,9 @@ class LifeLiquidityController(ControllerBase):
         return safe
 
     def _runner_product_config_valid(self, config):
+        runtime = self._storage_runtime
+        if runtime is not None and runtime._service is not None:
+            return runtime._service.recognizes_config(config)
         if (config.connector_name == self.config.strategy.spot.connector
                 and config.trading_pair == self.config.strategy.spot.pair):
             return True
@@ -1817,6 +1839,12 @@ class LifeLiquidityController(ControllerBase):
     def on_runner_safety_tick(self, timestamp: float, orchestrator) -> None:
         """Attach the real executor scope before the readiness-independent safety tick."""
         self._runner_orchestrator = orchestrator
+        runtime = self._storage_runtime
+        if runtime is not None and runtime._service is not None:
+            if not runtime._local_ready():
+                self._runner_halt_ok = self._halt_runner_orders()
+            runtime._service.on_safety_tick(timestamp)
+            return
         try:
             permitted = self.trading_permissions_ready() is True
         except Exception:
@@ -1836,6 +1864,9 @@ class LifeLiquidityController(ControllerBase):
         if self._order_safety_stopped:
             return
         runtime = self._storage_runtime
+        if runtime is not None and runtime._service is not None:
+            runtime._service.on_safety_tick(timestamp)
+            return
         if runtime is not None and runtime.handles_financial_spot:
             runtime.on_spot_safety_tick(timestamp)
             return
@@ -2334,7 +2365,13 @@ class LifeLiquidityController(ControllerBase):
                     self.continuity_gate.confirm(self._book_feed_health(), self.snapshot_gate.snapshot,
                                                  request_started_monotonic)
         await self.update_processed_data()
-        if self.snapshot_gate.permit():
+        runtime = self._storage_runtime
+        if runtime is not None and runtime._service is not None:
+            if self.market_data_provider.ready and self.executors_update_event.is_set():
+                actions = await runtime._service.plan()
+                if actions:
+                    await self.send_actions(actions)
+        elif self.snapshot_gate.permit():
             await super().control_task()
 
     def _schedule_perpetual_listing_poll(self):
@@ -2394,6 +2431,13 @@ class LifeLiquidityController(ControllerBase):
                     self.perpetual_contract_reason_code = "SWAP_METADATA_CONFIRMED"
 
     async def update_processed_data(self):
+        runtime = self._storage_runtime
+        if runtime is not None and runtime._service is not None:
+            await runtime.store._call(self._update_processed_data_sync)
+            return
+        self._update_processed_data_sync()
+
+    def _update_processed_data_sync(self):
         self._own_depth_decision = self._evaluate_local_own_depth()
         if not self.config.strategy.spot.enabled:
             reason = "SPOT_DISABLED"
@@ -2538,6 +2582,8 @@ class LifeLiquidityController(ControllerBase):
         return True
 
     def determine_executor_actions(self):
+        if self._storage_runtime is not None and self._storage_runtime._service is not None:
+            self._storage_runtime.store.assert_worker_thread()
         if not self._carry_ready():
             return self._carry_stops()
         if self.config.recovery_state_dir is not None and not self._quote_action_recovery_ready:
@@ -2570,6 +2616,9 @@ class LifeLiquidityController(ControllerBase):
         }
 
     def to_format_status(self):
+        runtime = self._storage_runtime
+        if runtime is not None and runtime._service is not None:
+            return runtime._service.status_lines()
         reason = self.processed_data.get("reason_code", self.listing_gate.reason_code)
         if self.snapshot_gate.ready and not self.snapshot_gate.permit():
             reason = "BOOK_STALE"

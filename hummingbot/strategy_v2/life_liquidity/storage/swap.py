@@ -33,6 +33,8 @@ from hummingbot.strategy_v2.life_liquidity.storage.products import ProductCut
 
 
 def _storage_json(value):
+    if type(value) is Decimal:
+        return str(signed_decimal(value))
     if type(value) is float:
         if not math.isfinite(value):
             raise StorageError('SWAP_NONFINITE_VALUE')
@@ -137,7 +139,9 @@ class FileSwapRepository:
         self.joint, self.store, self.binding = joint, joint.store, joint.binding
         self.sender = joint._recovery.sender
         self.application = None
+        self._hedge_application = None
         self._known_wires = ()
+        self._known_configs = {}
 
     def _policy(self):
         return {'joint': self.joint._policy(), 'sender': self.sender._policy()}
@@ -154,8 +158,8 @@ class FileSwapRepository:
         elif thaw(previous) != self._policy():
             raise StorageError('SWAP_REPOSITORY_POLICY_MISMATCH')
 
-    def _guard(self, owner=None, *, admission=False):
-        meta = self.joint._guard()
+    def _guard(self, owner=None, *, admission=False, observation=False):
+        meta = self.joint._guard(observation=observation)
         if self.sender is not self.joint._recovery.sender or self.sender._storage_repository not in (None, self):
             raise StorageError('SWAP_REPOSITORY_BINDING_MISMATCH')
         if self.sender._storage_repository is self and thaw(meta.resources.get('swap_repository_policy')) != self._policy():
@@ -168,6 +172,9 @@ class FileSwapRepository:
                     or getattr(self.store, '_cold_unarmed', False) or not self.sender._runtime_enabled
                     or self.application is not None and not self.application.local_ready()):
                 raise StorageError('SWAP_ADMISSION_REVOKED')
+            if (any(v['state'] != 'PLANNED' for v in meta.resources.get('hedge_plans', {}).values())
+                    and (self._hedge_application is None or self._hedge_application._planning is None)):
+                raise StorageUnavailable('HEDGE_PLAN_RECOVERY_REQUIRED')
             if (any(v['state'] in ('PREPARING', 'ARMING', 'ACKING') for v in meta.resources.get('swap_operations', {}).values())
                     or any(v['state'] != 'APPLIED' for key in ('product_operations', 'recorder_outbox', 'recorder_progress',
                                                                'recorder_positions', 'recorder_events')
@@ -176,7 +183,8 @@ class FileSwapRepository:
                 raise StorageUnavailable('SWAP_REPAIR_REQUIRED')
         self.sender.wal.assert_verified()
         self.joint._recovery.capital.claims(include_settled=True)
-        self.sender.journal._read()
+        actions = self.sender.journal._read()['actions']
+        self._known_configs = {k: encode(_storage_json(v['config'])) for k, v in actions.items() if 'config' in v}
         self._known_wires = tuple(r.client_order_id for r in self.sender.wal.all_records()
                                   if r.state not in ('TERMINAL', 'ABORTED_BEFORE_SEND'))
         return meta
@@ -322,7 +330,7 @@ class FileSwapRepository:
         return command, config, permit, record
 
     def _step(self, operation_id, owner, kind, cut=None, exchange_id=None, wire=None):
-        meta = self._guard(owner, admission=kind in ('ARM', 'BOUNDARY'))
+        meta = self._guard(owner, admission=kind in ('ARM', 'BOUNDARY'), observation=kind == 'ACK')
         operations = thaw(meta.resources.get('swap_operations', {}))
         row = operations.get(operation_id)
         if row is None or row['owner'] != owner.json():
@@ -421,6 +429,18 @@ class FileSwapRepository:
         identifier(operation_id)
         self.store._assert_binding(cut.checkpoint.binding)
         return await self._call(self._step, operation_id, owner, 'ARM', cut)
+
+    def _arm_prepared(self, operation_id, owner):
+        # One worker command captures its original arm cut and applies it.
+        # Reporting may publish between separate async read/write calls; it
+        # cannot interleave this financial admission scope. No RPC is retried.
+        return self._step(operation_id, owner, 'ARM', self._cut())
+
+    async def arm_prepared(self, operation_id, *, owner):
+        identifier(operation_id)
+        if type(owner) is not OwnerToken:
+            raise StorageError('SWAP_COMMAND_INVALID')
+        return await self._call(self._arm_prepared, operation_id, owner)
 
     async def authorize_boundary(self, operation_id, *, wire_payload, owner):
         identifier(operation_id)

@@ -860,3 +860,54 @@ The production release gate remains disabled. This explicit assembly does not
 complete configured controller/service startup, hedge child/retry application,
 general cross-family recovery or the PostgreSQL backend. Native history reads and
 full byte verification remain; no O.8 performance gate is closed.
+
+
+## Configured file service and coupled hedge recovery
+
+`service.FileLiquidityService.open(config, connectors=..., sources=...,
+market_data_provider=...)` assembles the actual LIFE controller and V2 runner,
+SQLite reporting, SPOT storage and optional coupled SWAP/hedge graph. Use
+`open_yaml(absolute_path, ...)` for a bounded YAML configuration validated by
+`service_config.FileServiceConfig`. The configuration supplies every accounting,
+capacity, owner, freshness, ACK/shutdown and enabled-product policy explicitly.
+Sources are injected separately: cached clock/risk/permit/admission values,
+capital/account observations and asynchronous complete joint collection/cancel
+callbacks. No database URL, exchange credential or `.env` value is inferred.
+
+Fresh `create_binding=True` is restricted to `OFFLINE_SIMULATION` and requires
+existing native SPOT seed files. Cold startup reconstructs no executor and stays
+unarmed. `recover()` repairs original reporting/hedge/SWAP commands, then uses
+qualified joint SPOT fills/account facts or the configured SPOT observer. Source
+failure, timeout, cancellation and stop close admission; receipt publication does
+not reopen it. Original writer and independently valued transfer/fill terms stay
+binding. Joint settlement updates the wallet once, excludes external deposits or
+withdrawals from profit, and releases unsent zero-fill holds only after the
+complete joint proof. Partial hedge fills retry only their remainder without
+resetting cost/attempt accounting.
+
+The joint service watchdog serializes recovery/session/cancellation. Runner
+stop/dispatch/status callbacks do no native journal reads on the event loop.
+Fill/cancel callbacks capture bounded immutable hints and write them on the same
+worker; mutated SDK events, queue overflow or failed hint publication cannot
+reopen admission. Joint source reconciliation must qualify hints before planning
+resumes. Hints never ACK, release claims or book money.
+Original-writer late ACK remains observational after local service stop and
+never restores joint health. Early SWAP order events are validated against the
+bound repository's original command/WAL/action/capital provenance before SQL;
+reporting does not wait for an executor progress row to learn its wire. New arm
+and reporting commands capture their cut and apply on one worker turn, avoiding
+interleaving publications between separate read/write awaits. Original replay
+cuts, sequence and owner checks remain mandatory.
+Position and child shutdown projections drain sequentially even at capacity one.
+`close()` is idempotent: a cancelled caller cannot cancel the shared cleanup or
+release the account lock before the physical worker finishes. This is not a
+promise that non-cooperative disk I/O finishes within a cloud shutdown deadline.
+
+Current service scope is an explicit offline library assembly. It does not
+construct a SPOT quote planner, inventory/exit/carry/markout graph, CLI launcher,
+signed ownership/policy/import service or PostgreSQL financial backend. SPOT
+submission with shared capital remains rejected until its coupled preparation
+application is installed. Unsupported or archived journal formats require
+qualified import; they are not silently adopted. PG1 remains open for these
+routes and their complete acceptance tests. Existing O.8, demo, live and deployment
+gates are unchanged.

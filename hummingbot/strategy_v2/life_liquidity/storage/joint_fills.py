@@ -22,7 +22,7 @@ class LegacyJointFillAdapter:
         operations = thaw(resources.get('fill_operations', {}))
         for row in command.spot_fills:
             record = resources['commands'].get(row.prepare_operation_id)
-            if record is None or record['state'] not in ('SEND_UNKNOWN', 'ACKED', 'TERMINAL', 'TERMINATING'):
+            if record is None or record['state'] not in ('SEND_UNKNOWN', 'ACKED', 'TERMINAL', 'TERMINATING', 'FILLING', 'ACKING'):
                 raise StorageError('JOINT_SPOT_FILL_ATTEMPT_INVALID')
             prepared = PrepareSpot.from_json(record['command'])
             if record['state'] not in ('TERMINAL', 'TERMINATING'):
@@ -59,13 +59,26 @@ class LegacyJointFillAdapter:
                 fills[fill.trade_id] = stable
             identity = fingerprint({'command': row.json(), 'owner': owner.json()})
             previous = operations.get(row.operation_id)
-            if previous is not None and (previous['fingerprint'] != identity or previous['state'] != 'APPLIED'):
+            if previous is not None and (previous['fingerprint'] != identity or previous['state'] not in ('APPLIED', 'FILLING')):
                 raise StorageConflict('JOINT_SPOT_FILL_OPERATION_CONFLICT')
             operations.setdefault(row.operation_id, {
                 'command': row.json(), 'fingerprint': identity, 'owner': owner.json(), 'state': 'APPLIED',
                 'execution_loss_usdt': str(sum((f.loss(row.side) for f in row.fills), Decimal('0'))),
                 'attempt_state_before_apply': record['state'],
             })
+        by_intent = {row.intent_id: row for row in command.spot_fills}
+        for operation in operations.values():
+            if operation['state'] == 'APPLIED':
+                continue
+            original = operation['command']
+            row = by_intent.get(original['intent_id'])
+            current = {} if row is None else {v.trade_id: v.json() for v in row.fills}
+            if (row is None or operation['state'] != 'FILLING' or operation['owner'] != owner.json()
+                    or operation['fingerprint'] != fingerprint({'command': original, 'owner': operation['owner']})
+                    or any(current.get(v['trade_id']) != v for v in original['fills'])
+                    or operation['attempt_state_before_apply'] not in ('SEND_UNKNOWN', 'ACKED')):
+                raise StorageError('JOINT_PENDING_FILL_ORIGIN_INVALID')
+            operation['state'] = 'APPLIED'
         return fills, operations
 
     @staticmethod
@@ -80,7 +93,8 @@ class LegacyJointFillAdapter:
         staged = ReservationLedger._restore_snapshot(before['reservations'], path=None, limits=self._risk_limits)
         try:
             staged.apply_joint_snapshot(self._joint_fill_snapshots(command),
-                                        {e.event_id: e.signed_amount_usdt for e in command.events})
+                                        {e.event_id: e.signed_amount_usdt for e in command.events},
+                                        self._joint_native_cashflows(command))
         except (ValueError, ArithmeticError):
             raise StorageError('JOINT_SPOT_NATIVE_REPLAY_INVALID') from None
         after_wallet = staged._payload(staged.life_balance, staged.usdt_balance, staged._reservations,

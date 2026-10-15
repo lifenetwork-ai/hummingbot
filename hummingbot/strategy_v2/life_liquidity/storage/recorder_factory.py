@@ -54,6 +54,8 @@ async def open_file_recorder(runtime, *, database_path, config_file_path, strate
                                    MarketDataCollectionConfigMap(market_data_collection_enabled=False),
                                    defer_history_restore=True)
         repository = await runtime.store._call(FileRecorderRepository, runtime.store, recorder, runtime.controller.config.id)
+        if runtime._swap_application is not None:
+            await runtime.store._call(repository.bind_swap_repository, runtime._swap_application.repository)
         reporting = await FileRecorderApplication.install(repository, runtime, max_pending=max_pending,
                                                           shutdown_timeout_s=shutdown_timeout_s)
         await reporting.install_event_sources(connectors)

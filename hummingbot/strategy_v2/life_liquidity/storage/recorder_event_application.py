@@ -70,8 +70,9 @@ class RecorderEventApplication:
                     raise StorageConflict('RECORDER_EVENT_OPERATION_CONFLICT')
                 command, cut, owner = original.command, original.original_cut, original.owner
             else:
-                command, cut, owner = captured, (await reporting.store.read(reporting.binding)).cut, reporting.runtime.owner
-            receipt = await reporting.repository.project_event(command, cut=cut, owner=owner)
+                command, cut, owner = captured, None, reporting.runtime.owner
+            receipt = (await reporting.repository.project_event(command, cut=cut, owner=owner) if cut is not None else
+                       await reporting.repository.publish_current('event', command, owner=owner))
             for callback in tuple(callbacks):
                 callback(receipt)
             return receipt

@@ -98,12 +98,17 @@ class HedgeCoordinator:
             "fault": None,
             "episode_start": 0,
         }, create=create)
+        self._storage_application = None
         self._live = set()  # Restore retains claims, never send authority.
         self._runtime_enabled = create
         self._faulted = False
         self.reason_code = "HEDGE_COORDINATOR_REVALIDATION_REQUIRED"
         with self.journal.locked() as state:
             self._validate_state(state)
+
+    def _storage_worker(self):
+        if self._storage_application is not None:
+            self._storage_application.store.assert_worker_thread()
 
     def _validate_state(self, state):
         if (set(state) != {"target", "target_version", "updates", "orders", "trades", "attempts", "cost_hold",
@@ -171,6 +176,7 @@ class HedgeCoordinator:
 
     def validate_target(self, update_id, *, expected_version, target_base):
         """Read-only preflight; update_target independently rechecks its writer cut."""
+        self._storage_worker()
         with self.journal.inspect() as state:
             self._validate_state(state)
             now = self.sender.clock_ms()
@@ -182,6 +188,7 @@ class HedgeCoordinator:
             return self._target_update(state, update_id, expected_version, target_base)[1]
 
     def update_target(self, update_id, *, expected_version, target_base):
+        self._storage_worker()
         with self.journal.locked() as state:
             self._clock(state)
             update, changed = self._target_update(state, update_id, expected_version, target_base)
@@ -307,6 +314,7 @@ class HedgeCoordinator:
         return obs
 
     def allows_spot(self):
+        self._storage_worker()
         try:
             if not self._runtime_enabled:
                 raise ValueError("HEDGE_RECOVERY_REQUIRED")
@@ -342,6 +350,7 @@ class HedgeCoordinator:
             return False
 
     def _stops(self):
+        self._storage_worker()
         records = self.controller._order_safety_wal.all_records() + self.sender.wal.all_records()
         return [StopExecutorAction(controller_id=self.controller.config.id, executor_id=r.intent_id)
                 for r in records
@@ -358,6 +367,8 @@ class HedgeCoordinator:
                 raise ValueError("HEDGE_RECONCILIATION_REQUIRED")
 
     def propose(self):
+        if self._storage_application is not None:
+            self._storage_application.store.assert_worker_thread()
         try:
             if not self._runtime_enabled:
                 raise ValueError("HEDGE_RECOVERY_REQUIRED")
@@ -410,7 +421,8 @@ class HedgeCoordinator:
                 price, cost = self._cost(m, obs, side, amount)
                 if Decimal(state["cost_hold"]) + cost > self.policy.cumulative_cost_budget_quote:
                     raise ValueError("HEDGE_CAMPAIGN_COST_LIMIT")
-                cfg = OrderExecutorConfig(id="hedge-" + uuid.uuid4().hex, controller_id=self.controller.config.id,
+                cfg = OrderExecutorConfig(id="hedge-" + uuid.uuid4().hex, timestamp=self.sender.clock_ms() / 1000,
+                                          controller_id=self.controller.config.id,
                                           connector_name=self.controller.config.strategy.perpetual.connector,
                                           trading_pair=contract.trading_pair, side=side, amount=amount, price=price,
                                           execution_strategy=ExecutionStrategy.LIMIT_MAKER, position_action=action,
@@ -434,6 +446,7 @@ class HedgeCoordinator:
             return self._stops()
 
     def authorizes(self, config, *, issued):
+        self._storage_worker()
         try:
             if not self._runtime_enabled:
                 return False
@@ -462,6 +475,7 @@ class HedgeCoordinator:
 
     def reconcile(self, intent_id):
         """Consume an explicit qualified full fill set; never infer terminal from ACK."""
+        self._storage_worker()
         try:
             with self.journal.locked() as state:
                 self._clock(state)
@@ -538,6 +552,7 @@ class HedgeCoordinator:
 
     def reconcile_joint_order(self, order, *, authority, proof_id):
         """Use a complete joint-history proof; preserve retry/cost/target history."""
+        self._storage_worker()
         if not authority.authorizes_order(order, proof_id) or authority.controller is not self.controller:
             raise ValueError("HEDGE_JOINT_PROOF_REQUIRED")
         with self.journal.locked() as state:
@@ -574,6 +589,7 @@ class HedgeCoordinator:
             self.journal.commit(state)
 
     def rearm_joint(self, *, authority):
+        self._storage_worker()
         if authority is not self.controller._joint_recovery or authority._fresh() is None:
             raise ValueError("HEDGE_JOINT_REARM_REQUIRED")
         with self.journal.locked() as state:
@@ -587,6 +603,7 @@ class HedgeCoordinator:
         self._runtime_enabled = True
 
     def reconcile_joint_preparations(self, *, authority, proof_id):
+        self._storage_worker()
         if (authority is not self.controller._joint_recovery or not authority._busy
                 or authority.journal._state["proof_id"] != proof_id
                 or authority.journal._state["phase"] != "APPLYING"):

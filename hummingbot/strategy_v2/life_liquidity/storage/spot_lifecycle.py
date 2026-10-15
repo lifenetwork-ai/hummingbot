@@ -161,7 +161,7 @@ class LegacySpotLifecycleAdapter:
             raise StorageError('SPOT_LIFECYCLE_SCOPE_MISMATCH')
         return prepared, attempt
 
-    def _apply_lifecycle(self, command, cut, owner):
+    def _apply_lifecycle(self, command, cut, owner, *, joint_authority=None):
         self._assert_binding(cut.checkpoint.binding)
         view, meta = self._snapshot(), self._read()
         operations = thaw(meta.resources.get('lifecycle_operations', {}))
@@ -182,7 +182,13 @@ class LegacySpotLifecycleAdapter:
                 OwnerMode.ACTIVE, OwnerMode.DRAINING, OwnerMode.RECOVERY_ONLY) or now < owner.valid_from):
             raise StorageError('SPOT_LIFECYCLE_OWNER_MISMATCH')
         if previous is None:
-            self._ack_guard(view, owner)
+            if joint_authority is not None:
+                if command.action != 'ABORT_PREPARED':
+                    raise StorageError('JOINT_SPOT_LIFECYCLE_ACTION_INVALID')
+                self._joint_recovery_observation_guard(view, owner, joint_authority,
+                                                       joint_authority.journal._state['proof_id'])
+            else:
+                self._ack_guard(view, owner)
             if cut != view.cut:
                 raise StorageConflict('SPOT_CUT_STALE')
             prior_state = record['state']

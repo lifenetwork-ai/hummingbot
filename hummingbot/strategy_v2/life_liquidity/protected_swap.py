@@ -310,6 +310,11 @@ class ProtectedSwapExecutorSender:
 
     def propose(self, config):
         self._repository_worker()
+        if self._storage_repository is not None:
+            hedge = self._storage_repository._hedge_application
+            if hedge is None:
+                raise PermissionError('SWAP_ASYNC_PROPOSAL_REQUIRED')
+            return hedge.prepare_child(config)
         return self._prepare_permit(config, self._permit_for(config, "HBOT" + uuid.uuid4().hex[:28]))
 
     def authorizes_config(self, config):

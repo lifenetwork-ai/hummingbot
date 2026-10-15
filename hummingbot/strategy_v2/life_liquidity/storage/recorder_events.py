@@ -332,6 +332,23 @@ class FileEventAdapter:
                 for wire in wires:
                     identifier(wire)
                 known.update(wires)
+        swap = getattr(self, '_swap_repository', None)
+        if source.market == 'okx_perpetual' and swap is not None:
+            if swap.store is not self.store or swap.binding != self.binding:
+                raise StorageError('RECORDER_SWAP_REPOSITORY_MISMATCH')
+            # Reporting stays observational after local stop. Validate policy
+            # and permanent provenance without invoking send-admission guards.
+            if thaw(meta.resources.get('swap_repository_policy')) != swap._policy():
+                raise StorageError('RECORDER_SWAP_REPOSITORY_MISMATCH')
+            for row in meta.resources.get('swap_operations', {}).values():
+                if row['state'] in ('PREPARING', 'REFUSED'):
+                    continue
+                swap._receipt(row)
+                command, config, permit, record = swap._verify_prepared(thaw(row))
+                if (config.controller_id != source.controller_id or config.connector_name != source.market
+                        or record.client_order_id != permit.client_order_id):
+                    raise StorageError('RECORDER_EVENT_WIRE_UNVERIFIED')
+                known.add(command.client_order_id)
         if source.market == 'okx' and hasattr(self.store, '_wal'):
             known.update(row.client_order_id for row in self.store._wal.all_records())
         return known

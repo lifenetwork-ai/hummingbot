@@ -249,3 +249,134 @@ async def test_zero_fill_terminal_releases_only_proven_unused_spot_subsidy(tmp_p
         assert store._wal.get('intent1').state == 'TERMINAL'
     finally:
         await store.close()
+
+
+@pytest.mark.asyncio
+async def test_qualified_unsent_spot_preparation_releases_only_original_zero_fill_hold(tmp_path):
+    repo, store, recovery, values, bundle, owner = await fixture(tmp_path, spot=True)
+    try:
+        assert await repo.reconcile(store.binding, owner)
+        claim = CapitalClaim('intent1', 'wire1', store.binding.account_uid, str(owner.session_id), owner.epoch,
+                             1, 1, 'SPOT', 'BUY', 'OPEN', D('2'), D('1'), 1)
+        assert (await store._call(values[1].reserve, claim)).allowed
+        await store.prepare(order(owner), cut=(await store.snapshot(store.binding)).cut, owner=owner)
+        values[8]['snapshot'] = replace(values[8]['snapshot'], sequence=2)
+        values[7]['value'] = replace(values[7]['value'], snapshot_sequence=2)
+        bundle['value'] = replace(bundle['value'], snapshot_sequence=2, orders=(RecoveryOrder(claim, None, 'unsent', ()),))
+        facts = SpotFinancialRecoveryFacts(store.binding, values[6].wall, D('10'), D('10'), D('0'), D('0'),
+                                           (), (), (), (), True, True, True)
+        assert await repo.reconcile(store.binding, owner, spot_facts=facts), recovery.reason_code
+        assert store._wal.get('intent1').state == 'ABORTED_BEFORE_SEND'
+        view = await store.snapshot(store.binding)
+        assert view.balance.reserved_quote_usdt == 0 and view.budget.session_subsidy_committed_usdt == 0
+        assert view.balance.total_base_life == view.balance.total_quote_usdt == D('10')
+        assert values[1].claim_ids() == () and values[3].sent == values[4].sent == []
+    finally:
+        await store.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('stage', ['wal', 'principal', 'subsidy', 'receipt'])
+async def test_cold_joint_unsent_abort_repairs_original_hold_without_rearm(tmp_path, monkeypatch, stage):
+    repo, store, recovery, values, bundle, owner = await fixture(tmp_path, spot=True)
+    try:
+        assert await repo.reconcile(store.binding, owner)
+        claim = CapitalClaim('intent1', 'wire1', store.binding.account_uid, str(owner.session_id), owner.epoch,
+                             1, 1, 'SPOT', 'BUY', 'OPEN', D('2'), D('1'), 1)
+        assert (await store._call(values[1].reserve, claim)).allowed
+        await store.prepare(order(owner), cut=(await store.snapshot(store.binding)).cut, owner=owner)
+        values[8]['snapshot'] = replace(values[8]['snapshot'], sequence=2)
+        values[7]['value'] = replace(values[7]['value'], snapshot_sequence=2)
+        bundle['value'] = replace(bundle['value'], snapshot_sequence=2, orders=(RecoveryOrder(claim, None, 'unsent', ()),))
+        facts = SpotFinancialRecoveryFacts(store.binding, values[6].wall, D('10'), D('10'), D('0'), D('0'),
+                                           (), (), (), (), True, True, True)
+        target, method = {'wal': (store._wal, 'abort_before_send'), 'principal': (store._ledger, 'abort_unsent'),
+                          'subsidy': (store._subsidy, 'release_unsent'), 'receipt': (store, '_publish_lifecycle')}[stage]
+        original = getattr(target, method)
+
+        def interrupted(*args, **kwargs):
+            if stage == 'receipt' and not args[0].startswith('lifecycle-done:'):
+                return original(*args, **kwargs)
+            if stage != 'receipt':
+                original(*args, **kwargs)
+            raise OSError('synthetic unsent interruption')
+
+        with monkeypatch.context() as patches:
+            patches.setattr(target, method, interrupted)
+            assert not await repo.reconcile(store.binding, owner, spot_facts=facts)
+        repo, store, recovery, values = await reopen(tmp_path, store, recovery, values, owner)
+        assert await repo.reconcile(store.binding, owner, spot_facts=facts), recovery.reason_code
+        assert await repo.reconcile(store.binding, owner, spot_facts=facts), recovery.reason_code
+        view = await store.snapshot(store.binding)
+        assert view.balance.total_base_life == view.balance.total_quote_usdt == D('10')
+        assert view.balance.reserved_quote_usdt == view.budget.session_subsidy_committed_usdt == 0
+        assert store._wal.get('intent1').state == 'ABORTED_BEFORE_SEND'
+        assert values[1].claim_ids() == () and store._cold_unarmed and not recovery._armed
+        assert values[3].sent == values[4].sent == []
+    finally:
+        await store.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('stage', ['wallet', 'loss', 'floor', 'receipt'])
+async def test_pending_spot_fill_and_new_swap_settlement_finish_one_account_cut(tmp_path, monkeypatch, stage):
+    repo, store, recovery, values, bundle, owner, _, row, facts = await scenario(tmp_path)
+    try:
+        target, method = {'wallet': (store._ledger, 'apply_fills_snapshot'), 'loss': (store._loss, 'record'),
+                          'floor': (store._subsidy, 'record_fill_floor'), 'receipt': (store, '_publish_fills')}[stage]
+        original = getattr(target, method)
+
+        def interrupted(*args, **kwargs):
+            if stage == 'receipt' and not args[0].startswith('fill-done:'):
+                return original(*args, **kwargs)
+            if stage != 'receipt':
+                original(*args, **kwargs)
+            raise OSError('synthetic pending fill')
+        from hummingbot.strategy_v2.life_liquidity.storage.contracts import CommitUnknown
+        with monkeypatch.context() as patches:
+            patches.setattr(target, method, interrupted)
+            with pytest.raises(CommitUnknown):
+                await store.apply_fills(row, cut=(await store.snapshot(store.binding)).cut, owner=owner)
+        repo, store, recovery, values = await reopen(tmp_path, store, recovery, values, owner)
+        assert await repo.reconcile(store.binding, owner, spot_fills=(row,), spot_facts=facts), recovery.reason_code
+        assert await repo.reconcile(store.binding, owner, spot_facts=facts), recovery.reason_code
+        view = await store.snapshot(store.binding)
+        assert view.balance.total_base_life == D('11') and view.balance.total_quote_usdt == D('8.979')
+        assert view.budget.session_execution_loss_usdt == D('.121')
+        assert (await store.lookup_fill(row.operation_id, store.binding)).state == 'APPLIED'
+        assert store._wal.get(row.intent_id).state == 'SEND_UNKNOWN'
+        assert values[1].claim_ids() == ('intent1',)
+        assert store._cold_unarmed and len(values[4].sent) == 1
+    finally:
+        await store.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('written', [False, True])
+async def test_pending_ack_with_new_spot_fill_and_swap_cash_preserves_original_ack(tmp_path, monkeypatch, written):
+    from hummingbot.strategy_v2.life_liquidity.storage.contracts import CommitUnknown
+    repo, store, recovery, values, bundle, owner, _, row, facts = await scenario(tmp_path)
+    try:
+        command = AckSpot('original-ack', row.prepare_operation_id, row.intent_id, row.client_order_id, row.market,
+                          row.side, row.session_id, row.epoch, row.exchange_order_id, row.observed_at)
+        original = store._wal.acknowledge
+
+        def interrupted(*args, **kwargs):
+            if written:
+                original(*args, **kwargs)
+            raise OSError('synthetic missing ACK receipt')
+        with monkeypatch.context() as patches:
+            patches.setattr(store._wal, 'acknowledge', interrupted)
+            with pytest.raises(CommitUnknown):
+                await store.acknowledge(command, cut=(await store.snapshot(store.binding)).cut, owner=owner)
+        repo, store, recovery, values = await reopen(tmp_path, store, recovery, values, owner)
+        assert await repo.reconcile(store.binding, owner, spot_fills=(row,), spot_facts=facts), recovery.reason_code
+        assert await repo.reconcile(store.binding, owner, spot_facts=facts), recovery.reason_code
+        view = await store.snapshot(store.binding)
+        assert view.balance.total_quote_usdt == D('8.979') and view.balance.total_base_life == D('11')
+        assert view.budget.session_execution_loss_usdt == D('.121')
+        assert (await store.lookup_ack(command.operation_id, store.binding)).state == 'ACKED'
+        assert store._wal.get(row.intent_id).state == 'ACKED'
+        assert values[1].claim_ids() == ('intent1',) and store._cold_unarmed
+    finally:
+        await store.close()
