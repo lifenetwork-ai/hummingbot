@@ -42,10 +42,15 @@ class SessionTick:
     account: SpotFinancialRecoveryFacts | None = None
     market_anchor_usdt: Decimal | None = None
     observe_only_successor: bool = False
+    observation_grant_id: str | None = None
 
     def __post_init__(self):
         identifier(self.operation_id)
         identifier(self.session_id)
+        if self.observation_grant_id is not None:
+            identifier(self.observation_grant_id)
+            if self.observe_only_successor:
+                raise StorageError('SESSION_OBSERVATION_SCOPE_CONFLICT')
         if (len(self.operation_id) > 96 or type(self.epoch) is not int or self.epoch <= 0
                 or type(self.max_reconciliation_age_ms) is not int or self.max_reconciliation_age_ms <= 0
                 or any(type(getattr(self, key)) is not bool for key in (
@@ -63,6 +68,8 @@ class SessionTick:
 
     def json(self):
         data = dict(self.__dict__)
+        if self.observation_grant_id is None:
+            data.pop('observation_grant_id')
         if not self.observe_only_successor:
             data.pop('observe_only_successor')  # Preserve original command fingerprints.
         data['market_anchor_usdt'] = None if self.market_anchor_usdt is None else str(self.market_anchor_usdt)
@@ -139,9 +146,14 @@ class LegacySessionAdapter:
 
     def _publish_session(self, key, owner, operations, head, hashes):
         meta = self._read()
+        deadline = None
+        if key.startswith('session-start:'):
+            grant = operations[key[len('session-start:'):]]['command'].get('observation_grant_id')
+            if grant is not None:
+                deadline = datetime.fromisoformat(meta.resources['session_observation_grants'][grant]['expires_at'])
         return self._commit(meta.cut, owner, key, (
             ('session_operations', encode(operations)), ('session_head', encode(head)),
-            ('journal_hashes', encode(hashes))), observation=True)
+            ('journal_hashes', encode(hashes))), observation=True, **({} if deadline is None else {'not_after': deadline}))
 
     def _verify_session_projection(self, resources):
         operations = thaw(resources.get('session_operations', {}))
@@ -223,7 +235,9 @@ class LegacySessionAdapter:
             return SessionTickReceipt(self.binding, command.operation_id, journal.state, journal.reason_code, True)
         now = utc(self._clock())
         if previous is None:
-            if command.observe_only_successor:
+            if command.observation_grant_id is not None:
+                self._session_observation_guard(view, meta, owner, command.observation_grant_id)
+            elif command.observe_only_successor:
                 self._successor_clock_guard(view, meta, owner, now)
             else:
                 self._ack_guard(view, owner)
@@ -236,7 +250,7 @@ class LegacySessionAdapter:
             policies = {row['command']['max_reconciliation_age_ms'] for row in operations.values()}
             if policies and policies != {command.max_reconciliation_age_ms}:
                 raise StorageError('SESSION_POLICY_MISMATCH')
-            if (self._cold_unarmed or meta.ownership.mode is not OwnerMode.ACTIVE) and (
+            if command.observation_grant_id is None and (self._cold_unarmed or meta.ownership.mode is not OwnerMode.ACTIVE) and (
                     command.reference_ready or command.all_gates_ready or command.market_reference_ready):
                 raise StorageError('SESSION_UNARMED_GATE')
             self._session_evidence(command, meta.resources, now)

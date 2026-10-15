@@ -1074,14 +1074,93 @@ omits the option when false, preserving original fingerprints. It reports
 expire or irreversibly pause the already qualified successor. Real expiry and
 rollback checks remain effective. A new signed grant still runs all existing
 owner/session/account checks and native rearm; historical replay cannot rearm.
-Cold initiation of a transition without an original recorded decision remains
-unsupported pending its explicit signed observation-grant application.
+Cold initiation without an original recorded decision requires explicit
+`AuthorizeSessionObservation` with the optional public-key role `OBSERVE_SESSION`.
+The command binds `service.control.observer_id` (a new process observation nonce),
+original owner/session/epoch, exact collected facts/cut and UTC expiration.
+`control.apply()` persists the signature; `await control.advance_successor(id)`
+performs at most three fresh observation steps for expiry, NAV and successor.
+Incomplete/nonquiescent scope, stop, rollback, changed owner/source/cut and expired
+permission deny the transition. Expiration is checked inside the checkpoint lock
+before recording a new decision or NAV. Native-before/native-after interruption
+can complete only its already recorded original decision after cold restart;
+historical approval replay cannot install the volatile observation capability.
 
-Current service scope remains an explicit offline library assembly. Separate
-native exit and markout-bootstrap probe routes, cold initiation of unrecorded successor
-decisions, simultaneous other partial
+Cold risk observation may update the existing independent NAV/highwater but
+cannot change money, grant quotes/reduction or clear manual rearm. Drawdown and
+margin breaches still HALT. The separate signed ACTIVATE flow remains mandatory;
+the observation command never extends the primary owner or sender deadline.
+
+### Separate exit budget and markout bootstrap
+
+Optional `exit` config fixes the target, child size, slippage/freshness and its
+separate native budget. `await service.request_exit(id)` collects complete
+quiescent account scope before entering reduction mode. Each original EXIT
+preparation selects its budget permanently; quote subsidy availability and
+inventory-cycle settlement cannot spend or release that pool. Wallet, fees, WAL,
+principal and execution-loss accounting still have one writer. Source-qualified
+terminal settlement charges actual fill/value/fee loss once. NORMAL or DEGRADED
+may qualify reduction independently of MM; HALT cannot. An explicit quiescent
+`stop_exit(id)` returns to MM without restoring activation or send permission.
+
+Markout config may opt into paired `probe_size_base` and `probe_campaign_base`.
+Only insufficient cohort samples qualify bounded native bootstrap probes;
+pending/missing/adverse observations remain blocking. The read-only source uses
+the repository's accounted fills/reservations, not another attributor or ledger.
+The smaller applicable markout/recovery probe size bounds a quote. Native
+reference, own-depth, rules, fees, economics, journals and final held permits
+remain required through the actual runner/REST path.
+
+### Repository runner lifecycle
+
+`service.runner` is a concrete `FileServiceRunner`. Controller queues own quote
+creation/stopping; ready ticks retain native executor reporting/storage without
+calling abstract script proposals. Native Clock start creates no interactive
+application or MQTT publisher. Clock stop revokes synchronously; `service.close()`
+joins controller/safety/fee/listing tasks and the existing dispatcher, recorder
+and physical file worker. Closing must be awaited by the owning host. This is a
+library clock lifecycle; the explicit process entrypoint below owns its connector
+clock and signal lifecycle.
+
+### Explicit headless process
+
+`make life-run ARGS="..."` runs `python -m
+hummingbot.strategy_v2.life_liquidity.storage.headless`. Required arguments are
+`--config /absolute/service.yml`, `--factory module:build`, `--tick-seconds`,
+`--startup-timeout` and `--shutdown-timeout` (seconds, explicit finite positive
+values). These values require deployment calibration; no live values are inferred.
+An independent configured `safety_watchdog_interval_ms` is mandatory.
+
+The trusted local factory receives validated `FileServiceConfig` and returns
+`HeadlessInputs` from `headless_inputs.py`: explicit sources, a common market data
+provider and named connectors using `HeadlessOkxExchange` /
+`HeadlessOkxPerpetualDerivative`. Those connector classes retain native Clock
+behavior and make asynchronous native network shutdown awaitable. No exchange
+key, qualified valuation, account authority or production feed release is created
+by the host. Factories must supply qualified adapters and own any additional
+source-client resources they construct; the offline fixture factory is test-only.
+
+The existing migration settings are loaded before even importing factory code.
+`LIFE_AUTO_MIGRATE=true` awaits the same central runner; errors block construction.
+`--env-file` / `--no-env-file` select migration configuration. This process uses
+the explicit **file** financial backend; successful metadata migration does not
+select or implement PostgreSQL financial authority. Existing financial state is
+required by default. `--create-offline-binding` is restricted to explicitly
+synthetic `OFFLINE_SIMULATION` and is never live bootstrap or activation.
+
+SIGTERM/SIGINT close admission before awaited work. The host joins controller,
+dispatch, reporting and file-worker cleanup, retains native network-check task
+handles before Clock teardown and awaits connector shutdown. Repeated network
+stops retain no historical task list. Cancellation/timeout cannot certify an
+exchange order terminal or release a still-running worker's physical account
+lock; shutdown failure is reported and original uncertainty remains. Per-stage
+timeouts here do not qualify the later PG7 overall termination-budget gate.
+Tests run native Clock and a real subprocess with fake/disconnected OKX sources,
+including SIGTERM, cold restart, cancellation and blocked-worker exclusion.
+
+Current service scope remains an explicit offline library assembly. Simultaneous other partial
 families and unadmitted external transfers, broader signed policy/lineage/archive
-transitions, controller configuration reporting/hot reload and a supported
-headless launch lifecycle remain open. Actual runner/REST tests use explicit
+transitions, controller configuration reporting/hot reload and production source
+factory qualification remain open. Actual runner/REST tests use explicit
 synthetic listing/feed releases. PG1 stays open for those routes and complete
 coupled parity; O.8, PostgreSQL, demo, live and deployment gates are unchanged.

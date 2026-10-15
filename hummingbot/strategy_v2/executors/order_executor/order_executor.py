@@ -287,8 +287,13 @@ class OrderExecutor(ExecutorBase):
                       if isinstance(controllers, Mapping) else None)
         protected_submit = getattr(controller, "submit_executor_spot_order", None)
         if callable(protected_submit):
+            # Protected maker admission binds an exact original price. A local
+            # market-price clamp would create different terms after approval;
+            # the protected final book check owns post-only qualification.
+            protected_price = (self.config.price if self.config.execution_strategy == ExecutionStrategy.LIMIT_MAKER
+                               else self.get_order_price())
             order_id = protected_submit(
-                self.config, amount=remaining, price=self.get_order_price(),
+                self.config, amount=remaining, price=protected_price,
                 order_type=self.get_order_type())
         elif isinstance(connector, GatewayBase):
             # Straight to the connector, because the strategy's buy/sell carries no

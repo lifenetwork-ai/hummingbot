@@ -32,6 +32,8 @@ class LegacySettlementAdapter:
             if row is None or row['state'] != 'TERMINAL':
                 raise StorageError('SPOT_SETTLEMENT_TERMINAL_REQUIRED')
             original = PrepareSpot.from_json(row['command'])
+            if original.budget_scope == 'EXIT':
+                raise StorageError('EXIT_BUDGET_INVENTORY_CYCLE_FORBIDDEN')
             wal, native = self._wal.get(key), self._ledger.reservation_state(key)
             rows = [(tid, fill) for tid, fill in fills.items() if fill['intent_id'] == key]
             if (wal.state != 'TERMINAL' or not wal.exchange_terminal_observed or wal.exchange_order_id is None

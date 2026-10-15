@@ -49,6 +49,8 @@ class InventoryModeCommand:
 
 
 class FileInventoryApplication:
+    children_key = 'inventory_children'
+
     def __init__(self, service):
         self.service, self.store, self.policy = service, service.store, service.config.inventory
         self.budget = self.store._subsidy
@@ -72,7 +74,7 @@ class FileInventoryApplication:
             self.store._commit(meta.cut, self.service.spot.owner, 'inventory-service:bind', (
                 ('inventory_service_policy', encode(self.policy.model_dump(mode='json'))),
                 ('inventory_mode', encode({'mode': 'MM', 'control_operation': None})),
-                ('inventory_children', encode({}))))
+                (self.children_key, encode({}))))
         elif thaw(prior) != self.policy.model_dump(mode='json'):
             raise StorageError('SERVICE_INVENTORY_POLICY_MISMATCH')
         self.service.spot.admission = self.admission
@@ -118,7 +120,7 @@ class FileInventoryApplication:
                 or facts.liability_base_life != 0 or facts.liability_quote_usdt != 0
                 or self.store._incomplete(meta.resources) or self.store._reporting_pending(meta.resources)
                 or self.service.quotes.native.action_journal.active_records()
-                or any(v['state'] not in ('TERMINAL', 'REJECTED') for v in meta.resources['inventory_children'].values())):
+                or any(v['state'] not in ('TERMINAL', 'REJECTED') for v in meta.resources[self.children_key].values())):
             raise StorageError('SERVICE_INVENTORY_QUIESCENCE_REQUIRED')
         self.store._verify_recovery_projection(meta.resources['commands'], meta.resources.get('fills', {}),
                                                meta.resources.get('cashflows', {}), facts)
@@ -175,7 +177,7 @@ class FileInventoryApplication:
         evidence = self.service.controller._own_depth_decision.evidence
         if evidence is None or market.independent_depth_base > min(evidence.bid_depth_base, evidence.ask_depth_base):
             raise StorageError('SERVICE_INVENTORY_DEPTH_UNPROVEN')
-        children = meta.resources['inventory_children']
+        children = meta.resources[self.children_key]
         fills = [SpotFillObservation.from_json(row['fill']) for row in meta.resources.get('fills', {}).values()
                  if row['intent_id'] in children]
         # Filled amounts, not the current wallet, determine remaining campaign
@@ -229,7 +231,7 @@ class FileInventoryApplication:
             meta = self._read()
             if self.store._wal.active_records():
                 return ()
-            if any(v['state'] not in ('REJECTED', 'TERMINAL') for v in meta.resources['inventory_children'].values()):
+            if any(v['state'] not in ('REJECTED', 'TERMINAL') for v in meta.resources[self.children_key].values()):
                 return ()
             config = OrderExecutorConfig(id='inventory:' + uuid4().hex, timestamp=self.store._clock().timestamp(),
                                          controller_id=self.service.controller.config.id, connector_name=self.service.controller.config.strategy.spot.connector,
@@ -238,9 +240,9 @@ class FileInventoryApplication:
             current = self.service.controller._order_safety_manager.current_session
             row = {'config': config.model_dump_json(), 'owner': self.service.spot.owner.json(), 'state': 'CLAIMING',
                    'session': [current.session_id, current.epoch, current.config_version], 'target': None}
-            children = thaw(meta.resources['inventory_children'])
+            children = thaw(meta.resources[self.children_key])
             children[config.id] = row
-            self.store._commit(meta.cut, self.service.spot.owner, 'inventory-propose:' + config.id, (('inventory_children', encode(children)),))
+            self.store._commit(meta.cut, self.service.spot.owner, 'inventory-propose:' + config.id, ((self.children_key, encode(children)),))
             self._finish_claim(config.id)
             self._configs[config.id] = config.model_dump_json()
             self.service.quotes.native._issued[config.id] = (current.session_id, current.epoch, current.config_version, config)
@@ -251,20 +253,20 @@ class FileInventoryApplication:
 
     def _finish_claim(self, key):
         meta = self._read()
-        children = thaw(meta.resources['inventory_children'])
+        children = thaw(meta.resources[self.children_key])
         row = children[key]
         config = OrderExecutorConfig.model_validate_json(row['config'])
         session, epoch, version = row['session']
         self.service.quotes.native.action_journal.claim_batch([QuoteActionRecord(key, config.controller_id, session, epoch,
                                                                                  version, config.trading_pair, config.side.name, 0)])
         row['state'] = 'PROPOSED'
-        self.store._commit(meta.cut, self.service.spot.owner, 'inventory-proposed:' + key, (('inventory_children', encode(children)),), observation=True)
+        self.store._commit(meta.cut, self.service.spot.owner, 'inventory-proposed:' + key, ((self.children_key, encode(children)),), observation=True)
 
     def authorizes_config(self, config, *, exclude=None):
         try:
             if not self.handles(config):
                 return False
-            row = self._read().resources['inventory_children'][config.id]
+            row = self._read().resources[self.children_key][config.id]
             if row['state'] not in ('PROPOSED', 'DISPATCHED') or row['owner'] != self.service.spot.owner.json():
                 return False
             # Final qualification may exclude only the original, zero-fill
@@ -304,7 +306,7 @@ class FileInventoryApplication:
     def transition(self, payload, state):
         self.store.assert_worker_thread()
         config = OrderExecutorConfig.model_validate_json(payload[1])
-        meta, children = self._read(), thaw(self._read().resources['inventory_children'])
+        meta, children = self._read(), thaw(self._read().resources[self.children_key])
         row = children[config.id]
         if row['config'] != payload[1] or state not in ('DISPATCHED', 'REJECTED'):
             raise StorageError('SERVICE_INVENTORY_ACTION_CONFLICT')
@@ -313,7 +315,7 @@ class FileInventoryApplication:
         if row['state'] == 'PROPOSED':
             row['state'], row['target'] = 'TRANSITIONING', state
             self.store._commit(meta.cut, self.service.spot.owner, 'inventory-action:' + state + ':' + config.id,
-                               (('inventory_children', encode(children)),), observation=True)
+                               ((self.children_key, encode(children)),), observation=True)
         elif row['state'] != 'TRANSITIONING' or row['target'] != state:
             raise StorageError('SERVICE_INVENTORY_ACTION_CONFLICT')
         claim = self.service.quotes.native.action_journal.verified_get(config.id)
@@ -323,13 +325,13 @@ class FileInventoryApplication:
             raise StorageError('SERVICE_INVENTORY_ACTION_NATIVE_CHANGED')
         row['state'], row['target'] = state, None
         self.store._commit(self._read().cut, self.service.spot.owner, 'inventory-action-done:' + state + ':' + config.id,
-                           (('inventory_children', encode(children)),), observation=True)
+                           ((self.children_key, encode(children)),), observation=True)
         return True
 
     def recover(self):
         self.store.assert_worker_thread()
         meta = self._read()
-        for key, row in meta.resources['inventory_children'].items():
+        for key, row in meta.resources[self.children_key].items():
             if row['owner'] != self.service.spot.owner.json():
                 if row['state'] in ('TERMINAL', 'REJECTED'):
                     continue
@@ -343,7 +345,7 @@ class FileInventoryApplication:
                 if attempt.state in ('TERMINAL', 'ABORTED_BEFORE_SEND'):
                     self.service.quotes.native._release_reconciled_proposals()
                     current = self._read()
-                    children = thaw(current.resources['inventory_children'])
+                    children = thaw(current.resources[self.children_key])
                     children[key]['state'] = 'TERMINAL'
                     self.store._commit(current.cut, self.service.spot.owner, 'inventory-terminal:' + key,
-                                       (('inventory_children', encode(children)),), observation=True)
+                                       ((self.children_key, encode(children)),), observation=True)

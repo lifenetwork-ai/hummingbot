@@ -46,7 +46,7 @@ async def test_configured_control_seed_keeps_signing_key_outside_runtime(tmp_pat
             await service.close()
 
 
-def attach_empty_observer(service):
+def attach_empty_observer(service, *, rate_limits=None):
     from types import SimpleNamespace
     from unittest.mock import AsyncMock
 
@@ -70,7 +70,8 @@ def attach_empty_observer(service):
         async def request(self, **request):
             from test.hummingbot.strategy_v2.life_liquidity.storage.test_spot_application import empty_transport
             return Response(empty_transport(request, [], {'now': service.sources.clock()}))
-    assistant = RESTAssistant(connection=RESTConnection(Session()), throttler=AsyncThrottler(okx_constants.RATE_LIMITS))
+    assistant = RESTAssistant(connection=RESTConnection(Session()), throttler=AsyncThrottler(
+        okx_constants.RATE_LIMITS if rate_limits is None else rate_limits))
     connector._web_assistants_factory = SimpleNamespace(get_rest_assistant=AsyncMock(return_value=assistant))
     connector._api_request_url = AsyncMock(side_effect=lambda path_url, **_: 'https://www.okx.com' + path_url)
     service.spot.install_observer(OkxSpotRepositoryObserver(service.spot, independent_fill_value=lambda *_: None,

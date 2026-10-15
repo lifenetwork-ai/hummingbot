@@ -4,6 +4,7 @@ import fcntl
 import json
 import os
 import tempfile
+from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from dataclasses import dataclass
 from decimal import Decimal
@@ -23,7 +24,28 @@ class IndependentHorizonObservation:
     source_kind: str
 
 
-class ReconciledMarkoutMonitor:
+class MarkoutProbeSource(ABC):
+    """Read-only, accounting-bound cohort port shared by native/repository monitors."""
+
+    @property
+    @abstractmethod
+    def reservations(self):
+        ...
+
+    @abstractmethod
+    def _policy(self):
+        ...
+
+    @abstractmethod
+    def summary(self, side, size_bucket, horizon_ms):
+        ...
+
+
+class ReconciledMarkoutMonitor(MarkoutProbeSource):
+    @property
+    def reservations(self):
+        return self.attributor.reservations
+
     def __init__(self, path: Path, *, attributor: ReconciledFillAttributor,
                  independent_horizon: Callable[[str, int], IndependentHorizonObservation | None],
                  utc_clock_ms: Callable[[], int], horizons_ms: tuple[int, ...],
@@ -281,11 +303,11 @@ class MarkoutProbeGuard:
     other risk gate. Every accepted quote consumes one explicit campaign cap.
     """
 
-    def __init__(self, monitor: ReconciledMarkoutMonitor, reservations: ReservationLedger,
-                 *, max_quote_base: Decimal, max_campaign_base: Decimal, create: bool):
-        if (not isinstance(monitor, ReconciledMarkoutMonitor)
+    def __init__(self, monitor: MarkoutProbeSource, reservations: ReservationLedger,
+                 *, max_quote_base: Decimal, max_campaign_base: Decimal, create: bool, path: Path | None = None):
+        if (not isinstance(monitor, MarkoutProbeSource)
                 or not isinstance(reservations, ReservationLedger)
-                or monitor.attributor.reservations is not reservations
+                or monitor.reservations is not reservations
                 or reservations.path is None or reservations.path.is_symlink()
                 or any(not isinstance(value, Decimal) or not value.is_finite() or value <= 0
                        for value in (max_quote_base, max_campaign_base))
@@ -295,7 +317,7 @@ class MarkoutProbeGuard:
         self.reservations = reservations
         self.max_quote_base = max_quote_base
         self.max_campaign_base = max_campaign_base
-        self.path = monitor.path.with_name("markout_probe.json")
+        self.path = monitor.path.with_name("markout_probe.json") if path is None else Path(path)
         with self._file_lock():
             if create:
                 if self.path.exists() or self.path.is_symlink():

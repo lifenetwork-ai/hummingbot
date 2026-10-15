@@ -33,7 +33,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.import_commands import (
 )
 from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancialRecoveryFacts
 
-ROLES = frozenset(('ACTIVATE', 'DRAIN', 'RECOVER', 'REVOKE', 'APPROVE_CASHFLOW', 'IMPORT', 'INVENTORY'))
+ROLES = frozenset(('ACTIVATE', 'DRAIN', 'RECOVER', 'REVOKE', 'APPROVE_CASHFLOW', 'IMPORT', 'INVENTORY', 'OBSERVE_SESSION'))
 
 
 @dataclass(frozen=True)

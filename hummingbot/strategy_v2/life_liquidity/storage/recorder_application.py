@@ -71,7 +71,7 @@ class FileRecorderApplication:
             self._healthy = True
 
     async def before_dispatch(self, action):
-        if (not self.ready or not self.runtime._local_ready()
+        if (not self.ready or not self.runtime._local_ready(allow_reduction=self.runtime._action_reduction(action))
                 or action.controller_id != self.repository.controller_id):
             return False
         self._busy = True

@@ -1,5 +1,5 @@
 .ONESHELL:
-.PHONY: test run run_coverage report_coverage development-diff-cover uninstall build install setup deploy down link-cli life-migrate life-migration-status
+.PHONY: test run run_coverage report_coverage development-diff-cover uninstall build install setup deploy down link-cli life-migrate life-migration-status life-run
 
 DYDX ?= 0
 ENV_FILE := setup/environment.yml
@@ -82,6 +82,9 @@ link-cli:
 
 run:
 	conda run -n hummingbot --no-capture-output ./bin/hummingbot_quickstart.py $(ARGS)
+
+life-run:
+	conda run -n hummingbot --no-capture-output python -m hummingbot.strategy_v2.life_liquidity.storage.headless $(ARGS)
 
 setup:
 	@read -r -p "Include Gateway? [y/N] " ans; \

@@ -82,6 +82,22 @@ class InventoryServiceConfig(BaseModel):
         return self
 
 
+class ExitServiceConfig(BaseModel):
+    model_config = ConfigDict(extra='forbid', frozen=True, strict=True)
+    target_base: Decimal
+    max_child_base: Decimal
+    max_slippage_bps: Decimal
+    max_age_ms: int
+    budget: BudgetPolicy
+
+    @model_validator(mode='after')
+    def validate_values(self):
+        if (any(not v.is_finite() or v < 0 for v in (self.target_base, self.max_slippage_bps))
+                or not self.max_child_base.is_finite() or self.max_child_base <= 0 or self.max_age_ms <= 0):
+            raise StorageError('SERVICE_EXIT_POLICY_INVALID')
+        return self
+
+
 class ControlServiceConfig(BaseModel):
     model_config = ConfigDict(extra='forbid', frozen=True, strict=True)
     public_keys: dict[str, str]
@@ -110,6 +126,12 @@ class MarkoutServiceConfig(BaseModel):
     max_horizon_lag_ms: int
     min_mean_markout_quote: Decimal
     monitored_cohorts: tuple[tuple[str, str, int], ...]
+    probe_size_base: Decimal | None = None
+    probe_campaign_base: Decimal | None = None
+
+    def binding_json(self):
+        excluded = {'probe_size_base', 'probe_campaign_base'} if self.probe_size_base is None else set()
+        return self.model_dump(mode='json', exclude=excluded)
 
     @model_validator(mode='after')
     def validate_values(self):
@@ -119,6 +141,10 @@ class MarkoutServiceConfig(BaseModel):
                 or self.cohort_window_ms <= max(self.horizons_ms) or self.max_horizon_lag_ms < 0
                 or not self.min_mean_markout_quote.is_finite() or not self.monitored_cohorts
                 or len(set(self.monitored_cohorts)) != len(self.monitored_cohorts)
+                or (self.probe_size_base is None) != (self.probe_campaign_base is None)
+                or self.probe_size_base is not None and (
+                    any(not v.is_finite() or v <= 0 for v in (self.probe_size_base, self.probe_campaign_base))
+                    or self.probe_size_base > self.probe_campaign_base)
                 or any(s not in ('BUY', 'SELL') or b not in ('small', 'large') or h not in self.horizons_ms
                        for s, b, h in self.monitored_cohorts)):
             raise StorageError('SERVICE_MARKOUT_CONFIG_INVALID')
@@ -139,7 +165,10 @@ class RiskServiceConfig(BaseModel):
     def binding_json(self):
         # Absent opt-in retains pre-probe policy fingerprints on cold readback.
         excluded = {'recovery_probe_campaign_base'} if self.recovery_probe_campaign_base is None else set()
-        return self.model_dump(mode='json', exclude=excluded)
+        data = self.model_dump(mode='json', exclude=excluded)
+        if self.markout is not None:
+            data['markout'] = self.markout.binding_json()
+        return data
 
     @model_validator(mode='after')
     def validate_values(self):
@@ -186,6 +215,7 @@ class FileServiceConfig(BaseModel):
     control: ControlServiceConfig | None = None
     inventory: InventoryServiceConfig | None = None
     settlement_policy: SpotSettlementPolicy | None = None
+    exit: ExitServiceConfig | None = None
 
     @model_validator(mode='after')
     def validate_values(self):
@@ -214,12 +244,16 @@ class FileServiceConfig(BaseModel):
         if self.inventory is not None and (self.quotes is None or self.risk is None or self.control is None
                                            or self.settlement_policy is None or self.inventory.policy.deadline_utc > self.owner.expires_at):
             raise StorageError('SERVICE_INVENTORY_GRAPH_INCOMPLETE')
+        if self.exit is not None and (self.quotes is None or self.risk is None or self.control is None):
+            raise StorageError('SERVICE_EXIT_GRAPH_INCOMPLETE')
         if self.risk is not None and self.risk.recovery_probe_campaign_base is not None:
             resume = self.controller.strategy.risk.resume_policy
             if (self.quotes is None or resume.probe_size_base != self.risk.recovery_probe_base
                     or resume.stable_data_duration is None
                     or parse_duration_seconds(resume.stable_data_duration) * 1000 != self.risk.stable_data_ms):
                 raise StorageError('SERVICE_RECOVERY_PROBE_GRAPH_INVALID')
+        if self.risk is not None and self.risk.markout is not None and self.risk.markout.probe_size_base is not None and self.quotes is None:
+            raise StorageError('SERVICE_MARKOUT_PROBE_REQUIRES_QUOTES')
         if self.quotes is not None:
             economics = self.controller.strategy.economics
             if (self.quotes.max_actions_per_tick > self.max_pending

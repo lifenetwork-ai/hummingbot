@@ -2,6 +2,7 @@
 import asyncio
 import inspect
 from dataclasses import replace
+from uuid import uuid4
 
 from hummingbot.strategy_v2.life_liquidity.storage.contracts import OwnerMode, StorageError, fingerprint, utc
 from hummingbot.strategy_v2.life_liquidity.storage.control_plane import ControlSnapshot, OwnerTransition
@@ -13,6 +14,7 @@ class FileControlApplication:
         self._snapshot = None
         self._lock = asyncio.Lock()
         self._admitted = 0
+        self.observer_id = uuid4()
 
     async def snapshot(self):
         s = self.service
@@ -23,6 +25,8 @@ class FileControlApplication:
         s._control_pending = True  # Revoke cached action/final-send eligibility before any await.
         try:
             async with self._lock, asyncio.timeout(s.config.recovery_policy.max_fact_age_ms / 1000):
+                s._control_pending = True  # A preceding command may have cleared its own barrier while we queued.
+                s.runtime.invalidate_actions()
                 s.controller._runner_halt_ok = s.controller._halt_runner_orders()
                 if not s.controller._runner_halt_ok:
                     raise StorageError('SERVICE_CONTROL_RUNNER_UNQUALIFIED')
@@ -95,7 +99,14 @@ class FileControlApplication:
                     ImportPreparationOrigin,
                 )
                 from hummingbot.strategy_v2.life_liquidity.storage.inventory_application import InventoryModeCommand
-                if type(command) is InventoryModeCommand:
+                from hummingbot.strategy_v2.life_liquidity.storage.session_observation import (
+                    AuthorizeSessionObservation,
+                )
+                if type(command) is AuthorizeSessionObservation:
+                    if replay is None and command.observer_id != self.observer_id:
+                        raise StorageError('SESSION_OBSERVATION_PROCESS_MISMATCH')
+                    receipt = await self.store._call(self._authorize_observation, command, approval, snapshot)
+                elif type(command) is InventoryModeCommand:
                     if s.inventory is None:
                         raise StorageError('SERVICE_INVENTORY_ROUTE_DISABLED')
                     receipt = await self.store._call(s.inventory.apply_mode, command, approval, snapshot)
@@ -130,6 +141,72 @@ class FileControlApplication:
             raise
         finally:
             self._admitted -= 1
+
+    def _authorize_observation(self, command, approval, snapshot):
+        s = self.service
+        self.store.assert_worker_thread()
+        prior = self.store._read().resources.get('control_operations', {}).get(command.operation_id)
+        if prior is None:
+            if s._revoked or s.controller._order_safety_stopped:
+                raise StorageError('SESSION_OBSERVATION_STOPPED')
+            if s.quotes is not None and s.quotes.native.action_journal.active_records():
+                raise StorageError('SESSION_OBSERVATION_PROPOSALS_UNRESOLVED')
+            if s.joint is not None:
+                s.joint._guard(observation=True)
+                if s.joint._recovery.capital.claim_ids() or any(
+                        r.state not in ('TERMINAL', 'ABORTED_BEFORE_SEND') for r in s.joint._recovery._records()):
+                    raise StorageError('SESSION_OBSERVATION_JOINT_SCOPE_UNQUALIFIED')
+        return self.store._authorize_session_observation(command, approval, snapshot.facts, snapshot.cut)
+
+    async def advance_successor(self, grant_id):
+        """Observe expiry/reference under a new signed process-scoped grant.
+
+        Each changed financial/session cut is recollected independently. No
+        original writer expiry, risk rearm flag or sender grant is extended.
+        """
+        from hummingbot.strategy_v2.life_liquidity.storage.contracts import identifier
+        identifier(grant_id)
+        for _ in range(3):  # expiry, optional NAV publication, successor
+            snapshot = await self.snapshot()
+            if self._admitted >= self.service.config.max_pending:
+                raise StorageError('SERVICE_CONTROL_BACKPRESSURE')
+            self._admitted += 1
+            try:
+                async with self._lock, asyncio.timeout(self.service.config.recovery_policy.max_fact_age_ms / 1000):
+                    if snapshot is not self._snapshot or self.service._revoked:
+                        raise StorageError('SESSION_OBSERVATION_SOURCE_CHANGED')
+                    self.service._control_pending = True
+                    self.service.runtime.invalidate_actions()
+                    result = await self.store._call(self._advance_successor, grant_id, snapshot)
+                    self._snapshot = None
+                    self.service._control_pending = False
+                    if result:
+                        return True
+            except BaseException:
+                self.service.runtime.revoke()
+                raise
+            finally:
+                self._admitted -= 1
+        return False
+
+    def _advance_successor(self, grant_id, snapshot):
+        from hummingbot.strategy_v2.life_liquidity.storage.session import SessionTick
+        s = self.service
+        view, meta = self.store._snapshot(), self.store._read()
+        self.store._session_observation_guard(view, meta, s.spot.owner, grant_id)
+        row = meta.resources['session_observation_grants'][grant_id]
+        if (row['observer_id'] != str(self.observer_id) or s._revoked or s.controller._order_safety_stopped
+                or view.cut != snapshot.cut):
+            raise StorageError('SESSION_OBSERVATION_SOURCE_CHANGED')
+        if view.session.state != 'TRANSITIONING':
+            max_age_ms = s.config.joint.max_age_ms if s.joint is not None else s.spot._reconciliation_age_ms
+            tick = SessionTick('observe-expiry:' + uuid4().hex, view.session.session_id, view.session.epoch,
+                               False, False, False, max_age_ms,
+                               observation_grant_id=grant_id)
+            self.store._tick_session(tick, snapshot.cut, s.spot.owner)
+            s.spot._sync_session()
+            return False
+        return s.spot._complete_successor(snapshot, observation_grant_id=grant_id)
 
     async def settle_inventory(self, cycle_id, intent_ids):
         """Release only the independently reconciled, physically flat cycle cost.

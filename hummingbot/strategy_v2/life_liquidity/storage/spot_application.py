@@ -156,7 +156,7 @@ class FileSpotApplication:
             if runtime is not None and runtime._service is not None and runtime._service.admission_paused:
                 return False
             if (runtime is not None and runtime._service is not None and runtime._service.risk is not None
-                    and not runtime._service.risk.local_ready()):
+                    and not runtime._service.risk.local_ready(reduce_only=runtime._service.exit is not None and runtime._service.exit.active)):
                 return False
             current = c._order_safety_manager.current_session
             now = utc(store._clock())
@@ -231,7 +231,8 @@ class FileSpotApplication:
             raise PermissionError('SPOT_APPLICATION_REVOKED')
         c = self.controller
         service = self.runtime._service
-        if service is not None and service.risk is not None and not service.risk.ready():
+        reducing = service is not None and service.exit is not None and service.exit.handles(config)
+        if service is not None and service.risk is not None and not service.risk.ready(reduce_only=reducing):
             raise PermissionError('SPOT_APPLICATION_RISK_UNQUALIFIED')
         from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction
         action = CreateExecutorAction(controller_id=c.config.id, executor_config=config)
@@ -248,7 +249,8 @@ class FileSpotApplication:
         self.store.assert_worker_thread()
         c = self.controller
         service = self.runtime._service
-        if service is not None and service.risk is not None and not service.risk.ready():
+        reducing = service is not None and service.exit is not None and service.exit.handles(config)
+        if service is not None and service.risk is not None and not service.risk.ready(reduce_only=reducing):
             raise PermissionError('SPOT_APPLICATION_RISK_UNQUALIFIED')
         if not self.local_ready() or self._digest(config) != digest or config.id in self._revoked_ids:
             raise PermissionError('SPOT_APPLICATION_REVOKED')
@@ -286,7 +288,9 @@ class FileSpotApplication:
                               terms.reference_price_usdt, terms.subsidy_quote_usdt,
                               current.session_id, current.epoch, current.config_version, int(config.level_id),
                               terms.fee_buffer_quote_usdt, terms.fee_buffer_base_life,
-                              risk_epoch=risk_epoch if self.store._shared_spot is not None else None)
+                              risk_epoch=risk_epoch if self.store._shared_spot is not None else None,
+                              budget_scope='EXIT' if self.runtime._service is not None and self.runtime._service.exit is not None
+                              and self.runtime._service.exit.handles(config) else 'QUOTE')
         self._issued[config.id] = command
         await self.runtime.await_reporting()
         await self.store.prepare_current(command, owner=self.owner)
@@ -437,9 +441,12 @@ class FileSpotApplication:
         c._runner_cancel_observations = {key: value for key, value in c._runner_cancel_observations.items()
                                          if key not in closed}
 
-    def _transition_anchor(self):
+    def _transition_anchor(self, *, observation_grant_id=None):
         c = self.controller
         service = self.runtime._service
+        if (c._order_safety_stopped or service is not None and service._revoked
+                or self._revoked and observation_grant_id is None):
+            return None
         if service is not None and service.joint is not None:
             current = c._order_safety_manager.current_session
             # Expiry already disabled allocation. Session bookkeeping requires
@@ -447,8 +454,15 @@ class FileSpotApplication:
             joint_ready = service.joint._recovery.successor_ready(current.session_id, current.epoch)
         else:
             joint_ready = c._joint_recovery_ready()
-        if (self._revoked or c._order_safety_stopped or not joint_ready
-                or not c._runtime_risk_ready() or not c._joint_risk_ready()
+        if observation_grant_id is not None:
+            self.store._session_observation_guard(self.store._snapshot(), self.store._read(), self.owner,
+                                                  observation_grant_id)
+            runtime_risk_ready = (service is not None and service.risk is not None
+                                  and service.risk.observation_ready(observation_grant_id))
+        else:
+            runtime_risk_ready = c._runtime_risk_ready()
+        if (self._revoked and observation_grant_id is None or c._order_safety_stopped or not joint_ready
+                or not runtime_risk_ready or not c._joint_risk_ready()
                 or not c._hedge_ready() or not c._execution_loss_ready() or not c._fill_attribution_ready()
                 or not c._markout_risk_ready() or c.has_unverified_runner_order_events()
                 or not c._spot_quote_gates_ready() or c._quote_action_planner is None):
@@ -466,12 +480,15 @@ class FileSpotApplication:
             await self.store.tick_session(pending.command, cut=pending.original_cut, owner=pending.owner)
         await self.store._call(self._sync_session)
 
-    def _complete_successor(self, snapshot):
+    def _complete_successor(self, snapshot, *, observation_grant_id=None):
         self.store.assert_worker_thread()
         c = self.controller
-        if self._revoked or c._order_safety_stopped or self.store._cold_unarmed:
+        if ((self._revoked or self.store._cold_unarmed) and observation_grant_id is None
+                or c._order_safety_stopped):
             return False
         current = self.store._snapshot()
+        if observation_grant_id is not None:
+            self.store._session_observation_guard(current, self.store._read(), self.owner, observation_grant_id)
         if current.session.state != 'TRANSITIONING':
             return False
         planner = c._quote_action_planner
@@ -488,9 +505,13 @@ class FileSpotApplication:
             if joint._recovery.capital.claim_ids() or any(
                     r.state not in ('TERMINAL', 'ABORTED_BEFORE_SEND') for r in joint._recovery._records()):
                 return False
-        anchor = self._transition_anchor()
+        anchor = (self._transition_anchor() if observation_grant_id is None else
+                  self._transition_anchor(observation_grant_id=observation_grant_id))
         if anchor is None:
             c.order_safety_reason_code = 'SESSION_MARKET_REFERENCE_UNAVAILABLE'
+            return False
+        if (self._revoked and observation_grant_id is None or c._order_safety_stopped
+                or service is not None and service._revoked):
             return False
         # Risk valuation may publish a new cut while qualifying the anchor. A
         # different cut requires fresh collection, never relabelled old facts.
@@ -504,7 +525,8 @@ class FileSpotApplication:
         max_age_ms = (service.config.joint.max_age_ms if service is not None and service.joint is not None
                       else self._reconciliation_age_ms)
         tick = SessionTick('successor:' + uuid4().hex, current.session.session_id, current.session.epoch,
-                           True, True, True, max_age_ms, result, snapshot.facts, anchor)
+                           True, True, True, max_age_ms, result, snapshot.facts, anchor,
+                           observation_grant_id=observation_grant_id)
         receipt = self.store._tick_session(tick, snapshot.cut, self.owner)
         self._sync_session()
         c._pause_reconciliation_required = False  # This exact source cut proved the old scope quiescent.

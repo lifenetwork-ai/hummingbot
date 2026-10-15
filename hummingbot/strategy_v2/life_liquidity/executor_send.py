@@ -39,6 +39,9 @@ class ProtectedSpotExecutorSender:
 
     def _exit_planner(self, intent_id):
         runtime = getattr(self.controller, '_storage_runtime', None)
+        if (runtime is not None and runtime._service is not None and runtime._service.exit is not None
+                and intent_id in runtime._service.exit._configs):
+            return runtime._service.exit
         if runtime is not None and runtime._service is not None and runtime._service.inventory is not None:
             inventory = runtime._service.inventory
             if intent_id in inventory._configs:
@@ -64,7 +67,7 @@ class ProtectedSpotExecutorSender:
             return False
         runtime = getattr(self.controller, '_storage_runtime', None)
         if (exit_planner is not None and runtime is not None and runtime._service is not None
-                and exit_planner is runtime._service.inventory):
+                and exit_planner in (runtime._service.inventory, runtime._service.exit)):
             allowed = exit_planner.permissions()
         else:
             allowed = ((self.controller.allow_inventory_execution_actions() if exit_planner is self.controller._inventory_executor

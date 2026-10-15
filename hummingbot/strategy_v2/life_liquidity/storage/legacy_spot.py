@@ -73,6 +73,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancial
 from hummingbot.strategy_v2.life_liquidity.storage.recovery_adapter import LegacyFinancialRecoveryAdapter
 from hummingbot.strategy_v2.life_liquidity.storage.recovery_batch import LegacyRecoveryBatchAdapter
 from hummingbot.strategy_v2.life_liquidity.storage.session import LegacySessionAdapter
+from hummingbot.strategy_v2.life_liquidity.storage.session_observation import LegacySessionObservationAdapter
 from hummingbot.strategy_v2.life_liquidity.storage.settlement import SpotSettlementPolicy
 from hummingbot.strategy_v2.life_liquidity.storage.settlement_adapter import LegacySettlementAdapter
 from hummingbot.strategy_v2.life_liquidity.storage.spot_lifecycle import LegacySpotLifecycleAdapter
@@ -90,24 +91,27 @@ class LegacySpotFiles:
     reservations: Path
     subsidy: Path
     loss: Path
+    exit_subsidy: Path | None = None
 
     def __post_init__(self):
         for field in self.__dataclass_fields__:
-            object.__setattr__(self, field, Path(getattr(self, field)).absolute())
-        if len({value.resolve() for value in self.__dict__.values()}) != 6:
+            if getattr(self, field) is not None:
+                object.__setattr__(self, field, Path(getattr(self, field)).absolute())
+        values = [v for v in self.__dict__.values() if v is not None]
+        if len({value.resolve() for value in values}) != len(values):
             raise StorageError('SPOT_JOURNAL_PATH_COLLISION')
 
     def journals(self):
-        return {key: value for key, value in self.__dict__.items() if key != 'binding'}
+        return {key: value for key, value in self.__dict__.items() if key != 'binding' and value is not None}
 
 
-class LegacySpotStore(LegacyJointCashAdapter, LegacyRecoveryBatchAdapter, LegacyPendingAdapter, LegacySessionAdapter, LegacySpotLifecycleAdapter, LegacyControlAdapter, LegacySettlementAdapter, LegacyPrepareRecoveryAdapter, LegacyFinancialRecoveryAdapter,
+class LegacySpotStore(LegacySessionObservationAdapter, LegacyJointCashAdapter, LegacyRecoveryBatchAdapter, LegacyPendingAdapter, LegacySessionAdapter, LegacySpotLifecycleAdapter, LegacyControlAdapter, LegacySettlementAdapter, LegacyPrepareRecoveryAdapter, LegacyFinancialRecoveryAdapter,
                       LegacyTerminalAdapter, FileCheckpointStore):
     atomic_scope = AtomicScope.RECOVERABLE_SAGA
 
     def __init__(self, files, binding, limits, risk_limits, subsidy_policy, loss_policy,
                  config_version, account_lock_root, clock, fill_policy=None, accounting_policy=None, terminal_policy=None,
-                 recovery_policy=None, settlement_policy=None, operator_keys=None, control_seed=None):
+                 recovery_policy=None, settlement_policy=None, operator_keys=None, control_seed=None, exit_subsidy_policy=None):
         if (not isinstance(files, LegacySpotFiles) or not isinstance(risk_limits, RiskLimits)
                 or not isinstance(subsidy_policy, BudgetPolicy) or not isinstance(loss_policy, BudgetPolicy)
                 or type(config_version) is not int or config_version < 1):
@@ -115,6 +119,10 @@ class LegacySpotStore(LegacyJointCashAdapter, LegacyRecoveryBatchAdapter, Legacy
         super().__init__(files.binding, binding, limits, clock)
         self._files, self._risk_limits = files, risk_limits
         self._subsidy_policy, self._loss_policy, self._config_version = subsidy_policy, loss_policy, config_version
+        if ((files.exit_subsidy is None) != (exit_subsidy_policy is None)
+                or exit_subsidy_policy is not None and not isinstance(exit_subsidy_policy, BudgetPolicy)):
+            raise StorageError('EXIT_BUDGET_CONFIG_INVALID')
+        self._exit_subsidy_policy = exit_subsidy_policy
         self._account_lock_root = Path(account_lock_root)
         if not self._account_lock_root.is_absolute():
             raise StorageError('SPOT_ACCOUNT_LOCK_ROOT_INVALID')
@@ -149,6 +157,8 @@ class LegacySpotStore(LegacyJointCashAdapter, LegacyRecoveryBatchAdapter, Legacy
             'account_lock_root': str(Path(account_lock_root)),
             'risk': {key: str(value) for key, value in risk_limits.__dict__.items()},
             'subsidy': subsidy_policy.json(), 'execution_loss': loss_policy.json(), 'config_version': config_version}
+        if exit_subsidy_policy is not None:
+            self._policy['legacy_spot']['exit_subsidy'] = exit_subsidy_policy.json()
         if fill_policy is not None:
             self._policy['legacy_spot']['fill_policy'] = {'max_reference_skew_ms': fill_policy.max_reference_skew_ms}
         if accounting_policy is not None:
@@ -167,6 +177,13 @@ class LegacySpotStore(LegacyJointCashAdapter, LegacyRecoveryBatchAdapter, Legacy
 
     def unit_of_work(self, *args, **kwargs):
         raise UnsupportedBackend('SPOT_GENERIC_CHECKPOINT_WRITES_UNSUPPORTED')
+
+    def _budget_ledger(self, prepared):
+        if prepared.budget_scope == 'EXIT':
+            if self._exit_subsidy_policy is None:
+                raise StorageError('EXIT_BUDGET_NOT_INSTALLED')
+            return self._subsidy.exit
+        return self._subsidy.quote if self._exit_subsidy_policy is not None else self._subsidy
 
     def _raw(self):
         images, total = {}, 0
@@ -194,12 +211,18 @@ class LegacySpotStore(LegacyJointCashAdapter, LegacyRecoveryBatchAdapter, Legacy
             raise StorageError('SPOT_COLD_REARM_REQUIRES_CONTROL_PLANE')
         self._account_lock = AccountRiskPoolLock(self.binding.account_uid, self._account_lock_root)
         self._account_lock.acquire()
+        if self._exit_subsidy_policy is not None and create and not self._files.binding.exists() and not self._files.exit_subsidy.exists():
+            SubsidyBudgetLedger(self._files.exit_subsidy, **self._exit_subsidy_policy.kwargs()).initialize_empty()
         images = self._raw()  # Constructors may create empty state: refuse missing input first.
         try:
             self._sessions = SessionStore(self._files.session)
             self._wal = IntentWAL(self._files.wal)
             self._ledger = ReservationLedger.restore(self._files.reservations, limits=self._risk_limits)
             self._subsidy = SubsidyBudgetLedger(self._files.subsidy, **self._subsidy_policy.kwargs())
+            if self._exit_subsidy_policy is not None:
+                from hummingbot.strategy_v2.life_liquidity.storage.budget_routes import RoutedSubsidyLedger
+                self._subsidy = RoutedSubsidyLedger(self, self._subsidy,
+                                                    SubsidyBudgetLedger(self._files.exit_subsidy, **self._exit_subsidy_policy.kwargs()))
             self._loss = LossBudgetLedger(self._files.loss, **self._loss_policy.kwargs())
             journal = self._sessions.load()
             if journal is None:
@@ -418,7 +441,12 @@ class LegacySpotStore(LegacyJointCashAdapter, LegacyRecoveryBatchAdapter, Legacy
                 < self._risk_limits.min_inventory_base):
             raise StorageError('SPOT_CAPITAL_INCLUDING_FEES_DENIED')
         decision = self._ledger.preview().check_and_hold(self._intent(command), reference_price=command.reference_price_usdt)
-        if not decision.allowed or view.budget.loss_exhausted or command.subsidy_quote_usdt > view.budget.subsidy_available_usdt:
+        subsidy_available = view.budget.subsidy_available_usdt
+        if command.budget_scope == 'EXIT':
+            if self._exit_subsidy_policy is None:
+                raise StorageError('EXIT_BUDGET_NOT_INSTALLED')
+            subsidy_available = self._subsidy.exit.verified_status(session_id=command.session_id, at_utc=utc(self._clock())).available_quote
+        if not decision.allowed or view.budget.loss_exhausted or command.subsidy_quote_usdt > subsidy_available:
             raise StorageError('SPOT_CAPITAL_OR_BUDGET_DENIED')
         if self._shared_spot is not None:
             self._shared_spot.preflight(command)
@@ -1031,7 +1059,8 @@ class LegacySpotStore(LegacyJointCashAdapter, LegacyRecoveryBatchAdapter, Legacy
     def _observe_nav(self, command, cut, owner):
         self._require_accounting()
         view = self._snapshot()
-        meta = self._ack_guard(view, owner)
+        meta = (self._ack_guard(view, owner) if command.observation_grant_id is None else
+                self._session_observation_guard(view, self._read(), owner, command.observation_grant_id))
         operations = thaw(meta.resources.get('nav_operations', {}))
         command_hash = fingerprint({'command': command.json(), 'owner': owner.json()})
         previous = operations.get(command.operation_id)
@@ -1065,10 +1094,12 @@ class LegacySpotStore(LegacyJointCashAdapter, LegacyRecoveryBatchAdapter, Legacy
         operations[command.operation_id] = {'command': command.json(), 'fingerprint': command_hash, 'measurement': values,
                                             'financial_fingerprint': self._money_fingerprint(meta.resources)}
         try:
+            deadline = ({} if command.observation_grant_id is None else {'not_after': datetime.fromisoformat(
+                meta.resources['session_observation_grants'][command.observation_grant_id]['expires_at'])})
             super()._commit(meta.cut, owner, 'nav:' + command.operation_id, (
                 ('nav_operations', encode(operations)),
                 ('capital', encode({'latest_operation_id': command.operation_id, 'highwater_usdt': values['highwater_usdt']}))),
-                observation=True)
+                observation=True, **deadline)
             completed = self._snapshot()
             current_meta = super()._read()
             return NavReceipt(self.binding, command.operation_id,
@@ -1110,10 +1141,10 @@ class LegacySpotStore(LegacyJointCashAdapter, LegacyRecoveryBatchAdapter, Legacy
 async def open_legacy_spot(files, *, binding, limits, risk_limits, subsidy_policy, loss_policy,
                            config_version, account_lock_root, create_binding=False, owner=None,
                            clock=lambda: datetime.now(timezone.utc), fill_policy=None, accounting_policy=None, terminal_policy=None,
-                           recovery_policy=None, settlement_policy=None, operator_keys=None, control_seed=None):
+                           recovery_policy=None, settlement_policy=None, operator_keys=None, control_seed=None, exit_subsidy_policy=None):
     store = LegacySpotStore(files, binding, limits, risk_limits, subsidy_policy, loss_policy,
                             config_version, account_lock_root, clock, fill_policy, accounting_policy, terminal_policy,
-                            recovery_policy, settlement_policy, operator_keys, control_seed)
+                            recovery_policy, settlement_policy, operator_keys, control_seed, exit_subsidy_policy)
     try:
         await store._call(store._initialize_spot, create_binding, owner)
         return store

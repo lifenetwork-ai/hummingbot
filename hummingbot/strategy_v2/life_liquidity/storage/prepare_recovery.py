@@ -126,7 +126,7 @@ class LegacyPrepareRecoveryAdapter:
                     or not self._ledger.preview().check_and_hold(
                         self._intent(prepared), reference_price=prepared.reference_price_usdt).allowed):
                 raise StorageError('SPOT_PREPARE_RECOVERY_CAPITAL_DENIED')
-        if not subsidy_exists and prepared.subsidy_quote_usdt > self._subsidy.verified_status(
+        if not subsidy_exists and prepared.subsidy_quote_usdt > self._budget_ledger(prepared).verified_status(
                 session_id=prepared.session_id, at_utc=at).available_quote:
             raise StorageError('SPOT_PREPARE_RECOVERY_SUBSIDY_DENIED')
         return wal, native, subsidy_exists

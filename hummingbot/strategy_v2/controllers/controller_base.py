@@ -213,7 +213,7 @@ class ControllerBase(RunnableBase):
             self.terminated.clear()
             self._status = RunnableStatus.RUNNING
             self.executors_update_event.set()
-            safe_ensure_future(self.control_loop())
+            self._control_loop_task = safe_ensure_future(self.control_loop())
         self.initialize_candles()
 
     def initialize_candles(self):

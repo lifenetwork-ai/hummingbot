@@ -22,11 +22,16 @@ from hummingbot.strategy_v2.life_liquidity.storage.contracts import (
     utc,
 )
 from hummingbot.strategy_v2.life_liquidity.storage.file import FileCheckpointStore
-from hummingbot.strategy_v2.life_liquidity.storage.financial import FinancialCut, PrepareSpot
+from hummingbot.strategy_v2.life_liquidity.storage.financial import FinancialCut, PrepareSpot, SpotFillObservation
 from hummingbot.strategy_v2.life_liquidity.storage.terminal import TerminalReceipt, TerminalSpot
 
 
 class LegacyTerminalAdapter:
+    @staticmethod
+    def _exit_cost(resources, prepared):
+        return sum((SpotFillObservation.from_json(r['fill']).loss(prepared.side)
+                    for r in resources.get('fills', {}).values() if r['intent_id'] == prepared.intent_id), Decimal('0'))
+
     @staticmethod
     def _joint_known_order(row, authority):
         if authority is None:
@@ -153,9 +158,10 @@ class LegacyTerminalAdapter:
             if value['state'] == 'TERMINAL' and (wal.state != 'TERMINAL' or reservation.state != 'TERMINAL'):
                 raise StorageError('SPOT_TERMINAL_NATIVE_HOLD_MISMATCH')
             if value['state'] != 'TERMINAL':
-                settled_target = (resume and original.intent_id == prepared.intent_id and expected_quantity == 0
+                settled_target = (resume and original.intent_id == prepared.intent_id
+                                  and (expected_quantity == 0 or original.budget_scope == 'EXIT')
                                   and wal.state == 'TERMINAL' and reservation.state == 'TERMINAL'
-                                  and self._subsidy.matches_settled(original.intent_id, Decimal('0'), session_id=original.session_id))
+                                  and self._subsidy.matches_settled(original.intent_id, self._exit_cost(meta.resources, original), session_id=original.session_id))
                 if (not settled_target and self._subsidy.reserved_for(original.intent_id, session_id=original.session_id)
                         != original.subsidy_quote_usdt):
                     raise StorageError('SPOT_TERMINAL_SUBSIDY_HOLD_MISMATCH')
@@ -204,6 +210,9 @@ class LegacyTerminalAdapter:
             if reservation.filled_base == 0:
                 if not self._subsidy.matches_settled(original.intent_id, Decimal('0'), session_id=original.session_id):
                     raise StorageError('SPOT_TERMINAL_PROJECTION_UNVERIFIED')
+            elif original.budget_scope == 'EXIT':
+                if not self._subsidy.matches_settled(original.intent_id, self._exit_cost(resources, original), session_id=original.session_id):
+                    raise StorageError('EXIT_TERMINAL_BUDGET_UNVERIFIED')
             elif (not self._settled_inventory_member(resources, original.intent_id)
                   and self._subsidy.reserved_for(original.intent_id, session_id=original.session_id) != original.subsidy_quote_usdt):
                 raise StorageError('SPOT_TERMINAL_PROJECTION_UNVERIFIED')
@@ -213,8 +222,10 @@ class LegacyTerminalAdapter:
 
     def _terminal_receipt(self, row, state, replayed):
         command = row['command']
+        original = self._read().resources['commands'][command['prepare_operation_id']]['command']
         return TerminalReceipt(self.binding, command['operation_id'], command['intent_id'], command['exchange_order_id'],
-                               state, state == 'TERMINAL' and Decimal(command['facts']['cumulative_base_life']) == 0,
+                               state, state == 'TERMINAL' and (Decimal(command['facts']['cumulative_base_life']) == 0
+                                                               or original.get('budget_scope', 'QUOTE') == 'EXIT'),
                                replayed, self.atomic_scope)
 
     def _lookup_terminal(self, operation_id):
@@ -260,6 +271,13 @@ class LegacyTerminalAdapter:
             self._subsidy.settle_zero_fill_terminal(command.intent_id, wal=self._wal, reservations=self._ledger)
             if not self._subsidy.matches_settled(command.intent_id, Decimal('0'), session_id=original.session_id):
                 raise StorageError('SPOT_TERMINAL_SUBSIDY_PUBLICATION_INCOMPLETE')
+        elif original.budget_scope == 'EXIT':
+            # Complete independently valued terminal fills qualify this exact
+            # reducing order's actual cost; principal/WAL are already terminal.
+            actual = self._exit_cost(self._read().resources, original)
+            self._subsidy._reconcile(command.intent_id, actual_cost_quote=actual, release_proven=True)
+            if not self._subsidy.matches_settled(command.intent_id, actual, session_id=original.session_id):
+                raise StorageError('EXIT_TERMINAL_BUDGET_UNVERIFIED')
         else:
             # Quote termination alone cannot settle inventory/exit economic cost.
             if self._subsidy.reserved_for(command.intent_id, session_id=original.session_id) != original.subsidy_quote_usdt:

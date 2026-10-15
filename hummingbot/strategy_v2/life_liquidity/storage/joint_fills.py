@@ -105,18 +105,21 @@ class LegacyJointFillAdapter:
             return
         if json.loads(current['reservations']) not in (json.loads(before['reservations']), after_wallet):
             raise StorageError('JOINT_CASH_RECOVERY_NATIVE_MISMATCH')
-        original = json.loads(before['subsidy'])
-        actual = json.loads(current['subsidy'])
-        if ({key: value for key, value in original.items() if key != 'entries'}
-                != {key: value for key, value in actual.items() if key != 'entries'}
-                or set(original['entries']) != set(actual['entries'])):
-            raise StorageError('JOINT_SPOT_SUBSIDY_RECOVERY_MISMATCH')
-        floors = {row.intent_id: sum((f.loss(row.side) for f in row.fills), Decimal('0')) for row in command.spot_fills}
-        for key, entry in original['entries'].items():
-            final = dict(entry)
-            if key in floors and floors[key] != Decimal(entry.get('fill_floor', '0')):
-                if entry['actual'] is not None or floors[key] < Decimal(entry.get('fill_floor', '0')):
-                    raise StorageError('JOINT_SPOT_SUBSIDY_RECOVERY_MISMATCH')
-                final['fill_floor'] = str(floors[key])
-            if actual['entries'][key] not in (entry, final):
+        for pool in ('subsidy', 'exit_subsidy'):
+            if pool not in before:
+                continue
+            original = json.loads(before[pool])
+            actual = json.loads(current[pool])
+            if ({key: value for key, value in original.items() if key != 'entries'}
+                    != {key: value for key, value in actual.items() if key != 'entries'}
+                    or set(original['entries']) != set(actual['entries'])):
                 raise StorageError('JOINT_SPOT_SUBSIDY_RECOVERY_MISMATCH')
+            floors = {row.intent_id: sum((f.loss(row.side) for f in row.fills), Decimal('0')) for row in command.spot_fills}
+            for key, entry in original['entries'].items():
+                final = dict(entry)
+                if key in floors and floors[key] != Decimal(entry.get('fill_floor', '0')):
+                    if entry['actual'] is not None or floors[key] < Decimal(entry.get('fill_floor', '0')):
+                        raise StorageError('JOINT_SPOT_SUBSIDY_RECOVERY_MISMATCH')
+                    final['fill_floor'] = str(floors[key])
+                if actual['entries'][key] not in (entry, final):
+                    raise StorageError('JOINT_SPOT_SUBSIDY_RECOVERY_MISMATCH')

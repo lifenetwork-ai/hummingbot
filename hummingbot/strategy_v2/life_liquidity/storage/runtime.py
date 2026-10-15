@@ -202,11 +202,11 @@ class FileControllerRuntime:
     def _action_digest(action):
         return hashlib.sha256(action.model_dump_json().encode()).hexdigest()
 
-    def _local_ready(self):
+    def _local_ready(self, *, allow_reduction=False):
         try:
             if self._recorder_startup_pending or self._service is not None and self._service.admission_paused:
                 return False
-            if self._service is not None and self._service.risk is not None and not self._service.risk.local_ready():
+            if self._service is not None and self._service.risk is not None and not self._service.risk.local_ready(reduce_only=allow_reduction):
                 return False
             if self._recorder_application is not None and not self._recorder_application.ready:
                 return False
@@ -225,12 +225,12 @@ class FileControllerRuntime:
             return False
 
     def local_fence(self, action):
-        return (self._action_risk_ready(action) and self._local_ready() and action.controller_id == self.controller.config.id
+        return (self._action_risk_ready(action) and self._local_ready(allow_reduction=self._action_reduction(action)) and action.controller_id == self.controller.config.id
                 and action.executor_config.id not in self.controller._runner_stop_revoked_ids
                 and self._action_hashes.get(action.executor_config.id) == self._action_digest(action))
 
     def preflight(self, action):
-        return (self._action_risk_ready(action) and self._local_ready() and action.controller_id == self.controller.config.id
+        return (self._action_risk_ready(action) and self._local_ready(allow_reduction=self._action_reduction(action)) and action.controller_id == self.controller.config.id
                 and action.executor_config.id not in self.controller._runner_stop_revoked_ids)
 
     def _action_normal_only(self, action):
@@ -239,13 +239,28 @@ class FileControllerRuntime:
         return (self.controller._is_swap_config(config)
                 or service is not None and service.inventory is not None and service.inventory.handles(config))
 
+    def _action_reduction(self, action):
+        app = getattr(self._service, 'exit', None)
+        return app is not None and app.handles(action.executor_config)
+
+    def _permit_reduction(self, kind, value):
+        if kind == 'ACTION':
+            return self._action_reduction(value)
+        app = getattr(self._service, 'exit', None)
+        return kind == 'SPOT' and app is not None and value.intent_id in app._configs
+
     def _action_risk_ready(self, action):
         risk = self._service.risk if self._service is not None else None
         if risk is None:
             return True
+        if self._action_reduction(action):
+            return self._service.exit.active and risk.local_ready(reduce_only=True)
+        if getattr(self._service, 'exit', None) is not None and self._service.exit.active:
+            return False
         if not risk.local_ready(normal_only=self._action_normal_only(action)):
             return False
-        if risk.gate.state == 'NORMAL':
+        ceiling = risk.probe_limit()
+        if risk.gate.state == 'NORMAL' and ceiling is None:
             return True
         # Cache-only scope restriction before/after asynchronous reporting.
         # Native candidate, pending exposure and campaign capacity are still
@@ -259,7 +274,7 @@ class FileControllerRuntime:
                 and config.side in (TradeType.BUY, TradeType.SELL)
                 and config.execution_strategy is ExecutionStrategy.LIMIT_MAKER
                 and type(config.amount) is Decimal and config.amount.is_finite()
-                and 0 < config.amount <= risk.policy.recovery_probe_base)
+                and ceiling is not None and 0 < config.amount <= ceiling)
 
     def invalidate_actions(self):
         self._action_hashes.clear()
@@ -279,10 +294,11 @@ class FileControllerRuntime:
             raise StorageError('RUNTIME_AUTHENTICATED_UID_MISMATCH')
 
     def _worker_check(self, kind, value):
-        if not self._local_ready():
+        reducing = self._permit_reduction(kind, value)
+        if not self._local_ready(allow_reduction=reducing):
             return False
         normal_only = kind == 'SWAP' or kind == 'ACTION' and self._action_normal_only(value)
-        if self._service is not None and self._service.risk is not None and not self._service.risk.ready(normal_only=normal_only):
+        if self._service is not None and self._service.risk is not None and not self._service.risk.ready(normal_only=normal_only, reduce_only=reducing):
             return False
         meta = self.store._read()
         if meta.ownership.mode is not OwnerMode.ACTIVE or meta.ownership.token != self.owner:
@@ -324,7 +340,7 @@ class FileControllerRuntime:
             from hummingbot.strategy_v2.executors.order_executor.data_types import OrderExecutorConfig
             sender._check(OrderExecutorConfig.model_validate(config), value)
             result = True
-        return result and self._local_ready()
+        return result and self._local_ready(allow_reduction=reducing)
 
     async def authorize_action(self, action):
         detached = action.model_copy(deep=True)
@@ -334,11 +350,11 @@ class FileControllerRuntime:
         digest = self._action_digest(detached)
         product = 'SWAP' if self.controller._is_swap_config(detached.executor_config) else 'SPOT'
         try:
-            if not self._action_risk_ready(detached) or not self._local_ready():
+            if not self._action_risk_ready(detached) or not self._local_ready(allow_reduction=self._action_reduction(detached)):
                 return False
             await self._uid(product)
             result = await self.store._call(self._worker_check, 'ACTION', detached)
-            if result is True and self._action_risk_ready(detached) and self._local_ready() and self._action_digest(detached) == digest:
+            if result is True and self._action_risk_ready(detached) and self._local_ready(allow_reduction=self._action_reduction(detached)) and self._action_digest(detached) == digest:
                 self._action_hashes[detached.executor_config.id] = digest
                 return True
         except Exception:
@@ -346,11 +362,12 @@ class FileControllerRuntime:
         return False
 
     async def _authorize_permit(self, kind, permit):
-        if not self._local_ready():
+        reducing = self._permit_reduction(kind, permit)
+        if not self._local_ready(allow_reduction=reducing):
             return False
         try:
             await self._uid(kind)
-            return await self.store._call(self._worker_check, kind, permit) is True and self._local_ready()
+            return await self.store._call(self._worker_check, kind, permit) is True and self._local_ready(allow_reduction=reducing)
         except Exception:
             return False
 

@@ -39,7 +39,7 @@ class LegacyControlAdapter:
             return snapshot
         try:
             ownership = self._operator_keys.verify_seed(snapshot.resources['control_seed'], self.binding)
-            approved, inventory_mode = {}, None
+            approved, inventory_mode, observation_grants = {}, None, {}
             for key, row in sorted(records.items(), key=lambda item: item[1]['revision']):
                 self._operator_keys.audit(row, self.binding)
                 entry = snapshot.resources['control_operations'][key]
@@ -57,6 +57,11 @@ class LegacyControlAdapter:
                     if role != expected_role:
                         raise StorageUnavailable('CONTROL_HISTORY_UNVERIFIED')
                     ownership = {'mode': mode.value, 'token': row['payload']['token']}
+                elif role == 'OBSERVE_SESSION':
+                    payload = row['payload']
+                    if payload['kind'] != 'OBSERVE_SESSION_SUCCESSOR' or payload['owner'] != ownership['token']:
+                        raise StorageUnavailable('CONTROL_SESSION_OBSERVATION_UNVERIFIED')
+                    observation_grants[key] = thaw(payload)
                 elif role == 'APPROVE_CASHFLOW':
                     bill = row['payload']['bill']
                     if bill['bill_id'] in approved and approved[bill['bill_id']] != bill:
@@ -92,7 +97,8 @@ class LegacyControlAdapter:
                     raise StorageUnavailable('CONTROL_INVENTORY_MODE_UNVERIFIED')
             elif 'inventory_mode' in snapshot.resources:
                 raise StorageUnavailable('CONTROL_INVENTORY_MODE_UNVERIFIED')
-            if actual != ownership or approved != snapshot.resources.get('additional_cashflow_approvals', {}):
+            if (actual != ownership or approved != snapshot.resources.get('additional_cashflow_approvals', {})
+                    or observation_grants != snapshot.resources.get('session_observation_grants', {})):
                 raise StorageUnavailable('CONTROL_PROJECTION_UNVERIFIED')
         except (KeyError, ValueError, TypeError, StorageError):
             raise StorageUnavailable('CONTROL_HISTORY_UNVERIFIED') from None
@@ -122,7 +128,12 @@ class LegacyControlAdapter:
                 raise StorageError('OPERATOR_APPROVAL_EXPIRED_AT_COMMIT')
             if self._hashes(self._raw()) != dict(cut.components):
                 raise StorageConflict('CONTROL_NATIVE_CUT_STALE')
-            if ownership['mode'] == 'ACTIVE' and not (
+            observation_only = (approval.role == 'OBSERVE_SESSION'
+                                and payload.get('kind') == 'OBSERVE_SESSION_SUCCESSOR'
+                                and ownership == state['ownership'])
+            if observation_only and now >= datetime.fromisoformat(payload['expires_at']):
+                raise StorageError('SESSION_OBSERVATION_EXPIRED_AT_COMMIT')
+            if ownership['mode'] == 'ACTIVE' and not observation_only and not (
                     datetime.fromisoformat(ownership['token']['valid_from']) <= now
                     < datetime.fromisoformat(ownership['token']['expires_at'])):
                 raise StorageError('CONTROL_OWNER_EXPIRED_AT_COMMIT')

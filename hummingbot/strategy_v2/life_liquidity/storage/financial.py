@@ -192,6 +192,7 @@ class PrepareSpot:
     fee_buffer_quote_usdt: Decimal
     fee_buffer_base_life: Decimal
     risk_epoch: int | None = None  # Required by configured shared-capital preparation.
+    budget_scope: str = 'QUOTE'
 
     def __post_init__(self):
         for value in (self.operation_id, self.intent_id, self.session_id):
@@ -201,6 +202,8 @@ class PrepareSpot:
             raise StorageError('SPOT_WIRE_ID_INVALID')
         if self.market != 'LIFE-USDT' or self.side not in ('BUY', 'SELL'):
             raise StorageError('SPOT_MARKET_OR_SIDE_INVALID')
+        if self.budget_scope not in ('QUOTE', 'EXIT') or self.budget_scope == 'EXIT' and self.side != 'SELL':
+            raise StorageError('SPOT_BUDGET_SCOPE_INVALID')
         for field in ('quantity_base', 'limit_price_usdt', 'reference_price_usdt', 'subsidy_quote_usdt',
                       'fee_buffer_quote_usdt', 'fee_buffer_base_life'):
             object.__setattr__(self, field, decimal(getattr(self, field), positive=field in (
@@ -214,7 +217,8 @@ class PrepareSpot:
 
     def json(self):
         return {key: str(value) if type(value) is Decimal else value
-                for key, value in self.__dict__.items() if key != 'risk_epoch' or value is not None}
+                for key, value in self.__dict__.items()
+                if (key != 'risk_epoch' or value is not None) and (key != 'budget_scope' or value != 'QUOTE')}
 
     @classmethod
     def from_json(cls, data):

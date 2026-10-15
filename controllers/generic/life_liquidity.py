@@ -1401,7 +1401,7 @@ class LifeLiquidityController(ControllerBase):
     def _markout_risk_ready(self) -> bool:
         runtime = self._storage_runtime
         if runtime is not None and runtime._service is not None and runtime._service.risk is not None:
-            return runtime._service.risk.markout_ready()
+            return runtime._service.risk.markout_permissions_ready()
         monitor = self._markout_monitor
         if monitor is None:
             return True  # Production order permission remains disabled separately.
@@ -1432,12 +1432,16 @@ class LifeLiquidityController(ControllerBase):
 
     def _mm_mode_ready(self) -> bool:
         runtime = self._storage_runtime
+        if runtime is not None and runtime._service is not None and runtime._service.exit is not None and runtime._service.exit.active:
+            return False
         if runtime is not None and runtime._service is not None and runtime._service.inventory is not None:
             return runtime._service.inventory.mm_ready()
         return self._inventory_executor is None or self._inventory_executor.allows_mm()
 
     def bounded_spot_planner(self, config):
         runtime = self._storage_runtime
+        if runtime is not None and runtime._service is not None and runtime._service.exit is not None and runtime._service.exit.handles(config):
+            return runtime._service.exit
         if runtime is not None and runtime._service is not None and runtime._service.inventory is not None:
             inventory = runtime._service.inventory
             if inventory.handles(config):
@@ -1450,6 +1454,8 @@ class LifeLiquidityController(ControllerBase):
 
     def _bounded_pending_ready(self):
         runtime = self._storage_runtime
+        if runtime is not None and runtime._service is not None and runtime._service.exit is not None and runtime._service.exit.active:
+            return runtime._service.exit.pending_exit_ready()
         if runtime is not None and runtime._service is not None and runtime._service.inventory is not None:
             return runtime._service.inventory.pending_exit_ready()
         return ((self._spot_exit_planner is not None and self._spot_exit_planner.pending_exit_ready())
@@ -1500,6 +1506,9 @@ class LifeLiquidityController(ControllerBase):
                    for record in records)
 
     def allow_risk_reduction_actions(self) -> bool:
+        runtime = self._storage_runtime
+        if runtime is not None and runtime._service is not None and runtime._service.exit is not None:
+            return runtime._service.exit.permissions()
         try:
             self._runtime_risk_ready()  # Revalidate observations/journal and latch any HALT.
             gate = self._runtime_risk_gate
@@ -1878,7 +1887,8 @@ class LifeLiquidityController(ControllerBase):
         self._runner_orchestrator = orchestrator
         runtime = self._storage_runtime
         if runtime is not None and runtime._service is not None:
-            if not runtime._local_ready():
+            reducing = runtime._service.exit is not None and runtime._service.exit.active
+            if not runtime._local_ready(allow_reduction=reducing):
                 self._runner_halt_ok = self._halt_runner_orders()
             runtime._service.on_safety_tick(timestamp)
             return

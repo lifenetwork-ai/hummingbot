@@ -17,8 +17,8 @@ from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancial
 from hummingbot.strategy_v2.life_liquidity.storage.session import SessionTick
 
 
-async def paired_session(tmp_path, *, max_age_ms=1000):
-    signer = keys()
+async def paired_session(tmp_path, *, max_age_ms=1000, signer=None):
+    signer = signer or keys()
     state = {'now': NOW, 'sequence': 1, 'complete': True}
 
     def callbacks(cfg, src):

@@ -533,6 +533,10 @@ class QuoteActionPlanner:
             selected_quotes = selected_quotes.model_copy(update={
                 "sizes_base": tuple(min(size, self.controller._recovery_probe_guard.max_quote_base)
                                     for size in selected_quotes.sizes_base)})
+        if self.controller.markout_probe_active():
+            selected_quotes = selected_quotes.model_copy(update={
+                "sizes_base": tuple(min(size, self.controller._markout_probe_guard.max_quote_base)
+                                    for size in selected_quotes.sizes_base)})
         return plan_spot_quotes(
             session_id=current.session_id, epoch=current.epoch,
             qualified_reference_usdt=observed.qualified_reference_usdt,

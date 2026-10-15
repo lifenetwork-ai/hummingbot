@@ -120,9 +120,12 @@ class ObserveSpotNAV:
     reference_observed_at_ms: int
     source_kind: str
     observed_at: datetime
+    observation_grant_id: str | None = None
 
     def __post_init__(self):
         identifier(self.operation_id)
+        if self.observation_grant_id is not None:
+            identifier(self.observation_grant_id)
         if len(self.operation_id) > 96:
             raise StorageError('SPOT_CAPITAL_OPERATION_INVALID')
         object.__setattr__(self, 'independent_price_usdt', decimal(self.independent_price_usdt, positive=True))
@@ -134,7 +137,7 @@ class ObserveSpotNAV:
 
     def json(self):
         return {key: str(value) if type(value) is Decimal else value.isoformat() if isinstance(value, datetime) else value
-                for key, value in self.__dict__.items()}
+                for key, value in self.__dict__.items() if key != 'observation_grant_id' or value is not None}
 
 
 @dataclass(frozen=True)
