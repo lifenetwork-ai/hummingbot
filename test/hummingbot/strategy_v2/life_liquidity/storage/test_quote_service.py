@@ -10,7 +10,7 @@ from unittest.mock import MagicMock
 import pytest
 
 
-async def quote_service(tmp_path, *, objective='profit_mm', fee_buffers=(D('0'), D('0')), risk_config=None, risk_sources=None, control_config=None, control_seed=None, inventory_config=None, settlement_policy=None, session_config=None):
+async def quote_service(tmp_path, *, objective='profit_mm', fee_buffers=(D('0'), D('0')), risk_config=None, risk_sources=None, control_config=None, control_seed=None, inventory_config=None, settlement_policy=None, session_config=None, resume_policy=None):
     from hummingbot.connector.exchange.okx.okx_exchange import OkxExchange
     from hummingbot.strategy_v2.life_liquidity.config import EconomicsConfig, QuotesConfig
     from hummingbot.strategy_v2.life_liquidity.economics import EconomicPolicy
@@ -37,6 +37,8 @@ async def quote_service(tmp_path, *, objective='profit_mm', fee_buffers=(D('0'),
                                 subsidy_budget_quote={'campaign': '10', 'day': '5', 'session': '2'} if objective == 'liquidity_service' else None)
     strategy = cfg.controller.strategy.model_copy(update={'economics': economics,
                                                           'quotes': QuotesConfig(spreads_bps=('30',), sizes_base=('1',))})
+    if resume_policy is not None:
+        strategy = strategy.model_copy(update={'risk': strategy.risk.model_copy(update={'resume_policy': resume_policy})})
     binding = replace(cfg.controller.storage_binding, config_hash=fingerprint(strategy.model_dump(mode='json')))
     controller = cfg.controller.model_copy(update={'strategy': strategy, 'storage_binding': binding,
                                                    'own_depth_max_observation_skew_ms': 100, 'own_depth_max_book_age_ms': 500,
@@ -137,7 +139,7 @@ async def test_configured_quote_sources_cannot_bypass_native_proofs(tmp_path, fa
 @pytest.mark.asyncio
 @pytest.mark.parametrize('change', ['none', 'book', 'fee', 'stop', 'risk'])
 @pytest.mark.parametrize('objective', ['profit_mm', 'liquidity_service'])
-async def test_configured_quote_actual_runner_rest_reprices_after_throttle(tmp_path, change, objective, inventory_side=None):
+async def test_configured_quote_actual_runner_rest_reprices_after_throttle(tmp_path, change, objective, inventory_side=None, recovery_probe=False):
     from contextlib import asynccontextmanager
     from types import SimpleNamespace
     from unittest.mock import AsyncMock
@@ -147,7 +149,11 @@ async def test_configured_quote_actual_runner_rest_reprices_after_throttle(tmp_p
     from hummingbot.core.web_assistant.connections.rest_connection import RESTConnection
     from hummingbot.core.web_assistant.rest_assistant import RESTAssistant
     risk_state, extra = None, {}
-    if inventory_side is not None:
+    if recovery_probe:
+        from test.hummingbot.strategy_v2.life_liquidity.storage.test_probe_service import degraded, probe_service
+        service, risk_state, state = await probe_service(tmp_path, objective=objective)
+        await degraded(service, risk_state)
+    elif inventory_side is not None:
         from test.hummingbot.strategy_v2.life_liquidity.storage.test_inventory_service import (
             activate_inventory,
             inventory_service,
@@ -209,6 +215,8 @@ async def test_configured_quote_actual_runner_rest_reprices_after_throttle(tmp_p
         actions = await service.plan()
         assert len(actions) == 1
         config = actions[0].executor_config
+        if recovery_probe:
+            assert config.amount == D('.1') and service.risk.gate.state == 'DEGRADED'
         service.runner._async_action_dispatcher.submit(actions)
         await service.runner._async_action_dispatcher.drain()
         await asyncio.wait_for(entered.wait(), 3)
@@ -221,6 +229,15 @@ async def test_configured_quote_actual_runner_rest_reprices_after_throttle(tmp_p
             service.spot.cancel_local(config.id)
         elif change == 'risk':
             risk_state['risk'] = replace(risk_state['risk'], latency_ok=False)
+        elif change == 'halt':
+            await service.store._call(service.risk.gate.halt, 'OPERATOR_STOP')
+        elif change == 'journal':
+            await service.store._call(service.risk.probe.journal.path.unlink)
+        elif change == 'normal':
+            from datetime import timedelta
+            risk_state['now'] += timedelta(milliseconds=100)
+            risk_state['mono'] += .1
+            risk_state['risk'] = replace(risk_state['risk'], observed_monotonic_ms=2250)
         release.set()
         await asyncio.wait_for(completed.wait(), 3)
         await service.reporting.drain()
@@ -229,7 +246,7 @@ async def test_configured_quote_actual_runner_rest_reprices_after_throttle(tmp_p
         assert view.balance.reserved_quote_usdt == (config.price * config.amount if config.side.name == 'BUY' else 0)
         assert view.balance.total_quote_usdt == D('10')
         # Actual economic cost, not the source callback's arbitrary 99 USDT.
-        assert view.budget.session_subsidy_committed_usdt == (D('.01') if objective == 'liquidity_service' else 0)
+        assert view.budget.session_subsidy_committed_usdt == (D('.01') * config.amount if objective == 'liquidity_service' else 0)
         if change == 'none':
             assert not failures and len(sent) == 1
             assert attempt.state.value == 'ACKED'

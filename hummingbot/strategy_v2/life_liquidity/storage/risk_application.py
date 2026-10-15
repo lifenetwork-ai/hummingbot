@@ -10,6 +10,7 @@ from pathlib import Path
 from hummingbot.strategy_v2.life_liquidity.capital_risk import IndependentNavObservation
 from hummingbot.strategy_v2.life_liquidity.markout import MarkoutTracker
 from hummingbot.strategy_v2.life_liquidity.markout_risk import IndependentHorizonObservation
+from hummingbot.strategy_v2.life_liquidity.recovery_probe import RecoveryProbeGuard
 from hummingbot.strategy_v2.life_liquidity.safety import SafetyGate, SafetyObservation
 from hummingbot.strategy_v2.life_liquidity.storage.capital import ObserveSpotNAV
 from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError, encode, fingerprint, thaw, utc
@@ -23,6 +24,7 @@ class FileRiskApplication:
         self._last_allowed, self._qualified_sources = False, None
         self._invalidations = self._evaluated_invalidations = 0
         self._markout_expires_at = None
+        self.probe = None
 
     @classmethod
     async def install(cls, service, create):
@@ -44,23 +46,46 @@ class FileRiskApplication:
             if not create or not self.store._created_offline:
                 raise StorageError('SERVICE_RISK_IMPORT_REQUIRED')
             self.store._commit(meta.cut, self.service.config.owner, 'risk-service:bind', (
-                ('risk_service_policy', encode(p.model_dump(mode='json'))),
+                ('risk_service_policy', encode(p.binding_json())),
                 ('risk_markouts', encode({'observations': {}, 'last_checked_ms': None}))))
-        elif thaw(prior) != p.model_dump(mode='json'):
+        elif thaw(prior) != p.binding_json():
             raise StorageError('SERVICE_RISK_POLICY_MISMATCH')
         # A restored gate cannot be rearmed by a diagnostic/recovery receipt.
         self.gate.bind_reconciliation_authority(lambda: False)
+        if p.recovery_probe_campaign_base is not None:
+            self.probe = RecoveryProbeGuard(Path(self.service.config.state_dir) / 'recovery_probe.json',
+                                            self.store._ledger, max_quote_base=p.recovery_probe_base,
+                                            max_campaign_base=p.recovery_probe_campaign_base, create=create)
+            self.service.controller._runtime_risk_gate = self.gate
+            self.service.controller.install_recovery_probe_guard(self.probe)
+
+    def _probe_binding_matches(self):
+        # Cache-only identity/policy checks. Journal and capacity are checked on
+        # the worker; a loop fence cannot turn changed policy into permission.
+        c, p = self.service.controller, self.policy
+        return (self.probe is not None and p.recovery_probe_campaign_base is not None
+                and c._runtime_risk_gate is self.gate and c._recovery_probe_guard is self.probe
+                and self.probe.reservations is self.store._ledger
+                and self.probe.max_quote_base == p.recovery_probe_base
+                and self.probe.max_campaign_base == p.recovery_probe_campaign_base
+                and c._recovery_probe_policy_matches())
 
     def _guard(self):
         self.store.assert_worker_thread()
         meta = self.store._read()
         p = self.policy
-        if (self.service.config.risk != p or thaw(meta.resources.get('risk_service_policy')) != p.model_dump(mode='json')
+        if (self.service.config.risk != p or thaw(meta.resources.get('risk_service_policy')) != p.binding_json()
                 or (self.gate.max_drawdown_bps, self.gate.min_margin_buffer_quote, self.gate.stable_data_ms,
                     self.gate.recovery_probe_base) != (p.max_drawdown_bps, p.min_margin_buffer_quote,
                                                        p.stable_data_ms, p.recovery_probe_base)
                 or not self.gate.journal_verified()):
             raise StorageError('SERVICE_RISK_POLICY_OR_JOURNAL_CHANGED')
+        if p.recovery_probe_campaign_base is not None:
+            if not self._probe_binding_matches():
+                raise StorageError('SERVICE_RECOVERY_PROBE_BINDING_CHANGED')
+            with self.probe.journal.locked():
+                if not self.probe._policy_matches():
+                    raise StorageError('SERVICE_RECOVERY_PROBE_POLICY_CHANGED')
         view = self.store._snapshot()
         if (self.store._incomplete(meta.resources) or dict(view.cut.components) != dict(meta.resources['journal_hashes'])
                 or meta.ownership.token != self.service.spot.owner):
@@ -106,7 +131,7 @@ class FileRiskApplication:
             return self.store._capital().drawdown_bps, margin, value
         return self.store._observe_nav(command, self.store._snapshot().cut, self.service.spot.owner).capital.drawdown_bps, margin, value
 
-    def local_ready(self):
+    def local_ready(self, *, normal_only=False):
         # Cache-only fence after worker/transport waits. This cannot issue a
         # grant, write a journal or replace fresh worker qualification.
         if not self._last_allowed or self._qualified_sources is None:
@@ -139,7 +164,10 @@ class FileRiskApplication:
             # A changed price requires worker revaluation without declaring an
             # otherwise valid feed unstable merely because its price moved.
             allowed = (not self.service._revoked and self.policy == self.service.config.risk
-                       and self.gate.state == 'NORMAL' and cached_fresh and data_good
+                       and (self.policy.recovery_probe_campaign_base is None or self._probe_binding_matches())
+                       and (self.gate.state == 'NORMAL'
+                            or self.gate.state == 'DEGRADED' and self._probe_binding_matches())
+                       and cached_fresh and data_good
                        and current_nav.price_usdt == nav.price_usdt)
         except Exception:
             allowed = False
@@ -147,9 +175,10 @@ class FileRiskApplication:
             self._last_allowed = False
             if invalidate_stability:
                 self._invalidations += 1
-        return allowed
+        # A stricter product query must not revoke a valid SPOT probe proof.
+        return allowed and (not normal_only or self.gate.state == 'NORMAL')
 
-    def ready(self):
+    def ready(self, *, normal_only=False):
         self.store.assert_worker_thread()
         self._last_allowed = False
         invalidations = self._invalidations
@@ -170,11 +199,13 @@ class FileRiskApplication:
             decision = self.gate.evaluate(replace(observed, drawdown_bps=drawdown,
                                                   margin_buffer_quote=min(observed.margin_buffer_quote, margin)))
             self.reason_code = self.service.controller.runtime_risk_reason_code = decision.reason_code
-            self._last_allowed = (decision.allow_new_quotes and decision.state == 'NORMAL' and self.markout_ready()
+            permitted_state = (decision.state == 'NORMAL' or decision.state == 'DEGRADED'
+                               and self._probe_binding_matches() and self.probe.capacity_available())
+            self._last_allowed = (decision.allow_new_quotes and permitted_state and self.markout_ready()
                                   and invalidations == self._invalidations and not self.service._revoked)
             if self._last_allowed:
                 self._qualified_sources = value, observed
-            return self._last_allowed
+            return self._last_allowed and (not normal_only or decision.state == 'NORMAL')
         except Exception:
             self.gate.invalidate('SERVICE_RISK_UNQUALIFIED')
             self.reason_code = self.service.controller.runtime_risk_reason_code = 'SERVICE_RISK_UNQUALIFIED'

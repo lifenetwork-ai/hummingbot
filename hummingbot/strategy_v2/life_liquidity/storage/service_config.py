@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, model_validator
 
 from controllers.generic.life_liquidity import LifeLiquidityConfig
 from hummingbot.strategy_v2.life_liquidity.carry_monitor import CarryPolicy
+from hummingbot.strategy_v2.life_liquidity.config import parse_duration_seconds
 from hummingbot.strategy_v2.life_liquidity.hedge_coordinator import HedgeExecutionPolicy
 from hummingbot.strategy_v2.life_liquidity.inventory_execution import InventoryExecutionPolicy
 from hummingbot.strategy_v2.life_liquidity.market_data import LinearSwapContract
@@ -133,13 +134,22 @@ class RiskServiceConfig(BaseModel):
     max_observation_age_ms: int
     max_value_age_ms: int
     markout: MarkoutServiceConfig | None = None
+    recovery_probe_campaign_base: Decimal | None = None
+
+    def binding_json(self):
+        # Absent opt-in retains pre-probe policy fingerprints on cold readback.
+        excluded = {'recovery_probe_campaign_base'} if self.recovery_probe_campaign_base is None else set()
+        return self.model_dump(mode='json', exclude=excluded)
 
     @model_validator(mode='after')
     def validate_values(self):
         if (not self.max_drawdown_bps.is_finite() or self.max_drawdown_bps <= 0
                 or not self.min_margin_buffer_quote.is_finite() or self.min_margin_buffer_quote < 0
                 or not self.recovery_probe_base.is_finite() or self.recovery_probe_base <= 0
-                or self.stable_data_ms < 0 or self.max_observation_age_ms <= 0 or self.max_value_age_ms <= 0):
+                or self.stable_data_ms < 0 or self.max_observation_age_ms <= 0 or self.max_value_age_ms <= 0
+                or self.recovery_probe_campaign_base is not None and (
+                    not self.recovery_probe_campaign_base.is_finite()
+                    or self.recovery_probe_campaign_base < self.recovery_probe_base)):
             raise StorageError('SERVICE_RISK_CONFIG_INVALID')
         return self
 
@@ -204,6 +214,12 @@ class FileServiceConfig(BaseModel):
         if self.inventory is not None and (self.quotes is None or self.risk is None or self.control is None
                                            or self.settlement_policy is None or self.inventory.policy.deadline_utc > self.owner.expires_at):
             raise StorageError('SERVICE_INVENTORY_GRAPH_INCOMPLETE')
+        if self.risk is not None and self.risk.recovery_probe_campaign_base is not None:
+            resume = self.controller.strategy.risk.resume_policy
+            if (self.quotes is None or resume.probe_size_base != self.risk.recovery_probe_base
+                    or resume.stable_data_duration is None
+                    or parse_duration_seconds(resume.stable_data_duration) * 1000 != self.risk.stable_data_ms):
+                raise StorageError('SERVICE_RECOVERY_PROBE_GRAPH_INVALID')
         if self.quotes is not None:
             economics = self.controller.strategy.economics
             if (self.quotes.max_actions_per_tick > self.max_pending

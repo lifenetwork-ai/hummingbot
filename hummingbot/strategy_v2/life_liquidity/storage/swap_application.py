@@ -32,7 +32,7 @@ class FileSwapApplication:
             if runtime is not None and runtime._service is not None and runtime._service.admission_paused:
                 return False
             if (runtime is not None and runtime._service is not None and runtime._service.risk is not None
-                    and not runtime._service.risk.local_ready()):
+                    and not runtime._service.risk.local_ready(normal_only=True)):
                 return False
             return (not self._revoked and not self.store._closed and not self.store._uncertain
                     and not self.repository.joint._revoked and self.sender._runtime_enabled

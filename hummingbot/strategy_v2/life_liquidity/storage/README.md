@@ -1010,6 +1010,31 @@ Manual `controller.manual_kill_switch()` revokes locally at once, then coalesces
 durable HALT/cancellation work on the existing worker. Physical account exclusion
 lasts until FIFO store cleanup completes, including after a controller stop.
 
+### Configured recovery probes
+
+`risk.recovery_probe_campaign_base` explicitly opts into the native recovery
+probe guard. Its finite LIFE limit must cover `risk.recovery_probe_base`;
+`controller.strategy.risk.resume_policy.probe_size_base` and
+`stable_data_duration` must match the service probe size and stability interval.
+Quotes and their existing reference/economic policies are required. No campaign
+limit is inferred when this option is absent; existing risk policy fingerprints
+remain unchanged.
+
+During qualified `DEGRADED` recovery, native quotes are clamped to the probe
+size and only one active child is permitted. Actual cumulative ledger fills,
+including prior non-probe fills in the same campaign, consume capacity; retries,
+replayed fills, terminal release, owner changes and cold restart cannot reset it.
+A missing/changed probe policy journal fails worker qualification and cold startup.
+The guard reads the sole reservation ledger and introduces no financial writer.
+
+Runner cache-only preflight/final checks restrict the degraded allowance to
+bounded LIFE SPOT maker orders. Native candidate and held-permit checks still run
+on the worker, including after REST throttling. SWAP/hedge and configured inventory
+require `NORMAL`; rejecting those routes does not revoke a valid SPOT probe proof.
+Existing markout qualification remains required: this route cannot invent samples
+or provide the independent markout-bootstrap probe application. HALT, stale data,
+changed source/config, cold state and missing activation remain blocking.
+
 ### Original missing-hold and arm recovery
 
 The joint service can conservatively restore an original admitted shared claim,
@@ -1053,7 +1078,7 @@ Cold initiation of a transition without an original recorded decision remains
 unsupported pending its explicit signed observation-grant application.
 
 Current service scope remains an explicit offline library assembly. Separate
-native exit/recovery-probe routes, cold initiation of unrecorded successor
+native exit and markout-bootstrap probe routes, cold initiation of unrecorded successor
 decisions, simultaneous other partial
 families and unadmitted external transfers, broader signed policy/lineage/archive
 transitions, controller configuration reporting/hot reload and a supported

@@ -7,6 +7,7 @@ explicit future implementation, never a Path-compatible fallback.
 import asyncio
 import hashlib
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Protocol
 
 from hummingbot.strategy_v2.life_liquidity.storage.contracts import (
@@ -224,13 +225,41 @@ class FileControllerRuntime:
             return False
 
     def local_fence(self, action):
-        return (self._local_ready() and action.controller_id == self.controller.config.id
+        return (self._action_risk_ready(action) and self._local_ready() and action.controller_id == self.controller.config.id
                 and action.executor_config.id not in self.controller._runner_stop_revoked_ids
                 and self._action_hashes.get(action.executor_config.id) == self._action_digest(action))
 
     def preflight(self, action):
-        return (self._local_ready() and action.controller_id == self.controller.config.id
+        return (self._action_risk_ready(action) and self._local_ready() and action.controller_id == self.controller.config.id
                 and action.executor_config.id not in self.controller._runner_stop_revoked_ids)
+
+    def _action_normal_only(self, action):
+        config = action.executor_config
+        service = self._service
+        return (self.controller._is_swap_config(config)
+                or service is not None and service.inventory is not None and service.inventory.handles(config))
+
+    def _action_risk_ready(self, action):
+        risk = self._service.risk if self._service is not None else None
+        if risk is None:
+            return True
+        if not risk.local_ready(normal_only=self._action_normal_only(action)):
+            return False
+        if risk.gate.state == 'NORMAL':
+            return True
+        # Cache-only scope restriction before/after asynchronous reporting.
+        # Native candidate, pending exposure and campaign capacity are still
+        # qualified on the worker and again after transport throttling.
+        from hummingbot.core.data_type.common import TradeType
+        from hummingbot.strategy_v2.executors.order_executor.data_types import ExecutionStrategy, OrderExecutorConfig
+        config = action.executor_config
+        return (type(config) is OrderExecutorConfig
+                and config.connector_name == self.controller.config.strategy.spot.connector
+                and config.trading_pair == self.controller.config.strategy.spot.pair
+                and config.side in (TradeType.BUY, TradeType.SELL)
+                and config.execution_strategy is ExecutionStrategy.LIMIT_MAKER
+                and type(config.amount) is Decimal and config.amount.is_finite()
+                and 0 < config.amount <= risk.policy.recovery_probe_base)
 
     def invalidate_actions(self):
         self._action_hashes.clear()
@@ -252,7 +281,8 @@ class FileControllerRuntime:
     def _worker_check(self, kind, value):
         if not self._local_ready():
             return False
-        if self._service is not None and self._service.risk is not None and not self._service.risk.ready():
+        normal_only = kind == 'SWAP' or kind == 'ACTION' and self._action_normal_only(value)
+        if self._service is not None and self._service.risk is not None and not self._service.risk.ready(normal_only=normal_only):
             return False
         meta = self.store._read()
         if meta.ownership.mode is not OwnerMode.ACTIVE or meta.ownership.token != self.owner:
@@ -304,11 +334,11 @@ class FileControllerRuntime:
         digest = self._action_digest(detached)
         product = 'SWAP' if self.controller._is_swap_config(detached.executor_config) else 'SPOT'
         try:
-            if not self._local_ready():
+            if not self._action_risk_ready(detached) or not self._local_ready():
                 return False
             await self._uid(product)
             result = await self.store._call(self._worker_check, 'ACTION', detached)
-            if result is True and self._local_ready() and self._action_digest(detached) == digest:
+            if result is True and self._action_risk_ready(detached) and self._local_ready() and self._action_digest(detached) == digest:
                 self._action_hashes[detached.executor_config.id] = digest
                 return True
         except Exception:

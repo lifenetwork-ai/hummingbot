@@ -256,6 +256,8 @@ class FileLiquidityService:
                 from hummingbot.strategy_v2.models.executor_actions import StopExecutorAction
                 return [StopExecutorAction(controller_id=self.controller.config.id, executor_id=key) for key in stops]
         if self.hedge is not None:
+            if self.risk is not None and not await self.store._call(lambda: self.risk.ready(normal_only=True)):
+                return []
             market = self.sources.hedge_market()
             if inspect.isawaitable(market):
                 market = await market

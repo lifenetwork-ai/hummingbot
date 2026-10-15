@@ -135,7 +135,7 @@ class FileInventoryApplication:
         try:
             if (self._read().resources['inventory_mode']['mode'] != 'INVENTORY'
                     or s._revoked or not self.policy.started_at <= utc(self.store._clock()) < self.policy.policy.deadline_utc
-                    or not s.financial_ready(check_loss=True) or not s.risk.ready()):
+                    or not s.financial_ready(check_loss=True) or not s.risk.ready(normal_only=True)):
                 return False
             current = s.controller._order_safety_manager.current_session
             return s.quotes.native._current_snapshot(current, require_active=False) is not None
@@ -149,7 +149,7 @@ class FileInventoryApplication:
             meta = self._read()
             return (not s._revoked and not s.admission_paused and not self.store._cold_unarmed
                     and meta.resources['inventory_mode']['mode'] == 'INVENTORY'
-                    and s.runtime._local_ready() and s.risk.ready()
+                    and s.runtime._local_ready() and s.risk.ready(normal_only=True)
                     and self.policy.started_at <= utc(self.store._clock()) < self.policy.policy.deadline_utc
                     and c._joint_recovery_ready() and c._carry_ready() and c._hedge_ready()
                     and c._spot_quote_gates_ready() and not c._runner_stops_pending() and not c.has_unverified_runner_order_events())

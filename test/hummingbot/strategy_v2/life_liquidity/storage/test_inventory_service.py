@@ -19,7 +19,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.inventory_application import 
 from hummingbot.strategy_v2.life_liquidity.storage.service_config import InventoryServiceConfig
 
 
-async def inventory_service(tmp_path, *, side='SELL'):
+async def inventory_service(tmp_path, *, side='SELL', recovery_probe=False):
     p = InventoryExecutionPolicy(side, D('2'), D('1'), NOW + timedelta(minutes=1), D('1'), D('3'),
                                  D('500'), D('.1'), D('1'), D('.1'), D('1'), D('.01'), D('.1'), D('.1'))
     cfg = InventoryServiceConfig(campaign_id='synthetic-campaign', started_at=NOW, policy=p, max_age_ms=1000)
@@ -29,10 +29,17 @@ async def inventory_service(tmp_path, *, side='SELL'):
     state['inventory'] = InventoryMarketObservation(at, D('.98'), D('1.02'), D('100'), D('0'), D('10'), D('0'), D('0'),
                                                     'independent_market', cfg.campaign_id)
     callbacks['inventory_observation'] = lambda: state['inventory']
-    service, book = await quote_service(tmp_path, risk_config=policy(), risk_sources=callbacks,
+    risk, extra = policy(), {}
+    if recovery_probe:
+        from hummingbot.strategy_v2.life_liquidity.config import ResumePolicyConfig
+        state['mono'] = 2.05
+        callbacks['monotonic_clock'] = lambda: state['mono']
+        risk = policy(stable_data_ms=100, recovery_probe_campaign_base=D('.2'))
+        extra['resume_policy'] = ResumePolicyConfig(stable_data_duration='0.1s', probe_size_base='.1')
+    service, book = await quote_service(tmp_path, risk_config=risk, risk_sources=callbacks,
                                         control_config=control_policy(signer),
                                         control_seed=lambda b, o: encode(signer.seed(b, {'mode': 'ACTIVE', 'token': o.json()})),
-                                        inventory_config=cfg)
+                                        inventory_config=cfg, **extra)
     attach_empty_observer(service)
     # Synthetic listing/feed release; native book/reference/rules/fee proofs remain active.
     service.controller._spot_quote_gates_ready = lambda: True
