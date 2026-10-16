@@ -41,6 +41,29 @@ Migration infrastructure is separate and documented in
 
 ## PostgreSQL PG2 foundation
 
+**Standalone PG3 quote-publication journal (2026-10-16, base `a7bc3ee50`):**
+`actions.py` defines immutable publication/runner-fact commands.
+`PgSpotRepository.claim_quote_actions`, `transition_quote_action`, `quote_actions`
+and `lookup_quote_action` use ACCOUNT transactions, exact captured identity/payload
+and permanent operation readback. `000010` reuses typed action rows and adds empty
+imported-policy, descriptor and event tables with an account-wide active-slot index.
+
+Dispatch is a bookkeeping observation of caller-qualified runner acceptance; it
+creates no executor or send attempt. Rejection requires the original writer,
+PROPOSED state, complete fresh post-claim runner scope and no attempt/reservation.
+Another process/generation and an extended dispatch lease cannot inherit the claim.
+Facts expiring or ownership changing at COMMIT roll back state/event/receipt.
+Unknown/dispatched claims persist across restart; no automatic slot cleanup applies.
+
+The atomic action-to-prepare/runner and qualified terminal reconciliation bridge
+remains unported. Pending claims still deny prepare/arm/accounting, so this increment
+refuses new claims while any order/hold is live. RECONCILED is explicitly denied.
+The opaque captured payload cannot authorize a financial candidate or external send.
+Current journal reads/proofs still traverse retained history; bounded history and
+performance acceptance remain PG8/O.8. Configured PostgreSQL backend selection,
+provider/runner authentication and deployment/demo/live gates stay open.
+See [journal qualification](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-quote-publication-journal-qualification-2026-10-16).
+
 **Standalone PG3 order-lifecycle checkpoint (2026-10-16, base `69d585f70`):**
 `apply_lifecycle`/`lookup_lifecycle` and `confirm_terminal`/`resume_terminal`/
 `lookup_terminal` use ACCOUNT atomicity. Migration `000009` adds empty imported

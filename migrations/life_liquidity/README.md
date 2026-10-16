@@ -55,6 +55,17 @@ fixture and is deliberately excluded.
   grants the new command entrypoint. Provider authentication, external cancel,
   quote actions and product settlement remain separate requirements.
 
+- `000010_spot_quote_actions.sql`: three empty imported action-policy,
+  immutable descriptor and operation-linked event tables over the existing typed
+  `quote_actions` rows. An account-wide unique index prevents active slot reuse.
+  Atomic batch claim, dispatch bookkeeping and pre-acceptance rejection preserve
+  exact identity, runner-fact freshness and original writer/lease constraints.
+  COMMIT rechecks freshness/ownership; pending dispatch never expires into a free
+  slot. No executor/attempt/hold is created. Pending actions retain the existing
+  financial barrier; action-to-prepare/runner and qualified terminal reconciliation
+  remain separate work. Approved provisioning grants the new fixed entrypoints;
+  the automatic migration configuration and scripts 1–9 remain unchanged.
+
 The runner applies each immutable version once. A second service startup validates
 the same history and skips applied scripts. DDL is deliberately forward-only:
 unregistered pre-existing objects fail instead of being silently accepted by
