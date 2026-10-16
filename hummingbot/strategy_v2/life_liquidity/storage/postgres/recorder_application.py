@@ -227,3 +227,22 @@ class PgRecorderApplication(ReportingQueue):
                     raise StorageError('PG_RECORDER_EVENT_OPERATION_CONFLICT')
                 command, owner = origin.command, origin.owner
             return await repository.project(command, owner=owner)
+
+    async def restore_spot_dedup(self, reader):
+        from hummingbot.strategy_v2.life_liquidity.storage.postgres.financial_dedup import PgSpotDedupRecovery
+        from hummingbot.strategy_v2.life_liquidity.storage.postgres.financial_source import PgSpotAccountReader
+        if (type(reader) is not PgSpotAccountReader or reader.repository is not self.financial
+                or len([r for r in self.events if r.source.market == 'okx']) != 1):
+            raise StorageError('PG_RECORDER_DEDUP_CONTEXT_INVALID')
+
+        def idle():
+            return (self._healthy and not self._closed and not self._pending and not self._busy
+                    and self.controller.config.storage_binding == self.binding)
+
+        if self._mutex.locked():
+            raise StorageError('PG_RECORDER_DEDUP_IDLE_REQUIRED')
+        async with self._mutex:
+            if not idle():
+                raise StorageError('PG_RECORDER_DEDUP_IDLE_REQUIRED')
+            events = next(r for r in self.events if r.source.market == 'okx')
+            return await PgSpotDedupRecovery(reader, events, local_idle=idle).restore()

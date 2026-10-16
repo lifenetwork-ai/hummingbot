@@ -14,8 +14,8 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.financial_observer i
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.financial_source import PgSpotAccountReader
 
 
-async def observed_source(database):
-    t = await transport(database)
+async def observed_source(database, **seed_options):
+    t = await transport(database, **seed_options)
     await t.place()
     c = database[0]
     at = await c.fetchval('SELECT clock_timestamp()')

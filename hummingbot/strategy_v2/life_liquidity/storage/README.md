@@ -2314,3 +2314,19 @@ runner/source/service/shared-product qualification, native financially pending
 resolution, durable raw-response diagnostics, SDK listeners and approved live
 market provenance remain separate PG3 work. `.env`/configured DB is unnecessary
 for the disposable test runner.
+
+### PostgreSQL financial qualification before SDK dedup recovery
+
+`PgSpotDedupRecovery(reader, events, local_idle=...)` and the idle-only
+`PgRecorderApplication.restore_spot_dedup(reader)` restore only financially
+qualified delivered reporting IDs on the original signed-source connector.
+Native ACK/fill scope, exact amounts/prices and signed fee asset/value must match
+APPLIED financial facts at the same primary cut. Report timestamps remain SDK
+observation times. Financial-only facts without reports are not added to cache.
+
+Both UID edges, the final primary cut and the original runtime/binding/owner and
+local idle state are checked. Pending/unknown facts and unknown existing cache
+entries deny; they are not silently cleared. Actual synchronous SDK publication
+failure restores the original cache and revokes local health. No tracking JSON,
+order tracker, hold release, owner, trading readiness or sender is restored.
+The configured service/listener factory remains unimplemented and denied.
