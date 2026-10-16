@@ -16,6 +16,11 @@ fixture and is deliberately excluded.
 - `000004_spot_preparation.sql`: immutable approved standalone SPOT risk/budget policy
   and preparation records, stable snapshot and atomic prepare/arm commands. No policy,
   session, balance or owner is seeded; approved import/access facts remain mandatory.
+- `000005_spot_observations.sql`: explicit fill policy, immutable fill/fee provenance,
+  accounting progress and pending observations; late-observation COMMIT guards,
+  atomic ACK/fill/fee/loss/subsidy accounting and derived funding deficit.
+  Unsupported negative-wallet facts persist as pending/HALT, retaining money/holds.
+  No source policy, capital, owner, release or activation is automatically created.
 
 The runner applies each immutable version once. A second service startup validates
 the same history and skips applied scripts. DDL is deliberately forward-only:

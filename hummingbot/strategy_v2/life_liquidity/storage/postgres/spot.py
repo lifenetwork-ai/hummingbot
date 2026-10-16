@@ -1,4 +1,4 @@
-"""Standalone SPOT read/prepare/arm ports; no selector, release or send authority."""
+"""Standalone SPOT preparation and observation ports; no release/send authority."""
 from datetime import datetime
 from decimal import Decimal as D, InvalidOperation, localcontext
 
@@ -13,7 +13,11 @@ from hummingbot.strategy_v2.life_liquidity.storage.contracts import (
     identifier,
 )
 from hummingbot.strategy_v2.life_liquidity.storage.financial import (
+    AckReceipt,
+    AckSpot,
     AttemptState,
+    FillReceipt,
+    FillSpot,
     FinancialCut,
     PrepareReceipt,
     PrepareSpot,
@@ -120,9 +124,11 @@ class PgSpotRepository:
         async def read(c):
             return await c.fetchrow('''SELECT t.*,d.quote_level,d.operation_id AS prepare_id,
                 r.amount AS principal_amount,r.remaining AS principal_remaining,r.state AS principal_state,
-                CASE WHEN t.side='BUY' THEN t.quantity*t.price ELSE t.quantity END AS principal_expected
+                CASE WHEN t.side='BUY' THEN (t.quantity-COALESCE(g.filled_base,0))*t.price ELSE t.quantity-COALESCE(g.filled_base,0) END AS principal_expected,
+                COALESCE(g.filled_base,0) AS filled_base
                 FROM life_financial.send_attempts t
                 JOIN life_financial.spot_preparations d USING(account_id,intent_id)
+                LEFT JOIN life_financial.spot_accounting_progress g USING(account_id,intent_id)
                 LEFT JOIN life_financial.reservations r ON r.account_id=t.account_id AND r.reservation_id=d.operation_id||':principal'
                 WHERE t.account_id=$1 AND t.intent_id=$2 AND t.product='SPOT' ''', self._runtime.config.account_id, intent_id)
         return await self._runtime._admit(read, safety=True)
@@ -139,11 +145,13 @@ class PgSpotRepository:
         row = await self._attempt(intent_id, binding)
         if row is None:
             return None
-        # Only unfilled preparation is supported; later ports must qualify fill/release reads.
-        if (row['state'] not in ('PREPARED', 'ARMED', 'SEND_UNKNOWN') or row['principal_state'] != 'HELD'
-                or row['principal_remaining'] != row['principal_expected'] or row['principal_amount'] != row['principal_expected']):
+        if (row['state'] not in ('PREPARED', 'ARMED', 'SEND_UNKNOWN', 'ACKED') or row['principal_state'] != 'HELD'
+                or row['principal_remaining'] != row['principal_expected']):
             raise StorageUnavailable('PG_SPOT_RESERVATION_STATE_UNSUPPORTED')
-        return SpotReservation(intent_id, row['side'], str(row['session_id']), row['epoch'], row['quantity'], row['quantity'], D('0'), row['price'], 'OPEN')
+        with localcontext() as context:
+            context.prec = 120
+            return SpotReservation(intent_id, row['side'], str(row['session_id']), row['epoch'], row['quantity'],
+                                   row['quantity'] - row['filled_base'], row['filled_base'], row['price'], 'OPEN')
 
     async def lookup_prepare(self, operation_id, binding):
         self._binding(binding)
@@ -176,3 +184,48 @@ class PgSpotRepository:
 
     async def close(self):
         await self._runtime.close()
+
+    def _observation_receipt(self, value):
+        if value.get('trading_permission') is not False:
+            raise StorageUnavailable('PG_OBSERVATION_RECEIPT_INVALID')
+        if value.get('kind') == 'SPOT_ACK':
+            return AckReceipt(self.binding, value['operation_id'], value['intent_id'], value['exchange_order_id'],
+                              value['state'], value['replayed'], self.atomic_scope)
+        if value.get('kind') == 'SPOT_FILL':
+            return FillReceipt(self.binding, value['operation_id'], value['intent_id'], D(value['cumulative_base_life']),
+                               D(value['execution_loss_usdt']), value['state'], value['replayed'], self.atomic_scope)
+        raise StorageUnavailable('PG_OBSERVATION_RECEIPT_INVALID')
+
+    async def _observe(self, command, cut, owner, kind):
+        version, digest = self._cut(cut, owner)
+        cfg = self._runtime.config
+        identity = fingerprint({'kind': kind, 'command': command.json(), 'owner': owner.json(), 'binding': self.binding.json()})
+        args = (cfg.account_id, self.binding.json(), owner.json(), version, digest, identity, kind, command.json())
+        query = 'SELECT life_financial.spot_observe($1,$2,$3,$4,$5,$6,$7,$8)'
+        return await self._runtime._transaction(query, args, owner, self._observation_receipt, observation=True)
+
+    async def acknowledge(self, command, *, cut, owner):
+        if type(command) is not AckSpot:
+            raise StorageError('PG_OBSERVATION_COMMAND_INVALID')
+        return await self._observe(command, cut, owner, 'SPOT_ACK')
+
+    async def apply_fills(self, command, *, cut, owner):
+        if type(command) is not FillSpot:
+            raise StorageError('PG_OBSERVATION_COMMAND_INVALID')
+        return await self._observe(command, cut, owner, 'SPOT_FILL')
+
+    async def _lookup_observation(self, operation_id, binding, kind):
+        self._binding(binding)
+        identifier(operation_id)
+
+        async def read(c):
+            return await c.fetchval('''SELECT receipt FROM life_financial.operations
+                WHERE account_id=$1 AND operation_id=$2 AND command->>'kind'=$3''', self._runtime.config.account_id, operation_id, kind)
+        value = await self._runtime._admit(read, safety=True)
+        return None if value is None else self._observation_receipt({**value, 'replayed': True})
+
+    async def lookup_ack(self, operation_id, binding):
+        return await self._lookup_observation(operation_id, binding, 'SPOT_ACK')
+
+    async def lookup_fill(self, operation_id, binding):
+        return await self._lookup_observation(operation_id, binding, 'SPOT_FILL')

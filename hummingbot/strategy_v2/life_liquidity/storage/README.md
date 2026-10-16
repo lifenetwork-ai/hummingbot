@@ -111,12 +111,12 @@ or unported activity and inconsistent principal/fees/subsidy require recovery.
 Stored payload bytes encode the canonical preparation intent; actual protected
 transport byte equivalence is still required before backend selection.
 
-This scope rejects EXIT/shared-risk commands and has no fill/ACK/accounting,
-release, shared capital, action/lifecycle/rollback, sender or recorder port yet.
+The preparation baseline rejects EXIT/shared-risk commands. The observation
+extension below adds ACK/fill/fee accounting; release, shared capital,
+action/lifecycle/rollback, sender and recorder ports remain pending.
 Session metadata retains original deadlines; its derived status/session-start
 last-seen baseline is not current connector observation. Cold readback creates
-no grant, resend or refund. Full late-observation guards must differ from the
-new-risk ACTIVE/unexpired guard. PostgreSQL backend selection remains unsupported.
+no grant, resend or refund. PostgreSQL backend selection remains unsupported.
 
 Qualification: **76 actual PG tests** (including the previous 45 infrastructure
 cases), **21 migration tests** and **92 focused unit/file tests** pass. BUY/SELL
@@ -124,6 +124,47 @@ preparation parity, lost COMMIT replies, actual subprocess exits before/after
 prepare/arm commits, stale/forged scope, risk/budget limits and decimal precision
 are covered. Full PG3 and all deployment/O.8/demo/live gates remain open; see the
 [current PG3 checklist](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-standalone-spot-preparation-qualification-2026-10-16).
+
+## PostgreSQL SPOT observations (PG3 increment)
+
+Migration `000005` adds an explicitly approved `spot_fill_policies` record,
+immutable fill facts and pending observations, and monotonic accounting progress.
+The existing numbered scripts remain unchanged. Runtime and reporting access
+still require privileged provisioning for approved accounts; no policy, balance,
+owner or activation is automatically seeded.
+
+`PgSpotRepository.acknowledge/apply_fills/lookup_ack/lookup_fill` implement received
+standalone SPOT observations. A distinct account-row/current-generation guard
+accepts qualified original facts after expiry/HALT in ACTIVE, DRAINING or
+RECOVERY_ONLY. Commit checks classify the immutable operation kind; a caller GUC
+cannot convert an allocation into a late observation. Preparation remains
+ACTIVE/unexpired and cannot clear HALT. Observations use bounded reserved capacity
+and do not restore new-risk runtime health.
+
+Complete cumulative snapshots validate original wire/order/side/session, known
+trade identity, independent values/skew, quantity and limit prices. New fills,
+LIFE/USDT fees, actual assets, consumed principal/fee buffers, gross-loss windows,
+subsidy floors and receipt commit together. Rebates credit assets without refunding
+gross fee usage or historical loss. Fill-before-ACK remains SEND_UNKNOWN; full
+quantity alone releases no unused fee/subsidy or terminal identity.
+
+Fee overruns preserve other holds and HALT new risk. Derived funding deficit is
+`max(0,reserved-total)`, not spendable cash. Qualified facts requiring a negative
+spot wallet are persisted as pending/RECOVERY_REQUIRED with HALT after provisional
+financial writes roll back. Prior assets/holds remain intact, cold restart retains
+the barrier and compatible later facts can also be captured. ACK never clears
+pending facts. Approved liability/pending resolution and terminal release remain
+future work; no debt, refund or successful application is invented.
+
+Qualification: **108 real PostgreSQL tests**, **21 migration tests** and **160
+focused unit/file tests** pass. Coverage includes four BUY/SELL × LIFE/USDT fee
+parities, gross-cost/rebate/overrun cases, foreign scope, late observations,
+generation change at COMMIT, subprocess exits and lost replies before/after
+ACK/fill COMMIT, exact cold retry and pending/HALT durability. No provider bridge,
+complete cashflow/NAV, shared/product, recorder, terminal/pending resolution or
+independent audit/performance gate is qualified. The verifier currently traverses
+retained facts; backend selection remains unsupported. See the
+[observation checklist](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-spot-observation-and-accounting-qualification-2026-10-16).
 
 ## Read/write contract (original checkpoint adapter)
 

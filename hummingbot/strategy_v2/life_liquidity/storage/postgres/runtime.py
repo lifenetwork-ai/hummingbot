@@ -201,7 +201,8 @@ class PgRuntime:
             FROM unnest(ARRAY[
                 'life_financial.allocate_balance(uuid,jsonb,jsonb,bigint,life_financial.identity,life_financial.digest,text,life_financial.positive_amount)',
                 'life_financial.spot_prepare(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
-                'life_financial.spot_arm(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,life_financial.identity)'
+                'life_financial.spot_arm(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,life_financial.identity)',
+                'life_financial.spot_observe(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,text,jsonb)'
             ]) AS signatures(signature)''', cfg.write)
         if not profile:
             raise StorageUnavailable('PG_ROLE_PROFILE_INVALID')
@@ -268,7 +269,7 @@ class PgRuntime:
                                        (cfg.account_id, cfg.binding.json(), owner.json(), command.expected_version,
                                         command.operation_id, identity, command.asset, command.amount), owner, PgReceipt.parse)
 
-    async def _transaction(self, query, args, owner, parse):
+    async def _transaction(self, query, args, owner, parse, *, observation=False):
         """Internal fixed-command boundary shared by typed repository adapters."""
         import asyncpg
         cfg = self.config
@@ -292,7 +293,8 @@ class PgRuntime:
                     receipt = await c.fetchval(query, *args)
                     # Replay has no effect and is allowed after owner expiry.
                     if not receipt['replayed']:
-                        await c.execute('SELECT life_financial.guard_account($1,$2,$3,$4)', cfg.account_id, cfg.binding.json(), owner.json(), receipt['version'])
+                        guard = 'guard_spot_observation' if observation else 'guard_account'
+                        await c.execute(f'SELECT life_financial.{guard}($1,$2,$3,$4)', cfg.account_id, cfg.binding.json(), owner.json(), receipt['version'])
                     committing = True
                     boundary['attempted'] = True
                     await self._commit(transaction)
@@ -320,7 +322,7 @@ class PgRuntime:
                     if committing:
                         raise CommitUnknown('PG_COMMIT_UNKNOWN') from None
                     raise
-        return await self._admit(execute, safety=False, commit_state=boundary)
+        return await self._admit(execute, safety=observation, commit_state=boundary)
 
     async def operation(self, operation_id):
         identifier(operation_id)
