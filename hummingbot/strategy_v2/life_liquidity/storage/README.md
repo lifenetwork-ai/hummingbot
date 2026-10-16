@@ -2350,3 +2350,21 @@ retry; a fresh observation after definite absence retains every economic field.
 Historical receipts never activate a sender. This standalone port does not
 install the configured service or qualify joint/product settlement. Migration 000024 qualifies with 903 full PostgreSQL cases and 31 migration
 cases; the full PG3/controller/shared-product gate remains open.
+
+### PostgreSQL standalone SPOT markout
+
+`PgSpotMarkoutRepository.observe/lookup/frame/summary/evaluate` preserve exact
+independent horizon values over original native accounted fills. SQL requires
+an explicitly imported policy, exact wire types/fingerprint and current original
+owner/cut; physical COMMIT rechecks generation and fact age. Bounded coherent
+frames preserve pending/missing and insufficient/adverse cohort distinctions.
+Original prices cannot be replaced through replay or a new operation identity.
+Aged observations remain permanently readable, while expired window samples
+cannot make an empty cohort ready. Diagnostic receipts/decisions always carry
+`trading_permission=false`; no wallet, fee, subsidy or execution-loss value changes.
+
+Use the disposable runner with `--suite markout`. The 50 focused cases include
+real process exits/backend termination, original cold readback, exact signed
+BUY/SELL values, shared tracker parity and corruption/access/bound checks.
+Configured risk/stability/probe authority, authenticated horizon sourcing, shared
+products and complete PostgreSQL service composition remain separate PG3 work.

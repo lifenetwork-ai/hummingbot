@@ -664,3 +664,46 @@ async def test_inventory_settlement_upgrade_preserves_acl_and_unarmed_money_with
     assert (await migrate(c, directory))['pending'] == []
     for table in ('operations', 'sessions', 'spot_settlement_policies', 'spot_inventory_settlements', 'spot_inventory_members'):
         assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+
+
+@pytest.mark.asyncio
+async def test_markout_upgrade_preserves_acl_and_unarmed_money_without_bootstrap(db):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 25:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    account, lineage = uuid.uuid4(), uuid.uuid4()
+    db_lineage = await c.fetchval('SELECT lineage FROM life_storage.storage_metadata')
+    async with c.transaction():
+        await c.execute('''INSERT INTO life_financial.accounts(account_id,database_lineage,environment,exchange,account_uid,risk_pool,
+            lineage,schema_version,policy_hash,config_hash) VALUES($1,$2,'OFFLINE_SIMULATION','okx','12345','usdt',$3,1,$4,$5)''',
+                        account, db_lineage, lineage, 'a' * 64, 'b' * 64)
+        await c.execute("INSERT INTO life_financial.policies VALUES($1,$2,'{}')", account, 'a' * 64)
+        await c.execute("INSERT INTO life_financial.configurations VALUES($1,1,$2,$3,'{}')", account, 'b' * 64, 'a' * 64)
+        await c.execute("INSERT INTO life_financial.balances(account_id,asset,total) VALUES($1,'LIFE',5),($1,'USDT',10)", account)
+    before_account = await c.fetchrow('SELECT * FROM life_financial.accounts')
+    before_money = await c.fetch('SELECT * FROM life_financial.balances ORDER BY asset')
+    await c.execute('''GRANT USAGE ON SCHEMA life_financial TO life_runtime_test,life_reporter_test;
+        GRANT EXECUTE ON FUNCTION life_financial.spot_state(uuid) TO life_runtime_test,life_reporter_test''')
+    oid = await c.fetchval("SELECT 'life_financial.spot_state(uuid)'::regprocedure::oid")
+    path = DEFAULT_DIRECTORY / '000025_spot_markout_observations.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    assert await c.fetchval("SELECT 'life_financial.spot_state(uuid)'::regprocedure::oid") == oid
+    assert await c.fetchrow('SELECT * FROM life_financial.accounts') == before_account
+    assert await c.fetch('SELECT * FROM life_financial.balances ORDER BY asset') == before_money
+    assert before_account['mode'] == 'UNARMED'
+    for principal in ('life_runtime_test', 'life_reporter_test'):
+        assert await c.fetchval("SELECT has_function_privilege($1,'life_financial.spot_state(uuid)','EXECUTE')", principal)
+        for signature in ('spot_markout_policy_valid(bigint[],bigint,jsonb)', 'spot_markout_command_valid(jsonb)',
+                          'spot_markouts_verified(uuid)', 'spot_markout_commit_guard(uuid,jsonb)',
+                          'spot_observe_markout(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
+                          'spot_markout_frame(uuid,integer,integer)'):
+            assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", principal, 'life_financial.' + signature)
+        for table in ('spot_markout_policies', 'spot_markout_facts'):
+            assert not await c.fetchval("SELECT has_table_privilege($1,$2,'INSERT')", principal, 'life_financial.' + table)
+    assert (await migrate(c, directory, action='up'))['applied'] == []
+    assert (await migrate(c, directory))['pending'] == []
+    for table in ('operations', 'sessions', 'spot_markout_policies', 'spot_markout_facts'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0

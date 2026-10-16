@@ -476,3 +476,15 @@ rewritten. New tables/functions create no account, policy, owner, session or
 financial amount; the central ledger still serializes and skips applied scripts.
 Runtime provisioning grants the fixed settlement command only. Private evidence,
 canonical proof and DML remain unavailable to runtime/read-only roles.
+
+### 000025: standalone SPOT horizon observations
+
+Adds explicit imported markout policy and immutable scoped horizon facts, linked
+to original native fills and attribution. Policy and wire shapes are checked in
+SQL; canonical command fingerprints and exact original prices cannot change on
+replay. Scoped bounded cohort reads return no trading permission. Current proof
+checks reverse operation/attribution origins and physical COMMIT rechecks original
+owner generation/fact age. Existing snapshot OID/ACL and prior guards are retained.
+An account/fill-time index supports cohort window selection. The central migration
+ledger supplies repeat-startup idempotency; no financial/policy/owner/bootstrap or
+risk activation is added, and previous script checksums remain unchanged.
