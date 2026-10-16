@@ -294,6 +294,18 @@ class ExecutorOrchestrator:
             return reporting[controller_id].fresh_stored_infos()
         return tuple(MarketsRecorder.get_instance().get_executors_by_controller(controller_id))
 
+    async def async_get_stored_executors_by_controller(self, controller_id: str) -> tuple[ExecutorInfo, ...]:
+        """Await a fresh repository snapshot; never substitute a cached PnL view."""
+        reporting = self.__dict__.get('_repository_reporting')
+        if reporting is None or controller_id not in reporting:
+            raise ValueError('ASYNC_REPOSITORY_REPORTING_REQUIRED')
+        app = reporting[controller_id]
+        read = getattr(app, 'stored_infos', None)
+        if callable(read):
+            return await read()
+        # Existing file adapters assert their worker-thread ownership.
+        return await app.store._call(app.fresh_stored_infos)
+
     def _update_cached_performance(self, controller_id: str, executor_info: ExecutorInfo):
         """
         Update the cached performance for a specific controller with an executor's information.
@@ -814,6 +826,16 @@ class ExecutorOrchestrator:
         captured = executor.executor_info.model_copy(deep=True)
 
         def committed(_receipt):
+            # A late fill/order observation may change a terminated child while
+            # publication awaits SQL. Keep it and its PnL uncached until the
+            # newly captured report commits; the older receipt covers only the
+            # original snapshot.
+            try:
+                if executor.executor_info.model_dump(mode='json') != captured.model_dump(mode='json'):
+                    return
+            except Exception:
+                self._repository_reporting[controller_id].invalidate()
+                raise
             key = (controller_id, captured.id)
             if captured.status == RunnableStatus.TERMINATED and key not in self._repository_stored_ids:
                 self._update_cached_performance(controller_id, captured)

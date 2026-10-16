@@ -78,14 +78,25 @@ class PgEventRepository(PgRecorderRepository):
                 result.append((row, command))
         return tuple(result)
 
+    @staticmethod
+    def _origin(row, command):
+        body, version = row['body'], row['body']['version']
+        checkpoint = StateCut(command.binding, version, version, (ResourceVersion('account', version),), body['cut'])
+        return PendingEventDelivery(command, FinancialCut(checkpoint, (('postgres_account', body['cut']),)),
+                                    OwnerToken.from_json(body['owner']))
+
     async def pending(self, binding):
-        result = []
-        for row, command in await self._events(binding, True):
-            body, version = row['body'], row['body']['version']
-            checkpoint = StateCut(binding, version, version, (ResourceVersion('account', version),), body['cut'])
-            result.append(PendingEventDelivery(command, FinancialCut(checkpoint, (('postgres_account', body['cut']),)),
-                                               OwnerToken.from_json(body['owner'])))
-        return tuple(result)
+        return tuple(self._origin(row, command) for row, command in await self._events(binding, True))
+
+    async def event_origin(self, event_id, binding):
+        identifier(event_id)
+        for origin in await self.pending(binding):
+            if origin.command.event_id == event_id:
+                return origin
+        for row, command in await self._events(binding, False):
+            if command.event_id == event_id:
+                return self._origin(row, command)
+        return None
 
     async def connector_history(self, source, binding):
         if source != self.source:

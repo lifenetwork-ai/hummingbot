@@ -39,6 +39,30 @@ and account transactions, not store this aggregate JSON as its financial schema.
 Migration infrastructure is separate and documented in
 [the migration guide](../../../../migrations/life_liquidity/README.md).
 
+## Explicit PostgreSQL reporting application
+
+`postgres/recorder_application.py` supplies `PgRecorderApplication` for explicit
+V2 assemblies. It requires the original owner, exact controller/config binding,
+registered event sources, synchronous revoke/readiness callbacks and explicit
+queue/callback/history/shutdown bounds. A shared account-runtime mutex serializes
+report stage/apply pairs; at least two safety pool slots are required so a report
+cannot consume the only primary readback slot. Startup repairs original pending
+reports and loads immutable reporting views, without recreating executors.
+
+Executor/position removal and cached PnL changes await actual delivery. Changed
+child/exposure snapshots stay in memory for a newer report. Unchanged executor
+notifications reuse a verified applied receipt. `enqueue_configuration` revokes
+rejection/kill synchronously; cold recovery retains the latch. Event enqueue is
+reporting only and never restores SDK dedup/tracking caches. Callback/queue
+backpressure, unknown delivery or cancellation revoke local admission.
+
+`ExecutorOrchestrator.async_get_stored_executors_by_controller` awaits the proper
+backend. PostgreSQL synchronous stored reads deny; file reads stay on their
+worker. Configured LIFE controller/service/source selection, authenticated event
+listeners and financial-receipt qualification remain unfinished. Reporting
+readiness grants no exchange permission. See the
+[application qualification](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-explicit-recorder-application-qualification-2026-10-16).
+
 ## PostgreSQL exact held-position reporting
 
 `postgres/positions.py` adds sequenced original snapshots and atomic legacy

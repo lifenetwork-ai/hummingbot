@@ -215,6 +215,8 @@ async def test_actual_runner_creation_progress_terminal_removal_and_fresh_worker
             runner.get_stored_executors_by_controller('life')
         stored = await app.store._call(runner.get_stored_executors_by_controller, 'life')
         assert len(stored) == 1 and stored[0].id == executor.config.id
+        asynchronous = await runner.async_get_stored_executors_by_controller('life')
+        assert [info.model_dump(mode='json') for info in asynchronous] == [info.model_dump(mode='json') for info in stored]
         # Reporting a terminated runner never terminalizes/refunds the live order.
         assert (await app.store.attempt(executor.config.id, app.binding)).state.value == 'ACKED'
         assert (await app.store.snapshot(app.binding)).balance.reserved_quote_usdt == 2
