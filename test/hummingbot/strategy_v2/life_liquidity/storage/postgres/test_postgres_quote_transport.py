@@ -347,3 +347,69 @@ async def test_ack_uses_primary_clock_when_local_clock_jumps_after_http_send(dat
             await t.guard.acknowledge('123')
     finally:
         await t.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('phase', ['arm_return', 'final_check'])
+@pytest.mark.parametrize('latch', ['unhealthy', 'closing'])
+async def test_database_runtime_latch_after_arm_denies_http_with_retained_holds(database, monkeypatch, phase, latch):
+    t = await transport(database)
+    runtime = t.repo._runtime
+
+    def revoke():
+        if latch == 'unhealthy':
+            runtime._healthy = False
+        else:
+            runtime._closing = True
+    try:
+        kwargs = {}
+        if phase == 'arm_return':
+            original = t.repo.arm_quote_action
+
+            async def latched(*args, **values):
+                result = await original(*args, **values)
+                revoke()
+                return result
+            monkeypatch.setattr(t.repo, 'arm_quote_action', latched)
+        else:
+            kwargs['pre_send_check'] = lambda _: revoke()
+        with pytest.raises(PermissionError, match='REQUEST_'):
+            await t.place(**kwargs)
+        assert not t.session.sent
+        assert await database[0].fetchval('SELECT state FROM life_financial.send_attempts') == 'SEND_UNKNOWN'
+        assert await database[0].fetchval("SELECT reserved FROM life_financial.balances WHERE asset='USDT'") > 0
+        assert await database[0].fetchval('SELECT count(*) FROM life_financial.spot_accounting_progress') == 0
+    finally:
+        await t.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('phase', ['arm_return', 'final_check'])
+async def test_replacing_unhealthy_runtime_does_not_revive_captured_send_permission(database, monkeypatch, phase):
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.runtime import PgRuntime
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot import PgSpotRepository
+    t = await transport(database)
+    replacement = PgSpotRepository(await PgRuntime.open(t.cfg))
+    try:
+        def reconnect():
+            t.repo._runtime._healthy = False
+            t.journal.repository = replacement
+        kwargs = {}
+        if phase == 'arm_return':
+            original = t.repo.arm_quote_action
+
+            async def replaced(*args, **values):
+                result = await original(*args, **values)
+                reconnect()
+                return result
+            monkeypatch.setattr(t.repo, 'arm_quote_action', replaced)
+        else:
+            kwargs['pre_send_check'] = lambda _: reconnect()
+        with pytest.raises(PermissionError, match='REQUEST_'):
+            await t.place(**kwargs)
+        assert not t.session.sent
+        assert await database[0].fetchval('SELECT state FROM life_financial.send_attempts') == 'SEND_UNKNOWN'
+        assert await database[0].fetchval("SELECT reserved FROM life_financial.balances WHERE asset='USDT'") > 0
+    finally:
+        await replacement.close()
+        await t.close()

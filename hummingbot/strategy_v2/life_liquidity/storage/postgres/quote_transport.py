@@ -43,6 +43,8 @@ class PgQuoteRequestGuard:
                 or endpoint.path != '/api/v5/trade/order'):
             raise StorageError('PG_REQUEST_GUARD_CONFIG_INVALID')
         self._journal, self._preparation = journal, preparation
+        self._repository, self._runtime = journal.repository, journal.repository._runtime
+        self._binding, self._owner = journal.binding, journal.owner
         self._action = action.model_copy(deep=True)
         self._admission_source, self._endpoint_url = admission_source, endpoint_url
         self._age_limits, self._facts = age_limits, None
@@ -54,6 +56,11 @@ class PgQuoteRequestGuard:
         self._account_source = account_source
         self._started = self._checked = self._consumed = self._ack_started = False
         self._authorized_request = None
+
+    def _context_ready(self):
+        return (self._journal.repository is self._repository and self._repository._runtime is self._runtime
+                and self._journal.binding == self._binding and self._journal.owner == self._owner
+                and self._runtime.healthy)
 
     def _scope(self, request):
         headers = dict(request.headers) if type(request) is RESTRequestSnapshot else {}
@@ -73,7 +80,7 @@ class PgQuoteRequestGuard:
         # physical arm may have committed, only exact recovery/readback is safe.
         self._started = True
         self._scope(request)
-        if not self._journal.local_runner_create_fence(self._action):
+        if not self._context_ready() or not self._journal.local_runner_create_fence(self._action):
             return False
         facts = (await self._admission_source() if self._account_source is None
                  else await self._account_source.capture(request))
@@ -84,6 +91,7 @@ class PgQuoteRequestGuard:
         if (type(result) is not QuoteArmReceipt or result.replayed
                 or result.binding != self._journal.binding or result.operation_id != command.prepare_operation_id
                 or result.intent_id != command.action.intent_id or result.wire_sha256 != command.wire_sha256
+                or not self._context_ready()
                 or not self._journal.local_runner_create_fence(self._action)):
             return False
         self._authorized_request = request
@@ -106,6 +114,7 @@ class PgQuoteRequestGuard:
         already_checked, self._checked = self._checked, True
         self._scope(request)
         if (already_checked or self._consumed or authorized is not request
+                or not self._context_ready()
                 or not self._journal.local_runner_create_fence(self._action) or not self._fresh()
                 or self._account_source is not None and not self._account_source.check(request)):
             return False
@@ -120,11 +129,11 @@ class PgQuoteRequestGuard:
         if self._ack_started:
             raise StorageError('PG_REQUEST_ACK_ALREADY_USED')
         self._ack_started = True
-        prepare, journal = self._preparation.prepare, self._journal
-        observed = await journal.repository.observation_cut(journal.binding)
+        prepare = self._preparation.prepare
+        observed = await self._repository.observation_cut(self._binding)
         command = AckSpot('ack:' + fingerprint(prepare.json()), prepare.operation_id, prepare.intent_id,
                           prepare.client_order_id, prepare.market, prepare.side, prepare.session_id, prepare.epoch,
                           exchange_order_id, observed.observed_at)
         # Account an accepted request even after local stop/expiry. Observation
         # transactions independently enforce the original generation and cut.
-        return await journal.repository.acknowledge(command, cut=observed.cut, owner=journal.owner)
+        return await self._repository.acknowledge(command, cut=observed.cut, owner=self._owner)

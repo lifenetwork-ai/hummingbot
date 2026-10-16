@@ -39,6 +39,15 @@ and account transactions, not store this aggregate JSON as its financial schema.
 Migration infrastructure is separate and documented in
 [the migration guide](../../../../migrations/life_liquidity/README.md).
 
+## Original-runtime final send fence
+
+`postgres/quote_transport.py` pins the original repository/runtime/binding/owner.
+Both post-arm authorization and the final synchronous HTTP check reject an
+unhealthy/closing runtime or a replacement context. Reconnect cannot revive a
+captured send capability. Late accepted ACKs still use the original observation
+path; reporting/readback never authorizes a resend. This local fence does not
+replace PG4 external credential handoff or the remaining qualified source gates.
+
 ## Privileged PostgreSQL cashflow approval import
 
 `postgres/approval_import.py` uses a separate migration-owner connection and

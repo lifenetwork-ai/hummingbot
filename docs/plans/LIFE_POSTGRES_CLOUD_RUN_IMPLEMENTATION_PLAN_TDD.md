@@ -613,6 +613,12 @@ PG3 tests seed explicitly synthetic ownership/grant rows through test-only setup
 **Done when:** equivalent file/PG replays yield identical units, balances, holds, budgets, identities and decisions for supported scope; database atomicity is never presented as exactly-once exchange delivery.
 
 
+### PG3 original-runtime send fence correction (2026-10-17)
+
+Base `2ec9db9ba`. Final authorization and the last synchronous HTTP check now require the captured original PostgreSQL runtime to remain healthy and open. The guard also pins repository/runtime object identity, binding and original owner; reconnect/replacement cannot revive an already captured capability. Accepted late ACKs use that original repository/binding/owner observation path and do not depend on send readiness. No SQL migration, activation, refund, resend or policy default is added.
+
+Four Red tests reproduced HTTP escaping after unhealthy/shutdown latches at arm return or the final check. Two further Red tests reproduced a replacement healthy repository reviving that capability. Final transport selector: **31 passed**, six existing warnings, **34.82 s** (`/tmp/life-pg3-runtime-fence-final`); signed account/policy source regression: **34 passed**, six existing warnings, **36.81 s** (`/tmp/life-pg3-runtime-fence-source-final`). The preceding 699-case full PostgreSQL gate qualifies the source before this focused correction; it is not relabeled as a full run of the correction. Hooks/diff checks pass. This local fence does not prove external old-key exclusion or atomic DB/HTTP delivery; configured source/controller, durable ingress, product and full PG3 gates remain open.
+
 ### PG3 signed approval import qualification (2026-10-17)
 
 Base `dc3ef41be`. `000020` and `PgCashflowApprovalImporter` add an explicit privileged control/import operation. The trading runtime cannot insert approvals, call private proof helpers, create keys/policies or use this importer with its own role. The importer requires a separate connection authenticated as the migration owner, matching DB lineage/durability, externally supplied `OperatorVerifier` public keys pinned to the immutable registered `configurations.body.operator_verifier`, and an explicit fact-age limit. It locks the account and compares an awaited primary cut before verifying the exact signed operator command/facts. A bill must belong after the imported opening/anchor and no later than capture. Provider execution/authentication remains a separate unfinished collection gate.
