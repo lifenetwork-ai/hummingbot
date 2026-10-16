@@ -39,6 +39,23 @@ and account transactions, not store this aggregate JSON as its financial schema.
 Migration infrastructure is separate and documented in
 [the migration guide](../../../../migrations/life_liquidity/README.md).
 
+## PostgreSQL connector event reporting
+
+`postgres/events.py` stages registered-source event snapshots and atomically
+projects their exact order/status/trade/funding/market-state effects with delivery
+receipts. Migration `000018` adds immutable effects and current head pointers;
+reporting rows never become financial balances or send grants. The adapter requires
+explicit row/byte limits and verifies original provenance, economic deduplication,
+predecessors and native rows. Unknown legacy rows are never silently adopted.
+
+`connector_history` is diagnostic. Restoring SDK dedup IDs requires a matching
+financial application receipt, which the reporting adapter does not supply.
+Tiny signed fees retain their original report value even when legacy six-decimal
+columns truncate them. Original replay cannot regress later status or resend.
+Order events currently require a known captured SPOT wire; SWAP financial/source
+composition and the actual recorder application remain open. See the
+[event qualification](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-standalone-event-reporting-qualification-2026-10-16).
+
 ## PostgreSQL configuration audit
 
 `postgres/configuration.py` adds `PgConfigurationRepository` with explicit
@@ -85,8 +102,7 @@ history; PG8 performance remains unqualified.
 
 Migration `000016` reuses existing tables and the central migration runner. New
 fixed command/read rights use approved `provision_access`; runtime has no direct
-financial DML or private proof rights. Configuration, connector events, held
-positions and actual recorder application/orchestrator wiring remain open. This
+financial DML or private proof rights. Held positions and actual recorder application/orchestrator wiring remain open. This
 standalone repository cannot be selected as a configured PostgreSQL service.
 
 [Qualification and remaining scope](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-standalone-executor-outbox-qualification-2026-10-16).

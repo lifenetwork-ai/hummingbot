@@ -410,3 +410,10 @@ idempotency. LIFE adds an applied-version/checksum ledger, concurrent-run lock
 and one transaction per script. Manual migration stays available independently of startup. The reference
 backend's optional auto-migration pattern is now supported through
 `LIFE_AUTO_MIGRATE`, with default-off, awaited startup and failure blocking.
+
+- `000018_recorder_events.sql`: registered-source event commands, immutable
+  relational reporting effects/heads and atomic order/status/trade/funding/state
+  projections. Original economic identities, predecessor/native completeness,
+  scoped read access and physical-COMMIT observation guards remain mandatory.
+  No financial balance, activation, provider capture or SDK dedup authority is
+  inferred from these reporting records. Existing scripts remain unchanged.

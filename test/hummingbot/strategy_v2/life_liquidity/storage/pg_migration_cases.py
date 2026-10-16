@@ -439,3 +439,32 @@ async def test_configuration_upgrade_keeps_scoped_reader_acl_and_repeats_without
     assert (await migrate(c, directory))['pending'] == []
     assert await c.fetchval('SELECT count(*) FROM life_financial.accounts') == 0
     assert await c.fetchval('SELECT count(*) FROM life_financial.recorder_outbox') == 0
+
+
+@pytest.mark.asyncio
+async def test_event_reporting_upgrade_preserves_acl_and_repeats_without_money_bootstrap(db):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 18:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    await c.execute('''GRANT USAGE ON SCHEMA life_financial TO life_runtime_test,life_reporter_test;
+        GRANT EXECUTE ON FUNCTION life_financial.spot_state(uuid),life_financial.recorder_executor_verified(uuid)
+            TO life_runtime_test,life_reporter_test''')
+    path = DEFAULT_DIRECTORY / '000018_recorder_events.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    for principal in ('life_runtime_test', 'life_reporter_test'):
+        for signature in ('spot_state(uuid)', 'recorder_executor_verified(uuid)'):
+            assert await c.fetchval('SELECT has_function_privilege($1,$2,\'EXECUTE\')', principal, 'life_financial.' + signature)
+        for signature in ('recorder_event_integrity(uuid)', 'recorder_identity_text(jsonb)',
+                          'recorder_native_put(text,jsonb,jsonb,jsonb)',
+                          'recorder_event_stage(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,life_financial.identity,jsonb)',
+                          'recorder_event_apply(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.identity)'):
+            assert not await c.fetchval('SELECT has_function_privilege($1,$2,\'EXECUTE\')', principal, 'life_financial.' + signature)
+        for table in ('recorder_projection_effects', 'recorder_projection_heads'):
+            assert not await c.fetchval("SELECT has_table_privilege($1,$2,'INSERT')", principal, 'life_financial.' + table)
+    assert (await migrate(c, directory, action='up'))['applied'] == []
+    assert (await migrate(c, directory))['pending'] == []
+    for table in ('accounts', 'recorder_outbox', 'recorder_projection_effects', 'recorder_projection_heads'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
