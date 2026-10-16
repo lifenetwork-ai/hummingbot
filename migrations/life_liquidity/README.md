@@ -449,3 +449,14 @@ backend's optional auto-migration pattern is now supported through
   from retained attempts/receipts, including aborted and terminal identities.
   Migration changes no financial row, owner or grant; existing script bytes and
   current snapshot/private-helper ACLs remain unchanged.
+
+- `000023_spot_financial_ingress.sql`: untrusted original FILL/CASHFLOW intake,
+  immutable financial-delivery links and monotone diagnostic progress. Capture
+  changes no money or account version. Receipt qualification requires actual
+  APPLIED financial facts with original identity/units/valuation; a covering
+  cumulative receipt may acknowledge an older received snapshot without replaying
+  its debit. Pending intake blocks new risk. Progress detects missing ACK/fill
+  intake rows, even before a financial operation exists. Upgrade establishes only
+  diagnostic counters from the verified prior ACK baseline; no financial amount,
+  owner or activation is imported. Prior script bytes and existing function ACLs
+  remain unchanged. Raw provider authentication/collection is separate work.

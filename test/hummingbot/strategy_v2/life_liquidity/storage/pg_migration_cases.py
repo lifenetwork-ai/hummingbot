@@ -574,3 +574,51 @@ async def test_observation_context_upgrade_keeps_existing_acl_and_repeats_withou
     assert (await migrate(c, directory))['pending'] == []
     for table in ('accounts', 'spot_preparations', 'spot_fill_facts', 'spot_cashflow_facts'):
         assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+
+
+@pytest.mark.asyncio
+async def test_financial_intake_upgrade_preserves_received_ack_baseline_without_financial_bootstrap(db):
+    import json
+    from datetime import timedelta
+
+    from hummingbot.strategy_v2.life_liquidity.storage.contracts import OwnerToken, StateBinding
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 23:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    account, lineage, session = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    db_lineage = await c.fetchval('SELECT lineage FROM life_storage.storage_metadata')
+    at = await c.fetchval('SELECT clock_timestamp()')
+    binding = StateBinding('OFFLINE_SIMULATION', 'okx', '12345', 'usdt', lineage, 1, 'a' * 64, 'b' * 64)
+    owner = OwnerToken(uuid.uuid4(), uuid.uuid4(), 1, session, at - timedelta(seconds=1), at + timedelta(seconds=30))
+    async with c.transaction():
+        await c.execute('''INSERT INTO life_financial.accounts(account_id,database_lineage,environment,exchange,account_uid,risk_pool,
+            lineage,schema_version,policy_hash,config_hash) VALUES($1,$2,'OFFLINE_SIMULATION','okx','12345','usdt',$3,1,$4,$5)''',
+                        account, db_lineage, lineage, binding.policy_hash, binding.config_hash)
+        await c.execute("INSERT INTO life_financial.policies VALUES($1,$2,'{}')", account, binding.policy_hash)
+        await c.execute("INSERT INTO life_financial.configurations VALUES($1,1,$2,$3,'{}')", account, binding.config_hash, binding.policy_hash)
+        await c.execute('INSERT INTO life_financial.access_bindings VALUES(session_user,$1,true)', account)
+    body = dict(binding=binding.json(), owner=owner.json(), request_sha256='f' * 64, command=dict(operation_id='baseline-ack',
+                prepare_operation_id='unqualified-original', intent_id='unknown', client_order_id='wire1', market='LIFE-USDT', side='BUY',
+                session_id=str(session), epoch=1, exchange_order_id='123'))
+    original = await c.fetchval('SELECT life_financial.spot_capture_ack_ingress($1,$2::jsonb)', account, json.dumps(body))
+    before = await c.fetchrow('SELECT * FROM life_financial.accounts')
+    await c.execute('''GRANT USAGE ON SCHEMA life_financial TO life_runtime_test,life_reporter_test;
+        GRANT EXECUTE ON FUNCTION life_financial.spot_state(uuid) TO life_runtime_test,life_reporter_test''')
+    path = DEFAULT_DIRECTORY / '000023_spot_financial_ingress.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    row = await c.fetchrow('SELECT * FROM life_financial.spot_ingress_progress')
+    assert row['ack_captured'] == row['version'] == 1 and row['ack_delivered'] == row['financial_captured'] == row['financial_delivered'] == 0
+    assert await c.fetchval('SELECT life_financial.spot_ack_ingress_verified($1)', account)
+    assert json.loads(await c.fetchval('SELECT life_financial.spot_read_ack_ingress($1,$2)', account, json.loads(original)['ingress_id']))['body'] == json.loads(original)['body']
+    assert await c.fetchrow('SELECT * FROM life_financial.accounts') == before
+    for principal in ('life_runtime_test', 'life_reporter_test'):
+        assert await c.fetchval("SELECT has_function_privilege($1,'life_financial.spot_state(uuid)','EXECUTE')", principal)
+        for signature in ('spot_ingress_increment(uuid,text,text)', 'spot_ingress_counts_verified(uuid)',
+                          'spot_capture_financial_ingress(uuid,jsonb)', 'spot_mark_financial_ingress(uuid,life_financial.identity,life_financial.identity)'):
+            assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", principal, 'life_financial.' + signature)
+    assert (await migrate(c, directory, action='up'))['applied'] == []
+    for table in ('balances', 'operations', 'sessions', 'spot_financial_ingress', 'spot_financial_ingress_receipts'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0

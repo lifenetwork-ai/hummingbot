@@ -202,6 +202,8 @@ class PgRuntime:
             FROM unnest(ARRAY[
                 'life_financial.allocate_balance(uuid,jsonb,jsonb,bigint,life_financial.identity,life_financial.digest,text,life_financial.positive_amount)',
                 'life_financial.spot_capture_ack_ingress(uuid,jsonb)',
+                'life_financial.spot_capture_financial_ingress(uuid,jsonb)',
+                'life_financial.spot_mark_financial_ingress(uuid,life_financial.identity,life_financial.identity)',
                 'life_financial.spot_mark_ack_ingress(uuid,life_financial.identity)',
                 'life_financial.spot_prepare(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
                 'life_financial.spot_arm(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,life_financial.identity)',
@@ -291,6 +293,8 @@ class PgRuntime:
         import asyncpg
         if untrusted_ingress and (not observation or query not in (
                 'SELECT life_financial.spot_capture_ack_ingress($1,$2)',
+                'SELECT life_financial.spot_capture_financial_ingress($1,$2)',
+                'SELECT life_financial.spot_mark_financial_ingress($1,$2,$3)',
                 'SELECT life_financial.spot_mark_ack_ingress($1,$2)')):
             raise StorageError('PG_UNTRUSTED_INGRESS_QUERY_DENIED')
         cfg = self.config

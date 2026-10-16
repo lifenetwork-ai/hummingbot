@@ -12,9 +12,15 @@ from hummingbot.strategy_v2.life_liquidity.storage.capital import (
     CashflowSpot,
     SpotAccountingPolicy,
 )
-from hummingbot.strategy_v2.life_liquidity.storage.contracts import OwnerToken, StorageError, StorageUnavailable
+from hummingbot.strategy_v2.life_liquidity.storage.contracts import (
+    OwnerToken,
+    StateBinding,
+    StorageError,
+    StorageUnavailable,
+)
 from hummingbot.strategy_v2.life_liquidity.storage.financial import (
     AckSpot,
+    FillSpot,
     PrepareSpot,
     RecordedSpotFill,
     SpotFillObservation,
@@ -27,6 +33,14 @@ from hummingbot.strategy_v2.life_liquidity.storage.spot_observation import SpotO
 
 
 class PgSpotObservationReader:
+    @staticmethod
+    def _cashflow(row):
+        row = dict(row)
+        for key in ('signed_amount', 'independent_price_usdt'):
+            row[key] = Decimal(row[key])
+        row['observed_at'] = datetime.fromisoformat(row['observed_at'])
+        return CashflowSpot(**row)
+
     def __init__(self, repository, *, max_rows, max_bytes):
         if (type(repository) is not PgSpotRepository or type(max_rows) is not int or not 0 < max_rows <= 4096
                 or type(max_bytes) is not int or not 0 < max_bytes <= 16 * 1024 * 1024):
@@ -58,16 +72,28 @@ class PgSpotObservationReader:
             data['approved_cashflows'] = tuple(ApprovedSpotCashflow(**{**row, 'signed_amount': Decimal(row['signed_amount'])}) for row in value['approvals'])
             cashflows = []
             for row in value['cashflows']:
-                row = dict(row)
-                for key in ('signed_amount', 'independent_price_usdt'):
-                    row[key] = Decimal(row[key])
-                row['observed_at'] = datetime.fromisoformat(row['observed_at'])
-                cashflows.append(CashflowSpot(**row))
+                cashflows.append(self._cashflow(row))
             pending = []
             for row in value['ack_pending']:
+                if StateBinding.from_json(row['binding']) != binding:
+                    raise StorageUnavailable('PG_SPOT_CONTEXT_PENDING_ORIGIN_UNQUALIFIED')
                 command = dict(row['command'])
                 command['observed_at'] = datetime.fromisoformat(command['observed_at'])
                 pending.append(PendingSpotCommand('ACK', AckSpot(**command), OwnerToken.from_json(row['owner'])))
+            for row in value['financial_pending']:
+                if StateBinding.from_json(row['binding']) != binding:
+                    raise StorageUnavailable('PG_SPOT_CONTEXT_PENDING_ORIGIN_UNQUALIFIED')
+                with localcontext() as precision:
+                    precision.prec = 160
+                    if row['kind'] == 'SPOT_FILL':
+                        command = FillSpot.from_json(row['command'])
+                        kind = 'FILL'
+                    elif row['kind'] == 'SPOT_CASHFLOW':
+                        command = self._cashflow(row['command'])
+                        kind = 'CASHFLOW'
+                    else:
+                        raise StorageUnavailable('PG_SPOT_CONTEXT_PENDING_ORIGIN_UNQUALIFIED')
+                pending.append(PendingSpotCommand(kind, command, OwnerToken.from_json(row['owner'])))
             return SpotObservationContext(binding, view.cut, SpotAccountingPolicy(**data), SpotFillPolicy(**value['fill_policy']),
                                           tuple(PrepareSpot.from_json(row) for row in value['commands']),
                                           tuple(RecordedSpotFill(row['prepare_operation_id'], row['intent_id'], row['exchange_order_id'],

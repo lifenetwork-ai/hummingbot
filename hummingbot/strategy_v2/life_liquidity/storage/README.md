@@ -2246,3 +2246,42 @@ relational consistency under the declared trusted database-owner contract.
 The reader does not authenticate a provider, collect HTTP/WebSocket responses,
 qualify runner scope or grant a send. Authenticated collection, financial pending
 resolution and full configured service/product composition remain PG3 work.
+
+## PostgreSQL original financial command intake
+
+`PgFinancialIngress` durably captures typed original FILL/CASHFLOW commands
+before monetary application. The journal is untrusted diagnostics; it does not
+prove a provider response, authorize an order or install a configured service.
+Capture survives unrelated financial inconsistency and preserves owner/binding,
+exact units, signed fees and chosen independent valuation. Pending intake denies
+new risk, including generic allocation. Record hashes cover body, primary capture
+time (timezone-independent epoch) and monotone capture sequence.
+
+`capture_and_apply` requires explicit read budgets and serializes the handoff on
+the original account runtime. Earlier pending values cannot be replaced by a new
+reference choice. Capture, financial application and delivery each have physical
+COMMIT/readback boundaries. Failure/cancellation retains uncertainty, original
+identities, holds and local revocation. A financial `RECOVERY_REQUIRED` result
+stays pending and is never labeled delivered. Successful readback never restores
+send permission or resets spending.
+
+Delivery requires the original binding/owner and actual APPLIED financial facts.
+A newer complete fill receipt may cover an older received snapshot only when all
+original trade/fee/valuation facts match exactly; its cumulative amount/loss must
+match the native permanent facts. The historical covering operation is retained
+for replay. Thus replay can return the covering financial receipt's larger
+cumulative quantity; callers must not treat that quantity as a new wallet delta.
+Cashflow identity/units/reference values likewise remain immutable. No balance,
+fee buffer, subsidy or terminal hold is refunded by delivery.
+
+Monotone progress counts both ACK and financial capture/delivery. Missing pending
+rows cannot silently become an empty recovered account, including a lost ACK
+capture after financial ACK application. Current context includes typed pending
+commands and rejects a different original binding. Read-only access remains
+account-scoped and bounded; private progress writes are never granted to runtime.
+This detects relational/hash inconsistency under the declared trusted database
+owner contract, not coordinated privileged rewriting.
+
+Authenticated raw provider collection, approved pending resolution, remaining
+risk/settlement/shared-product ports and complete controller/service/SDK cache
+composition remain required by PG3. This typed handoff is not that source factory.
