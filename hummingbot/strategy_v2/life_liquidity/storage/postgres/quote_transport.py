@@ -11,8 +11,8 @@ from urllib.parse import urlsplit
 from hummingbot.core.web_assistant.connections.data_types import RESTMethod
 from hummingbot.core.web_assistant.connections.request_guard import RESTRequestSnapshot
 from hummingbot.strategy_v2.life_liquidity.storage.action_preparation import PrepareQuoteAction, QuoteAdmissionFacts
-from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError, fingerprint, utc
-from hummingbot.strategy_v2.life_liquidity.storage.financial import AckSpot
+from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError, utc
+from hummingbot.strategy_v2.life_liquidity.storage.postgres.ack_ingress import PgAckIngress
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.runner_journal import PgQuoteRunnerJournal
 from hummingbot.strategy_v2.life_liquidity.storage.quote_send import ArmQuoteAction, QuoteArmReceipt
 from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction
@@ -56,6 +56,9 @@ class PgQuoteRequestGuard:
         self._account_source = account_source
         self._started = self._checked = self._consumed = self._ack_started = False
         self._authorized_request = None
+        self._request_sha256 = None
+        self._ingress = PgAckIngress(self._repository)
+        self._captured_ingress_epoch = None
 
     def _context_ready(self):
         return (self._journal.repository is self._repository and self._repository._runtime is self._runtime
@@ -79,6 +82,7 @@ class PgQuoteRequestGuard:
         # No retry even after a source/DB failure or caller cancellation. Once
         # physical arm may have committed, only exact recovery/readback is safe.
         self._started = True
+        ingress_epoch = self._runtime._ingress_epoch
         self._scope(request)
         if not self._context_ready() or not self._journal.local_runner_create_fence(self._action):
             return False
@@ -91,11 +95,13 @@ class PgQuoteRequestGuard:
         if (type(result) is not QuoteArmReceipt or result.replayed
                 or result.binding != self._journal.binding or result.operation_id != command.prepare_operation_id
                 or result.intent_id != command.action.intent_id or result.wire_sha256 != command.wire_sha256
-                or not self._context_ready()
+                or not self._context_ready() or self._runtime._ingress_epoch != ingress_epoch
                 or not self._journal.local_runner_create_fence(self._action)):
             return False
         self._authorized_request = request
         self._facts = facts
+        self._request_sha256 = result.wire_sha256
+        self._captured_ingress_epoch = ingress_epoch
         return True
 
     def _fresh(self):
@@ -114,7 +120,7 @@ class PgQuoteRequestGuard:
         already_checked, self._checked = self._checked, True
         self._scope(request)
         if (already_checked or self._consumed or authorized is not request
-                or not self._context_ready()
+                or not self._context_ready() or self._captured_ingress_epoch != self._runtime._ingress_epoch
                 or not self._journal.local_runner_create_fence(self._action) or not self._fresh()
                 or self._account_source is not None and not self._account_source.check(request)):
             return False
@@ -129,11 +135,15 @@ class PgQuoteRequestGuard:
         if self._ack_started:
             raise StorageError('PG_REQUEST_ACK_ALREADY_USED')
         self._ack_started = True
-        prepare = self._preparation.prepare
-        observed = await self._repository.observation_cut(self._binding)
-        command = AckSpot('ack:' + fingerprint(prepare.json()), prepare.operation_id, prepare.intent_id,
-                          prepare.client_order_id, prepare.market, prepare.side, prepare.session_id, prepare.epoch,
-                          exchange_order_id, observed.observed_at)
-        # Account an accepted request even after local stop/expiry. Observation
-        # transactions independently enforce the original generation and cut.
-        return await self._repository.acknowledge(command, cut=observed.cut, owner=self._owner)
+        try:
+            received = await self._ingress.capture(self._preparation.prepare, exchange_order_id,
+                                                   owner=self._owner, request_sha256=self._request_sha256)
+            observed = await self._repository.observation_cut(self._binding)
+            # Capture is not accounting permission: the original observation
+            # transaction independently verifies ownership/cut/money state.
+            receipt = await self._repository.acknowledge(received.command, cut=observed.cut, owner=self._owner)
+            await self._ingress.mark_applied(received, owner=self._owner)
+            return receipt
+        except BaseException:
+            self._runtime._healthy = False
+            raise

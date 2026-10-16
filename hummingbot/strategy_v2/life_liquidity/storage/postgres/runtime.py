@@ -129,6 +129,7 @@ class PgRuntime:
         self._counts = {False: 0, True: 0}
         self._closing = False
         self._healthy = False
+        self._ingress_epoch = 0
         self._close_task = None
         self._bundle = ()
 
@@ -200,6 +201,8 @@ class PgRuntime:
         profile = await c.fetchval('''SELECT bool_and(has_function_privilege(current_user,signature,'EXECUTE')=$1)
             FROM unnest(ARRAY[
                 'life_financial.allocate_balance(uuid,jsonb,jsonb,bigint,life_financial.identity,life_financial.digest,text,life_financial.positive_amount)',
+                'life_financial.spot_capture_ack_ingress(uuid,jsonb)',
+                'life_financial.spot_mark_ack_ingress(uuid,life_financial.identity)',
                 'life_financial.spot_prepare(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
                 'life_financial.spot_arm(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,life_financial.identity)',
                 'life_financial.spot_observe(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,text,jsonb)',
@@ -283,9 +286,13 @@ class PgRuntime:
                                        (cfg.account_id, cfg.binding.json(), owner.json(), command.expected_version,
                                         command.operation_id, identity, command.asset, command.amount), owner, PgReceipt.parse)
 
-    async def _transaction(self, query, args, owner, parse, *, observation=False):
+    async def _transaction(self, query, args, owner, parse, *, observation=False, untrusted_ingress=False):
         """Internal fixed-command boundary shared by typed repository adapters."""
         import asyncpg
+        if untrusted_ingress and (not observation or query not in (
+                'SELECT life_financial.spot_capture_ack_ingress($1,$2)',
+                'SELECT life_financial.spot_mark_ack_ingress($1,$2)')):
+            raise StorageError('PG_UNTRUSTED_INGRESS_QUERY_DENIED')
         cfg = self.config
         boundary = {'attempted': False}
 
@@ -306,7 +313,7 @@ class PgRuntime:
                     await c.execute("SELECT set_config('lock_timeout',$1,true)", str(cfg.statement_timeout_ms))
                     receipt = await c.fetchval(query, *args)
                     # Replay has no effect and is allowed after owner expiry.
-                    if not receipt['replayed']:
+                    if not receipt['replayed'] and not untrusted_ingress:
                         guard = 'guard_spot_observation' if observation else 'guard_account'
                         await c.execute(f'SELECT life_financial.{guard}($1,$2,$3,$4)', cfg.account_id, cfg.binding.json(), owner.json(), receipt['version'])
                     committing = True

@@ -524,3 +524,29 @@ async def test_operator_approval_upgrade_preserves_acl_and_repeats_without_money
     assert (await migrate(c, directory))['pending'] == []
     for table in ('accounts', 'bill_approvals', 'spot_operator_approvals'):
         assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+
+
+@pytest.mark.asyncio
+async def test_ack_ingress_upgrade_preserves_scoped_acl_and_repeat_startup_without_money_bootstrap(db):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 21:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    await c.execute('''GRANT USAGE ON SCHEMA life_financial TO life_runtime_test,life_reporter_test;
+        GRANT EXECUTE ON FUNCTION life_financial.spot_state(uuid)
+            TO life_runtime_test,life_reporter_test''')
+    path = DEFAULT_DIRECTORY / '000021_spot_ack_ingress.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    for principal in ('life_runtime_test', 'life_reporter_test'):
+        assert await c.fetchval("SELECT has_function_privilege($1,'life_financial.spot_state(uuid)','EXECUTE')", principal)
+        for signature in ('spot_ack_ingress_verified(uuid)', 'spot_ack_ingress_commit_guard()',
+                          'spot_capture_ack_ingress(uuid,jsonb)', 'spot_mark_ack_ingress(uuid,life_financial.identity)'):
+            assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", principal, 'life_financial.' + signature)
+        for table in ('spot_ack_ingress', 'spot_ack_ingress_receipts'):
+            assert not await c.fetchval("SELECT has_table_privilege($1,$2,'INSERT')", principal, 'life_financial.' + table)
+    assert (await migrate(c, directory, action='up'))['applied'] == []
+    assert (await migrate(c, directory))['pending'] == []
+    for table in ('accounts', 'spot_ack_ingress', 'spot_ack_ingress_receipts'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0

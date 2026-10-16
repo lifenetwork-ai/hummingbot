@@ -2198,3 +2198,29 @@ skips, 22 existing-category warnings in 377.64 seconds. Changed-file hooks and
 diff checks pass. Logs/XML stay in `/tmp`; no evidence file is added. See the
 [final plan qualification](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg1-c3c4-file-closure-and-qualification-2026-10-16)
 for the complete selector scope and remaining phase gates.
+
+
+## PostgreSQL received ACK ingress
+
+`postgres/ack_ingress.py` captures an accepted HTTP ACK before its financial
+application. This is an untrusted diagnostic append on the bounded safety pool,
+not a financial transaction or a grant. A narrowly allowlisted transaction route
+permits only raw capture and delivery marking to omit financial/owner-clock
+guards. It cannot be used for arm/allocation/accounting SQL. Original financial
+ACK application still checks its own binding, owner, cut and money invariants.
+
+The transport pins its original runtime/repository/owner, captures the primary
+receipt time, then applies accounting and records delivery. Pending ingress
+blocks new risk until the immutable financial ACK and original wire hash match.
+A local receive epoch revokes earlier captured final-send permission before the
+first storage await. Cold reads/replay retain original identities, funds and
+one-use transport state; they never repeat an exchange submission. Explicit row
+and byte bounds are required for pending reads. Unqualified/corrupt financial
+state retains received facts rather than silently discarding them.
+
+This increment covers accepted ACKs only. Authenticated FILL/BILL capture,
+provider reconciliation, approved pending resolution and configured full-product
+service/source composition remain required by PG3. No SDK dedup restoration or
+configured PostgreSQL activation follows from an ingress receipt. A crash before
+raw capture commits still requires fresh exchange reconciliation; the original
+HTTP response in a test fixture is not a live recovery source.

@@ -39,6 +39,7 @@ async def provision_access(connection, *, principal, account_id, write):
         await connection.execute(f'GRANT SELECT ON life_storage.storage_metadata,life_migrations.schema_migrations TO "{principal}"')
         await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.can_access(uuid,boolean) TO "{principal}"')
         await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.spot_state(uuid) TO "{principal}"')
+        await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.spot_read_ack_ingress(uuid,life_financial.identity) TO "{principal}"')
         await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.spot_capital_read(uuid,text) TO "{principal}"')
         await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.spot_action_read(uuid) TO "{principal}"')
         await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.spot_quote_arms_verified(uuid) TO "{principal}"')
@@ -46,6 +47,8 @@ async def provision_access(connection, *, principal, account_id, write):
         if write:
             await connection.execute(f'''GRANT EXECUTE ON FUNCTION life_financial.guard_account(uuid,jsonb,jsonb,bigint),
                 life_financial.allocate_balance(uuid,jsonb,jsonb,bigint,life_financial.identity,life_financial.digest,text,life_financial.positive_amount),
+                life_financial.spot_capture_ack_ingress(uuid,jsonb),
+                life_financial.spot_mark_ack_ingress(uuid,life_financial.identity),
                 life_financial.spot_prepare(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb),
                 life_financial.spot_arm(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,life_financial.identity),
                 life_financial.guard_spot_observation(uuid,jsonb,jsonb,bigint),

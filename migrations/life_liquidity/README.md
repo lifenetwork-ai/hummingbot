@@ -431,3 +431,12 @@ backend's optional auto-migration pattern is now supported through
   private-helper rights; migration never seeds an operator, bill, money or grant.
   Existing scripts remain byte-for-byte unchanged. Actual 19→20 and repeat startup
   qualify the same central version/checksum runner.
+
+- `000021_spot_ack_ingress.sql`: immutable money-neutral received ACK capture and
+  delivery receipts. Capture survives expired ownership, HALT and unrelated
+  financial inconsistency; it grants no send/accounting permission. Pending
+  captures deny new risk, including generic allocation. Only the exact original
+  financial ACK and captured request hash qualify delivery. Primary snapshot
+  digests include the append count even when the account version does not change.
+  Existing scripts remain unchanged; the central runner qualifies 20→21 and
+  repeated startup without financial bootstrap.
