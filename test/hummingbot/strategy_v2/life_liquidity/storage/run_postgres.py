@@ -17,7 +17,7 @@ def main():
     import asyncpg  # noqa: F401 -- mandatory for this opt-in real-process runner.
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--suite', choices=('all', 'recorder', 'capital', 'session', 'lifecycle', 'actions', 'action_prepare', 'action_reconcile', 'action_abandon', 'runner_journal', 'quote_arm'), default='all')
+    parser.add_argument('--suite', choices=('all', 'recorder', 'capital', 'session', 'lifecycle', 'actions', 'action_prepare', 'action_reconcile', 'action_abandon', 'runner_journal', 'quote_arm', 'quote_transport'), default='all')
     parser.add_argument('--linux-image', help='Immutable locally built image ID; recorder suite only')
     args = parser.parse_args()
     if args.linux_image and (args.suite != 'recorder' or not re.fullmatch(r'sha256:[0-9a-f]{64}', args.linux_image)):
@@ -72,6 +72,8 @@ def main():
             selector /= 'test_postgres_runner_journal.py'
         elif args.suite == 'quote_arm':
             selector /= 'test_postgres_quote_arm.py'
+        elif args.suite == 'quote_transport':
+            selector /= 'test_postgres_quote_transport.py'
         command = [sys.executable, '-m', 'pytest', '-q', str(selector),
                    '--junitxml=' + str(output / 'integration.xml')]
         with (output / 'integration.log').open('w') as log:

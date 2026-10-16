@@ -6,6 +6,7 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional, Union
 from hummingbot.core.api_throttler.async_throttler_base import AsyncThrottlerBase
 from hummingbot.core.web_assistant.auth import AuthBase
 from hummingbot.core.web_assistant.connections.data_types import RESTMethod, RESTRequest, RESTResponse
+from hummingbot.core.web_assistant.connections.request_guard import RESTRequestSendGuard
 from hummingbot.core.web_assistant.connections.rest_connection import RESTConnection
 from hummingbot.core.web_assistant.rest_post_processors import RESTPostProcessorBase
 from hummingbot.core.web_assistant.rest_pre_processors import RESTPreProcessorBase
@@ -46,6 +47,7 @@ class RESTAssistant:
         headers: Optional[Dict[str, Any]] = None,
         pre_send_check: Optional[Callable[[], None]] = None,
         async_pre_send_check: Optional[Callable[[], Awaitable[None]]] = None,
+        request_send_guard: Optional[RESTRequestSendGuard] = None,
     ) -> Union[str, Dict[str, Any]]:
         response = await self.execute_request_and_get_response(
             url=url,
@@ -59,6 +61,7 @@ class RESTAssistant:
             headers=headers,
             pre_send_check=pre_send_check,
             **({"async_pre_send_check": async_pre_send_check} if async_pre_send_check is not None else {}),
+            **({"request_send_guard": request_send_guard} if request_send_guard is not None else {}),
         )
         response_json = await response.json()
         return response_json
@@ -76,6 +79,7 @@ class RESTAssistant:
             headers: Optional[Dict[str, Any]] = None,
             pre_send_check: Optional[Callable[[], None]] = None,
             async_pre_send_check: Optional[Callable[[], Awaitable[None]]] = None,
+            request_send_guard: Optional[RESTRequestSendGuard] = None,
     ) -> RESTResponse:
 
         headers = headers or {}
@@ -101,7 +105,8 @@ class RESTAssistant:
             response = await self.call(request=request, timeout=timeout,
                                        pre_send_check=pre_send_check,
                                        **({"async_pre_send_check": async_pre_send_check}
-                                          if async_pre_send_check is not None else {}))
+                                          if async_pre_send_check is not None else {}),
+                                       **({"request_send_guard": request_send_guard} if request_send_guard is not None else {}))
 
             if 400 <= response.status:
                 if not return_err:
@@ -113,11 +118,16 @@ class RESTAssistant:
 
     async def call(self, request: RESTRequest, timeout: Optional[float] = None,
                    pre_send_check: Optional[Callable[[], None]] = None,
-                   async_pre_send_check: Optional[Callable[[], Awaitable[None]]] = None) -> RESTResponse:
+                   async_pre_send_check: Optional[Callable[[], Awaitable[None]]] = None,
+                   request_send_guard: Optional[RESTRequestSendGuard] = None) -> RESTResponse:
         request = deepcopy(request)
         request = await self._pre_process_request(request)
         request = await self._authenticate(request)
-        if async_pre_send_check is not None:
+        if request_send_guard is not None:
+            connection_call = self._connection.call(request, pre_send_check=pre_send_check,
+                                                    async_pre_send_check=async_pre_send_check,
+                                                    request_send_guard=request_send_guard)
+        elif async_pre_send_check is not None:
             connection_call = self._connection.call(request, pre_send_check=pre_send_check,
                                                     async_pre_send_check=async_pre_send_check)
         else:

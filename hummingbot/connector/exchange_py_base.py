@@ -31,6 +31,7 @@ from hummingbot.core.network_iterator import NetworkStatus
 from hummingbot.core.utils.async_utils import safe_ensure_future, safe_gather
 from hummingbot.core.web_assistant.auth import AuthBase
 from hummingbot.core.web_assistant.connections.data_types import RESTMethod
+from hummingbot.core.web_assistant.connections.request_guard import RESTRequestSendGuard
 from hummingbot.core.web_assistant.web_assistants_factory import WebAssistantsFactory
 from hummingbot.logger import HummingbotLogger
 
@@ -935,6 +936,7 @@ class ExchangePyBase(ExchangeBase, ABC):
             headers: Optional[Dict[str, Any]] = None,
             pre_send_check: Optional[Callable[[], None]] = None,
             async_pre_send_check: Optional[Callable[[], Awaitable[None]]] = None,
+            request_send_guard: Optional[RESTRequestSendGuard] = None,
             **kwargs,
     ) -> Dict[str, Any]:
 
@@ -956,6 +958,7 @@ class ExchangePyBase(ExchangeBase, ABC):
                     headers=headers,
                     pre_send_check=pre_send_check,
                     **({"async_pre_send_check": async_pre_send_check} if async_pre_send_check is not None else {}),
+                    **({"request_send_guard": request_send_guard} if request_send_guard is not None else {}),
                 )
 
                 return request_result

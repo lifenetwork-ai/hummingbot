@@ -104,6 +104,30 @@ records **460 PostgreSQL**, **432 file/config/contract** and **21 migration**
 passing tests, including real process exits/backend terminations and retained
 holds. No configured DB, exchange request or deployment was used.
 
+## PostgreSQL explicit final HTTP boundary
+
+`PgQuoteRequestGuard` is an explicitly assembled adapter over an accepted and
+prepared `PgQuoteRunnerJournal` action. `request_send_guard` carries its async
+arm and final synchronous fence through the actual OKX/auth/throttle/REST chain.
+The immutable snapshot supplies the exact UTF-8 body bytes sent to HTTP;
+redirects are disabled. Local stop, source/config age expiry, lost/cancelled arm
+and retry cannot recreate the one-use capability. Scoped async ACKs persist
+under the original observation owner and are awaited before connector return.
+Unknown requests keep holds and require explicit recovery.
+
+`QuoteSendAgeLimits` and the HTTPS order endpoint are required explicit inputs.
+A complete source assembly must bind the authenticated UID, credential/endpoint,
+runner/planner/reference/book/fee facts, local clock and age limits no looser than
+the imported database policy. Headers/auth flags alone do not authenticate an
+account. This adapter is not installed by configured PostgreSQL selection; the
+runner submit hook still denies native buy/sell fallback. PG4 exclusion/handoff,
+full service/recorder/product integration and release gates remain open.
+
+[Transport qualification](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-explicit-final-http-boundary-qualification-2026-10-16)
+records 23 actual disposable-PG and 162 REST/OKX/application regression passes.
+The actual connector/auth/REST code uses fake HTTP and synthetic source/runner
+facts. No configured DB, real exchange request or deployment is qualified.
+
 ## PostgreSQL PG2 foundation
 
 **PG3 unprepared dispatch retirement (2026-10-16, base `1393e8e6b`):**
