@@ -39,6 +39,26 @@ class AsyncActionDispatcher:
             except Exception:
                 self.runner.logger().error('Async create rejection checkpoint failed', exc_info=True)
 
+    async def _reject_async(self, action, controller):
+        # Revoke synchronously first, including when the awaited checkpoint fails.
+        self._reject(action)
+        rejected = getattr(controller, 'async_on_runner_create_action_rejected', None)
+        if callable(rejected):
+            try:
+                await rejected(action)
+            except Exception:
+                self.runner.logger().error('Async create rejection checkpoint failed', exc_info=True)
+
+    def _uncertain(self, action, controller):
+        uncertain = getattr(controller, 'on_runner_create_action_uncertain', None)
+        if callable(uncertain):
+            try:
+                uncertain(action)
+            except Exception:
+                self.runner.logger().error('Uncertain create revocation failed', exc_info=True)
+        else:
+            self._reject(action)
+
     def _valid(self, action, controller, generation, digest):
         return (not self._closed and not getattr(self.runner, '_is_stop_triggered', False)
                 and self.runner.controllers.get(action.controller_id) is controller
@@ -54,28 +74,46 @@ class AsyncActionDispatcher:
                 and self._payload(action) == digest and check(action) is True)
 
     async def _dispatch(self, action, controller, generation, digest):
+        # Callbacks can mutate the detached Pydantic action while awaiting.
+        # Revocation must always address the originally issued identity/bytes.
+        original = action.model_copy(deep=True)
+        execution_started = False
         try:
             if (not self._preflight(action, controller, generation, digest)
                     or await controller.async_authorize_runner_create_action(action) is not True
                     or not self._valid(action, controller, generation, digest)):
-                self._reject(action)
+                await self._reject_async(original, controller)
                 return
             before = getattr(controller, 'async_before_runner_dispatch', None)
             if callable(before) and await before(action) is not True:
-                self._reject(action)
+                await self._reject_async(original, controller)
                 return
             if not self._valid(action, controller, generation, digest):
-                self._reject(action)
+                await self._reject_async(original, controller)
                 return
+            execution_started = True
             self.runner.executor_orchestrator.execute_action(action)
-            dispatched = getattr(controller, 'on_runner_create_action_dispatched', None)
-            if callable(dispatched):
-                dispatched(action)
+            after = getattr(controller, 'async_on_runner_create_action_dispatched', None)
+            if callable(after):
+                if await after(action) is not True or not self._valid(action, controller, generation, digest):
+                    self._uncertain(original, controller)
+            else:
+                dispatched = getattr(controller, 'on_runner_create_action_dispatched', None)
+                if callable(dispatched):
+                    dispatched(action)
         except asyncio.CancelledError:
-            self._reject(action)
+            # No new asynchronous work on cancellation. Preserve any unresolved
+            # durable claim; explicit complete runner reconciliation must retire it.
+            if execution_started:
+                self._uncertain(original, controller)
+            else:
+                self._reject(original)
             raise
         except Exception:
-            self._reject(action)
+            if execution_started:
+                self._uncertain(original, controller)
+            else:
+                await self._reject_async(original, controller)
             self.runner.logger().error('Async create qualification failed', exc_info=True)
 
     def submit(self, actions):

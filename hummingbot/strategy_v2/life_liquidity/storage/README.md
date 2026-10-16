@@ -39,6 +39,41 @@ and account transactions, not store this aggregate JSON as its financial schema.
 Migration infrastructure is separate and documented in
 [the migration guide](../../../../migrations/life_liquidity/README.md).
 
+## Explicit PostgreSQL V2 runner journal
+
+`postgres/runner_journal.py` supplies `PgQuoteRunnerJournal` for explicit offline
+assembly with `AsyncActionDispatcher`. The configured PostgreSQL financial
+service remains unsupported. Required inputs are the existing repository,
+original owner, controller ID/config version, a complete qualified runner-facts
+collector, a synchronous local permission check, UTC clock and bounded lifetime
+`max_actions`; none has an implicit live default.
+
+`publish` freezes actual CreateExecutorAction configs and claims their slots.
+Awaited dispatch bookkeeping must return successfully before
+`prepare_quote_action` can make one physical financial preparation attempt.
+Historical receipts and cold publication retries cannot reconstruct acceptance.
+The adapter serializes its commands and retains original IDs/config bytes.
+Capacity/stop rejection stays synchronous; it does not launch detached DB tasks.
+
+After any creation invocation, failed/lost acceptance and cancellation revoke the
+original local identity but do not automatically retire a durable claim. Explicit
+`reconcile` requires fresh complete original runner absence and delegates to the
+existing SQL rejection/retirement/financial-closure guards. Preparing/armed/live
+orders never lose their holds merely because an executor is absent. Ambiguous
+prepare requires exact repository operation readback, with no automatic retry.
+
+This adapter's `submit_executor_spot_order` always raises
+`PG_RUNNER_TRANSPORT_ASSEMBLY_REQUIRED`, preventing OrderExecutor's native
+strategy.buy/sell fallback even if a connector is supplied. No arm, connector
+submit, sender permit, source authentication, successor grant or service/backend
+installation is provided. Actual source/final-send and full product/recovery/
+recorder assembly remain PG3/PG4/PG5 work. The bounded registration map does not
+evict identities or grant authority after restart; history/scale remain PG8.
+
+[Runner qualification and final test results](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-explicit-v2-runner-journal-qualification-2026-10-16)
+record the explicit functional scope. Existing migrations `000010`–`000013` are
+reused; no additional table is needed for this bridge.
+
 ## PostgreSQL PG2 foundation
 
 **PG3 unprepared dispatch retirement (2026-10-16, base `1393e8e6b`):**

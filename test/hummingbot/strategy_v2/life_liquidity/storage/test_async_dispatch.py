@@ -203,3 +203,96 @@ async def test_payload_mutation_during_projection_cannot_dispatch_previously_qua
         assert not value.executor_orchestrator.execute_action.called
     finally:
         await dispatch.close()
+
+
+@pytest.mark.asyncio
+async def test_awaited_dispatch_checkpoint_holds_capacity_and_never_calls_sync_fallback():
+    controller = Controller()
+    controller.release.set()
+    entered, release = asyncio.Event(), asyncio.Event()
+    sync = MagicMock()
+    controller.on_runner_create_action_dispatched = sync
+
+    async def after(action):
+        entered.set()
+        await release.wait()
+        return True
+    controller.async_on_runner_create_action_dispatched = after
+    value = runner(controller)
+    dispatch = AsyncActionDispatcher(value, max_pending=1, shutdown_timeout_s=.05)
+    try:
+        dispatch.submit([action()])
+        await asyncio.wait_for(entered.wait(), 2)
+        assert dispatch.pending_count == 1 and value.executor_orchestrator.execute_action.call_count == 1
+        dispatch.submit([action('two')])
+        assert 'two' in controller.revoked
+        release.set()
+        await dispatch.drain()
+        sync.assert_not_called()
+    finally:
+        release.set()
+        await dispatch.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('failure', ['false', 'raise', 'stop', 'cancel'])
+async def test_failed_or_revoked_awaited_acceptance_revokes_locally_and_preserves_cancel_boundary(failure):
+    controller = Controller()
+    controller.release.set()
+    entered, release = asyncio.Event(), asyncio.Event()
+    async_reject = MagicMock()
+
+    async def after(action):
+        entered.set()
+        await release.wait()
+        if failure == 'raise':
+            raise OSError('acceptance checkpoint unavailable')
+        return failure != 'false'
+
+    async def reject(action):
+        assert action.executor_config.id in controller.revoked
+        async_reject(action)
+    controller.async_on_runner_create_action_dispatched = after
+    controller.async_on_runner_create_action_rejected = reject
+    value = runner(controller)
+    dispatch = AsyncActionDispatcher(value, max_pending=1, shutdown_timeout_s=.05)
+    try:
+        dispatch.submit([action()])
+        await asyncio.wait_for(entered.wait(), 2)
+        if failure == 'stop':
+            dispatch.submit([StopExecutorAction(controller_id='life', executor_id='one')])
+        elif failure == 'cancel':
+            await dispatch.close()
+        release.set()
+        await dispatch.drain()
+        assert 'one' in controller.revoked
+        assert async_reject.call_count == 0
+        assert value.executor_orchestrator.execute_action.call_count == (2 if failure == 'stop' else 1)
+    finally:
+        release.set()
+        await dispatch.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('boundary', ['authority', 'acceptance'])
+async def test_mutated_intent_id_revokes_original_identity_after_any_await(boundary):
+    controller = Controller()
+    controller.release.set()
+
+    async def mutate(action):
+        action.executor_config.id = 'mutated'
+        return True
+    if boundary == 'authority':
+        controller.async_authorize_runner_create_action = mutate
+    else:
+        controller.async_on_runner_create_action_dispatched = mutate
+    value = runner(controller)
+    dispatch = AsyncActionDispatcher(value, max_pending=1, shutdown_timeout_s=.05)
+    try:
+        dispatch.submit([action('original')])
+        await dispatch.drain()
+        assert 'original' in controller.revoked
+        assert 'mutated' not in controller.revoked
+        assert value.executor_orchestrator.execute_action.call_count == (1 if boundary == 'acceptance' else 0)
+    finally:
+        await dispatch.close()
