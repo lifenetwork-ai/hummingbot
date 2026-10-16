@@ -63,11 +63,12 @@ async def transport(database):
     session.request = send
 
     async def place(**kwargs):
+        selected_guard = kwargs.pop('guard', guard)
         return await connector._place_order(
             order_id='wire1', trading_pair='LIFE-USDT', amount=preparation.prepare.quantity_base,
             trade_type=TradeType.BUY, order_type=OrderType.LIMIT_MAKER, price=preparation.prepare.limit_price_usdt,
             pre_send_check=kwargs.pop('pre_send_check', lambda _: None),
-            async_on_ack=guard.acknowledge, request_send_guard=kwargs.pop('guard', guard), **kwargs)
+            async_on_ack=selected_guard.acknowledge, request_send_guard=selected_guard, **kwargs)
 
     async def close():
         await dispatch.close()

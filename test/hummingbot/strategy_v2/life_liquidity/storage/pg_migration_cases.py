@@ -71,6 +71,26 @@ async def test_packaged_lineage_is_stable_and_not_financial_bootstrap(db):
 
 
 @pytest.mark.asyncio
+async def test_receipt_proof_upgrade_preserves_provisioned_snapshot_acl_and_repeat_startup(db):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 15:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    await c.execute('''GRANT USAGE ON SCHEMA life_financial TO life_runtime_test,life_reporter_test;
+        GRANT EXECUTE ON FUNCTION life_financial.spot_state(uuid) TO life_runtime_test,life_reporter_test''')
+    path = DEFAULT_DIRECTORY / '000015_spot_prepare_receipt_proof.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    for principal in ('life_runtime_test', 'life_reporter_test'):
+        assert await c.fetchval("SELECT has_function_privilege($1,'life_financial.spot_state(uuid)','EXECUTE')", principal)
+        assert not await c.fetchval("SELECT has_function_privilege($1,'life_financial.spot_state_v14(uuid)','EXECUTE')", principal)
+        assert not await c.fetchval("SELECT has_function_privilege($1,'life_financial.spot_prepare_receipts_verified(uuid)','EXECUTE')", principal)
+    assert (await migrate(c, directory, action='up'))['applied'] == []
+    assert (await migrate(c, directory))['pending'] == []
+
+
+@pytest.mark.asyncio
 async def test_failed_migration_rolls_back_ddl_data_and_history_then_resumes(db):
     c, _, directory = db
     write(directory, 1, 'CREATE SCHEMA sample; CREATE TABLE sample.counter(n int); INSERT INTO sample.counter VALUES (1);')

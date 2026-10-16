@@ -32,7 +32,7 @@ class QuoteSendAgeLimits:
 
 
 class PgQuoteRequestGuard:
-    def __init__(self, journal, *, action, preparation, admission_source, endpoint_url, age_limits):
+    def __init__(self, journal, *, action, preparation, admission_source, endpoint_url, age_limits, account_source=None):
         if (type(journal) is not PgQuoteRunnerJournal or type(action) is not CreateExecutorAction
                 or type(preparation) is not PrepareQuoteAction or not callable(admission_source)
                 or type(endpoint_url) is not str or type(age_limits) is not QuoteSendAgeLimits):
@@ -46,6 +46,12 @@ class PgQuoteRequestGuard:
         self._action = action.model_copy(deep=True)
         self._admission_source, self._endpoint_url = admission_source, endpoint_url
         self._age_limits, self._facts = age_limits, None
+        if account_source is not None:
+            from hummingbot.strategy_v2.life_liquidity.storage.postgres.quote_account_source import PgQuoteAccountSource
+            if (type(account_source) is not PgQuoteAccountSource or account_source.journal is not journal
+                    or account_source.age_limits != age_limits or account_source.endpoint_url != endpoint_url):
+                raise StorageError('PG_REQUEST_ACCOUNT_SOURCE_MISMATCH')
+        self._account_source = account_source
         self._started = self._checked = self._consumed = self._ack_started = False
         self._authorized_request = None
 
@@ -69,7 +75,8 @@ class PgQuoteRequestGuard:
         self._scope(request)
         if not self._journal.local_runner_create_fence(self._action):
             return False
-        facts = await self._admission_source()
+        facts = (await self._admission_source() if self._account_source is None
+                 else await self._account_source.capture(request))
         if type(facts) is not QuoteAdmissionFacts:
             raise StorageError('PG_REQUEST_SOURCE_INVALID')
         command = ArmQuoteAction(self._preparation.prepare.operation_id, self._preparation.action, facts, request.data)
@@ -99,7 +106,8 @@ class PgQuoteRequestGuard:
         already_checked, self._checked = self._checked, True
         self._scope(request)
         if (already_checked or self._consumed or authorized is not request
-                or not self._journal.local_runner_create_fence(self._action) or not self._fresh()):
+                or not self._journal.local_runner_create_fence(self._action) or not self._fresh()
+                or self._account_source is not None and not self._account_source.check(request)):
             return False
         # No awaits from consumption to the first HTTP request await. Transport
         # failures remain SEND_UNKNOWN and never restore this local capability.

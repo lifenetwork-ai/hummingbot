@@ -2,7 +2,11 @@
 from datetime import datetime
 from decimal import Decimal as D, InvalidOperation, localcontext
 
-from hummingbot.strategy_v2.life_liquidity.storage.action_preparation import PrepareQuoteAction
+from hummingbot.strategy_v2.life_liquidity.storage.action_preparation import (
+    PrepareQuoteAction,
+    QuoteAdmissionPolicy,
+    QuotePolicySnapshot,
+)
 from hummingbot.strategy_v2.life_liquidity.storage.actions import (
     AbandonQuoteAction,
     ClaimQuoteActions,
@@ -137,6 +141,34 @@ class PgSpotRepository:
     async def session(self, binding):
         return (await self.snapshot(binding)).session
 
+    async def quote_admission_policy(self, binding):
+        """Exact imported decimals and one compact, verified primary cut.
+
+        SQL still performs the existing retained-state verification. The caller
+        receives no history materialization or ownership/send capability.
+        """
+        self._binding(binding)
+
+        async def read(c):
+            return await c.fetchrow('''WITH current_state AS MATERIALIZED (
+                SELECT life_financial.spot_state($1) AS v)
+                SELECT p.*,v#>>'{account,version}' AS version,v->>'digest' AS digest,
+                    v->>'observed_at' AS observed_at,v->>'unverified' AS unverified
+                FROM current_state CROSS JOIN life_financial.spot_quote_admission_policies p
+                WHERE p.account_id=$1''', self._runtime.config.account_id)
+        row = await self._runtime._admit(read, safety=True)
+        if row is None:
+            raise StorageError('PG_QUOTE_ADMISSION_POLICY_REQUIRED')
+        if row['policy_hash'] != binding.policy_hash or row['unverified'] != 'false':
+            raise StorageUnavailable('PG_QUOTE_POLICY_UNVERIFIED')
+        policy = QuoteAdmissionPolicy(binding, *(row[key] for key in (
+            'objective', 'min_net_edge_bps', 'uncertainty_bps', 'tick_size', 'lot_size', 'min_size',
+            'max_fact_age_ms', 'max_reference_age_ms', 'max_fee_age_ms', 'max_capture_age_ms')))
+        version = int(row['version'])
+        cut = StateCut(binding, version, version, (ResourceVersion('account', version),), row['digest'])
+        return QuotePolicySnapshot(policy, FinancialCut(cut, (('postgres_account', row['digest']),)),
+                                   datetime.fromisoformat(row['observed_at']))
+
     async def balance(self, binding):
         return (await self.snapshot(binding)).balance
 
@@ -190,11 +222,19 @@ class PgSpotRepository:
         identifier(operation_id)
 
         async def read(c):
-            return await c.fetchrow('''SELECT o.receipt,t.state FROM life_financial.operations o
+            return await c.fetchrow('''SELECT o.receipt,t.state,
+                o.command->>'kind'='SPOT_PREPARE' AND o.command->'command'=d.request AND
+                o.receipt=(jsonb_build_object('kind','SPOT_PREPARE','operation_id',d.operation_id,'intent_id',d.intent_id,
+                    'state','PREPARED','version',o.committed_version,'replayed',false,'trading_permission',false)
+                    ||CASE WHEN o.command ? 'action' THEN jsonb_build_object(
+                        'states',jsonb_build_array(jsonb_build_array(d.intent_id,'PREPARED'))) ELSE '{}'::jsonb END) AS verified
+                FROM life_financial.operations o
                 JOIN life_financial.spot_preparations d USING(account_id,operation_id)
                 JOIN life_financial.send_attempts t USING(account_id,intent_id)
                 WHERE o.account_id=$1 AND o.operation_id=$2''', self._runtime.config.account_id, operation_id)
         row = await self._runtime._admit(read, safety=True)
+        if row is not None and row['verified'] is not True:
+            raise StorageUnavailable('PG_SPOT_RECEIPT_UNVERIFIED')
         return None if row is None else self._receipt({**row['receipt'], 'state': row['state'], 'replayed': True})
 
     async def prepare(self, command, *, cut, owner):

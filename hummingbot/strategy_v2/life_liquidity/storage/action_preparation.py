@@ -16,6 +16,43 @@ from hummingbot.strategy_v2.life_liquidity.storage.financial import (
 
 
 @dataclass(frozen=True)
+class QuoteAdmissionPolicy:
+    binding: StateBinding
+    objective: str
+    min_net_edge_bps: Decimal
+    uncertainty_bps: Decimal
+    tick_size: Decimal
+    lot_size: Decimal
+    min_size: Decimal
+    max_fact_age_ms: int
+    max_reference_age_ms: int
+    max_fee_age_ms: int
+    max_capture_age_ms: int
+
+    def __post_init__(self):
+        if type(self.binding) is not StateBinding or self.objective not in ('profit_mm', 'liquidity_service'):
+            raise StorageError('QUOTE_ADMISSION_POLICY_INVALID')
+        for key in ('min_net_edge_bps', 'uncertainty_bps', 'tick_size', 'lot_size', 'min_size'):
+            object.__setattr__(self, key, decimal(getattr(self, key), positive=key in ('tick_size', 'lot_size', 'min_size')))
+        for key in ('max_fact_age_ms', 'max_reference_age_ms', 'max_fee_age_ms', 'max_capture_age_ms'):
+            if type(getattr(self, key)) is not int or not 0 < getattr(self, key) <= 2147483647:
+                raise StorageError('QUOTE_ADMISSION_POLICY_INVALID')
+
+
+@dataclass(frozen=True)
+class QuotePolicySnapshot:
+    policy: QuoteAdmissionPolicy
+    cut: FinancialCut
+    observed_at: datetime
+
+    def __post_init__(self):
+        if (type(self.policy) is not QuoteAdmissionPolicy or type(self.cut) is not FinancialCut
+                or self.cut.checkpoint.binding != self.policy.binding):
+            raise StorageError('QUOTE_POLICY_SNAPSHOT_INVALID')
+        utc(self.observed_at)
+
+
+@dataclass(frozen=True)
 class QuoteAdmissionFacts:
     binding: StateBinding
     observed_at: datetime

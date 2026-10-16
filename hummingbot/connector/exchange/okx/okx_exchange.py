@@ -456,10 +456,11 @@ class OkxExchange(ExchangePyBase):
                     "clOrdId": client_order_id},
             is_auth_required=True)
 
-    async def get_account_uid(self) -> str:
+    async def get_account_uid(self, *, request_send_guard=None) -> str:
         """Return the authenticated OKX UID used to bind local risk ownership."""
         response = await self._api_get(path_url=CONSTANTS.OKX_ACCOUNT_CONFIG_PATH,
-                                       is_auth_required=True)
+                                       is_auth_required=True,
+                                       **({'request_send_guard': request_send_guard} if request_send_guard is not None else {}))
         rows = response.get("data") if isinstance(response, dict) else None
         if (not isinstance(response, dict) or response.get("code") != "0"
                 or not isinstance(rows, list)

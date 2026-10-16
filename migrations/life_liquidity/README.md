@@ -101,6 +101,17 @@ fixture and is deliberately excluded.
   sender/source/REST authorization remains unqualified. Automatic migration uses
   the same version/checksum/lock contract; scripts `000001`–`000013` are unchanged.
 
+- `000015_spot_prepare_receipt_proof.sql`: canonical generic/action-bound
+  preparation receipts must match their original identity, command, version and
+  state. Current-state and deferred COMMIT checks reject inconsistent history;
+  historical Python lookup separately checks the target receipt. This is a
+  diagnostic proof under database-owner trust, not an independent anchor. No
+  table, financial value or owner is created. Automatic upgrade preserves only
+  existing current-snapshot EXECUTE rights and revokes the old entrypoint;
+  proof helpers remain private. A real 14→15/repeated-startup test verifies that
+  previously provisioned runtime/reporting readers need no manual regrant.
+  Earlier scripts remain immutable; the central runner skips applied versions.
+
 The runner applies each immutable version once. A second service startup validates
 the same history and skips applied scripts. DDL is deliberately forward-only:
 unregistered pre-existing objects fail instead of being silently accepted by

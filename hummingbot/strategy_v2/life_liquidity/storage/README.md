@@ -104,6 +104,34 @@ records **460 PostgreSQL**, **432 file/config/contract** and **21 migration**
 passing tests, including real process exits/backend terminations and retained
 holds. No configured DB, exchange request or deployment was used.
 
+## PostgreSQL signed account and policy source
+
+`PgQuoteAccountSource.create(...)` pins the OKX connector's credential and endpoint,
+reads exact immutable admission policy through `quote_admission_policy(binding)`,
+and derives `QuoteSendAgeLimits` from that policy. `source.guard(...)` composes
+this source with the one-use HTTP boundary. Authenticated UID and order requests
+must consume their actual signed request hooks; configured UID shortcuts,
+credential/signature/environment changes, clock mismatch and policy drift deny.
+UID/auth TTLs, clock skew, pending capacity and collection timeout are required
+explicit inputs. TTL and single-flight collection bound repeated UID reads.
+
+The source rechecks credential/signature/UID freshness after arm COMMIT. Timeout,
+cancellation and final denial retain the original financial state/holds. Market,
+planner/reference/book/fee provenance and complete runner/service/recorder/safety
+composition still need qualification. A bare transport guard is not a configured
+account-source fallback; PostgreSQL backend selection remains unsupported.
+
+Migration `000015` checks canonical generic/action-bound PREPARE receipts in
+current state, historical lookup and COMMIT, preserving existing snapshot ACLs
+across automatic upgrades. Private helpers/old entrypoints remain inaccessible
+to runtime/reporting. No table, money, owner or implicit policy is added.
+Retained-state SQL audits remain; history/CPU/performance gates are still open.
+
+[Account-source qualification](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-signed-account-and-policy-source-qualification-2026-10-16)
+records the 517-test full PG and 542-test file/REST regressions, then final
+22-case migration and 34-case source gates after ACL preservation. HTTP/market
+facts are synthetic; real account/provider and deployment gates remain open.
+
 ## PostgreSQL explicit final HTTP boundary
 
 `PgQuoteRequestGuard` is an explicitly assembled adapter over an accepted and
