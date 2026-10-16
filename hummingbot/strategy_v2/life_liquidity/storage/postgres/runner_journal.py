@@ -28,6 +28,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.contracts import (
 )
 from hummingbot.strategy_v2.life_liquidity.storage.financial import decimal
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot import PgSpotRepository
+from hummingbot.strategy_v2.life_liquidity.storage.quote_send import ArmQuoteAction
 from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction
 
 
@@ -37,6 +38,8 @@ class _Entry:
     accepted: bool = False
     revoked: bool = False
     prepare_started: bool = False
+    prepared: PrepareQuoteAction | None = None
+    arm_started: bool = False
 
 
 class PgQuoteRunnerJournal:
@@ -217,7 +220,27 @@ class PgQuoteRunnerJournal:
             # One physical attempt. Failures require exact operation readback,
             # never a fresh operation/cut or implicit rearm/resend.
             entry.prepare_started = True
-            return await self.repository.prepare_quote_action(command, cut=cut, owner=self.owner)
+            result = await self.repository.prepare_quote_action(command, cut=cut, owner=self.owner)
+            if not result.replayed and self.local_runner_create_fence(action):
+                entry.prepared = command
+            return result
+
+    async def arm_quote_action(self, action, command):
+        entry = self._entry(action)
+        async with self._lock:
+            if (entry.prepared is None or entry.arm_started or not entry.accepted
+                    or not self.local_runner_create_fence(action)):
+                raise StorageError('RUNNER_PREPARATION_REQUIRED')
+            if (type(command) is not ArmQuoteAction or command.action != entry.row
+                    or command.prepare_operation_id != entry.prepared.prepare.operation_id):
+                raise StorageError('RUNNER_ARM_CAPTURE_MISMATCH')
+            cut = (await self.repository.snapshot(self.binding)).cut
+            if not self.local_runner_create_fence(action):
+                raise StorageError('RUNNER_PREPARATION_REQUIRED')
+            # This is durable bookkeeping only. The submit hook remains denied;
+            # no transport capability can be reconstructed from this receipt.
+            entry.arm_started = True
+            return await self.repository.arm_quote_action(command, cut=cut, owner=self.owner)
 
     async def reconcile(self, action):
         entry = self._entry(action)

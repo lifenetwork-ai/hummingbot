@@ -45,6 +45,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.financial import (
     SpotSnapshot,
 )
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.runtime import PgRuntime
+from hummingbot.strategy_v2.life_liquidity.storage.quote_send import ArmQuoteAction, QuoteArmReceipt
 from hummingbot.strategy_v2.life_liquidity.storage.session import SessionTick, SessionTickReceipt
 from hummingbot.strategy_v2.life_liquidity.storage.spot_lifecycle import SpotLifecycleCommand, SpotLifecycleReceipt
 from hummingbot.strategy_v2.life_liquidity.storage.terminal import TerminalReceipt, TerminalSpot
@@ -458,3 +459,30 @@ class PgSpotRepository:
         if type(command) is not AbandonQuoteAction or command.facts.binding != self.binding:
             raise StorageError('PG_ACTION_ABANDONMENT_INVALID')
         return await self._action_command(command, cut, owner, 'SPOT_ACTION_ABANDON')
+
+    def _quote_arm_receipt(self, value):
+        if value.get('kind') != 'SPOT_QUOTE_ARM' or value.get('trading_permission') is not False:
+            raise StorageUnavailable('PG_QUOTE_ARM_RECEIPT_INVALID')
+        return QuoteArmReceipt(self.binding, value['operation_id'], value['intent_id'], value['wire_sha256'],
+                               value['state'], value['replayed'])
+
+    async def arm_quote_action(self, command, *, cut, owner):
+        if type(command) is not ArmQuoteAction:
+            raise StorageError('PG_QUOTE_ARM_COMMAND_INVALID')
+        version, digest = self._cut(cut, owner)
+        cfg = self._runtime.config
+        identity = fingerprint({'kind': 'SPOT_QUOTE_ARM', 'command': command.json(), 'cut': cut.json(), 'owner': owner.json()})
+        args = (cfg.account_id, self.binding.json(), owner.json(), version, digest, identity, command.json())
+        return await self._runtime._transaction('SELECT life_financial.spot_arm_quote($1,$2,$3,$4,$5,$6,$7)', args, owner, self._quote_arm_receipt)
+
+    async def lookup_quote_arm(self, prepare_operation_id, binding):
+        self._binding(binding)
+        identifier(prepare_operation_id)
+
+        async def read(c):
+            if not await c.fetchval('SELECT life_financial.spot_quote_arms_verified($1)', self._runtime.config.account_id):
+                raise StorageUnavailable('PG_QUOTE_SEND_UNVERIFIED')
+            return await c.fetchval("""SELECT receipt FROM life_financial.operations WHERE account_id=$1
+                AND operation_id=$2 AND command->>'kind'='SPOT_QUOTE_ARM'""", self._runtime.config.account_id, 'arm:' + prepare_operation_id)
+        result = await self._runtime._admit(read, safety=True)
+        return None if result is None else self._quote_arm_receipt({**result, 'replayed': True})

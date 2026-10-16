@@ -89,6 +89,18 @@ fixture and is deliberately excluded.
   adds no table/default/runtime grant and never treats timeout or missing receipt
   as proof. Actual runner retirement/source authentication remain integration work.
 
+- `000014_spot_quote_send_boundary.sql`: exact captured cash/post-only request
+  JSON and fresh compatible admission commit with one PREPARED → SEND_UNKNOWN
+  operation. Shared arithmetic preserves exact initial subsidy reservation and
+  checks conservative existing coverage at arm/COMMIT, without refund or new
+  claim. Existing immutable operations retain wire/request checksums; a partial
+  index and current-cut proofs verify retained metadata. Runtime gets only the
+  fixed command through the existing access provisioner; private helpers/old
+  snapshot entrypoint stay private and reporting cannot write. No table, policy
+  default, account, capital or owner is added. Readback never rearms, and actual
+  sender/source/REST authorization remains unqualified. Automatic migration uses
+  the same version/checksum/lock contract; scripts `000001`–`000013` are unchanged.
+
 The runner applies each immutable version once. A second service startup validates
 the same history and skips applied scripts. DDL is deliberately forward-only:
 unregistered pre-existing objects fail instead of being silently accepted by

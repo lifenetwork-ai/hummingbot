@@ -64,15 +64,45 @@ prepare requires exact repository operation readback, with no automatic retry.
 
 This adapter's `submit_executor_spot_order` always raises
 `PG_RUNNER_TRANSPORT_ASSEMBLY_REQUIRED`, preventing OrderExecutor's native
-strategy.buy/sell fallback even if a connector is supplied. No arm, connector
+strategy.buy/sell fallback even if a connector is supplied. No connector
 submit, sender permit, source authentication, successor grant or service/backend
 installation is provided. Actual source/final-send and full product/recovery/
 recorder assembly remain PG3/PG4/PG5 work. The bounded registration map does not
 evict identities or grant authority after restart; history/scale remain PG8.
 
 [Runner qualification and final test results](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-explicit-v2-runner-journal-qualification-2026-10-16)
-record the explicit functional scope. Existing migrations `000010`–`000013` are
-reused; no additional table is needed for this bridge.
+record the explicit functional scope. The original journal uses migrations
+`000010`–`000013`; captured request arming adds `000014` over existing operations
+and financial rows, without a new table.
+
+## Captured PostgreSQL SPOT request arming
+
+`quote_send.py` and `PgSpotRepository.arm_quote_action` retain the exact captured
+seven-field OKX cash/post-only JSON body and its SHA-256 in a permanent operation.
+The same account transaction changes PREPARED to SEND_UNKNOWN and holds all
+original principal, fees and subsidy. Fresh compatible admission follows the
+preparation and is checked again at physical COMMIT. Better current economics
+may use a larger original subsidy hold; higher requirements deny. No refund,
+reference rebase, new claim or transport authority follows.
+
+`PgQuoteRunnerJournal.arm_quote_action` requires this process's own successful
+preparation and allows one physical arm attempt. Lost/cancelled/unknown arm needs
+exact repository readback; `lookup_quote_arm` never rearms. Its historical receipt
+keeps `trading_permission=false`, even after ACK, and generic bookkeeping arms
+cannot be adopted. The runner's submit hook remains denied.
+
+Migration `000014` adds a partial operation index and current-cut integrity checks.
+Runtime can execute only the fixed command; private arithmetic/wire helpers stay
+private and reporting cannot write. Request checksums diagnose inconsistent
+retained metadata under the current database-owner trust contract; they are not
+independently anchored historical attestations. History cost and PG8/O.8 remain
+open. Actual source authentication and bytes through REST/auth/throttling still
+need qualification before any configured PostgreSQL sender can be enabled.
+
+[Captured-request arming qualification](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-captured-request-arming-qualification-2026-10-16)
+records **460 PostgreSQL**, **432 file/config/contract** and **21 migration**
+passing tests, including real process exits/backend terminations and retained
+holds. No configured DB, exchange request or deployment was used.
 
 ## PostgreSQL PG2 foundation
 

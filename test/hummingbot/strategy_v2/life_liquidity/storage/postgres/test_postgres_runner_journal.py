@@ -390,3 +390,31 @@ async def test_invalid_mutable_executor_fields_allocate_no_claim(database, field
     finally:
         await dispatch.close()
         await repo.close()
+
+
+@pytest.mark.asyncio
+async def test_runner_bound_preparation_can_arm_exact_wire_once_but_submit_remains_denied(database):
+    from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_quote_arm import wire
+
+    from hummingbot.strategy_v2.life_liquidity.storage.quote_send import ArmQuoteAction
+    repo, cfg, owner, row, app, create, runner, dispatch, active, _ = await assembled(database)
+    try:
+        await app.publish('claim', (create,))
+        dispatch.submit([create])
+        await dispatch.drain()
+        with pytest.raises(StorageError, match='RUNNER_PREPARATION_REQUIRED'):
+            cmd = await command(database, cfg, owner, row)
+            await app.arm_quote_action(create, ArmQuoteAction('operation1', row, cmd.admission, wire(row)))
+        await app.prepare_quote_action(create, await command(database, cfg, owner, row))
+        cmd = await command(database, cfg, owner, row)
+        bound = ArmQuoteAction('operation1', row, cmd.admission, wire(row))
+        result = await app.arm_quote_action(create, bound)
+        assert result.state == 'SEND_UNKNOWN' and not result.trading_permission
+        with pytest.raises(StorageError, match='RUNNER_PREPARATION_REQUIRED'):
+            await app.arm_quote_action(create, bound)
+        with pytest.raises(StorageError, match='PG_RUNNER_TRANSPORT_ASSEMBLY_REQUIRED'):
+            app.submit_executor_spot_order(create.executor_config)
+        assert (await repo.attempt('intent1', cfg.binding)).state.value == 'SEND_UNKNOWN'
+    finally:
+        await dispatch.close()
+        await repo.close()
