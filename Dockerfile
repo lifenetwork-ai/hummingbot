@@ -19,6 +19,7 @@ COPY bin/ bin/
 COPY hummingbot/ hummingbot/
 COPY scripts/ scripts/
 COPY controllers/ controllers/
+COPY migrations/ migrations/
 COPY scripts/ scripts-copy/
 COPY setup.py .
 COPY LICENSE .
@@ -31,6 +32,15 @@ RUN echo "conda activate hummingbot" >> ~/.bashrc
 COPY setup/pip_packages.txt /tmp/pip_packages.txt
 RUN python3 -m pip install --no-deps -r /tmp/pip_packages.txt && \
     rm /tmp/pip_packages.txt
+
+# Optional PG runtime/migration driver; file-only images retain their dependency set.
+ARG LIFE_POSTGRES=false
+COPY setup/life_postgres_requirements.txt /tmp/life_postgres_requirements.txt
+RUN case "$LIFE_POSTGRES" in \
+      true) python3 -m pip install -r /tmp/life_postgres_requirements.txt ;; \
+      false) ;; \
+      *) exit 2 ;; \
+    esac && rm /tmp/life_postgres_requirements.txt
 
 
 RUN python3 setup.py build_ext --inplace -j 8 && \

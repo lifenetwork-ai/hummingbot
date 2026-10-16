@@ -110,3 +110,8 @@ life-migrate:
 
 life-migration-status:
 	conda run -n hummingbot --no-capture-output python -m hummingbot.strategy_v2.life_liquidity.storage.postgres.migrations status $(LIFE_MIGRATION_ARGS)
+
+# Disposable Docker PostgreSQL only; e.g. LIFE_PG_TEST_ARGS="--output /tmp/life-pg2-run".
+LIFE_PG_TEST_ARGS ?=
+life-postgres-test:
+	conda run -n hummingbot --no-capture-output python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_postgres $(LIFE_PG_TEST_ARGS)

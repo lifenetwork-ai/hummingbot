@@ -37,7 +37,7 @@ class MigrationConfig:
         return self
 
 
-def _dotenv(path):
+def _dotenv(path, *, keys=KEYS):
     """Read single-line KEY=value, optional export/quotes/comments, literally.
 
     Only migration keys are consumed. No $ interpolation or shell substitutions.
@@ -58,7 +58,7 @@ def _dotenv(path):
             line = line[7:].lstrip()
         key, separator, raw = line.partition('=')
         key = key.strip()
-        if key not in KEYS:
+        if key not in keys:
             continue  # This loader does not configure other application settings.
         if not separator or key in values:
             raise MigrationError(f'Invalid or duplicate migration key on env line {number}')

@@ -2,6 +2,8 @@
 
 Created: 2026-10-11
 
+**Current PG2 status (2026-10-16, base `4e2bdcdf2` plus this delivery): the offline PostgreSQL schema/transaction/pool foundation is implemented.** Numbered migrations `000002`/`000003` create empty typed financial tables and guarded transaction functions. Actual disposable PostgreSQL qualification passes **45 tests**; the existing migration suite passes **21 tests**, and expanded file/runtime regression passes **2,358 tests**. PG2.2–PG2.4 are qualified at this infrastructure scope. PG2.1 release image/SQLAlchemy/deployed identity qualification and PG2.5 external failure-domain qualification remain open. The allocation primitive is not a trading repository or send permit; PG3 must port domain commands before selecting PostgreSQL financial authority. No configured database, exchange account or deployment was used. See [PG2 qualification](#pg2-offline-foundation-and-qualification-2026-10-16).
+
 **Current PG1 status (2026-10-16, base `faff89ee3` plus this delivery): PG1 is complete for the declared offline file-service scope.** C1–C4 and PG1.1–PG1.4 are qualified: signed configuration staging, source reservation/retirement, durable target import and actual candidate use, supported exact-source archive/native repair, and final file-runtime acceptance. The final expanded regression passes **2,343 tests**, zero failures/errors/skips, **22 existing-category warnings in 377.64 seconds**. Changed-file hooks and `git diff --check` pass. See the [current closure ledger](#pg1-current-closure-ledger) and [final qualification](#pg1-c3c4-file-closure-and-qualification-2026-10-16). Dated checkpoints below are historical progress, not additional current backlogs. PostgreSQL financial repositories, O.8 performance, Cloud Run, provider/demo and production gates remain separate and open. No new evidence file is added.
 
 **Historical starting status:**
@@ -39,7 +41,7 @@ Continuous workers consume resources while running; do not assume request-driven
 | Current seam | Required change |
 | --- | --- |
 | [Client DB configuration](../../hummingbot/client/config/client_config_map.py), [SQL connection manager](../../hummingbot/model/sql_connection_manager.py) | SQLite is the default recorder; add and qualify a PostgreSQL driver/configuration, schema lifecycle and connection handling |
-| [Legacy DB migrator](../../hummingbot/model/db_migration/migrator.py) | Keep its recorder file workflow separate; LIFE PostgreSQL now has a [central migration CLI and SQL directory](../../migrations/life_liquidity/README.md), with full financial/recorder DDL still pending |
+| [Legacy DB migrator](../../hummingbot/model/db_migration/migrator.py) | Keep its recorder file workflow separate; LIFE PostgreSQL now has a [central migration CLI and SQL directory](../../migrations/life_liquidity/README.md), typed financial/outbox schema and PG2 guards; SQLAlchemy recorder integration remains pending |
 | [MarketsRecorder](../../hummingbot/connector/markets_recorder.py), executor orchestrator | Preserve executor, wire-ID, UID and position recovery provenance; qualify PostgreSQL reads/writes and failure handling |
 | [LIFE controller](../../controllers/generic/life_liquidity.py) | Replace required JSON paths and path-based install checks with explicit backend/resource bindings; preserve account and policy checks |
 | [PolicyState](../../hummingbot/strategy_v2/life_liquidity/policy_state.py), WAL, reservations, sessions, actions, budgets | Introduce typed storage and transaction boundaries; existing file locks/replace/fsync are not SQL transactions |
@@ -90,8 +92,8 @@ Cloud Run Worker Pools support continuous background workloads without a load-ba
 | Quote actions, hedge/inventory state, joint receipts | Existing ownership, retry/turnover caps, `APPLYING` recovery and fresh-observation bindings |
 | Recorder provenance, events, import runs, audit checkpoints | Executor UID/wire scope; append-only history; source hashes; staged import; independently checked projection totals |
 
-**Table needs checked for the ACK increment (2026-10-12):** production migrations
-currently contain lineage metadata only. PG2 needs additional financial tables;
+**Historical table needs for the ACK increment (2026-10-12), superseded by the PG2 schema below:** production migrations
+at that checkpoint contained lineage metadata only. PG2 required additional financial tables;
 the spike tables are fixtures and must not be adopted by startup migration.
 Candidate spot layout, to finalize with remaining PG1 command contracts:
 
@@ -110,9 +112,10 @@ An ACK does **not** require a standalone `acknowledgements` SQL table: the inten
 account transaction updates `send_attempts` and appends the operation/event.
 The file adapter uses coordinator ACK records for its multi-journal saga. Further
 fill/fee/cashflow, recorder, ownership/grant and enabled SWAP/shared-capital tables
-remain under the schema families above. No financial migration is added in this
-increment: complete command semantics, precision/scale, FKs, transition guards,
-index scopes and actual PostgreSQL constraints/tests remain PG1/PG2 work.
+remain under the schema families above. That historical increment added no financial
+migration. The PG2 foundation now implements schema families, explicit decimal
+bounds, FKs, transition guards and active indexes in `000002`/`000003`; complete
+domain commands and file/PostgreSQL financial parity remain PG3 work.
 
 Use PostgreSQL `NUMERIC` with a deliberately selected precision/scale and Python `Decimal`; reject nonfinite values and out-of-range/over-scale input instead of silently rounding an import. PostgreSQL permits special numeric values, so application and database checks must reject them for financial fields. [Numeric types](https://www.postgresql.org/docs/current/datatype-numeric.html).
 
@@ -463,19 +466,49 @@ Dependencies: PG1 for financial schema/repositories; generic migration infrastru
 
 - [ ] PG2.1: Implement versioned forward migrations and separate migration/runtime/reporting roles; runtime cannot alter schema or rewrite immutable financial history. Prove the chosen permissions with the actual database.
   - [x] **Migration runner and metadata-only bootstrap:** `make life-migration-status` / `make life-migrate`, ordered immutable SQL, applied `(version,name,SHA-256)` ledger, dedicated primary connection and bounded session advisory lock, one transaction per script plus its ledger row. Repeated `up` skips applied versions; changed/missing/renamed/reordered history fails before pending SQL. Errors/cancellation/timeouts roll back the current script; prior versions remain. Fresh-run history readback handles a committed-but-lost reply. TLS verification is default; local insecure mode is explicit and loopback-only. Auto migration is off by default; the explicit `LIFE_AUTO_MIGRATE=true` startup option uses the same runner before application construction. No automatic downgrade, financial state bootstrap or production role provisioning.
-  - [ ] **Financial/recorder schema and production privileges:** deliver PG1/PG2.2 schemas, migration/runtime/reporting grants and startup compatibility checks; qualify immutable financial history permissions, image packaging, SQLAlchemy integration and deployed identity/TLS. Fixture role denial tests do not close these requirements.
-- [ ] PG2.2: Implement the schema families in Section 3 with account/environment-scoped keys, unique operation/wire/event identities, finite decimal checks, transition/version constraints and indexed active-state queries. Include atomic expected-owner/epoch/process/lineage checks and DB-time expiry guards in every financial UoW; PG4 later qualifies grant issuance and handoff.
-- [ ] PG2.3: Add async bounded pools and explicit primary/TLS/account/lineage/schema validation. No replica authority, unlimited overflow, session sharing between tasks or long-lived idle transactions.
-- [ ] PG2.4: Test two concurrent allocators, conflicting row versions, deadlock/serialization retries, pool exhaustion, statement cancellation, dropped connections and unknown COMMIT outcomes using real PostgreSQL processes.
+  - [x] **Typed schema and local access proof:** `000002_financial_schema.sql` / `000003_guarded_transactions.sql`, existing-role migration-owner provisioning, account-scoped runtime/reporting access, immutable history, startup/borrow compatibility checks and real TLS/role denial tests. Docker source packaging includes migrations and an opt-in pinned driver. No account, capital, owner or activation grant is automatically created.
+  - [ ] **Release image, recorder and deployed privileges:** qualify the full Linux image, SQLAlchemy recorder integration and deployed identity/TLS. Local database tests and Dockerfile source changes do not close these requirements.
+- [x] PG2.2: Implement the schema families in Section 3 with account/environment-scoped keys, unique operation/wire/event identities, finite decimal checks, transition/version constraints and indexed active-state queries. Include atomic expected-owner/epoch/process/lineage checks and DB-time expiry guards in every financial UoW; PG4 later qualifies grant issuance and handoff. Qualified for the PG2 allocation UoW; PG3 must use these guards in every new domain command and prove full financial parity.
+- [x] PG2.3: Add async bounded pools and explicit primary/TLS/account/lineage/schema validation. No replica authority, unlimited overflow, session sharing between tasks or long-lived idle transactions. Qualified on the pinned local primary/TLS profile; deployed credential/connector qualification remains PG2.1/PG9.
+- [x] PG2.4: Test two concurrent allocators, conflicting row versions, deadlock/serialization retries, pool exhaustion, statement cancellation, dropped connections and unknown COMMIT outcomes using real PostgreSQL processes.
 - [ ] PG2.5: Qualify durability settings and declared failure domain; `synchronous_commit` configuration alone is not a promise of zero loss for every Cloud SQL failure/PITR scenario.
+  - [x] **Local process failure:** actual SIGKILL/same-volume PostgreSQL restart retains a committed operation/hold and exact replay; unsafe `fsync` startup is denied. Runtime and COMMIT guards require primary/read-write, `synchronous_commit=on`, `fsync=on` and `full_page_writes=on`.
+  - [ ] **Selected deployment failure domain:** disk/host loss, managed failover, backup/PITR and recovery objectives on the chosen VM/Cloud SQL topology. No zero-loss or HA claim follows from the local restart test.
 
-**Red tests:** `test_postgres_schema.py`, `test_postgres_transactions.py`, `test_postgres_pool_safety.py`.
+**Red tests:** `test_postgres_schema.py`, `test_postgres_transactions.py`, `test_postgres_pool_safety.py`, `test_postgres_faults.py`, `test_postgres_tls.py`, `test_zz_durability.py`.
 
 **Done when:** migrations and all constraints work on the pinned version, conflicts cannot double-spend, uncertain commits read back idempotently, and DB failure closes admission without starving safety work.
 
+### PG2 offline foundation and qualification (2026-10-16)
+
+Base: `4e2bdcdf2`. The existing file backend remains selected; `Backend.POSTGRES` still fails closed until PG3 implements the actual financial ports. `PgRuntime.allocate()` is an infrastructure hold command only: it creates no intent, activation, exchange request, terminal release or refund. Every receipt explicitly carries `trading_permission=false`.
+
+- **Schema:** 31 empty relational tables cover account/policy/config/session/grant identity, permanent operations/wire attempts, balances/reservations/shared capital/positions, fills/fees/bills/cashflows/markout attribution, loss/subsidy/stress budgets, quote/hedge/inventory/joint/carry state, projection outbox/receipts and import/audit/access metadata. `000001` is unchanged. Amount domains use exact unconstrained `NUMERIC` with `abs(value)<10^38`, at most 18 fractional digits and explicit finite/sign checks; inputs are rejected instead of silently rounded. Incurred losses remain recordable above budget limits; admitting new domain risk is PG3's responsibility.
+- **Access:** provision only pre-existing ordinary LOGIN roles and approved accounts through the schema owner. `session_user` plus account mappings/RLS scopes runtime/reporting reads; runtime gets whitelisted function execution and no direct financial DML/DDL/history rewrite. This is not a Cloud IAM provisioning/authentication implementation. Migration/bootstrap never seeds capital, accounts, owners or grants.
+- **Transactions:** READ COMMITTED, account-before-balance row locks, expected row version, full binding and owner generation/epoch/process/session/time checks after lock waits, plus deferred checks at physical COMMIT. Operation fingerprint/receipt, balance hold, reservation and account version publish together. Only definite PostgreSQL deadlock/serialization aborts retry the unchanged DB command, within explicit bounds. No exchange HTTP/WS runs inside a transaction. Lost COMMIT replies, including shutdown SQLSTATE `57P01`, latch admission unhealthy and require the original operation ID's primary readback; no new ID or inferred release is created.
+- **Capacity:** independently bounded command and safety/readback pools; admitted work includes queue/acquire/physical execution. Waiter cancellation retains task/capacity until physical completion and latches new-risk admission off. Pool release cannot hide commit uncertainty. Explicit acquire/statement/transaction/idle/shutdown/retry budgets have no implicit live values. Primary/TLS/server/binding/lineage/migration/role checks run at startup and on every borrow. `load_runtime_config()` reads only documented `LIFE_PG_*` keys with literal dotenv parsing; the current file service does not consume this new backend config.
+- **Red → Green:** missing typed schema failed eight actual-DB cases; missing runtime initially failed transaction collection. Fault tests exposed COMMIT uncertainty being masked by pool cleanup, and Docker's random published port changing after SIGKILL; both are fixed. Shutdown COMMIT tests additionally cover a typed server exception before/after commit. Two final negative tests reproduced cross-product attachment of SWAP fills/claims to a SPOT attempt; composite product FKs now reject both, while original-product inserts succeed. Actual deadlock and serialization conflicts, expiry at COMMIT/after row waits, timeout/cancel/backpressure, foreign scope, immutable counters/identities, TLS trust/hostname and crash recovery all pass.
+- **Final qualification:** `make life-postgres-test LIFE_PG_TEST_ARGS="--output /tmp/life-pg2-product-final"` (equivalent module command used) → **45 passed, zero failures/errors/skips, 20.74 seconds**. Existing `python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_migrations --output /tmp/life-pg2-migrations-product-final` → **21 passed, zero failures/errors/skips, 8.18 seconds**. `python -m pytest -q` with `storage/test_migration_files.py`, `storage/test_migration_config.py`, `storage/test_migration_startup.py`, `storage/test_postgres_runtime_config.py` → **61 passed**, six existing Pydantic warnings, 4.92 seconds. Expanded PG1 file/runtime regression → **2,358 passed, zero failures/errors/skips**, 26 warnings in 369.21 seconds; this explicitly excludes the separately qualified opt-in `storage/postgres/` directory. It includes `storage/` plus the product/recorder/runner selectors used for the PG1 closure, with the 15 new runtime-config cases. Raw logs/XML are temporary `/tmp` output, not new repository evidence files.
+- **Environment:** Python 3.13.15, asyncpg 0.31.0; actual PostgreSQL **16.15**, Debian aarch64, disposable Docker **2 CPUs / 1 GiB**, pinned image `postgres@sha256:e17e86066e5ef83e0952a9347f5c792b7ece00972e2aa787a6986f471b3dd3d5`. Synthetic test balances, 30-second owner lease and pool/time settings are fixture values, not approved live defaults. The runner supplies its own disposable DSN, never loads the user's `.env`, and removes the container afterward.
+- **Remaining gates:** full Linux image/SQLAlchemy/deployed identity/TLS (PG2.1), chosen host/disk/HA/PITR durability (PG2.5), actual financial/outbox/recovery ports and parity (PG3), grant/handoff lifecycle (PG4), recorder integration/reconciliation (PG5), and later import/performance/deployment/demo/live gates. The typed schema is a foundation, not proof that enabled trading modes have been ported. No O.8 or external gate closes here.
+
+Qualified SHA-256 identities (paths relative to the repository root):
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `storage/postgres/runtime.py` under `hummingbot/strategy_v2/life_liquidity/` | `f9a17ace0cc2e8f612b552eeae0a98976ab150b206e2144566cff0dc1334001a` |
+| `storage/postgres/runtime_config.py` under the same root | `e1e80f0a97f45d8019cc6b8831222d4ff93bf51718046a06f4f7fa3638b6fb79` |
+| `storage/postgres/access.py` under the same root | `0b5db5aa401426d6c7cfd6f89600fb272808163b80e09447838fa8751c4a20a6` |
+| `migrations/life_liquidity/000001_storage_lineage.sql` (unchanged) | `20ddeb99cd6496d28988e3d0f616fff3998c35d53877c3d8293ba467c3db86e3` |
+| `migrations/life_liquidity/000002_financial_schema.sql` | `da052eb44bab546ea8566b41525a5ea1193d3889c65f96cd9194991f7657dbca` |
+| `migrations/life_liquidity/000003_guarded_transactions.sql` | `bda2c3f5470b4a71caeb784689c26b2f580032e89a4bede582a91034e0b74bc7` |
+| `.env.example` (synthetic bounds, no credentials) | `b4b9ba9f40de3854310cd0375bf1483305fe3c28428a689d8f6f42f40a398507` |
+| `Dockerfile` (source only, worker image unqualified) | `237ddb10e83dac2ef5a87a1b4254f1b6fab9858a199c2c1067268a85828f6b29` |
+| `test/hummingbot/strategy_v2/life_liquidity/storage/postgres/helpers.py` (synthetic fixture settings) | `34dec4afcd3498bd1231c6c3c3b641bffdadff944ffa9217a9325c3ca05d9b9f` |
+
 ### PG3 — Financial authority and durable send attempts
 
-Dependencies: PG2.
+Dependencies: PG2 schema/local transaction gates for offline implementation. All PG2 release qualification remains mandatory before deployment eligibility; beginning PG3 does not close PG2.1 or PG2.5.
 
 PG3 tests seed explicitly synthetic ownership/grant rows through test-only setup roles; real transaction guards remain mandatory and have stale-owner negative cases. There is no runtime ownership bypass. PG4 qualifies actual lease/grant lifecycle and external sender handoff; PG3 completion alone establishes no production ownership safety.
 
@@ -610,12 +643,12 @@ Dependencies: applicable PG9 topology gate plus the existing R/C requirements as
 
 Each phase checkpoint in this plan must include commands/selectors, Red and Green outcomes, real PostgreSQL version, source/schema/config/image hashes, environment/resource profile, complete failures/skips, and remaining gates; no additional evidence file is required. Classify every skip; an unavailable cloud/demo dependency is an open gate. No credential values or secret payloads belong in evidence.
 
-Artifact locations (migration infrastructure exists; other components remain proposed):
+Artifact locations (current implementation versus proposed deployment):
 
-- `hummingbot/strategy_v2/life_liquidity/storage/`: migration runner plus checkpoint DTO/protocol/file adapter implemented; spot read/preparation ports and actual legacy saga adapter implemented; remaining financial commands and controller/PostgreSQL account UoW integration pending.
-- `test/hummingbot/strategy_v2/life_liquidity/storage/`: migration validation/real-PG and checkpoint contract tests implemented; spot real-journal preparation/crash cases implemented; full financial/product backend contract/fault suites pending.
-- `migrations/life_liquidity/`: metadata-only `000001_storage_lineage.sql` and migration guide implemented; financial/recorder migrations and release compatibility policy pending.
-- `deploy/life_liquidity/`: portable image entrypoint and reviewed VM/Worker Pool infrastructure definitions.
+- `hummingbot/strategy_v2/life_liquidity/storage/`: PG1 file-service contracts/assembly qualified; PG2 schema/access/config/bounded async runtime foundation implemented. PostgreSQL domain ports and controller/recorder financial integration remain PG3/PG5 work.
+- `test/hummingbot/strategy_v2/life_liquidity/storage/`: file contract/runner/crash parity plus real-PG migration/schema/role/TLS/transaction/pool/fault tests implemented; PostgreSQL full domain parity remains pending.
+- `migrations/life_liquidity/`: immutable `000001` lineage plus `000002` typed financial schema and `000003` guarded transactions implemented; full recorder integration and release/deployed compatibility qualification pending.
+- `deploy/life_liquidity/` (proposed): portable image entrypoint and reviewed VM/Worker Pool infrastructure definitions.
 
 The migration CLI/Make targets above are available. Other proposed commands/resources must not be assumed implemented. Per the operator request, this migration increment creates no new evidence report/artifact: test summaries are recorded in this plan and raw logs/XML stay in `/tmp`.
 
@@ -812,10 +845,10 @@ Base commit: `c7aef0477`. This implements the quote/observation/cancel subitems 
 - File worker/storage limits and positive ACK/shutdown/reconciliation/cancel budgets are explicit synthetic fixtures. Native session writes outside the coordinator are denied; the automatic session/watchdog application remains to be implemented. Full cold authenticated recovery, SWAP/joint/hedge, request-budget ports, controller Path/cache migration, retained-history bounds and recorder assembly remain required offline work. No new evidence file, configured database, live HTTP or deployment is used.
 - Format, lint, import-order and private-key/security hooks pass, as does `git diff --check`. Existing O.8, PostgreSQL and external qualification gates are unchanged.
 
-1. Use the central migration runner for all new LIFE PostgreSQL DDL. The operator-selected `LIFE_AUTO_MIGRATE=true` service startup and optional manual/Job modes share the same version/checksum/lock contract. Package SQL/driver and qualify deployment secrets before cloud startup automation. Finish the remaining PG0 decisions and define PG1 backend contracts before adding financial schema/authority, while preserving current O.8 results.
+1. Use the central migration runner for all new LIFE PostgreSQL DDL. The operator-selected `LIFE_AUTO_MIGRATE=true` service startup and optional manual/Job modes share the same version/checksum/lock contract. PG1 file contracts and PG2 typed schema/local transactions are implemented. Qualify the full SQL/driver image, deployed identity and selected durability profile before deployment; preserve remaining PG0/O.8 gates while implementing PG3 domain ports.
 2. Implement PG1–PG6 offline against real local PostgreSQL; prepare PG7 container/IaC without provisioning.
 3. Close PG8 and the matching existing offline gate. Keep the declared mandatory legacy requirements unless an explicit scope amendment is approved.
 4. Qualify PostgreSQL on a VM, then evaluate Cloud Run in PG9 sandbox/demo using the same worker build.
 5. Proceed to PG10 production read-only qualification and the separately approved existing R/C canary on the topology whose applicable PG9 gate has closed. Cloud Run additionally requires PG9.7 ownership/deployment proof and favorable economics. If it is deferred, the qualified VM may proceed through PG10/R/C while Cloud Run-specific items stay open; no production approval is bypassed.
 
-The immediate next implementation task is **PG2: PostgreSQL financial schema, transactions and runtime access**. PG1-C1–C4 and PG1.1–PG1.4 are closed for the declared offline file scope by the [final qualification](#pg1-c3c4-file-closure-and-qualification-2026-10-16). Reuse the central numbered migration runner; design typed indexed financial tables/constraints and actual transaction/connection contracts before implementing PG3 commands. PostgreSQL must provide its real ports and account transactions, with no JSON-file emulation or implicit file fallback. Historical PG1 next-task notes must not reopen qualified work. PG0/O.8 and PG2–PG10 retain their separate gates.
+The next financial implementation task is **PG3: PostgreSQL domain repositories and durable send attempts**, starting with exact session/prepare/hold/attempt/readback parity against the qualified file contracts. The [PG2 foundation](#pg2-offline-foundation-and-qualification-2026-10-16) supplies real typed tables, transaction guards and bounded pools. PG2.1 image/recorder/deployed privileges and PG2.5 deployment durability remain open qualification work; do not treat offline PG3 progress as their closure. PG1-C1–C4 and PG1.1–PG1.4 remain closed for the declared offline file scope. No JSON-file emulation, implicit backend fallback or live activation is permitted. PG0/O.8 and PG3–PG10 retain their separate gates.

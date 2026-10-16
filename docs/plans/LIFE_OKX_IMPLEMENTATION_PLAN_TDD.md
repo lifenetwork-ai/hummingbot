@@ -4,6 +4,8 @@ Created: 2026-10-01 (Asia/Ho_Chi_Minh)
 
 Source revision reviewed: `9af100d68`
 
+**PostgreSQL PG2 checkpoint (2026-10-16, base `4e2bdcdf2`):** PG1 file-service closure is committed. The [PG plan](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg2-offline-foundation-and-qualification-2026-10-16) now records typed empty financial migrations, account-scoped roles/RLS, guarded atomic allocation/readback and bounded async command/safety pools. **45 actual PostgreSQL tests**, **21 migration tests** and **2,358 file/runtime regression tests** pass. The allocation primitive is not a trading/send port; PostgreSQL backend selection remains unsupported pending PG3. PG2 release image/recorder/deployed identity and external durability, O.8 and demo/live gates remain open. No configured DB, exchange account, deployment or new evidence file is used.
+
 Status (2026-10-11): **Offline acceptance reopened for the declared MVP scope; O.8 review remediation is in progress (O.8.1/.2/.3/.5/.6 implemented and verified; O.8.4/.7 open) and must close before demo**. Production order creation remains disabled. The [2026-10-10 full offline evidence](LIFE_OKX_O7_FULL_OFFLINE_EVIDENCE_2026-10-10.md) records the earlier O.1–O.7 checkpoint; it does not cover the six confirmed integration/performance findings in O.8. No demo or real-account proof is claimed.
 
 Architecture and economics reviewed on 2026-10-01. Review findings are mapped to implementation checklists and acceptance cases in Section 2.1. Checked subitems identify implemented offline contracts or adapters; unchecked subitems and parent requirements remain open in their stated scope. A passing fake-exchange test is not evidence of OKX demo or production behavior.

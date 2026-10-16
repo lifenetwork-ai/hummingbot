@@ -1,10 +1,38 @@
 # LIFE PostgreSQL migrations
 
 This is the single schema migration entry point for the PostgreSQL backend.
-It currently installs **infrastructure metadata only**. It does not import file
+It installs **storage lineage and an empty typed financial schema with guarded transaction functions**. It does not import file
 state, create account balances, grant ownership, enable trading, or connect the
 LIFE controller to PostgreSQL. The spike SQL under `test/` remains a synthetic
 fixture and is deliberately excluded.
+
+## Numbered schema and runtime access
+
+- `000001_storage_lineage.sql`: original lineage metadata; unchanged applied checksum.
+- `000002_financial_schema.sql`: typed account/session/attempt/hold/ledger/budget/product/outbox tables,
+  finite exact decimals, scoped permanent identities, immutable history and active indexes.
+- `000003_guarded_transactions.sql`: account-scoped access/RLS, expected owner/version and
+  DB-time guards, deferred COMMIT checks, legal state transitions and one allocation primitive.
+
+The runner applies each immutable version once. A second service startup validates
+the same history and skips applied scripts. DDL is deliberately forward-only:
+unregistered pre-existing objects fail instead of being silently accepted by
+`IF NOT EXISTS`. Add a new numbered migration for a schema change; never edit an
+applied file. This preserves repeatable automatic startup with drift detection.
+
+Schema creation inserts no account, money, owner or activation grant. The schema
+owner can call `storage.postgres.access.provision_access()` for an **existing**
+ordinary LOGIN role and an **existing approved account**. It grants account-scoped
+runtime/reporting reads and, for runtime, only whitelisted transaction functions.
+It creates no roles and grants no direct financial DML/DDL. Runtime and reporting
+credentials must be distinct from migration-owner credentials.
+
+The PG2 runtime remains separate from the bot's backend selector. It provides
+bounded primary/TLS-validated pools, operation readback and a test-qualified hold
+primitive, not production trading repositories. See the
+[storage guide](../../hummingbot/strategy_v2/life_liquidity/storage/README.md#postgresql-pg2-foundation).
+Root `.env.example` documents separate opt-in `LIFE_PG_*` runtime settings; merely
+enabling migrations never selects PostgreSQL financial authority or enables trading.
 
 ## Commands
 
@@ -45,6 +73,22 @@ URL query parameters are rejected so they cannot override the host/TLS policy.
 For a local test DB: `make life-migrate LIFE_MIGRATION_ARGS=--local-insecure`.
 Cloud SQL connection/authentication and Linux image packaging still require
 PG0.4/PG7/PG9 qualification; this CLI does not implement a Cloud SQL connector.
+
+Docker source packaging copies `migrations/`. Build with
+`--build-arg LIFE_POSTGRES=true` to include the pinned optional asyncpg driver;
+the default `false` retains the file-only dependency set. The full Linux image,
+SQLAlchemy recorder and deployed identity/TLS are still unqualified.
+
+For real database tests without using a configured DSN or `.env`:
+
+```sh
+make life-postgres-test LIFE_PG_TEST_ARGS="--output /tmp/life-pg2-run"
+```
+
+This starts the pinned disposable local PostgreSQL container, uses synthetic roles
+and accounts, runs schema/concurrency/pool/TLS/fault/crash tests and removes it.
+The output directory must be fresh and under `/tmp`. It does not qualify managed
+failover, disk/host loss, backups or PITR.
 
 ## Environment and automatic startup
 

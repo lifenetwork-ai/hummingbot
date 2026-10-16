@@ -18,7 +18,7 @@ Supported archive/native repair restores only a known signed frozen source.
 Final acceptance: **2,343 passed**, zero failures/errors/skips, 22 existing
 warnings in 377.64 seconds; changed-file hooks and diff checks pass. See the
 [current closure ledger](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg1-current-closure-ledger).
-PostgreSQL financial authority remains unsupported; PG2 is next. O.8 and
+PostgreSQL financial authority remains unsupported; the PG2 schema/pool foundation below is implemented. O.8 and
 provider/deployment/demo/live gates remain open. Import never activates trading.
 
 `file.py` implements these checkpoint protocols with the existing `PolicyState`
@@ -37,6 +37,54 @@ back to a local file. The target PostgreSQL adapter will use indexed typed rows
 and account transactions, not store this aggregate JSON as its financial schema.
 Migration infrastructure is separate and documented in
 [the migration guide](../../../../migrations/life_liquidity/README.md).
+
+## PostgreSQL PG2 foundation
+
+`postgres/runtime.py` supplies optional asyncpg primary-only infrastructure.
+`PgConfig` requires explicit account/binding/database lineage/principal, pool
+capacity and timeout/retry budgets. DSNs are excluded from DTO representations
+and driver error messages are sanitized. TLS verifies certificates and hostnames
+by default; insecure mode accepts only an explicit literal loopback test URL.
+`postgres/runtime_config.py` loads documented `LIFE_PG_*` settings with literal
+dotenv parsing; the caller must supply approved identity/binding values. No live
+account, balance or lineage is inferred from environment defaults.
+
+`PgRuntime.open()` verifies primary/read-write/durability settings, server major,
+migration checksums, schema contract, least-privilege role and complete account
+binding; every borrowed connection is rechecked. Command and safety/readback
+pools have independent bounded capacity. Waiter cancellation retains physical
+work/capacity until completion and closes new-risk admission. Shutdown drains
+within its explicit budget; forced termination requires readback.
+
+`allocate(AllocateBalance(...), owner)` is a PG2 **infrastructure primitive**:
+account-before-balance locks, full expected owner/binding/version and DB-time
+checks, atomic hold/reservation/operation receipt and deferred COMMIT guard.
+It creates no intent or send grant and releases no funds. Only definite
+deadlock/serialization aborts retry the same immutable command; exchange I/O
+never runs inside a retriable transaction. Unknown COMMIT outcomes require
+`operation(original_id)` on the primary, retaining holds and admission closure.
+`balances()` and `operation()` use reserved safety capacity. Every returned
+receipt has `trading_permission=false`.
+
+Numbered migrations create 31 empty typed tables; financial amounts use checked
+exact `NUMERIC` (`abs(value)<10^38`, scale at most 18), with no input rounding.
+`postgres/access.py` lets the migration owner provision account-scoped access
+for pre-existing ordinary LOGIN roles and approved accounts. Runtime has no
+direct financial DML/DDL; reporting cannot allocate. No startup routine seeds
+accounts, capital, owners or activation grants.
+
+Real PostgreSQL tests run separately from the file suite:
+
+```sh
+make life-postgres-test LIFE_PG_TEST_ARGS="--output /tmp/life-pg2-run"
+```
+
+The runner creates and removes its own pinned local Docker DB and does not load
+the user's `.env`. PG2 qualification: **45 actual DB tests**, **21 migration
+tests** and **2,358 expanded file/runtime regression tests** pass. Full financial
+ports/parity are PG3; release image/SQLAlchemy/deployed identity and external
+durability remain open. The PostgreSQL backend selector still raises
+`UnsupportedBackend`; no file emulation or automatic activation is introduced.
 
 ## Read/write contract
 
