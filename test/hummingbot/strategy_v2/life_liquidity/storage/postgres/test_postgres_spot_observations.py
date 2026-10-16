@@ -222,17 +222,18 @@ async def test_original_actor_can_account_after_owner_expiry_but_cannot_allocate
 @pytest.mark.asyncio
 @pytest.mark.parametrize('kind', ['ACK', 'FILL'])
 async def test_generation_changed_at_commit_aborts_entire_observation(database, monkeypatch, kind):
-    from uuid import uuid4
+    from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.helpers import install_generation_fault
     repo, cfg, owner = await sent(database)
+    await install_generation_fault(database)
     original = repo._runtime._commit
 
     async def changed(tx):
-        await tx._connection.execute('UPDATE life_financial.accounts SET owner_generation=$1', uuid4())
+        await tx._connection.execute('SELECT life_financial.test_change_generation($1)', cfg.account_id)
         await original(tx)
     monkeypatch.setattr(repo._runtime, '_commit', changed)
     try:
         at = await database[0].fetchval('SELECT clock_timestamp()')
-        with pytest.raises(StorageError):
+        with pytest.raises(StorageError, match='EXPIRED_OR_CHANGED_AT_COMMIT'):
             if kind == 'ACK':
                 await repo.acknowledge(ack(owner, at), cut=(await repo.snapshot(cfg.binding)).cut, owner=owner)
             else:

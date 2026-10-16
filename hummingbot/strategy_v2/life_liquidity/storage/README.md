@@ -18,7 +18,8 @@ Supported archive/native repair restores only a known signed frozen source.
 Final acceptance: **2,343 passed**, zero failures/errors/skips, 22 existing
 warnings in 377.64 seconds; changed-file hooks and diff checks pass. See the
 [current closure ledger](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg1-current-closure-ledger).
-PostgreSQL financial authority remains unsupported; the PG2 schema/pool foundation below is implemented. O.8 and
+Configured PostgreSQL financial backend selection remains unsupported; standalone
+PG3 repositories and the PG2 schema/pool foundation are described below. O.8 and
 provider/deployment/demo/live gates remain open. Import never activates trading.
 
 `file.py` implements these checkpoint protocols with the existing `PolicyState`
@@ -39,6 +40,28 @@ Migration infrastructure is separate and documented in
 [the migration guide](../../../../migrations/life_liquidity/README.md).
 
 ## PostgreSQL PG2 foundation
+
+**Standalone PG3 primary-session checkpoint (2026-10-16, base `08a61f192`):**
+`PgSpotRepository.tick_session`, `lookup_session_tick` and
+`pending_session_ticks` implement the primary-session safety contract with
+ACCOUNT atomicity. Migration `000008` adds imported policy/watermark, versioned
+progress and immutable events. Pause/expiry and persistent clock rollback retain
+money/holds; prepare and arm enforce verified ACTIVE state at entry and COMMIT.
+Late current-generation safety observations cannot resume expired/HALT owners.
+Original-command lookup/retry resolves uncertain COMMIT without rearm or a saga
+phase. Missing imports and unmatched progress mutations fail closed.
+
+An expired switch policy remains TRANSITIONING with OLD_ORDERS_UNRESOLVED.
+Successor reconciliation/activation, observation grants, abort/cancel/terminal
+commands and quote actions remain unported. No activation or transport permission
+is created. Timestamp-watermark verification is under the declared DB-owner
+trust and does not qualify unobserved clock faults or independent timer fencing.
+Final checks pass **186 actual PostgreSQL tests** (31 session cases), **21
+migration tests** and **218 focused file/contract tests**. Older generation and
+capital lost-reply fixtures now actually reach their intended DB fault boundary.
+See [session qualification](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-primary-session-safety-qualification-2026-10-16).
+The previous image predates this source; configured PostgreSQL backend selection
+and deployment/demo/live eligibility remain open.
 
 **Standalone PG3 capital checkpoint (2026-10-16, base `2d48d70c8`):**
 `PgSpotRepository.apply_cashflow`, `lookup_cashflow`, `observe_nav` and `capital`

@@ -1,6 +1,7 @@
 """Actual PostgreSQL spot preparation contracts; no exchange transport or grant."""
 import asyncio
 from dataclasses import replace
+from datetime import timedelta
 from decimal import Decimal as D
 from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.helpers import backend
 
@@ -15,12 +16,18 @@ def order(owner, **changes):
                                D('1'), D('.1'), str(owner.session_id), owner.epoch, 1, 0, D('.2'), D('.1')), **changes)
 
 
-async def spot(database, limits=(D('0'), D('100'), D('1000'), D('100'))):
+async def spot(database, limits=(D('0'), D('100'), D('1000'), D('100')), *, session_clock_offset=None,
+               session_duration=timedelta(seconds=60), on_expiry='pause_quotes'):
     from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot import PgSpotRepository
-    runtime, cfg, owner = await backend(database)
+    runtime, cfg, owner = await backend(database, session_duration=session_duration)
     # Approved policy import is administrator-only; explicitly synthetic test values.
     await database[0].execute('''INSERT INTO life_financial.spot_policies VALUES(
         $1,$2,$3,$4,$5,$6,'synthetic',10,5,2,10,5,2,8)''', cfg.account_id, cfg.binding.policy_hash, *limits)
+    watermark = owner.valid_from if session_clock_offset is None else await database[0].fetchval('SELECT clock_timestamp()+$1::interval', session_clock_offset)
+    await database[0].execute("INSERT INTO life_financial.spot_session_policies VALUES($1,$2,$3,$4,1000,$5,'ACTIVE')",
+                              cfg.account_id, owner.session_id, cfg.binding.policy_hash, on_expiry, watermark)
+    await database[0].execute("INSERT INTO life_financial.spot_session_progress VALUES($1,$2,'ACTIVE','SESSION_ACTIVE',$3,false,0)",
+                              cfg.account_id, owner.session_id, watermark)
     return PgSpotRepository(runtime), cfg, owner
 
 

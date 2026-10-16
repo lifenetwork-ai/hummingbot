@@ -35,6 +35,16 @@ fixture and is deliberately excluded.
   HALT. Pending resolution, provider/approval authentication and portfolio modes
   remain separate requirements.
 
+- `000008_spot_sessions.sql`: three empty session-policy/progress/event tables.
+  Explicit privileged imports establish the per-session policy and initial
+  watermark; runtime cannot bootstrap them. Atomic ticks persist pause, expiry
+  and irreversible clock-rollback state. Verified ACTIVE state gates prepare/arm
+  at entry and COMMIT. Expiry retains holds and never activates a successor.
+  Reconciliation/activation and order cancellation/terminal release remain
+  separate ports. The migration revokes inherited access to renamed old
+  entrypoints; existing principals require approved access provisioning for the
+  new entrypoints. No extra `.env` switch or manual SQL execution is required.
+
 The runner applies each immutable version once. A second service startup validates
 the same history and skips applied scripts. DDL is deliberately forward-only:
 unregistered pre-existing objects fail instead of being silently accepted by

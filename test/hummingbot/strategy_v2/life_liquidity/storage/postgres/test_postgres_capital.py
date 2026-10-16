@@ -133,14 +133,16 @@ async def test_withdrawal_keeps_holds_and_books_funding_deficit(database):
 @pytest.mark.parametrize('kind', ['cashflow', 'nav'])
 @pytest.mark.parametrize('committed', [False, True])
 async def test_lost_commit_reply_cold_exact_retry_does_not_double_account(database, monkeypatch, kind, committed):
+    import asyncpg
     repo, cfg, owner, at, ms = await capital_store(database)
     original = repo._runtime._commit
+    admin = await asyncpg.connect(database[1])
 
     async def lost(tx):
         pid = tx._connection.get_server_pid()
         if committed:
             await original(tx)
-        await database[0].fetchval('SELECT pg_terminate_backend($1)', pid)
+        assert await admin.fetchval('SELECT pg_terminate_backend($1)', pid)
         raise ConnectionError('synthetic lost capital reply')
     monkeypatch.setattr(repo._runtime, '_commit', lost)
     command = flow(at, ms) if kind == 'cashflow' else nav(at, ms)
@@ -148,6 +150,7 @@ async def test_lost_commit_reply_cold_exact_retry_does_not_double_account(databa
         with pytest.raises(CommitUnknown):
             await getattr(repo, 'apply_cashflow' if kind == 'cashflow' else 'observe_nav')(command, cut=(await repo.snapshot(cfg.binding)).cut, owner=owner)
     finally:
+        await admin.close()
         await repo.close()
     cold = PgSpotRepository(await PgRuntime.open(cfg))
     try:
@@ -281,14 +284,23 @@ async def main():
         if d['committed']: await original(tx)
         os._exit(73)
     runtime._commit=die
+    if d['kind']=='nav':
+        async def now(connection): return await connection.fetchval('SELECT clock_timestamp()')
+        at=await runtime._admit(now,safety=True)
+        d['at']=at.isoformat(); d['ms']=int(at.timestamp()*1000)
+    print(json.dumps({'at':d['at'],'ms':d['ms']}),flush=True)
     command=(flow if d['kind']=='cashflow' else nav)(datetime.fromisoformat(d['at']),d['ms'])
     await getattr(repo,'apply_cashflow' if d['kind']=='cashflow' else 'observe_nav')(command,cut=FinancialCut.from_json(d['cut']),owner=OwnerToken.from_json(d['owner']))
 asyncio.run(main())
 '''
     try:
         process = await asyncio.create_subprocess_exec(sys.executable, '-c', child, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-        _, error = await asyncio.wait_for(process.communicate(payload.encode()), 15)
+        output, error = await asyncio.wait_for(process.communicate(payload.encode()), 15)
         assert process.returncode == 73, error.decode()
+        # Value NAV after interpreter/driver startup, retaining the exact command
+        # for cold retry without widening the 1,000 ms synthetic freshness limit.
+        source = json.loads(output)
+        at, ms = datetime.fromisoformat(source['at']), source['ms']
     finally:
         await repo.close()
     cold = PgSpotRepository(await PgRuntime.open(cfg))
@@ -304,16 +316,18 @@ asyncio.run(main())
 @pytest.mark.asyncio
 @pytest.mark.parametrize('kind', ['cashflow', 'nav'])
 async def test_generation_change_at_physical_commit_rolls_back_capital(database, monkeypatch, kind):
+    from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.helpers import install_generation_fault
     repo, cfg, owner, at, ms = await capital_store(database)
+    await install_generation_fault(database)
     original = repo._runtime._commit
 
     async def changed(tx):
-        await tx._connection.execute('UPDATE life_financial.accounts SET owner_generation=gen_random_uuid()')
+        await tx._connection.execute('SELECT life_financial.test_change_generation($1)', cfg.account_id)
         await original(tx)
     monkeypatch.setattr(repo._runtime, '_commit', changed)
     try:
         before = await repo.snapshot(cfg.binding)
-        with pytest.raises(StorageError):
+        with pytest.raises(StorageError, match='EXPIRED_OR_CHANGED_AT_COMMIT'):
             await getattr(repo, 'apply_cashflow' if kind == 'cashflow' else 'observe_nav')(
                 flow(at, ms) if kind == 'cashflow' else nav(at, ms), cut=before.cut, owner=owner)
         assert (await repo.snapshot(cfg.binding)).cut == before.cut

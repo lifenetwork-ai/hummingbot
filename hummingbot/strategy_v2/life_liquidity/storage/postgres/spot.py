@@ -36,6 +36,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.financial import (
     SpotSnapshot,
 )
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.runtime import PgRuntime
+from hummingbot.strategy_v2.life_liquidity.storage.session import SessionTick, SessionTickReceipt
 
 
 class PgSpotRepository:
@@ -97,7 +98,13 @@ class PgSpotRepository:
         cut = StateCut(binding, a['version'], a['version'], (ResourceVersion('account', a['version']),), value['digest'])
         observed = datetime.fromisoformat(value['observed_at'])
         started, expires = datetime.fromisoformat(s['started_at']), datetime.fromisoformat(s['expires_at'])
+        lifecycle = value['session_lifecycle']
         active = a['mode'] == 'ACTIVE' and not a['halted'] and started <= observed < expires
+        state = lifecycle['state'] if lifecycle is not None else 'PAUSED'
+        last_seen = datetime.fromisoformat(lifecycle['last_seen_at']) if lifecycle is not None else started
+        rollback = lifecycle['rollback_latched'] if lifecycle is not None else False
+        if state == 'ACTIVE' and (not active or observed < last_seen or rollback or value['unverified']):
+            state = 'PAUSED'
         if any(type(v) is not str for v in s['anchors'].values()):
             raise StorageUnavailable('PG_SPOT_ANCHOR_ENCODING_INVALID')
         anchors = {k: D(v) for k, v in s['anchors'].items()}
@@ -106,7 +113,7 @@ class PgSpotRepository:
         return SpotSnapshot(
             FinancialCut(cut, (('postgres_account', value['digest']),)),
             SpotSession(s['session_id'], s['epoch'], s['config_version'], started, expires,
-                        'ACTIVE' if active else 'PAUSED', started, False, anchors),
+                        state, last_seen, rollback, anchors),
             SpotBalance(D(b['total']), D(q['total']), D(b['reserved']), D(q['reserved']),
                         max(D('0'), D(b['total']) - D(b['reserved']) - D(b['liability'])),
                         max(D('0'), D(q['total']) - D(q['reserved']) - D(q['liability'])), D(b['fees']), D(q['fees'])),
@@ -298,3 +305,34 @@ class PgSpotRepository:
 
     async def lookup_fill(self, operation_id, binding):
         return await self._lookup_observation(operation_id, binding, 'SPOT_FILL')
+
+    def _session_receipt(self, value):
+        if value.get('kind') != 'SPOT_SESSION_TICK' or value.get('trading_permission') is not False:
+            raise StorageUnavailable('PG_SESSION_RECEIPT_INVALID')
+        return SessionTickReceipt(self.binding, value['operation_id'], value['state'], value['reason_code'],
+                                  value['replayed'], self.atomic_scope)
+
+    async def tick_session(self, command, *, cut, owner):
+        if type(command) is not SessionTick:
+            raise StorageError('PG_SESSION_COMMAND_INVALID')
+        version, digest = self._cut(cut, owner)
+        identity = fingerprint({'command': command.json(), 'cut': cut.json(), 'owner': owner.json()})
+        args = (self._runtime.config.account_id, self.binding.json(), owner.json(), version, digest, identity, command.json())
+        return await self._runtime._transaction('SELECT life_financial.spot_session_tick($1,$2,$3,$4,$5,$6,$7)',
+                                                args, owner, self._session_receipt, observation=True)
+
+    async def lookup_session_tick(self, operation_id, binding):
+        self._binding(binding)
+        identifier(operation_id)
+
+        async def read(c):
+            return await c.fetchval("SELECT receipt FROM life_financial.operations WHERE account_id=$1 AND operation_id=$2 AND command->>'kind'='SPOT_SESSION_TICK'",
+                                    self._runtime.config.account_id, operation_id)
+        value = await self._runtime._admit(read, safety=True)
+        return None if value is None else self._session_receipt({**value, 'replayed': True})
+
+    async def pending_session_ticks(self, binding):
+        # PostgreSQL publishes the state/event/receipt atomically, with no saga
+        # phase to resume. Unknown COMMIT is resolved by the original ID lookup.
+        await self.snapshot(binding)
+        return ()
