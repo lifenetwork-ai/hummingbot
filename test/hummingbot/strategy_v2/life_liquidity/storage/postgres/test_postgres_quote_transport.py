@@ -30,8 +30,8 @@ URL = 'https://www.okx.com/api/v5/trade/order'
 AGES = QuoteSendAgeLimits(1000, 1000, 1000, 1000)
 
 
-async def transport(database):
-    repo, cfg, owner, row, journal, create, runner, dispatch, active, ready = await assembled(database)
+async def transport(database, **seed_options):
+    repo, cfg, owner, row, journal, create, runner, dispatch, active, ready = await assembled(database, **seed_options)
     await journal.publish('claim', (create,))
     dispatch.submit([create])
     await dispatch.drain()

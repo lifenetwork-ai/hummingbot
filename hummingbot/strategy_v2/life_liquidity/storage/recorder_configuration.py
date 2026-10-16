@@ -73,7 +73,7 @@ class ConfigurationReport:
             raise StorageError('CONFIG_REPORT_INVALID')
         try:
             c = LifeLiquidityConfig.model_validate_json(self.controller_json)
-            if (c.id != self.controller_id or c.storage_binding != self.binding or c.storage_backend != 'file'
+            if (c.id != self.controller_id or c.storage_binding != self.binding or c.storage_backend not in ('file', 'postgres')
                     or fingerprint(c.strategy.model_dump(mode='json')) != self.binding.config_hash):
                 raise ValueError()
             object.__setattr__(self, 'controller_json', c.model_dump_json())
@@ -196,6 +196,8 @@ class FileConfigurationAdapter:
         for key, row in sorted(meta.resources.get('recorder_configurations', {}).items(),
                                key=lambda item: item[1]['command']['expected_sequence']):
             command = ConfigurationReport.from_json(thaw(row['command']))
+            if json.loads(command.controller_json)['storage_backend'] != 'file':
+                raise StorageError('CONFIG_REPORT_BACKEND_INVALID')
             cut, owner = StateCut.from_json(thaw(row['cut'])), OwnerToken.from_json(thaw(row['owner']))
             start = ledger['config-start:' + key]
             if (command.operation_id != key or command.binding != self.binding or cut.binding != self.binding
@@ -262,6 +264,8 @@ class FileConfigurationAdapter:
 
     def _report_configuration(self, command, cut, owner):
         self.store._assert_binding(command.binding)
+        if json.loads(command.controller_json)['storage_backend'] != 'file':
+            raise StorageError('CONFIG_REPORT_BACKEND_INVALID')
         meta, history = self._configuration_history()
         now = utc(self.store._clock())
         operations = thaw(meta.resources.get('recorder_configurations', {}))

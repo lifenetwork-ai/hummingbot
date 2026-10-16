@@ -125,6 +125,16 @@ fixture and is deliberately excluded.
   15→16 and repeated-startup tests qualify central-runner idempotency. Other
   reporting streams and configured PostgreSQL service integration remain open.
 
+- `000017_recorder_configuration.sql`: sequenced configuration audit over the
+  existing outbox and legacy Controllers table. Immutable registered controller
+  metadata must match the report; reporting cannot register its own baseline or
+  activate trading. Initial/revision/outcome/time checks, exact replay, scoped
+  completeness and deferred owner guards apply. Rejections/startup/manual kills
+  latch HALT and cannot clear it through reporting. Executor/configuration streams
+  retain global recovery barriers and late accounting availability. A real 16→17
+  upgrade/repeat-startup test preserves existing reader ACLs without account or
+  command-right bootstrap; approved provisioning grants new fixed command rights.
+
 The runner applies each immutable version once. A second service startup validates
 the same history and skips applied scripts. DDL is deliberately forward-only:
 unregistered pre-existing objects fail instead of being silently accepted by

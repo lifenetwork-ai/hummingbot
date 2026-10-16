@@ -17,8 +17,8 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.runner_journal impor
 from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction, StopExecutorAction
 
 
-async def assembled(database):
-    repo, cfg, owner, row = await bridge(database, claim=False)
+async def assembled(database, **seed_options):
+    repo, cfg, owner, row = await bridge(database, claim=False, **seed_options)
     active = set()
     ready = [True]
 

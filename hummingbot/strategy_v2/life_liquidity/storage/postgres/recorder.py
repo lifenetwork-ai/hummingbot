@@ -35,6 +35,10 @@ class PendingRecorderDelivery:
 
 
 class PgRecorderRepository:
+    _controller_sql = "((o.body#>>'{command,payload_json}')::jsonb)->>'controller_id'"
+    _all_history = False
+    _subtypes = ('INITIAL', 'PROGRESS')
+
     def __init__(self, financial, *, controller_id, max_rows, max_read_bytes):
         if (type(financial) is not PgSpotRepository or type(max_rows) is not int or not 0 < max_rows <= 4096
                 or type(max_read_bytes) is not int or not 0 < max_read_bytes <= 16 * 1024 * 1024):
@@ -81,18 +85,21 @@ class PgRecorderRepository:
             # cannot observe different commits of the reporting dispatcher.
             # Materialize only IDs/lengths until both capacity checks pass.
             # Counting rows alone would allow multi-gigabyte JSON aggregation.
+            controller = self._controller_sql
+            applied_select = "SELECT " if self._all_history else "SELECT DISTINCT ON(o.stream) "
+            direction = "ASC" if self._all_history else "DESC"
             columns = "o.projection_id,o.stream,o.sequence,octet_length(to_jsonb(o)::text) AS bytes"
             select = (
                 "SELECT " + columns + """ FROM life_financial.recorder_outbox o
                 LEFT JOIN life_financial.projection_receipts r USING(account_id,projection_id)
-                WHERE o.account_id=$1 AND CASE WHEN (SELECT verified FROM integrity) THEN
-                    ((o.body#>>'{command,payload_json}')::jsonb)->>'controller_id' END=$2
+                WHERE o.account_id=$1 AND o.body->>'subtype'=ANY($6::text[]) AND CASE WHEN (SELECT verified FROM integrity) THEN
+                    """ + controller + """ END=$2
                     AND r.projection_id IS NULL ORDER BY o.stream,o.sequence LIMIT $3""" if pending else
-                "SELECT DISTINCT ON(o.stream) " + columns + """ FROM life_financial.recorder_outbox o
+                applied_select + columns + """ FROM life_financial.recorder_outbox o
                 JOIN life_financial.projection_receipts r USING(account_id,projection_id)
-                WHERE o.account_id=$1 AND CASE WHEN (SELECT verified FROM integrity) THEN
-                    ((o.body#>>'{command,payload_json}')::jsonb)->>'controller_id' END=$2
-                ORDER BY o.stream,o.sequence DESC LIMIT $3""")
+                WHERE o.account_id=$1 AND o.body->>'subtype'=ANY($6::text[]) AND CASE WHEN (SELECT verified FROM integrity) THEN
+                    """ + controller + """ END=$2
+                ORDER BY o.stream,o.sequence """ + direction + " LIMIT $3")
             result = await c.fetchrow(
                 """WITH integrity AS MATERIALIZED (
                     SELECT life_financial.recorder_executor_verified($1) AS verified),
@@ -107,7 +114,7 @@ class PgRecorderRepository:
                             FROM selected s JOIN life_financial.recorder_outbox o ON o.account_id=$1
                                 AND o.projection_id=s.projection_id),'[]'::jsonb)
                         ELSE '[]'::jsonb END AS rows FROM integrity,stats""",
-                self._runtime.config.account_id, self.controller_id, self.max_rows + 1, self.max_rows, self.max_read_bytes)
+                self._runtime.config.account_id, self.controller_id, self.max_rows + 1, self.max_rows, self.max_read_bytes, list(self._subtypes))
             if not result['verified']:
                 raise StorageUnavailable('PG_RECORDER_UNVERIFIED')
             if not pending and result['pending']:

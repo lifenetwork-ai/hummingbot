@@ -409,3 +409,22 @@ async def test_cold_start_honors_new_yaml_kill_and_stale_false_cannot_clear_it(t
             assert cold.store._cold_unarmed and not cold.runtime._local_ready()
         finally:
             await cold.close()
+
+
+@pytest.mark.asyncio
+async def test_backend_neutral_configuration_report_cannot_be_published_by_file_adapter(tmp_path):
+    from hummingbot.strategy_v2.life_liquidity.storage.recorder_configuration import ConfigurationReport
+    service, _ = await quote_service(tmp_path)
+    try:
+        repo = service.reporting.repository
+        config = service.controller.config.model_copy(update={'storage_backend': 'postgres'})
+        head = await repo.configuration(service.store.binding)
+        before = await service.store.read(service.store.binding)
+        command = ConfigurationReport('wrong-backend', service.store.binding, config.id, head.sequence, head.active_revision,
+                                      config.model_dump_json(), service.store.binding.policy_hash, 'e' * 64,
+                                      'UNCHANGED', 'CONFIG_UNCHANGED', 1)
+        with pytest.raises(StorageError, match='CONFIG_REPORT_BACKEND_INVALID'):
+            await repo.report_configuration(command, cut=before.cut, owner=service.runtime.owner)
+        assert (await repo.configuration(service.store.binding)).sequence == head.sequence
+    finally:
+        await service.close()

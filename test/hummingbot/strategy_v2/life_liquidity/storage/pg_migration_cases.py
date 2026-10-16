@@ -412,3 +412,30 @@ async def test_executor_outbox_upgrade_preserves_snapshot_acl_and_is_repeatable(
     assert (await migrate(c, directory))['pending'] == []
     assert await c.fetchval('SELECT count(*) FROM life_financial.recorder_outbox') == 0
     assert await c.fetchval('SELECT count(*) FROM life_financial.projection_receipts') == 0
+
+
+@pytest.mark.asyncio
+async def test_configuration_upgrade_keeps_scoped_reader_acl_and_repeats_without_bootstrap(db):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 17:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    await c.execute('''GRANT USAGE ON SCHEMA life_financial TO life_runtime_test,life_reporter_test;
+        GRANT EXECUTE ON FUNCTION life_financial.spot_state(uuid),life_financial.recorder_executor_verified(uuid)
+            TO life_runtime_test,life_reporter_test''')
+    path = DEFAULT_DIRECTORY / '000017_recorder_configuration.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    for principal in ('life_runtime_test', 'life_reporter_test'):
+        for signature in ('spot_state(uuid)', 'recorder_executor_verified(uuid)'):
+            assert await c.fetchval('SELECT has_function_privilege($1,$2,\'EXECUTE\')', principal, 'life_financial.' + signature)
+        for signature in ('recorder_executor_integrity(uuid)', 'recorder_executor_only_integrity(uuid)',
+                          'recorder_config_integrity(uuid)',
+                          'recorder_config_stage(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
+                          'recorder_config_apply(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.identity)'):
+            assert not await c.fetchval('SELECT has_function_privilege($1,$2,\'EXECUTE\')', principal, 'life_financial.' + signature)
+    assert (await migrate(c, directory, action='up'))['applied'] == []
+    assert (await migrate(c, directory))['pending'] == []
+    assert await c.fetchval('SELECT count(*) FROM life_financial.accounts') == 0
+    assert await c.fetchval('SELECT count(*) FROM life_financial.recorder_outbox') == 0

@@ -15,8 +15,8 @@ from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError
 
 
 async def bridge(database, *, side='BUY', objective='liquidity_service', prepare_policy=True, claim=True,
-                 min_edge=D('0'), uncertainty=D('0'), payload_changes=None, action_fact_age_ms=1000):
-    repo, cfg, owner = await setup(database, max_fact_age_ms=action_fact_age_ms)
+                 min_edge=D('0'), uncertainty=D('0'), payload_changes=None, action_fact_age_ms=1000, **seed_options):
+    repo, cfg, owner = await setup(database, max_fact_age_ms=action_fact_age_ms, **seed_options)
     if prepare_policy:
         await database[0].execute('''INSERT INTO life_financial.spot_quote_admission_policies VALUES(
             $1,$2,$3,$4,$5,.01,.01,.01,1000,1000,1000,1000)''', cfg.account_id, cfg.binding.policy_hash, objective, min_edge, uncertainty)

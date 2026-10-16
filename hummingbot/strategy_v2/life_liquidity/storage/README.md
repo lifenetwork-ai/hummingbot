@@ -39,6 +39,28 @@ and account transactions, not store this aggregate JSON as its financial schema.
 Migration infrastructure is separate and documented in
 [the migration guide](../../../../migrations/life_liquidity/README.md).
 
+## PostgreSQL configuration audit
+
+`postgres/configuration.py` adds `PgConfigurationRepository` with explicit
+controller, row and byte limits. The immutable registered
+`configurations.body.controller` is required; reporting never registers its own
+baseline. Initial/revision/sequence/outcome checks bind stage/apply to the original
+owner and current cut. SQL delivery appends one owned legacy Controllers row and
+its immutable receipt atomically. Cold retries do not append duplicate rows.
+
+Rejected updates and startup/manual kills latch account HALT at staging. An
+unchanged report, later false flag or replay cannot clear the latch. Approved
+control/activation is still an unfinished independent port. Configuration and
+executor streams share pending/integrity barriers, with late accounting allowed
+for consistent pending reports. Reads preserve complete bounded audit history.
+
+Migration `000017` adds only private helpers/fixed commands over existing tables.
+Approved access provisioning grants scoped command rights; read-only roles have
+no write/private-helper access. Configuration DTOs support both backends while
+file publication/auditing explicitly rejects PostgreSQL configuration records.
+The configured PostgreSQL controller and actual recorder application remain
+unsupported. [Qualification](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-standalone-configuration-audit-qualification-2026-10-16).
+
 ## PostgreSQL executor reporting outbox
 
 `postgres/recorder.py` implements an explicit `PgRecorderRepository` over a qualified
