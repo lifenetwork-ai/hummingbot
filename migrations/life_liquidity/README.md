@@ -75,6 +75,13 @@ fixture and is deliberately excluded.
   Source authenticity, actual runner/transport and action terminal reconciliation
   remain separate gates. No owner, money or live threshold is bootstrapped.
 
+- `000012_spot_action_reconciliation.sql`: private closing-time/hold proofs and
+  qualified PREPARED → RECONCILED slot closure after financial abort/terminal and
+  fresh post-closure runner absence. It changes no wallet/hold/spending state,
+  adds no runtime privilege/table/default, and retains original writer and
+  permanent identities. Unprepared dispatch retirement and actual runner/source
+  authenticity remain separate work. Existing automatic migration applies it.
+
 The runner applies each immutable version once. A second service startup validates
 the same history and skips applied scripts. DDL is deliberately forward-only:
 unregistered pre-existing objects fail instead of being silently accepted by

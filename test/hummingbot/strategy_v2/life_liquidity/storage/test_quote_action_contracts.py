@@ -50,7 +50,7 @@ def test_untyped_runner_facts_denied(changes):
         replace(facts(), **changes)
 
 
-@pytest.mark.parametrize('expected,state', [('DISPATCHED', 'REJECTED'), ('REJECTED', 'PROPOSED'), ('PROPOSED', 'PREPARED')])
+@pytest.mark.parametrize('expected,state', [('DISPATCHED', 'REJECTED'), ('REJECTED', 'PROPOSED'), ('PROPOSED', 'PREPARED'), ('PREPARED', 'REJECTED'), ('RECONCILED', 'PROPOSED')])
 def test_impossible_action_transition_denied(expected, state):
     with pytest.raises(StorageError):
         TransitionQuoteAction('change', action(), expected, state, facts())
@@ -67,3 +67,9 @@ def test_commands_are_frozen_capture_exact_bytes_and_copy_json():
         row.side = 'SELL'
     transition = TransitionQuoteAction('reject', row, 'PROPOSED', 'REJECTED', facts())
     assert transition.json()['facts']['scope_complete'] is True
+
+
+def test_prepared_action_can_request_qualified_terminal_reconciliation():
+    command = TransitionQuoteAction('close', action(), 'PREPARED', 'RECONCILED', facts())
+    assert command.json()['expected_state'] == 'PREPARED'
+    assert command.facts.scope_complete is True

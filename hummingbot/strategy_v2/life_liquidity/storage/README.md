@@ -41,6 +41,21 @@ Migration infrastructure is separate and documented in
 
 ## PostgreSQL PG2 foundation
 
+**PG3 terminal action reconciliation (2026-10-16, base `38b97e942`):**
+`TransitionQuoteAction(PREPARED, RECONCILED)` now requires proven financial
+abort/terminal closure, all order holds closed and fresh complete original-runner
+absence captured after that closure. Only the quote slot is freed; original
+wallet/fee/subsidy/loss state and permanent intent/wire identities do not change.
+Cold retry and COMMIT faults retain the original result without refund or rearm.
+Original-writer late cleanup may proceed after HALT/expiry; successor retirement
+still needs qualified handoff. Admission facts must explicitly label the exit
+source kind; the label does not authenticate an independent price.
+
+`000012` adds private proofs and extends existing action commands without new
+money/policy tables or runtime privileges. Unprepared DISPATCHED retirement and
+actual runner/source/transport assembly remain pending. See
+[qualification](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-terminal-action-reconciliation-qualification-2026-10-16).
+
 **Action-bound PG3 financial preparation (2026-10-16, base `f78ae4991`):**
 `action_preparation.py` and `PgSpotRepository.prepare_quote_action` bind the
 exact captured DISPATCHED LIMIT_MAKER action to atomic principal/fee/subsidy

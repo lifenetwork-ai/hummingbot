@@ -110,7 +110,7 @@ class TransitionQuoteAction:
         if (len(self.operation_id) > 96 or type(self.action) is not SpotQuoteAction
                 or type(self.facts) is not RunnerActionFacts or (self.expected_state, self.state) not in (
                     ('PROPOSED', 'DISPATCHED'), ('PROPOSED', 'REJECTED'),
-                    ('PROPOSED', 'RECONCILED'), ('DISPATCHED', 'RECONCILED'))):
+                    ('PROPOSED', 'RECONCILED'), ('DISPATCHED', 'RECONCILED'), ('PREPARED', 'RECONCILED'))):
             raise StorageError('QUOTE_ACTION_TRANSITION_INVALID')
 
     def json(self):

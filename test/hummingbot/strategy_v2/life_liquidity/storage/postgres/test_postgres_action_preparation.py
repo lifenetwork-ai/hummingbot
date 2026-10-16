@@ -15,8 +15,8 @@ from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError
 
 
 async def bridge(database, *, side='BUY', objective='liquidity_service', prepare_policy=True, claim=True,
-                 min_edge=D('0'), uncertainty=D('0'), payload_changes=None):
-    repo, cfg, owner = await setup(database)
+                 min_edge=D('0'), uncertainty=D('0'), payload_changes=None, action_fact_age_ms=1000):
+    repo, cfg, owner = await setup(database, max_fact_age_ms=action_fact_age_ms)
     if prepare_policy:
         await database[0].execute('''INSERT INTO life_financial.spot_quote_admission_policies VALUES(
             $1,$2,$3,$4,$5,.01,.01,.01,1000,1000,1000,1000)''', cfg.account_id, cfg.binding.policy_hash, objective, min_edge, uncertainty)
@@ -39,7 +39,7 @@ async def bridge(database, *, side='BUY', objective='liquidity_service', prepare
 async def command(database, cfg, owner, row, **changes):
     at = await database[0].fetchval('SELECT clock_timestamp()')
     facts = QuoteAdmissionFacts(cfg.binding, at, at, at, at, D('1'), D('1'), D('.99'), D('1.01'),
-                                D('.01'), D('0'), D('0'), D('0'), D('0'), False)
+                                D('.01'), D('0'), D('0'), D('0'), D('0'), False, 'independent_market')
     prepare = order(owner, side=row.side, subsidy_quote_usdt=D('.02'))
     return PrepareQuoteAction(row, prepare, replace(facts, **changes))
 
@@ -332,7 +332,7 @@ async def run():
     await repo.claim_quote_actions(ClaimQuoteActions('claim',(row,)),cut=(await repo.snapshot(cfg['binding'])).cut,owner=owner)
     facts=RunnerActionFacts(cfg['binding'],now(),'controller1',('intent1',),True)
     await repo.transition_quote_action(TransitionQuoteAction('dispatch',row,'PROPOSED','DISPATCHED',facts),cut=(await repo.snapshot(cfg['binding'])).cut,owner=owner)
-    at=now(); admission=QuoteAdmissionFacts(cfg['binding'],at,at,at,at,D('1'),D('1'),D('.99'),D('1.01'),D('.01'),D('0'),D('0'),D('0'),D('0'),False)
+    at=now(); admission=QuoteAdmissionFacts(cfg['binding'],at,at,at,at,D('1'),D('1'),D('.99'),D('1.01'),D('.01'),D('0'),D('0'),D('0'),D('0'),False,'independent_market')
     prep=PrepareSpot('operation1','intent1','wire1','LIFE-USDT','BUY',D('2'),D('1'),D('1'),D('.02'),str(owner.session_id),owner.epoch,1,0,D('.2'),D('.1'))
     command=PrepareQuoteAction(row,prep,admission); cut=(await repo.snapshot(cfg['binding'])).cut
     print(json.dumps(dict(command=command.json(),cut=cut.json())),flush=True)

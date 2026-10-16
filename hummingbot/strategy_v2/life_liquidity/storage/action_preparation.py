@@ -32,7 +32,7 @@ class QuoteAdmissionFacts:
     carry_cost_usdt: Decimal
     inventory_risk_usdt: Decimal
     exit_value_includes_impact: bool
-    exit_source_kind: str = 'independent_market'
+    exit_source_kind: str
 
     def __post_init__(self):
         if (type(self.binding) is not StateBinding or type(self.exit_value_includes_impact) is not bool

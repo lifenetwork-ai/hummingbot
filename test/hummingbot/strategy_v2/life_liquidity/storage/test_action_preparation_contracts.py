@@ -14,7 +14,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.financial import PrepareSpot
 def admission():
     binding, at = facts().binding, datetime(2026, 10, 16, tzinfo=timezone.utc)
     return QuoteAdmissionFacts(binding, at, at, at, at, D('1'), D('1'), D('.9'), D('1.1'),
-                               D('.01'), D('0'), D('0'), D('0'), D('0'), False)
+                               D('.01'), D('0'), D('0'), D('0'), D('0'), False, 'independent_market')
 
 
 def prepare():
@@ -47,3 +47,10 @@ def test_command_exact_roundtrip_and_json_copy_preserves_financial_values():
     assert command.prepare.quantity_base == D('2')
     with pytest.raises(FrozenInstanceError):
         command.admission.impact_cost_usdt = D('1')
+
+
+def test_missing_source_kind_never_implicitly_labels_an_independent_valuation():
+    values = dict(admission().__dict__)
+    values.pop('exit_source_kind')
+    with pytest.raises(TypeError):
+        QuoteAdmissionFacts(**values)
