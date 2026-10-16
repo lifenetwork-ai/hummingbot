@@ -22,7 +22,9 @@ class BuildExt(build_ext):
 
 
 def main():
-    cpu_count = os.cpu_count() or 8
+    cpu_count = int(os.environ.get("HUMMINGBOT_BUILD_JOBS", os.cpu_count() or 8))
+    if cpu_count < 1:
+        raise ValueError("HUMMINGBOT_BUILD_JOBS must be positive")
     version = "20260922"
     all_packages = find_packages(include=["hummingbot", "hummingbot.*"], )
     excluded_paths = [

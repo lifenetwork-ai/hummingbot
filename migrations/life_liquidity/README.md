@@ -1,7 +1,7 @@
 # LIFE PostgreSQL migrations
 
 This is the single schema migration entry point for the PostgreSQL backend.
-It installs **storage lineage and an empty typed financial schema with guarded transaction functions**. It does not import file
+It installs **storage lineage, an empty typed financial schema with guarded transaction functions, and isolated legacy recorder reporting tables**. It does not import file
 state, create account balances, grant ownership, enable trading, or connect the
 LIFE controller to PostgreSQL. The spike SQL under `test/` remains a synthetic
 fixture and is deliberately excluded.
@@ -21,6 +21,11 @@ fixture and is deliberately excluded.
   atomic ACK/fill/fee/loss/subsidy accounting and derived funding deficit.
   Unsupported negative-wallet facts persist as pending/HALT, retaining money/holds.
   No source policy, capital, owner, release or activation is automatically created.
+- `000006_recorder_projection.sql`: thirteen empty legacy ORM reporting tables in
+  `life_recorder`, with a schema version marker. No runtime role is granted DDL or
+  metadata-write access. Projection tables omit FKs to support fill-before-order
+  callbacks; financial FKs are unchanged. This is reporting compatibility, not
+  financial authority or full LIFE recorder/outbox integration.
 
 The runner applies each immutable version once. A second service startup validates
 the same history and skips applied scripts. DDL is deliberately forward-only:
@@ -83,9 +88,11 @@ Cloud SQL connection/authentication and Linux image packaging still require
 PG0.4/PG7/PG9 qualification; this CLI does not implement a Cloud SQL connector.
 
 Docker source packaging copies `migrations/`. Build with
-`--build-arg LIFE_POSTGRES=true` to include the pinned optional asyncpg driver;
-the default `false` retains the file-only dependency set. The full Linux image,
-SQLAlchemy recorder and deployed identity/TLS are still unqualified.
+`--build-arg LIFE_POSTGRES=true` to include pinned asyncpg and psycopg drivers;
+the default `false` omits both extras. The digest-pinned Linux ARM64 image and
+standalone SQLAlchemy recorder seam are now qualified locally; full LIFE
+recorder integration, selected release architecture and deployed identity/TLS
+remain open. See the [PG2 local checkpoint](../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg2-local-recorder-and-linux-qualification-2026-10-16).
 
 For real database tests without using a configured DSN or `.env`:
 
@@ -97,6 +104,39 @@ This starts the pinned disposable local PostgreSQL container, uses synthetic rol
 and accounts, runs schema/concurrency/pool/TLS/fault/crash tests and removes it.
 The output directory must be fresh and under `/tmp`. It does not qualify managed
 failover, disk/host loss, backups or PITR.
+
+For the recorder subset, add `--suite recorder`. To qualify an actual local Linux
+artifact, build it and obtain its immutable ID:
+
+```sh
+docker build --platform linux/arm64 --build-arg LIFE_POSTGRES=true -t life-pg2-linux:local .
+docker image inspect life-pg2-linux:local --format '{{.Id}}'
+# Substitute the actual immutable sha256 ID printed above; never a mutable tag.
+make life-postgres-test LIFE_PG_TEST_ARGS="--suite recorder --linux-image sha256:<image-id> --output /tmp/life-pg2-image-run"
+```
+
+The image runner mounts test code and temporary results only, verifies source
+hashes/compiled Linux modules and runs against a new disposable primary. It does
+not mount the host source, `.env`, credentials or configured data. No `make build`
+or Cloud Run provisioning is involved.
+
+The PostgreSQL SQLAlchemy recorder uses `postgresql+psycopg` and an explicit
+`life_recorder` namespace. Its separate approved role needs schema USAGE, table
+SELECT, projection INSERT/UPDATE and sequence USAGE/SELECT; it must not have
+schema CREATE or INSERT/UPDATE/DELETE on `Metadata`. The financial-role
+`provision_access()` helper does not grant these reporting privileges. Recorder
+startup only validates schema/types/constraints/indexes/version: missing or
+incompatible state fails, without `create_all`, FK removal, version stamping,
+SQLite migration or fallback. TLS defaults to `verify-full`; the disposable
+loopback fixtures explicitly disable TLS. Deployed identity/TLS and operational
+recorder configuration require PG5/PG9 qualification.
+
+Migration `000006` preserves legacy reporting representations, including scaled
+six-decimal integer and float fields. They are not the checked exact-decimal
+financial ledger. Scoped provenance, precision, bounded asynchronous projection
+and full outbox/recovery remain PG5 work. The existing `LIFE_AUTO_MIGRATE=true`
+startup flow applies this migration automatically; no additional migration env
+flag or manual script execution is needed.
 
 ## Environment and automatic startup
 

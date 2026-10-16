@@ -40,6 +40,24 @@ Migration infrastructure is separate and documented in
 
 ## PostgreSQL PG2 foundation
 
+**Local artifact/recorder checkpoint (2026-10-16, base `e588c8ae3`):** full Linux
+ARM64 build/import/source checks and standalone legacy recorder compatibility are
+qualified. `000006_recorder_projection.sql` creates thirteen empty reporting
+tables in `life_recorder`. `SQLConnectionManager` uses the pinned psycopg driver,
+explicit schema and a bounded synchronous pool; startup validates migrated
+tables/constraints/indexes/version without DDL, version stamping, FK removal or
+SQLite migration. A normalized URL participates in singleton cache identity,
+preventing cached SQLite reuse when the configured backend changes. Actual TLS
+checks deny untrusted/wrong peers. Financial schema/role/authority remain separate.
+
+Final checks: **121 actual PG tests**, **21 migration tests**, **169 SQLite/file
+regression tests** and **13 recorder cases inside the actual Linux artifact**
+pass. See [PG2 local qualification](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg2-local-recorder-and-linux-qualification-2026-10-16)
+for immutable artifact/source hashes, commands and scope. Full LIFE outbox,
+UID/generation provenance, asynchronous scheduling, reporting precision and
+recovery remain PG5; the PostgreSQL backend selector is still unsupported. This
+does not qualify deployed identities, failure domains, Cloud Run or trading.
+
 `postgres/runtime.py` supplies optional asyncpg primary-only infrastructure.
 `PgConfig` requires explicit account/binding/database lineage/principal, pool
 capacity and timeout/retry budgets. DSNs are excluded from DTO representations

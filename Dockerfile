@@ -1,5 +1,5 @@
 # Set the base image
-FROM continuumio/miniconda3:latest AS builder
+FROM continuumio/miniconda3:25.3.1-1@sha256:4a2425c3ca891633e5a27280120f3fb6d5960a0f509b7594632cdd5bb8cbaea8 AS dependencies
 
 # Install system dependencies
 RUN apt-get update && \
@@ -10,20 +10,14 @@ WORKDIR /home/hummingbot
 
 # Create conda environment
 COPY setup/environment.yml /tmp/environment.yml
-RUN conda env create -f /tmp/environment.yml && \
+RUN sed -i 's/  - defaults/  - nodefaults/;s/  - python>=3.10.12/  - python=3.13.15/;s/  - sqlalchemy>=1.4.49/  - sqlalchemy=2.1.1/' /tmp/environment.yml && \
+    conda config --system --set channel_priority strict && \
+    conda env create -f /tmp/environment.yml && \
     conda clean -afy && \
     rm /tmp/environment.yml
 
-# Copy remaining files
-COPY bin/ bin/
-COPY hummingbot/ hummingbot/
-COPY scripts/ scripts/
-COPY controllers/ controllers/
-COPY migrations/ migrations/
-COPY scripts/ scripts-copy/
-COPY setup.py .
-COPY LICENSE .
-COPY README.md .
+# All installation/build commands must use the environment, including noninteractive RUN.
+ENV PATH=/opt/conda/envs/hummingbot/bin:$PATH
 
 # activate hummingbot env when entering the CT
 SHELL [ "/bin/bash", "-lc" ]
@@ -42,14 +36,29 @@ RUN case "$LIFE_POSTGRES" in \
       *) exit 2 ;; \
     esac && rm /tmp/life_postgres_requirements.txt
 
+# Dependency installation stays cached when application source changes.
+FROM dependencies AS builder
+COPY bin/ bin/
+COPY hummingbot/ hummingbot/
+COPY scripts/ scripts/
+COPY controllers/ controllers/
+COPY migrations/ migrations/
+COPY setup.py .
+COPY LICENSE .
+COPY README.md .
 
-RUN python3 setup.py build_ext --inplace -j 8 && \
+ARG HUMMINGBOT_BUILD_JOBS=2
+RUN HUMMINGBOT_BUILD_JOBS=$HUMMINGBOT_BUILD_JOBS python3 setup.py build_ext --inplace && \
     rm -rf build/ && \
     find . -type f -name "*.cpp" -delete
 
+# Capture the resolved dependency set in the artifact (no claim of a transitive lock).
+RUN conda list -n hummingbot --explicit > /home/hummingbot/conda-explicit.txt && \
+    python -m pip freeze > /home/hummingbot/pip-freeze.txt
+
 
 # Build final image using artifacts from builder
-FROM continuumio/miniconda3:latest AS release
+FROM continuumio/miniconda3:25.3.1-1@sha256:4a2425c3ca891633e5a27280120f3fb6d5960a0f509b7594632cdd5bb8cbaea8 AS release
 
 # Dockerfile author / maintainer
 LABEL maintainer="Fede Cardoso @dardonacci <federico@hummingbot.org>"
@@ -80,7 +89,7 @@ RUN mkdir -p /home/hummingbot/conf /home/hummingbot/conf/connectors /home/hummin
 WORKDIR /home/hummingbot
 
 # Copy all build artifacts from builder image
-COPY --from=builder /opt/conda/ /opt/conda/
+COPY --from=dependencies /opt/conda/envs/hummingbot/ /opt/conda/envs/hummingbot/
 COPY --from=builder /home/ /home/
 
 # Put the hummingbot env on PATH so non-login shells (e.g. `docker exec … hbot`) find the env's python

@@ -3,9 +3,11 @@ import asyncio
 import os
 from dataclasses import replace
 from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.helpers import backend
+from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_recorder import manager, provision
 from test.hummingbot.strategy_v2.life_liquidity.storage.run_migrations import docker
 
 import pytest
+from sqlalchemy import text
 
 from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.runtime import PgRuntime
@@ -40,3 +42,17 @@ async def test_actual_tls_connection_requires_trusted_ca_and_verified_peer(datab
         assert len(await valid.balances()) == 2
     finally:
         await valid.close()
+
+    await provision(database[0])
+    # No sslmode in the supplied URL: the actual manager must require verify-full.
+    with pytest.raises(ValueError, match='RECORDER_POSTGRES_SCHEMA_INCOMPATIBLE'):
+        manager(database[1], tls={})
+    recorder = manager(database[1], tls={'sslrootcert': str(tmp_path / 'ca.crt')})
+    try:
+        with recorder.engine.connect() as connection:
+            assert connection.scalar(text('SELECT ssl FROM pg_stat_ssl WHERE pid=pg_backend_pid()')) is True
+    finally:
+        recorder.engine.dispose()
+    with pytest.raises(ValueError, match='RECORDER_POSTGRES_SCHEMA_INCOMPATIBLE'):
+        manager(database[1].replace('127.0.0.1', 'wrong-peer.test'),
+                tls={'sslrootcert': str(tmp_path / 'ca.crt'), 'hostaddr': '127.0.0.1'})

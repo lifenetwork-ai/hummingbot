@@ -1,2 +1,4 @@
 # Optional migration/storage extra; qualify the Linux worker image in PG0.4/PG7.
 asyncpg==0.31.0
+# Synchronous SQLAlchemy recorder only; never used on the financial async path.
+psycopg[binary]==3.2.9

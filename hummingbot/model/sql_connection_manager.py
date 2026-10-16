@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import MetaData, create_engine, inspect
 from sqlalchemy.engine.base import Engine
+from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm import Query, Session, sessionmaker
 from sqlalchemy.schema import DropConstraint, ForeignKeyConstraint, Table
 
@@ -43,15 +44,29 @@ class SQLConnectionManager(TransactionBase):
     def get_trade_fills_instance(
         cls, client_config_map: "ClientConfigAdapter", db_name: Optional[str] = None
     ) -> "SQLConnectionManager":
+        configured_url = cls.recorder_url(client_config_map, cls.create_db_path(db_name=db_name))
         if cls._scm_trade_fills_instance is None:
             cls._scm_trade_fills_instance = SQLConnectionManager(
                 client_config_map, SQLConnectionType.TRADE_FILLS, db_name=db_name
             )
-        elif cls.create_db_path(db_name=db_name) != cls._scm_trade_fills_instance.db_path:
+        elif (cls.create_db_path(db_name=db_name) != cls._scm_trade_fills_instance.db_path
+              or configured_url != cls._scm_trade_fills_instance._configured_url):
             cls._scm_trade_fills_instance = SQLConnectionManager(
                 client_config_map, SQLConnectionType.TRADE_FILLS, db_name=db_name
             )
         return cls._scm_trade_fills_instance
+
+    @staticmethod
+    def recorder_url(client_config_map, db_path):
+        url = make_url(client_config_map.db_mode.get_url(db_path))
+        if url.get_backend_name() == 'postgresql':
+            if url.drivername == 'postgresql':
+                url = url.set(drivername='postgresql+psycopg')
+            if url.drivername != 'postgresql+psycopg':
+                raise ValueError('RECORDER_POSTGRES_DRIVER_UNSUPPORTED')
+            if 'sslmode' not in url.query:
+                url = url.update_query_dict({'sslmode': 'verify-full'})
+        return url
 
     @classmethod
     def create_db_path(cls, db_path: Optional[str] = None, db_name: Optional[str] = None) -> str:
@@ -72,7 +87,23 @@ class SQLConnectionManager(TransactionBase):
         self.db_path = db_path
 
         if connection_type is SQLConnectionType.TRADE_FILLS:
-            self._engine: Engine = create_engine(client_config_map.db_mode.get_url(self.db_path))
+            url = self.recorder_url(client_config_map, self.db_path)
+            self._configured_url = url
+            if url.get_backend_name() == 'postgresql':
+                from hummingbot.model.postgres_recorder import SCHEMA, validate_schema
+                self._engine = create_engine(
+                    url, pool_size=2, max_overflow=0, pool_timeout=2, pool_pre_ping=True,
+                    connect_args={'connect_timeout': 5, 'options': '-c statement_timeout=5000 -c lock_timeout=2000'},
+                    execution_options={'schema_translate_map': {None: SCHEMA}})
+                try:
+                    validate_schema(self._engine, self.LOCAL_DB_VERSION_VALUE)
+                except Exception:
+                    self._engine.dispose()
+                    raise
+                self._metadata = self.get_declarative_base().metadata
+                self._session_cls = sessionmaker(bind=self._engine)
+                return
+            self._engine: Engine = create_engine(url)
             self._metadata: MetaData = self.get_declarative_base().metadata
             self._metadata.create_all(self._engine)
 

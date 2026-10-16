@@ -1,6 +1,9 @@
 """PG2 real-process qualification in a new disposable local DB; no .env reads."""
 import argparse
+import hashlib
+import json
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -14,7 +17,11 @@ def main():
     import asyncpg  # noqa: F401 -- mandatory for this opt-in real-process runner.
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--suite', choices=('all', 'recorder'), default='all')
+    parser.add_argument('--linux-image', help='Immutable locally built image ID; recorder suite only')
     args = parser.parse_args()
+    if args.linux_image and (args.suite != 'recorder' or not re.fullmatch(r'sha256:[0-9a-f]{64}', args.linux_image)):
+        parser.error('--linux-image requires an immutable sha256 image ID and --suite recorder')
     output = args.output.resolve()
     if not output.is_relative_to(Path('/tmp').resolve()):
         parser.error('Use /tmp for disposable qualification logs')
@@ -44,9 +51,37 @@ def main():
         port = docker('port', name, '5432/tcp').split(':')[-1]
         env = {**os.environ, 'LIFE_PG_TEST_DSN': f'postgresql://postgres@127.0.0.1:{port}/life_pg2_test',
                'LIFE_PG_TEST_CONTAINER': name}
-        command = [sys.executable, '-m', 'pytest', '-q', str(Path(__file__).with_name('postgres')),
+        selector = Path(__file__).with_name('postgres')
+        if args.suite == 'recorder':
+            selector /= 'test_postgres_recorder.py'
+        command = [sys.executable, '-m', 'pytest', '-q', str(selector),
                    '--junitxml=' + str(output / 'integration.xml')]
         with (output / 'integration.log').open('w') as log:
+            if args.linux_image:
+                root = Path(__file__).resolve().parents[5]
+                manifest_paths = list((root / 'migrations/life_liquidity').glob('*.sql'))
+                manifest_paths += [root / name for name in (
+                    'hummingbot/model/sql_connection_manager.py', 'hummingbot/model/postgres_recorder.py',
+                    'hummingbot/strategy_v2/life_liquidity/storage/postgres/spot.py',
+                    'hummingbot/strategy_v2/life_liquidity/storage/postgres/runtime.py',
+                    'controllers/generic/life_liquidity.py')]
+                manifest = {str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest() for path in manifest_paths}
+                docker_prefix = ['docker', 'run', '--rm', '--network', 'container:' + name,
+                                 '--cpus', '2', '--memory', '2g',
+                                 '-v', str(root / 'test') + ':/qualification/test:ro',
+                                 '-v', str(output) + ':/results',
+                                 '-e', 'PYTHONPATH=/home/hummingbot:/qualification',
+                                 '-e', 'LIFE_PG_TEST_DSN=postgresql://postgres@127.0.0.1:5432/life_pg2_test',
+                                 '--entrypoint', 'python', args.linux_image]
+                smoke = subprocess.run(docker_prefix + ['-m',
+                                                        'test.hummingbot.strategy_v2.life_liquidity.storage.linux_image_smoke', json.dumps(manifest)],
+                                       stdout=log, stderr=subprocess.STDOUT)
+                if smoke.returncode:
+                    print('Linux image import/package smoke failed; see integration.log')
+                    return smoke.returncode
+                command = docker_prefix + ['-m', 'pytest', '-q',
+                                           '/qualification/test/hummingbot/strategy_v2/life_liquidity/storage/postgres/test_postgres_recorder.py',
+                                           '--junitxml=/results/integration.xml', '-o', 'cache_dir=/tmp/pytest-cache']
             result = subprocess.run(command, env=env, stdout=log, stderr=subprocess.STDOUT)
         print((output / 'integration.log').read_text())
         return result.returncode

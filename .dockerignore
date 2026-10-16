@@ -14,3 +14,11 @@
 
 # Local migration credentials are injected at runtime, never baked into images.
 /.env
+
+# Never mix host-compiled extensions or bytecode into a Linux build.
+**/*.so
+**/*.dylib
+**/*.pyc
+**/__pycache__
+**/.env
+**/.env.*
