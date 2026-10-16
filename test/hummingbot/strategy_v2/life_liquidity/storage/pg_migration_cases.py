@@ -386,3 +386,29 @@ async def test_cli_reads_dotenv_while_manual_up_ignores_auto_flag(db):
         stdout, stderr = await process.communicate()
         assert process.returncode == expected, (stdout, stderr)
         assert dsn.encode() not in stdout + stderr
+
+
+@pytest.mark.asyncio
+async def test_executor_outbox_upgrade_preserves_snapshot_acl_and_is_repeatable(db):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 16:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    await c.execute('''GRANT USAGE ON SCHEMA life_financial TO life_runtime_test,life_reporter_test;
+        GRANT EXECUTE ON FUNCTION life_financial.spot_state(uuid) TO life_runtime_test,life_reporter_test''')
+    path = DEFAULT_DIRECTORY / '000016_recorder_executor_outbox.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    for principal in ('life_runtime_test', 'life_reporter_test'):
+        assert await c.fetchval("SELECT has_function_privilege($1,'life_financial.spot_state(uuid)','EXECUTE')", principal)
+        for signature in ('spot_state_v15(uuid)', 'recorder_executor_integrity(uuid)',
+                          'recorder_executor_verified(uuid)',
+                          'recorder_stage_executor(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,text,jsonb)',
+                          'recorder_apply_executor(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.identity)'):
+            # Upgrade never provisions new private/command rights implicitly.
+            assert not await c.fetchval('SELECT has_function_privilege($1,$2,\'EXECUTE\')', principal, 'life_financial.' + signature)
+    assert (await migrate(c, directory, action='up'))['applied'] == []
+    assert (await migrate(c, directory))['pending'] == []
+    assert await c.fetchval('SELECT count(*) FROM life_financial.recorder_outbox') == 0
+    assert await c.fetchval('SELECT count(*) FROM life_financial.projection_receipts') == 0

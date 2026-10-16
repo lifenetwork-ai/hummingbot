@@ -39,6 +39,36 @@ and account transactions, not store this aggregate JSON as its financial schema.
 Migration infrastructure is separate and documented in
 [the migration guide](../../../../migrations/life_liquidity/README.md).
 
+## PostgreSQL executor reporting outbox
+
+`postgres/recorder.py` implements an explicit `PgRecorderRepository` over a qualified
+`PgSpotRepository`. Its constructor requires the controller ID and explicit
+`max_rows`/`max_read_bytes`. These bounds are not live defaults. Initial
+`ExecutorProjection` and sequenced `ExecutorProgress` commands keep the original
+captured config, namespace, account UID and known financial wire provenance.
+
+`stage` publishes an immutable pending report; `apply` atomically writes the
+legacy executor projection and its delivery receipt. `project` is a reporting
+repair convenience, never an exchange dispatcher. Exact original retries recover
+lost COMMIT replies; old delivery cannot overwrite newer status. Initial delivery
+never adopts a foreign globally keyed executor row. Reporting Floats do not become
+financial authority, and receipts always grant no trading permission.
+
+Pending reports deny new risk while consistent late ACK/fill accounting remains
+available. Corrupted report, operation, receipt or legacy projection blocks reads
+and financial commits. A single primary statement snapshot covers integrity,
+pending completeness, byte/row budgets and returned rows. Oversized reads deny
+before the result JSON is aggregated/transferred. Integrity still traverses retained
+history; PG8 performance remains unqualified.
+
+Migration `000016` reuses existing tables and the central migration runner. New
+fixed command/read rights use approved `provision_access`; runtime has no direct
+financial DML or private proof rights. Configuration, connector events, held
+positions and actual recorder application/orchestrator wiring remain open. This
+standalone repository cannot be selected as a configured PostgreSQL service.
+
+[Qualification and remaining scope](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-standalone-executor-outbox-qualification-2026-10-16).
+
 ## Explicit PostgreSQL V2 runner journal
 
 `postgres/runner_journal.py` supplies `PgQuoteRunnerJournal` for explicit offline

@@ -112,6 +112,19 @@ fixture and is deliberately excluded.
   previously provisioned runtime/reporting readers need no manual regrant.
   Earlier scripts remain immutable; the central runner skips applied versions.
 
+- `000016_recorder_executor_outbox.sql`: fixed initial/progress reporting commands
+  reuse `recorder_outbox`, `projection_receipts`, `operations` and legacy
+  `Executors`. Original config/account/wire provenance, immutable sequence,
+  ordered delivery, current-owner/cut and deferred COMMIT checks apply. Reporting
+  delivery never authorizes exchange submission or changes money. Valid pending
+  reports block new risk while leaving late ACK/fill observations available;
+  inconsistent reporting blocks financial commits. No new table, role or account
+  is created. The current snapshot ACL survives upgrade; private/old functions
+  stay unavailable. New approved runtime/read-only command rights are provisioned
+  through `storage/postgres/access.py`, never inferred from an upgrade. Actual
+  15→16 and repeated-startup tests qualify central-runner idempotency. Other
+  reporting streams and configured PostgreSQL service integration remain open.
+
 The runner applies each immutable version once. A second service startup validates
 the same history and skips applied scripts. DDL is deliberately forward-only:
 unregistered pre-existing objects fail instead of being silently accepted by
