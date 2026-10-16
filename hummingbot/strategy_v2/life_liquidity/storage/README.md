@@ -2330,3 +2330,23 @@ entries deny; they are not silently cleared. Actual synchronous SDK publication
 failure restores the original cache and revokes local health. No tracking JSON,
 order tracker, hold release, owner, trading readiness or sender is restored.
 The configured service/listener factory remains unimplemented and denied.
+
+### PostgreSQL standalone inventory settlement
+
+`PgInventorySettlementRepository` implements explicit settle/resume/lookup for
+closed SPOT inventory cycles. Original financial facts determine actual spend;
+there is no caller release amount. Every member needs a qualified terminal
+receipt and the cycle must net to zero LIFE including fee asset effects.
+Actual subsidy is at least gross execution loss plus any uncovered realized
+cycle cost. The same atomic transaction releases original committed subsidy
+holds and records actual incurred spend in original UTC budget buckets.
+Wallets and execution-loss counters are never credited, and other orders keep
+their holds. Cycle/member identities cannot be reused.
+
+A missing/corrupt cycle, member, receipt or spend invalidates current state.
+Primary cut, current original owner and explicit imported fact-age policy are
+checked at physical COMMIT. Cold recovery reads the original operation before
+retry; a fresh observation after definite absence retains every economic field.
+Historical receipts never activate a sender. This standalone port does not
+install the configured service or qualify joint/product settlement. Migration 000024 qualifies with 903 full PostgreSQL cases and 31 migration
+cases; the full PG3/controller/shared-product gate remains open.

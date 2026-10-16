@@ -460,3 +460,19 @@ backend's optional auto-migration pattern is now supported through
   diagnostic counters from the verified prior ACK baseline; no financial amount,
   owner or activation is imported. Prior script bytes and existing function ACLs
   remain unchanged. Raw provider authentication/collection is separate work.
+
+### 000024: standalone SPOT inventory settlement
+
+Adds explicit imported settlement policy plus immutable, scoped cycle/member
+facts. Closed terminal cycles must net to zero LIFE including signed LIFE fees.
+SQL derives actual subsidy spend from permanent original fills and fees; callers
+supply no refund amount. Original holds move to actual incurred spend in their
+original session/day/campaign buckets. Wallets and gross execution-loss counters
+never receive a credit. Permanent member/cycle identities prevent reuse.
+
+Forward lifecycle/physical-COMMIT proofs retain earlier guards and recognize
+only verified settlement overlays. Existing filled terminal receipts are not
+rewritten. New tables/functions create no account, policy, owner, session or
+financial amount; the central ledger still serializes and skips applied scripts.
+Runtime provisioning grants the fixed settlement command only. Private evidence,
+canonical proof and DML remain unavailable to runtime/read-only roles.
