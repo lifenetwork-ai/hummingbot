@@ -45,6 +45,16 @@ fixture and is deliberately excluded.
   entrypoints; existing principals require approved access provisioning for the
   new entrypoints. No extra `.env` switch or manual SQL execution is required.
 
+- `000009_spot_order_lifecycle.sql`: four empty order policy/cancel progress/
+  lifecycle event/terminal fact tables and indexes on reservation intent and
+  budget-event windows. Atomic abort/cancel/terminal commands retain original IDs
+  and spending. Proven unsent/qualified terminal commands release order holds;
+  filled quote subsidy remains for economic settlement. Freshness/generation
+  guards repeat at COMMIT. Runtime cannot create its own limits/opening anchor.
+  The existing auto-migration switch applies this script; approved provisioning
+  grants the new command entrypoint. Provider authentication, external cancel,
+  quote actions and product settlement remain separate requirements.
+
 The runner applies each immutable version once. A second service startup validates
 the same history and skips applied scripts. DDL is deliberately forward-only:
 unregistered pre-existing objects fail instead of being silently accepted by

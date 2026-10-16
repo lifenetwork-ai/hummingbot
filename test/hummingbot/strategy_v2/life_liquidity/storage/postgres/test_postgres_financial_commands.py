@@ -17,7 +17,8 @@ def order(owner, **changes):
 
 
 async def spot(database, limits=(D('0'), D('100'), D('1000'), D('100')), *, session_clock_offset=None,
-               session_duration=timedelta(seconds=60), on_expiry='pause_quotes'):
+               session_duration=timedelta(seconds=60), on_expiry='pause_quotes', max_order_fact_age_ms=1000,
+               cancel_retry_interval_ms=100, import_order_policy=True):
     from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot import PgSpotRepository
     runtime, cfg, owner = await backend(database, session_duration=session_duration)
     # Approved policy import is administrator-only; explicitly synthetic test values.
@@ -28,6 +29,9 @@ async def spot(database, limits=(D('0'), D('100'), D('1000'), D('100')), *, sess
                               cfg.account_id, owner.session_id, cfg.binding.policy_hash, on_expiry, watermark)
     await database[0].execute("INSERT INTO life_financial.spot_session_progress VALUES($1,$2,'ACTIVE','SESSION_ACTIVE',$3,false,0)",
                               cfg.account_id, owner.session_id, watermark)
+    if import_order_policy:
+        await database[0].execute('INSERT INTO life_financial.spot_order_policies VALUES($1,$2,$3,$4)',
+                                  cfg.account_id, cfg.binding.policy_hash, max_order_fact_age_ms, cancel_retry_interval_ms)
     return PgSpotRepository(runtime), cfg, owner
 
 

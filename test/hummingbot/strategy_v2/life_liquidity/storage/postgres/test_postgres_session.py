@@ -450,7 +450,7 @@ async def test_upgrade_revokes_old_entrypoints_and_reapplication_is_empty(databa
         for signature in signatures:
             await connection.execute(f'GRANT EXECUTE ON FUNCTION {signature} TO life_pg2_runtime,life_pg2_reporter')
         result = await migrate(connection, action='up')
-        assert len(result['applied']) == 1
+        assert result['applied'] == sorted(path.name for path in directory.glob('*.sql') if path.name >= '000008')
         for signature in signatures:
             renamed = signature.replace('spot_state(', 'spot_state_v7(').replace('spot_prepare(', 'spot_prepare_v7(').replace('spot_arm(', 'spot_arm_v7(')
             for role in ('life_pg2_runtime', 'life_pg2_reporter'):

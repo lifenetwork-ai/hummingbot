@@ -37,6 +37,8 @@ from hummingbot.strategy_v2.life_liquidity.storage.financial import (
 )
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.runtime import PgRuntime
 from hummingbot.strategy_v2.life_liquidity.storage.session import SessionTick, SessionTickReceipt
+from hummingbot.strategy_v2.life_liquidity.storage.spot_lifecycle import SpotLifecycleCommand, SpotLifecycleReceipt
+from hummingbot.strategy_v2.life_liquidity.storage.terminal import TerminalReceipt, TerminalSpot
 
 
 class PgSpotRepository:
@@ -139,10 +141,12 @@ class PgSpotRepository:
             return await c.fetchrow('''SELECT t.*,d.quote_level,d.operation_id AS prepare_id,
                 r.amount AS principal_amount,r.remaining AS principal_remaining,r.state AS principal_state,
                 CASE WHEN t.side='BUY' THEN (t.quantity-COALESCE(g.filled_base,0))*t.price ELSE t.quantity-COALESCE(g.filled_base,0) END AS principal_expected,
-                COALESCE(g.filled_base,0) AS filled_base
+                COALESCE(g.filled_base,0) AS filled_base,
+                c.intent_id IS NOT NULL AS cancel_requested,COALESCE(c.cancel_attempts,0) AS cancel_attempts,c.last_cancel_attempt_at
                 FROM life_financial.send_attempts t
                 JOIN life_financial.spot_preparations d USING(account_id,intent_id)
                 LEFT JOIN life_financial.spot_accounting_progress g USING(account_id,intent_id)
+                LEFT JOIN life_financial.spot_cancel_progress c USING(account_id,intent_id)
                 LEFT JOIN life_financial.reservations r ON r.account_id=t.account_id AND r.reservation_id=d.operation_id||':principal'
                 WHERE t.account_id=$1 AND t.intent_id=$2 AND t.product='SPOT' ''', self._runtime.config.account_id, intent_id)
         return await self._runtime._admit(read, safety=True)
@@ -153,19 +157,23 @@ class PgSpotRepository:
             return None
         return SpotAttempt(intent_id, row['wire_id'], intent_id, str(row['session_id']), row['epoch'],
                            AttemptState.SEND_UNKNOWN if row['state'] == 'ARMED' else AttemptState(row['state']),
-                           row['exchange_order_id'], False, 'LIFE-USDT', row['side'], row['quote_level'])
+                           row['exchange_order_id'], row['cancel_requested'], 'LIFE-USDT', row['side'], row['quote_level'],
+                           row['cancel_attempts'], row['last_cancel_attempt_at'])
 
     async def reservation(self, intent_id, binding):
         row = await self._attempt(intent_id, binding)
         if row is None:
             return None
-        if (row['state'] not in ('PREPARED', 'ARMED', 'SEND_UNKNOWN', 'ACKED') or row['principal_state'] != 'HELD'
-                or row['principal_remaining'] != row['principal_expected']):
+        closed = row['state'] in ('TERMINAL', 'ABORTED_BEFORE_SEND')
+        if (row['state'] not in ('PREPARED', 'ARMED', 'SEND_UNKNOWN', 'ACKED', 'TERMINAL', 'ABORTED_BEFORE_SEND')
+                or row['principal_state'] != ('TERMINAL' if closed else 'HELD')
+                or row['principal_remaining'] != (0 if closed else row['principal_expected'])):
             raise StorageUnavailable('PG_SPOT_RESERVATION_STATE_UNSUPPORTED')
         with localcontext() as context:
             context.prec = 120
             return SpotReservation(intent_id, row['side'], str(row['session_id']), row['epoch'], row['quantity'],
-                                   row['quantity'] - row['filled_base'], row['filled_base'], row['price'], 'OPEN')
+                                   D('0') if closed else row['quantity'] - row['filled_base'], row['filled_base'], row['price'],
+                                   'TERMINAL' if closed else 'CANCEL_PENDING' if row['cancel_requested'] else 'OPEN')
 
     async def lookup_prepare(self, operation_id, binding):
         self._binding(binding)
@@ -336,3 +344,53 @@ class PgSpotRepository:
         # phase to resume. Unknown COMMIT is resolved by the original ID lookup.
         await self.snapshot(binding)
         return ()
+
+    def _order_receipt(self, value):
+        if value.get('trading_permission') is not False:
+            raise StorageUnavailable('PG_ORDER_RECEIPT_INVALID')
+        if value.get('kind') == 'SPOT_LIFECYCLE':
+            return SpotLifecycleReceipt(self.binding, value['operation_id'], value['intent_id'], value['state'], value['replayed'], self.atomic_scope)
+        if value.get('kind') == 'SPOT_TERMINAL':
+            return TerminalReceipt(self.binding, value['operation_id'], value['intent_id'], value['exchange_order_id'],
+                                   value['state'], value['subsidy_settled'], value['replayed'], self.atomic_scope)
+        raise StorageUnavailable('PG_ORDER_RECEIPT_INVALID')
+
+    async def _order_command(self, command, cut, owner, kind, *, resume=False):
+        version, digest = self._cut(cut, owner)
+        identity = fingerprint({'kind': kind, 'command': command.json(), 'owner': owner.json(), 'binding': self.binding.json()})
+        args = (self._runtime.config.account_id, self.binding.json(), owner.json(), version, digest, identity, kind, command.json(), resume)
+        return await self._runtime._transaction('SELECT life_financial.spot_order_command($1,$2,$3,$4,$5,$6,$7,$8,$9)',
+                                                args, owner, self._order_receipt, observation=True)
+
+    async def apply_lifecycle(self, command, *, cut, owner):
+        if type(command) is not SpotLifecycleCommand:
+            raise StorageError('PG_ORDER_COMMAND_INVALID')
+        return await self._order_command(command, cut, owner, 'SPOT_LIFECYCLE')
+
+    async def confirm_terminal(self, command, *, cut, owner):
+        if type(command) is not TerminalSpot or command.facts.binding != self.binding:
+            raise StorageError('PG_TERMINAL_COMMAND_INVALID')
+        return await self._order_command(command, cut, owner, 'SPOT_TERMINAL')
+
+    async def resume_terminal(self, command, *, cut, owner):
+        if type(command) is not TerminalSpot or command.facts.binding != self.binding:
+            raise StorageError('PG_TERMINAL_COMMAND_INVALID')
+        # An atomic PG transaction has no partially applied saga. Resume can
+        # only read an existing terminal receipt with the original economic core.
+        return await self._order_command(command, cut, owner, 'SPOT_TERMINAL', resume=True)
+
+    async def _lookup_order(self, operation_id, binding, kind):
+        self._binding(binding)
+        identifier(operation_id)
+
+        async def read(c):
+            return await c.fetchval("SELECT receipt FROM life_financial.operations WHERE account_id=$1 AND operation_id=$2 AND command->>'kind'=$3",
+                                    self._runtime.config.account_id, operation_id, kind)
+        value = await self._runtime._admit(read, safety=True)
+        return None if value is None else self._order_receipt({**value, 'replayed': True})
+
+    async def lookup_terminal(self, operation_id, binding):
+        return await self._lookup_order(operation_id, binding, 'SPOT_TERMINAL')
+
+    async def lookup_lifecycle(self, operation_id, binding):
+        return await self._lookup_order(operation_id, binding, 'SPOT_LIFECYCLE')

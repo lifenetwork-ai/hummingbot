@@ -41,6 +41,25 @@ Migration infrastructure is separate and documented in
 
 ## PostgreSQL PG2 foundation
 
+**Standalone PG3 order-lifecycle checkpoint (2026-10-16, base `69d585f70`):**
+`apply_lifecycle`/`lookup_lifecycle` and `confirm_terminal`/`resume_terminal`/
+`lookup_terminal` use ACCOUNT atomicity. Migration `000009` adds empty imported
+order policy, cancel progress/events and terminal facts, plus budget-window and
+reservation-intent indexes. Proven unarmed abort releases holds once; cancel
+records intent/counter while retaining money. Terminal reconciles caller-qualified
+original order, exact booked fills, complete account scopes and opening capital
+before release. Zero-fill unused subsidy releases; filled quote subsidy and
+loss spending remain for economic settlement. Permanent wire/operation IDs persist.
+
+COMMIT rechecks generation and freshness. Late safety closure never activates;
+cold original-command retry cannot double release or count. `resume_terminal`
+only reads an already committed economic core. Caller facts are not provider
+authentication, and no external cancel/send runs. Quote actions, successor/shared
+products, settlement, provider ingress, scaled history and configured PostgreSQL
+backend selection remain open. Final checks pass **240 actual PostgreSQL tests**
+(54 lifecycle cases), **21 migration tests** and **279 focused file/contract tests**.
+See [lifecycle qualification](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-spot-order-lifecycle-qualification-2026-10-16).
+
 **Standalone PG3 primary-session checkpoint (2026-10-16, base `08a61f192`):**
 `PgSpotRepository.tick_session`, `lookup_session_tick` and
 `pending_session_ticks` implement the primary-session safety contract with
@@ -52,8 +71,9 @@ Original-command lookup/retry resolves uncertain COMMIT without rearm or a saga
 phase. Missing imports and unmatched progress mutations fail closed.
 
 An expired switch policy remains TRANSITIONING with OLD_ORDERS_UNRESOLVED.
-Successor reconciliation/activation, observation grants, abort/cancel/terminal
-commands and quote actions remain unported. No activation or transport permission
+Successor reconciliation/activation, observation grants and quote actions remain
+unported. The newer lifecycle checkpoint above supersedes the earlier
+abort/cancel/terminal gap. No activation or transport permission
 is created. Timestamp-watermark verification is under the declared DB-owner
 trust and does not qualify unobserved clock faults or independent timer fencing.
 Final checks pass **186 actual PostgreSQL tests** (31 session cases), **21
