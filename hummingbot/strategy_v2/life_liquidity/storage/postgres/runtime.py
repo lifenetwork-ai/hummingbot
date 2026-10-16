@@ -153,7 +153,7 @@ class PgRuntime:
                         min_size=minimum, max_size=size, max_inactive_connection_lifetime=30,
                         timeout=config.acquire_timeout_ms / 1000, command_timeout=config.statement_timeout_ms / 1000,
                         init=self._initialize_connection, server_settings={
-                            'application_name': 'life_financial_runtime', 'synchronous_commit': 'on',
+                            'application_name': 'life_financial_runtime', 'synchronous_commit': 'on', 'timezone': 'UTC',
                             'statement_timeout': str(config.statement_timeout_ms),
                             'idle_in_transaction_session_timeout': str(config.idle_transaction_timeout_ms)})
             self._healthy = True
@@ -172,11 +172,11 @@ class PgRuntime:
         row = await c.fetchrow('''SELECT current_user AS principal,pg_is_in_recovery() AS replica,
             current_setting('server_version_num')::integer/10000 AS major,
             current_setting('transaction_read_only') AS readonly,current_setting('synchronous_commit') AS sync,
-            current_setting('fsync') AS fsync,current_setting('full_page_writes') AS full_page,
+            current_setting('fsync') AS fsync,current_setting('full_page_writes') AS full_page,current_setting('TimeZone') AS timezone,
             (SELECT lineage FROM life_storage.storage_metadata) AS lineage''')
         if (row['principal'] != cfg.principal or row['replica'] or row['major'] != cfg.server_major
                 or row['readonly'] != 'off' or row['sync'] != 'on' or row['fsync'] != 'on' or row['full_page'] != 'on'
-                or row['lineage'] != cfg.database_lineage):
+                or row['timezone'] != 'UTC' or row['lineage'] != cfg.database_lineage):
             raise StorageUnavailable('PG_PRIMARY_CONTEXT_INVALID')
         if not cfg.local_insecure and not await c.fetchval('SELECT ssl FROM pg_stat_ssl WHERE pid=pg_backend_pid()'):
             raise StorageUnavailable('PG_TLS_REQUIRED')

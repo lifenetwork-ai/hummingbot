@@ -550,3 +550,27 @@ async def test_ack_ingress_upgrade_preserves_scoped_acl_and_repeat_startup_witho
     assert (await migrate(c, directory))['pending'] == []
     for table in ('accounts', 'spot_ack_ingress', 'spot_ack_ingress_receipts'):
         assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+
+
+@pytest.mark.asyncio
+async def test_observation_context_upgrade_keeps_existing_acl_and_repeats_without_financial_bootstrap(db):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 22:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    await c.execute('''GRANT USAGE ON SCHEMA life_financial TO life_runtime_test,life_reporter_test;
+        GRANT EXECUTE ON FUNCTION life_financial.spot_state(uuid) TO life_runtime_test,life_reporter_test''')
+    path = DEFAULT_DIRECTORY / '000022_spot_observation_context.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    for principal in ('life_runtime_test', 'life_reporter_test'):
+        assert await c.fetchval("SELECT has_function_privilege($1,'life_financial.spot_state(uuid)','EXECUTE')", principal)
+        for signature in ('spot_observation_context(uuid,integer,integer)', 'spot_prepare_receipts_verified(uuid)'):
+            assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", principal, 'life_financial.' + signature)
+    function = await c.fetchrow("SELECT provolatile::text AS volatility,prosecdef FROM pg_proc WHERE oid='life_financial.spot_observation_context(uuid,integer,integer)'::regprocedure")
+    assert function['volatility'] == 's' and function['prosecdef']
+    assert (await migrate(c, directory, action='up'))['applied'] == []
+    assert (await migrate(c, directory))['pending'] == []
+    for table in ('accounts', 'spot_preparations', 'spot_fill_facts', 'spot_cashflow_facts'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0

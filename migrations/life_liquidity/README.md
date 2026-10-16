@@ -440,3 +440,12 @@ backend's optional auto-migration pattern is now supported through
   digests include the append count even when the account version does not change.
   Existing scripts remain unchanged; the central runner qualifies 20→21 and
   repeated startup without financial bootstrap.
+
+- `000022_spot_observation_context.sql`: one scoped, bounded, stable-statement
+  read of original SPOT commands, fills/fees, applied cashflows, imported policies
+  and pending received ACKs with its primary cut. Monetary JSON fields stay
+  decimal strings. Known unresolved financial observations deny rather than
+  disappearing from scope. Preparation proof now also checks reverse origins
+  from retained attempts/receipts, including aborted and terminal identities.
+  Migration changes no financial row, owner or grant; existing script bytes and
+  current snapshot/private-helper ACLs remain unchanged.

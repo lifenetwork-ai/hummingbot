@@ -401,6 +401,13 @@ asyncio.run(run())
         if stage == 'terminal' and not committed:
             with pytest.raises(StorageError, match='RECOVERY_NOT_STARTED'):
                 await cold.resume_terminal(command, cut=(await cold.snapshot(cfg.binding)).cut, owner=owner)
+            # Definite original absence is not terminal permission. Collect a
+            # fresh complete observation after cold lookup, retaining the same
+            # operation/order/economic identity. Committed replay below keeps
+            # its historical original facts; the 1 s freshness gate is intact.
+            fresh = await terminal(cold, cfg, owner)
+            assert replace(fresh.facts, observed_at=command.facts.observed_at) == command.facts
+            command = fresh
         result = await getattr(cold, 'confirm_terminal' if stage == 'terminal' else 'apply_lifecycle')(command,
                                                                                                        cut=(await cold.snapshot(cfg.binding)).cut, owner=owner)
         assert result.replayed is committed

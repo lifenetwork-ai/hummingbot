@@ -2224,3 +2224,25 @@ service/source composition remain required by PG3. No SDK dedup restoration or
 configured PostgreSQL activation follows from an ingress receipt. A crash before
 raw capture commits still requires fresh exchange reconciliation; the original
 HTTP response in a test fixture is not a live recovery source.
+
+## PostgreSQL provider observation context
+
+`PgSpotObservationReader.observation_context(binding)` implements the shared
+read contract over one primary statement. Its constructor requires explicit
+row/byte budgets; SQL checks bounded identity/size metadata before aggregating
+payloads and checks final encoded size. Returned policies, original preparations,
+permanent fill/fee values, applied cashflows, pending received ACKs and the cut
+share a snapshot. Concurrent money commits cannot produce a mixed context.
+Money uses decimal strings and parsing is independent of ambient Decimal
+precision. Runtime connections pin UTC and reject timezone drift before use.
+
+Missing imported policies, malformed/corrupt/foreign origins, or unresolved
+financial fills/cashflows deny this read. They never become empty "complete"
+lists or newly reconstructed valuation prices. Retired preparations remain
+mandatory origins of retained attempts and prepare receipts; absence also
+invalidates the current financial snapshot and denies preparation. This is
+relational consistency under the declared trusted database-owner contract.
+
+The reader does not authenticate a provider, collect HTTP/WebSocket responses,
+qualify runner scope or grant a send. Authenticated collection, financial pending
+resolution and full configured service/product composition remain PG3 work.
