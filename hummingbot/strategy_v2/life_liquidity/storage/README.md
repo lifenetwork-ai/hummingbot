@@ -39,6 +39,20 @@ and account transactions, not store this aggregate JSON as its financial schema.
 Migration infrastructure is separate and documented in
 [the migration guide](../../../../migrations/life_liquidity/README.md).
 
+## PostgreSQL exact held-position reporting
+
+`postgres/positions.py` adds sequenced original snapshots and atomic legacy
+Position delivery over migration `000019`. Exact signed legs, fees and wire IDs
+survive cold readback; native six-decimal rows are diagnostic. SQL validates
+registered controller/wire provenance, monotone sequence/time and retained wire
+history. Historical replay cannot overwrite a later snapshot or refund money.
+Position reads return the current cut from the same primary statement snapshot.
+Explicit row/byte limits reject incomplete history; corrupt or extra native rows
+require qualified repair. The shared reporting math avoids ambient Decimal
+rounding across truncation boundaries. Actual controller/service/recorder wiring
+and financial product composition remain unfinished. See the
+[position qualification](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-standalone-held-position-qualification-2026-10-16).
+
 ## PostgreSQL connector event reporting
 
 `postgres/events.py` stages registered-source event snapshots and atomically
@@ -102,7 +116,7 @@ history; PG8 performance remains unqualified.
 
 Migration `000016` reuses existing tables and the central migration runner. New
 fixed command/read rights use approved `provision_access`; runtime has no direct
-financial DML or private proof rights. Held positions and actual recorder application/orchestrator wiring remain open. This
+financial DML or private proof rights. Actual recorder application/orchestrator wiring remains open. This
 standalone repository cannot be selected as a configured PostgreSQL service.
 
 [Qualification and remaining scope](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-standalone-executor-outbox-qualification-2026-10-16).

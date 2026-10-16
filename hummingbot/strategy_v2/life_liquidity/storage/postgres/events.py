@@ -96,9 +96,9 @@ class PgEventRepository(PgRecorderRepository):
         for _, command in rows:
             body = json.loads(command.payload_json)
             if body['kind'] == 'OrderFilled':
-                trades.add((source.market, body['wire'], body['trade_id']))
-            if body.get('exchange_id') is not None:
-                exchanges.add((body['wire'], body['exchange_id']))
+                trades.add((source.market, body['trade_id'], body['pair']))
+            if body['kind'] in ('BuyOrderCreated', 'SellOrderCreated') and body.get('exchange_id') is not None:
+                exchanges.add((body['exchange_id'], body['wire']))
             tracking = command.tracking_json
         return ConnectorHistory(source, tuple(sorted(trades)), tuple(sorted(exchanges)), tracking)
 

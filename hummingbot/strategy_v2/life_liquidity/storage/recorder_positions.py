@@ -5,7 +5,7 @@ position, releases a reservation or grants submission authority.
 """
 import asyncio
 from dataclasses import dataclass, fields
-from decimal import Decimal
+from decimal import Decimal, localcontext
 from typing import Protocol
 
 from hummingbot.model.position import Position
@@ -34,7 +34,9 @@ SQL_VALUES = ('volume_traded_quote', 'amount', 'breakeven_price', 'unrealized_pn
 
 def sql_value(value):
     """Mirror the existing SqliteDecimal(6) reporting representation only."""
-    integer = int(value * 10 ** 6)
+    with localcontext() as context:
+        context.prec = 300
+        integer = int(value * 10 ** 6)
     if not -(2 ** 63) <= integer < 2 ** 63:
         raise StorageError('RECORDER_POSITION_SQL_OVERFLOW')
     return Decimal(integer) / 10 ** 6
@@ -95,10 +97,15 @@ class HeldPosition:
                       else item for key, item in value.items()})
 
     def summary(self):
-        return {'volume_traded_quote': self.volume_traded_quote, 'amount': abs(self.net_amount_base),
-                'breakeven_price': self.avg_entry_price,
-                'unrealized_pnl_quote': (self.mark_price - self.avg_entry_price) * self.net_amount_base,
-                'realized_pnl_quote': self.realized_pnl_quote, 'cum_fees_quote': self.cum_fees_quote}
+        with localcontext() as context:
+            # Decimal DTOs permit 64 significant digits with exponent +/-64.
+            # Intermediate subtraction/product must not cross a SQL truncation
+            # boundary because of the application's ambient Decimal context.
+            context.prec = 300
+            return {'volume_traded_quote': self.volume_traded_quote, 'amount': abs(self.net_amount_base),
+                    'breakeven_price': self.avg_entry_price,
+                    'unrealized_pnl_quote': (self.mark_price - self.avg_entry_price) * self.net_amount_base,
+                    'realized_pnl_quote': self.realized_pnl_quote, 'cum_fees_quote': self.cum_fees_quote}
 
     def restore(self):
         from hummingbot.core.data_type.common import TradeType

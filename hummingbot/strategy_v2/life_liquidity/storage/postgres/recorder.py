@@ -77,7 +77,7 @@ class PgRecorderRepository:
             'SELECT life_financial.recorder_apply_executor($1,$2,$3,$4,$5,$6)',
             args, owner, self._receipt, observation=True)
 
-    async def _read(self, binding, pending):
+    async def _read(self, binding, pending, *, with_cut=False):
         self.financial._binding(binding)
 
         async def read(c):
@@ -103,9 +103,12 @@ class PgRecorderRepository:
             result = await c.fetchrow(
                 """WITH integrity AS MATERIALIZED (
                     SELECT life_financial.recorder_executor_verified($1) AS verified),
+                account_cut AS MATERIALIZED (SELECT CASE WHEN $7 THEN life_financial.spot_state($1) END AS value),
                 selected AS MATERIALIZED (""" + select + """),
                 stats AS MATERIALIZED (SELECT count(*) AS count,COALESCE(sum(bytes),0)+2*count(*)+2 AS bytes FROM selected)
                 SELECT integrity.verified,stats.count,stats.bytes,
+                    (SELECT value#>>'{account,version}' FROM account_cut) AS account_version,
+                    (SELECT value->>'digest' FROM account_cut) AS account_digest,
                     EXISTS(SELECT 1 FROM life_financial.recorder_outbox o
                         LEFT JOIN life_financial.projection_receipts r USING(account_id,projection_id)
                         WHERE o.account_id=$1 AND r.projection_id IS NULL) AS pending,
@@ -114,7 +117,7 @@ class PgRecorderRepository:
                             FROM selected s JOIN life_financial.recorder_outbox o ON o.account_id=$1
                                 AND o.projection_id=s.projection_id),'[]'::jsonb)
                         ELSE '[]'::jsonb END AS rows FROM integrity,stats""",
-                self._runtime.config.account_id, self.controller_id, self.max_rows + 1, self.max_rows, self.max_read_bytes, list(self._subtypes))
+                self._runtime.config.account_id, self.controller_id, self.max_rows + 1, self.max_rows, self.max_read_bytes, list(self._subtypes), with_cut)
             if not result['verified']:
                 raise StorageUnavailable('PG_RECORDER_UNVERIFIED')
             if not pending and result['pending']:
@@ -123,9 +126,14 @@ class PgRecorderRepository:
                 raise StorageUnavailable('PG_RECORDER_CAPACITY')
             if result['bytes'] > self.max_read_bytes:
                 raise StorageUnavailable('PG_RECORDER_BYTE_CAPACITY')
+            if with_cut:
+                version = int(result['account_version'])
+                digest = result['account_digest']
+                checkpoint = StateCut(binding, version, version, (ResourceVersion('account', version),), digest)
+                return result['rows'], FinancialCut(checkpoint, (('postgres_account', digest),))
             return result['rows']
         rows = await self._runtime._admit(read, safety=True)
-        if len(rows) > self.max_rows:
+        if len(rows[0] if with_cut else rows) > self.max_rows:
             raise StorageUnavailable('PG_RECORDER_CAPACITY')
         return rows
 

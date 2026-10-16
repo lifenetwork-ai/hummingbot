@@ -67,6 +67,7 @@ async def test_fill_before_create_and_late_status_preserve_latest_order_state(da
         fill = event(t.cfg.binding, source, at, 'OrderFilled')
         await repo.project(fill, owner=t.owner)
         assert await database[0].fetchval('SELECT count(*) FROM life_recorder."Order"') == 0
+        assert (await repo.connector_history(source, t.cfg.binding)).exchange_ids == ()
         create = event(t.cfg.binding, source, at - 1)
         await repo.project(create, owner=t.owner)
         assert await database[0].fetchval('SELECT last_status FROM life_recorder."Order"') == 'OrderFilled'
@@ -75,8 +76,8 @@ async def test_fill_before_create_and_late_status_preserve_latest_order_state(da
         assert await database[0].fetchval('SELECT last_status FROM life_recorder."Order"') == 'OrderCancelled'
         assert await database[0].fetchval('SELECT count(*) FROM life_recorder."TradeFill"') == 1
         history = await repo.connector_history(source, t.cfg.binding)
-        assert history.trade_ids == (('okx', 'wire1', 'trade1'),)
-        assert history.exchange_ids == (('wire1', '123'),)
+        assert history.trade_ids == (('okx', 'trade1', 'LIFE-USDT'),)
+        assert history.exchange_ids == (('123', 'wire1'),)
         assert await t.repo.balance(t.cfg.binding) == before
         assert len(t.session.sent) == 1
     finally:
@@ -386,7 +387,7 @@ async def test_unicode_source_identity_matches_the_existing_native_fingerprint(d
         command = event(t.cfg.binding, source, at)
         await repo.project(command, owner=t.owner)
         assert await repo.pending(t.cfg.binding) == ()
-        assert (await repo.connector_history(source, t.cfg.binding)).exchange_ids == (('wire1', '123'),)
+        assert (await repo.connector_history(source, t.cfg.binding)).exchange_ids == (('123', 'wire1'),)
     finally:
         await t.close()
 
@@ -406,7 +407,7 @@ async def test_read_only_role_can_inspect_events_but_not_write_or_invoke_private
         cfg = replace(t.cfg, dsn=t.cfg.dsn.replace('life_pg2_runtime@', 'life_pg2_reporter@'), principal='life_pg2_reporter', write=False)
         financial = PgSpotRepository(await PgRuntime.open(cfg))
         reader = PgEventRepository(financial, source=source, max_rows=64, max_read_bytes=1048576)
-        assert (await reader.connector_history(source, t.cfg.binding)).exchange_ids == (('wire1', '123'),)
+        assert (await reader.connector_history(source, t.cfg.binding)).exchange_ids == (('123', 'wire1'),)
         with pytest.raises(StorageError, match='PG_SPOT_COMMAND_INVALID'):
             await reader.stage(event(t.cfg.binding, source, at), cut=(await financial.snapshot(t.cfg.binding)).cut, owner=t.owner)
         c = await asyncpg.connect(cfg.dsn)
@@ -424,4 +425,18 @@ async def test_read_only_role_can_inspect_events_but_not_write_or_invoke_private
     finally:
         if financial is not None:
             await financial.close()
+        await t.close()
+
+
+@pytest.mark.asyncio
+async def test_connector_history_matches_sdk_trade_and_exchange_cache_contract(database):
+    from hummingbot.connector.utils import TradeFillOrderDetails
+    t, repo, source, at = await setup(database)
+    try:
+        await repo.project(event(t.cfg.binding, source, at), owner=t.owner)
+        await repo.project(event(t.cfg.binding, source, at + 1, 'OrderFilled'), owner=t.owner)
+        history = await repo.connector_history(source, t.cfg.binding)
+        assert {TradeFillOrderDetails(*row) for row in history.trade_ids} == {TradeFillOrderDetails('okx', 'trade1', 'LIFE-USDT')}
+        assert dict(history.exchange_ids) == {'123': 'wire1'}
+    finally:
         await t.close()

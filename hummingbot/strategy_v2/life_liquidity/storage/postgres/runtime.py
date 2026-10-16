@@ -210,6 +210,8 @@ class PgRuntime:
                 'life_financial.spot_action_prepare(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
                 'life_financial.recorder_event_stage(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,life_financial.identity,jsonb)',
                 'life_financial.recorder_event_apply(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.identity)',
+                'life_financial.recorder_position_stage(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
+                'life_financial.recorder_position_apply(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.identity)',
                 'life_financial.recorder_config_stage(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
                 'life_financial.recorder_config_apply(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.identity)',
                 'life_financial.recorder_stage_executor(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,text,jsonb)',

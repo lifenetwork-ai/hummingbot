@@ -417,3 +417,9 @@ backend's optional auto-migration pattern is now supported through
   scoped read access and physical-COMMIT observation guards remain mandatory.
   No financial balance, activation, provider capture or SDK dedup authority is
   inferred from these reporting records. Existing scripts remain unchanged.
+
+- `000019_recorder_positions.sql`: registered-controller exact held-position
+  snapshots over existing outbox/effects/heads/Position tables. Stage/apply are
+  atomic, ordered and replay-safe. Current reporting rows never authorize an
+  exchange send, prove a financial position or release capital. Existing scripts
+  remain unchanged; the version/checksum runner qualifies 18→19 and repeat startup.

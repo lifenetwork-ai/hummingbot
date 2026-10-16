@@ -245,3 +245,12 @@ async def test_sql_position_compare_and_write_exclude_concurrent_reporters(tmp_p
         event.remove(engine, 'before_cursor_execute', before)
         event.remove(engine, 'after_cursor_execute', after)
         await store.close()
+
+
+@pytest.mark.parametrize('sign', [1, -1])
+def test_reporting_truncation_cannot_round_across_a_micro_unit_boundary(sign):
+    from hummingbot.strategy_v2.life_liquidity.storage.recorder_positions import sql_value
+    value = D('0.000000' + '9' * 58)
+    if sign < 0:
+        value = value.copy_negate()
+    assert sql_value(value) == 0
