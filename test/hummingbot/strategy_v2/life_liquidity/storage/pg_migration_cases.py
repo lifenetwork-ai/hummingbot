@@ -497,3 +497,30 @@ async def test_position_reporting_upgrade_preserves_acl_and_repeats_without_mone
     assert (await migrate(c, directory))['pending'] == []
     for table in ('accounts', 'recorder_outbox', 'recorder_projection_effects', 'recorder_projection_heads'):
         assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+
+
+@pytest.mark.asyncio
+async def test_operator_approval_upgrade_preserves_acl_and_repeats_without_money_bootstrap(db):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 20:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    await c.execute('''GRANT USAGE ON SCHEMA life_financial TO life_runtime_test,life_reporter_test;
+        GRANT EXECUTE ON FUNCTION life_financial.spot_state(uuid),life_financial.recorder_executor_verified(uuid)
+            TO life_runtime_test,life_reporter_test''')
+    path = DEFAULT_DIRECTORY / '000020_spot_operator_approvals.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    for principal in ('life_runtime_test', 'life_reporter_test'):
+        for signature in ('spot_state(uuid)', 'recorder_executor_verified(uuid)'):
+            assert await c.fetchval('SELECT has_function_privilege($1,$2,\'EXECUTE\')', principal, 'life_financial.' + signature)
+        for signature in ('spot_operator_approval_integrity(uuid)', 'spot_capital_verified_v19(uuid)',
+                          'spot_operator_approval_commit_guard()'):
+            assert not await c.fetchval('SELECT has_function_privilege($1,$2,\'EXECUTE\')', principal, 'life_financial.' + signature)
+        for table in ('bill_approvals', 'spot_operator_approvals'):
+            assert not await c.fetchval("SELECT has_table_privilege($1,$2,'INSERT')", principal, 'life_financial.' + table)
+    assert (await migrate(c, directory, action='up'))['applied'] == []
+    assert (await migrate(c, directory))['pending'] == []
+    for table in ('accounts', 'bill_approvals', 'spot_operator_approvals'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0

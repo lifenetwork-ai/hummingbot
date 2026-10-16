@@ -423,3 +423,11 @@ backend's optional auto-migration pattern is now supported through
   atomic, ordered and replay-safe. Current reporting rows never authorize an
   exchange send, prove a financial position or release capital. Existing scripts
   remain unchanged; the version/checksum runner qualifies 18→19 and repeat startup.
+
+- `000020_spot_operator_approvals.sql`: empty immutable operator audit linked to
+  bill approvals, metadata consistency and physical-COMMIT capture/expiry guards.
+  The separate privileged importer verifies Ed25519 signatures using externally
+  supplied keys pinned to the registered policy. Runtime has no approval DML or
+  private-helper rights; migration never seeds an operator, bill, money or grant.
+  Existing scripts remain byte-for-byte unchanged. Actual 19→20 and repeat startup
+  qualify the same central version/checksum runner.

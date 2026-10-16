@@ -39,6 +39,24 @@ and account transactions, not store this aggregate JSON as its financial schema.
 Migration infrastructure is separate and documented in
 [the migration guide](../../../../migrations/life_liquidity/README.md).
 
+## Privileged PostgreSQL cashflow approval import
+
+`postgres/approval_import.py` uses a separate migration-owner connection and
+explicit public `OperatorVerifier` keys matching the registered immutable
+operator policy. Exact command/cut/fact signatures, complete declared scope,
+primary capture/anchor/time and physical-COMMIT context/expiry checks gate one
+atomic bill approval plus audit. Runtime roles cannot import or forge approvals.
+`lookup` and exact replay verify historical signatures without renewing them.
+
+Import grants no send permission and changes no balance, hold, budget or owner.
+Provider bill authentication/capture and separate cashflow application remain
+required. SQL checks relational/hash consistency under database-owner trust;
+cryptographic Ed25519 verification uses the external public keys in the importer
+and lookup. Existing privileged baseline imports and independent anchoring still
+require their PG0/PG6 gates. Explicit fact-age settings are mandatory; the 1 MiB
+encoding ceiling is a format bound. See the
+[approval qualification](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-signed-approval-import-qualification-2026-10-17).
+
 ## Explicit PostgreSQL reporting application
 
 `postgres/recorder_application.py` supplies `PgRecorderApplication` for explicit
