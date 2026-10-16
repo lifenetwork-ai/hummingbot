@@ -606,6 +606,10 @@ PG3 tests seed explicitly synthetic ownership/grant rows through test-only setup
 **Done when:** equivalent file/PG replays yield identical units, balances, holds, budgets, identities and decisions for supported scope; database atomicity is never presented as exactly-once exchange delivery.
 
 
+### PG3 ACK clock-domain correction (2026-10-16)
+
+`PgQuoteRequestGuard.acknowledge` now uses `PgSpotRepository.observation_cut`: one primary statement supplies the exact account cut and the database capture timestamp. The previous local-host timestamp could reject an accepted ACK when host and primary clocks differed. SQL causality, original-owner, future-time and rollback checks remain enforced; readback grants no send permission. Two tests first reproduced both local clock offsets after the fake HTTP acceptance, then passed with the correction. The complete transport selector passes **25 cases**, six existing warnings, 28.77 s (`/tmp/life-pg3-ack-clock-green`). The concurrent working tree includes the event migration under qualification; this is a focused functional result, not a frozen full-regression or deployment claim. Full PG3 remains open.
+
 ### PG3 standalone configuration audit qualification (2026-10-16)
 
 Base `402dddcba`. This closes the configuration audit storage subitem; actual recorder application and full PG3 remain open.

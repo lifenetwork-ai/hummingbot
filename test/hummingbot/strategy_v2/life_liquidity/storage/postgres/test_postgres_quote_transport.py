@@ -325,3 +325,25 @@ async def test_time_sync_retry_cannot_repeat_guarded_http_send(database):
         assert (await t.repo.attempt('intent1', t.cfg.binding)).state.value == 'SEND_UNKNOWN'
     finally:
         await t.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('offset_seconds', [-5, 5])
+async def test_ack_uses_primary_clock_when_local_clock_jumps_after_http_send(database, offset_seconds):
+    t = await transport(database)
+    original = t.session.request
+
+    async def clock_jump(**kwargs):
+        response = await original(**kwargs)
+        jumped = datetime.now(timezone.utc) + timedelta(seconds=offset_seconds)
+        t.journal.clock = lambda: jumped
+        return response
+    t.session.request = clock_jump
+    try:
+        assert (await t.place())[0] == '123'
+        assert (await t.repo.attempt('intent1', t.cfg.binding)).state.value == 'ACKED'
+        assert len(t.session.sent) == 1
+        with pytest.raises(StorageError, match='PG_REQUEST_ACK_ALREADY_USED'):
+            await t.guard.acknowledge('123')
+    finally:
+        await t.close()

@@ -121,10 +121,10 @@ class PgQuoteRequestGuard:
             raise StorageError('PG_REQUEST_ACK_ALREADY_USED')
         self._ack_started = True
         prepare, journal = self._preparation.prepare, self._journal
+        observed = await journal.repository.observation_cut(journal.binding)
         command = AckSpot('ack:' + fingerprint(prepare.json()), prepare.operation_id, prepare.intent_id,
                           prepare.client_order_id, prepare.market, prepare.side, prepare.session_id, prepare.epoch,
-                          exchange_order_id, utc(journal.clock()))
+                          exchange_order_id, observed.observed_at)
         # Account an accepted request even after local stop/expiry. Observation
         # transactions independently enforce the original generation and cut.
-        cut = (await journal.repository.snapshot(journal.binding)).cut
-        return await journal.repository.acknowledge(command, cut=cut, owner=journal.owner)
+        return await journal.repository.acknowledge(command, cut=observed.cut, owner=journal.owner)

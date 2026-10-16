@@ -1,4 +1,5 @@
 """Standalone SPOT storage ports; no external executor/send authority."""
+from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal as D, InvalidOperation, localcontext
 
@@ -31,6 +32,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.contracts import (
     StorageUnavailable,
     fingerprint,
     identifier,
+    utc,
 )
 from hummingbot.strategy_v2.life_liquidity.storage.financial import (
     AckReceipt,
@@ -53,6 +55,18 @@ from hummingbot.strategy_v2.life_liquidity.storage.quote_send import ArmQuoteAct
 from hummingbot.strategy_v2.life_liquidity.storage.session import SessionTick, SessionTickReceipt
 from hummingbot.strategy_v2.life_liquidity.storage.spot_lifecycle import SpotLifecycleCommand, SpotLifecycleReceipt
 from hummingbot.strategy_v2.life_liquidity.storage.terminal import TerminalReceipt, TerminalSpot
+
+
+@dataclass(frozen=True)
+class ObservedAccountCut:
+    """Primary capture metadata for received facts; no submission authority."""
+    cut: FinancialCut
+    observed_at: datetime
+
+    def __post_init__(self):
+        if type(self.cut) is not FinancialCut:
+            raise StorageError('PG_OBSERVATION_CUT_INVALID')
+        utc(self.observed_at)
 
 
 class PgSpotRepository:
@@ -137,6 +151,29 @@ class PgSpotRepository:
                        max(D('0'), min(limits[k] - subsidy[k] for k in limits)),
                        loss['SESSION'], loss['DAY'], loss['CAMPAIGN'], exhausted),
             value['recovery_required'])
+
+    async def observation_cut(self, binding):
+        """One primary statement supplies both the exact cut and DB capture time.
+
+        Received ACKs must remain accountable after local clock changes. The
+        SQL observation guard still rejects actual primary clock rollback,
+        changed original ownership, stale cuts and inconsistent accounting.
+        """
+        self._binding(binding)
+
+        async def read(c):
+            return await c.fetchrow("""WITH current_state AS MATERIALIZED (
+                SELECT life_financial.spot_state($1) AS v)
+                SELECT v#>>'{account,version}' AS version,v->>'digest' AS digest,
+                    v->>'observed_at' AS observed_at FROM current_state""", self._runtime.config.account_id)
+        value = await self._runtime._admit(read, safety=True)
+        try:
+            version = int(value['version'])
+            checkpoint = StateCut(binding, version, version, (ResourceVersion('account', version),), value['digest'])
+            return ObservedAccountCut(FinancialCut(checkpoint, (('postgres_account', value['digest']),)),
+                                      datetime.fromisoformat(value['observed_at']))
+        except (KeyError, TypeError, ValueError):
+            raise StorageUnavailable('PG_OBSERVATION_CUT_INVALID') from None
 
     async def session(self, binding):
         return (await self.snapshot(binding)).session
