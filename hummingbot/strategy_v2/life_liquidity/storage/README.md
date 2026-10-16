@@ -41,6 +41,21 @@ Migration infrastructure is separate and documented in
 
 ## PostgreSQL PG2 foundation
 
+**PG3 unprepared dispatch retirement (2026-10-16, base `1393e8e6b`):**
+`AbandonQuoteAction`/`PgSpotRepository.abandon_quote_action` explicitly retire a
+DISPATCHED action before any financial attempt/hold. Exact capture, original
+writer and fresh complete post-dispatch runner absence are mandatory. Retirement
+and prepare share the account lock: preparation winning retains the financial
+claim; retirement winning blocks any later preparation of that old identity.
+Only its slot is reusable, with a new ID. Ordinary dispatch rejection or timeout
+cleanup is still denied. No wallet, fee, subsidy or loss is refunded.
+
+`000013` extends existing fixed commands and COMMIT proofs, without new runtime
+privileges, tables or defaults. Cold original-operation readback/retry and late
+same-writer cleanup never send or reactivate trading. Actual runner retirement,
+source authentication, final transport and configured PostgreSQL selection still
+need qualification. See [qualification](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-unprepared-dispatch-retirement-qualification-2026-10-16).
+
 **PG3 terminal action reconciliation (2026-10-16, base `38b97e942`):**
 `TransitionQuoteAction(PREPARED, RECONCILED)` now requires proven financial
 abort/terminal closure, all order holds closed and fresh complete original-runner

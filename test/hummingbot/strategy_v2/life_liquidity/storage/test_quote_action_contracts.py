@@ -6,6 +6,7 @@ from uuid import uuid4
 import pytest
 
 from hummingbot.strategy_v2.life_liquidity.storage.actions import (
+    AbandonQuoteAction,
     ClaimQuoteActions,
     RunnerActionFacts,
     SpotQuoteAction,
@@ -73,3 +74,17 @@ def test_prepared_action_can_request_qualified_terminal_reconciliation():
     command = TransitionQuoteAction('close', action(), 'PREPARED', 'RECONCILED', facts())
     assert command.json()['expected_state'] == 'PREPARED'
     assert command.facts.scope_complete is True
+
+
+@pytest.mark.parametrize('changes', [dict(operation_id=''), dict(action=None), dict(facts=None)])
+def test_retirement_command_requires_typed_original_action_and_runner_facts(changes):
+    with pytest.raises(StorageError):
+        replace(AbandonQuoteAction('retire', action(), facts()), **changes)
+
+
+def test_explicit_retirement_has_fixed_reason_and_does_not_enable_ordinary_dispatch_rejection():
+    cmd = AbandonQuoteAction('retire', action(), facts())
+    assert cmd.json()['reason_code'] == 'RUNNER_RETIRED_BEFORE_PREPARATION'
+    assert cmd.json()['expected_state'] == 'DISPATCHED' and cmd.state == 'REJECTED'
+    with pytest.raises(StorageError):
+        TransitionQuoteAction('retire', action(), 'DISPATCHED', 'REJECTED', facts())

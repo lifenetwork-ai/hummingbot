@@ -4,6 +4,7 @@ from decimal import Decimal as D, InvalidOperation, localcontext
 
 from hummingbot.strategy_v2.life_liquidity.storage.action_preparation import PrepareQuoteAction
 from hummingbot.strategy_v2.life_liquidity.storage.actions import (
+    AbandonQuoteAction,
     ClaimQuoteActions,
     QuoteActionReceipt,
     SpotQuoteAction,
@@ -404,7 +405,7 @@ class PgSpotRepository:
         return await self._lookup_order(operation_id, binding, 'SPOT_LIFECYCLE')
 
     def _action_receipt(self, value):
-        if value.get('kind') not in ('SPOT_ACTION_CLAIM', 'SPOT_ACTION_TRANSITION') or value.get('trading_permission') is not False:
+        if value.get('kind') not in ('SPOT_ACTION_CLAIM', 'SPOT_ACTION_TRANSITION', 'SPOT_ACTION_ABANDON') or value.get('trading_permission') is not False:
             raise StorageUnavailable('PG_ACTION_RECEIPT_INVALID')
         return QuoteActionReceipt(self.binding, value['operation_id'], tuple(tuple(row) for row in value['states']),
                                   value['replayed'], self.atomic_scope)
@@ -413,7 +414,7 @@ class PgSpotRepository:
         version, digest = self._cut(cut, owner)
         identity = fingerprint({'kind': kind, 'command': command.json(), 'owner': owner.json(), 'binding': self.binding.json()})
         args = (self._runtime.config.account_id, self.binding.json(), owner.json(), version, digest, identity, kind, command.json())
-        observation = kind == 'SPOT_ACTION_TRANSITION' and command.state != 'DISPATCHED'
+        observation = kind in ('SPOT_ACTION_TRANSITION', 'SPOT_ACTION_ABANDON') and command.state != 'DISPATCHED'
         return await self._runtime._transaction('SELECT life_financial.spot_action_command($1,$2,$3,$4,$5,$6,$7,$8)',
                                                 args, owner, self._action_receipt, observation=observation)
 
@@ -441,7 +442,7 @@ class PgSpotRepository:
 
         async def read(c):
             return await c.fetchval("""SELECT receipt FROM life_financial.operations WHERE account_id=$1 AND operation_id=$2
-                AND command->>'kind' IN ('SPOT_ACTION_CLAIM','SPOT_ACTION_TRANSITION')""", self._runtime.config.account_id, operation_id)
+                AND command->>'kind' IN ('SPOT_ACTION_CLAIM','SPOT_ACTION_TRANSITION','SPOT_ACTION_ABANDON')""", self._runtime.config.account_id, operation_id)
         value = await self._runtime._admit(read, safety=True)
         return None if value is None else self._action_receipt({**value, 'replayed': True})
 
@@ -452,3 +453,8 @@ class PgSpotRepository:
         identity = fingerprint({'command': command.json(), 'cut': cut.json(), 'owner': owner.json()})
         args = (self._runtime.config.account_id, self.binding.json(), owner.json(), version, digest, identity, command.json())
         return await self._runtime._transaction('SELECT life_financial.spot_action_prepare($1,$2,$3,$4,$5,$6,$7)', args, owner, self._receipt)
+
+    async def abandon_quote_action(self, command, *, cut, owner):
+        if type(command) is not AbandonQuoteAction or command.facts.binding != self.binding:
+            raise StorageError('PG_ACTION_ABANDONMENT_INVALID')
+        return await self._action_command(command, cut, owner, 'SPOT_ACTION_ABANDON')

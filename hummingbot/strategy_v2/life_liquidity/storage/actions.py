@@ -118,6 +118,27 @@ class TransitionQuoteAction:
 
 
 @dataclass(frozen=True)
+class AbandonQuoteAction:
+    """Explicit runner retirement before financial acceptance; not a TTL cleanup."""
+    operation_id: str
+    action: SpotQuoteAction
+    facts: RunnerActionFacts
+
+    def __post_init__(self):
+        identifier(self.operation_id)
+        if len(self.operation_id) > 96 or type(self.action) is not SpotQuoteAction or type(self.facts) is not RunnerActionFacts:
+            raise StorageError('QUOTE_ACTION_ABANDONMENT_INVALID')
+
+    @property
+    def state(self):
+        return 'REJECTED'
+
+    def json(self):
+        return {'operation_id': self.operation_id, 'action': self.action.json(), 'facts': self.facts.json(),
+                'expected_state': 'DISPATCHED', 'state': 'REJECTED', 'reason_code': 'RUNNER_RETIRED_BEFORE_PREPARATION'}
+
+
+@dataclass(frozen=True)
 class QuoteActionReceipt:
     binding: StateBinding
     operation_id: str
@@ -137,6 +158,9 @@ class QuoteActionRepository(Protocol):
         ...
 
     async def transition_quote_action(self, command: TransitionQuoteAction, *, cut: FinancialCut, owner: OwnerToken) -> QuoteActionReceipt:
+        ...
+
+    async def abandon_quote_action(self, command: AbandonQuoteAction, *, cut: FinancialCut, owner: OwnerToken) -> QuoteActionReceipt:
         ...
 
     async def quote_actions(self, binding: StateBinding) -> tuple[StoredQuoteAction, ...]:

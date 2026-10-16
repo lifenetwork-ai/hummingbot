@@ -82,6 +82,13 @@ fixture and is deliberately excluded.
   permanent identities. Unprepared dispatch retirement and actual runner/source
   authenticity remain separate work. Existing automatic migration applies it.
 
+- `000013_spot_action_abandonment.sql`: distinct fixed-reason retirement before
+  financial acceptance, with original-writer/fresh post-dispatch runner-scope
+  checks and no attempt/hold. Account locking serializes retirement against
+  preparation; the rejected ID stays a permanent tombstone. It changes no money,
+  adds no table/default/runtime grant and never treats timeout or missing receipt
+  as proof. Actual runner retirement/source authentication remain integration work.
+
 The runner applies each immutable version once. A second service startup validates
 the same history and skips applied scripts. DDL is deliberately forward-only:
 unregistered pre-existing objects fail instead of being silently accepted by
