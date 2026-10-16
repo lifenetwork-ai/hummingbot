@@ -17,7 +17,7 @@ def main():
     import asyncpg  # noqa: F401 -- mandatory for this opt-in real-process runner.
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--suite', choices=('all', 'recorder', 'capital', 'session', 'lifecycle', 'actions', 'action_prepare', 'action_reconcile', 'action_abandon', 'runner_journal', 'quote_arm', 'quote_transport', 'quote_source', 'outbox', 'configuration', 'events', 'positions', 'reporting_application', 'approval_import', 'ack_ingress', 'observation_context', 'financial_ingress'), default='all')
+    parser.add_argument('--suite', choices=('all', 'recorder', 'capital', 'session', 'lifecycle', 'actions', 'action_prepare', 'action_reconcile', 'action_abandon', 'runner_journal', 'quote_arm', 'quote_transport', 'quote_source', 'outbox', 'configuration', 'events', 'positions', 'reporting_application', 'approval_import', 'ack_ingress', 'observation_context', 'financial_ingress', 'financial_collection'), default='all')
     parser.add_argument('--linux-image', help='Immutable locally built image ID; recorder suite only')
     args = parser.parse_args()
     if args.linux_image and (args.suite != 'recorder' or not re.fullmatch(r'sha256:[0-9a-f]{64}', args.linux_image)):
@@ -96,6 +96,8 @@ def main():
             selector /= 'test_postgres_quote_account_source.py'
         command = [sys.executable, '-m', 'pytest', '-q', str(selector),
                    '--junitxml=' + str(output / 'integration.xml')]
+        if args.suite == 'financial_collection':
+            command.extend(['-k', 'financial_source or financial_observer'])
         with (output / 'integration.log').open('w') as log:
             if args.linux_image:
                 root = Path(__file__).resolve().parents[5]

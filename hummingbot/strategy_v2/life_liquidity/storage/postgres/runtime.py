@@ -130,12 +130,13 @@ class PgRuntime:
         self._closing = False
         self._healthy = False
         self._ingress_epoch = 0
+        self._observation_inflight = 0
         self._close_task = None
         self._bundle = ()
 
     @property
     def healthy(self):
-        return self._healthy and not self._closing
+        return self._healthy and not self._closing and self._observation_inflight == 0
 
     @classmethod
     async def open(cls, config):
@@ -228,7 +229,7 @@ class PgRuntime:
 
     async def _admit(self, callback, *, safety, commit_state=None):
         cfg = self.config
-        if self._closing or not safety and not self._healthy:
+        if self._closing or not safety and not self.healthy:
             raise StorageUnavailable('PG_CLOSED_OR_UNQUALIFIED')
         maximum = cfg.safety_max_pending if safety else cfg.max_pending
         if self._counts[safety] >= maximum:
@@ -242,6 +243,8 @@ class PgRuntime:
                 async with asyncio.timeout(cfg.transaction_timeout_ms / 1000):
                     async with self._pools[safety].acquire(timeout=cfg.acquire_timeout_ms / 1000) as c:
                         await self._validate_connection(c)
+                        if not safety and self._observation_inflight:
+                            raise StorageError('PG_OBSERVATION_IN_PROGRESS')
                         result = await callback(c)
                         completed = True
                     return result
@@ -320,6 +323,8 @@ class PgRuntime:
                     if not receipt['replayed'] and not untrusted_ingress:
                         guard = 'guard_spot_observation' if observation else 'guard_account'
                         await c.execute(f'SELECT life_financial.{guard}($1,$2,$3,$4)', cfg.account_id, cfg.binding.json(), owner.json(), receipt['version'])
+                    if not observation and self._observation_inflight:
+                        raise StorageError('PG_OBSERVATION_IN_PROGRESS')
                     committing = True
                     boundary['attempted'] = True
                     await self._commit(transaction)

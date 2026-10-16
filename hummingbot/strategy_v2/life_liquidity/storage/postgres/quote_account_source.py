@@ -10,7 +10,7 @@ import hashlib
 import hmac
 import time
 from datetime import datetime, timedelta
-from urllib.parse import urlsplit
+from urllib.parse import urlencode, urlsplit
 
 from hummingbot.connector.exchange.okx import okx_constants as CONSTANTS
 from hummingbot.connector.exchange.okx.okx_auth import OkxAuth
@@ -29,7 +29,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.runner_journal impor
 class _UidRequestGuard:
     def __init__(self, source):
         self.source, self.request, self.started, self.checked = source, None, False, False
-        self.consumed = False
+        self.consumed, self.sent = False, None
 
     async def authorize(self, request):
         if self.started:
@@ -47,7 +47,7 @@ class _UidRequestGuard:
             return False
         self.checked = True
         self.source._request(request, RESTMethod.GET, self.source._uid_url)
-        self.consumed = True
+        self.consumed, self.sent = True, request
         return True
 
 
@@ -110,10 +110,10 @@ class PgQuoteAccountSource:
             self._revoked = True
             raise StorageError('PG_ACCOUNT_CREDENTIAL_CHANGED')
 
-    def _request(self, request, method, url):
+    def _request(self, request, method, url, *, params=()):
         self._credentials()
         if (type(request) is not RESTRequestSnapshot or request.method is not method
-                or request.url != url or request.params or request.is_auth_required is not True):
+                or request.url != url or request.params != params or request.is_auth_required is not True):
             raise StorageError('PG_ACCOUNT_REQUEST_INVALID')
         headers = dict(request.headers)
         if headers.get('OK-ACCESS-KEY') != self._values[0] or headers.get('OK-ACCESS-PASSPHRASE') != self._values[2]:
@@ -122,7 +122,8 @@ class PgQuoteAccountSource:
             timestamp = headers['OK-ACCESS-TIMESTAMP']
             at = utc(datetime.fromisoformat(timestamp.replace('Z', '+00:00')))
             age = (utc(self.journal.clock()) - at).total_seconds() * 1000
-            unsigned = timestamp + method.value + urlsplit(url).path + (request.data or '')
+            path = urlsplit(url).path + ('?' + urlencode(params) if params else '')
+            unsigned = timestamp + method.value + path + (request.data or '')
             expected = base64.b64encode(hmac.new(self._values[1].encode(), unsigned.encode(), hashlib.sha256).digest())
             signature_valid = hmac.compare_digest(expected, headers['OK-ACCESS-SIGN'].encode())
         except (KeyError, TypeError, ValueError, StorageError):
@@ -156,16 +157,21 @@ class PgQuoteAccountSource:
         return (0 <= age <= self.max_uid_age_ms and 0 <= elapsed <= self.max_uid_age_ms
                 and abs(age - elapsed) <= self.max_clock_skew_ms)
 
-    async def _uid(self):
+    async def _uid(self, *, force=False):
         async with self._uid_lock:
             self._credentials()
-            if self._uid_fresh():
+            if not force and self._uid_fresh():
                 return
             guard = _UidRequestGuard(self)
+            before, started = utc(self.journal.clock()), time.monotonic()
             uid = await self._connector.get_account_uid(request_send_guard=guard)
             if not guard.consumed:
                 raise StorageError('PG_ACCOUNT_UID_TRANSPORT_UNQUALIFIED')
             self._credentials()
+            self._request(guard.sent, RESTMethod.GET, self._uid_url)
+            after, elapsed = utc(self.journal.clock()), time.monotonic() - started
+            if after < before or abs((after - before).total_seconds() - elapsed) * 1000 > self.max_clock_skew_ms:
+                raise StorageError('PG_ACCOUNT_CLOCK_UNQUALIFIED')
             if uid != self.journal.binding.account_uid:
                 self._revoked = True
                 raise StorageError('PG_ACCOUNT_UID_MISMATCH')

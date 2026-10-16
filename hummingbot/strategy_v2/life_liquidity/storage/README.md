@@ -2285,3 +2285,32 @@ owner contract, not coordinated privileged rewriting.
 Authenticated raw provider collection, approved pending resolution, remaining
 risk/settlement/shared-product ports and complete controller/service/SDK cache
 composition remain required by PG3. This typed handoff is not that source factory.
+
+### Explicit PostgreSQL authenticated SPOT financial observer
+
+`PgSpotAccountReader` and `PgSpotFinancialObserver` can be assembled with an
+existing `PgQuoteAccountSource` and original imported owner in offline tests.
+The reader exposes fixed private GET routes only, signs/verifies the complete
+query, forces UID collection at both edges and requires explicit read, decoded
+byte and time limits. Response byte limits apply after JSON decoding; this is
+not a streaming HTTP size cap. Credentials/headers are never stored in SQL.
+
+The observer checks account-wide/per-order fills, original order terms, an
+anchored complete bill scan, signed fees, imported cashflow approvals, regular
+and algo orders, liabilities and the causal cash wallet projection. The shared
+pure parser retains file-backend semantics. Decimal wire fields must remain
+strings. Independent historical LIFE values are supplied explicitly; pending
+untrusted choices must equal that original value and cannot silently reprice.
+
+All chosen commands persist through `PgFinancialIngress` before any monetary
+application. Causal application and original receipt/delivery repair do not
+resend, release holds, finish orders, activate a cold journal or restore SDK
+cache state. In-flight collection/accounting fences new risk locally; safety
+reads remain available and failures never restore readiness. Explicit bounds
+or any incomplete/conflicting source deny the cycle.
+
+This collector is not installed by configured controller startup. Complete
+runner/source/service/shared-product qualification, native financially pending
+resolution, durable raw-response diagnostics, SDK listeners and approved live
+market provenance remain separate PG3 work. `.env`/configured DB is unnecessary
+for the disposable test runner.
