@@ -40,6 +40,34 @@ Migration infrastructure is separate and documented in
 
 ## PostgreSQL PG2 foundation
 
+**Standalone PG3 capital checkpoint (2026-10-16, base `2d48d70c8`):**
+`PgSpotRepository.apply_cashflow`, `lookup_cashflow`, `observe_nav` and `capital`
+implement the existing typed cashflow/capital contracts. Migration `000007`
+reuses immutable imported bill approvals, cashflows and ledger events, adding
+opening-policy, cashflow-provenance/pending and NAV/highwater tables. Current
+owner/cut/binding guards and deferred COMMIT validation apply to every command.
+Replays retain economic identity; receipts create no send permission.
+
+Causal reconstruction orders transfers before fills at an equal timestamp and
+keeps later funding from financing an earlier trade. Deposits are excluded from
+performance; withdrawals preserve highwater and starting-inventory attribution.
+Gross loss/subsidy spending and existing holds never reset. Wallet truth that
+encroaches holds records a funding deficit and HALT. Impossible histories or an
+explicit imported replay bound preserve immutable pending source facts/reasons,
+retain prior booked money and block new risk; another deposit cannot clear them.
+No liability model or automatic recovery is inferred. Recorded capital `current`
+does not certify live quote freshness or authorize trading.
+
+Final checks: **155 actual PG**, **21 migration** and **191 focused file/contract
+tests** pass, including four real file/PG transfer/NAV parity cases and actual
+process/lost-COMMIT faults. See [capital qualification](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-approved-spot-cashflows-and-capital-qualification-2026-10-16).
+Approvals/opening facts are privileged preverified imports; runtime does not
+verify their cryptographic signatures or authenticate provider bill capture.
+Current verification scans retained facts within a declared bound; scalable
+history, full portfolio/lifecycle/markout/settlement, pending resolution, outbox
+and provider ingress remain unqualified. PostgreSQL backend selection remains
+unsupported. The previous Linux artifact predates this increment.
+
 **Local artifact/recorder checkpoint (2026-10-16, base `e588c8ae3`):** full Linux
 ARM64 build/import/source checks and standalone legacy recorder compatibility are
 qualified. `000006_recorder_projection.sql` creates thirteen empty reporting

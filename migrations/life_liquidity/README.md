@@ -26,6 +26,14 @@ fixture and is deliberately excluded.
   metadata-write access. Projection tables omit FKs to support fill-before-order
   callbacks; financial FKs are unchanged. This is reporting compatibility, not
   financial authority or full LIFE recorder/outbox integration.
+- `000007_spot_capital.sql`: immutable imported opening-capital policy, approved
+  cashflow provenance/pending facts and NAV/highwater observations. Reuses bill
+  approvals, cashflows and financial events; validates approved economic identity,
+  preserves signed asset valuation and cashflow-adjusted performance, and retains
+  holds/spent budgets. No capital/approval/owner is seeded. Invalid causal replay
+  or an explicitly configured replay bound preserves pending facts/reasons and
+  HALT. Pending resolution, provider/approval authentication and portfolio modes
+  remain separate requirements.
 
 The runner applies each immutable version once. A second service startup validates
 the same history and skips applied scripts. DDL is deliberately forward-only:
@@ -137,6 +145,14 @@ financial ledger. Scoped provenance, precision, bounded asynchronous projection
 and full outbox/recovery remain PG5 work. The existing `LIFE_AUTO_MIGRATE=true`
 startup flow applies this migration automatically; no additional migration env
 flag or manual script execution is needed.
+
+The same startup runner also includes `000007` automatically. Its required
+opening policy, replay bound and preverified bill approvals must come from an
+approved privileged import; runtime cannot create them or grant itself access.
+The signature bytes in the approved bill table are provenance retained from that
+import, not a signature-verification implementation. Existing runtime/reporting
+roles require the approved provisioning stage for the new capital command/read
+functions. This does not activate the PostgreSQL financial backend or trading.
 
 ## Environment and automatic startup
 

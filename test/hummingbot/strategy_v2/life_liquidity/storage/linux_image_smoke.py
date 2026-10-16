@@ -32,7 +32,8 @@ def main():
     root = Path('/home/hummingbot')
     assert all(hashlib.sha256((root / name).read_bytes()).hexdigest() == digest for name, digest in expected.items())
     assert not (root / '.env').exists()
-    assert len(load_migrations(root / 'migrations/life_liquidity')) == 6
+    assert {migration.name for migration in load_migrations(root / 'migrations/life_liquidity')} == {
+        Path(name).name for name in expected if name.startswith('migrations/life_liquidity/') and name.endswith('.sql')}
     print(json.dumps({'system': platform.system(), 'machine': platform.machine(), 'python': platform.python_version(),
                       'asyncpg': asyncpg.__version__, 'psycopg': psycopg.__version__, 'sqlalchemy': sqlalchemy.__version__,
                       'verified_files': len(expected), 'trading_permission': False}))

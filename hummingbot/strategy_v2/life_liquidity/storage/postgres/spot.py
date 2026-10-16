@@ -2,6 +2,13 @@
 from datetime import datetime
 from decimal import Decimal as D, InvalidOperation, localcontext
 
+from hummingbot.strategy_v2.life_liquidity.storage.capital import (
+    CashflowReceipt,
+    CashflowSpot,
+    NavReceipt,
+    ObserveSpotNAV,
+    SpotCapitalView,
+)
 from hummingbot.strategy_v2.life_liquidity.storage.contracts import (
     AtomicScope,
     OwnerToken,
@@ -213,6 +220,68 @@ class PgSpotRepository:
         if type(command) is not FillSpot:
             raise StorageError('PG_OBSERVATION_COMMAND_INVALID')
         return await self._observe(command, cut, owner, 'SPOT_FILL')
+
+    async def _capital_command(self, command, cut, owner, kind):
+        version, digest = self._cut(cut, owner)
+        cfg = self._runtime.config
+        identity = fingerprint({'kind': kind, 'command': command.json(), 'owner': owner.json(), 'binding': self.binding.json()})
+        args = (cfg.account_id, self.binding.json(), owner.json(), version, digest, identity, kind, command.json())
+        result = await self._runtime._transaction(
+            'SELECT life_financial.spot_capital_command($1,$2,$3,$4,$5,$6,$7,$8)', args, owner, lambda value: value, observation=True)
+        if result.get('trading_permission') is not False or result.get('kind') != kind:
+            raise StorageUnavailable('PG_CAPITAL_RECEIPT_INVALID')
+        return result
+
+    async def apply_cashflow(self, command, *, cut, owner):
+        if type(command) is not CashflowSpot:
+            raise StorageError('PG_CAPITAL_COMMAND_INVALID')
+        result = await self._capital_command(command, cut, owner, 'SPOT_CASHFLOW')
+        return CashflowReceipt(self.binding, result['operation_id'], result['bill_id'], result['state'], result['replayed'], self.atomic_scope)
+
+    async def lookup_cashflow(self, operation_id, binding):
+        self._binding(binding)
+        identifier(operation_id)
+
+        async def read(c):
+            return await c.fetchval("SELECT receipt FROM life_financial.operations WHERE account_id=$1 AND operation_id=$2 AND command->>'kind'='SPOT_CASHFLOW'",
+                                    self._runtime.config.account_id, operation_id)
+        result = await self._runtime._admit(read, safety=True)
+        if result is None:
+            return None
+        if result.get('trading_permission') is not False:
+            raise StorageUnavailable('PG_CAPITAL_RECEIPT_INVALID')
+        return CashflowReceipt(binding, result['operation_id'], result['bill_id'], result['state'], True, self.atomic_scope)
+
+    async def _capital_view(self, binding, operation_id=None):
+        self._binding(binding)
+
+        async def read(c):
+            return await c.fetchval('SELECT life_financial.spot_capital_read($1,$2)', self._runtime.config.account_id, operation_id)
+        result = await self._runtime._admit(read, safety=True)
+        if result is None:
+            return None
+        try:
+            with localcontext() as context:
+                context.prec = 120
+                snapshot = self._snapshot(result['snapshot'], binding)
+                command = result['command']
+                return SpotCapitalView(binding, snapshot.cut, **{key: D(value) for key, value in result['measurement'].items()},
+                                       independent_price_usdt=D(command['independent_price_usdt']), value_at_ms=command['value_at_ms'],
+                                       observed_at=datetime.fromisoformat(command['observed_at']), current=result['current'])
+        except (KeyError, TypeError, ValueError, InvalidOperation):
+            raise StorageUnavailable('PG_CAPITAL_VIEW_INVALID') from None
+
+    async def capital(self, binding):
+        return await self._capital_view(binding)
+
+    async def observe_nav(self, command, *, cut, owner):
+        if type(command) is not ObserveSpotNAV:
+            raise StorageError('PG_CAPITAL_COMMAND_INVALID')
+        result = await self._capital_command(command, cut, owner, 'SPOT_NAV')
+        capital = await self._capital_view(self.binding, command.operation_id)
+        if capital is None:
+            raise StorageUnavailable('PG_CAPITAL_VIEW_MISSING')
+        return NavReceipt(self.binding, command.operation_id, capital, result['replayed'], self.atomic_scope)
 
     async def _lookup_observation(self, operation_id, binding, kind):
         self._binding(binding)
