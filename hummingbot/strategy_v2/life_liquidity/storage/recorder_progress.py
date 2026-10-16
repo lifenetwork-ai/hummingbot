@@ -130,11 +130,10 @@ class FileRecorderProgressAdapter:
         return await self.store._call(self._progress_cut, executor_id)
 
     def _row_projection(self, executor_id):
-        from hummingbot.strategy_v2.life_liquidity.storage.recorder import ExecutorProjection
         rows = self._recorder.get_executors_by_ids([executor_id])
         if len(rows) != 1:
             raise StorageUnavailable('RECORDER_PROGRESS_PROJECTION_REQUIRED')
-        return ExecutorProjection('read', self.binding, rows[0].to_executor_info().model_dump_json())
+        return self._read_projection(rows[0].to_executor_info())
 
     def _pending_progress(self):
         meta = self.store._read()

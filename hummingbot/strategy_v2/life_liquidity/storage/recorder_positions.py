@@ -194,7 +194,8 @@ class FilePositionAdapter:
         command = PositionReport.from_json(thaw(head['command']))
         origin = meta.resources.get('recorder_positions', {}).get(command.operation_id)
         if (origin is None or origin['state'] != 'APPLIED' or thaw(origin['command']) != command.json()
-                or command.binding != self.binding or command.controller_id != self.controller_id
+                or command.binding != self.binding and not self.store._inherited_record('recorder_positions', command.operation_id, origin, meta.resources)
+                or command.controller_id != self.controller_id
                 or origin['identity'] != fingerprint({'command': command.json(), 'cut': thaw(origin['cut']),
                                                       'owner': thaw(origin['owner'])})
                 or head['sequence'] != command.expected_sequence + 1):
@@ -229,7 +230,8 @@ class FilePositionAdapter:
         for row in meta.resources.get('recorder_positions', {}).values():
             command = PositionReport.from_json(thaw(row['command']))
             cut, owner = StateCut.from_json(thaw(row['cut'])), OwnerToken.from_json(thaw(row['owner']))
-            if (command.binding != self.binding or command.controller_id != self.controller_id
+            if (command.binding != self.binding and not self.store._inherited_record('recorder_positions', command.operation_id, row, meta.resources)
+                    or command.controller_id != self.controller_id
                     or row['identity'] != fingerprint({'command': command.json(), 'cut': cut.json(), 'owner': owner.json()})):
                 raise StorageError('RECORDER_POSITION_ORIGIN_UNVERIFIED')
             if row['state'] != 'APPLIED':

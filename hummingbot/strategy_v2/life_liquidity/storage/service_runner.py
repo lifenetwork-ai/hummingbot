@@ -1,11 +1,20 @@
 """Repository-only V2 runner: controller queue, no interactive application."""
 import asyncio
+import math
 
 from hummingbot.strategy.strategy_v2_base import StrategyV2Base
 from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError
 
 
 class FileServiceRunner(StrategyV2Base):
+    @property
+    def current_timestamp(self):
+        timestamp = super().current_timestamp
+        # A restored reporting position can need shutdown persistence before
+        # the clock's first tick. Use the declared service UTC clock for that
+        # reporting timestamp; this grants no financial/send authority.
+        return timestamp if math.isfinite(timestamp) else self.service.sources.clock().timestamp()
+
     def __init__(self, service):
         self.service = service
         self._started_headless = False

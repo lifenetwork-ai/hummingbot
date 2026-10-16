@@ -291,7 +291,8 @@ class FileEventAdapter:
             return None
         command = EventProjection.from_json(thaw(row['command']))
         cut, owner = StateCut.from_json(thaw(row['cut'])), OwnerToken.from_json(thaw(row['owner']))
-        if (command.binding != self.binding or command.source.controller_id != self.controller_id
+        if (command.binding != self.binding and not getattr(self.store, '_inherited_record', lambda *args: False)('recorder_events', event_id, row, meta.resources)
+                or command.source.controller_id != self.controller_id
                 or command.event_id != event_id or row['state'] not in ('PROJECTING', 'APPLIED')
                 or row['identity'] != fingerprint({'command': command.json(), 'cut': cut.json(), 'owner': owner.json()})):
             raise StorageUnavailable('RECORDER_EVENT_ORIGIN_UNVERIFIED')
@@ -315,16 +316,16 @@ class FileEventAdapter:
         from hummingbot.strategy_v2.models.executors_info import ExecutorInfo
         known = set()
         meta = self.store._read()
-        for row in meta.resources.get('recorder_outbox', {}).values():
+        for key, row in meta.resources.get('recorder_outbox', {}).items():
             value = thaw(row['command'])
             projection = ExecutorProjection(value['operation_id'], StateBinding.from_json(value['binding']), value['payload_json'])
-            if projection.binding != self.binding:
+            if projection.binding != self.binding and not getattr(self.store, '_inherited_record', lambda *args: False)('recorder_outbox', key, row, meta.resources):
                 raise StorageError('RECORDER_EVENT_WIRE_UNVERIFIED')
             info = ExecutorInfo.model_validate_json(projection.payload_json)
             if info.controller_id == source.controller_id and info.config.connector_name == source.market:
                 head = meta.resources.get('recorder_progress_heads', {}).get(info.id)
                 info = info if head is None else ExecutorInfo.model_validate_json(head['payload_json'])
-                if info.custom_info.get('life_storage_binding') != self.binding.json():
+                if info.custom_info.get('life_storage_binding') != projection.binding.json():
                     raise StorageError('RECORDER_EVENT_WIRE_UNVERIFIED')
                 wires = info.custom_info.get('recovery_order_ids')
                 if type(wires) is not list or len(set(wires)) != len(wires):

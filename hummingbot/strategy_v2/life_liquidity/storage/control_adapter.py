@@ -39,12 +39,18 @@ class LegacyControlAdapter:
         snapshot = super()._read()
         records = snapshot.resources.get('control_operations', {})
         if self._operator_keys is None:
-            if records or 'control_seed' in snapshot.resources:
+            if records or 'control_seed' in snapshot.resources or 'import_origin' in snapshot.resources:
                 raise StorageUnavailable('CONTROL_KEYS_UNAVAILABLE')
             return snapshot
         try:
-            ownership = self._operator_keys.verify_seed(snapshot.resources['control_seed'], self.binding)
-            approved, inventory_mode, observation_grants = {}, None, {}
+            if 'import_origin' in snapshot.resources:
+                ownership, ancestor = self._verify_import_seed(snapshot)
+                approved = thaw(ancestor.get('additional_cashflow_approvals', {}))
+                inventory_mode = thaw(ancestor.get('inventory_mode'))
+            else:
+                ownership = self._operator_keys.verify_seed(snapshot.resources['control_seed'], self.binding)
+                approved, inventory_mode = {}, None
+            observation_grants = {}
             configuration = empty_configuration_head()
             handoff = empty_handoff_head()
             for key, row in sorted(records.items(), key=lambda item: item[1]['revision']):
@@ -242,7 +248,8 @@ class LegacyControlAdapter:
             # REVOKE removes admission, not the provenance needed to account
             # outstanding attempts. Explicit signed RECOVER restores only the
             # latest signature-audited writer and never an arbitrary token.
-            historical = self._operator_keys.verify_seed(meta.resources['control_seed'], self.binding)['token']
+            historical = (self._verify_import_seed(meta)[0]['token'] if 'import_origin' in meta.resources else
+                          self._operator_keys.verify_seed(meta.resources['control_seed'], self.binding)['token'])
             for _, row in sorted(meta.resources.get('control_operations', {}).items(), key=lambda item: item[1]['revision']):
                 if row['approval']['role'] in ('ACTIVATE', 'DRAIN', 'RECOVER') and row['payload']['token'] is not None:
                     historical = row['payload']['token']

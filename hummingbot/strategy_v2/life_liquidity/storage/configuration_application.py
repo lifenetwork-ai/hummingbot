@@ -29,10 +29,12 @@ class FileConfigurationApplication:
     def _install(self, create_binding):
         head = self.repository._configuration()
         if head.sequence == 0:
-            if not create_binding:
+            imported = 'import_origin' in self.store._read().resources
+            if not create_binding and not imported:
                 raise StorageError('CONFIG_APPROVED_IMPORT_REQUIRED')
             c = self.service.controller.config
-            command = ConfigurationReport('startup-config', self.store.binding, c.id, 0, 1, c.model_dump_json(),
+            operation = 'startup-config' if not imported else 'import-config:' + self.store._read().resources['import_origin']['sha256'][:32]
+            command = ConfigurationReport(operation, self.store.binding, c.id, 0, 1, c.model_dump_json(),
                                           self._policy_hash, fingerprint({'service_json': self.service.config.model_dump_json()}),
                                           'INITIAL', 'CONFIG_STARTUP', int(utc(self.store._clock()).timestamp() * 1000))
             self.repository._publish_current('configuration', command, self.service.spot.owner)

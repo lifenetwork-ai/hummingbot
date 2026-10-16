@@ -83,7 +83,9 @@ def row_values(model, row):
 class FileRecorderSourceAdapter:
     def _source_origin(self, row, command, key, prefix, ledger):
         cut, owner = StateCut.from_json(thaw(row['cut'])), OwnerToken.from_json(thaw(row['owner']))
-        if (row['state'] != 'APPLIED' or command.binding != self.binding or cut.binding != self.binding
+        inherited = (command.binding != self.binding and command.binding == cut.binding and getattr(self.store, '_inherited_record', lambda *args: False)(
+            {'recorder': 'recorder_outbox', 'report': 'recorder_progress', 'position': 'recorder_positions', 'event': 'recorder_events'}[prefix], key, row))
+        if (row['state'] != 'APPLIED' or (command.binding != self.binding or cut.binding != self.binding) and not inherited
                 or row['identity'] != fingerprint({'command': command.json(), 'cut': cut.json(), 'owner': owner.json()})
                 or ledger[prefix + '-start:' + key]['revision'] != cut.revision + 1
                 or ledger[prefix + '-done:' + key]['revision'] <= cut.revision + 1):
@@ -198,12 +200,11 @@ class FileRecorderSourceAdapter:
                     tables[model.__tablename__] = [value for _, value in values]
                     return [row for row, _ in values]
 
-                from hummingbot.strategy_v2.life_liquidity.storage.recorder import ExecutorProjection
                 actual = collect(Executors, session.query(Executors).filter_by(controller_id=self.controller_id))
                 if {r.id for r in actual} != expected.keys():
                     raise StorageUnavailable('RECORDER_SOURCE_EXECUTOR_UNVERIFIED')
                 for row in actual:
-                    projection = ExecutorProjection('source-read', self.binding, row.to_executor_info().model_dump_json())
+                    projection = self._read_projection(row.to_executor_info())
                     if not same_reporting(projection.payload_json, expected[row.id]):
                         raise StorageUnavailable('RECORDER_SOURCE_EXECUTOR_UNVERIFIED')
                 actual = collect(Position, session.query(Position).filter_by(controller_id=self.controller_id))

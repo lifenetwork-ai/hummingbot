@@ -208,7 +208,7 @@ class LegacyConfigurationHandoffControlAdapter:
         if not getattr(self, '_handoff_frozen', False):
             return
         allowed = ('_read', '_snapshot', '_financial_configuration', '_handoff_state', '_lookup',
-                   '_read_handoff_source', '_authorize_handoff', '_cancel_handoff', '_consume_handoff')
+                   '_read_handoff_source', '_authorize_handoff', '_cancel_handoff', '_consume_handoff', '_import_target', '_target_preflight')
         if (getattr(function, '__self__', None) is not self
                 or not any(getattr(function, '__func__', None) is getattr(getattr(self, name), '__func__', None) for name in allowed)):
             raise StorageError('CONFIGURATION_HANDOFF_SOURCE_FROZEN')

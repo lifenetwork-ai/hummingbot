@@ -23,7 +23,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.handoff import CancelConfigur
 LIMITS = {'max_bytes': 8 * 1024 * 1024, 'max_rows': 128}  # Offline capacities only.
 
 
-async def setup(tmp_path, *, joint=False, flat=True):
+async def setup(tmp_path, *, joint=False, flat=True, before_stage=None, changes=None, quote_kwargs=None):
     existing = keys()
     signer = OperatorKeys(existing.keys, {key: roles | frozenset(('CONFIGURE', 'HANDOFF')) for key, roles in existing.roles.items()})
 
@@ -46,9 +46,12 @@ async def setup(tmp_path, *, joint=False, flat=True):
         service, _, _, _, _ = await joint_service(tmp_path, carry=True, config_extra={'control': control_policy(signer)},
                                                   source_extra=extra)
     else:
-        service, _ = await quote_service(tmp_path, control_config=control_policy(signer), control_seed=seed)
+        service, _ = await quote_service(tmp_path, control_config=control_policy(signer), control_seed=seed, **(quote_kwargs or {}))
         attach_empty_observer(service)
-    staged, snapshot = await service.control.propose_financial_configuration({'session': {'duration': '2h'}}, operation_id='stage')
+    if before_stage is not None:
+        await before_stage(service)
+    staged, snapshot = await service.control.propose_financial_configuration(
+        {'session': {'duration': '2h'}} if changes is None else changes, operation_id='stage')
     await service.control.apply(staged, approval=sign(service, signer, staged, snapshot), snapshot=snapshot)
     journal = await service.store._call(service.store._sessions.load)
     parent = journal.successor or journal.primary

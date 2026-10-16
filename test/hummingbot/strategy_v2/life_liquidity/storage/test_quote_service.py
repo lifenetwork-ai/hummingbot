@@ -10,7 +10,7 @@ from unittest.mock import MagicMock
 import pytest
 
 
-async def quote_service(tmp_path, *, objective='profit_mm', fee_buffers=(D('0'), D('0')), risk_config=None, risk_sources=None, control_config=None, control_seed=None, inventory_config=None, settlement_policy=None, session_config=None, resume_policy=None, exit_config=None):
+async def quote_service(tmp_path, *, objective='profit_mm', fee_buffers=(D('0'), D('0')), risk_config=None, risk_sources=None, control_config=None, control_seed=None, inventory_config=None, settlement_policy=None, session_config=None, resume_policy=None, exit_config=None, recovery_policy=None):
     from hummingbot.connector.exchange.okx.okx_exchange import OkxExchange
     from hummingbot.strategy_v2.life_liquidity.config import EconomicsConfig, QuotesConfig
     from hummingbot.strategy_v2.life_liquidity.economics import EconomicPolicy
@@ -52,6 +52,8 @@ async def quote_service(tmp_path, *, objective='profit_mm', fee_buffers=(D('0'),
     values['exit'] = exit_config
     values['inventory'] = inventory_config
     values['settlement_policy'] = settlement_policy
+    if recovery_policy is not None:
+        values['recovery_policy'] = recovery_policy
     if inventory_config is not None:
         from hummingbot.strategy_v2.life_liquidity.storage.settlement import SpotSettlementPolicy
         values['settlement_policy'] = SpotSettlementPolicy(1000)

@@ -208,6 +208,7 @@ store. Spot coupling additionally requires independent fill and account facts.
         for key, operation in resources.get('joint_cash_operations', {}).items():
             if (operation['state'] not in ('APPLYING', 'APPLIED') or key != operation['command']['operation_id']
                     or operation['command']['binding'] != self.binding.json()
+                    and not self.store._inherited_record('joint_cash_operations', key, operation, resources)
                     or operation['fingerprint'] != fingerprint({'command': operation['command'],
                                                                'owner': operation['owner'], 'cut': operation['cut']})
                     or operation['state'] != 'APPLIED' and operation['owner'] != self.owner.json()):

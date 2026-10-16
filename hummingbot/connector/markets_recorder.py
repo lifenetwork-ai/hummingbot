@@ -308,6 +308,14 @@ class MarketsRecorder:
             if actual != before or any(row.controller_id != controller_id for row in positions):
                 raise ValueError('RECORDER_POSITION_SQL_CONFLICT')
             by_id = {row.id: row for row in existing}
+            # A signed lineage handoff gives the same logical position a new
+            # namespace-derived ID. CAS the entire current set; retaining the
+            # previous head here would double its reporting exposure. Original
+            # exact snapshots/IDs remain in the independent outbox ancestry.
+            incoming_ids = {row.id for row in positions}
+            for current in existing:
+                if current.id not in incoming_ids:
+                    session.delete(current)
             for incoming in positions:
                 current = by_id.get(incoming.id)
                 if current is None:

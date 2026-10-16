@@ -243,6 +243,7 @@ class LegacyJointCashAdapter(LegacyJointFillAdapter, LegacyJointCashflowAdapter,
         for key, row in operations.items():
             if (key != row['command']['operation_id'] or row['state'] != 'APPLIED'
                     or row['command']['binding'] != self.binding.json()
+                    and not self._inherited_record('joint_cash_operations', key, row, resources)
                     or row['fingerprint'] != fingerprint({'command': row['command'], 'owner': row['owner'],
                                                           'cut': row['cut']})):
                 raise StorageUnavailable('JOINT_CASH_PROJECTION_UNVERIFIED')

@@ -160,6 +160,8 @@ class FileRecorderRepository(FileRecorderSourceAdapter, FileRecorderProgressAdap
         previous = meta.resources.get('recorder_binding')
         if previous is not None and thaw(previous) != self._identity:
             raise StorageError('RECORDER_REPOSITORY_BINDING_MISMATCH')
+        if 'import_origin' in meta.resources:
+            self.store._verify_import_reporting(meta, self)
 
     def _read(self):
         self._verify_binding(self.store._read())
@@ -167,9 +169,29 @@ class FileRecorderRepository(FileRecorderSourceAdapter, FileRecorderProgressAdap
         detached = []
         for info in rows:
             # A foreign/missing binding is an error, never an implicit import.
-            command = ExecutorProjection('read', self.binding, info.model_dump_json())
+            command = self._read_projection(info)
             detached.append(RecorderRow(info.id, command.payload_json))
         return tuple(sorted(detached, key=lambda row: row.executor_id))
+
+    def _read_projection(self, info):
+        raw = info.model_dump_json()
+        if info.custom_info.get('life_storage_binding') == self.binding.json():
+            return ExecutorProjection('read', self.binding, raw)
+        meta = self.store._read()
+        if 'import_origin' not in meta.resources:
+            return ExecutorProjection('read', self.binding, raw)  # Retain the ordinary denial contract.
+        from hummingbot.strategy_v2.life_liquidity.storage.recorder_progress import same_reporting
+        source = self.store._import_source_resources()
+        head = source.get('recorder_progress_heads', {}).get(info.id)
+        payload = None if head is None else head['payload_json']
+        if payload is None:
+            for row in sorted(source.get('recorder_outbox', {}).values(), key=lambda value: value['cut']['revision']):
+                if json.loads(row['command']['payload_json'])['id'] == info.id and row['state'] == 'APPLIED':
+                    payload = row['command']['payload_json']
+        if payload is None or not same_reporting(raw, payload) or info.controller_id != self.controller_id:
+            raise StorageUnavailable('RECORDER_INHERITED_PROJECTION_UNVERIFIED')
+        binding = StateBinding.from_json(json.loads(payload)['custom_info']['life_storage_binding'])
+        return ExecutorProjection('read', binding, raw)  # Original namespace remains in the reporting payload.
 
     async def read(self, binding):
         self.store._assert_binding(binding)

@@ -8,15 +8,18 @@ financial reservation.
 
 ## Current implemented scope
 
-**Current status (2026-10-16, base `799c648fe` plus C3 work):** the configured file service and its
+**Current status (2026-10-16, base `faff89ee3` plus this delivery):** the configured file service and its
 typed application adapters are described in the later sections. The early
 checkpoint descriptions below record the narrower foundation at its introduction.
-PG1-C1, PG1-C2, PG1.2 and C3.1 signed configuration staging/discard are qualified.
-Core and configured ordinary-file/scoped-SQL source capture prepare C3.2 without applying a revision.
-Actual financial configuration/policy/lineage handoff and archive/import/repair
-transitions (C3.2/C3.3) and final file-runtime acceptance
-(C4) stay open in the [current closure ledger](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg1-current-closure-ledger).
-PostgreSQL financial authority remains unsupported.
+PG1-C1–C4 and PG1.1–PG1.4 are qualified for the declared offline file-service scope.
+Signed staging/reservation/retirement/import actually applies the approved
+next-session configuration, retaining financial/native/reporting ancestry.
+Supported archive/native repair restores only a known signed frozen source.
+Final acceptance: **2,343 passed**, zero failures/errors/skips, 22 existing
+warnings in 377.64 seconds; changed-file hooks and diff checks pass. See the
+[current closure ledger](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg1-current-closure-ledger).
+PostgreSQL financial authority remains unsupported; PG2 is next. O.8 and
+provider/deployment/demo/live gates remain open. Import never activates trading.
 
 `file.py` implements these checkpoint protocols with the existing `PolicyState`
 file lock, policy comparison, verified memory/disk reads, atomic replace and
@@ -1543,3 +1546,119 @@ and actual approved configuration use remain C3.2 work.
 **2,296 passed**, zero failures/errors/skips, 24 existing-category warnings in
 322.06 seconds; changed-file hooks and `git diff --check` pass. Target import and
 the C3.3/C4/PG1 parent gates remain open.
+
+## Qualified target import and exact-source repair (PG1 closure)
+
+This section supersedes the source-only remaining lists above. PG1 is qualified
+for the declared offline file service; PostgreSQL, O.8, deployment and provider
+qualification retain their separate gates.
+
+### Transition sequence
+
+1. Stage the declared duration/reference-lookback/quote revision through the
+   existing control application with a CONFIGURE approval. This drains the old
+   session without changing its configuration, expiry or financial state.
+2. Reserve the exact same-account target binding/session with a distinct HANDOFF
+   approval. The persisted source artifact and physical worker fence precede
+   source freeze. Outstanding wires, principal/shared claims or derivative
+   exposure deny handoff and stay held.
+3. Build `TargetImportManifest(operation_id, handoff_operation_id, source_digest,
+   target_service_json)` and call `store.validate_configuration_target(manifest)`
+   through source maintenance. It validates the staged candidate, reserved
+   absolute session/owner, disjoint target directory and unchanged financial,
+   product, recorder and verifier policies. Only the approved strategy/version,
+   reserved binding/owner and declared relocated native paths may differ.
+4. Consume that exact manifest digest with a fresh HANDOFF approval using
+   `ConsumeConfigurationHandoff`. This permanently denies cancellation and a
+   second consumer. A digest alone does not create an executable target.
+5. At the reserved target start, collect fresh complete independent source
+   account facts and the current source cut. Construct
+   `ImportConfigurationTarget(manifest, source_root_sha256)` from the exact
+   retired coordinator bytes. Sign its IMPORT approval in the **target**
+   namespace, binding the original source cut/facts. Call
+   `store.import_configuration_target(command, approval=..., facts=..., cut=...)`
+   on the owning source maintenance worker.
+6. Close/join source maintenance before opening `FileLiquidityService` with the
+   approved target configuration and independently scoped fresh target sources.
+   Startup uses verified import ancestry, not a new seed. The target is
+   RECOVERY_ONLY/unarmed. A separate fresh ACTIVATE with a new generation and
+   current target facts is mandatory before any quote/send admission.
+
+The importer publishes original native images and immutable `ancestry.json`,
+then a hash-addressed `qualification-<sha256>.json`, then `binding.json` last.
+Policy-only path/strategy/binding relocation leaves monetary state exact.
+Session creation uses the already reserved absolute deadline; previous sessions,
+approvals/configuration and all permanent financial/operation identities remain
+in sealed ancestry. Paid costs, economic holds and NAV/high-water are retained.
+Source signatures/consumption, initial/refreshed import signatures, exact retired
+roots and inherited immutable records are audited during cold reads.
+
+An interrupted import may resume only its exact owned files. An expired partial
+attempt requires fresh qualification; its initial signed ancestry is never
+replaced. An unknown marker reply or cancelled caller requires cold source
+readback. The original account lock remains held until physical publication and
+cleanup finish. Approval, fact freshness, target expiry and source bytes are
+rechecked after the marker's temporary-file fsync, immediately before its link.
+Readback never activates or rewrites a running target.
+
+The recorder uses the same scoped SQLite database. Original executor/event
+payloads retain their namespace; they cannot be silently relabelled as target
+commands. Sealed SQL schemas/rows/primary keys remain in ancestry. Position is
+the current reporting head: its sequenced exact before/after sets may replace
+superseded physical IDs during a lineage transition. Whole-set SQL CAS prevents
+duplicate reporting exposure; original exact snapshots/IDs remain in ancestry.
+MarketState remains a mutable SDK diagnostic snapshot and provides no financial
+authority. Shutdown before the first clock tick uses the declared service UTC
+clock for a restored position's reporting timestamp.
+
+### Cold archive/native maintenance
+
+Use `open_archive_maintenance(config, clock=...)` after closing the source
+runtime. This explicit worker acquires the same account lock and opens only an
+ordinary verified coordinator plus an already signed frozen
+FILE_SERVICE_SCOPED source. It installs no controller, recorder, SDK listener,
+sender or activation API. Call `repair_cut()` for the current immutable cut.
+
+`ArchiveRepair(operation_id, handoff_operation_id, source_digest, component,
+before_sha256, source_root_sha256, archive_policy_json)` needs a separate IMPORT
+approval and fresh complete independent account facts equal to the sealed
+financial origin. Supply an explicit native `ArchivePolicy.json()` for archive
+normalization. Supported readers cover SPOT/SWAP WAL partitions, reservation
+partitions and declared PolicyState participant archives. Native policy,
+coverage, bounded segment bytes/counts and hashes must verify; decoded logical
+content must equal the original signed image exactly.
+
+For explicit known-image restore of a missing/mismatched declared native file,
+use `archive_policy_json=None` and pin its exact current hash, or
+`before_sha256=None` for an explicitly missing file. This mode restores only the
+sealed original bytes; it does not adopt current payloads or guess missing
+money/history. The coordinator itself and unknown/unsealed roots are not repair
+targets. Current account differences, unknown components, policy/segment
+conflicts and symlinks fail closed.
+
+Call `store.repair(command, approval=..., facts=..., cut=...)`. First signed
+authorization bytes are retained under `state_dir/source_repairs`; conflicting
+operation-ID reuse is denied. Exact fsync/CAS/freshness checks precede native
+replacement. Interrupted replacement supports exact cold readback/fresh retry,
+without another financial operation. Cancelled awaiters do not free the worker
+or account lock early. Close maintenance before normal source readback or
+target import. Normalization/repair never extends a session, reprices history,
+resets a budget, releases a hold or grants activation.
+
+### Retention and qualification
+
+This is host-local file lineage. Retain every retired source coordinator,
+signed ancestry/artifacts and the shared recorder database. Missing/tampered
+origins deny startup; do not delete an old state directory after import.
+Ancestry depth is bounded to 16 generations, with explicit configured
+byte/row/operation capacities. Portable restore/import remains PG6 and external
+credential fencing remains PG4/PG9. Archive normalization requires a prior
+sealed source; arbitrary legacy adoption stays unsupported.
+
+`storage/test_target_import.py` and `storage/test_archive_maintenance.py` add
+47 cases. The final C1–C4 plus native accounting/budget/session/WAL/product/
+recorder/executor/runner selector passes **2,343 tests**, zero failures/errors/
+skips, 22 existing-category warnings in 377.64 seconds. Changed-file hooks and
+diff checks pass. Logs/XML stay in `/tmp`; no evidence file is added. See the
+[final plan qualification](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg1-c3c4-file-closure-and-qualification-2026-10-16)
+for the complete selector scope and remaining phase gates.
