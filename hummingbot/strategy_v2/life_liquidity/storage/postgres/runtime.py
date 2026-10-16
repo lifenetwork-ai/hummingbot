@@ -197,8 +197,13 @@ class PgRuntime:
         schema = await c.fetchval("SELECT has_schema_privilege(current_user,'life_financial','CREATE') OR has_database_privilege(current_user,current_database(),'CREATE')")
         if unsafe or direct or schema:
             raise StorageUnavailable('PG_RUNTIME_PRIVILEGES_UNSAFE')
-        can_allocate = await c.fetchval("SELECT has_function_privilege(current_user,'life_financial.allocate_balance(uuid,jsonb,jsonb,bigint,life_financial.identity,life_financial.digest,text,life_financial.positive_amount)','EXECUTE')")
-        if bool(can_allocate) != cfg.write:
+        profile = await c.fetchval('''SELECT bool_and(has_function_privilege(current_user,signature,'EXECUTE')=$1)
+            FROM unnest(ARRAY[
+                'life_financial.allocate_balance(uuid,jsonb,jsonb,bigint,life_financial.identity,life_financial.digest,text,life_financial.positive_amount)',
+                'life_financial.spot_prepare(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
+                'life_financial.spot_arm(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,life_financial.identity)'
+            ]) AS signatures(signature)''', cfg.write)
+        if not profile:
             raise StorageUnavailable('PG_ROLE_PROFILE_INVALID')
 
     async def _admit(self, callback, *, safety, commit_state=None):
@@ -257,9 +262,16 @@ class PgRuntime:
     async def allocate(self, command, owner):
         if type(command) is not AllocateBalance or type(owner) is not OwnerToken or not self.config.write:
             raise StorageError('PG_ALLOCATION_CONTEXT_INVALID')
-        import asyncpg
         cfg = self.config
         identity = fingerprint({'account_id': str(cfg.account_id), 'binding': cfg.binding.json(), 'owner': owner.json(), 'command': command.json()})
+        return await self._transaction('SELECT life_financial.allocate_balance($1,$2,$3,$4,$5,$6,$7,$8)',
+                                       (cfg.account_id, cfg.binding.json(), owner.json(), command.expected_version,
+                                        command.operation_id, identity, command.asset, command.amount), owner, PgReceipt.parse)
+
+    async def _transaction(self, query, args, owner, parse):
+        """Internal fixed-command boundary shared by typed repository adapters."""
+        import asyncpg
+        cfg = self.config
         boundary = {'attempted': False}
 
         async def execute(c):
@@ -277,15 +289,14 @@ class PgRuntime:
                 try:
                     await transaction.start()
                     await c.execute("SELECT set_config('lock_timeout',$1,true)", str(cfg.statement_timeout_ms))
-                    receipt = await c.fetchval('SELECT life_financial.allocate_balance($1,$2,$3,$4,$5,$6,$7,$8)',
-                                               cfg.account_id, cfg.binding.json(), owner.json(), command.expected_version, command.operation_id, identity, command.asset, command.amount)
+                    receipt = await c.fetchval(query, *args)
                     # Replay has no effect and is allowed after owner expiry.
                     if not receipt['replayed']:
                         await c.execute('SELECT life_financial.guard_account($1,$2,$3,$4)', cfg.account_id, cfg.binding.json(), owner.json(), receipt['version'])
                     committing = True
                     boundary['attempted'] = True
                     await self._commit(transaction)
-                    return PgReceipt.parse(receipt)
+                    return parse(receipt)
                 except (asyncpg.SerializationError, asyncpg.DeadlockDetectedError):
                     boundary['attempted'] = False  # PostgreSQL explicitly aborted.
                     await rollback(transaction)

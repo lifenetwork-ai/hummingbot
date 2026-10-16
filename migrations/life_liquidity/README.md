@@ -13,6 +13,9 @@ fixture and is deliberately excluded.
   finite exact decimals, scoped permanent identities, immutable history and active indexes.
 - `000003_guarded_transactions.sql`: account-scoped access/RLS, expected owner/version and
   DB-time guards, deferred COMMIT checks, legal state transitions and one allocation primitive.
+- `000004_spot_preparation.sql`: immutable approved standalone SPOT risk/budget policy
+  and preparation records, stable snapshot and atomic prepare/arm commands. No policy,
+  session, balance or owner is seeded; approved import/access facts remain mandatory.
 
 The runner applies each immutable version once. A second service startup validates
 the same history and skips applied scripts. DDL is deliberately forward-only:

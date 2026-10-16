@@ -86,7 +86,46 @@ ports/parity are PG3; release image/SQLAlchemy/deployed identity and external
 durability remain open. The PostgreSQL backend selector still raises
 `UnsupportedBackend`; no file emulation or automatic activation is introduced.
 
-## Read/write contract
+## PostgreSQL standalone SPOT preparation (PG3 increment)
+
+`postgres/spot.py` adds `PgSpotRepository` over the PG2 pools/transaction boundary.
+It implements the standalone, unfilled preparation portion of the existing
+`SpotPreparationRepository` ports. An approved account, immutable session and
+explicit `spot_policies` record must already exist. Migration `000004` creates
+the tables/functions only; it seeds no policy, capital, owner or activation.
+Re-provision existing approved runtime/reporting access through the privileged
+setup/import stage to include the new function whitelist.
+
+`snapshot/session/balance/budget`, `attempt/reservation/lookup_prepare`,
+`prepare` and `arm` use account-scoped primary state. Preparation atomically
+publishes principal, LIFE/USDT fee buffers, subsidy claims in all three windows,
+intent and receipt. Persisted inventory/gross/net/budget limits, current owner,
+original session/config, exact cut, permanent IDs and occupied slots are checked.
+Reads preserve exact decimal strings and use a local precision of 120 digits.
+Missing physical principal causes reservation read failure.
+
+Arm commits `SEND_UNKNOWN` before any potential external request, retains all
+holds and grants no send permission. Repeat arm, replay after arm and expired
+writer admission are denied; primary receipt lookup remains available. Unknown
+or unported activity and inconsistent principal/fees/subsidy require recovery.
+Stored payload bytes encode the canonical preparation intent; actual protected
+transport byte equivalence is still required before backend selection.
+
+This scope rejects EXIT/shared-risk commands and has no fill/ACK/accounting,
+release, shared capital, action/lifecycle/rollback, sender or recorder port yet.
+Session metadata retains original deadlines; its derived status/session-start
+last-seen baseline is not current connector observation. Cold readback creates
+no grant, resend or refund. Full late-observation guards must differ from the
+new-risk ACTIVE/unexpired guard. PostgreSQL backend selection remains unsupported.
+
+Qualification: **76 actual PG tests** (including the previous 45 infrastructure
+cases), **21 migration tests** and **92 focused unit/file tests** pass. BUY/SELL
+preparation parity, lost COMMIT replies, actual subprocess exits before/after
+prepare/arm commits, stale/forged scope, risk/budget limits and decimal precision
+are covered. Full PG3 and all deployment/O.8/demo/live gates remain open; see the
+[current PG3 checklist](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-standalone-spot-preparation-qualification-2026-10-16).
+
+## Read/write contract (original checkpoint adapter)
 
 - The complete environment/exchange/UID/risk-pool/lineage/schema/policy/config
   binding is required on each read or UoW. UID in a fixture is synthetic, not
