@@ -66,6 +66,15 @@ fixture and is deliberately excluded.
   remain separate work. Approved provisioning grants the new fixed entrypoints;
   the automatic migration configuration and scripts 1–9 remain unchanged.
 
+- `000011_spot_action_preparation.sql`: mandatory imported quote-admission
+  policy with separately explicit observation/reference/fee/capture ages,
+  immutable exact captured-payload financial binding and atomic prepare holds.
+  Qualified publication state is separated from financial corruption so late
+  accounting remains available. Generic preparation cannot adopt a claimed
+  ID/slot; only the fixed bound entrypoint can invoke its private kernel context.
+  Source authenticity, actual runner/transport and action terminal reconciliation
+  remain separate gates. No owner, money or live threshold is bootstrapped.
+
 The runner applies each immutable version once. A second service startup validates
 the same history and skips applied scripts. DDL is deliberately forward-only:
 unregistered pre-existing objects fail instead of being silently accepted by

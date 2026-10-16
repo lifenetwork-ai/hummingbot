@@ -41,6 +41,22 @@ Migration infrastructure is separate and documented in
 
 ## PostgreSQL PG2 foundation
 
+**Action-bound PG3 financial preparation (2026-10-16, base `f78ae4991`):**
+`action_preparation.py` and `PgSpotRepository.prepare_quote_action` bind the
+exact captured DISPATCHED LIMIT_MAKER action to atomic principal/fee/subsidy
+holds, action PREPARED and its original financial receipt. Imported admission
+limits/rules/economics, original writer/lease and fresh caller-qualified sources
+are rechecked at entry and physical COMMIT. Generic preparation cannot adopt a
+claimed ID/slot. Potential rebates are excluded from anticipated quote profit.
+
+Verified pending actions retain new-risk/readiness barriers while allowing late
+ACK/fill/fee accounting for existing orders. Unknown sends, corrupt/underfunded
+state and unsupported products remain denied. Exact retry/cold readback creates
+no duplicate holds or external send authority. PG PREPARED adds a durable
+financial link to native DISPATCHED semantics. Actual source/runner/transport
+assembly, terminal action reconciliation, backend selection and release gates
+remain pending. See [qualification](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-action-bound-preparation-qualification-2026-10-16).
+
 **Standalone PG3 quote-publication journal (2026-10-16, base `a7bc3ee50`):**
 `actions.py` defines immutable publication/runner-fact commands.
 `PgSpotRepository.claim_quote_actions`, `transition_quote_action`, `quote_actions`

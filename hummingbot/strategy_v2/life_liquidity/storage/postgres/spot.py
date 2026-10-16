@@ -2,6 +2,7 @@
 from datetime import datetime
 from decimal import Decimal as D, InvalidOperation, localcontext
 
+from hummingbot.strategy_v2.life_liquidity.storage.action_preparation import PrepareQuoteAction
 from hummingbot.strategy_v2.life_liquidity.storage.actions import (
     ClaimQuoteActions,
     QuoteActionReceipt,
@@ -443,3 +444,11 @@ class PgSpotRepository:
                 AND command->>'kind' IN ('SPOT_ACTION_CLAIM','SPOT_ACTION_TRANSITION')""", self._runtime.config.account_id, operation_id)
         value = await self._runtime._admit(read, safety=True)
         return None if value is None else self._action_receipt({**value, 'replayed': True})
+
+    async def prepare_quote_action(self, command, *, cut, owner):
+        if type(command) is not PrepareQuoteAction or command.admission.binding != self.binding:
+            raise StorageError('PG_ACTION_PREPARATION_INVALID')
+        version, digest = self._cut(cut, owner)
+        identity = fingerprint({'command': command.json(), 'cut': cut.json(), 'owner': owner.json()})
+        args = (self._runtime.config.account_id, self.binding.json(), owner.json(), version, digest, identity, command.json())
+        return await self._runtime._transaction('SELECT life_financial.spot_action_prepare($1,$2,$3,$4,$5,$6,$7)', args, owner, self._receipt)
