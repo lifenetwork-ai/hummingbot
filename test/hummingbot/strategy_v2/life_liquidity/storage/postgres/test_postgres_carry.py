@@ -1,7 +1,7 @@
 """Synthetic independent carry streams on disposable PostgreSQL, never live feeds."""
 import json
 from dataclasses import asdict, replace
-from decimal import Decimal as D
+from decimal import Decimal as D, localcontext
 from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_shared_capital import (
     native_claim,
     setup as shared_setup,
@@ -396,4 +396,34 @@ async def test_bounded_reads_roles_and_concurrent_checks_cannot_bypass_account_s
     finally:
         if reporter is not None:
             await reporter.close()
+        await financial.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('caller_precision', [6, 28])
+async def test_carry_money_is_identical_to_native_sql_under_low_caller_decimal_precision(database, tmp_path, caller_precision):
+    financial, cfg, owner, cap_policy, account_feed, capital, policy, feed, repo = await setup(
+        database, max_age_ms=10000, absolute_rate_stress=D('.002345678912345678'))
+    account_feed[0] = replace(account_feed[0], sequence=2, long_base=D('1.23456789123456789'),
+                              mark_price_usdt=D('1.123456789123456789'), index_price_usdt=D('1.123456789123456789'))
+    try:
+        before = await financial.balance(cfg.binding)
+        assert (await capital.check_capital(cfg.binding)).allowed
+        b = feed[0]
+        feed[0] = replace(b, account=replace(b.account, snapshot=account_feed[0]),
+                          mark=replace(b.mark, sequence=2, price_usdt=account_feed[0].mark_price_usdt),
+                          index=replace(b.index, sequence=2, price_usdt=account_feed[0].index_price_usdt))
+        authority = SharedCapitalAuthority(tmp_path / 'capital.json', policy=cap_policy,
+                                           observation=lambda: account_feed[0], clock_ms=lambda: account_feed[0].observed_at_ms, create=True)
+        monitor = CarryMonitor(tmp_path / 'carry.json', policy=policy, capital=authority,
+                               observation=lambda: feed[0], clock_ms=lambda: account_feed[0].observed_at_ms, create=True)
+        with localcontext() as precision:
+            precision.prec = caller_precision
+            actual = await repo.check_carry(cfg.binding)
+            assert actual.allowed
+            expected = monitor.check()
+            assert expected == actual
+            assert precision.prec == caller_precision
+        assert await financial.balance(cfg.binding) == before
+    finally:
         await financial.close()

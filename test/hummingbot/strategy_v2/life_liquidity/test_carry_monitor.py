@@ -1,7 +1,8 @@
 """O.7.4 synthetic qualified streams; no exchange connection or live defaults."""
 
 from dataclasses import replace
-from decimal import Decimal
+from decimal import Decimal, localcontext
+from fractions import Fraction
 from test.hummingbot.strategy_v2.life_liquidity.test_shared_capital_runner import setup_shared
 
 import pytest
@@ -85,6 +86,20 @@ def refresh(v, feed, *, payments=(), **snapshot_changes):
 def restore(m):
     return CarryMonitor(m.journal.path, policy=m.policy, capital=m.capital,
                         observation=m.observation, clock_ms=m.clock_ms, create=False)
+
+
+def test_funding_forecast_is_exact_and_does_not_inherit_caller_rounding(tmp_path):
+    rate, price, base = D('.002345678912345678'), D('1.123456789123456789'), D('1.225')
+    monitor, values, feed = setup_carry(tmp_path, absolute_rate_stress=rate)
+    refresh(values, feed, long_base=base, short_base=D('0'), mark_price_usdt=price, index_price_usdt=price)
+    with localcontext() as caller:
+        caller.prec = 6
+        result = monitor.check()
+        assert result.allowed and result.funding_events == 2
+        expected_per_base = Fraction(price) * (1 + Fraction(monitor.capital.policy.price_stress_bps) / 10000) * Fraction(rate) * 2
+        assert Fraction(result.funding_cost_per_base) == expected_per_base
+        assert Fraction(result.funding_reserve_quote) == Fraction(base) * expected_per_base
+        assert caller.prec == 6
 
 
 @pytest.mark.parametrize("stream", ["mark", "index", "funding", "terms"])

@@ -2538,3 +2538,9 @@ never heals local readiness, and RESERVE stays on the denied new-risk lane.
 Financial state and original claims are retained. Rebuilding a qualified runtime
 is separate from receipt/readback and remains subject to configured source and
 PG4 ownership gates. No new schema, financial default or activation is added.
+
+The File carry evaluator uses an isolated 512-digit Decimal context, consistent
+with shared capital. Long legal-unit funding/price/exposure products match the
+native SQL decision under caller precision 6 or 28. A fast independent rational
+forecast test covers the same monetary guarantee without PostgreSQL. No policy,
+permanent funding bill, wallet amount or caller precision is rewritten.

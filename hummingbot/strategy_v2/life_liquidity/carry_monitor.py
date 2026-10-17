@@ -7,7 +7,7 @@ Authentication/feed collection is a separate demo/recovery integration gate.
 
 from copy import copy
 from dataclasses import asdict, dataclass, replace
-from decimal import Decimal
+from decimal import Decimal, localcontext
 from pathlib import Path
 
 from hummingbot.strategy_v2.life_liquidity.policy_state import PolicyState
@@ -261,6 +261,13 @@ class CarryMonitor:
         return obs, dynamic_policy
 
     def check(self, prospective: CapitalClaim | None = None):
+        # Match native SQL's exact legal-unit products independently of the
+        # caller's Decimal context. Shared capital uses the same fixed scope.
+        with localcontext() as precision:
+            precision.prec = 512
+            return self._check(prospective)
+
+    def _check(self, prospective):
         try:
             with self.journal.locked() as state:
                 self._validate_state(state)
