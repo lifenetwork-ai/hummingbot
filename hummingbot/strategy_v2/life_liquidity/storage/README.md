@@ -2613,3 +2613,24 @@ coupled release/settlement parity. Native portfolio batch application, provider
 collateral reconciliation, terminal/shared release, joint recovery, hedge and
 configured authenticated services remain required. PostgreSQL controller
 selection and SWAP final transport stay explicitly refused.
+
+## Native PostgreSQL SWAP terminal observations (PG3 increment, 2026-10-17)
+
+`PgSwapTerminalRepository` binds an explicit original ACK/order to its complete
+native cumulative fills and original versioned portfolio/account source cut.
+Migration-owner import explicitly supplies terminal record/byte bounds. Current
+source freshness and original ownership are checked again at physical COMMIT.
+Filled/canceled terminal receipts are permanent observations, not release grants.
+All shared claims remain held. A wrong order, missing fill, incomplete coverage,
+still-pending order or cancel-ACK source retains the original observation,
+ACKED state, unchanged money and HALT. A new financial observation after terminal
+is permanent pending/HALT; original exact retries retain their old receipts.
+Nothing automatically clears that pending fact or reactivates risk.
+
+22 native terminal cases have passing coverage (21-case suite plus actual-expiry
+case); 42 migration and 300 affected-domain cases pass, including process/backend
+COMMIT loss, original fresh-object readback, physical source/owner expiry and
+corruption/role/work bounds. Source labels do not authenticate provider facts.
+Native coupled batch accounting, collateral reconciliation, shared release,
+joint recovery, signed pending repair and complete configured source/service
+assembly remain required. Configured PostgreSQL/SWAP transport stay refused.

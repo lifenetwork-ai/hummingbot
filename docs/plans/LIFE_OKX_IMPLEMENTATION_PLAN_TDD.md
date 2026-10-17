@@ -1,5 +1,8 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**PG3 SWAP terminal checkpoint (2026-10-17, base `2326eee9e`):** original order/ACK, complete native fills and a current financial/NAV source cut now gate terminal bookkeeping. Invalid or still-pending source facts remain pending/HALT; late fills cannot silently rewrite terminal history. **22 native terminal cases have passing coverage** (21-case suite plus an additional actual-expiry case); **42 migration, 29 focused DTO and 300 affected-domain cases pass** (overlapping counts). Claims remain held. See [qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-native-swap-terminal-qualification-2026-10-17). Shared release/coupled joint recovery, collateral reconciliation, hedge/pending/control and configured full services remain required; **PG3 is not closed**.
+
+
 **PG3 portfolio checkpoint (2026-10-17, base `c1c323acb`):** native NAV now binds settled money, original leg basis, approved external-flow values and independently qualified native sources to each original version cut. High-water survives fills/funding/transfers; drawdown retains HALT; stale physical COMMIT cannot publish a valuation. **37 native, 41 migration and 50 focused contract/startup cases pass** (overlapping qualification). Claims remain held, and collateral is not counted as a second wallet. See [portfolio qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-native-portfolio-qualification-2026-10-17). Coupled financial batches, collateral reconciliation, terminal/release/joint recovery, hedge/control/pending and configured full services remain required; **PG3 is not closed**.
 
 

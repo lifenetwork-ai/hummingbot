@@ -601,3 +601,13 @@ Common proof/snapshot OIDs and ACLs are preserved on upgrade. Repeated startup
 creates no account, opening policy, source, money or live threshold. Coupled
 financial batches, actual collateral reconciliation and joint terminal/recovery
 remain separate required PG3 implementation.
+
+`000036_swap_terminal_observations.sql` retains bounded immutable native SWAP
+terminal/pending observations, against original ACK/order, complete fill IDs and
+version-bound NAV/account source evidence. Freshness and ownership are checked
+at physical COMMIT; original readback never refunds or reapplies money. Invalid
+terminal evidence and new post-terminal financial observations preserve HALT
+and original pending facts. Shared claims remain held. Source labels are not
+authenticated provider evidence; coupled joint settlement/release and configured
+source installation remain separate required PG3 work. Original proof OIDs/ACLs
+and repeated-startup idempotency are preserved without account/money bootstrap.

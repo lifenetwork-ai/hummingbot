@@ -24,8 +24,8 @@ async def refresh(database, values, *, short='0', cash='10', mark='1', index='1'
     await carry.check_carry(capital.binding)
 
 
-async def setup(database, *, drawdown='1000', max_observations=64):
-    values, swap, fills, fill = await swap_setup(database)
+async def setup(database, *, drawdown='1000', max_observations=64, spot_options=None):
+    values, swap, fills, fill = await swap_setup(database, spot_options=spot_options)
     financial, cfg, owner = values[:3]
     await database[0].execute('INSERT INTO life_financial.portfolio_policies VALUES($1,$2,1,$3,5000,$4,1048576)',
                               cfg.account_id, cfg.binding.policy_hash, D(drawdown), max_observations)
