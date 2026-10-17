@@ -32,7 +32,7 @@ async def provision_access(connection, *, principal, account_id, write):
             raise StorageError('PG_ACCESS_ACCOUNT_MISSING')
         # Names were validated above; SQL values remain bound parameters.
         await connection.execute(f'GRANT USAGE ON SCHEMA life_financial,life_storage,life_migrations TO "{principal}"')
-        tables = await connection.fetch("SELECT tablename FROM pg_tables WHERE schemaname='life_financial' AND tablename NOT IN ('access_bindings','joint_batch_staging','joint_repair_staging')")
+        tables = await connection.fetch("SELECT tablename FROM pg_tables WHERE schemaname='life_financial' AND tablename NOT IN ('access_bindings','joint_batch_staging','joint_repair_staging','hedge_staging')")
         for row in tables:
             name = role_name(row['tablename'])
             await connection.execute(f'GRANT SELECT ON life_financial."{name}" TO "{principal}"')
@@ -60,6 +60,7 @@ async def provision_access(connection, *, principal, account_id, write):
         await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.shared_release_read(uuid,integer,integer,text) TO "{principal}"')
         await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.joint_batch_read(uuid,integer,integer,text) TO "{principal}"')
         await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.joint_repair_read(uuid,integer,integer,text) TO "{principal}"')
+        await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.hedge_read(uuid,integer,integer,text) TO "{principal}"')
         if write:
             await connection.execute(f'''GRANT EXECUTE ON FUNCTION life_financial.guard_account(uuid,jsonb,jsonb,bigint),
                 life_financial.allocate_balance(uuid,jsonb,jsonb,bigint,life_financial.identity,life_financial.digest,text,life_financial.positive_amount),
@@ -68,6 +69,7 @@ async def provision_access(connection, *, principal, account_id, write):
                 life_financial.spot_capture_provider_page(uuid,jsonb),
                 life_financial.shared_capital_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb),
                 life_financial.carry_check(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb),
+                life_financial.hedge_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,text,jsonb),
                 life_financial.joint_repair_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb),
                 life_financial.joint_batch_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb),
                 life_financial.shared_release_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb),

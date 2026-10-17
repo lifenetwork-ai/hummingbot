@@ -663,3 +663,21 @@ owner, gross-budget and final-send guards are preserved. Apply/reapply via the
 central checksum/lock migration runner, including enabled startup auto migration.
 Direct native pending resolution, legacy import and configured assembly remain
 open PG3 work.
+
+## 000041: native hedge coordination
+
+Hedge policy and explicit count/byte limits are privileged imports. Immutable
+versioned targets, plans and settlements bind actual native wallet/leg positions,
+original depth/fee/funding evidence and native SWAP intent identities. The existing
+`hedge_plans` table is a verified projection, not a second financial wallet.
+A private transaction context composes shared allocation, carry qualification and
+SWAP preparation atomically; it cannot survive COMMIT or be written by runtime.
+Refused attempts retain their cost hold, retry count and retired identities.
+
+Installed hedge policy also gates generic SPOT/SWAP preparation and arming.
+Physical COMMIT rechecks ownership, account and independent carry/funding deadlines,
+as well as the hedge market deadline. Settlements consume actual native fill and
+terminal facts; partial or pending hedges are never completed inventory. Cost
+breaches retain actual accounting and HALT. No claim refund, automatic activation,
+provider authentication or SWAP HTTP transport is introduced. Central migration
+tracking applies this file once; repeated enabled startup verifies its checksum.

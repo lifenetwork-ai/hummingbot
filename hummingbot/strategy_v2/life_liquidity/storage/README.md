@@ -2725,3 +2725,35 @@ provider facts. Legacy import, full control/hedge and configured joint collectio
 runner/recorder/final-send assembly remain required. PostgreSQL selection stays
 denied. Run isolated qualification with `--suite joint_repair` in the central
 `storage.run_postgres` runner; use disposable loopback PostgreSQL only.
+
+## Native PostgreSQL hedge coordination (PG3 increment, 2026-10-17)
+
+`postgres.hedge.PgHedgeRepository` pins the original native SWAP/shared-capital
+runtime, owner and binding. `UpdateHedgeTarget`, `PlanHedge` and `SettleHedge` carry
+permanent operation IDs and original version cuts. Target changes cannot clear an
+in-flight child or a cost fault. No File journal is instantiated by this adapter.
+
+SQL sizes against actual SPOT plus long minus short inventory, closes an opposite
+leg first, floors exact contract lots and checks executable depth, basis, fee,
+funding, edge, exposure age, child size, retry and cumulative cost limits. A child
+publishes shared claim → carry check → captured native SWAP preparation in one
+account transaction. Its fully verified immutable prefix is reused only inside
+the private locked three-command context; full final/physical-COMMIT checks
+remain and no proof cache survives COMMIT. A rejected child rolls those writes back while retaining its
+attempt and conservative cost hold; its captured IDs cannot be recycled. A
+prepared or partially filled hedge blocks another child until native terminal
+settlement. Retained claims still need the separate qualified release operation.
+
+Settlements derive complete original trade IDs and actual fee/adverse cost from
+native accounting. Repeated observations do not debit money again or reduce the
+original cost hold. An actual cost breach latches HALT. Observation and cold
+readback never arm a child or restore trading permission. Physical COMMIT checks
+original ownership and the independent source/market deadlines. Installed policy
+also blocks generic SWAP claim bypass and unbalanced or unowned-pending SPOT risk.
+A failed market capture cannot implicitly reuse an older good capture. Financial
+child plans use active admission, so a locally revoked runtime can only observe.
+
+These are explicit offline repositories and synthetic-source qualification;
+configured source/controller/runner installation, pending/risk/control services
+and final SWAP HTTP transport remain open PG3 work. `storage_backend: postgres`
+continues to be rejected by the configured LIFE controller.

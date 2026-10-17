@@ -1073,3 +1073,32 @@ async def test_joint_repair_upgrade_keeps_public_oids_and_private_approval_capab
     assert (await migrate(c, directory, action='up'))['applied'] == []
     for table in ('accounts', 'balances', 'operations', 'joint_repair_policies', 'joint_repair_approvals', 'joint_repair_facts', 'joint_repair_staging'):
         assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+
+
+@pytest.mark.asyncio
+async def test_hedge_upgrade_preserves_existing_oids_acl_and_private_transaction_context_without_bootstrap(db):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 41:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    signatures = ('life_financial.spot_state(uuid)', 'life_financial.commit_owner_guard()',
+                  'life_financial.swap_verified(uuid)', 'life_financial.joint_repair_verified(uuid)')
+    oids = [await c.fetchval('SELECT to_regprocedure($1)::oid', value) for value in signatures]
+    assert all(value is not None for value in oids)
+    await c.execute('GRANT EXECUTE ON FUNCTION life_financial.spot_state(uuid) TO life_runtime_test,life_reporter_test')
+    path = DEFAULT_DIRECTORY / '000041_hedge_coordination.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    assert [await c.fetchval('SELECT to_regprocedure($1)::oid', value) for value in signatures] == oids
+    for principal in ('life_runtime_test', 'life_reporter_test'):
+        assert await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", principal, signatures[0])
+        for signature in ('life_financial.hedge_market_captured(uuid,text)', 'life_financial.hedge_verified(uuid)', 'life_financial.hedge_spot_ready(uuid)',
+                          'life_financial.hedge_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,text,jsonb)'):
+            assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", principal, signature)
+        for table in ('hedge_policies', 'hedge_targets', 'hedge_plan_facts', 'hedge_settlements', 'hedge_staging'):
+            assert not await c.fetchval("SELECT has_table_privilege($1,$2,'INSERT,UPDATE,DELETE')", principal, 'life_financial.' + table)
+        assert not await c.fetchval("SELECT has_table_privilege($1,'life_financial.hedge_staging','SELECT')", principal)
+    assert (await migrate(c, directory, action='up'))['applied'] == []
+    for table in ('accounts', 'balances', 'operations', 'hedge_policies', 'hedge_targets', 'hedge_plan_facts', 'hedge_settlements', 'hedge_staging'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
