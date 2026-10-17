@@ -727,3 +727,28 @@ async def test_capture_reason_upgrade_preserves_private_guard_oid_acl_and_has_no
     assert (await migrate(c, directory, action='up'))['applied'] == []
     for table in ('accounts', 'balances', 'operations', 'sessions', 'spot_markout_facts'):
         assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+
+
+@pytest.mark.asyncio
+async def test_provider_journal_upgrade_repeats_without_new_financial_authority(db):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 27:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    signature = 'life_financial.spot_state(uuid)'
+    oid = await c.fetchval('SELECT to_regprocedure($1)::oid', signature)
+    await c.execute('GRANT EXECUTE ON FUNCTION life_financial.spot_state(uuid) TO life_runtime_test,life_reporter_test')
+    path = DEFAULT_DIRECTORY / '000027_spot_provider_journal.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    assert await c.fetchval('SELECT to_regprocedure($1)::oid', signature) == oid
+    for principal in ('life_runtime_test', 'life_reporter_test'):
+        assert await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", principal, signature)
+        for fn in ('spot_capture_provider_page(uuid,jsonb)', 'spot_read_provider_collection(uuid,life_financial.identity,integer,integer)',
+                   'spot_provider_receipt(uuid,text,integer,boolean)', 'spot_provider_route(text,jsonb)'):
+            assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", principal, 'life_financial.' + fn)
+    assert (await migrate(c, directory, action='up'))['applied'] == []
+    assert (await migrate(c, directory))['pending'] == []
+    for table in ('accounts', 'balances', 'operations', 'sessions', 'spot_provider_heads', 'spot_provider_pages'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0

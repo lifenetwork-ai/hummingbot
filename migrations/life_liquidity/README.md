@@ -498,3 +498,16 @@ returns `QUOTE_CAPTURE_MISMATCH`; future and aged capture timestamps return
 preparation and grants no sender. No table, financial value, default, owner or
 activation is added. Previously applied scripts remain unchanged; repeated
 startup uses the central checksum/version ledger.
+
+### 000027: decoded provider response diagnostics
+
+Adds empty account-scoped `spot_provider_heads`/`spot_provider_pages` with
+immutable original bodies, primary timestamps and retained sequence/hash tips.
+The fixed private GET route/query command accepts bounded decoded JSON only;
+headers, credentials and arbitrary URLs are not command fields. Collection
+limits are 512 pages/16 MiB, with explicit bounded verified readback. Existing
+snapshot functions and financial state are unchanged. A diagnostic record is
+untrusted and grants no financial application, completeness or send authority.
+Privileged `provision_access` grants the new fixed capture/read functions;
+runtime gets no table DML or private helper permission. Central startup migration
+version/checksum handling makes repeated runs a no-op, without reapplying SQL.

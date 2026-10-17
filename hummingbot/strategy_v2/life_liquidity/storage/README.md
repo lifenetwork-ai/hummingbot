@@ -2386,3 +2386,26 @@ namespace/schema and actual role privileges in one uncached primary statement.
 Catalog names/operators/types are pinned and session `search_path=pg_catalog`
 is enforced; TEMP catalog lookalikes cannot hide real DML or BYPASSRLS grants.
 This read-count reduction is not a whole-history or latency qualification.
+
+### PostgreSQL provider response diagnostics
+
+`PgSpotAccountReader` requires `PgProviderJournal` COMMIT before returning an
+admitted decoded GET response to its consumer. It retains original parseable
+provider errors and replies followed by a local context rejection. Capture or
+unknown-COMMIT failure returns no parser data; HTTP is never implicitly retried.
+Only fixed private GET paths/query keys are accepted; headers/credentials and
+arbitrary URLs are excluded. Non-JSON/over-budget responses remain denied.
+
+Migration `000027` keeps immutable pages and monotone collection heads, bounded
+to 512 pages/16 MiB including metadata. `collections(after=..., limit=...)`
+provides indexed bounded cold discovery; `read_collection` checks sequence,
+count, bytes and hash links/tip with explicit row/byte limits. Discovery is not
+a stable account snapshot; concurrent appends can sort before a prior cursor.
+The declared trusted database-owner contract still applies to colocated hashes.
+
+These are decoded JSON diagnostics, not raw HTTP/UID response bytes or financial
+facts. Append/read changes no financial cut, balance, hold, pending fact, budget,
+SDK cache, completeness or trading permission. The authenticated collector must
+still qualify the whole causal account before original typed intake/accounting.
+Configured startup/source/service, approved pending repair and all enabled
+shared-product ports remain required for full PG3 closure.

@@ -7,12 +7,14 @@ import asyncio
 import json
 import time
 from contextlib import asynccontextmanager
+from uuid import uuid4
 
 from hummingbot.connector.exchange.okx import okx_constants as C
 from hummingbot.core.web_assistant.connections.data_types import RESTMethod
 from hummingbot.strategy_v2.life_liquidity.order_gateway import OkxSpotOrderGateway
 from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError, identifier, utc
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.observation_account_source import PgObservationAccountSource
+from hummingbot.strategy_v2.life_liquidity.storage.postgres.provider_journal import PgProviderJournal
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.quote_account_source import PgQuoteAccountSource
 
 
@@ -60,6 +62,8 @@ class PgSpotAccountReader:
         self.owner = source.journal.owner
         self.max_reads, self.max_bytes, self.timeout_ms = max_reads, max_bytes, timeout_ms
         self._active, self._reads, self._bytes = False, 0, 0
+        self._journal, self.collection_id = PgProviderJournal(self.repository), None
+        self._read_active = False
 
     def _original(self):
         self.source._credentials()
@@ -70,9 +74,10 @@ class PgSpotAccountReader:
 
     @asynccontextmanager
     async def collection(self):
-        if self._active:
+        if self._active or self._read_active:
             raise StorageError('PG_FINANCIAL_SOURCE_BACKPRESSURE')
         self._active, self._reads, self._bytes = True, 0, 0
+        self.collection_id = 'provider:' + uuid4().hex
         self.runtime._ingress_epoch += 1
         self.runtime._observation_inflight += 1
         try:
@@ -140,25 +145,44 @@ class PgSpotAccountReader:
             raise StorageError('PG_FINANCIAL_SOURCE_ROUTE_INVALID')
 
     async def _read(self, path, params):
+        if self._read_active:
+            raise StorageError('PG_FINANCIAL_SOURCE_READ_BACKPRESSURE')
+        self._read_active = True
+        try:
+            return await self._read_one(path, params)
+        finally:
+            self._read_active = False
+
+    async def _read_one(self, path, params):
         self._original()
         self._route(path, params)
         if self._reads >= self.max_reads:
             raise StorageError('PG_FINANCIAL_SOURCE_READ_BOUND')
         self._reads += 1
+        sequence, collection_id = self._reads, self.collection_id
         await self.source._uid()
         self._original()
         guard = _FinancialReadGuard(self, path, params)
         result = await self.source._connector._api_get(path_url=path, params=params, is_auth_required=True,
                                                        request_send_guard=guard)
-        self._original()
-        if not guard.consumed or not self.source._uid_fresh():
+        if not guard.consumed:
             raise StorageError('PG_FINANCIAL_SOURCE_TRANSPORT_UNQUALIFIED')
         try:
-            self._bytes += len(json.dumps(result, ensure_ascii=False, allow_nan=False).encode('utf-8'))
+            encoded = json.dumps(result, ensure_ascii=False, allow_nan=False, separators=(',', ':'))
+            self._bytes += len(encoded.encode('utf-8'))
         except (TypeError, ValueError):
             raise StorageError('PG_FINANCIAL_SOURCE_RESPONSE_INVALID') from None
         if self._bytes > self.max_bytes:
             raise StorageError('PG_FINANCIAL_SOURCE_BYTE_BOUND')
+        # Retain received parseable diagnostics before any semantic/context
+        # rejection. This is decoded JSON, not raw HTTP bytes or authenticated
+        # financial facts. Unknown commit never returns data to the parser.
+        await self._journal.capture({'binding': self.binding.json(), 'owner': self.owner.json(),
+                                     'collection_id': collection_id, 'sequence': sequence,
+                                     'path': path, 'params': dict(guard.params), 'response_json': encoded})
+        self._original()
+        if not self.source._uid_fresh():
+            raise StorageError('PG_FINANCIAL_SOURCE_TRANSPORT_UNQUALIFIED')
         if type(result) is not dict or result.get('code') != '0' or type(result.get('data')) is not list:
             raise StorageError('PG_FINANCIAL_SOURCE_RESPONSE_INVALID')
         return result
