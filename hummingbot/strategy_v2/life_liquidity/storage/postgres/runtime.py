@@ -154,7 +154,7 @@ class PgRuntime:
                         min_size=minimum, max_size=size, max_inactive_connection_lifetime=30,
                         timeout=config.acquire_timeout_ms / 1000, command_timeout=config.statement_timeout_ms / 1000,
                         init=self._initialize_connection, server_settings={
-                            'application_name': 'life_financial_runtime', 'synchronous_commit': 'on', 'timezone': 'UTC',
+                            'application_name': 'life_financial_runtime', 'synchronous_commit': 'on', 'timezone': 'UTC', 'search_path': 'pg_catalog',
                             'statement_timeout': str(config.statement_timeout_ms),
                             'idle_in_transaction_session_timeout': str(config.idle_transaction_timeout_ms)})
             self._healthy = True
@@ -170,37 +170,31 @@ class PgRuntime:
 
     async def _validate_connection(self, c):
         cfg = self.config
-        row = await c.fetchrow('''SELECT current_user AS principal,pg_is_in_recovery() AS replica,
-            current_setting('server_version_num')::integer/10000 AS major,
-            current_setting('transaction_read_only') AS readonly,current_setting('synchronous_commit') AS sync,
-            current_setting('fsync') AS fsync,current_setting('full_page_writes') AS full_page,current_setting('TimeZone') AS timezone,
-            (SELECT lineage FROM life_storage.storage_metadata) AS lineage''')
-        if (row['principal'] != cfg.principal or row['replica'] or row['major'] != cfg.server_major
-                or row['readonly'] != 'off' or row['sync'] != 'on' or row['fsync'] != 'on' or row['full_page'] != 'on'
-                or row['timezone'] != 'UTC' or row['lineage'] != cfg.database_lineage):
-            raise StorageUnavailable('PG_PRIMARY_CONTEXT_INVALID')
-        if not cfg.local_insecure and not await c.fetchval('SELECT ssl FROM pg_stat_ssl WHERE pid=pg_backend_pid()'):
-            raise StorageUnavailable('PG_TLS_REQUIRED')
-        contract = await c.fetchrow('SELECT * FROM life_financial.schema_contract')
-        if contract is None or contract['format_version'] != 1 or contract['decimal_scale'] != 18:
-            raise StorageUnavailable('PG_SCHEMA_INCOMPATIBLE')
-        history = await c.fetch('SELECT version,name,checksum FROM life_migrations.schema_migrations ORDER BY version')
-        if [(r['version'], r['name'], r['checksum']) for r in history] != [(m.version, m.name, m.checksum) for m in self._bundle]:
-            raise StorageUnavailable('PG_MIGRATION_BUNDLE_INCOMPATIBLE')
-        account = await c.fetchrow('SELECT * FROM life_financial.accounts WHERE account_id=$1', cfg.account_id)
-        if (account is None or account['database_lineage'] != cfg.database_lineage
-                or any(account[key] != (UUID(value) if key == 'lineage' else value) for key, value in cfg.binding.json().items())
-                or not await c.fetchval('SELECT life_financial.can_access($1,$2)', cfg.account_id, cfg.write)):
-            raise StorageUnavailable('PG_ACCOUNT_BINDING_INVALID')
-        unsafe = await c.fetchval('''SELECT rolsuper OR rolbypassrls OR rolcreaterole OR rolcreatedb OR rolreplication
-            FROM pg_roles WHERE rolname=current_user''')
-        direct = await c.fetchval('''SELECT EXISTS(SELECT 1 FROM pg_tables WHERE schemaname='life_financial'
-            AND has_table_privilege(current_user,quote_ident(schemaname)||'.'||quote_ident(tablename),'INSERT,UPDATE,DELETE,TRUNCATE'))''')
-        schema = await c.fetchval("SELECT has_schema_privilege(current_user,'life_financial','CREATE') OR has_database_privilege(current_user,current_database(),'CREATE')")
-        if unsafe or direct or schema:
-            raise StorageUnavailable('PG_RUNTIME_PRIVILEGES_UNSAFE')
-        profile = await c.fetchval('''SELECT bool_and(has_function_privilege(current_user,signature,'EXECUTE')=$1)
-            FROM unnest(ARRAY[
+        # A single statement supplies one primary MVCC view. Every admission
+        # rechecks it; successful prior checks are never a privilege cache.
+        row = await c.fetchrow('''WITH history AS MATERIALIZED (
+            SELECT version,name,checksum FROM life_migrations.schema_migrations ORDER BY version LIMIT $3)
+            SELECT current_user AS principal,pg_catalog.pg_is_in_recovery() AS replica,
+            pg_catalog.current_setting('server_version_num')::pg_catalog.int4 OPERATOR(pg_catalog./) 10000 AS major,
+            pg_catalog.current_setting('transaction_read_only') AS readonly,pg_catalog.current_setting('synchronous_commit') AS sync,
+            pg_catalog.current_setting('fsync') AS fsync,pg_catalog.current_setting('full_page_writes') AS full_page,
+            pg_catalog.current_setting('TimeZone') AS timezone,pg_catalog.current_setting('search_path') AS search_path,
+            (SELECT lineage FROM life_storage.storage_metadata) AS lineage,
+            (SELECT ssl FROM pg_catalog.pg_stat_ssl WHERE pid OPERATOR(pg_catalog.=) pg_catalog.pg_backend_pid()) AS tls,
+            (SELECT pg_catalog.to_jsonb(s) FROM life_financial.schema_contract s) AS contract,
+            (SELECT COALESCE(pg_catalog.jsonb_agg(CASE WHEN pg_catalog.octet_length(name) OPERATOR(pg_catalog.<=) 512 AND pg_catalog.octet_length(checksum) OPERATOR(pg_catalog.=) 64
+                THEN pg_catalog.jsonb_build_array(version,name,checksum) ELSE 'null'::pg_catalog.jsonb END ORDER BY version),'[]'::pg_catalog.jsonb)
+                FROM history) AS history,
+            (SELECT pg_catalog.to_jsonb(a) FROM life_financial.accounts a WHERE account_id OPERATOR(pg_catalog.=) $1) AS account,
+            life_financial.can_access($1,$2) AS access,
+            (SELECT rolsuper OR rolbypassrls OR rolcreaterole OR rolcreatedb OR rolreplication
+                FROM pg_catalog.pg_roles WHERE rolname OPERATOR(pg_catalog.=) current_user) AS unsafe,
+            EXISTS(SELECT 1 FROM pg_catalog.pg_tables WHERE schemaname OPERATOR(pg_catalog.=) 'life_financial'
+                AND pg_catalog.has_table_privilege(current_user,pg_catalog.quote_ident(schemaname) OPERATOR(pg_catalog.||) '.' OPERATOR(pg_catalog.||) pg_catalog.quote_ident(tablename),'INSERT,UPDATE,DELETE,TRUNCATE')) AS direct,
+            pg_catalog.has_schema_privilege(current_user,'life_financial','CREATE') OR pg_catalog.has_database_privilege(current_user,pg_catalog.current_database(),'CREATE') AS schema_create,
+            (SELECT pg_catalog.bool_and(pg_catalog.to_regprocedure(signature) IS NOT NULL
+                AND pg_catalog.has_function_privilege(current_user,pg_catalog.to_regprocedure(signature),'EXECUTE') OPERATOR(pg_catalog.=) $2)
+            FROM pg_catalog.unnest(ARRAY[
                 'life_financial.allocate_balance(uuid,jsonb,jsonb,bigint,life_financial.identity,life_financial.digest,text,life_financial.positive_amount)',
                 'life_financial.spot_capture_ack_ingress(uuid,jsonb)',
                 'life_financial.spot_capture_financial_ingress(uuid,jsonb)',
@@ -225,8 +219,25 @@ class PgRuntime:
                 'life_financial.recorder_stage_executor(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,text,jsonb)',
                 'life_financial.recorder_apply_executor(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.identity)',
                 'life_financial.spot_arm_quote(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)'
-            ]) AS signatures(signature)''', cfg.write)
-        if not profile:
+            ]) AS signatures(signature)) AS profile''', cfg.account_id, cfg.write, len(self._bundle) + 1)
+        if (row['principal'] != cfg.principal or row['replica'] or row['major'] != cfg.server_major
+                or row['readonly'] != 'off' or row['sync'] != 'on' or row['fsync'] != 'on' or row['full_page'] != 'on'
+                or row['timezone'] != 'UTC' or row['search_path'] != 'pg_catalog' or row['lineage'] != cfg.database_lineage):
+            raise StorageUnavailable('PG_PRIMARY_CONTEXT_INVALID')
+        if not cfg.local_insecure and row['tls'] is not True:
+            raise StorageUnavailable('PG_TLS_REQUIRED')
+        contract = row['contract']
+        if contract is None or contract['format_version'] != 1 or contract['decimal_scale'] != 18:
+            raise StorageUnavailable('PG_SCHEMA_INCOMPATIBLE')
+        if row['history'] != [[m.version, m.name, m.checksum] for m in self._bundle]:
+            raise StorageUnavailable('PG_MIGRATION_BUNDLE_INCOMPATIBLE')
+        account = row['account']
+        if (account is None or account['database_lineage'] != str(cfg.database_lineage)
+                or any(account[key] != value for key, value in cfg.binding.json().items()) or row['access'] is not True):
+            raise StorageUnavailable('PG_ACCOUNT_BINDING_INVALID')
+        if any(row[key] is not False for key in ('unsafe', 'direct', 'schema_create')):
+            raise StorageUnavailable('PG_RUNTIME_PRIVILEGES_UNSAFE')
+        if row['profile'] is not True:
             raise StorageUnavailable('PG_ROLE_PROFILE_INVALID')
 
     async def _admit(self, callback, *, safety, commit_state=None):

@@ -154,7 +154,7 @@ async def test_freshness_rechecked_at_physical_commit_not_only_at_function_entry
     monkeypatch.setattr(repo._runtime, '_commit', delayed)
     try:
         before = await repo.snapshot(cfg.binding)
-        with pytest.raises(StorageError, match='QUOTE_ADMISSION_STALE|QUOTE_CAPTURE_MISMATCH'):
+        with pytest.raises(StorageError, match='QUOTE_ADMISSION_STALE|QUOTE_CAPTURE_MISMATCH|QUOTE_CAPTURE_STALE'):
             await repo.arm_quote_action(cmd, cut=before.cut, owner=owner)
         assert (await repo.snapshot(cfg.binding)).cut == before.cut
         assert (await repo.attempt('intent1', cfg.binding)).state.value == 'PREPARED'

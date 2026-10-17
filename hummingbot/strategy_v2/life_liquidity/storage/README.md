@@ -2368,3 +2368,21 @@ real process exits/backend termination, original cold readback, exact signed
 BUY/SELL values, shared tracker parity and corruption/access/bound checks.
 Configured risk/stability/probe authority, authenticated horizon sourcing, shared
 products and complete PostgreSQL service composition remain separate PG3 work.
+
+### Signed recovery reads without quote eligibility
+
+`PgObservationAccountSource.create(journal, ...)` supplies the same pinned HMAC,
+endpoint/environment and forced UID collection checks to `PgSpotAccountReader`
+without requiring a financially verified quote policy. Factory and collection
+edges check current primary owner/binding; late reads from the expired current
+original owner remain observations. The separate exact type is refused by the
+quote guard. Guard/capture/age-limit APIs deny and its final send check is false.
+Native financial pending/HALT state, wallet/holds and operator approval are not
+resolved or renewed. Financially qualified idle SDK dedup remains a separate
+explicit application; configured service and approved pending repair remain open.
+
+Runtime admission reads primary/durability/TLS, bounded migration history,
+namespace/schema and actual role privileges in one uncached primary statement.
+Catalog names/operators/types are pinned and session `search_path=pg_catalog`
+is enforced; TEMP catalog lookalikes cannot hide real DML or BYPASSRLS grants.
+This read-count reduction is not a whole-history or latency qualification.

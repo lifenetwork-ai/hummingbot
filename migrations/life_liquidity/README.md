@@ -488,3 +488,13 @@ owner generation/fact age. Existing snapshot OID/ACL and prior guards are retain
 An account/fill-time index supports cohort window selection. The central migration
 ledger supplies repeat-startup idempotency; no financial/policy/owner/bootstrap or
 risk activation is added, and previous script checksums remain unchanged.
+
+### 000026: precise capture time denials
+
+Forward-replaces the existing private quote admission guard while preserving
+its OID/ACL, amounts and all age/clock comparisons. Payload shape/identity still
+returns `QUOTE_CAPTURE_MISMATCH`; future and aged capture timestamps return
+`QUOTE_CAPTURE_FUTURE` and `QUOTE_CAPTURE_STALE`. Each denial still rolls back
+preparation and grants no sender. No table, financial value, default, owner or
+activation is added. Previously applied scripts remain unchanged; repeated
+startup uses the central checksum/version ledger.

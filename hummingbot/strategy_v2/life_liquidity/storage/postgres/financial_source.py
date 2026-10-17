@@ -12,6 +12,7 @@ from hummingbot.connector.exchange.okx import okx_constants as C
 from hummingbot.core.web_assistant.connections.data_types import RESTMethod
 from hummingbot.strategy_v2.life_liquidity.order_gateway import OkxSpotOrderGateway
 from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError, identifier, utc
+from hummingbot.strategy_v2.life_liquidity.storage.postgres.observation_account_source import PgObservationAccountSource
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.quote_account_source import PgQuoteAccountSource
 
 
@@ -47,7 +48,9 @@ class _FinancialReadGuard:
 
 class PgSpotAccountReader:
     def __init__(self, source, *, max_reads, max_bytes, timeout_ms):
-        if (type(source) is not PgQuoteAccountSource or source._policy is None
+        if (type(source) not in (PgQuoteAccountSource, PgObservationAccountSource)
+                or type(source) is PgQuoteAccountSource and source._policy is None
+                or type(source) is PgObservationAccountSource and source._identity_checked is not True
                 or type(max_reads) is not int or not 0 < max_reads <= 512
                 or type(max_bytes) is not int or not 0 < max_bytes <= 16 * 1024 * 1024
                 or type(timeout_ms) is not int or not 0 < timeout_ms <= 60000):
@@ -76,12 +79,18 @@ class PgSpotAccountReader:
             before, started = utc(self.source.journal.clock()), time.monotonic()
             async with asyncio.timeout(self.timeout_ms / 1000):
                 self._original()
+                if type(self.source) is PgObservationAccountSource:
+                    await self.source.validate_observation_identity()
+                    self._original()
                 await self.source._uid(force=True)
                 self._original()
                 yield self
                 self._original()
                 await self.source._uid(force=True)
                 self._original()
+                if type(self.source) is PgObservationAccountSource:
+                    await self.source.validate_observation_identity()
+                    self._original()
                 after, elapsed = utc(self.source.journal.clock()), time.monotonic() - started
                 if after < before or abs((after - before).total_seconds() - elapsed) * 1000 > self.source.max_clock_skew_ms:
                     raise StorageError('PG_ACCOUNT_CLOCK_UNQUALIFIED')
