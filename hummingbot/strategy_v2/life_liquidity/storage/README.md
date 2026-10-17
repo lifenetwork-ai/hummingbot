@@ -2785,3 +2785,37 @@ receipts remain diagnostic and cannot become HTTP guards.
 This is an explicit assembly exercised with disposable PostgreSQL and fake HTTP.
 Configured PostgreSQL service/controller, qualified shared-product collectors,
 runner/control/risk and the remaining PG3 acceptance contracts remain open.
+
+## Native joint collateral bound
+
+Migration 43 composes the collateral bound with joint batch publication and
+historical proof, portfolio basis, terminal/shared release, and (when the
+portfolio policy is installed) current shared/carry admission. For the dedicated
+account-mode-2, cross-margin USDT scope, the ceiling is
+`max(0, settled USDT cash + replayed SWAP mark-price UPL)`. LIFE inventory NAV is
+excluded. Rounding may lower the ceiling but cannot raise it above exact native
+cash/UPL equity. Collateral may be lower due to a conservative haircut. This check does
+not credit cash, deduct funding twice, release claims or activate trading. The
+Python portfolio adapter permanently revokes its local runtime after an invalid
+collateral source; cold current-source gates still deny the same invalid input.
+
+The source must represent the same complete account cash/position scope as the
+native replay. A strategy allocation, available balance, `totalEq` in USD or an
+unqualified aggregate `adjEq` is not an interchangeable USDT cash observation.
+See the [OKX balance field definitions](https://www.okx.com/docs-v5/en/#trading-account-rest-api-get-balance).
+Provider authentication, complete currency/liability reconciliation and a
+qualified source mapping are still required in PG3. The existing File fixtures
+include independently supplied collateral risk observations; arithmetic
+comparison to File decimal28 NAV is not qualification of every File collateral
+model. Neither storage-only profiles nor these tests enable configured PostgreSQL.
+
+Focused existing-workflow regression (disposable local PostgreSQL only):
+
+```sh
+python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_postgres \
+  --suite joint_recovery --fail-fast --output /tmp/life-pg3-joint-recovery
+```
+
+It includes batch, signed source repair, NAV, terminal, shared release, late
+observations and collateral tests. It does not replace whole-service acceptance
+or the other four fixed PG3 workstreams.

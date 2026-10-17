@@ -1132,3 +1132,33 @@ async def test_swap_boundary_upgrade_preserves_public_oids_acl_and_has_no_bootst
     assert (await migrate(c, directory, action='up'))['applied'] == []
     for table in ('accounts', 'balances', 'operations', 'swap_boundary_policies', 'swap_boundaries', 'swap_ack_ingress', 'swap_ack_deliveries'):
         assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+
+
+@pytest.mark.asyncio
+async def test_collateral_upgrade_preserves_original_financial_gate_oids_acl_and_adds_no_bootstrap(db):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 43:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    signatures = ('life_financial.joint_batch_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
+                  'life_financial.joint_batch_verified(uuid)', 'life_financial.portfolio_basis(uuid,bigint)',
+                  'life_financial.spot_state(uuid)', 'life_financial.commit_owner_guard()', 'life_financial.swap_snapshot_current(uuid,jsonb)',
+                  'life_financial.shared_capital_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
+                  'life_financial.carry_current_ready(uuid)', 'life_financial.shared_capital_commit_guard()')
+    oids = [await c.fetchval('SELECT to_regprocedure($1)::oid', value) for value in signatures]
+    await c.execute('GRANT EXECUTE ON FUNCTION life_financial.spot_state(uuid) TO life_runtime_test,life_reporter_test')
+    await c.execute('GRANT EXECUTE ON FUNCTION life_financial.joint_batch_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb) TO life_runtime_test')
+    path = DEFAULT_DIRECTORY / '000043_joint_collateral_reconciliation.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    assert [await c.fetchval('SELECT to_regprocedure($1)::oid', value) for value in signatures] == oids
+    for principal in ('life_runtime_test', 'life_reporter_test'):
+        assert await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", principal, signatures[3])
+        for signature in (signatures[1], signatures[2], 'life_financial.joint_collateral_qualified(jsonb,jsonb,jsonb)',
+                          'life_financial.current_collateral_qualified(uuid,jsonb)'):
+            assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", principal, signature)
+        assert await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", principal, signatures[0]) is (principal == 'life_runtime_test')
+    assert (await migrate(c, directory, action='up'))['applied'] == []
+    for table in ('accounts', 'balances', 'operations', 'joint_financial_batches', 'joint_repair_approvals', 'joint_repair_facts'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0

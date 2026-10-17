@@ -700,3 +700,18 @@ Runtime/reporter roles receive scoped entrypoints; private proof functions and
 all direct table writes remain denied. The central migration runner tracks this
 file once and verifies the checksum at repeated enabled startup. It creates no
 account, policy, balance, activation or configured PostgreSQL sender.
+
+- `000043_joint_collateral_reconciliation.sql`: private arithmetic and existing
+  entrypoint gates for the dedicated, non-borrowing account-mode-2 USDT cross
+  profile. Collateral cannot exceed the same native settled USDT cash plus
+  replayed mark-price UPL; LIFE NAV and prospective funding do not increase this
+  ceiling. Conservative collateral haircuts remain valid. Joint batch failure
+  retains the whole original pending command/HALT and rolls back all provisional
+  money. Historical applied-batch proofs and portfolio/terminal/shared-release
+  proofs use the same bound. Installed portfolio policies also require the bound
+  and zero native liabilities at current shared/carry admission. Existing
+  entrypoint OIDs/ACLs and all prior COMMIT fences are preserved; the new helper
+  remains private. No table, default capital, approval or account is created.
+  Previously inconsistent source history becomes unqualified; startup does not
+  rewrite it or release its claims. Provider currency-equity/liability capture,
+  other collateral models and configured service eligibility remain PG3 work.

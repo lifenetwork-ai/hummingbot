@@ -17,7 +17,8 @@ def main():
     import asyncpg  # noqa: F401 -- mandatory for this opt-in real-process runner.
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--suite', choices=('all', 'recorder', 'capital', 'session', 'lifecycle', 'actions', 'action_prepare', 'action_reconcile', 'action_abandon', 'runner_journal', 'quote_arm', 'quote_transport', 'quote_source', 'outbox', 'configuration', 'events', 'positions', 'reporting_application', 'approval_import', 'ack_ingress', 'observation_context', 'financial_ingress', 'financial_collection', 'inventory_settlement', 'markout', 'carry', 'swap', 'swap_accounting', 'swap_fills', 'funding', 'portfolio', 'swap_terminal', 'shared_release', 'joint_batch', 'joint_repair', 'hedge', 'swap_transport', 'late_capital'), default='all')
+    parser.add_argument('--suite', choices=('all', 'recorder', 'capital', 'session', 'lifecycle', 'actions', 'action_prepare', 'action_reconcile', 'action_abandon', 'runner_journal', 'quote_arm', 'quote_transport', 'quote_source', 'outbox', 'configuration', 'events', 'positions', 'reporting_application', 'approval_import', 'ack_ingress', 'observation_context', 'financial_ingress', 'financial_collection', 'inventory_settlement', 'markout', 'carry', 'swap', 'swap_accounting', 'swap_fills', 'funding', 'portfolio', 'swap_terminal', 'shared_release', 'joint_batch', 'joint_repair', 'hedge', 'swap_transport', 'collateral', 'joint_recovery', 'late_capital'), default='all')
+    parser.add_argument('--fail-fast', action='store_true', help='Stop at the first failure while retaining the original log/XML')
     parser.add_argument('--linux-image', help='Immutable locally built image ID; recorder suite only')
     args = parser.parse_args()
     if args.linux_image and (args.suite != 'recorder' or not re.fullmatch(r'sha256:[0-9a-f]{64}', args.linux_image)):
@@ -90,6 +91,8 @@ def main():
             selector /= 'test_postgres_hedge.py'
         elif args.suite == 'swap_transport':
             selector /= 'test_postgres_swap_transport.py'
+        elif args.suite == 'collateral':
+            selector /= 'test_postgres_collateral.py'
         elif args.suite == 'joint_repair':
             selector /= 'test_postgres_joint_repair.py'
         elif args.suite == 'joint_batch':
@@ -124,7 +127,11 @@ def main():
             selector /= 'test_postgres_outbox.py'
         elif args.suite == 'quote_source':
             selector /= 'test_postgres_quote_account_source.py'
-        command = [sys.executable, '-m', 'pytest', '-q', str(selector),
+        selectors = [str(selector)]
+        if args.suite == 'joint_recovery':
+            selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in (
+                'collateral', 'joint_batch', 'joint_repair', 'portfolio', 'swap_terminal', 'shared_release', 'late_capital')]
+        command = [sys.executable, '-m', 'pytest', '-q', *selectors,
                    '--junitxml=' + str(output / 'integration.xml')]
         if args.suite == 'financial_collection':
             command.extend(['-k', 'financial_source or financial_observer'])
@@ -154,6 +161,8 @@ def main():
                 command = docker_prefix + ['-m', 'pytest', '-q',
                                            '/qualification/test/hummingbot/strategy_v2/life_liquidity/storage/postgres/test_postgres_recorder.py',
                                            '--junitxml=/results/integration.xml', '-o', 'cache_dir=/tmp/pytest-cache']
+            if args.fail_fast:
+                command.append('-x')
             result = subprocess.run(command, env=env, stdout=log, stderr=subprocess.STDOUT)
         print((output / 'integration.log').read_text())
         return result.returncode

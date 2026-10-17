@@ -151,7 +151,7 @@ async def test_original_economic_time_not_member_invocation_order_decides_cash_f
         cashflow = flow(received, cash_at, signed_amount=D('-10.05'))
         await database[0].execute('INSERT INTO life_financial.bill_approvals VALUES($1,$2,$3,$4,to_timestamp($5::double precision/1000),$6)',
                                   cfg.account_id, cashflow.bill_id, cashflow.currency, cashflow.signed_amount, cash_at, b'synthetic-preverified-import')
-        b = replace(b, account=replace(b.account, snapshot=replace(b.account.snapshot, observed_at_ms=at, spot_cash_quote=D('.14'))),
+        b = replace(b, account=replace(b.account, snapshot=replace(b.account.snapshot, observed_at_ms=at, spot_cash_quote=D('.14'), collateral_quote=D('.15'))),
                     mark=replace(b.mark, observed_at_ms=at), index=replace(b.index, observed_at_ms=at),
                     funding=replace(b.funding, observed_at_ms=at, coverage_through_ms=at, payments=(payment,)), terms=replace(b.terms, observed_at_ms=at))
         cmd = replace(cmd, cashflows=(cashflow,), funding=replace(cmd.funding, bundle=b))

@@ -13,7 +13,9 @@ async def refresh(database, values, *, short='0', cash='10', mark='1', index='1'
     _, _, _, _, account_feed, capital, _, carry_feed, carry = values
     at = int((await database[0].fetchval('SELECT clock_timestamp()')).timestamp() * 1000)
     s = account_feed[0]
-    account_feed[0] = replace(s, sequence=s.sequence + 1, observed_at_ms=at, short_base=D(short), spot_cash_quote=D(cash), mark_price_usdt=D(mark), index_price_usdt=D(index))
+    # Explicit synthetic cash-only collateral haircut. This fixture does not
+    # carry forward collateral already spent through fees/funding/withdrawals.
+    account_feed[0] = replace(s, sequence=s.sequence + 1, observed_at_ms=at, short_base=D(short), spot_cash_quote=D(cash), collateral_quote=D(cash), mark_price_usdt=D(mark), index_price_usdt=D(index))
     await capital.check_capital(capital.binding)
     b = carry_feed[0]
     carry_feed[0] = replace(b, account=replace(b.account, snapshot=account_feed[0]),

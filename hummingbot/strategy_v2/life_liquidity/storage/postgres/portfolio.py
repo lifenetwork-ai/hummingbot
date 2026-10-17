@@ -107,6 +107,7 @@ class PgPortfolioRepository:
                                                    (self.runtime.config.account_id, self.binding.json(), owner.json(), version, digest, fingerprint(request), body),
                                                    owner, self._receipt, observation=True)
         except StorageError as error:
-            if str(error) in ('PG_PORTFOLIO_SOURCE_UNQUALIFIED', 'PG_PORTFOLIO_OBSERVATION_BOUND', 'PG_PORTFOLIO_SOURCE_STALE_AT_COMMIT'):
+            if str(error) in ('PG_PORTFOLIO_SOURCE_UNQUALIFIED', 'PG_PORTFOLIO_COLLATERAL_UNQUALIFIED',
+                              'PG_PORTFOLIO_OBSERVATION_BOUND', 'PG_PORTFOLIO_SOURCE_STALE_AT_COMMIT'):
                 self.runtime._healthy = False
             raise
