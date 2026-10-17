@@ -2591,3 +2591,25 @@ resolution and configured authenticated source/controller assembly remain open.
 Disposable functional tests use an explicit 6 s outer I/O budget with the existing
 1 s statement limit; deadline fault tests set their own smaller budgets. Those
 synthetic budgets do not qualify live latency or PG8/O.8 performance.
+
+## Native PostgreSQL portfolio NAV (PG3 increment, 2026-10-17)
+
+`PgPortfolioRepository` accepts only `MeasurePortfolio(operation_id)`: callers
+cannot supply a NAV amount, high-water or permission. Migration-owner import
+explicitly provides opening mark, drawdown/source-age and record/byte limits.
+Every immutable observation binds the native carry/account/mark/index cut to
+cash, approved flow valuations and leg basis replayed at its original version.
+Signed funding/fees/realized PnL affect settled cash once; unrealized leg PnL
+belongs to NAV; reported collateral is never added as another wallet.
+Historical measurements remain verifiable after later economics. A new current
+measurement requires fresh matching source coverage, including at COMMIT.
+Drawdown exhaustion records truth and latches HALT without refunding claims.
+`current` describes a fresh valuation only: receipts always grant no trading.
+
+Qualification: 20 native observation/recovery cases, 17 arithmetic cases and 41
+migration cases pass; see the existing implementation plan for exact source and
+logs. Actual File joint financial projection parity is valuation coverage, not
+coupled release/settlement parity. Native portfolio batch application, provider
+collateral reconciliation, terminal/shared release, joint recovery, hedge and
+configured authenticated services remain required. PostgreSQL controller
+selection and SWAP final transport stay explicitly refused.

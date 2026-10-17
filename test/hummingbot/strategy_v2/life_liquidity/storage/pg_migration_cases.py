@@ -906,3 +906,34 @@ async def test_paid_funding_upgrade_preserves_public_and_private_proof_oids_and_
     assert (await migrate(c, directory))['pending'] == []
     for table in ('accounts', 'balances', 'operations', 'funding_accounting_policies', 'funding_observations', 'funding_cash_payments'):
         assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('version', [34, 35])
+async def test_portfolio_upgrades_preserve_snapshot_acl_and_add_no_money_or_source_defaults(db, version):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < version:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    signatures = ('life_financial.spot_state(uuid)', 'life_financial.commit_owner_guard()',
+                  'life_financial.spot_capital_verified(uuid)', 'life_financial.spot_capital_replay(uuid)')
+    oids = [await c.fetchval('SELECT to_regprocedure($1)::oid', signature) for signature in signatures]
+    await c.execute('GRANT EXECUTE ON FUNCTION life_financial.spot_state(uuid) TO life_runtime_test,life_reporter_test')
+    path = next(p for p in DEFAULT_DIRECTORY.glob('*.sql') if int(p.name.split('_', 1)[0]) == version)
+    (directory / path.name).write_bytes(path.read_bytes())
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    assert [await c.fetchval('SELECT to_regprocedure($1)::oid', signature) for signature in signatures] == oids
+    for principal in ('life_runtime_test', 'life_reporter_test'):
+        assert await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", principal, signatures[0])
+        assert not await c.fetchval("SELECT has_function_privilege($1,'life_financial.portfolio_measure(numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric)','EXECUTE')", principal)
+        if version == 35:
+            for signature in ('life_financial.portfolio_verified(uuid)', 'life_financial.portfolio_read(uuid,integer,integer,text)',
+                              'life_financial.portfolio_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)'):
+                assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", principal, signature)
+            for table in ('portfolio_policies', 'portfolio_observations'):
+                assert not await c.fetchval("SELECT has_table_privilege($1,$2,'INSERT,UPDATE,DELETE')", principal, 'life_financial.' + table)
+                assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+    assert (await migrate(c, directory, action='up'))['applied'] == []
+    for table in ('accounts', 'balances', 'operations'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0

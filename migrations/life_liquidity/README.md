@@ -590,3 +590,14 @@ Common proof OIDs/ACLs are preserved. Runtime receives only scoped command/read
 endpoints, never direct DML, policy import or private proofs. Repeat migration
 startup creates no accounts or money. Native joint batching/portfolio NAV,
 terminal/release, pending repair and authenticated source assembly remain required.
+
+`000034_portfolio_arithmetic.sql` is a private deterministic decimal28 NAV
+kernel. `000035_portfolio_observations.sql` retains immutable policy and
+measurements over original versioned native money/leg/source cuts. High-water
+and drawdown replay use approved external-flow valuations, not caller NAV.
+Collateral never becomes cash; measurement never releases claims. Original
+source freshness is verified historically and again at physical COMMIT.
+Common proof/snapshot OIDs and ACLs are preserved on upgrade. Repeated startup
+creates no account, opening policy, source, money or live threshold. Coupled
+financial batches, actual collateral reconciliation and joint terminal/recovery
+remain separate required PG3 implementation.
