@@ -2409,3 +2409,28 @@ SDK cache, completeness or trading permission. The authenticated collector must
 still qualify the whole causal account before original typed intake/accounting.
 Configured startup/source/service, approved pending repair and all enabled
 shared-product ports remain required for full PG3 closure.
+
+### Explicit PostgreSQL SPOT connector ingress
+
+`await reporting.install_spot_events(observer)` installs actual OKX listeners
+on the same pinned connector used by `PgSpotFinancialObserver`. Startup performs
+signed whole-account collection and native financially qualified SDK dedup;
+listeners attach before awaited qualification to retain startup callback hints.
+The assembly requires the original registered SPOT reporting source, account,
+owner, controller body, repository/runtime and credential identity. A known
+legacy `MarketsRecorder` listener or another event application is rejected.
+
+Callbacks are untrusted hints/reporting, never financial fills or SDK cache
+authority. They invalidate old local captures synchronously and enter a bounded
+queue. The pump drains native reporting, collects signed account facts and then
+qualifies SDK dedup against native financial/report receipts. Bursts coalesce;
+changed context, inconsistent facts or capacity exhaustion latch denial. No
+tracking JSON/order tracker or readiness/send permission is restored.
+
+`await reporting.close()` first detaches these listeners and awaits owned
+observation. Timeout/caller cancellation cannot cancel physical financial work
+or release its local capacity early; `PG_EVENT_SHUTDOWN_READBACK_REQUIRED`
+requires readback. Stop never publishes SDK IDs late or refunds a hold. This
+explicit offline assembly leaves configured LIFE controller/service selection,
+qualified planner/market provenance, financial pending repair and shared-product
+ports open. It does not qualify a live account or external sender exclusivity.

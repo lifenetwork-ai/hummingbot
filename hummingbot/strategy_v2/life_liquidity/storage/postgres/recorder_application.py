@@ -246,3 +246,14 @@ class PgRecorderApplication(ReportingQueue):
                 raise StorageError('PG_RECORDER_DEDUP_IDLE_REQUIRED')
             events = next(r for r in self.events if r.source.market == 'okx')
             return await PgSpotDedupRecovery(reader, events, local_idle=idle).restore()
+
+    async def install_spot_events(self, observer):
+        from hummingbot.strategy_v2.life_liquidity.storage.postgres.event_application import PgSpotEventApplication
+        return await PgSpotEventApplication.install(self, observer)
+
+    async def close(self):
+        try:
+            if self._event_application is not None:
+                await self._event_application.close()
+        finally:
+            await super().close()
