@@ -754,3 +754,16 @@ account, policy, balance, activation or configured PostgreSQL sender.
   gross-loss/funding, collateral and zero-liability gates remain. Private helpers
   and entrypoint OIDs/ACLs, auto-migration lock/checksum and repeated startup are
   preserved. There is no new table, account, capital, policy or activation.
+
+- `000047_spot_fill_repair.sql`: extends exact signed recovery to retained native
+  SPOT fill snapshots, including selected SPOT/SWAP/funding groups. All original
+  fill fields except the new application operation ID remain unchanged. Native
+  principal, LIFE/USDT fee, remaining reservation, gross loss and subsidy-floor
+  accounting still execute through the existing joint monetary kernel. A private
+  pending proof binds raw commands, source hashes, original receipts and their
+  historical loss totals, including orphan detection; raw records are retained.
+  Only committed resolution links clear current barriers. Ordinary observation,
+  bounded context, inventory, terminal and historical release gates honor those
+  links. SPOT terminal also rejects other unresolved joint financial facts;
+  cancellation stays available. Old OIDs/ACLs and numbered script checksums are
+  preserved; no account, table, policy, capital or trading grant is created.

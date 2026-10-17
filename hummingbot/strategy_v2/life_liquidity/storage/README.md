@@ -2721,8 +2721,8 @@ bypassed. Runtime/reporter roles cannot import approvals or access the private
 transaction capability; expiry and ownership are rechecked at physical COMMIT.
 
 The original joint-parent profile cannot rewrite wrong monetary observations or
-clear direct native pending facts. Migrations 44–46 add the direct funding and
-exact SWAP fill profiles below; SPOT/cashflow and terminal pending repair remain
+clear direct native pending facts. Migrations 44–47 add the direct funding and
+exact SPOT/SWAP fill profiles below; cashflow and terminal pending repair remain
 unimplemented. It authenticates operator approval, not provider facts.
 Legacy import, full control/hedge and configured joint collection/
 runner/recorder/final-send assembly remain required. PostgreSQL selection stays
@@ -2794,8 +2794,39 @@ a pending batch created later cannot invalidate an earlier verified terminal.
 `run_postgres --suite swap_repair` covers this profile. `joint_recovery` includes
 it and the ordinary SWAP fill/arithmetic regressions, alongside the previous
 funding/joint/collateral/NAV/terminal/release workflows. Configured native service
-assembly, direct SPOT/cashflow/terminal pending repair, legacy interrupted import
+assembly, direct cashflow/terminal pending repair, legacy interrupted import
 and the other fixed PG3 exit rows remain open.
+
+### Direct SPOT fill pending repair (migration 47)
+
+The existing `ResolveJointSources` now also selects retained native `SPOT_FILL`
+pending observations, alone or with exact SWAP fill/funding observations. Any of
+these families may be the primary. Every selected complete fill snapshot matches
+its replacement except the new application operation ID. Principal, fee currency
+and signed amount, independent valuation, trade/wire/order identity, timing and
+cumulative scope cannot be rewritten; identical snapshots share one application.
+No original pending row or `RECOVERY_REQUIRED` receipt is changed or deleted.
+
+Existing native joint monetary kernels apply principal, LIFE/USDT fees, remaining
+order reservations, execution loss and subsidy floors once. Causal source timing
+still rejects future-income financing. A positive final wallet can remain below
+its held principal/fee balance: recovery records that real deficit and preserves
+HALT, rather than granting source readiness or releasing the hold. Financial
+repair alone grants neither terminal nor shared-claim retirement or activation.
+
+Private pending proof checks raw source hashes, original operation fingerprints,
+receipts and historical native loss totals, and detects missing raw pending rows.
+Resolved pending barriers use immutable committed links; terminal/release history
+uses their original versions. The bounded SPOT context can expose booked fills
+following explicit repair while retaining raw diagnostic history. Cancellation
+remains available; a fresh SPOT terminal cannot bypass a different unresolved
+joint financial batch. Independent terminal/release and fresh complete financial
+sources remain necessary. Filled inventory retains its conservative subsidy
+hold after terminal until separate qualified inventory/exit settlement.
+
+Use `--suite spot_repair`; `joint_recovery` includes these cases. Cashflow and
+terminal pending repair, interrupted legacy import, full provider reconciliation
+and the fixed PG3 service/control/risk/acceptance requirements remain open.
 
 ## Native PostgreSQL hedge coordination (PG3 increment, 2026-10-17)
 
