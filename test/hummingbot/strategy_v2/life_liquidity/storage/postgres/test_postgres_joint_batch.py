@@ -9,8 +9,8 @@ from hummingbot.strategy_v2.life_liquidity.storage.contracts import AtomicScope,
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.joint_batch import ApplyJointBatch, PgJointBatchRepository
 
 
-async def setup(database, *, carry_options=None, funding_budget='10'):
-    values, funding, payment = await funding_setup(database, carry_options=carry_options, budget=funding_budget)
+async def setup(database, *, carry_options=None, funding_budget='10', spot_options=None):
+    values, funding, payment = await funding_setup(database, carry_options=carry_options, budget=funding_budget, spot_options=spot_options)
     financial, cfg, owner = values[:3]
     await database[0].execute('INSERT INTO life_financial.spot_fill_policies VALUES($1,$2,1000,4096)', cfg.account_id, cfg.binding.policy_hash)
     await database[0].execute('INSERT INTO life_financial.joint_batch_policies VALUES($1,$2,32,64,1048576)',

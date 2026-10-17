@@ -10,9 +10,9 @@ from hummingbot.strategy_v2.life_liquidity.storage.contracts import AtomicScope,
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.funding import ApplyFunding, PgFundingRepository
 
 
-async def setup(database, *, amount='-.1', budget='10', carry_options=None):
+async def setup(database, *, amount='-.1', budget='10', carry_options=None, spot_options=None):
     options = {**(carry_options or {}), 'funding_budget_quote': D(budget)}
-    values, swap, fills, fill_command = await swap_setup(database, carry_options=options)
+    values, swap, fills, fill_command = await swap_setup(database, carry_options=options, spot_options=spot_options)
     financial, cfg, owner = values[:3]
     await database[0].execute('INSERT INTO life_financial.funding_accounting_policies VALUES($1,$2,64,128,1048576)',
                               cfg.account_id, cfg.binding.policy_hash)

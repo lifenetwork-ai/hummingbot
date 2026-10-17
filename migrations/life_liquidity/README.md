@@ -642,3 +642,24 @@ RESERVE and all prepare/arm/send checks stay active-risk guards. Source/money/le
 proofs, monotone observations, bounds and physical COMMIT freshness remain.
 No table, money, owner, deadline, budget, claim or HALT is bootstrapped/reset;
 repeated startup is a no-op. Observation never grants trading or clears pending.
+
+
+### 000040 joint source repair
+
+Adds explicitly imported immutable repair policies, signed approval history,
+resolution links and a private transaction capability. A separate privileged
+importer verifies public-key Ed25519 RECOVER approval over the exact command,
+current native cut and complete account/product/bill facts. SQL consistency
+checks retain the existing trusted schema-owner boundary. There is no automatic
+operator, policy, balance or activation bootstrap.
+
+Only account/funding sources of a raw pending joint batch may be replaced;
+original monetary members and settled bill terms stay unchanged. Native accounting
+still decides whether publication is possible. Accepted repairs retain original
+RECOVERY_REQUIRED receipts and HALT; other pending parents need separate approval.
+Retired unused member IDs cannot be reused. Private staging must be gone at COMMIT
+and receives no runtime/reporter access. Existing public OIDs/ACLs and source,
+owner, gross-budget and final-send guards are preserved. Apply/reapply via the
+central checksum/lock migration runner, including enabled startup auto migration.
+Direct native pending resolution, legacy import and configured assembly remain
+open PG3 work.

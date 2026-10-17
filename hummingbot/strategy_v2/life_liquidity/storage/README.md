@@ -2697,3 +2697,31 @@ passes while funding cost stays exhausted, actual exposure remains and a fresh
 runtime is denied new allocation. Eleven native and 45 migration cases pass;
 signed pending repair, legacy import, collateral/source qualification, hedge and
 configured services remain PG3 work.
+
+
+## Signed joint source repair (PG3 increment, 2026-10-17)
+
+`PgJointRepairApprovalImporter` uses a separate schema-owner connection and external
+public Ed25519 keys pinned to the registered configuration. Its existing RECOVER
+role authorizes the exact `ResolveJointSources`, original primary cut and complete
+`JointRepairFacts`. Policies specify positive approval/repair/byte/age budgets;
+there are no live defaults. The owner receives no scoped runtime access mapping.
+Importing a grant changes no financial cut or money.
+
+`PgJointRepairRepository.resolve` uses one native account transaction. Replacement
+sources may refresh the final account/funding bundle, retaining original fill/fee
+and cashflow commands and every existing funding bill. Original native validation
+and causal wallet/leg replay remain mandatory. A rejected replacement rolls back
+all new children. An accepted replacement appends a resolution link, preserving
+raw pending history, HALT, held claims and gross spending. An independent pending
+parent stays unresolved; an equivalent duplicate needs another signed command.
+Captured unused member IDs stay retired. Direct native pending families are not
+bypassed. Runtime/reporter roles cannot import approvals or access the private
+transaction capability; expiry and ownership are rechecked at physical COMMIT.
+
+This profile cannot rewrite wrong monetary observations or clear direct native
+SPOT/SWAP/funding/terminal pending facts. It authenticates operator approval, not
+provider facts. Legacy import, full control/hedge and configured joint collection/
+runner/recorder/final-send assembly remain required. PostgreSQL selection stays
+denied. Run isolated qualification with `--suite joint_repair` in the central
+`storage.run_postgres` runner; use disposable loopback PostgreSQL only.

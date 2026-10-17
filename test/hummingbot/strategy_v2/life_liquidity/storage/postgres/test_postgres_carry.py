@@ -26,7 +26,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.carry import PgCarry
 from hummingbot.strategy_v2.life_liquidity.storage.products import ReserveCapital
 
 
-async def setup(database, *, max_age_ms=1000, spot_options=None, capital_changes=None, **changes):
+async def setup(database, *, max_age_ms=1000, spot_options=None, capital_changes=None, refresh_initial_facts=False, **changes):
     financial, cfg, owner, capital_policy, account_feed, capital = await shared_setup(database, configured=shared_policy(max_age_ms=max_age_ms, **(capital_changes or {})), spot_options=spot_options)
     account_feed[0] = replace(account_feed[0], position_mode=capital_policy.position_mode, leverage=capital_policy.leverage)
     at = account_feed[0].observed_at_ms
@@ -36,7 +36,21 @@ async def setup(database, *, max_age_ms=1000, spot_options=None, capital_changes
     await database[0].execute('INSERT INTO life_financial.carry_policies VALUES($1,$2,$3::jsonb,$4,64)',
                               cfg.account_id, cfg.binding.policy_hash, json.dumps(body),
                               fingerprint({'policy': body, 'max_payments': 64}))
+    if refresh_initial_facts:
+        original = capital.observation
+
+        async def capture_initial():
+            # Test-only fresh synthetic account response after policy setup.
+            # Do not age the initial response through unrelated bootstrap SQL;
+            # source-age/COMMIT guards and their explicit policy stay unchanged.
+            capital.observation = original
+            now = await database[0].fetchval('SELECT clock_timestamp()')
+            account_feed[0] = replace(account_feed[0], observed_at_ms=int(now.timestamp() * 1000))
+            return account_feed[0]
+
+        capital.observation = capture_initial
     await capital.check_capital(cfg.binding)
+    at = account_feed[0].observed_at_ms
     feed = [CarryBundle(CarryAccount(account_feed[0], (), True, True),
                         CarryPrice(policy.instrument, 1, at, D('1'), 'okx_mark'),
                         CarryPrice(policy.instrument, 1, at, D('1'), 'okx_index'),
