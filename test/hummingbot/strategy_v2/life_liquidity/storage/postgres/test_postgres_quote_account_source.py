@@ -15,10 +15,10 @@ from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.quote_account_source import PgQuoteAccountSource
 
 
-async def source(t):
+async def source(t, *, uid_age_ms=1000, auth_age_ms=1000):
     return await PgQuoteAccountSource.create(
-        t.journal, connector=t.connector, admission_source=t.facts, max_uid_age_ms=1000,
-        max_auth_age_ms=1000, max_clock_skew_ms=100, max_pending=2, collection_timeout_ms=1000)
+        t.journal, connector=t.connector, admission_source=t.facts, max_uid_age_ms=uid_age_ms,
+        max_auth_age_ms=auth_age_ms, max_clock_skew_ms=100, max_pending=2, collection_timeout_ms=1000)
 
 
 def account_http(t, *, uid='12345'):
@@ -348,17 +348,21 @@ async def test_uid_read_is_cached_only_for_same_credentials_and_explicit_deadlin
 @pytest.mark.asyncio
 @pytest.mark.parametrize('fault', ['credential', 'uid_expiry', 'clock'])
 async def test_final_local_source_gate_rechecks_after_arm_commit(database, monkeypatch, fault):
-    t = await transport(database)
+    # This scenario targets local revocation after successful physical arm,
+    # rather than the separate short-age SQL rejection scenarios.
+    t = await transport(database, action_fact_age_ms=5000, admission_age_ms=5000)
     account_http(t)
-    captured = await source(t)
+    captured = await source(t, uid_age_ms=5000, auth_age_ms=5000)
     original = t.repo.arm_quote_action
+    reached_commit = []
 
     async def changed(*args, **kwargs):
         result = await original(*args, **kwargs)
+        reached_commit.append(result.state)
         if fault == 'credential':
             t.connector.okx_secret_key = 'changed-secret'
         elif fault == 'uid_expiry':
-            captured._uid_at -= timedelta(seconds=2)
+            captured._uid_at -= timedelta(seconds=6)
         else:
             t.journal.clock = lambda: captured._uid_at - timedelta(seconds=1)
         return result
@@ -366,6 +370,7 @@ async def test_final_local_source_gate_rechecks_after_arm_commit(database, monke
     try:
         with pytest.raises(PermissionError):
             await t.place(guard=captured.guard(action=t.create, preparation=t.preparation))
+        assert reached_commit == ['SEND_UNKNOWN']
         assert not t.session.sent
         assert (await t.repo.attempt('intent1', t.cfg.binding)).state.value == 'SEND_UNKNOWN'
         assert (await t.repo.balance(t.cfg.binding)).reserved_quote_usdt > 0
