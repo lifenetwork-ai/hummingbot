@@ -1,5 +1,7 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**PG3 causal SWAP arithmetic checkpoint (2026-10-17, base `99cfcb704`):** the private SQL replay validates exact trade/payment units, identities, same-millisecond sequence, long/short basis, close PnL, fees and paid funding. File replay now owns its existing decimal28 half-even context. **33 native arithmetic, 242 focused File and 37 migration cases pass**. This kernel has no runtime grant or wallet/release effect; native joint financial application and full PG3 remain open. See [qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-causal-swap-arithmetic-qualification-2026-10-17).
+
 Created: 2026-10-01 (Asia/Ho_Chi_Minh)
 
 Source revision reviewed: `9af100d68`

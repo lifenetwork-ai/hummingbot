@@ -13,7 +13,7 @@ import uuid
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
-from decimal import Decimal
+from decimal import ROUND_HALF_EVEN, Context, Decimal, localcontext
 from pathlib import Path
 
 from hummingbot.core.data_type.common import OrderType
@@ -400,6 +400,13 @@ class JointRecovery:
             return False
 
     def _financial_replay(self, bundle, state, obs, trades, spot_cashflows=()):
+        # Existing joint histories use decimal28 half-even, including weighted
+        # entries. A caller's precision/rounding cannot redefine those facts on
+        # replay. Native SQL uses the same explicit per-operation arithmetic.
+        with localcontext(Context(prec=28, rounding=ROUND_HALF_EVEN)):
+            return self._financial_replay_decimal28(bundle, state, obs, trades, spot_cashflows)
+
+    def _financial_replay_decimal28(self, bundle, state, obs, trades, spot_cashflows=()):
         anchor = state["anchor"]
         life, cash = Decimal(anchor["spot_life_base"]), Decimal(anchor["spot_cash_quote"])
         long, short = Decimal(anchor["long_base"]), Decimal(anchor["short_base"])

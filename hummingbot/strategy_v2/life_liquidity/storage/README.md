@@ -2544,3 +2544,12 @@ with shared capital. Long legal-unit funding/price/exposure products match the
 native SQL decision under caller precision 6 or 28. A fast independent rational
 forecast test covers the same monetary guarantee without PostgreSQL. No policy,
 permanent funding bill, wallet amount or caller precision is rewritten.
+
+The private migration-31 SWAP position kernel matches the existing File joint
+replay's explicit decimal28 half-even arithmetic, including weighted basis and
+reported close PnL. It validates identity, units, chronology and bounded work,
+and returns cash events without writing money. It has no runtime EXECUTE grant.
+File joint replay now owns/restores that arithmetic context so caller precision
+cannot redefine retained facts. Causal native joint wallet application, funding
+settlement and claim release still require their domain command and recovery
+proofs; this arithmetic kernel is not a configured financial backend.

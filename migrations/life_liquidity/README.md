@@ -542,3 +542,16 @@ and retains all exposure after HALT/expiry. The common snapshot recognizes only
 verified native SWAP intents while retaining every SPOT accounting guard and its
 existing OID/ACL. Runtime roles cannot mutate the tables or invoke private proofs.
 No source, SWAP fill/funding cash accounting, final transport or release is added.
+
+### 000031: private causal SWAP arithmetic
+
+`000031_swap_position_replay.sql` supplies the private derivative replay used by
+the pending native joint accounting port. It validates complete trade/payment
+units and coverage, permanent IDs, collector-qualified order within a shared
+millisecond, long/short weighted entry, exact reported close PnL, ONEWAY rules,
+signed fees and paid funding as distinct cash events. Integer quotient/remainder
+implements the existing File decimal28 half-even rule without SQL division-scale
+or logarithm guesses. Work bounds are explicit. PUBLIC and runtime have no
+EXECUTE grant; no table, account, wallet writer, claim release or sender is added.
+Full native joint financial settlement remains required. Decimal28 parity does
+not establish the venue's live settlement rounding contract.
