@@ -611,3 +611,13 @@ and original pending facts. Shared claims remain held. Source labels are not
 authenticated provider evidence; coupled joint settlement/release and configured
 source installation remain separate required PG3 work. Original proof OIDs/ACLs
 and repeated-startup idempotency are preserved without account/money bootstrap.
+
+`000037_shared_claim_release.sql` adds explicit bounded retirement policy and
+permanent original-claim tombstones. Complete matching native terminal and
+versioned portfolio/account evidence, no pending observations and physical
+COMMIT freshness/ownership are mandatory. Active allocation excludes retired
+claims; original decision replay still uses its own historical claim set.
+Permanent identity counts and all balances, exposure and gross spending remain.
+Retired IDs cannot allocate/prepare again; a new current carry check is required.
+Repeated startup preserves OIDs/ACLs and creates no accounts or money. This is
+standalone retirement, not coupled financial batch or configured service proof.

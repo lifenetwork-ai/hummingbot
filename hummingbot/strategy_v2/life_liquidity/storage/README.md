@@ -2634,3 +2634,18 @@ corruption/role/work bounds. Source labels do not authenticate provider facts.
 Native coupled batch accounting, collateral reconciliation, shared release,
 joint recovery, signed pending repair and complete configured source/service
 assembly remain required. Configured PostgreSQL/SWAP transport stay refused.
+
+## Native original shared-claim retirement (PG3 increment, 2026-10-17)
+
+`PgSharedReleaseRepository` accepts `ReleaseSharedClaim` only for an original
+qualified SPOT/SWAP terminal, current version-bound complete portfolio/account
+source and zero unresolved financial observations. Physical COMMIT rechecks
+source freshness and original owner. The claim moves from active allocation to
+permanent settled history; balances, actual exposure and gross spending do not
+change. Permanent identity capacity is not reclaimed. The original ID cannot
+prepare or allocate again; historical decisions and receipts retain their
+original version. Current carry must be explicitly refreshed before new risk.
+Cold/concurrent retries never refund money, reactivate trading or release twice.
+20 native, 43 migration and 10 DTO cases pass; exact qualification is in the
+existing implementation plan. Coupled financial batches, collateral/pending
+reconciliation, hedge and configured service/controller assembly remain open.

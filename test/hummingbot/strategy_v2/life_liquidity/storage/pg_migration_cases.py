@@ -965,3 +965,32 @@ async def test_swap_terminal_upgrade_preserves_original_proof_oids_and_adds_no_r
     assert (await migrate(c, directory, action='up'))['applied'] == []
     for table in ('accounts', 'balances', 'operations', 'shared_capital_claims', 'swap_terminal_policies', 'swap_terminal_facts'):
         assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+
+
+@pytest.mark.asyncio
+async def test_shared_release_upgrade_retains_proof_oids_and_never_bootstraps_or_removes_a_claim(db):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 37:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    signatures = ('life_financial.spot_state(uuid)', 'life_financial.shared_capital_verified(uuid)',
+                  'life_financial.shared_operation_verified(uuid,text)', 'life_financial.shared_capital_frame(uuid,integer,integer)',
+                  'life_financial.carry_check_verified(uuid,text)', 'life_financial.carry_current_ready(uuid)',
+                  'life_financial.shared_capital_attempt_guard()', 'life_financial.commit_owner_guard()')
+    oids = [await c.fetchval('SELECT to_regprocedure($1)::oid', signature) for signature in signatures]
+    await c.execute('GRANT EXECUTE ON FUNCTION life_financial.spot_state(uuid) TO life_runtime_test,life_reporter_test')
+    path = DEFAULT_DIRECTORY / '000037_shared_claim_release.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    assert [await c.fetchval('SELECT to_regprocedure($1)::oid', signature) for signature in signatures] == oids
+    for principal in ('life_runtime_test', 'life_reporter_test'):
+        assert await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", principal, signatures[0])
+        for signature in ('life_financial.shared_release_verified(uuid)', 'life_financial.shared_release_read(uuid,integer,integer,text)',
+                          'life_financial.shared_release_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)'):
+            assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", principal, signature)
+        for table in ('shared_release_policies', 'shared_claim_releases'):
+            assert not await c.fetchval("SELECT has_table_privilege($1,$2,'INSERT,UPDATE,DELETE')", principal, 'life_financial.' + table)
+    assert (await migrate(c, directory, action='up'))['applied'] == []
+    for table in ('accounts', 'balances', 'operations', 'shared_capital_claims', 'shared_release_policies', 'shared_claim_releases'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0

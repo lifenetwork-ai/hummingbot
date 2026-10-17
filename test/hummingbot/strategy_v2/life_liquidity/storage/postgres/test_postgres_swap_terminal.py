@@ -268,7 +268,7 @@ async def test_current_source_expiring_during_commit_does_not_mark_order_termina
     values, repo, cmd, _, _ = await setup(database)
     financial, cfg, owner = values[:3]
     await database[0].execute('ALTER TABLE life_financial.portfolio_policies DISABLE TRIGGER USER')
-    await database[0].execute('UPDATE life_financial.portfolio_policies SET max_age_ms=1000')
+    await database[0].execute('UPDATE life_financial.portfolio_policies SET max_age_ms=2000')
     await database[0].execute('ALTER TABLE life_financial.portfolio_policies ENABLE TRIGGER USER')
     await refresh(database, values, short='1', cash='9.99')
     await PgPortfolioRepository(repo.swap).measure(MeasurePortfolio('fresh'), cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)
@@ -276,7 +276,10 @@ async def test_current_source_expiring_during_commit_does_not_mark_order_termina
     original = financial._runtime._commit
     try:
         async def delayed(tx):
-            await asyncio.sleep(1.1)
+            staged = await tx._connection.fetchval("SELECT receipt->>'state' FROM life_financial.operations WHERE operation_id='terminal1'")
+            assert staged == 'TERMINAL', 'source must be accepted before injecting COMMIT expiry'
+            now_ms = await tx._connection.fetchval('SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint')
+            await asyncio.sleep(max(0, (values[4][0].observed_at_ms + 2000 - now_ms) / 1000) + .1)
             await original(tx)
         monkeypatch.setattr(financial._runtime, '_commit', delayed)
         with pytest.raises(StorageError, match='PG_SWAP_TERMINAL_SOURCE_STALE_AT_COMMIT'):
