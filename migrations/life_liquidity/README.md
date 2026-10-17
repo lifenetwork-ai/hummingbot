@@ -767,3 +767,17 @@ account, policy, balance, activation or configured PostgreSQL sender.
   links. SPOT terminal also rejects other unresolved joint financial facts;
   cancellation stays available. Old OIDs/ACLs and numbered script checksums are
   preserved; no account, table, policy, capital or trading grant is created.
+
+- `000048_cashflow_repair.sql`: appends one private immutable application per
+  original pending external bill, through the existing signed joint repair.
+  Original pending commands, reasons, receipts and hashes remain untouched.
+  The exact direct-source profile also accepts selected SPOT/SWAP/funding groups;
+  a replacement may change only the application operation ID. Effective readers,
+  causal money replay, historical NAV and terminal/release proofs use the new
+  application without counting the raw pending bill as a second cash event.
+  Provenance binds the application to the actual committed repair root or its
+  exact private current-transaction capability. Deferred COMMIT checks reject
+  incomplete history; valid pending history retains HALT and cannot admit money
+  through ordinary observation routes. New helpers and the application table
+  are private. Existing function OIDs/ACLs and numbered checksums are preserved;
+  repeat startup applies this version once. No capital or trading grant is made.

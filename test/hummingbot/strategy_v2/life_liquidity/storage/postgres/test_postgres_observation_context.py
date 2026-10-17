@@ -69,9 +69,15 @@ async def test_context_does_not_silently_hide_pending_cashflow_or_reconstruct_it
     try:
         result = await repo.apply_cashflow(flow(at, ms, signed_amount=D('-11')), cut=(await repo.snapshot(cfg.binding)).cut, owner=owner)
         assert result.state == 'RECOVERY_REQUIRED'
-        with pytest.raises(StorageError, match='PG_SPOT_CONTEXT_UNVERIFIED'):
+        # Valid retained pending has its own explicit resolution barrier; a
+        # malformed source still uses the separate UNVERIFIED reason.
+        with pytest.raises(StorageError, match='PG_SPOT_CONTEXT_PENDING_RESOLUTION_REQUIRED'):
             await PgSpotObservationReader(repo, max_rows=64, max_bytes=1048576).observation_context(cfg.binding)
+        assert await database[0].fetchval('SELECT life_financial.cashflow_history_verified($1)', cfg.account_id)
+        assert (await repo.snapshot(cfg.binding)).recovery_required
+        assert (await repo.balance(cfg.binding)).total_quote_usdt == 10
         assert await database[0].fetchval('SELECT count(*) FROM life_financial.spot_cashflow_facts') == 1
+        assert await database[0].fetchval('SELECT count(*) FROM life_financial.cashflows') == 0
     finally:
         await repo.close()
 

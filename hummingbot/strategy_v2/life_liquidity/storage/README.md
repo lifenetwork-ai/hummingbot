@@ -2824,9 +2824,37 @@ joint financial batch. Independent terminal/release and fresh complete financial
 sources remain necessary. Filled inventory retains its conservative subsidy
 hold after terminal until separate qualified inventory/exit settlement.
 
-Use `--suite spot_repair`; `joint_recovery` includes these cases. Cashflow and
-terminal pending repair, interrupted legacy import, full provider reconciliation
-and the fixed PG3 service/control/risk/acceptance requirements remain open.
+Use `--suite spot_repair`; `joint_recovery` includes these cases. The following
+section extends the exact profile to cashflow pending. Terminal pending repair,
+interrupted legacy import, full provider reconciliation and the fixed PG3
+service/control/risk/acceptance requirements remain open.
+
+## Native PostgreSQL pending cashflow repair (PG3 R1 increment, 2026-10-18)
+
+Migration 48 extends the existing signed `ResolveJointSources` workflow to the
+original direct pending external bill. `spot_cashflow_applications` retains one
+immutable application per account/bill; the original `spot_cashflow_facts` row
+and original operation receipt stay `RECOVERY_REQUIRED`. The old operation ID
+continues returning its original result. Booked cashflow, event, source hash,
+valuation and application operation have a separate exact provenance proof.
+
+The selected replacement keeps currency, signed amount, bill ID, economic time,
+independent valuation, original observation time and scope unchanged. It can
+compose with selected SPOT/SWAP/funding observations in one account transaction.
+Unselected pending facts still block. The application must belong to the actual
+committed signed root or its exact current-transaction capability; an unused
+approval with the same replacement cannot substitute for that root.
+
+Effective financial readers return one booked bill after repair. Money replay
+uses economic time and rejects funding that arrives after the original spend.
+Original pending diagnostics remain retained, while terminal/release barriers
+use resolution versions for historical checks. Financial recovery preserves
+HALT, gross costs and claims; it grants no activation or claim release. Ordinary
+new cashflows/NAV and fill/funding routes cannot bypass an unresolved bill.
+
+Use `run_postgres --suite cashflow_repair` for this profile. Terminal pending
+repair, interrupted legacy import, full collateral/liability/provider
+reconciliation and the fixed PG3 control/service/acceptance gates remain open.
 
 ## Native PostgreSQL hedge coordination (PG3 increment, 2026-10-17)
 
