@@ -741,3 +741,16 @@ account, policy, balance, activation or configured PostgreSQL sender.
   including membership bytes; no financial default or trading grant is seeded.
   Runtime/reporting roles cannot access membership or new private helpers.
   Existing automatic migration locking/checksums and repeat-startup behavior apply.
+
+- `000046_swap_fill_repair.sql`: extends the same signed RECOVER command to
+  retained direct SWAP fill observations, alone or with selected direct funding
+  observations. Replacement application IDs are new; original trade, fee, PnL,
+  time, cumulative quantity, wire and source scope must match exactly. Original
+  pending facts/receipts remain immutable. Only exact selected current-transaction
+  monetary kernels can proceed; unlisted pending still blocks. Committed links
+  govern current flags and historical terminal/release proofs. A pending joint
+  batch at the terminal/release cut also blocks that transition; a later batch
+  cannot invalidate an earlier terminal. Existing native causal cash/position,
+  gross-loss/funding, collateral and zero-liability gates remain. Private helpers
+  and entrypoint OIDs/ACLs, auto-migration lock/checksum and repeated startup are
+  preserved. There is no new table, account, capital, policy or activation.

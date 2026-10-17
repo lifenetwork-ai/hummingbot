@@ -2720,9 +2720,10 @@ Captured unused member IDs stay retired. Direct native pending families are not
 bypassed. Runtime/reporter roles cannot import approvals or access the private
 transaction capability; expiry and ownership are rechecked at physical COMMIT.
 
-This profile cannot rewrite wrong monetary observations or clear direct native
-SPOT/SWAP/terminal pending facts. Migrations 44–45 extend it to the direct
-funding profile below. It authenticates operator approval, not provider facts.
+The original joint-parent profile cannot rewrite wrong monetary observations or
+clear direct native pending facts. Migrations 44–46 add the direct funding and
+exact SWAP fill profiles below; SPOT/cashflow and terminal pending repair remain
+unimplemented. It authenticates operator approval, not provider facts.
 Legacy import, full control/hedge and configured joint collection/
 runner/recorder/final-send assembly remain required. PostgreSQL selection stays
 denied. Run isolated qualification with `--suite joint_repair` in the central
@@ -2764,6 +2765,37 @@ later income never funds an earlier deficit or nets away gross funding spending.
 Use `--suite funding_repair` / `--suite funding_cohort` for these profiles. The `joint_recovery` selector also
 includes ordinary funding and these tests. All runners use disposable loopback
 PostgreSQL with synthetic sources, never the configured `.env` database.
+
+### Direct SWAP fill pending repair (migration 46)
+
+`ResolveJointSources` also supports exact retained native `SWAP_FILL` pending
+observations, alone, grouped with identical complete SWAP observations, or mixed
+with direct funding pending observations. The primary may be either product.
+Every selected fill snapshot must match the replacement except its application
+operation ID: trade IDs, fee currency/amount, price, PnL, timing, quantity,
+original wire/order/intent, cumulative scope and observed time remain unchanged.
+Repeated identical pending snapshots can share one applied snapshot; additional
+or omitted snapshots and conflicting facts are refused. Pending correction that
+changes original financial facts is not supported by this profile.
+
+The existing signed importer, original source hashes, immutable membership links,
+explicit member/byte capacities, private transaction capability and physical
+COMMIT fences apply. Original raw pending rows and `RECOVERY_REQUIRED` receipts
+remain diagnostic history. Current unresolved flags clear only after committed
+resolution; historical terminal/release proofs use the resolution version.
+Native causal replay must finance the original fee at its economic time; later
+funding cannot cure an earlier negative wallet. Actual gross costs retain their
+original identity across duplicate observations and cold original-ID readback.
+Repair grants no activation, claim retirement or source readiness.
+
+Fresh account/carry/NAV and independent terminal/release remain necessary.
+A pending joint batch at that transition's cut now blocks terminal/release too;
+a pending batch created later cannot invalidate an earlier verified terminal.
+`run_postgres --suite swap_repair` covers this profile. `joint_recovery` includes
+it and the ordinary SWAP fill/arithmetic regressions, alongside the previous
+funding/joint/collateral/NAV/terminal/release workflows. Configured native service
+assembly, direct SPOT/cashflow/terminal pending repair, legacy interrupted import
+and the other fixed PG3 exit rows remain open.
 
 ## Native PostgreSQL hedge coordination (PG3 increment, 2026-10-17)
 
