@@ -1022,3 +1022,25 @@ async def test_joint_batch_upgrade_keeps_public_proof_oids_and_private_staging_h
     assert (await migrate(c, directory, action='up'))['applied'] == []
     for table in ('accounts', 'balances', 'operations', 'joint_batch_policies', 'joint_financial_batches', 'joint_batch_staging'):
         assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+
+
+@pytest.mark.asyncio
+async def test_late_capital_upgrade_preserves_command_owner_oids_and_runtime_acl_without_bootstrap(db):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 39:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    signature = 'life_financial.shared_capital_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)'
+    signatures = (signature, 'life_financial.commit_owner_guard()', 'life_financial.shared_capital_verified(uuid)')
+    oids = [await c.fetchval('SELECT to_regprocedure($1)::oid', value) for value in signatures]
+    await c.execute(f'GRANT USAGE ON SCHEMA life_financial TO life_runtime_test;GRANT EXECUTE ON FUNCTION {signature} TO life_runtime_test')
+    path = DEFAULT_DIRECTORY / '000039_late_capital_observations.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    assert [await c.fetchval('SELECT to_regprocedure($1)::oid', value) for value in signatures] == oids
+    assert await c.fetchval("SELECT has_function_privilege('life_runtime_test',$1,'EXECUTE')", signature)
+    assert not await c.fetchval("SELECT has_function_privilege('life_reporter_test',$1,'EXECUTE')", signature)
+    assert (await migrate(c, directory, action='up'))['applied'] == []
+    for table in ('accounts', 'balances', 'operations', 'shared_capital_claims', 'shared_capital_observations'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0

@@ -123,7 +123,7 @@ class PgSharedCapitalRepository:
         try:
             return await self.runtime._transaction('SELECT life_financial.shared_capital_command($1,$2,$3,$4,$5,$6,$7)',
                                                    (self.runtime.config.account_id, self.binding.json(), owner.json(), version, digest, identity, body),
-                                                   owner, self._receipt, observation=claim is None and not self.runtime._healthy)
+                                                   owner, self._receipt, observation=claim is None)
         except StorageError as error:
             if str(error) in ('PG_CAPITAL_SNAPSHOT_UNQUALIFIED', 'PG_CAPITAL_SPOT_BALANCE_MISMATCH',
                               'PG_CAPITAL_SNAPSHOT_REPLAY_OR_MUTATION', 'PG_CAPITAL_NATIVE_ORDER_SCOPE_INCOMPLETE',

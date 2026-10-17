@@ -634,3 +634,11 @@ ownership/source freshness apply at physical COMMIT; cold readback grants no
 send/release/activation. Public standalone guards/OIDs/ACLs remain intact;
 repeat startup bootstraps no money/account. Signed pending repair, collateral
 qualification, legacy interrupted import and full service assembly remain PG3.
+
+`000039_late_capital_observations.sql` preserves existing command/owner/proof
+OIDs and ACLs while allowing only original current-owner OBSERVE to record fresh
+complete account facts after HALT, draining/recovery mode or actual expiry.
+RESERVE and all prepare/arm/send checks stay active-risk guards. Source/money/leg
+proofs, monotone observations, bounds and physical COMMIT freshness remain.
+No table, money, owner, deadline, budget, claim or HALT is bootstrapped/reset;
+repeated startup is a no-op. Observation never grants trading or clears pending.

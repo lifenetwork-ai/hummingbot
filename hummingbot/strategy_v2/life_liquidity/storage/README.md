@@ -2684,3 +2684,16 @@ that original context. A change after COMMIT returns `CommitUnknown`, revokes
 local admission and needs original primary readback through fresh correctly
 bound objects. No result can relabel a committed allocation/intent or restore
 permission. Fifteen actual PostgreSQL substitution/readback cases pass.
+
+## Late capital observations (PG3 increment, 2026-10-17)
+
+Only original current-owner OBSERVE uses the safety queue after HALT,
+DRAINING/RECOVERY_ONLY or owner/session expiry. Complete fresh source, native
+money/leg, original generation and physical COMMIT proofs remain mandatory.
+This does not allocate, reset deadlines/spending/HALT or heal local admission.
+An allowed capital decision is an economic observation, not permission. The
+budget-HALT → account/carry → NAV → terminal → original-claim retirement chain
+passes while funding cost stays exhausted, actual exposure remains and a fresh
+runtime is denied new allocation. Eleven native and 45 migration cases pass;
+signed pending repair, legacy import, collateral/source qualification, hedge and
+configured services remain PG3 work.
