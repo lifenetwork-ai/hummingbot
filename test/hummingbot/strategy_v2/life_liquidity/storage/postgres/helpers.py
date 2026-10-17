@@ -36,9 +36,14 @@ async def backend(database, *, session_duration=timedelta(seconds=60), config_ha
     from hummingbot.strategy_v2.life_liquidity.storage.postgres.runtime import PgConfig, PgRuntime
     account, db_lineage, binding, owner, dsn = await seed(database, session_duration=session_duration, config_hash=config_hash, configuration_body=configuration_body)
     from dataclasses import replace
+
+    # Synthetic functional profile: the outer budget includes pool acquisition,
+    # uncached primary/role/schema validation, the command and physical COMMIT.
+    # Deadline/fault tests supply their own smaller budgets via **changes.
+    # These values are not performance acceptance criteria or live defaults.
     config = PgConfig(dsn=dsn, principal='life_pg2_runtime', account_id=account, database_lineage=db_lineage, binding=binding,
                       server_major=16, min_size=1, max_size=2, max_pending=4, safety_size=1, safety_max_pending=2,
-                      acquire_timeout_ms=1000, statement_timeout_ms=1000, transaction_timeout_ms=3000,
+                      acquire_timeout_ms=1000, statement_timeout_ms=1000, transaction_timeout_ms=6000,
                       idle_transaction_timeout_ms=4000, shutdown_timeout_ms=2000, retry_count=2, retry_base_ms=10,
                       local_insecure=True)
     config = replace(config, **changes)

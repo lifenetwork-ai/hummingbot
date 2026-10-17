@@ -574,3 +574,19 @@ policy import, private arithmetic/proof, terminal authority or claim release.
 Paid funding cash, full joint portfolio accounting/NAV, source qualification and
 configured application assembly remain required. Repeat startup uses the same
 central version/checksum migration runner and adds no accounts or money.
+
+### 000033: settled funding cash
+
+`000033_paid_funding.sql` adds explicit payment/observation/retained-byte budgets,
+immutable complete qualified source bundles and permanent numeric paid-bill IDs.
+The account transaction applies only new settled USDT at/after the opening wallet
+cut; earlier paid bills remain cost evidence already included in opening cash.
+Forecast funding and expected income never credit wallets. Gross debit cost
+never nets against later receipts and exhaustion latches HALT. Pending invalid,
+changed, missing or unpayable facts preserve original bundles and unchanged money.
+Funding is neither an external cashflow nor execution loss. Original replay,
+causal wallet/leg proofs, current carry bill coverage and COMMIT ownership apply.
+Common proof OIDs/ACLs are preserved. Runtime receives only scoped command/read
+endpoints, never direct DML, policy import or private proofs. Repeat migration
+startup creates no accounts or money. Native joint batching/portfolio NAV,
+terminal/release, pending repair and authenticated source assembly remain required.

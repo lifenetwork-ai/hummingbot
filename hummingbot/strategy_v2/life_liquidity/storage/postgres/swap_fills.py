@@ -100,6 +100,7 @@ class PgSwapFillRepository:
             raise StorageError('PG_SWAP_FILL_CONTEXT_CHANGED')
 
     def _receipt(self, value):
+        self._original()
         if (value.get('kind') != 'SWAP_FILL' or value.get('trading_permission') is not False
                 or value.get('state') not in ('APPLIED', 'RECOVERY_REQUIRED') or type(value.get('replayed')) is not bool):
             raise StorageError('PG_SWAP_FILL_RECEIPT_INVALID')

@@ -2568,7 +2568,26 @@ for new risk, including when an open has zero fee. Observation bounds and source
 failure revoke local admission; diagnostic refresh does not heal it.
 
 The standalone SPOT NAV port is disabled for a SWAP-accounting account because it
-omits derivative unrealized PnL. Native paid-funding cash, joint portfolio NAV,
+omits derivative unrealized PnL. Native joint portfolio NAV,
 terminal/release and recovery remain unported. Provider-authenticated source,
 controller/runner/recorder assembly and configured PostgreSQL selection remain
 required. This standalone financial slice installs no external SWAP sender.
+
+## Native settled funding cash
+
+`PgFundingRepository` consumes a complete caller-qualified `CarryBundle` in an
+original `ApplyFunding` command. Explicit opening-cut, history, record and byte
+budgets are required. Only new settled bills change USDT. Paid bills before the
+opening cut are already in opening cash; future/expected payments never credit
+money. Gross funding cost stays separate from transfers and execution losses,
+never nets against later receipts and cannot reset its budget. Failed financial
+application retains source/pending/HALT without partial money. Old account/carry
+must be refreshed to cover permanent bills, including zero payments. Readback
+and receipts authorize no send/release/activation. Changed receipt context after
+COMMIT requires original primary readback and cannot relabel money.
+
+Coupled joint application, portfolio NAV, terminal/shared claim release, pending
+resolution and configured authenticated source/controller assembly remain open.
+Disposable functional tests use an explicit 6 s outer I/O budget with the existing
+1 s statement limit; deadline fault tests set their own smaller budgets. Those
+synthetic budgets do not qualify live latency or PG8/O.8 performance.

@@ -15,8 +15,8 @@ from hummingbot.strategy_v2.life_liquidity.storage.products import ReserveCapita
 from hummingbot.strategy_v2.life_liquidity.storage.swap import PrepareSwap
 
 
-async def setup(database, *, side=TradeType.SELL, action=PositionAction.OPEN, max_age_ms=5000, spot_options=None, mode='HEDGE'):
-    values = await carry_setup(database, max_age_ms=max_age_ms, spot_options=spot_options, capital_changes=dict(position_mode=mode))
+async def setup(database, *, side=TradeType.SELL, action=PositionAction.OPEN, max_age_ms=5000, spot_options=None, mode='HEDGE', carry_options=None):
+    values = await carry_setup(database, max_age_ms=max_age_ms, spot_options=spot_options, capital_changes=dict(position_mode=mode), **(carry_options or {}))
     financial, cfg, owner, cap_policy, account_feed, capital, carry_policy, carry_feed, carry = values
     if action is PositionAction.CLOSE:
         account_feed[0] = replace(account_feed[0], sequence=2,

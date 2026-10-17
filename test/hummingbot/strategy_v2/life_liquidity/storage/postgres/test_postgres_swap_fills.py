@@ -14,8 +14,8 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.swap_fills import (
 )
 
 
-async def setup(database, *, acknowledge=True):
-    values, swap, prepared = await swap_setup(database)
+async def setup(database, *, acknowledge=True, carry_options=None):
+    values, swap, prepared = await swap_setup(database, carry_options=carry_options)
     financial, cfg, owner = values[:3]
     await database[0].execute("INSERT INTO life_financial.spot_capital_policies VALUES($1,$2,5,10,1,$3,'100',4096)",
                               cfg.account_id, cfg.binding.policy_hash, owner.valid_from - timedelta(seconds=1))
@@ -438,5 +438,27 @@ async def test_exhausted_explicit_observation_budget_revokes_new_risk_without_re
         assert (await repo.apply_fills(command, cut=cut, owner=owner)).replayed
         assert (await financial.balance(cfg.binding)).total_quote_usdt == D('9.99')
         assert len(await values[5].claims(cfg.binding)) == 1
+    finally:
+        await financial.close()
+
+
+@pytest.mark.asyncio
+async def test_changed_fill_receipt_context_after_commit_preserves_original_fee_identity(database, monkeypatch):
+    from hummingbot.strategy_v2.life_liquidity.storage.contracts import CommitUnknown
+    values, swap, repo, command = await setup(database)
+    financial, cfg, owner = values[:3]
+    original = financial._runtime._commit
+    try:
+        async def changed(tx):
+            await original(tx)
+            repo.binding = replace(cfg.binding, config_hash='f' * 64)
+
+        monkeypatch.setattr(financial._runtime, '_commit', changed)
+        with pytest.raises(CommitUnknown):
+            await repo.apply_fills(command, cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)
+        assert not financial._runtime.healthy
+        restored = PgSwapFillRepository(swap)
+        assert (await restored.lookup(command.operation_id, cfg.binding)).replayed
+        assert (await financial.balance(cfg.binding)).total_quote_usdt == D('9.99')
     finally:
         await financial.close()
