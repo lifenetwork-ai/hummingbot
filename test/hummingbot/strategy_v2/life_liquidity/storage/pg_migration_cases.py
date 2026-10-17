@@ -1102,3 +1102,33 @@ async def test_hedge_upgrade_preserves_existing_oids_acl_and_private_transaction
     assert (await migrate(c, directory, action='up'))['applied'] == []
     for table in ('accounts', 'balances', 'operations', 'hedge_policies', 'hedge_targets', 'hedge_plan_facts', 'hedge_settlements', 'hedge_staging'):
         assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+
+
+@pytest.mark.asyncio
+async def test_swap_boundary_upgrade_preserves_public_oids_acl_and_has_no_bootstrap(db):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 42:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    signatures = ('life_financial.spot_state(uuid)', 'life_financial.swap_verified(uuid)', 'life_financial.commit_owner_guard()')
+    oids = [await c.fetchval('SELECT to_regprocedure($1)::oid', value) for value in signatures]
+    await c.execute('GRANT EXECUTE ON FUNCTION life_financial.spot_state(uuid) TO life_runtime_test,life_reporter_test')
+    path = DEFAULT_DIRECTORY / '000042_swap_request_boundary.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    assert [await c.fetchval('SELECT to_regprocedure($1)::oid', value) for value in signatures] == oids
+    for principal in ('life_runtime_test', 'life_reporter_test'):
+        assert await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", principal, signatures[0])
+        for signature in ('life_financial.swap_ack_verified(uuid)', 'life_financial.swap_capture_ack(uuid,jsonb)',
+                          'life_financial.swap_mark_ack(uuid,text)', 'life_financial.swap_read_ack(uuid,integer,integer,text)',
+                          'life_financial.swap_boundary_verified(uuid)', 'life_financial.swap_verified_before_boundary(uuid)',
+                          'life_financial.spot_state_before_swap_boundary(uuid)', 'life_financial.swap_wire_matches(text,jsonb)',
+                          'life_financial.swap_boundary_arm(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
+                          'life_financial.swap_boundary_read(uuid,integer,integer,text)'):
+            assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", principal, signature)
+        for table in ('swap_boundary_policies', 'swap_boundaries', 'swap_ack_ingress', 'swap_ack_deliveries'):
+            assert not await c.fetchval("SELECT has_table_privilege($1,$2,'INSERT,UPDATE,DELETE')", principal, 'life_financial.' + table)
+    assert (await migrate(c, directory, action='up'))['applied'] == []
+    for table in ('accounts', 'balances', 'operations', 'swap_boundary_policies', 'swap_boundaries', 'swap_ack_ingress', 'swap_ack_deliveries'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0

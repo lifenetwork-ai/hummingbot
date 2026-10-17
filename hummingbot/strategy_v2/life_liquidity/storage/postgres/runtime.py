@@ -23,7 +23,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.contracts import (
     fingerprint,
     identifier,
 )
-from hummingbot.strategy_v2.life_liquidity.storage.postgres.access import role_name
+from hummingbot.strategy_v2.life_liquidity.storage.postgres.access import MUTATING_ENTRYPOINTS, role_name
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.migrations import _ssl_context, load_migrations
 
 
@@ -194,38 +194,7 @@ class PgRuntime:
             pg_catalog.has_schema_privilege(current_user,'life_financial','CREATE') OR pg_catalog.has_database_privilege(current_user,pg_catalog.current_database(),'CREATE') AS schema_create,
             (SELECT pg_catalog.bool_and(pg_catalog.to_regprocedure(signature) IS NOT NULL
                 AND pg_catalog.has_function_privilege(current_user,pg_catalog.to_regprocedure(signature),'EXECUTE') OPERATOR(pg_catalog.=) $2)
-            FROM pg_catalog.unnest(ARRAY[
-                'life_financial.allocate_balance(uuid,jsonb,jsonb,bigint,life_financial.identity,life_financial.digest,text,life_financial.positive_amount)',
-                'life_financial.spot_capture_ack_ingress(uuid,jsonb)',
-                'life_financial.spot_capture_financial_ingress(uuid,jsonb)',
-                'life_financial.spot_capture_provider_page(uuid,jsonb)',
-                'life_financial.shared_capital_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
-                'life_financial.carry_check(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
-                'life_financial.funding_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
-                'life_financial.swap_fill_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
-                'life_financial.swap_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,text,jsonb)',
-                'life_financial.spot_mark_financial_ingress(uuid,life_financial.identity,life_financial.identity)',
-                'life_financial.spot_mark_ack_ingress(uuid,life_financial.identity)',
-                'life_financial.spot_prepare(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
-                'life_financial.spot_arm(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,life_financial.identity)',
-                'life_financial.spot_observe(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,text,jsonb)',
-                'life_financial.spot_capital_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,text,jsonb)',
-                'life_financial.spot_session_tick(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
-                'life_financial.spot_observe_markout(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
-                'life_financial.spot_settle_inventory(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb,jsonb,boolean)',
-                'life_financial.spot_order_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,text,jsonb,boolean)',
-                'life_financial.spot_action_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,text,jsonb)',
-                'life_financial.spot_action_prepare(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
-                'life_financial.recorder_event_stage(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,life_financial.identity,jsonb)',
-                'life_financial.recorder_event_apply(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.identity)',
-                'life_financial.recorder_position_stage(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
-                'life_financial.recorder_position_apply(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.identity)',
-                'life_financial.recorder_config_stage(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
-                'life_financial.recorder_config_apply(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.identity)',
-                'life_financial.recorder_stage_executor(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,text,jsonb)',
-                'life_financial.recorder_apply_executor(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.identity)',
-                'life_financial.spot_arm_quote(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)'
-            ]) AS signatures(signature)) AS profile''', cfg.account_id, cfg.write, len(self._bundle) + 1)
+            FROM pg_catalog.unnest($4::pg_catalog.text[]) AS signatures(signature)) AS profile''', cfg.account_id, cfg.write, len(self._bundle) + 1, list(MUTATING_ENTRYPOINTS))
         if (row['principal'] != cfg.principal or row['replica'] or row['major'] != cfg.server_major
                 or row['readonly'] != 'off' or row['sync'] != 'on' or row['fsync'] != 'on' or row['full_page'] != 'on'
                 or row['timezone'] != 'UTC' or row['search_path'] != 'pg_catalog' or row['lineage'] != cfg.database_lineage):
@@ -315,6 +284,8 @@ class PgRuntime:
         import asyncpg
         if untrusted_ingress and (not observation or query not in (
                 'SELECT life_financial.spot_capture_ack_ingress($1,$2)',
+                'SELECT life_financial.swap_capture_ack($1,$2)',
+                'SELECT life_financial.swap_mark_ack($1,$2)',
                 'SELECT life_financial.spot_capture_financial_ingress($1,$2)',
                 'SELECT life_financial.spot_capture_provider_page($1,$2)',
                 'SELECT life_financial.spot_mark_financial_ingress($1,$2,$3)',

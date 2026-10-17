@@ -2515,10 +2515,10 @@ SPOT/SWAP cuts retain all SPOT money/ingress guards and verify the original SWAP
 config, payload, unit conversions and event progression. Actual COMMIT process
 and backend loss recover original metadata without an exchange request.
 
-`authorize_boundary` deliberately raises `PG_SWAP_TRANSPORT_NOT_IMPLEMENTED`.
-This adapter is not installed in the configured controller and cannot replace
-the protected final wire/source/HTTP gate. SWAP fills, fees, funding, collateral,
-hedge plans and joint settlement/recovery remain separate required PG3 ports.
+The initial storage checkpoint denied `authorize_boundary`. Migration 42 now
+provides an exact-byte diagnostic arm through that method; the separate signed
+request guard owns the one-use HTTP boundary described below. Configured
+controller installation and the remaining PG3 closure workstreams stay open.
 
 ```sh
 make life-postgres-test LIFE_PG_TEST_ARGS="--suite swap --output /tmp/life-swap-run"
@@ -2755,5 +2755,33 @@ child plans use active admission, so a locally revoked runtime can only observe.
 
 These are explicit offline repositories and synthetic-source qualification;
 configured source/controller/runner installation, pending/risk/control services
-and final SWAP HTTP transport remain open PG3 work. `storage_backend: postgres`
+and configured final SWAP send composition remain open PG3 work. `storage_backend: postgres`
 continues to be rejected by the configured LIFE controller.
+
+
+## Explicit native SWAP HTTP and received ACK composition
+
+`postgres.swap_send.PgSwapBoundary` atomically binds the exact original HTTP
+body to native SWAP arm under migration `000042`. Contract counts, base LIFE,
+position side and close/reduce-only semantics must match the captured permit.
+Owner, session, capture, carry, funding and hedge deadlines constrain the
+original write window at physical COMMIT; retained readback cannot rearm.
+
+`postgres.swap_transport.PgSwapAccountSource` binds the actual derivative
+connector's signed UID GET and order bytes to pinned credentials, endpoint,
+environment and explicit UID/auth/clock/queue limits. Its required local fence
+is an assembly input, not proof of complete SDK runner scope. A final one-use
+synchronous check follows the last await and conservatively subtracts allowed
+clock skew from the DB deadline. Retry, redirect, changed source, local stop or
+unknown COMMIT never restore that capability. Secrets/auth headers stay local.
+
+`postgres.swap_ack.PgSwapAckIngress` captures an accepted strict single-order
+ACK before native financial application, then records exact delivery. Cold
+pending readback repairs that original response once; it never sends, refunds
+claims or clears HALT/local revocation. A response lost before capture commits
+still needs authenticated provider reconciliation. Generic SQL arm/readback
+receipts remain diagnostic and cannot become HTTP guards.
+
+This is an explicit assembly exercised with disposable PostgreSQL and fake HTTP.
+Configured PostgreSQL service/controller, qualified shared-product collectors,
+runner/control/risk and the remaining PG3 acceptance contracts remain open.

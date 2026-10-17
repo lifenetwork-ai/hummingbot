@@ -112,7 +112,7 @@ async def test_qualified_late_swap_ack_after_halt_expiry_and_carry_denial_never_
         with pytest.raises(StorageError, match='PG_OPERATION_CONFLICT'):
             await repo.acknowledge(command.operation_id, exchange_order_id='987654322', owner=owner)
         assert (await financial.snapshot(cfg.binding)).recovery_required
-        with pytest.raises(StorageError, match='PG_SWAP_TRANSPORT_NOT_IMPLEMENTED'):
+        with pytest.raises(StorageError, match='PG_SWAP_WIRE_INVALID'):
             await repo.authorize_boundary(command.operation_id, wire_payload=b'{}', owner=owner)
     finally:
         await financial.close()
@@ -272,7 +272,7 @@ async def test_actual_swap_commit_loss_retains_one_original_intent_without_send_
         if stage != 'prepare':
             with pytest.raises(StorageError, match='RECONCILE_BEFORE_RETRY'):
                 await restored.arm(command.operation_id, cut=await restored.cut(cfg.binding), owner=owner)
-        with pytest.raises(StorageError, match='PG_SWAP_TRANSPORT_NOT_IMPLEMENTED'):
+        with pytest.raises(StorageError, match='PG_SWAP_WIRE_INVALID'):
             await restored.authorize_boundary(command.operation_id, wire_payload=b'{}', owner=owner)
     finally:
         await admin.close()

@@ -1,4 +1,4 @@
-"""Native protected SWAP intent ports. No external transport is installed.
+"""Native protected SWAP intents; explicit exact-request transport is separate.
 
 Preparation requires a separately retained original shared claim and current
 carry evidence. All receipts are diagnostic; ARM is irreversible SEND_UNKNOWN.
@@ -100,5 +100,14 @@ class PgSwapRepository:
         return await self._command('SWAP_ACK', dict(operation_id=key, prepare_operation_id=operation_id, exchange_order_id=exchange_order_id),
                                    ProductCut(value.cut.checkpoint, value.cut.components), owner)
 
-    async def authorize_boundary(self, *args, **kwargs):
-        raise StorageError('PG_SWAP_TRANSPORT_NOT_IMPLEMENTED')
+    async def authorize_boundary(self, operation_id, *, wire_payload, owner):
+        # This returns diagnostic SQL state, never a reusable HTTP send grant.
+        from hummingbot.strategy_v2.life_liquidity.storage.postgres.swap_send import ArmSwapRequest, PgSwapBoundary
+        if type(wire_payload) is not bytes or not 0 < len(wire_payload) <= 4096:
+            raise StorageError('PG_SWAP_WIRE_INVALID')
+        try:
+            wire = wire_payload.decode('utf-8')
+        except UnicodeError:
+            raise StorageError('PG_SWAP_WIRE_INVALID') from None
+        return await PgSwapBoundary(self).arm(ArmSwapRequest(operation_id, wire),
+                                              cut=(await self.financial.snapshot(self.binding)).cut, owner=owner)

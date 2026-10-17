@@ -681,3 +681,22 @@ terminal facts; partial or pending hedges are never completed inventory. Cost
 breaches retain actual accounting and HALT. No claim refund, automatic activation,
 provider authentication or SWAP HTTP transport is introduced. Central migration
 tracking applies this file once; repeated enabled startup verifies its checksum.
+
+
+## 000042: exact SWAP request boundary and received ACK
+
+An imported account policy supplies explicit write-window and retained wire
+count/byte limits. The exact post-authentication HTTP JSON, its UTF-8 checksum,
+original carry/hedge context and irreversible native arm publish atomically.
+Physical COMMIT rechecks the original earliest owner/session/source/write
+expiry. Current snapshot digests include the policy and retained requests;
+original readback never supplies another send capability.
+
+Received ACK diagnostics and their financial delivery receipts occupy separate
+immutable tables. Capture changes no money or ownership and survives HALT or
+expiry. Delivery must match the original wire and native ACK operation. Pending
+received responses block new risk while observation/recovery remains available.
+Runtime/reporter roles receive scoped entrypoints; private proof functions and
+all direct table writes remain denied. The central migration runner tracks this
+file once and verifies the checksum at repeated enabled startup. It creates no
+account, policy, balance, activation or configured PostgreSQL sender.

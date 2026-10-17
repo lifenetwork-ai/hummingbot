@@ -1,5 +1,18 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**PG3 explicit SWAP sender/recovery checkpoint (2026-10-17, base `0ee397b84`):**
+exact signed post-auth/throttle request bytes now bind one atomic native arm;
+received ACK capture precedes qualified native application and delivery. Cold
+recovery never resends or releases claims. Local stop is sticky; wire/identity/
+clock mismatches and privilege drift deny. **59 final sender/recovery tests and
+48 final migration tests pass**; **73 current admission/settlement** and **190
+affected connector/core/File/contract tests also pass**. Broad runs retain intermittent 1 s SQL startup/proof timeouts and
+are not clean full-product acceptance. See [qualification and remaining scope](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-explicit-swap-request-and-ack-qualification-2026-10-17).
+The explicit adapter does not install the configured controller/service. Full
+source/runner/hedge composition, collateral/legacy/direct pending recovery,
+native control/risk/session and whole-product acceptance remain PG3 work.
+**PG3 stays open; configured PostgreSQL stays refused.**
+
 **PG3 native hedge checkpoint (2026-10-17, base `be18f304f`):** versioned targets, actual-position/depth/fee/funding planning, atomic shared/carry/SWAP preparation and native partial/terminal settlement are implemented. Refused/retried children retain identities and conservative costs; installed-policy gates block unbalanced SPOT and generic SWAP bypass. **43 final native hedge tests pass** after correcting failed-market reuse, local-revocation admission and repeated-prefix proof work. **47 final migration, 212 focused File/DTO and 173 native backward-compatibility tests also pass**. These are overlapping functional selections, not full-product or performance acceptance. See [hedge qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-native-hedge-qualification-2026-10-17). Configured cancellation/source/runner/final SWAP transport, direct pending/risk/control and other listed PG3 work remain open; configured PostgreSQL stays denied.
 
 **PG3 signed source-only joint repair (2026-10-17, base `4ea0b596c`):** a privileged Ed25519 RECOVER approval can replace the final account/funding sources of an immutable pending batch. Original fills/fees/cashflows remain unchanged; native causal accounting still rejects wrong money. An append-only resolution link preserves the raw pending receipt, other pending parents, HALT, claims and gross spending; no activation or configured backend is granted. **32 native repair tests, 46 migration tests and 50 contract tests pass** (overlapping selections). See [repair qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-signed-joint-source-repair-qualification-2026-10-17). Direct native pending resolution, interrupted legacy import, collateral, hedge/control and complete configured source/runner/final-send assembly remain PG3 work.

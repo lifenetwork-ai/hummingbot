@@ -61,9 +61,10 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
 
         super().__init__(balance_asset_limit, rate_limits_share_pct)
 
-    async def get_account_uid(self) -> str:
+    async def get_account_uid(self, *, request_send_guard=None) -> str:
         response = await self._api_get(path_url=CONSTANTS.REST_GET_ACCOUNT_CONFIG[CONSTANTS.ENDPOINT],
-                                       is_auth_required=True)
+                                       is_auth_required=True,
+                                       **({'request_send_guard': request_send_guard} if request_send_guard is not None else {}))
         rows = response.get('data') if isinstance(response, dict) else None
         if (not isinstance(response, dict) or response.get('code') != '0'
                 or not isinstance(rows, list) or len(rows) != 1 or not isinstance(rows[0], dict)):
@@ -80,13 +81,17 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
 
     def submit_protected_order(self, *, order_id: str, trading_pair: str, amount: Decimal,
                                trade_type: TradeType, order_type: OrderType, price: Decimal,
-                               position_action: PositionAction, pre_send_check, on_ack=None,
-                               async_pre_send_check=None, async_on_ack=None) -> str:
+                               position_action: PositionAction, pre_send_check=None, on_ack=None,
+                               async_pre_send_check=None, async_on_ack=None, request_send_guard=None) -> str:
         """Schedule an opt-in WAL-owned post-only SWAP order, without a retry fallback."""
-        if (not order_id or not callable(pre_send_check) or (on_ack is None) == (async_on_ack is None)
+        guarded = request_send_guard is not None
+        if (not order_id or not (guarded or callable(pre_send_check)) or (on_ack is None) == (async_on_ack is None)
                 or on_ack is not None and not callable(on_ack)
-                or async_on_ack is not None and (not callable(async_on_ack) or not callable(async_pre_send_check))
+                or async_on_ack is not None and (not callable(async_on_ack) or not (guarded or callable(async_pre_send_check)))
                 or async_pre_send_check is not None and not callable(async_pre_send_check)
+                or guarded and (on_ack is not None or async_pre_send_check is not None
+                                or not callable(getattr(request_send_guard, 'authorize', None))
+                                or not callable(getattr(request_send_guard, 'check', None)))
                 or trading_pair not in self._protected_trading_pairs
                 or order_type != OrderType.LIMIT_MAKER
                 or position_action not in (PositionAction.OPEN, PositionAction.CLOSE)):
@@ -97,7 +102,8 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
             pre_send_check=pre_send_check,
             **({'on_ack': on_ack} if on_ack is not None else {}),
             **({'async_on_ack': async_on_ack} if async_on_ack is not None else {}),
-            **({'async_pre_send_check': async_pre_send_check} if async_pre_send_check is not None else {})))
+            **({'async_pre_send_check': async_pre_send_check} if async_pre_send_check is not None else {}),
+            **({'request_send_guard': request_send_guard} if guarded else {})))
         return order_id
 
     @property
@@ -306,19 +312,27 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
         async_on_ack = kwargs.pop('async_on_ack', None)
         if on_ack is not None and async_on_ack is not None:
             raise ValueError('PROTECTED_SWAP_ACK_AMBIGUOUS')
+        request_guard = kwargs.get('request_send_guard')
+        guarded = request_guard is not None
+        if guarded and (not callable(getattr(request_guard, 'authorize', None))
+                        or not callable(getattr(request_guard, 'check', None)) or not callable(async_on_ack)
+                        or on_ack is not None or async_pre_send_check is not None
+                        or order_type != OrderType.LIMIT_MAKER
+                        or position_action not in (PositionAction.OPEN, PositionAction.CLOSE)):
+            raise ValueError('PROTECTED_SWAP_REQUEST_GUARD_INVALID')
         ack_valid = callable(on_ack) or callable(async_on_ack)
         if async_pre_send_check is not None and (
                 not callable(async_pre_send_check) or not callable(pre_send_check) or not ack_valid
                 or order_type != OrderType.LIMIT_MAKER or position_action not in (PositionAction.OPEN, PositionAction.CLOSE)):
             raise ValueError('PROTECTED_SWAP_ASYNC_CHECK_INVALID')
         if (trading_pair in getattr(self, "_protected_trading_pairs", set())
-                and (not callable(pre_send_check) or not ack_valid)):
+                and (not (guarded or callable(pre_send_check)) or not ack_valid)):
             raise PermissionError("PROTECTED_ORDER_REQUIRED")
         if pre_send_check is not None and (
                 not callable(pre_send_check) or not ack_valid or order_type != OrderType.LIMIT_MAKER
                 or position_action not in (PositionAction.OPEN, PositionAction.CLOSE)):
             raise ValueError("PROTECTED_SWAP_ORDER_INVALID")
-        if async_on_ack is not None and (not callable(async_on_ack) or not callable(async_pre_send_check)):
+        if async_on_ack is not None and (not callable(async_on_ack) or not (guarded or callable(async_pre_send_check))):
             raise ValueError('PROTECTED_SWAP_ASYNC_ACK_INVALID')
         if position_action == PositionAction.NIL:
             raise NotImplementedError
@@ -356,6 +370,14 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
             **kwargs,
         )
 
+        if guarded:
+            rows = exchange_order_id.get('data') if type(exchange_order_id) is dict else None
+            if (type(rows) is not list or len(rows) != 1 or type(rows[0]) is not dict
+                    or exchange_order_id.get('code') != '0' or rows[0].get('sCode') != '0'
+                    or rows[0].get('clOrdId') != order_id
+                    or type(rows[0].get('ordId')) is not str or not 0 < len(rows[0]['ordId']) <= 64
+                    or not rows[0]['ordId'].isascii() or not rows[0]['ordId'].isdecimal()):
+                raise IOError('ORDER_ACK_UNAVAILABLE')
         data = exchange_order_id["data"][0]
         if data["sCode"] != "0":
             raise IOError(f"Error submitting order {order_id}: {data['sMsg']}")
@@ -995,6 +1017,7 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
                            trading_pair: Optional[str] = None,
                            pre_send_check: Optional[Callable[[], None]] = None,
                            async_pre_send_check: Optional[Callable[[], Awaitable[None]]] = None,
+                           request_send_guard=None,
                            **kwargs) -> Dict[str, Any]:
 
         rest_assistant = await self._web_assistants_factory.get_rest_assistant()
@@ -1013,6 +1036,8 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
             is_auth_required=is_auth_required,
             return_err=return_err,
             throttler_limit_id=limit_id if limit_id else path_url,
+            **({'headers': kwargs['headers']} if 'headers' in kwargs else {}),
+            **({'request_send_guard': request_send_guard} if request_send_guard is not None else {}),
             **({"pre_send_check": pre_send_check} if pre_send_check is not None else {}),
             **({'async_pre_send_check': async_pre_send_check} if async_pre_send_check is not None else {}),
         )

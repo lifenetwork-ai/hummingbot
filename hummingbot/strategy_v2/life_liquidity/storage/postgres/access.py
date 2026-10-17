@@ -8,6 +8,51 @@ from uuid import UUID
 
 from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError
 
+# One policy for provisioning and every uncached primary admission check.
+MUTATING_ENTRYPOINTS = (
+    'life_financial.guard_account(uuid,jsonb,jsonb,bigint)',
+    'life_financial.allocate_balance(uuid,jsonb,jsonb,bigint,life_financial.identity,life_financial.digest,text,life_financial.positive_amount)',
+    'life_financial.spot_capture_ack_ingress(uuid,jsonb)',
+    'life_financial.spot_capture_financial_ingress(uuid,jsonb)',
+    'life_financial.spot_capture_provider_page(uuid,jsonb)',
+    'life_financial.shared_capital_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
+    'life_financial.carry_check(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
+    'life_financial.hedge_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,text,jsonb)',
+    'life_financial.swap_boundary_arm(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
+    'life_financial.swap_capture_ack(uuid,jsonb)',
+    'life_financial.swap_mark_ack(uuid,text)',
+    'life_financial.joint_repair_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
+    'life_financial.joint_batch_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
+    'life_financial.shared_release_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
+    'life_financial.swap_terminal_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
+    'life_financial.portfolio_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
+    'life_financial.funding_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
+    'life_financial.swap_fill_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
+    'life_financial.swap_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,text,jsonb)',
+    'life_financial.spot_mark_financial_ingress(uuid,life_financial.identity,life_financial.identity)',
+    'life_financial.spot_mark_ack_ingress(uuid,life_financial.identity)',
+    'life_financial.spot_prepare(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
+    'life_financial.spot_arm(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,life_financial.identity)',
+    'life_financial.guard_spot_observation(uuid,jsonb,jsonb,bigint)',
+    'life_financial.spot_observe(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,text,jsonb)',
+    'life_financial.spot_capital_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,text,jsonb)',
+    'life_financial.spot_session_tick(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
+    'life_financial.spot_observe_markout(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
+    'life_financial.spot_settle_inventory(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb,jsonb,boolean)',
+    'life_financial.spot_order_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,text,jsonb,boolean)',
+    'life_financial.spot_action_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,text,jsonb)',
+    'life_financial.spot_action_prepare(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
+    'life_financial.recorder_event_stage(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,life_financial.identity,jsonb)',
+    'life_financial.recorder_event_apply(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.identity)',
+    'life_financial.recorder_position_stage(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
+    'life_financial.recorder_position_apply(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.identity)',
+    'life_financial.recorder_config_stage(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
+    'life_financial.recorder_config_apply(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.identity)',
+    'life_financial.recorder_stage_executor(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,text,jsonb)',
+    'life_financial.recorder_apply_executor(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.identity)',
+    'life_financial.spot_arm_quote(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
+)
+
 
 def role_name(value):
     if type(value) is not str or re.fullmatch(r'[a-z][a-z0-9_]{0,62}', value) is None:
@@ -61,45 +106,8 @@ async def provision_access(connection, *, principal, account_id, write):
         await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.joint_batch_read(uuid,integer,integer,text) TO "{principal}"')
         await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.joint_repair_read(uuid,integer,integer,text) TO "{principal}"')
         await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.hedge_read(uuid,integer,integer,text) TO "{principal}"')
+        await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.swap_boundary_read(uuid,integer,integer,text),life_financial.swap_read_ack(uuid,integer,integer,text) TO "{principal}"')
         if write:
-            await connection.execute(f'''GRANT EXECUTE ON FUNCTION life_financial.guard_account(uuid,jsonb,jsonb,bigint),
-                life_financial.allocate_balance(uuid,jsonb,jsonb,bigint,life_financial.identity,life_financial.digest,text,life_financial.positive_amount),
-                life_financial.spot_capture_ack_ingress(uuid,jsonb),
-                life_financial.spot_capture_financial_ingress(uuid,jsonb),
-                life_financial.spot_capture_provider_page(uuid,jsonb),
-                life_financial.shared_capital_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb),
-                life_financial.carry_check(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb),
-                life_financial.hedge_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,text,jsonb),
-                life_financial.joint_repair_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb),
-                life_financial.joint_batch_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb),
-                life_financial.shared_release_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb),
-                life_financial.swap_terminal_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb),
-                life_financial.portfolio_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb),
-                life_financial.funding_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb),
-                life_financial.swap_fill_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb),
-                life_financial.swap_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,text,jsonb),
-                life_financial.spot_mark_financial_ingress(uuid,life_financial.identity,life_financial.identity),
-                life_financial.spot_mark_ack_ingress(uuid,life_financial.identity),
-                life_financial.spot_prepare(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb),
-                life_financial.spot_arm(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,life_financial.identity),
-                life_financial.guard_spot_observation(uuid,jsonb,jsonb,bigint),
-                life_financial.spot_observe(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,text,jsonb),
-                life_financial.spot_capital_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,text,jsonb),
-                life_financial.spot_session_tick(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb),
-                life_financial.spot_observe_markout(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb),
-                life_financial.spot_settle_inventory(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb,jsonb,boolean),
-                life_financial.spot_order_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,text,jsonb,boolean),
-                life_financial.spot_action_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,text,jsonb),
-                life_financial.spot_action_prepare(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb),
-                life_financial.recorder_event_stage(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,life_financial.identity,jsonb),
-                life_financial.recorder_event_apply(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.identity),
-                life_financial.recorder_position_stage(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb),
-                life_financial.recorder_position_apply(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.identity),
-                life_financial.recorder_config_stage(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb),
-                life_financial.recorder_config_apply(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.identity),
-                life_financial.recorder_stage_executor(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,text,jsonb),
-                life_financial.recorder_apply_executor(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.identity),
-                life_financial.spot_arm_quote(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)
-                TO "{principal}"''')
+            await connection.execute('GRANT EXECUTE ON FUNCTION ' + ','.join(MUTATING_ENTRYPOINTS) + f' TO "{principal}"')
         await connection.execute('''INSERT INTO life_financial.access_bindings(principal,account_id,can_write) VALUES($1,$2,$3)
             ON CONFLICT(principal,account_id) DO UPDATE SET can_write=EXCLUDED.can_write''', principal, account_id, write)
