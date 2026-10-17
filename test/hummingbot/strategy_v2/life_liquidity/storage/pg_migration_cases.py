@@ -752,3 +752,33 @@ async def test_provider_journal_upgrade_repeats_without_new_financial_authority(
     assert (await migrate(c, directory))['pending'] == []
     for table in ('accounts', 'balances', 'operations', 'sessions', 'spot_provider_heads', 'spot_provider_pages'):
         assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+
+
+@pytest.mark.asyncio
+async def test_shared_capital_upgrade_preserves_old_snapshot_core_acl_and_empty_account_scope(db):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 28:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    signatures = ('life_financial.spot_state(uuid)',
+                  'life_financial.spot_prepare_action_core(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb,jsonb)')
+    oids = [await c.fetchval('SELECT to_regprocedure($1)::oid', value) for value in signatures]
+    await c.execute('GRANT EXECUTE ON FUNCTION life_financial.spot_state(uuid) TO life_runtime_test,life_reporter_test')
+    path = DEFAULT_DIRECTORY / '000028_shared_capital.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    assert [await c.fetchval('SELECT to_regprocedure($1)::oid', value) for value in signatures] == oids
+    for principal in ('life_runtime_test', 'life_reporter_test'):
+        assert await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", principal, signatures[0])
+        for function in (signatures[1], 'life_financial.shared_capital_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
+                         'life_financial.shared_capital_frame(uuid,integer,integer)', 'life_financial.shared_capital_verified(uuid)',
+                         'life_financial.shared_operation_verified(uuid,text)', 'life_financial.shared_capital_read_operation(uuid,text,integer,integer)',
+                         'life_financial.shared_evaluate(jsonb,jsonb,jsonb)', 'life_financial.shared_margin(numeric,jsonb,integer)'):
+            assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", principal, function)
+        for table in ('shared_capital_policies', 'shared_capital_claims', 'shared_capital_heads', 'shared_capital_observations'):
+            assert not await c.fetchval("SELECT has_table_privilege($1,$2,'INSERT,UPDATE,DELETE')", principal, 'life_financial.' + table)
+    assert (await migrate(c, directory, action='up'))['applied'] == []
+    assert (await migrate(c, directory))['pending'] == []
+    for table in ('accounts', 'balances', 'operations', 'sessions', 'shared_capital_policies', 'shared_capital_claims', 'shared_capital_heads', 'shared_capital_observations'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0

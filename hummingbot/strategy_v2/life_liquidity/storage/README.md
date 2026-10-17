@@ -2434,3 +2434,35 @@ requires readback. Stop never publishes SDK IDs late or refunds a hold. This
 explicit offline assembly leaves configured LIFE controller/service selection,
 qualified planner/market provenance, financial pending repair and shared-product
 ports open. It does not qualify a live account or external sender exclusivity.
+
+
+### PostgreSQL native shared SPOT/SWAP capital allocation
+
+`PgSharedCapitalRepository(financial, owner=..., observation=..., max_rows=...,
+max_bytes=...)` implements the shared-capital product port over native account
+transactions. Install an explicitly approved immutable model/capacity first.
+The observation callback must qualify the whole account; its DTO/source strings
+are not authentication. `reserve(ReserveCapital(...), cut, owner)` and
+`check_capital(binding)` require the current active owner. `claims`, `frame` and
+original operation `lookup` are bounded diagnostic reads; receipts implement
+`ProductReceipt` with account atomicity and `trading_permission=false`.
+
+Migration `000028` stores original observations/operations and typed claims,
+including permanent wire/session/config/risk identities. SQL calculates all
+independent fill endpoints, no prospective hedge proceeds, fees, funding,
+basis/directional stress and account/tiered IM/MM. Exact rational margins round
+up to 10^-18 USDT only after combining original account and stress requirements.
+File uses the same margin rule and fixed precision for the native bounded domain.
+SELL inventory and hard delta endpoints also include possible LIFE fees at
+the conservative modeled rate. Native SPOT prepare/arm requires its original
+matching shared claim, current config/risk epoch and enough modeled fee allowance. Abort can release native
+order holds but cannot release the shared claim. Exact receipt retry retains
+original observations and never calls the source again or changes a wallet.
+
+Explicit imported capacity and read row/byte limits remain mandatory. Native
+corruption/role/source/identity denials, concurrency, actual process/backend
+COMMIT loss and unchanged 1,000 ms physical expiry have offline coverage. This
+allocator does not install SWAP sending/accounting, funding credit, joint release
+or APPLYING recovery, qualified live source, configured LIFE service, ownership
+handoff or production eligibility. Existing configured PostgreSQL rejection
+remains until the full PG3 composition is qualified.

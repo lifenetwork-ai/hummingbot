@@ -199,6 +199,7 @@ class PgRuntime:
                 'life_financial.spot_capture_ack_ingress(uuid,jsonb)',
                 'life_financial.spot_capture_financial_ingress(uuid,jsonb)',
                 'life_financial.spot_capture_provider_page(uuid,jsonb)',
+                'life_financial.shared_capital_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
                 'life_financial.spot_mark_financial_ingress(uuid,life_financial.identity,life_financial.identity)',
                 'life_financial.spot_mark_ack_ingress(uuid,life_financial.identity)',
                 'life_financial.spot_prepare(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',

@@ -313,3 +313,49 @@ def test_combined_stress_budget_applies_even_with_abundant_collateral(tmp_path):
 def test_unmodeled_portfolio_margin_or_currency_conversion_is_blocked(changes):
     with pytest.raises(ValueError):
         policy(**changes)
+
+
+def test_margin_rounds_exact_rational_up_to_native_quote_unit(tmp_path):
+    from decimal import localcontext
+    authority, _ = setup(tmp_path, configured=policy(
+        leverage=3, tiers=(MarginTier(D('100'), D('.1'), D('.03')),)))
+    with localcontext() as context:
+        context.prec = 8
+        initial, maintenance = authority._margins(D('1'), D('1'))
+    assert initial == D('.333333333333333334')
+    assert maintenance == D('.03')
+
+
+def test_risk_arithmetic_is_independent_of_callers_decimal_context(tmp_path):
+    from decimal import localcontext
+    authority, _ = setup(tmp_path, configured=policy(
+        leverage=3, tiers=(MarginTier(D('100'), D('.1'), D('.03')),)),
+        observed=snapshot(leverage=3, long_base=D('1.23456789123456789'), collateral_quote=D('100')))
+    expected = authority.check()
+    with localcontext() as context:
+        context.prec = 8
+        assert authority.check() == expected
+
+
+def test_margin_rounding_does_not_understate_stress_increment_over_account_requirement(tmp_path):
+    authority, _ = setup(tmp_path, configured=policy(
+        leverage=3, tiers=(MarginTier(D('100'), D('.1'), D('.03')),)),
+        observed=snapshot(leverage=3, long_base=D('1'), initial_margin_quote=D('1'), collateral_quote=D('100')))
+    assert authority.check().initial_margin_quote == D('1.033333333333333334')
+
+
+def test_sell_base_fee_is_included_in_hard_delta_limit(tmp_path):
+    configured = policy(limits=JointRiskLimits(D('5.99'), D('200'), D('1'), D('100'), D('10'), D('500')))
+    authority, _ = setup(tmp_path, configured=configured,
+                         observed=snapshot(spot_life_base=D('5'), short_base=D('6'), collateral_quote=D('100')))
+    decision = authority.reserve(claim('sell', side='SELL', amount='4.99'))
+    assert not decision.allowed and decision.reason_code == 'CAPITAL_DELTA_LIMIT'
+    assert decision.net_delta_worst_base == D('5.99499')
+    assert authority.claim_ids() == ()
+
+
+def test_sell_base_fee_cannot_borrow_inventory_even_when_cash_is_available(tmp_path):
+    authority, _ = setup(tmp_path, observed=snapshot(spot_life_base=D('5'), collateral_quote=D('100')))
+    result = authority.reserve(claim('sell', side='SELL', amount='5'))
+    assert not result.allowed and result.reason_code == 'CAPITAL_SPOT_INVENTORY_UNAVAILABLE'
+    assert authority.claim_ids() == ()

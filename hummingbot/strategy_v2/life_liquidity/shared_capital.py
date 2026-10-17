@@ -8,7 +8,8 @@ PolicyState supplies host-local locking, atomic checkpoints and writer fencing.
 import json
 from contextlib import nullcontext
 from dataclasses import asdict, dataclass
-from decimal import Decimal
+from decimal import Decimal, localcontext
+from fractions import Fraction
 from itertools import product
 from pathlib import Path
 
@@ -339,17 +340,35 @@ class SharedCapitalAuthority:
         state["snapshot_sequence"], state["snapshot"] = obs.sequence, encoded
         return obs
 
-    def _margins(self, base, price):
-        notional = base * price
+    @staticmethod
+    def _quote_ceiling(value):
+        scaled = value * 10**18
+        units, remainder = divmod(scaled.numerator, scaled.denominator)
+        with localcontext() as context:
+            context.prec = 512
+            return Decimal(units + bool(remainder)).scaleb(-18)
+
+    def _margin_rationals(self, base, price):
+        notional = Fraction(base) * Fraction(price)
         if notional == 0:
-            return ZERO, ZERO
+            return Fraction(0), Fraction(0)
         for tier in self.policy.tiers:
-            if notional <= tier.max_notional_quote:
-                return (notional * max(tier.initial_margin_rate, Decimal(1) / self.policy.leverage),
-                        notional * tier.maintenance_margin_rate)
+            if notional <= Fraction(tier.max_notional_quote):
+                return (notional * max(Fraction(tier.initial_margin_rate), Fraction(1, self.policy.leverage)),
+                        notional * Fraction(tier.maintenance_margin_rate))
         raise ValueError("CAPITAL_TIER_UNCOVERED")
 
+    def _margins(self, base, price):
+        return tuple(self._quote_ceiling(value) for value in self._margin_rationals(base, price))
+
     def _evaluate(self, obs, claims):
+        # Independent of callers' Decimal precision; native admitted inputs have
+        # at most 38 integral and 18 fractional digits, with bounded claim count.
+        with localcontext() as context:
+            context.prec = 512
+            return self._evaluate_at_precision(obs, claims)
+
+    def _evaluate_at_precision(self, obs, claims):
         orders = dict(claims)
         if len({c.intent_id for c in obs.pending}) != len(obs.pending):
             raise ValueError("CAPITAL_PENDING_DUPLICATE")
@@ -374,13 +393,18 @@ class SharedCapitalAuthority:
                 key = ("long" if c.side == "BUY" else "short") if c.position_action == "OPEN" else (
                     "close_long" if c.side == "SELL" else "close_short")
                 totals[key] += c.quantity_base
-        if totals["sell"] > obs.spot_life_base:
+        # An unknown SPOT fee asset can debit LIFE on a sell. Stress that
+        # endpoint too: charging its USDT value alone cannot enforce a base
+        # inventory or hard delta limit. BUY base fees cannot make its net base
+        # negative because the qualified fee rate is at most one.
+        sold_with_base_fees = totals["sell"] * (1 + self.policy.fee_rate)
+        if sold_with_base_fees > obs.spot_life_base:
             raise ValueError("CAPITAL_SPOT_INVENTORY_UNAVAILABLE")
         if spend + fees > obs.spot_cash_quote:
             raise ValueError("CAPITAL_CASH_UNAVAILABLE")
         if totals["close_long"] > obs.long_base or totals["close_short"] > obs.short_base:
             raise ValueError("CAPITAL_CLOSE_EXCEEDS_POSITION")
-        spots = (obs.spot_life_base - totals["sell"], obs.spot_life_base + totals["buy"])
+        spots = (obs.spot_life_base - sold_with_base_fees, obs.spot_life_base + totals["buy"])
         longs = (obs.long_base - totals["close_long"], obs.long_base + totals["long"])
         shorts = (obs.short_base - totals["close_short"], obs.short_base + totals["short"])
         scenarios = tuple(product(spots, longs, shorts))
@@ -391,11 +415,11 @@ class SharedCapitalAuthority:
         basis = perpetual * (stressed_price * self.policy.limits.adverse_basis_bps / BPS
                              + abs(obs.mark_price_usdt - obs.index_price_usdt))
         directional = delta * price * self.policy.price_stress_bps / BPS
-        actual_im, actual_mm = self._margins(obs.long_base + obs.short_base,
-                                             max(obs.mark_price_usdt, obs.index_price_usdt))
-        future_im, future_mm = self._margins(perpetual, stressed_price)
-        im = max(obs.initial_margin_quote, actual_im) + max(ZERO, future_im - actual_im)
-        mm = max(obs.maintenance_margin_quote, actual_mm) + max(ZERO, future_mm - actual_mm)
+        actual_im, actual_mm = self._margin_rationals(obs.long_base + obs.short_base,
+                                                      max(obs.mark_price_usdt, obs.index_price_usdt))
+        future_im, future_mm = self._margin_rationals(perpetual, stressed_price)
+        im = self._quote_ceiling(max(Fraction(obs.initial_margin_quote), actual_im) + max(Fraction(0), future_im - actual_im))
+        mm = self._quote_ceiling(max(Fraction(obs.maintenance_margin_quote), actual_mm) + max(Fraction(0), future_mm - actual_mm))
         available = obs.collateral_quote - spend - fees - basis - directional - obs.funding_liability_quote
         stress = fees + basis + directional + obs.funding_liability_quote
         values = dict(net_delta_worst_base=delta, gross_worst_base=gross, basis_loss_quote=basis,
@@ -417,6 +441,12 @@ class SharedCapitalAuthority:
         return CapitalDecision(True, "CAPITAL_READY", **values)
 
     def _operate(self, claim=None, *, reserve=False, spot_balances=None, swap_account=None, required_claims=()):
+        with localcontext() as context:
+            context.prec = 512
+            return self._operate_at_precision(claim, reserve=reserve, spot_balances=spot_balances,
+                                              swap_account=swap_account, required_claims=required_claims)
+
+    def _operate_at_precision(self, claim=None, *, reserve=False, spot_balances=None, swap_account=None, required_claims=()):
         try:
             if self.journal.archive is not None:
                 self.journal.archive.assert_capacity()

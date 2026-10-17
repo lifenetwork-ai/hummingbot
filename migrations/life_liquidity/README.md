@@ -511,3 +511,21 @@ untrusted and grants no financial application, completeness or send authority.
 Privileged `provision_access` grants the new fixed capture/read functions;
 runtime gets no table DML or private helper permission. Central startup migration
 version/checksum handling makes repeated runs a no-op, without reapplying SQL.
+
+
+### 000028: native shared SPOT/SWAP capital
+
+- `000028_shared_capital.sql`: empty immutable shared model/observations, typed
+  permanent SPOT/SWAP claims and monotone heads. One account transaction computes
+  independent fill endpoints (including SELL base fees), cash/fees and
+  tiered/stressed collateral. Imported
+  capacity is included in the model hash. Native SPOT preparation/arm additionally
+  requires its exact original claim/config/risk epoch and fee coverage. Bounded
+  native current/original-operation proofs qualify readback and physical COMMIT
+  rechecks primary generation/time. Exact rational margin rounds upward only at
+  the final 18-decimal quote requirement. No claim release, policy/account import,
+  SWAP sender/accounting, financial bootstrap or configured backend is installed.
+  Existing snapshot/private-core OIDs and ACLs survive upgrade; the existing
+  automatic migration switch applies this forward script once, then checksums
+  and skips it on repeat startup. Approved provisioning grants the new fixed
+  entrypoints; runtime receives no direct financial-table writes.
