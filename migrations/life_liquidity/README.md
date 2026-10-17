@@ -529,3 +529,5 @@ version/checksum handling makes repeated runs a no-op, without reapplying SQL.
   automatic migration switch applies this forward script once, then checksums
   and skips it on repeat startup. Approved provisioning grants the new fixed
   entrypoints; runtime receives no direct financial-table writes.
+
+- `000029_carry_streams.sql`: imported carry policy, independent monotone stream checks, permanent funding-payment evidence, native forecast/shared-capital decisions, bounded diagnostic reads and carry readiness at SPOT preparation/arm and physical COMMIT. No wallet credit, automatic source qualification or SWAP sender is added. Preserves the snapshot OID/ACL and all prior financial guards.

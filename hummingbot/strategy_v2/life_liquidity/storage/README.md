@@ -2466,3 +2466,34 @@ allocator does not install SWAP sending/accounting, funding credit, joint releas
 or APPLYING recovery, qualified live source, configured LIFE service, ownership
 handoff or production eligibility. Existing configured PostgreSQL rejection
 remains until the full PG3 composition is qualified.
+
+## Native PostgreSQL carry evidence (PG3 increment, 2026-10-17)
+
+`postgres/carry.py` implements the carry port through migration `000029` fixed
+account transactions. It requires the original `PgSharedCapitalRepository` and
+an explicitly qualified `CarryBundle` callback. This callback is not provider
+authentication. Independent monotone streams, immutable funding bills, dynamic
+cadence/horizon, worst gross funding costs and dynamic fee/tier evaluation use
+native SQL. Funding evidence never credits a wallet: settled funding is already
+included in the observed collateral; future receipts do not finance risk.
+
+`observe` binds one explicit operation to its original cut/owner. `lookup` and
+exact replay return the original receipt without calling the callback or renewing
+its timestamps. Every receipt has false trading permission. `check_carry` creates
+a new evidence operation. Invalid/missing feeds persist a denied observation and
+primary clock advance while preserving prior qualified streams. Expensive newer
+streams remain retained on economic refusal. Frame/readback require explicit row
+and byte limits; corruption and incomplete permanent payment history deny.
+
+When a carry policy is imported, SPOT prepare/arm additionally requires current
+carry readiness; a new shared observation/claim revokes the older result. Late
+ACK/accounting remains observation-only after feed denial. Actual process exit,
+lost backend reply, current-generation and physical fact-age checks cover the
+storage boundary. The migration preserves the old snapshot OID and ACL. The
+configured controller/service, SWAP sender/funding cash accounting, joint
+settlement/recovery and approved pending resolution remain unported. Retained
+check replay is not qualified scalable history; PG8/O.8 remain open.
+
+```sh
+make life-postgres-test LIFE_PG_TEST_ARGS="--suite carry --output /tmp/life-carry-run"
+```
