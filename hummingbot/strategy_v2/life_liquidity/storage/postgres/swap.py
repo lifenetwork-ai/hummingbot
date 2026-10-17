@@ -35,6 +35,7 @@ class PgSwapRepository:
             raise StorageError('PG_SWAP_CONTEXT_CHANGED')
 
     def _receipt(self, value):
+        self._original()
         if (value.get('kind') not in ('SWAP_PREPARE', 'SWAP_ARM', 'SWAP_ACK')
                 or value.get('trading_permission') is not False or type(value.get('replayed')) is not bool):
             raise StorageError('PG_SWAP_RECEIPT_INVALID')

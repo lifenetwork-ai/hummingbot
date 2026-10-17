@@ -47,8 +47,8 @@ class PgCarryRepository:
                 or self.capital.binding != self.binding or self.capital.owner != self.owner):
             raise StorageUnavailable('PG_CARRY_CONTEXT_CHANGED')
 
-    @staticmethod
-    def _receipt(value):
+    def _receipt(self, value):
+        self._original()
         if (type(value) is not dict or value.get('kind') != 'CARRY_CHECK' or value.get('trading_permission') is not False
                 or type(value.get('replayed')) is not bool or type(value.get('checked_at_ms')) is not int):
             raise StorageUnavailable('PG_CARRY_RECEIPT_INVALID')

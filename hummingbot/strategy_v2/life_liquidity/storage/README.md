@@ -2677,3 +2677,10 @@ This is not a legacy `APPLYING` importer, signed pending resolution, actual
 collateral/liability reconciliation, native hedge/risk/control or configured
 controller/runner/recorder/source/final-SWAP-send assembly. Configured PostgreSQL
 selection remains denied until those required native routes are installed.
+
+Product repositories pin their original financial/runtime/binding/owner and full
+runtime configuration. Capital/carry/SWAP parse a committed result only against
+that original context. A change after COMMIT returns `CommitUnknown`, revokes
+local admission and needs original primary readback through fresh correctly
+bound objects. No result can relabel a committed allocation/intent or restore
+permission. Fifteen actual PostgreSQL substitution/readback cases pass.

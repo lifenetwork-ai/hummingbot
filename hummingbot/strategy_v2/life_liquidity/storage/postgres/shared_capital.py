@@ -41,13 +41,17 @@ class PgSharedCapitalRepository:
         self.financial, self.runtime, self.binding = financial, financial._runtime, financial.binding
         self.owner, self.observation = owner, observation
         self.max_rows, self.max_bytes = max_rows, max_bytes
+        self._context = (financial, self.runtime, self.binding, owner, self.runtime.config)
 
     def _original(self):
-        if (self.financial._runtime is not self.runtime or self.financial.binding != self.binding
-                or self.runtime.config.binding != self.binding or self.runtime._closing):
+        financial, runtime, binding, owner, config = self._context
+        if (self.financial is not financial or self.runtime is not runtime or self.binding != binding or self.owner != owner
+                or financial._runtime is not runtime or financial.binding != binding
+                or runtime.config != config or runtime.config.binding != binding or runtime._closing):
             raise StorageUnavailable('PG_CAPITAL_CONTEXT_CHANGED')
 
     def _receipt(self, value):
+        self._original()
         if (type(value) is not dict or value.get('kind') != 'SHARED_CAPITAL' or value.get('trading_permission') is not False
                 or type(value.get('changed')) is not bool or type(value.get('replayed')) is not bool):
             raise StorageUnavailable('PG_CAPITAL_RECEIPT_INVALID')
