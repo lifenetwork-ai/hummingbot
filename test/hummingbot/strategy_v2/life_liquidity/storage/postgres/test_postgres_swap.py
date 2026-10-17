@@ -142,7 +142,7 @@ async def test_account_budget_exhaustion_blocks_swap_without_refunding_original_
 async def test_swap_physical_commit_rechecks_scope_and_original_capture_age(database, monkeypatch, fault, stage):
     import asyncio
     from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.helpers import install_generation_fault
-    values, repo, command = await setup(database, max_age_ms=1000)
+    values, repo, command = await setup(database, max_age_ms=2000)
     financial, cfg, owner = values[:3]
     try:
         if stage == 'arm':
@@ -152,10 +152,17 @@ async def test_swap_physical_commit_rechecks_scope_and_original_capture_age(data
         original = financial._runtime._commit
 
         async def changed(tx):
+            key = command.operation_id if stage == 'prepare' else repo._step_id(command.operation_id, 'arm')
+            staged = await tx._connection.fetchval("SELECT receipt->>'state' FROM life_financial.operations WHERE operation_id=$1", key)
+            assert staged == ('PREPARED' if stage == 'prepare' else 'SEND_UNKNOWN'), 'fault must follow accepted storage publication'
             if fault == 'generation':
                 await tx._connection.execute('SELECT life_financial.test_change_generation($1)', cfg.account_id)
             else:
-                await asyncio.sleep(1.05)
+                b = values[7][0]
+                source_ms = min(values[4][0].observed_at_ms, b.mark.observed_at_ms, b.index.observed_at_ms,
+                                b.funding.observed_at_ms, b.terms.observed_at_ms)
+                now_ms = await tx._connection.fetchval('SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint')
+                await asyncio.sleep(max(0, (source_ms + 2000 - now_ms) / 1000) + .1)
             await original(tx)
 
         monkeypatch.setattr(financial._runtime, '_commit', changed)
