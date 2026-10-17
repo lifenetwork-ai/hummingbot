@@ -49,3 +49,25 @@ def test_original_units_and_namespaced_trade_id_roundtrip_without_authority():
     for operation_id in ('pending', 'batch', 'funding'):
         with pytest.raises(StorageError):
             replace(command, operation_id=operation_id)
+
+
+def test_cohort_is_canonical_and_preserves_the_original_single_parent_signed_shape():
+    command = ResolveJointSources('repair', 'pending', batch_command())
+    assert set(command.json()) == {'operation_id', 'pending_operation_id', 'replacement'}
+    cohort = replace(command, additional_pending_operation_ids=('second', 'first'))
+    assert cohort.additional_pending_operation_ids == ('first', 'second')
+    assert ResolveJointSources.from_json(cohort.json()) == cohort
+
+
+@pytest.mark.parametrize('value', [[], (None,), ('pending',), ('repair',), ('batch',), ('funding',), ('same', 'same')])
+def test_cohort_rejects_mutable_invalid_or_aliased_ids(value):
+    with pytest.raises(StorageError):
+        ResolveJointSources('repair', 'pending', batch_command(), value)
+
+
+@pytest.mark.parametrize('value', [None, [], 'second', [True]])
+def test_signed_cohort_json_never_coerces_an_empty_or_malformed_list(value):
+    data = ResolveJointSources('repair', 'pending', batch_command()).json()
+    data['additional_pending_operation_ids'] = value
+    with pytest.raises(StorageError):
+        ResolveJointSources.from_json(data)

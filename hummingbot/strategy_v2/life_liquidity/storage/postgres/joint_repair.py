@@ -84,27 +84,38 @@ class ResolveJointSources:
     operation_id: str
     pending_operation_id: str
     replacement: ApplyJointBatch
+    additional_pending_operation_ids: tuple[str, ...] = ()
 
     def __post_init__(self):
-        for value in (self.operation_id, self.pending_operation_id):
+        if type(self.additional_pending_operation_ids) is not tuple or len(self.additional_pending_operation_ids) > 255:
+            raise StorageError('PG_JOINT_REPAIR_COMMAND_INVALID')
+        for value in (self.operation_id, self.pending_operation_id, *self.additional_pending_operation_ids):
             identifier(value)
             if len(value) > 96:
                 raise StorageError('PG_JOINT_REPAIR_COMMAND_INVALID')
         if type(self.replacement) is not ApplyJointBatch:
             raise StorageError('PG_JOINT_REPAIR_COMMAND_INVALID')
-        ids = [self.operation_id, self.pending_operation_id, self.replacement.operation_id,
+        ids = [self.operation_id, self.pending_operation_id, *self.additional_pending_operation_ids, self.replacement.operation_id,
                *(r.operation_id for r in (*self.replacement.spot_fills, *self.replacement.swap_fills, *self.replacement.cashflows)), self.replacement.funding.operation_id]
         if len(ids) != len(set(ids)):
             raise StorageError('PG_JOINT_REPAIR_ID_CONFLICT')
+        object.__setattr__(self, 'additional_pending_operation_ids', tuple(sorted(self.additional_pending_operation_ids)))
 
     def json(self):
-        return dict(operation_id=self.operation_id, pending_operation_id=self.pending_operation_id, replacement=self.replacement.json())
+        result = dict(operation_id=self.operation_id, pending_operation_id=self.pending_operation_id, replacement=self.replacement.json())
+        if self.additional_pending_operation_ids:
+            result['additional_pending_operation_ids'] = list(self.additional_pending_operation_ids)
+        return result
 
     @classmethod
     def from_json(cls, value):
-        if type(value) is not dict or set(value) != {'operation_id', 'pending_operation_id', 'replacement'}:
+        if type(value) is not dict or set(value) not in ({'operation_id', 'pending_operation_id', 'replacement'},
+                                                         {'operation_id', 'pending_operation_id', 'replacement', 'additional_pending_operation_ids'}):
             raise StorageError('PG_JOINT_REPAIR_COMMAND_INVALID')
-        return cls(value['operation_id'], value['pending_operation_id'], ApplyJointBatch.from_json(value['replacement']))
+        additional = value.get('additional_pending_operation_ids', [])
+        if type(additional) is not list or ('additional_pending_operation_ids' in value and not additional):
+            raise StorageError('PG_JOINT_REPAIR_COMMAND_INVALID')
+        return cls(value['operation_id'], value['pending_operation_id'], ApplyJointBatch.from_json(value['replacement']), tuple(additional))
 
 
 @dataclass(frozen=True)
@@ -114,6 +125,7 @@ class JointRepairReceipt:
     pending_operation_id: str
     replacement_operation_id: str
     replayed: bool
+    additional_pending_operation_ids: tuple[str, ...] = ()
     state: str = field(default='REPAIRED', init=False)
     atomic_scope: AtomicScope = field(default=AtomicScope.ACCOUNT, init=False)
     trading_permission: bool = field(default=False, init=False)
@@ -139,8 +151,11 @@ class PgJointRepairRepository:
         if (value.get('kind') != 'JOINT_REPAIR' or value.get('state') != 'REPAIRED' or value.get('trading_permission') is not False
                 or type(value.get('replayed')) is not bool):
             raise StorageError('PG_JOINT_REPAIR_RECEIPT_INVALID')
+        additional = value.get('additional_pending_operation_ids', [])
+        if type(additional) is not list or len(additional) > 255 or any(type(v) is not str for v in additional) or len(set(additional)) != len(additional):
+            raise StorageError('PG_JOINT_REPAIR_RECEIPT_INVALID')
         return JointRepairReceipt(self.binding, identifier(value['operation_id']), identifier(value['pending_operation_id']),
-                                  identifier(value['replacement_operation_id']), value['replayed'])
+                                  identifier(value['replacement_operation_id']), value['replayed'], tuple(identifier(v) for v in additional))
 
     async def _read(self, operation_id, binding):
         self._original()

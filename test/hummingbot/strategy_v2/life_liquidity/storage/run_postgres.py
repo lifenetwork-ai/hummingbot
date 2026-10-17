@@ -17,7 +17,7 @@ def main():
     import asyncpg  # noqa: F401 -- mandatory for this opt-in real-process runner.
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--suite', choices=('all', 'recorder', 'capital', 'session', 'lifecycle', 'actions', 'action_prepare', 'action_reconcile', 'action_abandon', 'runner_journal', 'quote_arm', 'quote_transport', 'quote_source', 'outbox', 'configuration', 'events', 'positions', 'reporting_application', 'approval_import', 'ack_ingress', 'observation_context', 'financial_ingress', 'financial_collection', 'inventory_settlement', 'markout', 'carry', 'swap', 'swap_accounting', 'swap_fills', 'funding', 'funding_repair', 'portfolio', 'swap_terminal', 'shared_release', 'joint_batch', 'joint_repair', 'hedge', 'swap_transport', 'collateral', 'joint_recovery', 'late_capital'), default='all')
+    parser.add_argument('--suite', choices=('all', 'recorder', 'capital', 'session', 'lifecycle', 'actions', 'action_prepare', 'action_reconcile', 'action_abandon', 'runner_journal', 'quote_arm', 'quote_transport', 'quote_source', 'outbox', 'configuration', 'events', 'positions', 'reporting_application', 'approval_import', 'ack_ingress', 'observation_context', 'financial_ingress', 'financial_collection', 'inventory_settlement', 'markout', 'carry', 'swap', 'swap_accounting', 'swap_fills', 'funding', 'funding_repair', 'funding_cohort', 'portfolio', 'swap_terminal', 'shared_release', 'joint_batch', 'joint_repair', 'hedge', 'swap_transport', 'collateral', 'joint_recovery', 'late_capital'), default='all')
     parser.add_argument('--fail-fast', action='store_true', help='Stop at the first failure while retaining the original log/XML')
     parser.add_argument('--linux-image', help='Immutable locally built image ID; recorder suite only')
     args = parser.parse_args()
@@ -103,6 +103,8 @@ def main():
             selector /= 'test_postgres_swap_terminal.py'
         elif args.suite == 'portfolio':
             selector /= 'test_postgres_portfolio.py'
+        elif args.suite == 'funding_cohort':
+            selector /= 'test_postgres_funding_cohort.py'
         elif args.suite == 'funding_repair':
             selector /= 'test_postgres_funding_repair.py'
         elif args.suite == 'funding':
@@ -132,7 +134,7 @@ def main():
         selectors = [str(selector)]
         if args.suite == 'joint_recovery':
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in (
-                'collateral', 'joint_batch', 'joint_repair', 'funding', 'funding_repair', 'portfolio', 'swap_terminal', 'shared_release', 'late_capital')]
+                'collateral', 'joint_batch', 'joint_repair', 'funding', 'funding_repair', 'funding_cohort', 'portfolio', 'swap_terminal', 'shared_release', 'late_capital')]
         command = [sys.executable, '-m', 'pytest', '-q', *selectors,
                    '--junitxml=' + str(output / 'integration.xml')]
         if args.suite == 'financial_collection':

@@ -18,7 +18,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.joint_repair_approva
 from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancialRecoveryFacts
 
 
-async def setup(database, *, extra_pending=False, portfolio=False):
+async def setup(database, *, extra_pending=False, portfolio=False, max_members=32):
     keys = OperatorKeys({'operator': b'r' * 32}, {'operator': frozenset(('RECOVER',))})  # Synthetic test key.
     values, funding, original = await funding_setup(
         database, carry_options=dict(refresh_initial_facts=True),
@@ -26,7 +26,7 @@ async def setup(database, *, extra_pending=False, portfolio=False):
     financial, cfg, owner = values[:3]
     c = database[0]
     await c.execute('INSERT INTO life_financial.spot_fill_policies VALUES($1,$2,1000,4096)', cfg.account_id, cfg.binding.policy_hash)
-    await c.execute('INSERT INTO life_financial.joint_batch_policies VALUES($1,$2,32,64,1048576)', cfg.account_id, cfg.binding.policy_hash)
+    await c.execute('INSERT INTO life_financial.joint_batch_policies VALUES($1,$2,$3,64,1048576)', cfg.account_id, cfg.binding.policy_hash, max_members)
     await c.execute('INSERT INTO life_financial.joint_repair_policies VALUES($1,$2,64,64,1048576,5000)', cfg.account_id, cfg.binding.policy_hash)
     if portfolio:
         await c.execute('INSERT INTO life_financial.portfolio_policies VALUES($1,$2,1,1000,5000,64,1048576)', cfg.account_id, cfg.binding.policy_hash)
@@ -88,7 +88,8 @@ async def test_signed_direct_funding_keeps_original_pending_and_books_bill_once(
 
 
 @pytest.mark.asyncio
-async def test_repaired_funding_allows_fresh_native_nav_terminal_and_claim_retirement(database):
+@pytest.mark.parametrize('cohort', [False, True])
+async def test_repaired_funding_allows_fresh_native_nav_terminal_and_claim_retirement(database, cohort):
     from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_portfolio import refresh
 
     from hummingbot.strategy_v2.life_liquidity.storage.postgres.portfolio import MeasurePortfolio, PgPortfolioRepository
@@ -100,9 +101,13 @@ async def test_repaired_funding_allows_fresh_native_nav_terminal_and_claim_retir
         ConfirmSwapTerminal,
         PgSwapTerminalRepository,
     )
-    values, funding, bad, command, facts, cut, approval, importer, _ = await setup(database, portfolio=True)
+    values, funding, bad, command, facts, cut, approval, importer, keys = await setup(database, portfolio=True, extra_pending=cohort)
     financial, cfg, owner = values[:3]
     try:
+        if cohort:
+            command = replace(command, additional_pending_operation_ids=('another-pending',))
+            approval = keys.sign('operator', cfg.binding, 'RECOVER', command.json(), cut, facts,
+                                 issued_at=approval.issued_at, expires_at=approval.expires_at)
         await importer.approve(command, approval=approval, cut=cut, facts=facts)
         await PgJointRepairRepository(importer.batch).resolve(command, cut=cut, owner=owner)
         # Explicit new synthetic account/carry capture; repair grants neither

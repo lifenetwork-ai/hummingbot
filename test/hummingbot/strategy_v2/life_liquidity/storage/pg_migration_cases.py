@@ -1194,3 +1194,33 @@ async def test_direct_funding_repair_upgrade_preserves_oids_acl_and_repeat_start
     assert (await migrate(c, directory, action='up'))['applied'] == []
     for table in ('accounts', 'balances', 'operations', 'joint_repair_approvals', 'joint_repair_facts', 'joint_repair_staging'):
         assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+
+
+@pytest.mark.asyncio
+async def test_funding_cohort_upgrade_retains_single_parent_oids_acl_and_private_members(db):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 45:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    signatures = ('life_financial.joint_repair_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
+                  'life_financial.joint_repair_read(uuid,integer,integer,text)', 'life_financial.joint_repair_profile(uuid,jsonb,jsonb,bigint)',
+                  'life_financial.joint_repair_verified(uuid)', 'life_financial.joint_repair_approval_integrity(uuid)',
+                  'life_financial.funding_pending_unresolved(uuid,text,bigint,boolean)', 'life_financial.commit_owner_guard()')
+    oids = [await c.fetchval('SELECT to_regprocedure($1)::oid', signature) for signature in signatures]
+    await c.execute('GRANT EXECUTE ON FUNCTION life_financial.joint_repair_read(uuid,integer,integer,text) TO life_runtime_test,life_reporter_test')
+    await c.execute('GRANT EXECUTE ON FUNCTION life_financial.joint_repair_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb) TO life_runtime_test')
+    path = DEFAULT_DIRECTORY / '000045_funding_repair_cohorts.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    assert [await c.fetchval('SELECT to_regprocedure($1)::oid', signature) for signature in signatures] == oids
+    for principal in ('life_runtime_test', 'life_reporter_test'):
+        assert await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", principal, signatures[1])
+        assert await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", principal, signatures[0]) is (principal == 'life_runtime_test')
+        for signature in (*signatures[2:], 'life_financial.joint_repair_sources(uuid,jsonb)',
+                          'life_financial.joint_repair_cohort_verified(uuid)', 'life_financial.joint_repair_profile_single(uuid,jsonb,jsonb,bigint)'):
+            assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", principal, signature)
+        assert not await c.fetchval("SELECT has_table_privilege($1,'life_financial.joint_repair_members','SELECT,INSERT,UPDATE,DELETE')", principal)
+    assert (await migrate(c, directory, action='up'))['applied'] == []
+    for table in ('accounts', 'balances', 'operations', 'joint_repair_members', 'joint_repair_staging'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0

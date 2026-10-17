@@ -2721,14 +2721,14 @@ bypassed. Runtime/reporter roles cannot import approvals or access the private
 transaction capability; expiry and ownership are rechecked at physical COMMIT.
 
 This profile cannot rewrite wrong monetary observations or clear direct native
-SPOT/SWAP/terminal pending facts. Migration 44 extends it to the single direct
+SPOT/SWAP/terminal pending facts. Migrations 44–45 extend it to the direct
 funding profile below. It authenticates operator approval, not provider facts.
 Legacy import, full control/hedge and configured joint collection/
 runner/recorder/final-send assembly remain required. PostgreSQL selection stays
 denied. Run isolated qualification with `--suite joint_repair` in the central
 `storage.run_postgres` runner; use disposable loopback PostgreSQL only.
 
-### Direct funding pending repair (migration 44)
+### Direct funding pending repair (migrations 44–45)
 
 The same `ResolveJointSources` may target an original standalone `PAID_FUNDING`
 operation in `RECOVERY_REQUIRED`. The replacement has no SPOT/SWAP fills or
@@ -2739,15 +2739,29 @@ causal cash/position replay, collateral and liability gates still apply.
 
 The private capability binds the exact repair ID, pending ID and replacement in
 the current transaction. Another approval with identical replacement JSON grants
-no additional bypass. Another direct pending observation blocks publication;
-multi-observation cohorts remain unimplemented. The original pending row/receipt
+no additional bypass. Migration 45 permits an explicitly signed funding cohort:
+set `ResolveJointSources.additional_pending_operation_ids` to an immutable tuple
+of additional original direct-funding pending IDs. The tuple is canonicalized;
+the field is absent from the original single-parent signed JSON/receipt. A
+cohort must preserve every selected original bill, including overlapping bills
+and distinct debit/credit histories. It cannot include SPOT/SWAP/terminal or
+already consumed origins. Another direct pending observation outside the chosen
+group blocks publication. The original pending row/receipt
 stays immutable and visible in `funding.frame()['pending']` for diagnostics.
 Current unresolved flags clear only through the committed resolution link;
 historical terminal/release proofs use its original committed version. Repair
 does not clear HALT, release a claim or authorize trading. Fresh account/carry/NAV
 and independent terminal/release commands remain required afterward.
 
-Use `--suite funding_repair` for this profile. The `joint_recovery` selector also
+The existing imported `joint_batch_policies.max_members` additionally bounds the
+number of original pending operations per cohort. Existing repair byte capacity
+counts approvals, root links and additional immutable membership rows together.
+No capacity or economic threshold is created by the migration. Members are
+consumed permanently across both primary and additional target positions.
+Actual economic ordering still determines whether a debit can be financed;
+later income never funds an earlier deficit or nets away gross funding spending.
+
+Use `--suite funding_repair` / `--suite funding_cohort` for these profiles. The `joint_recovery` selector also
 includes ordinary funding and these tests. All runners use disposable loopback
 PostgreSQL with synthetic sources, never the configured `.env` database.
 

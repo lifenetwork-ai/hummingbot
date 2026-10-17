@@ -729,3 +729,15 @@ account, policy, balance, activation or configured PostgreSQL sender.
   entrypoint OIDs/ACLs, expiry/owner COMMIT fences and HALT remain; new helpers
   stay private. Automatic enabled startup uses the same migration lock/checksum
   runner; repeated startup skips this applied script. Earlier scripts are unchanged.
+
+- `000045_funding_repair_cohorts.sql`: extends RECOVER with explicitly selected
+  direct-funding pending IDs. Each selected original source is hashed and every
+  original bill identity/amount/time must match the final complete source.
+  One immutable membership table retains secondary resolution links; replay
+  consumes each origin once across primary/secondary positions. Other pending
+  observations still block; source readiness, terminal/release and activation
+  remain separate. Original single-parent signed JSON/receipts and public
+  OIDs/ACLs are preserved. Imported member/byte limits bound the whole group,
+  including membership bytes; no financial default or trading grant is seeded.
+  Runtime/reporting roles cannot access membership or new private helpers.
+  Existing automatic migration locking/checksums and repeat-startup behavior apply.
