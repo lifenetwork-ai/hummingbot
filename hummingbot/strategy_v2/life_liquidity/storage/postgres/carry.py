@@ -1,4 +1,5 @@
 """Native carry evidence and diagnostics. No feed authentication or send grant."""
+import asyncio
 import inspect
 from dataclasses import asdict, dataclass, field
 from decimal import Decimal
@@ -106,6 +107,9 @@ class PgCarryRepository:
             bundle = self.observation()
             if inspect.isawaitable(bundle):
                 bundle = await bundle
+        except asyncio.CancelledError:
+            self.runtime._healthy = False
+            raise
         except Exception:
             bundle = None
         self._original()

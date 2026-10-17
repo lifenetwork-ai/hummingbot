@@ -632,6 +632,15 @@ PG3 tests seed explicitly synthetic ownership/grant rows through test-only setup
 **Done when:** equivalent file/PG replays yield identical units, balances, holds, budgets, identities and decisions for supported scope; database atomicity is never presented as exactly-once exchange delivery.
 
 
+### PG3 product-source revocation qualification (2026-10-17)
+
+Base `6eeb2d97b`. An additional audit reproduced seven failures: cancelled capital/carry refresh and failed/malformed/rejected new account snapshots left the local runtime healthy while the previous stored decision was still fresh. This could admit a later new-risk command on old evidence. The adapters now revoke that original runtime before propagating source cancellation/exception, unsupported serialization or fixed native account-evidence rejection. No financial row, original claim, approval or receipt is cleared or rewritten.
+
+Diagnostic reads remain available. After local revocation, a capital OBSERVE may use the safety lane to record qualified diagnostic evidence; its existing SQL ACTIVE-owner/session/expiry/durability checks still apply and the runtime remains revoked. RESERVE still uses the new-risk lane and is rejected. Original readback remains diagnostic, without refreshing a source or granting transport. An ordinary carry feed failure still records a durable denied carry check; cancellation before that command now revokes the local runtime. This does not implement PG4 ownership handoff or automatically select a configured source/service.
+
+- Initial Red: **seven reproductions failed** (`/tmp/life-pg3-product-source-red`). The affected native capital/carry/SWAP selector then passed **172 cases**, six existing warnings, 285.44 s (`/tmp/life-pg3-product-source-green`). A final extra malformed-wire and diagnostic-no-heal check qualifies **nine source cases**, six existing warnings, 16.29 s (`/tmp/life-pg3-product-source-final`). Serialization/fingerprint failures are included in the revocation boundary. No thresholds, schema or money change.
+- The full native financial regression remains frozen on `6eeb2d97b`; record its final outcome separately from this source-error-path increment. Current PostgreSQL controller/backend selection, final SWAP transport, full financial portfolios/pending/control/source composition and full PG3 remain open.
+
 ### PG3 native SWAP intent qualification (2026-10-17)
 
 Base `c6eb833bd`. Migration `000030` and `PgSwapRepository` port captured SWAP intent preparation, durable arm and late ACK bookkeeping. **This closes the standalone intent slice, not PG3.3 or the configured sender.**

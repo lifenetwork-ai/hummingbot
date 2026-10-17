@@ -2523,3 +2523,18 @@ hedge plans and joint settlement/recovery remain separate required PG3 ports.
 ```sh
 make life-postgres-test LIFE_PG_TEST_ARGS="--suite swap --output /tmp/life-swap-run"
 ```
+
+## Account-source failure revokes local admission
+
+A new shared-capital refresh that is cancelled, fails serialization/type checks or
+is rejected for account/wallet/sequence/native-order context revokes its original
+`PgRuntime`. Carry refresh cancellation also revokes it. The previous stored
+ready decision remains diagnostic; it cannot admit another new-risk command on
+that runtime. Ordinary carry feed failure records its existing durable denial.
+
+A revoked runtime may use the safety lane for a diagnostic capital OBSERVE. The
+SQL ACTIVE-owner/session/expiry checks remain mandatory, successful observation
+never heals local readiness, and RESERVE stays on the denied new-risk lane.
+Financial state and original claims are retained. Rebuilding a qualified runtime
+is separate from receipt/readback and remains subject to configured source and
+PG4 ownership gates. No new schema, financial default or activation is added.
