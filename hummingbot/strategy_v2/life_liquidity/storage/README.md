@@ -2661,7 +2661,8 @@ final wallet/leg cut. An earlier actual payment can fund a later debit; later
 income cannot finance an earlier deficit. Already applied exact members retain
 their original receipts. A failed member or final replay rolls back all staged
 money/costs and retains the original entire batch with HALT. New IDs cannot
-bypass that pending state. Signed repair is still required and unimplemented.
+bypass that pending state. The signed source-repair profile below is required
+to resolve a retained parent; ordinary publication never clears it.
 
 Runtime/reporter roles cannot execute the stage kernels or read/write their
 capability table. A stage capability cannot survive COMMIT. Explicit bounds
@@ -2720,11 +2721,35 @@ bypassed. Runtime/reporter roles cannot import approvals or access the private
 transaction capability; expiry and ownership are rechecked at physical COMMIT.
 
 This profile cannot rewrite wrong monetary observations or clear direct native
-SPOT/SWAP/funding/terminal pending facts. It authenticates operator approval, not
-provider facts. Legacy import, full control/hedge and configured joint collection/
+SPOT/SWAP/terminal pending facts. Migration 44 extends it to the single direct
+funding profile below. It authenticates operator approval, not provider facts.
+Legacy import, full control/hedge and configured joint collection/
 runner/recorder/final-send assembly remain required. PostgreSQL selection stays
 denied. Run isolated qualification with `--suite joint_repair` in the central
 `storage.run_postgres` runner; use disposable loopback PostgreSQL only.
+
+### Direct funding pending repair (migration 44)
+
+The same `ResolveJointSources` may target an original standalone `PAID_FUNDING`
+operation in `RECOVERY_REQUIRED`. The replacement has no SPOT/SWAP fills or
+external cashflows; it refreshes complete account/funding/mark/index/terms facts
+and retains every original bill ID, signed amount and settlement time. It uses
+new replacement operation IDs. No synthetic pending batch is inserted. Native
+causal cash/position replay, collateral and liability gates still apply.
+
+The private capability binds the exact repair ID, pending ID and replacement in
+the current transaction. Another approval with identical replacement JSON grants
+no additional bypass. Another direct pending observation blocks publication;
+multi-observation cohorts remain unimplemented. The original pending row/receipt
+stays immutable and visible in `funding.frame()['pending']` for diagnostics.
+Current unresolved flags clear only through the committed resolution link;
+historical terminal/release proofs use its original committed version. Repair
+does not clear HALT, release a claim or authorize trading. Fresh account/carry/NAV
+and independent terminal/release commands remain required afterward.
+
+Use `--suite funding_repair` for this profile. The `joint_recovery` selector also
+includes ordinary funding and these tests. All runners use disposable loopback
+PostgreSQL with synthetic sources, never the configured `.env` database.
 
 ## Native PostgreSQL hedge coordination (PG3 increment, 2026-10-17)
 
@@ -2816,6 +2841,7 @@ python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_postgres \
   --suite joint_recovery --fail-fast --output /tmp/life-pg3-joint-recovery
 ```
 
-It includes batch, signed source repair, NAV, terminal, shared release, late
+It includes batch, signed joint/direct-funding source repair, ordinary funding,
+NAV, terminal, shared release, late
 observations and collateral tests. It does not replace whole-service acceptance
 or the other four fixed PG3 workstreams.

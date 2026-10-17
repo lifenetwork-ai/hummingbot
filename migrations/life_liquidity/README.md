@@ -715,3 +715,17 @@ account, policy, balance, activation or configured PostgreSQL sender.
   Previously inconsistent source history becomes unqualified; startup does not
   rewrite it or release its claims. Provider currency-equity/liability capture,
   other collateral models and configured service eligibility remain PG3 work.
+
+- `000044_direct_funding_repair.sql`: extends the existing signed RECOVER path
+  to one retained standalone funding observation. Resolution links reference the
+  original native operation; no pending parent, account, policy or money is
+  seeded. Complete fresh sources must preserve original bill identities, amounts
+  and times and pass the existing causal/collateral/liability replay. Original
+  pending rows/receipts remain immutable. Only committed resolution links change
+  unresolved predicates; historical terminal/release proofs use their original
+  version. The private staging capability binds the exact repair and pending
+  IDs, preventing a second approval with identical replacement JSON from widening
+  the transaction. Other direct pending facts still block publication. Existing
+  entrypoint OIDs/ACLs, expiry/owner COMMIT fences and HALT remain; new helpers
+  stay private. Automatic enabled startup uses the same migration lock/checksum
+  runner; repeated startup skips this applied script. Earlier scripts are unchanged.

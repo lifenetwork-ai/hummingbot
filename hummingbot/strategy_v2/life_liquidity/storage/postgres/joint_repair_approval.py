@@ -1,4 +1,4 @@
-"""Privileged Ed25519 import for source-only joint repair; no activation."""
+"""Privileged signed source repair for joint/funding pending; no activation."""
 import asyncio
 import json
 from dataclasses import dataclass, field
@@ -136,7 +136,7 @@ class PgJointRepairApprovalImporter:
                     if not await c.fetchval('SELECT life_financial.joint_repair_profile($1,$2::jsonb,$3::jsonb,$4)', cfg.account_id,
                                             json.dumps(command.json()), json.dumps(facts.json()), cut.checkpoint.revision):
                         raise StorageError('PG_JOINT_REPAIR_IMPORT_PROFILE_INVALID')
-                    raw = await c.fetchval('SELECT command FROM life_financial.joint_financial_batches WHERE account_id=$1 AND operation_id=$2', cfg.account_id, command.pending_operation_id)
+                    raw = await c.fetchval('SELECT command FROM life_financial.joint_repair_origin($1,$2)', cfg.account_id, command.pending_operation_id)
                     expected.update(account=json.loads(account_raw), pending_source_hash=fingerprint(json.loads(raw)))
                     body = json.dumps(expected, separators=(',', ':'), sort_keys=True)
                     count, size = await c.fetchrow('SELECT count(*),COALESCE(sum(octet_length(to_jsonb(r)::text)),0) FROM life_financial.joint_repair_approvals r WHERE account_id=$1', cfg.account_id)

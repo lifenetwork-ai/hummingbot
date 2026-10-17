@@ -1,4 +1,4 @@
-"""Signed source-only joint repair; raw pending facts and HALT survive.
+"""Signed source repair for joint/funding pending; raw facts and HALT survive.
 
 Source labels/complete flags are caller assertions until the separately qualified
 joint collector is installed. This port authenticates no exchange response.
