@@ -122,7 +122,8 @@ class PgSharedCapitalRepository:
                                                    owner, self._receipt, observation=claim is None and not self.runtime._healthy)
         except StorageError as error:
             if str(error) in ('PG_CAPITAL_SNAPSHOT_UNQUALIFIED', 'PG_CAPITAL_SPOT_BALANCE_MISMATCH',
-                              'PG_CAPITAL_SNAPSHOT_REPLAY_OR_MUTATION', 'PG_CAPITAL_NATIVE_ORDER_SCOPE_INCOMPLETE'):
+                              'PG_CAPITAL_SNAPSHOT_REPLAY_OR_MUTATION', 'PG_CAPITAL_NATIVE_ORDER_SCOPE_INCOMPLETE',
+                              'PG_SWAP_ACCOUNT_SNAPSHOT_MISMATCH'):
                 self.runtime._healthy = False
             raise
 

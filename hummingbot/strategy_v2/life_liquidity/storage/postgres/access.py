@@ -53,6 +53,7 @@ async def provision_access(connection, *, principal, account_id, write):
         await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.carry_read(uuid,integer,integer,text) TO "{principal}"')
         await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.swap_read(uuid,integer,integer,text) TO "{principal}"')
         await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.spot_read_provider_collection(uuid,life_financial.identity,integer,integer) TO "{principal}"')
+        await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.swap_fill_read(uuid,integer,integer,text) TO "{principal}"')
         if write:
             await connection.execute(f'''GRANT EXECUTE ON FUNCTION life_financial.guard_account(uuid,jsonb,jsonb,bigint),
                 life_financial.allocate_balance(uuid,jsonb,jsonb,bigint,life_financial.identity,life_financial.digest,text,life_financial.positive_amount),
@@ -61,6 +62,7 @@ async def provision_access(connection, *, principal, account_id, write):
                 life_financial.spot_capture_provider_page(uuid,jsonb),
                 life_financial.shared_capital_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb),
                 life_financial.carry_check(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb),
+                life_financial.swap_fill_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb),
                 life_financial.swap_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,text,jsonb),
                 life_financial.spot_mark_financial_ingress(uuid,life_financial.identity,life_financial.identity),
                 life_financial.spot_mark_ack_ingress(uuid,life_financial.identity),

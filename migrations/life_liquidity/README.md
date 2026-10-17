@@ -555,3 +555,22 @@ or logarithm guesses. Work bounds are explicit. PUBLIC and runtime have no
 EXECUTE grant; no table, account, wallet writer, claim release or sender is added.
 Full native joint financial settlement remains required. Decimal28 parity does
 not establish the venue's live settlement rounding contract.
+
+### 000032: native cumulative SWAP fill accounting
+
+`000032_swap_fill_accounting.sql` adds explicitly imported opening position,
+reference and work policy, permanent original fill/pending facts and accounting
+progress. The guarded account transaction updates only signed realized PnL plus
+actual USDT fees, retains causal weighted basis and charges original session/day/
+campaign gross loss buckets. It never spends derivative principal as SPOT cash.
+Invalid/conflicting/incomplete/unpayable facts retain durable pending/HALT after
+rolling back every provisional monetary effect. Original readback never reapplies
+fees. Common SPOT, operator approval and reporting/ingress proofs stay in place.
+Current derivative facts gate later risk snapshots even for zero-fee opens.
+Old SPOT-only NAV cannot be current portfolio NAV; new publication is denied for
+an enabled SWAP-accounting account. Explicit fill/observation/read bounds apply.
+Runtime receives only the scoped fill command/read endpoints, never direct DML,
+policy import, private arithmetic/proof, terminal authority or claim release.
+Paid funding cash, full joint portfolio accounting/NAV, source qualification and
+configured application assembly remain required. Repeat startup uses the same
+central version/checksum migration runner and adds no accounts or money.

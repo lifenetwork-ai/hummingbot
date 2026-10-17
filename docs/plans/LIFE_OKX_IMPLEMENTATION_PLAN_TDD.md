@@ -1,5 +1,7 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**PG3 native SWAP fill checkpoint (2026-10-17, base `d5e9a2910`):** complete original cumulative fills now atomically publish signed fees/realized PnL and gross loss budgets, preserve basis/identity across retry, and retain invalid/unpayable facts as pending/HALT without partial money writes. Zero-fee position changes revoke stale risk snapshots. **27 native cases pass**, including actual process/backend COMMIT loss, partial fills and profitable close. Claims stay held and SPOT-only NAV is refused for a SWAP account. See [qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-native-swap-fill-qualification-2026-10-17). Native funding/portfolio/joint/hedge/pending/control and configured full assembly remain open; **full PG3 is not closed**.
+
 **PG3 causal SWAP arithmetic checkpoint (2026-10-17, base `99cfcb704`):** the private SQL replay validates exact trade/payment units, identities, same-millisecond sequence, long/short basis, close PnL, fees and paid funding. File replay now owns its existing decimal28 half-even context. **33 native arithmetic, 242 focused File and 37 migration cases pass**. This kernel has no runtime grant or wallet/release effect; native joint financial application and full PG3 remain open. See [qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-causal-swap-arithmetic-qualification-2026-10-17).
 
 Created: 2026-10-01 (Asia/Ho_Chi_Minh)

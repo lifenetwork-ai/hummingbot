@@ -2553,3 +2553,22 @@ File joint replay now owns/restores that arithmetic context so caller precision
 cannot redefine retained facts. Causal native joint wallet application, funding
 settlement and claim release still require their domain command and recovery
 proofs; this arithmetic kernel is not a configured financial backend.
+
+## Native derivative fill accounting
+
+`PgSwapFillRepository` accepts complete original `FillSwap` snapshots. An explicit
+imported opening/coverage/work policy is mandatory. SQL recomputes basis/PnL,
+keeps permanent signed fill/fee identities, applies only new actual cash effects
+and charges gross loss in the original budget windows. Failures retain pending
+facts/HALT after atomic rollback of provisional money. Exact readback around
+unknown COMMIT never reapplies a fee or releases a shared claim. Fill-before-ACK
+never advances an attempt; a late ACK must match observed fills. Read/reporting
+results grant no trading permission. Stale account positions cannot be reused
+for new risk, including when an open has zero fee. Observation bounds and source
+failure revoke local admission; diagnostic refresh does not heal it.
+
+The standalone SPOT NAV port is disabled for a SWAP-accounting account because it
+omits derivative unrealized PnL. Native paid-funding cash, joint portfolio NAV,
+terminal/release and recovery remain unported. Provider-authenticated source,
+controller/runner/recorder assembly and configured PostgreSQL selection remain
+required. This standalone financial slice installs no external SWAP sender.

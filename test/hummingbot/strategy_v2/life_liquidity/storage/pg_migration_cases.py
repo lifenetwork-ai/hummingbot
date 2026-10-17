@@ -839,3 +839,38 @@ async def test_swap_upgrade_preserves_snapshot_acl_and_retains_private_spot_core
     assert (await migrate(c, directory))['pending'] == []
     for table in ('accounts', 'balances', 'operations', 'sessions', 'swap_policies', 'swap_preparations', 'swap_intent_events'):
         assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+
+
+@pytest.mark.asyncio
+async def test_swap_accounting_upgrade_preserves_existing_entrypoint_oids_acls_and_adds_no_money(db):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 32:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    signatures = ('life_financial.spot_state(uuid)', 'life_financial.spot_state_v7(uuid)',
+                  'life_financial.spot_accounting_verified(uuid)', 'life_financial.spot_capital_replay(uuid)',
+                  'life_financial.spot_capital_verified_v19(uuid)', 'life_financial.spot_capital_verified(uuid)',
+                  'life_financial.carry_current_ready(uuid)',
+                  'life_financial.shared_capital_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)')
+    oids = [await c.fetchval('SELECT to_regprocedure($1)::oid', signature) for signature in signatures]
+    await c.execute('GRANT EXECUTE ON FUNCTION life_financial.spot_state(uuid) TO life_runtime_test,life_reporter_test')
+    path = DEFAULT_DIRECTORY / '000032_swap_fill_accounting.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    assert [await c.fetchval('SELECT to_regprocedure($1)::oid', signature) for signature in signatures] == oids
+    for principal in ('life_runtime_test', 'life_reporter_test'):
+        assert await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", principal, signatures[0])
+        private_signatures = signatures[1:] + (
+            'life_financial.swap_fill_read(uuid,integer,integer,text)',
+            'life_financial.swap_fill_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
+            'life_financial.swap_accounting_verified(uuid)', 'life_financial.swap_snapshot_current(uuid,jsonb)',
+            'life_financial.swap_position_replay(jsonb,jsonb,jsonb,text,bigint,integer)')
+        for signature in private_signatures:
+            assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", principal, signature)
+        for table in ('swap_fill_policies', 'swap_fill_facts', 'swap_fill_progress', 'swap_pending_fills'):
+            assert not await c.fetchval("SELECT has_table_privilege($1,$2,'INSERT,UPDATE,DELETE')", principal, 'life_financial.' + table)
+    assert (await migrate(c, directory, action='up'))['applied'] == []
+    assert (await migrate(c, directory))['pending'] == []
+    for table in ('accounts', 'balances', 'operations', 'swap_fill_policies', 'swap_fill_facts', 'swap_fill_progress', 'swap_pending_fills'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
