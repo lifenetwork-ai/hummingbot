@@ -2649,3 +2649,31 @@ Cold/concurrent retries never refund money, reactivate trading or release twice.
 20 native, 43 migration and 10 DTO cases pass; exact qualification is in the
 existing implementation plan. Coupled financial batches, collateral/pending
 reconciliation, hedge and configured service/controller assembly remain open.
+
+## Native coupled financial batches (PG3 increment, 2026-10-17)
+
+`PgJointBatchRepository.apply(ApplyJointBatch(...), cut=..., owner=...)` accepts
+complete original SPOT/SWAP fill commands, approved cashflow commands and one
+complete paid-funding source. Original final account facts are never rewritten
+into imaginary intermediate accounts. Private transaction-scoped kernels stage
+facts and gross costs; complete original-time replay then validates the one
+final wallet/leg cut. An earlier actual payment can fund a later debit; later
+income cannot finance an earlier deficit. Already applied exact members retain
+their original receipts. A failed member or final replay rolls back all staged
+money/costs and retains the original entire batch with HALT. New IDs cannot
+bypass that pending state. Signed repair is still required and unimplemented.
+
+Runtime/reporter roles cannot execute the stage kernels or read/write their
+capability table. A stage capability cannot survive COMMIT. Explicit bounds
+count retained parent envelopes, original member requests/receipts and both
+money cuts; overflow rejects the whole account transaction. Ownership/source
+freshness are checked again at physical COMMIT. Original cold readback never
+resends, refunds or grants trading. Independent source/carry refresh, NAV,
+terminal and claim retirement compose in an explicit cold replay, retaining
+position exposure and all spent gross budgets. 28 native, 44 migration and 11
+DTO cases pass; see the existing implementation plan for exact scopes/logs.
+
+This is not a legacy `APPLYING` importer, signed pending resolution, actual
+collateral/liability reconciliation, native hedge/risk/control or configured
+controller/runner/recorder/source/final-SWAP-send assembly. Configured PostgreSQL
+selection remains denied until those required native routes are installed.

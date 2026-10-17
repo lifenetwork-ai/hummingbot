@@ -621,3 +621,16 @@ Permanent identity counts and all balances, exposure and gross spending remain.
 Retired IDs cannot allocate/prepare again; a new current carry check is required.
 Repeated startup preserves OIDs/ACLs and creates no accounts or money. This is
 standalone retirement, not coupled financial batch or configured service proof.
+
+`000038_joint_financial_batches.sql` adds explicit bounded joint observation
+policy and immutable original batch/member receipts. Private transaction-local
+stage kernels preserve original fact validation, IDs, reserve progress and gross
+costs; one complete original-time wallet/position replay publishes money only
+when the unchanged final funding/account source agrees. Failure retains the
+whole original pending batch and HALT without partial monetary effects. Stage
+capabilities are private and cannot commit unfinished. Retained parent byte
+bounds include original member requests/receipts and both cuts. Original
+ownership/source freshness apply at physical COMMIT; cold readback grants no
+send/release/activation. Public standalone guards/OIDs/ACLs remain intact;
+repeat startup bootstraps no money/account. Signed pending repair, collateral
+qualification, legacy interrupted import and full service assembly remain PG3.

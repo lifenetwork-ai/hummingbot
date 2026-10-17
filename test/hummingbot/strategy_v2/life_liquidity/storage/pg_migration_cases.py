@@ -994,3 +994,31 @@ async def test_shared_release_upgrade_retains_proof_oids_and_never_bootstraps_or
     assert (await migrate(c, directory, action='up'))['applied'] == []
     for table in ('accounts', 'balances', 'operations', 'shared_capital_claims', 'shared_release_policies', 'shared_claim_releases'):
         assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+
+
+@pytest.mark.asyncio
+async def test_joint_batch_upgrade_keeps_public_proof_oids_and_private_staging_has_no_bootstrap(db):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 38:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    signatures = ('life_financial.spot_state(uuid)', 'life_financial.commit_owner_guard()',
+                  'life_financial.spot_capital_verified(uuid)', 'life_financial.swap_accounting_verified(uuid)',
+                  'life_financial.funding_verified(uuid)', 'life_financial.shared_release_verified(uuid)')
+    oids = [await c.fetchval('SELECT to_regprocedure($1)::oid', signature) for signature in signatures]
+    await c.execute('GRANT EXECUTE ON FUNCTION life_financial.spot_state(uuid) TO life_runtime_test,life_reporter_test')
+    path = DEFAULT_DIRECTORY / '000038_joint_financial_batches.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    assert [await c.fetchval('SELECT to_regprocedure($1)::oid', signature) for signature in signatures] == oids
+    for principal in ('life_runtime_test', 'life_reporter_test'):
+        assert await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", principal, signatures[0])
+        for signature in ('life_financial.joint_batch_verified(uuid)', 'life_financial.joint_stage_guard(uuid,text,jsonb)',
+                          'life_financial.joint_stage_swap(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)'):
+            assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", principal, signature)
+        for table in ('joint_batch_policies', 'joint_financial_batches', 'joint_batch_staging'):
+            assert not await c.fetchval("SELECT has_table_privilege($1,$2,'INSERT,UPDATE,DELETE')", principal, 'life_financial.' + table)
+    assert (await migrate(c, directory, action='up'))['applied'] == []
+    for table in ('accounts', 'balances', 'operations', 'joint_batch_policies', 'joint_financial_batches', 'joint_batch_staging'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
