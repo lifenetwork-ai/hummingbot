@@ -811,3 +811,31 @@ async def test_carry_upgrade_preserves_snapshot_acl_and_adds_no_funding_or_accou
     assert (await migrate(c, directory))['pending'] == []
     for table in ('accounts', 'balances', 'operations', 'sessions', 'carry_policies', 'carry_heads', 'carry_checks', 'carry_payments'):
         assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+
+
+@pytest.mark.asyncio
+async def test_swap_upgrade_preserves_snapshot_acl_and_retains_private_spot_core(db):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 30:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    signature = 'life_financial.spot_state(uuid)'
+    oid = await c.fetchval('SELECT to_regprocedure($1)::oid', signature)
+    await c.execute('GRANT EXECUTE ON FUNCTION life_financial.spot_state(uuid) TO life_runtime_test,life_reporter_test')
+    path = DEFAULT_DIRECTORY / '000030_swap_intents.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    assert await c.fetchval('SELECT to_regprocedure($1)::oid', signature) == oid
+    for principal in ('life_runtime_test', 'life_reporter_test'):
+        assert await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", principal, signature)
+        for fn in ('spot_state_v7(uuid)', 'spot_state_before_swap(uuid)', 'swap_read(uuid,integer,integer,text)',
+                   'swap_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,text,jsonb)',
+                   'swap_verified(uuid)', 'swap_budget_ready(uuid)', 'swap_config_valid(jsonb,jsonb,jsonb,bigint)'):
+            assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", principal, 'life_financial.' + fn)
+        for table in ('swap_policies', 'swap_preparations', 'swap_intent_events'):
+            assert not await c.fetchval("SELECT has_table_privilege($1,$2,'INSERT,UPDATE,DELETE')", principal, 'life_financial.' + table)
+    assert (await migrate(c, directory, action='up'))['applied'] == []
+    assert (await migrate(c, directory))['pending'] == []
+    for table in ('accounts', 'balances', 'operations', 'sessions', 'swap_policies', 'swap_preparations', 'swap_intent_events'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0

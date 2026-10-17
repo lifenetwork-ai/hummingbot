@@ -2497,3 +2497,29 @@ check replay is not qualified scalable history; PG8/O.8 remain open.
 ```sh
 make life-postgres-test LIFE_PG_TEST_ARGS="--suite carry --output /tmp/life-carry-run"
 ```
+
+## Native PostgreSQL SWAP intents (PG3 increment, 2026-10-17)
+
+`postgres/swap.py` implements the preparation/arm/ACK storage slice using migration
+`000030`. It requires the original shared-capital repository, an imported exact
+contract/capture policy, a retained matching SWAP claim and current carry facts.
+It stores the complete original `PrepareSwap` config, derives the same permit
+units as the File sender and commits intent plus receipt atomically. Contract
+counts never replace LIFE quantities. Account budgets, capture age and current
+session/config/risk scope gate new risk at entry and physical COMMIT.
+
+`arm` irreversibly records SEND_UNKNOWN; repeated arm denies. Exact late ACK may
+record an original exchange ID after HALT/expiry, without credit or claim release.
+`lookup` is bounded diagnostic readback with false trading permission. Common
+SPOT/SWAP cuts retain all SPOT money/ingress guards and verify the original SWAP
+config, payload, unit conversions and event progression. Actual COMMIT process
+and backend loss recover original metadata without an exchange request.
+
+`authorize_boundary` deliberately raises `PG_SWAP_TRANSPORT_NOT_IMPLEMENTED`.
+This adapter is not installed in the configured controller and cannot replace
+the protected final wire/source/HTTP gate. SWAP fills, fees, funding, collateral,
+hedge plans and joint settlement/recovery remain separate required PG3 ports.
+
+```sh
+make life-postgres-test LIFE_PG_TEST_ARGS="--suite swap --output /tmp/life-swap-run"
+```

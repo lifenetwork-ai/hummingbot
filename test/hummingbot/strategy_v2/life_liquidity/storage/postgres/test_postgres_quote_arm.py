@@ -145,17 +145,24 @@ async def test_generation_change_at_physical_commit_rolls_back_unknown_state_and
 
 @pytest.mark.asyncio
 async def test_freshness_rechecked_at_physical_commit_not_only_at_function_entry(database, monkeypatch):
-    repo, cfg, owner, cmd = await prepared(database, max_fact_age_ms=100)
+    # Synthetic setup must reach the target boundary under a loaded CI host.
+    # A 100 ms policy could reject initial preparation before this test had
+    # installed its COMMIT hook, exercising the wrong failure boundary.
+    repo, cfg, owner, cmd = await prepared(database, max_fact_age_ms=1000)
     commit = repo._runtime._commit
+    reached_commit = []
 
     async def delayed(tx):
-        await tx._connection.execute('SELECT pg_sleep(.12)')
+        assert await tx._connection.fetchval("SELECT state FROM life_financial.send_attempts WHERE account_id=$1 AND intent_id='intent1'", cfg.account_id) == 'SEND_UNKNOWN'
+        reached_commit.append(True)
+        await asyncio.sleep(1.05)
         await commit(tx)
     monkeypatch.setattr(repo._runtime, '_commit', delayed)
     try:
         before = await repo.snapshot(cfg.binding)
         with pytest.raises(StorageError, match='QUOTE_ADMISSION_STALE|QUOTE_CAPTURE_MISMATCH|QUOTE_CAPTURE_STALE'):
             await repo.arm_quote_action(cmd, cut=before.cut, owner=owner)
+        assert reached_commit == [True]
         assert (await repo.snapshot(cfg.binding)).cut == before.cut
         assert (await repo.attempt('intent1', cfg.binding)).state.value == 'PREPARED'
     finally:

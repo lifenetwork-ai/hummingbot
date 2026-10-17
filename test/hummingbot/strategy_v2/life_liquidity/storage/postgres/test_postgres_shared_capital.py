@@ -12,9 +12,9 @@ from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError
 from hummingbot.strategy_v2.life_liquidity.storage.products import ProductReceipt, ReserveCapital
 
 
-async def setup(database, *, configured=None, observed=None, max_claims=32):
+async def setup(database, *, configured=None, observed=None, max_claims=32, spot_options=None):
     from hummingbot.strategy_v2.life_liquidity.storage.postgres.shared_capital import PgSharedCapitalRepository
-    financial, cfg, owner = await spot(database)
+    financial, cfg, owner = await spot(database, **(spot_options or {}))
     configured = configured or policy()
     body = _json(asdict(configured))
     await database[0].execute('''INSERT INTO life_financial.shared_capital_policies VALUES($1,$2,$3::jsonb,$4,$5)''',

@@ -531,3 +531,14 @@ version/checksum handling makes repeated runs a no-op, without reapplying SQL.
   entrypoints; runtime receives no direct financial-table writes.
 
 - `000029_carry_streams.sql`: imported carry policy, independent monotone stream checks, permanent funding-payment evidence, native forecast/shared-capital decisions, bounded diagnostic reads and carry readiness at SPOT preparation/arm and physical COMMIT. No wallet credit, automatic source qualification or SWAP sender is added. Preserves the snapshot OID/ACL and all prior financial guards.
+
+### 000030: native SWAP intents
+
+`000030_swap_intents.sql` imports empty contract/capture policy storage and adds
+immutable SWAP preparations/arm/ACK events. The current shared claim, carry,
+account/session/config/risk, exact LIFE/contract units, captured config age and
+account budgets gate preparation/arm and physical COMMIT. ACK is observation-only
+and retains all exposure after HALT/expiry. The common snapshot recognizes only
+verified native SWAP intents while retaining every SPOT accounting guard and its
+existing OID/ACL. Runtime roles cannot mutate the tables or invoke private proofs.
+No source, SWAP fill/funding cash accounting, final transport or release is added.
