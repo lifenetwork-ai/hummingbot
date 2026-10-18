@@ -1,6 +1,16 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
-**Current PG3 R1 unfilled-order checkpoint (2026-10-18, base `e9cb8c35f`):**
+**Current PG3 R1 original-transfer checkpoint (2026-10-18, base `bdfc02c7e`):**
+migration 59 accepts independently approved native cashflows already booked
+before a retired File import, only with unchanged economic facts and verified
+original hashes/receipts. IMPORT stays money-neutral; recovery dedupes original
+bills and retains holds, HALT and gross budgets through two cold restores.
+Orphan SPOT/transfer source operations are refused. **280 affected native and
+72 migration cases pass**. See
+[scope and qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-original-native-transfer-prefixes-2026-10-18).
+**R1–R5 and configured-service acceptance remain open.**
+
+**Earlier PG3 R1 unfilled-order checkpoint (2026-10-18, base `e9cb8c35f`):**
 core File funding recovery retains original sent SPOT orders even when they
 have no fills in the interrupted command. Exact original preparations,
 fingerprints, holds/subsidy and independent native preparation/ARM remain

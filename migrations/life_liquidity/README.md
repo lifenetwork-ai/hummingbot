@@ -893,3 +893,12 @@ account, policy, balance, activation or configured PostgreSQL sender.
   spelling for fractional balances. Existing function OIDs/ACLs remain; the new
   helper is private. No table, money, policy or permission is created. Automatic
   numbered startup migration and checksum/idempotency rules remain unchanged.
+
+- `000059_legacy_cashflow_prefix.sql`: extend historical prefix verification to
+  independently approved native transfers already APPLIED before import. Match
+  the complete original signed File bill history, native command/source hashes
+  and original receipt/version; retain the original callback stamp. No transfer
+  is credited by IMPORT. Missing SPOT source operations now fail the historical
+  proof instead of disappearing through an inner join. Preserve predecessor
+  OIDs/ACLs; private helper defaults and atomic unexpected-shape rollback remain.
+  No table, account, money, approval, budget or permission is bootstrapped.

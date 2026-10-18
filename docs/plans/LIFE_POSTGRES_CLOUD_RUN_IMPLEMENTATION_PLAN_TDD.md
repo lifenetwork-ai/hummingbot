@@ -678,6 +678,21 @@ coupled batch/repair/NAV/terminal/release/late-observation paths plus collateral
 ordinary SWAP fill/arithmetic, funding and direct funding/SWAP repair
 checks; it is a focused R1 regression, not the R5 whole-service acceptance gate.
 
+**R1 profile progress inside the fixed exit:** these entries identify completed
+profiles and remaining integration work. They do not change the R1 exit, imply
+that every profile has been rerun on the latest source, or close R2–R5. Use the
+qualification/revision recorded in each increment below.
+
+- [x] Direct signed native SPOT fill/cashflow, SWAP fill, funding and terminal pending repair, including selected original-source cohorts.
+- [x] Core File funding with complete retained approved transfer history and cumulative SPOT fills; exact original opening basis and independent native preparation/ARM.
+- [x] Already booked native SPOT prefixes and retained sent/unfilled SPOT holds, with original receipts, costs and cold restart.
+- [x] Declared first outer File SWAP/funding/approved-transfer interruption profiles, including original entry basis and signed recovery.
+- [x] Already booked native transfer prefixes: exact original economic facts, hashes and receipts; migration-59 combined recovery and upgrade qualification below.
+- [ ] Prior native SWAP/funding prefixes and prior applied core financial commands outside the declared first-command profiles.
+- [ ] Prior other-order, PREPARED-only, cancellation, terminal/NAV and economic settlement histories needed by supported File recovery modes.
+- [ ] Outer SPOT and hedge/carry coordinator financial checkpoint recovery.
+- [ ] Complete authenticated order/trade/bill/runner scope and original collateral/liability source consumption at every required terminal/shared-release route.
+
 **Earlier R1 increment — native collateral bound (2026-10-17, base `1fb9f32b6`):** migration 43 binds joint publication/history, portfolio basis and terminal/shared release to the dedicated mode-2, non-borrowing USDT cash/UPL model. With portfolio policy installed, shared/carry new-risk admission and physical COMMIT also require the bound and zero native liabilities. Weighted entry prices retain decimal28 precision; collateral capacity uses a conservative ceiling that cannot round upward into additional funds. Funding liability remains a separate shared-risk deduction. Invalid batches retain original pending/HALT/claims with no provisional money. Portfolio source failure revokes the original local runtime; a cold runtime also rejects the same invalid source. Runtime/reporting roles cannot execute the new private helpers.
 
 **Current qualification:** **167 native recovery tests pass** (435.04 s, `/tmp/life-pg3-collateral-final-integrated`), including the 34 new collateral/admission/COMMIT/funding cases; **43 hedge regressions pass** (114.26 s, `/tmp/life-pg3-collateral-hedge-regression`); **49 actual migration cases pass** (32.24 s, `/tmp/life-pg3-collateral-final-migrations`), including 42→43 OID/ACL preservation and repeat startup without bootstrap; **133 focused File/contract cases pass** (5.42 s, `/tmp/life-pg3-collateral-final-contracts.xml`). These are distinct selectors; the 34 cases are included in the 167, not additional. Final gates have no failures/errors/skips. Existing Pydantic warning categories remain.
@@ -2630,3 +2645,67 @@ whole-service R5 closure is inferred from this focused result. Hooks pass.
 R1–R5 remain open under their fixed exits; configured PostgreSQL stays rejected.
 The remaining histories and complete provider/release/control/runner assembly
 retain their existing requirements and execution order.
+
+### PG3 original native transfer prefixes (2026-10-18)
+
+Base revision: `bdfc02c7e`. Migration 59 extends the pre-import original-basis
+proof to independently approved native cashflows already APPLIED. The signed
+File target must retain the complete original bill/currency/signed amount,
+economic and independent valuation/reference times. Application operation IDs
+and general callback times can differ exactly as permitted by the existing
+cashflow kernel; both original observations remain immutable. Native command
+and source hashes, receipt fields and committed version are checked. Other
+pre-import SWAP/funding, repaired-origin or prior joint-batch histories still
+require their own profiles. No unknown/pending bill becomes APPLIED through
+import, and no money/hold/budget/claim/HALT or source permission is bootstrapped.
+
+The original native prefix stays booked exactly once. IMPORT is money-neutral;
+signed recovery applies the missing original funding/fill leaves and retains
+the original cashflow receipt unchanged. Actual File resume is the independent
+balance/budget oracle after two native cold restores. Combined already booked
+SPOT/transfer prefixes cover BUY with LIFE fees/USDT deposit and SELL with USDT
+fees/LIFE withdrawal.
+
+Historical proofs filter by the original import revision. SPOT prefix lookup
+now uses a left join so a fact whose original operation is missing is refused
+rather than disappearing from the prefix. The actual 58→59 differential case
+copies the original predecessor function into a private test schema: the old
+function accepts that orphan, the new function and source readback refuse it.
+The corrupt transaction rolls back before deferred FK checking; FKs and runtime
+privileges are unchanged. A separate cashflow source-hash mutation is committed
+in the disposable test DB: cold source proof refuses it and HALT/claims remain.
+
+The first feature Red records **one pass / one failure**, **8.07 s**
+(`/tmp/life-r1-native-cash-prefix-red`): a legitimate native transfer makes the
+old pre-import proof fail at COMMIT. This is provenance rejection, not expiry
+or a SQL timeout. The initial 48-case matrix passes (191.03 s,
+`/tmp/life-r1-native-cash-prefix-matrix`), before final hash/receipt hardening.
+The first provenance test attempt fails on an owner-only test harness mistake
+(4.37 s, `/tmp/life-r1-native-cash-prefix-provenance-red`): the migration role
+cannot disable internal system FK triggers. Restricting corruption tests to
+USER triggers preserves deferred FKs and reproduces the real missing-hash Red
+(one failure, 3.88 s, `/tmp/life-r1-native-cash-prefix-provenance-red-owner`).
+The following development test has a CHECK-invalid synthetic pending row
+(one failure, 4.05 s, `/tmp/life-r1-native-cash-prefix-provenance`); supplying its
+mandatory reason fixes the test without changing the financial constraint.
+The final combined focused gate passes **5 cases**, zero failures/errors/skips,
+260 deselected, one existing warning, **20.65 s**
+(`/tmp/life-r1-native-cash-prefix-combined`). These gates overlap the final
+combined source qualification and are not additional coverage.
+
+R1–R5 remain open. No repository evidence file, configured DB/account, `.env`,
+exchange request, deployment, widened deadline or live financial default is
+used. Existing startup/checksum/idempotency rules apply to numbered migration
+59; the new helper is private and predecessor OIDs/ACLs remain unchanged.
+
+Final migration-59 qualification: **280 affected native cases pass**, zero
+failures/errors/skips, 1,791 deselected, six existing warnings, **1,055.45 s**
+(`/tmp/life-r1-native-cash-prefix-final`). This includes all current legacy
+profiles and snapshot-body upgrades; the earlier focused gates overlap it.
+**72 actual migration cases pass**, **64.57 s**
+(`/tmp/life-r1-native-cash-prefix-final-migrations`), including actual 58→59,
+repeat startup, unchanged predecessor OIDs/ACLs, private helper defaults and
+atomic rollback on either unexpected predecessor definition. Financial Python
+and SQL are frozen across both gates. Hooks and `git diff --check` pass.
+These results qualify this declared original-transfer profile; R1–R5 and the
+loaded SQL-timeout reliability gate remain open.

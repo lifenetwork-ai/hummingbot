@@ -30,7 +30,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancial
 KEYS = OperatorKeys({'operator': b'i' * 32}, {'operator': frozenset(('IMPORT', 'RECOVER', 'DRAIN'))})
 
 
-async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashflow=None, spot_fill=None, file_result=None, retained_cashflows_only=False, spot_prefix=False, book_native_prefix=False, spot_open_only=False):
+async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashflow=None, spot_fill=None, file_result=None, retained_cashflows_only=False, spot_prefix=False, book_native_prefix=False, spot_open_only=False, book_native_cashflow=False):
     from test.hummingbot.strategy_v2.life_liquidity.storage import test_spot_financial_contracts as file_fixture
     from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_funding import setup as funding_setup
 
@@ -137,6 +137,9 @@ async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashfl
         # already have an APPLIED receipt before a new joint command starts.
         # Partially written transfer + joint recovery uses the outer profile.
         await store.apply_cashflow(flows[0], cut=(await store.snapshot(binding)).cut, owner=file_owner)
+        if book_native_cashflow:
+            prior = replace(flows[0], operation_id='native-prior-transfer')
+            assert (await financial.apply_cashflow(prior, cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)).state == 'APPLIED'
     paid = payment.bundle.funding.payments[0]
     joint = JointCashSpot('file-joint', binding, 'c' * 64, now,
                           (JointCashEvent(f'JOINT:{paid.settled_at_ms}:FUNDING:{paid.bill_id}', paid.signed_payment_quote),),

@@ -22,11 +22,11 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.migrations import mi
 
 
 async def recover_case(database, tmp_path, monkeypatch, stage, side, fee_currency, cashflow=None, spot_prefix=False, book_native_prefix=False,
-                       prepared=None, expected=None, spot_open_only=False):
+                       prepared=None, expected=None, spot_open_only=False, book_native_cashflow=False):
     expected = {} if expected is None else expected
     values, batch, command, cut, facts, approval, importer, store, source = prepared or await setup(
         database, tmp_path, monkeypatch, stage, spot_fill=(side, fee_currency), file_result=expected, cashflow=cashflow,
-        spot_prefix=spot_prefix, book_native_prefix=book_native_prefix, spot_open_only=spot_open_only)
+        spot_prefix=spot_prefix, book_native_prefix=book_native_prefix, spot_open_only=spot_open_only, book_native_cashflow=book_native_cashflow)
     financial, cfg, owner = values[:3]
     cold = None
     c = database[0]
@@ -35,7 +35,7 @@ async def recover_case(database, tmp_path, monkeypatch, stage, side, fee_currenc
         assert (await importer.import_pending(command, source_store=store, approval=approval, cut=cut, facts=facts)).state == 'RECOVERY_REQUIRED'
         imported = await financial.snapshot(cfg.binding)
         assert imported.balance == before.balance and imported.budget == before.budget
-        assert await c.fetchval('SELECT count(*) FROM life_financial.financial_events WHERE account_id=$1', cfg.account_id) == int(book_native_prefix)
+        assert await c.fetchval('SELECT count(*) FROM life_financial.financial_events WHERE account_id=$1', cfg.account_id) == int(book_native_prefix) + int(book_native_cashflow)
         await financial.close()
         cold, capital, batch, importer = await restore(cfg, owner, c)
         assert (await importer.import_pending(command, source_store=None, approval=approval, cut=cut, facts=facts)).replayed
@@ -95,6 +95,15 @@ async def test_interrupted_file_spot_funding_recovers_identical_money_holds_and_
 ])
 async def test_approved_transfer_spot_fill_and_funding_recover_together_with_full_file_parity(database, tmp_path, monkeypatch, side, fee_currency, cashflow):
     await recover_case(database, tmp_path, monkeypatch, 'wallet_after', side, fee_currency, cashflow)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('side,fee_currency,cashflow', [('BUY', 'LIFE', ('USDT', D('2'), D('1'))),
+                                                        ('SELL', 'USDT', ('LIFE', D('-2'), D('1.2')))])
+async def test_booked_native_transfer_and_spot_prefix_recover_together_without_double_accounting(
+        database, tmp_path, monkeypatch, side, fee_currency, cashflow):
+    await recover_case(database, tmp_path, monkeypatch, 'wallet_after', side, fee_currency, cashflow,
+                       spot_prefix=True, book_native_prefix=True, book_native_cashflow=True)
 
 
 @pytest.mark.asyncio
@@ -274,7 +283,7 @@ async def test_existing_57_prefix_upgrades_then_recovers_with_original_money_and
     values, _, command, cut, facts, approval, _, store, source = prepared
     financial = values[0]
     try:
-        assert (await migrate(database[0], action='up'))['applied'] == ['000058_legacy_spot_prefix.sql']
+        assert (await migrate(database[0], action='up'))['applied'] == ['000058_legacy_spot_prefix.sql', '000059_legacy_cashflow_prefix.sql']
         financial, capital, batch, importer = await restore(values[1], values[2], database[0])
         values = list(values)
         values[0], values[5] = financial, capital
@@ -283,6 +292,47 @@ async def test_existing_57_prefix_upgrades_then_recovers_with_original_money_and
     finally:
         await financial.close()
         await store.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('database', [58], indirect=True)
+async def test_58_orphan_prefix_refusal_after_59_upgrade_uses_original_predecessor_as_oracle(database, tmp_path, monkeypatch):
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres import runtime as runtime_module
+    load = runtime_module.load_migrations
+    c = database[0]
+    with monkeypatch.context() as patch:
+        patch.setattr(runtime_module, 'load_migrations', lambda path: tuple(m for m in load(path) if m.version <= 58))
+        values, _, command, cut, facts, approval, _, store, _ = await setup(
+            database, tmp_path, monkeypatch, spot_fill=('BUY', 'USDT'), spot_prefix=True, book_native_prefix=True)
+        await values[0].close()
+    financial = values[0]
+    try:
+        old = await c.fetchval("SELECT pg_get_functiondef('life_financial.legacy_spot_prefix_valid(uuid,jsonb,bigint)'::regprocedure)")
+        await c.execute('CREATE SCHEMA prefix_reference')
+        await c.execute(old.replace('FUNCTION life_financial.legacy_spot_prefix_valid(', 'FUNCTION prefix_reference.legacy_spot_prefix_valid('))
+        await c.execute('REVOKE ALL ON FUNCTION prefix_reference.legacy_spot_prefix_valid(uuid,jsonb,bigint) FROM PUBLIC')
+        assert (await migrate(c, action='up'))['applied'] == ['000059_legacy_cashflow_prefix.sql']
+        financial, _, _, importer = await restore(values[1], values[2], c)
+        await importer.import_pending(command, source_store=store, approval=approval, cut=cut, facts=facts)
+        tx = c.transaction()
+        await tx.start()
+        try:
+            await c.execute('ALTER TABLE life_financial.spot_fill_facts DISABLE TRIGGER USER')
+            await c.execute("UPDATE life_financial.spot_fill_facts SET source_operation_id='missing-source' WHERE account_id=$1", values[1].account_id)
+            args = values[1].account_id, json.dumps(command.batch.json()), cut.checkpoint.revision
+            # The exact predecessor incorrectly treats the orphan as no booked
+            # prefix. The upgraded proof refuses it before the deferred FK check.
+            assert await c.fetchval('SELECT prefix_reference.legacy_spot_prefix_valid($1,$2::jsonb,$3)', *args)
+            assert not await c.fetchval('SELECT life_financial.legacy_spot_prefix_valid($1,$2::jsonb,$3)', *args)
+            assert not await c.fetchval('SELECT life_financial.legacy_applying_verified($1)', values[1].account_id)
+            with pytest.raises(StorageError, match='PG_LEGACY_APPLYING_UNVERIFIED'):
+                await importer._row(command.operation_id)
+        finally:
+            await tx.rollback()
+        assert await c.fetchval('SELECT life_financial.legacy_applying_verified($1)', values[1].account_id)
+    finally:
+        await store.close()
+        await financial.close()
 
 
 @pytest.mark.asyncio

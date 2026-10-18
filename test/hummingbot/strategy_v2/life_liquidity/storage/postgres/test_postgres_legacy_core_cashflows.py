@@ -1,4 +1,6 @@
 """Retired core File transfers + funding retain their original accounting basis."""
+import copy
+import json
 from dataclasses import replace
 from datetime import timedelta
 from decimal import Decimal as D
@@ -30,29 +32,103 @@ async def restore(cfg, owner, connection):
 
 
 @pytest.mark.asyncio
+async def test_native_cashflow_prefix_requires_exact_economic_facts_hashes_and_receipt(database, tmp_path, monkeypatch):
+    values, _, command, cut, _, _, _, store, _ = await setup(
+        database, tmp_path, monkeypatch, cashflow=('LIFE', D('-2'), D('1.2')), book_native_cashflow=True)
+    financial, cfg = values[:2]
+    c = database[0]
+    raw = command.batch.json()
+    try:
+        async def valid(value):
+            return await c.fetchval('SELECT life_financial.legacy_cashflow_prefix_valid($1,$2::jsonb,$3)', cfg.account_id, json.dumps(value), cut.checkpoint.revision)
+        assert await valid(raw)
+        for key, value in dict(bill_id='other', currency='USDT', signed_amount='2', transfer_at_ms=1, independent_price_usdt='1',
+                               value_at_ms=1, reference_observed_at_ms=1, source_kind='quote_unit').items():
+            changed = copy.deepcopy(raw)
+            changed['cashflows'][0][key] = value
+            assert not await valid(changed), key
+        for statement in (
+            "UPDATE life_financial.spot_cashflow_facts SET source_hash=repeat('f',64) WHERE account_id=$1",
+            "UPDATE life_financial.operations SET command=jsonb_set(command,'{owner,process_id}','\"00000000-0000-0000-0000-000000000001\"') WHERE account_id=$1 AND operation_id='native-prior-transfer'",
+            "UPDATE life_financial.operations SET receipt=jsonb_set(receipt,'{version}','0') WHERE account_id=$1 AND operation_id='native-prior-transfer'",
+            "UPDATE life_financial.spot_cashflow_facts SET state='RECOVERY_REQUIRED',reason='LIFE_SYNTHETIC_PENDING' WHERE account_id=$1",
+            "UPDATE life_financial.spot_cashflow_facts SET source_operation_id='missing-source' WHERE account_id=$1",
+        ):
+            tx = c.transaction()
+            await tx.start()
+            try:
+                # Deliberate owner-only corruption in this disposable DB. FK
+                # checks remain deferred; rollback restores the valid history.
+                for table in ('spot_cashflow_facts', 'operations'):
+                    await c.execute(f'ALTER TABLE life_financial.{table} DISABLE TRIGGER USER')
+                await c.execute(statement, cfg.account_id)
+                assert not await valid(raw), statement
+            finally:
+                await tx.rollback()
+        assert await valid(raw)
+    finally:
+        await store.close()
+        await financial.close()
+
+
+@pytest.mark.asyncio
+async def test_native_cashflow_prefix_corruption_after_import_blocks_cold_source_proof_and_preserves_holds(database, tmp_path, monkeypatch):
+    values, _, command, cut, facts, approval, importer, store, _ = await setup(
+        database, tmp_path, monkeypatch, cashflow=('USDT', D('2'), D('1')), book_native_cashflow=True)
+    financial, cfg, owner = values[:3]
+    cold = None
+    c = database[0]
+    try:
+        claims = await values[5].claims(cfg.binding)
+        await importer.import_pending(command, source_store=store, approval=approval, cut=cut, facts=facts)
+        assert await c.fetchval('SELECT life_financial.legacy_applying_verified($1)', cfg.account_id)
+        await c.execute('ALTER TABLE life_financial.spot_cashflow_facts DISABLE TRIGGER USER')
+        await c.execute("UPDATE life_financial.spot_cashflow_facts SET source_hash=repeat('f',64) WHERE account_id=$1", cfg.account_id)
+        await c.execute('ALTER TABLE life_financial.spot_cashflow_facts ENABLE TRIGGER USER')
+        assert not await c.fetchval('SELECT life_financial.legacy_applying_verified($1)', cfg.account_id)
+        await financial.close()
+        cold, capital, _, importer = await restore(cfg, owner, c)
+        assert (await cold.snapshot(cfg.binding)).recovery_required
+        with pytest.raises(StorageError, match='PG_LEGACY_APPLYING_UNVERIFIED'):
+            await importer.lookup(command.operation_id)
+        assert await capital.claims(cfg.binding) == claims
+        assert await c.fetchval('SELECT halted FROM life_financial.accounts WHERE account_id=$1', cfg.account_id)
+        assert await c.fetchval('SELECT count(*) FROM life_financial.funding_cash_payments WHERE account_id=$1', cfg.account_id) == 0
+    finally:
+        await store.close()
+        await financial.close()
+        if cold is not None:
+            await cold.close()
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize('retained_only', [False, True])
+@pytest.mark.parametrize('native_prefix', [False, True])
 @pytest.mark.parametrize('stage', ['wallet_before', 'wallet_after', 'receipt'])
 @pytest.mark.parametrize('currency,amount,price', [('USDT', D('2'), D('1')), ('USDT', D('-2'), D('1')),
                                                    ('LIFE', D('2'), D('1.2')), ('LIFE', D('-2'), D('1.2'))])
 async def test_core_transfer_and_funding_import_is_neutral_then_cold_recovery_applies_original_facts_once(
-        database, tmp_path, monkeypatch, stage, currency, amount, price, retained_only):
+        database, tmp_path, monkeypatch, stage, currency, amount, price, retained_only, native_prefix):
     expected_file = {}
     values, batch, command, cut, facts, approval, importer, store, source = await setup(
         database, tmp_path, monkeypatch, stage, cashflow=(currency, amount, price),
-        file_result=expected_file, retained_cashflows_only=retained_only)
+        file_result=expected_file, retained_cashflows_only=retained_only, book_native_cashflow=native_prefix)
     financial, cfg, owner = values[:3]
     cold = None
     c = database[0]
     try:
         holds = await values[5].claims(cfg.binding)
         budget = await financial.budget(cfg.binding)
+        native_before = await financial.balance(cfg.binding)
+        original_receipt = await c.fetchval("SELECT to_jsonb(o) FROM life_financial.operations o WHERE account_id=$1 AND operation_id='native-prior-transfer'", cfg.account_id)
         file_before = (await store.snapshot(store.binding)).balance
         assert source.scope == 'CORE_JOINT_CASH_APPLYING'
         assert (await importer.import_pending(command, source_store=store, approval=approval, cut=cut, facts=facts)).state == 'RECOVERY_REQUIRED'
-        assert (await financial.balance(cfg.binding)).total_quote_usdt == 10
-        assert (await financial.balance(cfg.binding)).total_base_life == 5
-        for table in ('cashflows', 'funding_cash_payments'):
-            assert await c.fetchval(f'SELECT count(*) FROM life_financial.{table} WHERE account_id=$1', cfg.account_id) == 0
+        assert await financial.balance(cfg.binding) == native_before
+        assert native_before.total_quote_usdt == D('10') + (amount if native_prefix and currency == 'USDT' else D('0'))
+        assert native_before.total_base_life == D('5') + (amount if native_prefix and currency == 'LIFE' else D('0'))
+        assert await c.fetchval('SELECT count(*) FROM life_financial.cashflows WHERE account_id=$1', cfg.account_id) == int(native_prefix)
+        assert await c.fetchval('SELECT count(*) FROM life_financial.funding_cash_payments WHERE account_id=$1', cfg.account_id) == 0
         await financial.close()
         cold, capital, batch, importer = await restore(cfg, owner, c)
         assert (await importer.import_pending(command, source_store=None, approval=approval, cut=cut, facts=facts)).replayed
@@ -85,6 +161,7 @@ async def test_core_transfer_and_funding_import_is_neutral_then_cold_recovery_ap
         assert (row['bill_id'], row['asset'], row['signed_amount'], row['independent_price']) == ('101', currency, amount, price)
         assert int(row['transfer_at'].timestamp() * 1000) == command.batch.cashflows[0].transfer_at_ms
         assert await c.fetchval('SELECT count(*) FROM life_financial.cashflows WHERE account_id=$1', cfg.account_id) == 1
+        assert await c.fetchval("SELECT to_jsonb(o) FROM life_financial.operations o WHERE account_id=$1 AND operation_id='native-prior-transfer'", cfg.account_id) == original_receipt
         assert await c.fetchval('SELECT count(*) FROM life_financial.funding_cash_payments WHERE account_id=$1', cfg.account_id) == 1
         assert await c.fetchval("SELECT gross_debits_usdt FROM life_financial.funding_observations WHERE account_id=$1 AND state='APPLIED'", cfg.account_id) == D('.1')
         assert await c.fetchval('SELECT count(*) FROM life_financial.budget_events WHERE account_id=$1', cfg.account_id) == 0

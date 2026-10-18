@@ -3283,7 +3283,7 @@ in the complete approved original snapshots. Later repair facts are checked at
 their own versions and do not alter that historical cut. Native kernels dedupe
 the existing trades and charge only missing leaves; money-neutral IMPORT does
 not rewrite their receipts. Cold readback rechecks provenance and cannot grant
-activation or release. This declared profile does not admit pre-import native
+activation or release. Migration 58 alone does not admit pre-import native
 cashflow/SWAP/funding events, prior terminal/settled histories, outer SPOT or
 coordinator legacy profiles. R1 and full configured PG3 remain open.
 
@@ -3295,3 +3295,18 @@ hold is inferred from account money. Funding recovery preserves those unknown
 attempts and their claims through cold restart; it never aborts/rearms them or
 turns their reserved subsidy into available cash. This uses the existing
 migration-56 provenance check and does not add a table or permission.
+
+Migration 59 extends the original prefix profile to independently approved
+native transfers whose original fact/receipt is APPLIED. The complete signed
+File history must retain the same bill, currency, signed amount, economic time,
+historical independent price and reference times. Native and File application
+IDs/callback receipt times can differ as in the existing cashflow kernel; both
+original commands remain unchanged. Native request/source hashes and the exact
+original receipt/version must verify. Recovery creates no second cashflow
+credit, resets no budget and preserves the original native receipt. Unknown,
+unexplained, repaired-origin and other unsupported histories remain refused.
+
+Both SPOT and cashflow prefix proofs refuse a fact whose original source
+operation is missing. The existing FKs remain; the proof does not treat an
+orphan as an empty prefix while an FK check is deferred. No source/release,
+activation or trading permission is created by this import profile.
