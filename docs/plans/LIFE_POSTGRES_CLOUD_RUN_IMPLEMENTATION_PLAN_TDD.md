@@ -1172,6 +1172,32 @@ test matchers to turn these gates green. R5 and configured PostgreSQL remain
 open/rejected. Probe code, plans and samples stay in `/tmp`; no repository
 evidence file or deployed-account access is introduced.
 
+### PG3 bounded runtime diagnostics (2026-10-18)
+
+The timeout-investigation follow-up now retains the last 128 immutable physical
+admission samples in RAM, without SQL/logging/exporter I/O. Static operation
+families, backend PID, monotonic phase durations, raw SQLSTATE/failure phase,
+COMMIT attempted/confirmed and caller cancellation survive error translation and
+rollback. A successful retry may retain its earlier SQLSTATE. No SQL, arguments,
+account/operation IDs, DSN, credentials or exception messages are retained.
+The disposable native test runner includes these redacted samples in failure
+reports. This is not persistent telemetry or authorization evidence.
+
+TDD Red reproduced the missing diagnostic interface. Final **27 unit/config
+tests pass** (0.98 s); **33 native tests pass** (69.30 s,
+`/tmp/life-pg3-runtime-diagnostics-final`), comprising the 27 pool/transaction/
+physical-fault/diagnostic cases and the six historical or diagnostic failure
+cases from the timeout investigation. SQL cancellation preserves `57014`, real
+serialization retry preserves `40001`, backend shutdown at COMMIT preserves
+`57P01`, and acquire/deadline/caller-cancel/release failures retain their original
+capacity and uncertainty semantics. The earlier 27-case native run also passed
+(46.45 s); these overlapping runs are not additive unique coverage.
+
+Neither the two original broad-run timeouts nor their exact historical resource
+trigger is declared fixed by this targeted pass. Financial SQL, timeout/freshness
+budgets and negative-test matchers are unchanged. R1–R5 and configured PostgreSQL
+remain open/rejected; no new evidence file or external account access is added.
+
 ### PG3 native hedge qualification (2026-10-17)
 
 Base `be18f304f`. Migration 41 and `PgHedgeRepository` add explicitly imported hedge policy/count/byte limits, permanent target versions, original-cut plans and native partial/terminal settlement. Actual SPOT/long/short inventory sizes one bounded maker child, with close-first behavior, exact contract lots, executable depth, basis, gross fee/funding, edge, exposure-age, retry and permanent cost-hold limits. Shared allocation, fresh carry qualification and original captured SWAP preparation publish atomically. Refusal rolls all child effects back but retains the attempt, conservative cost and retired IDs across operation kinds. Native fill accounting remains the only source of actual money; hedge observations cannot debit it twice or release a claim. Actual hedge-cost breach preserves truth and HALT.

@@ -8,6 +8,7 @@ work and its capacity until completion; unknown commits require primary readback
 import asyncio
 import json
 import re
+from collections import deque
 from dataclasses import dataclass, field
 from decimal import Decimal
 from pathlib import Path
@@ -24,6 +25,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.contracts import (
     identifier,
 )
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.access import MUTATING_ENTRYPOINTS, role_name
+from hummingbot.strategy_v2.life_liquidity.storage.postgres.diagnostics import _current_trace, _Trace, failure, phase
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.migrations import _ssl_context, load_migrations
 
 
@@ -133,6 +135,16 @@ class PgRuntime:
         self._observation_inflight = 0
         self._close_task = None
         self._bundle = ()
+        self._diagnostics = deque(maxlen=128)
+
+    @property
+    def diagnostics(self):
+        """Recent physical admissions only; diagnostic readback grants nothing.
+
+        Immutable samples and bounded retention; no I/O or user callback runs on
+        the command path. Exporters can poll outside the financial boundary.
+        """
+        return tuple(self._diagnostics)
 
     @property
     def healthy(self):
@@ -215,43 +227,77 @@ class PgRuntime:
         if row['profile'] is not True:
             raise StorageUnavailable('PG_ROLE_PROFILE_INVALID')
 
-    async def _admit(self, callback, *, safety, commit_state=None):
+    async def _admit(self, callback, *, safety, commit_state=None, operation='read'):
         cfg = self.config
+        trace = _Trace(operation, safety)
         if self._closing or not safety and not self.healthy:
+            self._diagnostics.append(trace.finish('unqualified'))
             raise StorageUnavailable('PG_CLOSED_OR_UNQUALIFIED')
         maximum = cfg.safety_max_pending if safety else cfg.max_pending
         if self._counts[safety] >= maximum:
+            self._diagnostics.append(trace.finish('backpressure'))
             raise StorageUnavailable('PG_BACKPRESSURE')
         self._counts[safety] += 1
 
         async def physical():
+            token = _current_trace.set(trace)
+            outcome = 'error'
             completed = False
             result = None
+            deadline = asyncio.timeout(cfg.transaction_timeout_ms / 1000)
             try:
-                async with asyncio.timeout(cfg.transaction_timeout_ms / 1000):
+                async with deadline:
+                    phase('acquire')
                     async with self._pools[safety].acquire(timeout=cfg.acquire_timeout_ms / 1000) as c:
-                        await self._validate_connection(c)
-                        if not safety and self._observation_inflight:
-                            raise StorageError('PG_OBSERVATION_IN_PROGRESS')
-                        result = await callback(c)
-                        completed = True
+                        try:
+                            trace.backend_pid = c.get_server_pid()
+                            phase('validate')
+                            await self._validate_connection(c)
+                            if not safety and self._observation_inflight:
+                                raise StorageError('PG_OBSERVATION_IN_PROGRESS')
+                            phase('execute')
+                            result = await callback(c)
+                            completed = True
+                        except BaseException as error:
+                            if trace.error_phase is None:
+                                failure(error)
+                            raise
+                        finally:
+                            phase('release')
+                    outcome = 'success'
                     return result
-            except StorageUnavailable:
+            except StorageUnavailable as error:
+                if isinstance(error, CommitUnknown):
+                    outcome = 'commit_unknown'
+                if trace.error_phase is None:
+                    failure(error)
                 self._healthy = False
                 raise
-            except StorageError:
+            except StorageError as error:
+                if trace.error_phase is None:
+                    failure(error)
                 raise
-            except Exception:
+            except Exception as error:
+                if trace.error_phase is None:
+                    failure(error)
+                elif isinstance(error, TimeoutError) and trace.error_kind == 'cancelled':
+                    trace.error_kind = 'timeout'  # The outer physical deadline.
                 self._healthy = False
                 # Pool reset/release may itself fail after a lost COMMIT reply.
                 # Cleanup must not downgrade uncertainty into a generic error.
                 if completed:
+                    outcome = 'confirmed_after_release_error'
                     return result  # The database command already confirmed.
                 if commit_state is not None and commit_state['attempted']:
+                    outcome = 'commit_unknown'
                     raise CommitUnknown('PG_COMMIT_UNKNOWN') from None
                 raise StorageUnavailable('PG_DATABASE_UNAVAILABLE') from None
             finally:
+                if deadline.expired() and trace.error_kind == 'cancelled':
+                    trace.error_kind = 'timeout'
                 self._counts[safety] -= 1
+                self._diagnostics.append(trace.finish(outcome))
+                _current_trace.reset(token)
         task = asyncio.create_task(physical())
         self._tasks.add(task)
 
@@ -263,6 +309,7 @@ class PgRuntime:
         try:
             return await asyncio.shield(task)
         except asyncio.CancelledError:
+            trace.caller_cancelled = True
             self._healthy = False
             raise
 
@@ -307,26 +354,39 @@ class PgRuntime:
                 transaction = c.transaction(isolation='read_committed')
                 committing = False
                 try:
+                    phase('begin')
                     await transaction.start()
                     await c.execute("SELECT set_config('lock_timeout',$1,true)", str(cfg.statement_timeout_ms))
+                    phase('execute')
                     receipt = await c.fetchval(query, *args)
                     # Replay has no effect and is allowed after owner expiry.
                     if not receipt['replayed'] and not untrusted_ingress:
+                        phase('guard')
                         guard = 'guard_spot_observation' if observation else 'guard_account'
                         await c.execute(f'SELECT life_financial.{guard}($1,$2,$3,$4)', cfg.account_id, cfg.binding.json(), owner.json(), receipt['version'])
                     if not observation and self._observation_inflight:
                         raise StorageError('PG_OBSERVATION_IN_PROGRESS')
                     committing = True
                     boundary['attempted'] = True
+                    trace = _current_trace.get()
+                    trace.commit_attempted = True
+                    phase('commit')
                     await self._commit(transaction)
+                    trace.commit_confirmed = True
+                    phase('parse')
                     return parse(receipt)
-                except (asyncpg.SerializationError, asyncpg.DeadlockDetectedError):
+                except (asyncpg.SerializationError, asyncpg.DeadlockDetectedError) as error:
+                    failure(error)
                     boundary['attempted'] = False  # PostgreSQL explicitly aborted.
+                    phase('rollback')
                     await rollback(transaction)
                     if attempt >= cfg.retry_count:
                         raise StorageConflict('PG_TRANSACTION_RETRY_EXHAUSTED') from None
+                    phase('retry_wait')
                     await asyncio.sleep(cfg.retry_base_ms / 1000 * (2**attempt))
                 except asyncpg.PostgresError as error:
+                    failure(error)
+                    phase('rollback')
                     await rollback(transaction)
                     if error.sqlstate and (error.sqlstate.startswith('23') or error.sqlstate in ('P0001', '55000', '22023', '22P02')):
                         boundary['attempted'] = False
@@ -337,13 +397,17 @@ class PgRuntime:
                     if committing:
                         raise CommitUnknown('PG_COMMIT_UNKNOWN') from None
                     raise StorageUnavailable('PG_TRANSACTION_ABORTED') from None
-                except BaseException:
+                except BaseException as error:
+                    failure(error)
                     self._healthy = False
+                    phase('rollback')
                     await rollback(transaction)
                     if committing:
                         raise CommitUnknown('PG_COMMIT_UNKNOWN') from None
                     raise
-        return await self._admit(execute, safety=observation, commit_state=boundary)
+        family = re.fullmatch(r'SELECT life_financial\.([a-z][a-z0-9_]{0,79})\(\$[0-9]+(?:,\$[0-9]+)*\)', query)
+        return await self._admit(execute, safety=observation, commit_state=boundary,
+                                 operation=family[1] if family else 'transaction')
 
     async def operation(self, operation_id):
         identifier(operation_id)

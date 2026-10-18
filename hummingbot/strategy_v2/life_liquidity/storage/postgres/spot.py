@@ -103,7 +103,7 @@ class PgSpotRepository:
 
         async def read(c):
             return await c.fetchval('SELECT life_financial.spot_state($1)', self._runtime.config.account_id)
-        value = await self._runtime._admit(read, safety=True)
+        value = await self._runtime._admit(read, safety=True, operation='spot_state')
         try:
             # Schema allows 38 integer + 18 fractional digits. Never use the
             # ambient application's smaller Decimal context for financial reads.

@@ -33,6 +33,10 @@ async def test_real_backend_disconnect_at_commit_is_unknown_until_primary_readba
     try:
         with pytest.raises(CommitUnknown):
             await store.allocate(AllocateBalance('unknown', 0, 'USDT', D('2')), owner)
+        sample = store.diagnostics[-1]
+        assert sample.operation == 'allocate_balance' and sample.error_phase == 'commit'
+        assert sample.commit_attempted and not sample.commit_confirmed and sample.outcome == 'commit_unknown'
+        assert sample.sqlstate == ('57P01' if error_kind == 'server_shutdown' else None)
         assert not store.healthy
         receipt = await store.operation('unknown')
         assert (receipt is not None) is committed
@@ -73,6 +77,9 @@ async def test_real_serializable_conflict_retries_original_command_without_repri
     monkeypatch.setattr(asyncpg.Connection, 'fetchval', concurrent_update)
     try:
         result = await store.allocate(AllocateBalance('serialized', 0, 'USDT', D('2')), owner)
+        sample = store.diagnostics[-1]
+        assert sample.outcome == 'success' and sample.sqlstate == '40001'
+        assert sample.error_phase == 'execute' and sample.commit_confirmed
         assert result.amount == 2 and attempts == ['serializable', 'serializable']
         assert (await store.balances())[1].reserved == 2
     finally:

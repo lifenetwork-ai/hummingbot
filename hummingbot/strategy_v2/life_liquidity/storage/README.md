@@ -3069,6 +3069,30 @@ This is an explicit assembly exercised with disposable PostgreSQL and fake HTTP.
 Configured PostgreSQL service/controller, qualified shared-product collectors,
 runner/control/risk and the remaining PG3 acceptance contracts remain open.
 
+## Local PostgreSQL diagnostics
+
+`PgRuntime.diagnostics` returns immutable samples for the last **128** physical
+admissions (including bounded admission refusals). Samples contain only a static
+operation family, safety-pool flag, backend PID, monotonic total/phase durations,
+outcome, raw failure phase/class category/SQLSTATE, COMMIT attempted/confirmed
+flags and caller cancellation. Transaction retries aggregate phase durations;
+a successful retry can retain the preceding SQLSTATE. A confirmed flag means
+this runtime received the COMMIT reply, never that an unknown COMMIT rolled back.
+Callback timing excludes repository parsing performed after `_admit` returns.
+
+Recording performs no SQL, logging I/O, exporter callback or diagnostic retry.
+Readback grants no health, financial permission or release. Samples contain no
+SQL, arguments, account/operation IDs, DSN, exception messages or credentials.
+They are process-local and disappear on process exit; this is not an audit log
+or a crash-persistent metrics service. An exporter may poll outside the financial
+path. The disposable native pytest suite attaches these bounded samples to
+failed-test reports, including after cleanup, without printing pool/config state.
+
+Raw failures are captured before rollback and public error translation. Pool
+acquisition, validation, execute, guard, COMMIT, receipt parsing, retry/rollback
+and release remain distinguishable. Existing capacity, deadline, shielded caller
+cancellation, unhealthy-runtime and unknown-COMMIT behavior is unchanged.
+
 ## Native joint collateral bound
 
 Migration 43 composes the collateral bound with joint batch publication and

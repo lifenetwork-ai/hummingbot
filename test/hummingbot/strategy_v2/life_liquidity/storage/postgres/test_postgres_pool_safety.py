@@ -53,6 +53,8 @@ async def test_pool_acquisition_timeout_is_bounded_and_does_not_publish_late_hea
         await asyncio.wait_for(entered.wait(), 2)
         with pytest.raises(StorageError):
             await asyncio.wait_for(store.allocate(AllocateBalance('acquire-timeout', 0, 'USDT', D('1')), owner), 1)
+        sample = store.diagnostics[-1]
+        assert sample.error_phase == 'acquire' and sample.error_kind == 'timeout' and sample.backend_pid is None
         assert not store.healthy and await store.operation('acquire-timeout') is None
         release.set()
         await first
