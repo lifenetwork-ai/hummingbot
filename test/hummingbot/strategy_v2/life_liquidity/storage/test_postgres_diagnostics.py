@@ -210,3 +210,35 @@ async def test_outer_physical_deadline_retains_failure_phase_and_uncertainty(dur
     assert sample.error_kind == 'timeout' and sample.error_phase == ('commit' if during_commit else 'execute')
     assert sample.commit_attempted is during_commit and not sample.commit_confirmed
     assert store._counts == {False: 0, True: 0} and not store.healthy
+
+
+@pytest.mark.asyncio
+async def test_later_release_failure_replaces_a_successfully_retried_sqlstate():
+    store, c = runtime()
+    fetch = c.fetchval
+    attempts = []
+
+    async def conflict_once(*args):
+        attempts.append(1)
+        if len(attempts) == 1:
+            raise asyncpg.SerializationError('private-test-password')
+        return await fetch(*args)
+    c.fetchval = conflict_once
+    store._pools[False].release_fault = asyncpg.QueryCanceledError('private-test-password')
+    assert (await transaction(store))['version'] == 1
+    sample = store.diagnostics[-1]
+    assert len(attempts) == 2 and sample.commit_confirmed
+    assert sample.error_phase == 'release' and sample.sqlstate == '57014'
+    assert sample.outcome == 'confirmed_after_release_error'
+
+
+@pytest.mark.asyncio
+async def test_deadline_during_retry_wait_is_not_reported_as_prior_serialization_error():
+    store, c = runtime()
+    store.config = replace(store.config, transaction_timeout_ms=30, retry_base_ms=100)
+    c.fault = asyncpg.SerializationError('private-test-password')
+    with pytest.raises(StorageError):
+        await transaction(store)
+    sample = store.diagnostics[-1]
+    assert sample.error_phase == 'retry_wait' and sample.error_kind == 'timeout' and sample.sqlstate is None
+    assert not sample.commit_attempted and store._counts == {False: 0, True: 0}

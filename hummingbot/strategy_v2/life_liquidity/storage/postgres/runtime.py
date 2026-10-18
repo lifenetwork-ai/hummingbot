@@ -259,7 +259,7 @@ class PgRuntime:
                             result = await callback(c)
                             completed = True
                         except BaseException as error:
-                            if trace.error_phase is None:
+                            if trace.error_phase is None or not isinstance(error, StorageError) and trace.error_token != id(error):
                                 failure(error)
                             raise
                         finally:
@@ -278,7 +278,7 @@ class PgRuntime:
                     failure(error)
                 raise
             except Exception as error:
-                if trace.error_phase is None:
+                if completed or trace.error_phase is None:
                     failure(error)
                 elif isinstance(error, TimeoutError) and trace.error_kind == 'cancelled':
                     trace.error_kind = 'timeout'  # The outer physical deadline.

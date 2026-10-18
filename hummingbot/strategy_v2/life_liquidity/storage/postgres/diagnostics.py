@@ -35,6 +35,7 @@ class _Trace:
         self.phase = 'admit'
         self.durations = {}
         self.error_phase = self.error_kind = self.sqlstate = None
+        self.error_token = None
         self.commit_attempted = self.commit_confirmed = self.caller_cancelled = False
 
     def enter(self, name):
@@ -51,6 +52,7 @@ class _Trace:
             state = None
         self.sqlstate = state if type(state) is str and re.fullmatch(r'[0-9A-Z]{5}', state) else None
         self.error_phase = self.phase
+        self.error_token = id(error)  # No exception object retained in telemetry.
         self.error_kind = ('postgres' if self.sqlstate else 'timeout' if isinstance(error, TimeoutError)
                            else 'cancelled' if isinstance(error, asyncio.CancelledError) else 'error')
 
