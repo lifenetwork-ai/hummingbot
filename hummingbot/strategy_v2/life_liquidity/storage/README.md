@@ -60,8 +60,15 @@ cannot activate either writer. `frozen_legacy_applying_source(binding)` verifies
 the full sealed coordinator and native images after restart.
 
 This is **core source capture/retirement**, not a PostgreSQL financial importer.
-A bound `joint_repository_policy` is rejected until complete ancillary
-`JointRecovery` APPLYING capture exists. Native baseline/order provenance, typed
+A bound `joint_repository_policy` requires explicit `joint=original_repository`
+on capture and first retirement. Format-2 capsules retain the original
+`JointRecovery`, shared-capital, SWAP-action/WAL and request journals, plus every
+configured hedge/carry journal. They support interruption before cash starts,
+while it applies and after cash completion but before outer WAL/claim completion.
+Capture performs no financial observation/check/reconcile publication; physical
+retirement and cold reads verify every component again. Archives remain denied;
+this financial capsule does not include recorder/control-plane service backup.
+Existing core-only format-1 capsules retain their original serialization. Native baseline/order provenance, typed
 primitive import/parity, distributed fencing and configured service acceptance
 remain required. Retirement never copies a partial final balance into PostgreSQL,
 releases an order/shared claim or authorizes an exchange request. No startup

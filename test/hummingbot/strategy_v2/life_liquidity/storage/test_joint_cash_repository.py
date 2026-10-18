@@ -28,7 +28,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancial
 from hummingbot.strategy_v2.life_liquidity.storage.terminal import SpotTerminalPolicy
 
 
-async def fixture(tmp_path, *, spot=False, approvals=(), settlement_policy=None):
+async def fixture(tmp_path, *, spot=False, approvals=(), settlement_policy=None, operator_keys=None):
     recovery, values, bundle, _ = setup_recovery(tmp_path / 'native')
     c, _, _, _, _, _, clock, _, _, _, _, _ = values
     _, binding, owner = create_fixture(tmp_path / 'seed')
@@ -51,7 +51,7 @@ async def fixture(tmp_path, *, spot=False, approvals=(), settlement_policy=None)
                                    fill_policy=SpotFillPolicy(1000), accounting_policy=accounting,
                                    recovery_policy=SpotFinancialRecoveryPolicy(1000),
                                    terminal_policy=SpotTerminalPolicy(1000) if spot else None,
-                                   settlement_policy=settlement_policy)
+                                   settlement_policy=settlement_policy, operator_keys=operator_keys)
     # Explicit isolated test assembly: the restored store objects are the sole
     # wallet/WAL; production controller installation is a separate PG1 gate.
     bind(store, recovery)
@@ -81,7 +81,8 @@ async def reopen(tmp_path, store, recovery, values, owner):
                                       config_version=1, account_lock_root=tmp_path / 'account-locks',
                                       clock=lambda: values[6].wall, fill_policy=store._fill_policy,
                                       accounting_policy=store._accounting_policy, recovery_policy=store._recovery_policy,
-                                      terminal_policy=store._terminal_policy, settlement_policy=store._settlement_policy)
+                                      terminal_policy=store._terminal_policy, settlement_policy=store._settlement_policy,
+                                      operator_keys=store._operator_keys)
     try:
         bind(restored, joint)
         repo = await open_file_joint(restored, recovery=joint, owner=owner,

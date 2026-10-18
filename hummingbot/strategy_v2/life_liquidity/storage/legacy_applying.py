@@ -1,8 +1,8 @@
-"""Retire a validated interrupted core File saga without completing its money.
+"""Retire interrupted File accounting without completing its money.
 
 The capsule is source evidence for a future native import. It is neither a
-balance import nor a send grant. Ancillary JointRecovery journals require their
-own complete service capture; this core contract cannot stand in for them.
+balance import nor a send grant. Bound joint repositories must supply all their
+financial participants; recorder/control-plane service backup remains separate.
 """
 import asyncio
 import base64
@@ -12,6 +12,8 @@ import os
 import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime
+from decimal import ROUND_HALF_EVEN, Context, localcontext
+from pathlib import Path
 from uuid import UUID
 
 from hummingbot.strategy_v2.life_liquidity.storage.contracts import (
@@ -44,8 +46,13 @@ class LegacyApplyingSource:
     checkpoint_bytes: bytes
     journal_images: tuple[tuple[str, bytes], ...]
     facts: SpotFinancialRecoveryFacts
+    ancillary_images: tuple[tuple[str, str, bytes], ...] = ()
 
     def __post_init__(self):
+        with localcontext(Context(prec=28, rounding=ROUND_HALF_EVEN)):
+            self._validate()
+
+    def _validate(self):
         try:
             if (type(self.cut) is not FinancialCut or type(self.facts) is not SpotFinancialRecoveryFacts
                     or type(self.checkpoint_bytes) is not bytes or type(self.journal_images) is not tuple
@@ -63,9 +70,13 @@ class LegacyApplyingSource:
                     or state['ownership']['mode'] not in ('DRAINING', 'RECOVERY_ONLY')
                     or names != tuple(sorted(set(names))) or not {'session', 'wal', 'reservations', 'subsidy', 'loss'} <= set(names)
                     or {name: hashlib.sha256(raw).hexdigest() for name, raw in self.journal_images} != dict(self.cut.components)
-                    or len(self.pending_operation_ids) != 1):
+                    or type(self.ancillary_images) is not tuple
+                    or not self.ancillary_images and len(self.pending_operation_ids) != 1):
                 raise ValueError()
-            for key in self.pending_operation_ids:
+            if self.ancillary_images:
+                from hummingbot.strategy_v2.life_liquidity.storage.legacy_joint_applying import validate_images
+                validate_images(self)
+            for key in self.core_pending_operation_ids:
                 row = self.original_operations[key]
                 command, cut, owner = JointCashSpot.from_json(row['command']), FinancialCut.from_json(row['cut']), OwnerToken.from_json(row['owner'])
                 if (command.operation_id != key or command.binding != self.cut.checkpoint.binding
@@ -73,41 +84,61 @@ class LegacyApplyingSource:
                         or row['fingerprint'] != fingerprint({'command': command.json(), 'cut': cut.json(), 'owner': owner.json()})
                         or {name: hashlib.sha256(bytes.fromhex(raw)).hexdigest() for name, raw in row['before_native'].items()} != dict(cut.components)):
                     raise ValueError()
-        except (ValueError, TypeError, KeyError, AttributeError, StorageError):
+        except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError, StorageError):
             raise StorageError('LEGACY_APPLYING_SOURCE_INVALID') from None
 
     @property
     def original_operations(self):
-        return json.loads(self.checkpoint_bytes)['state']['resources']['joint_cash_operations']
+        return json.loads(self.checkpoint_bytes)['state']['resources'].get('joint_cash_operations', {})
+
+    @property
+    def core_pending_operation_ids(self):
+        return tuple(sorted(k for k, v in self.original_operations.items() if v['state'] == 'APPLYING'))
+
+    @property
+    def joint_state(self):
+        return None if not self.ancillary_images else json.loads(next(raw for name, _, raw in self.ancillary_images if name == 'joint_recovery'))['state']
 
     @property
     def pending_operation_ids(self):
-        return tuple(sorted(k for k, v in self.original_operations.items() if v['state'] == 'APPLYING'))
+        return self.core_pending_operation_ids if not self.ancillary_images else ('joint:' + self.joint_state['proof_id'],)
+
+    @property
+    def scope(self):
+        return 'JOINT_ACCOUNTING_APPLYING' if self.ancillary_images else 'CORE_JOINT_CASH_APPLYING'
 
     def manifest(self):
-        return {'format': 1, 'scope': 'CORE_JOINT_CASH_APPLYING', 'cut': self.cut.json(),
-                'pending_operation_ids': list(self.pending_operation_ids),
-                'checkpoint_sha256': hashlib.sha256(self.checkpoint_bytes).hexdigest(),
-                'journals': {name: hashlib.sha256(raw).hexdigest() for name, raw in self.journal_images}}
+        result = {'format': 2 if self.ancillary_images else 1, 'scope': self.scope, 'cut': self.cut.json(),
+                  'pending_operation_ids': list(self.pending_operation_ids),
+                  'checkpoint_sha256': hashlib.sha256(self.checkpoint_bytes).hexdigest(),
+                  'journals': {name: hashlib.sha256(raw).hexdigest() for name, raw in self.journal_images}}
+        if self.ancillary_images:
+            result['ancillary'] = [[name, path, hashlib.sha256(raw).hexdigest()] for name, path, raw in self.ancillary_images]
+        return result
 
     @property
     def content_digest(self):
         return fingerprint(self.manifest())
 
     def pack(self):
-        return encode({'format': 1, 'cut': self.cut.json(), 'checkpoint': base64.b64encode(self.checkpoint_bytes).decode(),
-                       'journals': [[name, base64.b64encode(raw).decode()] for name, raw in self.journal_images],
-                       'facts': self.facts.json()})
+        result = {'format': 2 if self.ancillary_images else 1, 'cut': self.cut.json(), 'checkpoint': base64.b64encode(self.checkpoint_bytes).decode(),
+                  'journals': [[name, base64.b64encode(raw).decode()] for name, raw in self.journal_images],
+                  'facts': self.facts.json()}
+        if self.ancillary_images:
+            result['ancillary'] = [[name, path, base64.b64encode(raw).decode()] for name, path, raw in self.ancillary_images]
+        return encode(result)
 
     @classmethod
     def unpack(cls, raw):
         try:
             value = json.loads(raw)
-            if set(value) != {'format', 'cut', 'checkpoint', 'journals', 'facts'} or value['format'] != 1:
+            expected = {'format', 'cut', 'checkpoint', 'journals', 'facts'} | ({'ancillary'} if value['format'] == 2 else set())
+            if set(value) != expected or type(value['format']) is not int or value['format'] not in (1, 2):
                 raise ValueError()
             result = cls(FinancialCut.from_json(value['cut']), base64.b64decode(value['checkpoint'], validate=True),
                          tuple((name, base64.b64decode(data, validate=True)) for name, data in value['journals']),
-                         SpotFinancialRecoveryFacts.from_json(value['facts']))
+                         SpotFinancialRecoveryFacts.from_json(value['facts']),
+                         tuple((name, path, base64.b64decode(raw, validate=True)) for name, path, raw in value.get('ancillary', ())))
             if result.pack() != raw:
                 raise ValueError()
             return result
@@ -179,7 +210,7 @@ class LegacyApplyingAdapter:
             self._read_frozen_applying()
         super()._before_call(function, args)
 
-    def _applying_source(self, facts, cut):
+    def _applying_source(self, facts, cut, joint=None):
         self.assert_worker_thread()
         if self._operator_keys is None or self._recovery_policy is None:
             raise StorageError('LEGACY_APPLYING_CONTROL_REQUIRED')
@@ -192,8 +223,14 @@ class LegacyApplyingAdapter:
             raise StorageError('LEGACY_APPLYING_DRAIN_REQUIRED')
         if meta.resources.get('legacy_applying_retirement') is not None:
             raise StorageError('LEGACY_APPLYING_SOURCE_RETIRED')
+        ancillary = ()
         if 'joint_repository_policy' in meta.resources:
-            raise StorageError('LEGACY_APPLYING_ANCILLARY_CAPTURE_REQUIRED')
+            from hummingbot.strategy_v2.life_liquidity.storage.legacy_joint_applying import capture_images
+            if joint is None:
+                raise StorageError('LEGACY_APPLYING_ANCILLARY_CAPTURE_REQUIRED')
+            ancillary = capture_images(self, joint)
+        elif joint is not None:
+            raise StorageError('LEGACY_JOINT_APPLYING_REPOSITORY_REQUIRED')
         now = utc(self._clock())
         if (not 0 <= (now - facts.observed_at).total_seconds() * 1000 <= self._recovery_policy.max_fact_age_ms
                 or not facts.order_scope_complete or not facts.bill_scope_complete or not facts.runner_scope_complete
@@ -202,28 +239,37 @@ class LegacyApplyingAdapter:
         # Validate the actual partial wallet/loss images using the existing saga
         # projection, stopping before its first financial or coordinator write.
         pending = [row for row in meta.resources.get('joint_cash_operations', {}).values() if row['state'] == 'APPLYING']
-        if len(pending) != 1:
+        if len(pending) > 1 or not pending and not ancillary:
             raise StorageError('LEGACY_APPLYING_SINGLE_CORE_SAGA_REQUIRED')
-        row = pending[0]
-        command = JointCashSpot.from_json(row['command'])
-        if (facts.account_base_life, facts.account_quote_usdt) != (command.account_base_life, command.account_quote_usdt):
-            raise StorageError('LEGACY_APPLYING_FACTS_UNQUALIFIED')
-        self._apply_joint_cash(command, FinancialCut.from_json(row['cut']), OwnerToken.from_json(row['owner']),
-                               resume=True, preflight_only=True)
+        if pending:
+            row = pending[0]
+            command = JointCashSpot.from_json(row['command'])
+            if (facts.account_base_life, facts.account_quote_usdt) != (command.account_base_life, command.account_quote_usdt):
+                raise StorageError('LEGACY_APPLYING_FACTS_UNQUALIFIED')
+            with localcontext(Context(prec=28, rounding=ROUND_HALF_EVEN)):
+                self._apply_joint_cash(command, FinancialCut.from_json(row['cut']), OwnerToken.from_json(row['owner']),
+                                       resume=True, preflight_only=True)
+        else:
+            # Outer APPLYING may follow a complete cash receipt or precede its
+            # first write. Verify the completed core money independently of
+            # potentially changed outer WAL/claim component hashes.
+            self._verify_joint_cash_projection(meta.resources)
+            self._verify_capital_projection(meta.resources['commands'], meta.resources.get('fills', {}),
+                                            meta.resources.get('cashflows', {}), meta.resources.get('joint_cashflows', {}))
         self._check_file()
         checkpoint = read_bytes(self._path, self.limits.max_checkpoint_bytes)
-        source = LegacyApplyingSource(cut, checkpoint, tuple(sorted(self._raw().items())), facts)
+        source = LegacyApplyingSource(cut, checkpoint, tuple(sorted(self._raw().items())), facts, ancillary)
         if json.loads(checkpoint)['policy'] != self._policy:
             raise StorageError('LEGACY_APPLYING_POLICY_MISMATCH')
         if self._snapshot().cut != cut:
             raise StorageConflict('LEGACY_APPLYING_SOURCE_CHANGED')
         return source
 
-    async def legacy_applying_source(self, binding, *, facts, cut):
+    async def legacy_applying_source(self, binding, *, facts, cut, joint=None):
         self._assert_binding(binding)
         if type(facts) is not SpotFinancialRecoveryFacts or type(cut) is not FinancialCut:
             raise StorageError('LEGACY_APPLYING_SOURCE_INVALID')
-        return await self._call(self._applying_source, facts, cut)
+        return await self._call(self._applying_source, facts, cut, joint)
 
     def _artifact(self, command):
         folder = self._path.parent / 'legacy_applying_sources'
@@ -269,6 +315,18 @@ class LegacyApplyingAdapter:
         return {'operation_id': command.operation_id, 'source_digest': source.content_digest,
                 'artifact_sha256': hashlib.sha256(raw).hexdigest()}
 
+    def _verify_applying_images(self, source):
+        if type(source) is not LegacyApplyingSource:
+            raise StorageError('LEGACY_APPLYING_PHYSICAL_SOURCE_REQUIRED')
+        if self._hashes(self._raw()) != dict(source.cut.components):
+            raise StorageConflict('LEGACY_APPLYING_SOURCE_CHANGED')
+        for _, path, expected_bytes in source.ancillary_images:
+            try:
+                if read_bytes(Path(path), len(expected_bytes)) != expected_bytes:
+                    raise StorageUnavailable('LEGACY_JOINT_APPLYING_SOURCE_CHANGED')
+            except (OSError, StorageError):
+                raise StorageUnavailable('LEGACY_JOINT_APPLYING_SOURCE_CHANGED') from None
+
     def _read_frozen_applying(self):
         meta = self._read()
         descriptor = meta.resources.get('legacy_applying_retirement')
@@ -284,6 +342,7 @@ class LegacyApplyingAdapter:
                 or source.cut.json() != thaw(record['cut']) or source.facts.json() != thaw(record['facts'])
                 or self._hashes(self._raw()) != dict(source.cut.components)):
             raise StorageUnavailable('LEGACY_APPLYING_ARTIFACT_ORIGIN_INVALID')
+        self._verify_applying_images(source)
         # A valid retirement signature seals the entire preceding coordinator,
         # not just its monetary component hashes. No later resource/operation
         # edits can masquerade as the original retired source.
@@ -316,7 +375,7 @@ class LegacyApplyingAdapter:
         self._assert_binding(binding)
         return await self._call(self._read_frozen_applying)
 
-    def _retire_legacy_applying(self, command, source, approval):
+    def _retire_legacy_applying(self, command, source, approval, joint=None):
         meta = self._read()
         previous = meta.resources.get('control_operations', {}).get(command.operation_id)
         if previous is not None:
@@ -329,18 +388,18 @@ class LegacyApplyingAdapter:
         command.validate_source(self.binding)
         if source.content_digest != command.source_digest:
             raise StorageConflict('LEGACY_APPLYING_SOURCE_CHANGED')
-        current = self._applying_source(source.facts, source.cut)
+        current = self._applying_source(source.facts, source.cut, joint)
         if current != source:
             raise StorageConflict('LEGACY_APPLYING_SOURCE_CHANGED')
         self._operator_keys.verify(approval, self.binding, 'IMPORT', command.json(), source.cut, source.facts, utc(self._clock()))
         descriptor = self._persist_applying(command, source)
         # Disk publication may outlive either freshness window; revalidate on the
         # same owning worker before the irreversible coordinator publication.
-        if self._applying_source(source.facts, source.cut) != source:
+        if self._applying_source(source.facts, source.cut, joint) != source:
             raise StorageConflict('LEGACY_APPLYING_SOURCE_CHANGED')
         ownership = {'mode': meta.ownership.mode.value, 'token': meta.ownership.token.json()}
         self._control_commit(command.operation_id, source.cut, approval, command.json(), ownership, source.facts,
-                             {'legacy_applying_retirement': descriptor})
+                             {'legacy_applying_retirement': descriptor}, applying_source=source)
         self._legacy_applying_retired, self._cold_unarmed, self._observation_generation = True, True, None
         try:
             self._read_frozen_applying()
@@ -349,11 +408,11 @@ class LegacyApplyingAdapter:
             raise CommitUnknown('LEGACY_APPLYING_RETIREMENT_UNKNOWN') from None
         return LegacyApplyingRetirementReceipt(command.operation_id, source.content_digest, False)
 
-    async def retire_legacy_applying(self, command, *, source, approval):
+    async def retire_legacy_applying(self, command, *, source, approval, joint=None):
         if type(command) is not RetireLegacyApplying or type(source) is not LegacyApplyingSource or type(approval) is not OperatorApproval:
             raise StorageError('LEGACY_APPLYING_COMMAND_INVALID')
         try:
-            return await self._call(self._retire_legacy_applying, command, source, approval)
+            return await self._call(self._retire_legacy_applying, command, source, approval, joint)
         except OSError:
             raise StorageUnavailable('LEGACY_APPLYING_ARTIFACT_PUBLICATION_FAILED') from None
         except asyncio.CancelledError:

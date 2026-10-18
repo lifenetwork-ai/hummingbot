@@ -147,7 +147,7 @@ class LegacyControlAdapter:
         with self._state.inspect() as state:
             return dict(state['operations'][key])
 
-    def _control_commit(self, operation_id, cut, approval, payload, ownership, facts, changes=None):
+    def _control_commit(self, operation_id, cut, approval, payload, ownership, facts, changes=None, *, applying_source=None):
         self._check_file()
         with self._state.locked() as state:
             self._validate(state)
@@ -197,6 +197,18 @@ class LegacyControlAdapter:
                 grant = state['resources']['control_operations'][payload['handoff_operation_id']]['payload']
                 if now >= session_record(grant['target_session_json']).expires_at:
                     raise StorageError('HANDOFF_TARGET_EXPIRED_AT_COMMIT')
+            if approval.role == 'IMPORT' and payload['kind'] == 'RETIRE_LEGACY_APPLYING':
+                self._verify_applying_images(applying_source)
+                if (applying_source.cut != cut or applying_source.facts != facts
+                        or applying_source.content_digest != payload['source_digest']):
+                    raise StorageError('LEGACY_APPLYING_PHYSICAL_SOURCE_CHANGED')
+                now = utc(self._clock())
+                if state['checked_at'] is not None and now < datetime.fromisoformat(state['checked_at']):
+                    raise StorageError('CONTROL_CLOCK_ROLLBACK')
+                if not approval.issued_at <= now < approval.expires_at:
+                    raise StorageError('OPERATOR_APPROVAL_EXPIRED_AT_COMMIT')
+                if not 0 <= (now - facts.observed_at).total_seconds() * 1000 <= self._recovery_policy.max_fact_age_ms:
+                    raise StorageError('LEGACY_APPLYING_FACTS_EXPIRED_AT_COMMIT')
             records = state['resources'].setdefault('control_operations', {})
             revision = state['revision'] + 1
             records[operation_id] = {'payload': payload, 'approval': approval.body(), 'signature': approval.signature,
