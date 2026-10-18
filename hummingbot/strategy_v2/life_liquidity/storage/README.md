@@ -3310,3 +3310,22 @@ Both SPOT and cashflow prefix proofs refuse a fact whose original source
 operation is missing. The existing FKs remain; the proof does not treat an
 orphan as an empty prefix while an FK check is deferred. No source/release,
 activation or trading permission is created by this import profile.
+
+Migration 60 additionally matches already booked original SWAP leaves and
+paid-funding bills against the complete retired File target, at the original
+import revision. Trade/order/session/preparation IDs, quantities, prices,
+fees, realized PnL, independent valuations and economic times remain exact.
+Funding bills retain the original signed cash amount and settlement time;
+new account capture times do not re-date a paid bill. Original native source
+hashes, command fingerprints and APPLIED receipts must verify. Missing source
+operations and pending facts are refused. Existing global money, position,
+budget, causal financing and pending proofs remain mandatory. There is no
+recursive call from this local prefix helper into the full account proof.
+
+IMPORT stays money-neutral and recovery dedupes natural bill/trade IDs without
+rewriting original application IDs or receipts. Cold replay retains original
+HALT and claims. Declared core funding/transfer and outer SWAP/funding histories
+have actual File-resume parity checks; previously applied joint parents, other
+core commands, terminal/economic settlement and other undeclared histories
+remain refused. This extension does not close the full R1/provider or configured
+service contracts.

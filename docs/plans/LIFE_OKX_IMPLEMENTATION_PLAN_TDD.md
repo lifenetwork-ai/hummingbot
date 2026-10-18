@@ -1,6 +1,18 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
-**Current PG3 R1 original-transfer checkpoint (2026-10-18, base `bdfc02c7e`):**
+**Current PG3 R1 derivative-prefix checkpoint (2026-10-18, base `46aac164f`):**
+migration 60 retains native SWAP trades and paid funding already booked before
+retired File recovery, with original hashes, economic facts and receipts.
+Actual File resume and two native cold restores preserve money, gross budgets,
+HALT and claims. **174 final affected cases and 75 migration cases pass**;
+focused new-profile/upgrade cases are included in the recorded coverage.
+Earlier failed runs remain recorded: a fixture account source aged through
+claim setup, then primary wall time advanced far beyond elapsed test time.
+No deadline was widened. See
+[scope and qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-original-native-swap-and-funding-prefixes-2026-10-18).
+**R1–R5 and configured-service acceptance remain open.**
+
+**Earlier PG3 R1 original-transfer checkpoint (2026-10-18, base `bdfc02c7e`):**
 migration 59 accepts independently approved native cashflows already booked
 before a retired File import, only with unchanged economic facts and verified
 original hashes/receipts. IMPORT stays money-neutral; recovery dedupes original

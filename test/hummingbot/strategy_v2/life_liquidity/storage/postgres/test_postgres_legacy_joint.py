@@ -1,6 +1,7 @@
 """Actual outer File SWAP interruption against an explicit original native seed."""
 import asyncio
 import json
+import time
 from dataclasses import replace
 from datetime import timedelta
 from decimal import Decimal as D
@@ -26,7 +27,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.legacy_applying impo
 from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancialRecoveryFacts
 
 
-async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('-.001'), funding=None, cashflow=None, cashflow_written=False):
+async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('-.001'), funding=None, cashflow=None, cashflow_written=False, book_native_swap=False, book_native_funding=False, file_result=None):
     from test.hummingbot.strategy_v2.life_liquidity import test_session
     from test.hummingbot.strategy_v2.life_liquidity.storage import test_legacy_joint_applying as file_fixture
     from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_carry import setup as carry_setup
@@ -40,7 +41,11 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
     from hummingbot.strategy_v2.life_liquidity.storage.contracts import CommitUnknown
     from hummingbot.strategy_v2.life_liquidity.storage.postgres.funding import ApplyFunding
     from hummingbot.strategy_v2.life_liquidity.storage.postgres.swap import PgSwapRepository
-    from hummingbot.strategy_v2.life_liquidity.storage.postgres.swap_fills import FillSwap, SwapFillObservation
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.swap_fills import (
+        FillSwap,
+        PgSwapFillRepository,
+        SwapFillObservation,
+    )
     from hummingbot.strategy_v2.life_liquidity.storage.products import ReserveCapital
     from hummingbot.strategy_v2.life_liquidity.storage.swap import PrepareSwap
     admin = database[0]
@@ -130,6 +135,11 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
 
         capital.observation, carry.observation = capture_account, capture_carry
         assert (await capital.reserve(ReserveCapital('original-claim', claim), await capital.cut(cfg.binding), owner)).decision.allowed
+        # Carry must use the exact independently published capital snapshot.
+        # Capture a new fake account response after claim setup, then publish
+        # it before taking the carry cut. Never re-date the previous response
+        # or change account version from inside the carry collector.
+        assert (await capital.check_capital(cfg.binding)).allowed
         assert (await carry.check_carry(cfg.binding)).allowed
 
         # Capture the order only after its input cut is available. A preceding
@@ -189,6 +199,24 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
         patches.setattr(file_fixture, 'fixture', fixture)
         patches.setattr(file_fixture, 'report', numeric_report)
         joint, store, recovery, values, file_owner = await file_fixture.interrupted(tmp_path, patches, stage, before_report=before_report)
+    if file_result is not None:
+        # Fork only this disposable File fixture at its exact crash bytes.
+        # Complete the actual File recovery as the independent money oracle,
+        # then restore the crash branch before retirement. Native facts and
+        # the permanent source-retirement fence are never rewound.
+        images = {p: p.read_bytes() for p in tmp_path.rglob('*') if p.is_file()}
+        assert await joint.reconcile(store.binding, file_owner), recovery.reason_code
+        expected = await store.snapshot(store.binding)
+        file_result.update(balance=expected.balance, budget=expected.budget)
+        await store.close()
+        for p in tmp_path.rglob('*'):
+            if p.is_file() and p not in images:
+                p.unlink()
+        for p, raw in images.items():
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_bytes(raw)
+        from test.hummingbot.strategy_v2.life_liquidity.storage.test_joint_cash_repository import reopen
+        joint, store, recovery, values = await reopen(tmp_path, store, recovery, values, file_owner)
     native, swap, prepared, claim = (prepared_target[k] for k in ('native', 'swap', 'prepared', 'claim'))
     financial, cfg, owner, _, feed, capital, _, carry_feed, carry = native
     binding = store.binding
@@ -196,6 +224,15 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
     trade = SwapFillObservation('trade-1', D('.25'), D('1'), 'USDT', fee, at, D('1'), at, at, 'independent_market', pnl, None)
     fill = FillSwap('original-fill', prepared.operation_id, claim.intent_id, claim.wire_id, 'LIFE-USDT', claim.side,
                     claim.session_id, claim.epoch, '987654321', D('.25'), (trade,), values[6].wall)
+    if book_native_swap:
+        # Received fills remain accountable under HALT. Pin that explicit
+        # stopped state before capturing the cut; a live source TTL crossing
+        # must not turn this recovery fixture into a transient-ready retry.
+        await admin.execute('UPDATE life_financial.accounts SET halted=true WHERE account_id=$1', cfg.account_id)
+        native_cut = (await financial.observation_cut(cfg.binding)).cut
+        received = await admin.fetchval('SELECT clock_timestamp()')
+        original_fill = replace(fill, operation_id='native-prior-swap', observed_at=received)
+        assert (await PgSwapFillRepository(swap).apply_fills(original_fill, cut=native_cut, owner=owner)).state == 'APPLIED'
     fresh_now = await admin.fetchval('SELECT clock_timestamp()')
     values[6].wall = fresh_now
     facts = SpotFinancialRecoveryFacts(binding, fresh_now, final_base, final_cash, D('0'), D('0'), ('trade-1',),
@@ -218,6 +255,10 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
                 terms=replace(b.terms, sequence=b.terms.sequence + 1, observed_at_ms=stamp))
     if funding is not None:
         b = replace(b, funding=replace(b.funding, payments=(FundingPayment('777', at, funding),)))
+    if book_native_funding:
+        from hummingbot.strategy_v2.life_liquidity.storage.postgres.funding import PgFundingRepository
+        assert (await PgFundingRepository(swap).apply_funding(ApplyFunding('native-prior-funding', b),
+                                                              cut=(await financial.observation_cut(cfg.binding)).cut, owner=owner)).state == 'APPLIED'
     batch = PgJointBatchRepository(swap)
     flows = () if cashflow is None else (prepared_target['cashflow'],)
     cmd = ImportLegacyApplying(source.content_digest, ApplyJointBatch('outer-pending', (), (fill,), flows, ApplyFunding('outer-funding', b)))
@@ -241,6 +282,7 @@ async def apply_recovery(database, batch, command, facts, store):
     financial, cfg, owner = batch.financial, batch.runtime.config, batch.owner
     b = command.batch.funding.bundle
     now = await database[0].fetchval('SELECT clock_timestamp()')
+    captured_monotonic = time.monotonic()
     at = int(now.timestamp() * 1000)
     b = replace(b, account=replace(b.account, snapshot=replace(b.account.snapshot, sequence=b.account.snapshot.sequence + 1, observed_at_ms=at)),
                 mark=replace(b.mark, sequence=b.mark.sequence + 1, observed_at_ms=at), index=replace(b.index, sequence=b.index.sequence + 1, observed_at_ms=at),
@@ -251,7 +293,22 @@ async def apply_recovery(database, batch, command, facts, store):
                              int(store._accounting_policy.opened_at.timestamp() * 1000), at)
     repair_cut = (await financial.observation_cut(cfg.binding)).cut
     signed = KEYS.sign('operator', cfg.binding, 'RECOVER', repair.json(), repair_cut, proof, issued_at=now, expires_at=now + timedelta(seconds=10))
-    await PgJointRepairApprovalImporter(database[0], batch, verifier=KEYS.verifier(), max_fact_age_ms=5000).approve(repair, approval=signed, cut=repair_cut, facts=proof)
+    try:
+        await PgJointRepairApprovalImporter(database[0], batch, verifier=KEYS.verifier(), max_fact_age_ms=5000).approve(repair, approval=signed, cut=repair_cut, facts=proof)
+    except StorageError as error:
+        # Failure-only synthetic timing, without another source capture,
+        # retry or deadline change. Host/VM suspension may advance primary
+        # wall time while Python's elapsed test clock barely advances.
+        try:
+            async with asyncio.timeout(2):
+                failed_at = await database[0].fetchval('SELECT clock_timestamp()')
+            error.add_note('Synthetic repair timing: primary_elapsed_ms='
+                           f'{(failed_at - now).total_seconds() * 1000:.3f}, '
+                           f'monotonic_elapsed_ms={(time.monotonic() - captured_monotonic) * 1000:.3f}, '
+                           'max_fact_age_ms=5000; original signed facts were not refreshed')
+        except Exception:
+            error.add_note('Synthetic repair timing unavailable; original failure retained')
+        raise
     result = await PgJointRepairRepository(batch).resolve(repair, cut=repair_cut, owner=owner)
     return result, repair, repair_cut
 
@@ -484,3 +541,48 @@ async def test_outer_pending_process_exit_then_cold_recovery_books_swap_fee_once
             await cold.close()
         await store.close()
         await financial.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('stage', ['outer_before_cash', 'wallet_after', 'shared_after'])
+@pytest.mark.parametrize('funding', [None, D('-.1'), D('.04')])
+async def test_native_swap_and_funding_prefix_recovery_does_not_charge_original_facts_twice(database, tmp_path, monkeypatch, stage, funding):
+    from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_legacy_core_cashflows import restore
+    file_result = {}
+    values, batch, command, cut, facts, approval, importer, store, source = await setup(
+        database, tmp_path, monkeypatch, stage, entry=D('1.02'), funding=funding,
+        book_native_swap=True, book_native_funding=funding is not None, file_result=file_result)
+    financial, cfg, owner = values[:3]
+    cold = None
+    c = database[0]
+    try:
+        held = await values[5].claims(cfg.binding)
+        before = await financial.balance(cfg.binding)
+        budget = await financial.budget(cfg.binding)
+        originals = await c.fetchval("SELECT jsonb_agg(to_jsonb(o) ORDER BY operation_id) FROM life_financial.operations o WHERE account_id=$1 AND operation_id IN ('native-prior-swap','native-prior-funding')", cfg.account_id)
+        assert before.total_quote_usdt == facts.account_quote_usdt
+        assert (await importer.import_pending(command, source_store=store, approval=approval, cut=cut, facts=facts)).state == 'RECOVERY_REQUIRED'
+        assert await financial.balance(cfg.binding) == before
+        await financial.close()
+        cold, capital, batch, importer = await restore(cfg, owner, c)
+        assert (await importer.lookup(command.operation_id)).replayed
+        result, repair, repair_cut = await apply_recovery(database, batch, command, facts, store)
+        assert result.state == 'REPAIRED' and not result.trading_permission
+        await cold.close()
+        cold, capital, batch, importer = await restore(cfg, owner, c)
+        assert (await PgJointRepairRepository(batch).resolve(repair, cut=repair_cut, owner=owner)).replayed
+        assert await cold.balance(cfg.binding) == before == file_result['balance']
+        assert await cold.budget(cfg.binding) == budget == file_result['budget']
+        assert await capital.claims(cfg.binding) == held
+        assert await c.fetchval('SELECT count(*) FROM life_financial.swap_fill_facts WHERE account_id=$1', cfg.account_id) == 1
+        assert await c.fetchval('SELECT count(*) FROM life_financial.funding_cash_payments WHERE account_id=$1', cfg.account_id) == int(funding is not None)
+        assert await c.fetchval("SELECT jsonb_agg(to_jsonb(o) ORDER BY operation_id) FROM life_financial.operations o WHERE account_id=$1 AND operation_id IN ('native-prior-swap','native-prior-funding')", cfg.account_id) == originals
+        assert await c.fetchval('SELECT halted FROM life_financial.accounts WHERE account_id=$1', cfg.account_id)
+        assert (await batch.lookup(command.operation_id, cfg.binding)).state == 'RECOVERY_REQUIRED'
+        assert (await importer.lookup(command.operation_id)).replayed
+        assert await store.frozen_legacy_applying_source(store.binding) == source
+    finally:
+        await store.close()
+        await financial.close()
+        if cold is not None:
+            await cold.close()

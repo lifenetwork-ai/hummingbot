@@ -902,3 +902,13 @@ account, policy, balance, activation or configured PostgreSQL sender.
   proof instead of disappearing through an inner join. Preserve predecessor
   OIDs/ACLs; private helper defaults and atomic unexpected-shape rollback remain.
   No table, account, money, approval, budget or permission is bootstrapped.
+
+- `000060_legacy_derivative_prefix.sql`: match independently booked original
+  SWAP fills and paid-funding bills against the complete signed File target at
+  its original import cut. Preserve original hashes, observations, receipts,
+  fees/PnL, positions and gross costs; IMPORT changes no money. Orphan sources,
+  changed facts and pending originals fail closed. Private helper defaults,
+  unchanged predecessor OIDs/ACLs, strict atomic upgrade and repeat-startup
+  checksum/idempotency rules apply. No tables, policy defaults or trading,
+  activation or release permission are created. Prior joint-batch and other
+  unsupported histories still require their separate recovery contracts.

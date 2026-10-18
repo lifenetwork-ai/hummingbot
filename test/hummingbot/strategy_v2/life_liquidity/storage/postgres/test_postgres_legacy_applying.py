@@ -30,7 +30,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancial
 KEYS = OperatorKeys({'operator': b'i' * 32}, {'operator': frozenset(('IMPORT', 'RECOVER', 'DRAIN'))})
 
 
-async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashflow=None, spot_fill=None, file_result=None, retained_cashflows_only=False, spot_prefix=False, book_native_prefix=False, spot_open_only=False, book_native_cashflow=False):
+async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashflow=None, spot_fill=None, file_result=None, retained_cashflows_only=False, spot_prefix=False, book_native_prefix=False, spot_open_only=False, book_native_cashflow=False, book_native_funding=False):
     from test.hummingbot.strategy_v2.life_liquidity.storage import test_spot_financial_contracts as file_fixture
     from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_funding import setup as funding_setup
 
@@ -53,6 +53,9 @@ async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashfl
                                                                      **({} if initial is None else {'original_session_id': initial[2].session_id})))
     financial, cfg, owner = values[:3]
     admin = database[0]
+    if book_native_funding:
+        original_payment = replace(payment, operation_id='native-prior-funding')
+        assert (await funding.apply_funding(original_payment, cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)).state == 'APPLIED'
     await admin.execute('INSERT INTO life_financial.joint_batch_policies VALUES($1,$2,32,64,1048576)', cfg.account_id, cfg.binding.policy_hash)
     await admin.execute('INSERT INTO life_financial.joint_repair_policies VALUES($1,$2,64,64,1048576,5000)', cfg.account_id, cfg.binding.policy_hash)
     await admin.execute('INSERT INTO life_financial.legacy_applying_policies VALUES($1,$2,4,4194304,5000)', cfg.account_id, cfg.binding.policy_hash)

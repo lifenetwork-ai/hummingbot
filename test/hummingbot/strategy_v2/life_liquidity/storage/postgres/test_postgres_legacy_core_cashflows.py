@@ -108,11 +108,11 @@ async def test_native_cashflow_prefix_corruption_after_import_blocks_cold_source
 @pytest.mark.parametrize('currency,amount,price', [('USDT', D('2'), D('1')), ('USDT', D('-2'), D('1')),
                                                    ('LIFE', D('2'), D('1.2')), ('LIFE', D('-2'), D('1.2'))])
 async def test_core_transfer_and_funding_import_is_neutral_then_cold_recovery_applies_original_facts_once(
-        database, tmp_path, monkeypatch, stage, currency, amount, price, retained_only, native_prefix):
+        database, tmp_path, monkeypatch, stage, currency, amount, price, retained_only, native_prefix, native_funding=False):
     expected_file = {}
     values, batch, command, cut, facts, approval, importer, store, source = await setup(
         database, tmp_path, monkeypatch, stage, cashflow=(currency, amount, price),
-        file_result=expected_file, retained_cashflows_only=retained_only, book_native_cashflow=native_prefix)
+        file_result=expected_file, retained_cashflows_only=retained_only, book_native_cashflow=native_prefix, book_native_funding=native_funding)
     financial, cfg, owner = values[:3]
     cold = None
     c = database[0]
@@ -121,14 +121,15 @@ async def test_core_transfer_and_funding_import_is_neutral_then_cold_recovery_ap
         budget = await financial.budget(cfg.binding)
         native_before = await financial.balance(cfg.binding)
         original_receipt = await c.fetchval("SELECT to_jsonb(o) FROM life_financial.operations o WHERE account_id=$1 AND operation_id='native-prior-transfer'", cfg.account_id)
+        original_funding = await c.fetchval("SELECT to_jsonb(o) FROM life_financial.operations o WHERE account_id=$1 AND operation_id='native-prior-funding'", cfg.account_id)
         file_before = (await store.snapshot(store.binding)).balance
         assert source.scope == 'CORE_JOINT_CASH_APPLYING'
         assert (await importer.import_pending(command, source_store=store, approval=approval, cut=cut, facts=facts)).state == 'RECOVERY_REQUIRED'
         assert await financial.balance(cfg.binding) == native_before
-        assert native_before.total_quote_usdt == D('10') + (amount if native_prefix and currency == 'USDT' else D('0'))
+        assert native_before.total_quote_usdt == D('10') - (D('.1') if native_funding else D('0')) + (amount if native_prefix and currency == 'USDT' else D('0'))
         assert native_before.total_base_life == D('5') + (amount if native_prefix and currency == 'LIFE' else D('0'))
         assert await c.fetchval('SELECT count(*) FROM life_financial.cashflows WHERE account_id=$1', cfg.account_id) == int(native_prefix)
-        assert await c.fetchval('SELECT count(*) FROM life_financial.funding_cash_payments WHERE account_id=$1', cfg.account_id) == 0
+        assert await c.fetchval('SELECT count(*) FROM life_financial.funding_cash_payments WHERE account_id=$1', cfg.account_id) == int(native_funding)
         await financial.close()
         cold, capital, batch, importer = await restore(cfg, owner, c)
         assert (await importer.import_pending(command, source_store=None, approval=approval, cut=cut, facts=facts)).replayed
@@ -163,6 +164,7 @@ async def test_core_transfer_and_funding_import_is_neutral_then_cold_recovery_ap
         assert await c.fetchval('SELECT count(*) FROM life_financial.cashflows WHERE account_id=$1', cfg.account_id) == 1
         assert await c.fetchval("SELECT to_jsonb(o) FROM life_financial.operations o WHERE account_id=$1 AND operation_id='native-prior-transfer'", cfg.account_id) == original_receipt
         assert await c.fetchval('SELECT count(*) FROM life_financial.funding_cash_payments WHERE account_id=$1', cfg.account_id) == 1
+        assert await c.fetchval("SELECT to_jsonb(o) FROM life_financial.operations o WHERE account_id=$1 AND operation_id='native-prior-funding'", cfg.account_id) == original_funding
         assert await c.fetchval("SELECT gross_debits_usdt FROM life_financial.funding_observations WHERE account_id=$1 AND state='APPLIED'", cfg.account_id) == D('.1')
         assert await c.fetchval('SELECT count(*) FROM life_financial.budget_events WHERE account_id=$1', cfg.account_id) == 0
         assert await cold.budget(cfg.binding) == budget
@@ -219,3 +221,11 @@ async def test_new_target_signature_cannot_change_original_core_transfer_or_supp
     finally:
         await store.close()
         await financial.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('stage', ['wallet_before', 'wallet_after', 'receipt'])
+@pytest.mark.parametrize('currency,amount,price', [('USDT', D('2'), D('1')), ('LIFE', D('-2'), D('1.2'))])
+async def test_native_funding_and_transfer_prefix_recovery_preserves_original_money_once(database, tmp_path, monkeypatch, stage, currency, amount, price):
+    await test_core_transfer_and_funding_import_is_neutral_then_cold_recovery_applies_original_facts_once(
+        database, tmp_path, monkeypatch, stage, currency, amount, price, True, True, native_funding=True)

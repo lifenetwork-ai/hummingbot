@@ -688,7 +688,8 @@ qualification/revision recorded in each increment below.
 - [x] Already booked native SPOT prefixes and retained sent/unfilled SPOT holds, with original receipts, costs and cold restart.
 - [x] Declared first outer File SWAP/funding/approved-transfer interruption profiles, including original entry basis and signed recovery.
 - [x] Already booked native transfer prefixes: exact original economic facts, hashes and receipts; migration-59 combined recovery and upgrade qualification below.
-- [ ] Prior native SWAP/funding prefixes and prior applied core financial commands outside the declared first-command profiles.
+- [x] Declared original native SWAP/funding prefixes, with exact prior receipts/hashes, File parity, cold recovery and actual 59→60 upgrades.
+- [ ] Prior applied core financial commands and prior native joint batches outside the declared first-command profiles.
 - [ ] Prior other-order, PREPARED-only, cancellation, terminal/NAV and economic settlement histories needed by supported File recovery modes.
 - [ ] Outer SPOT and hedge/carry coordinator financial checkpoint recovery.
 - [ ] Complete authenticated order/trade/bill/runner scope and original collateral/liability source consumption at every required terminal/shared-release route.
@@ -2709,3 +2710,115 @@ atomic rollback on either unexpected predecessor definition. Financial Python
 and SQL are frozen across both gates. Hooks and `git diff --check` pass.
 These results qualify this declared original-transfer profile; R1–R5 and the
 loaded SQL-timeout reliability gate remain open.
+
+### PG3 original native SWAP and funding prefixes (2026-10-18)
+
+Base revision: `46aac164f`. Migration 60 extends the same original-cut proof to
+already APPLIED native SWAP trades and settled funding bills. The full signed
+File history must retain their exact economic identities. Native source hashes,
+original command fingerprints and receipts are mandatory; receipt states,
+versions, quantities, fees/PnL, independent prices/times, session/order/preparation
+IDs and paid bill amounts/times cannot change. Missing source operations fail
+closed. Prefix verification is local, not a recursive full-account proof; all
+existing global cash/position/cost/source gates still apply. No table, money,
+source expiry, SQL limit, claim release or configured-service permission changes.
+Prior applied joint parents and other unsupported File histories remain refused.
+
+New replay profiles cover original core funding with retained native transfers,
+and outer partial SWAP close with funding debits/credits across interruption
+stages. Actual File resume supplies the independent complete balance/budget
+oracle. Two native cold restores retain original receipts, permanent natural
+IDs, HALT and held claims, without double application or gross-cost refund.
+Owner-only disposable corruption tests cover target economics, source hashes,
+command owners/fingerprints, receipt versions/states and deferred-FK orphans;
+cold readback refuses committed source corruption after import.
+
+Feature Reds reproduce provenance refusal for legitimate booked funding
+(`/tmp/life-r1-native-paid-prefix-red`, one failure, 7.54 s) and SWAP
+(`/tmp/life-r1-native-swap-prefix-red`, one failure, 7.31 s). Both are original
+basis refusals at COMMIT, not deadline expiry or SQL timeout. The first green
+attempt has a test expectation still requiring zero funding rows after actual
+native funding was booked (one failure, 7.32 s,
+`/tmp/life-r1-native-derivative-prefix-green`). Correcting that expectation
+exposes a fixture cut crossing its live source TTL after the independent File
+resume (six passes/one failure, 34.79 s,
+`/tmp/life-r1-native-derivative-prefix-green-2`). The stopped recovery fixture
+now explicitly HALTs before capturing the original received-fill cut; no source
+is re-dated and no limit is widened. The final focused replay/corruption selector
+passes **19 cases**, zero failures/errors/skips, 2,071 deselected, six existing
+warnings, **83.70 s** (`/tmp/life-r1-native-derivative-prefix-green-3`).
+Actual 59→60 booked-history upgrades pass **two cases**, **11.31 s**
+(`/tmp/life-r1-native-derivative-prefix-upgrade-2`), including original receipt
+readback and cold money-neutral import. The first upgrade attempt used an
+incorrect Python test import path (one failure, 6.85 s,
+`/tmp/life-r1-native-derivative-prefix-upgrade`); the test imports the existing
+PostgreSQL migrations module after correction. **75 actual migration cases
+pass**, **86.23 s** (`/tmp/life-r1-native-derivative-prefix-migrations`), including
+59→60 catalog/OID/ACL preservation, private helpers under permissive defaults,
+repeat startup and atomic rollback on either unknown predecessor shape. No
+financial table or bootstrap row is added. Hooks and `git diff --check` pass.
+The combined native qualification is running at this cursor on frozen financial
+Python/SQL. These focused gates overlap that affected selection.
+
+R1–R5, the observed loaded SQL-timeout reliability issue and full configured
+PostgreSQL installation remain open. Only disposable local PostgreSQL, synthetic
+keys/facts and File fixture forks are used; no configured `.env`, DB/account,
+exchange, deployment or new repository evidence file is accessed.
+
+The broad affected run stops at **138 passes / one failure**, 1,791 deselected,
+six existing warnings, **603.40 s**
+(`/tmp/life-r1-native-derivative-prefix-final`). An existing mixed outer-profile
+fixture denies pre-import carry with `CARRY_PRICE_OR_ACCOUNT_UNQUALIFIED`:
+the capital reserve takes 270 ms, then the carry cut/readback and transaction
+consume the remaining lifetime of the earlier 1,000-ms account response. The
+readback alone takes 405 ms; carry takes 627 ms. There is no SQL statement-timeout
+exception in this result, and the new prefix proof is not reached by the failed
+pre-import setup. The log remains a failed integration gate, not a clean pass.
+
+The fixture now explicitly collects and publishes a new account snapshot after
+claim setup, before the carry cut. Carry still receives exactly that published
+snapshot; no account version is changed inside its collector, no old observation
+is re-dated, and the account/market/SQL limits remain unchanged. Qualification of
+the failed mixed profile and the remaining outer/SPOT/snapshot selectors is
+pending at this cursor. Financial Python/SQL remain unchanged from the focused
+21-pass and 75-migration gates. The loaded production SQL reliability issue is
+still an independent R5 requirement.
+
+The remaining-selector retry is also retained as failed: **seven passes / one
+failure**, 1,918 deselected, six existing warnings, **56.20 s**
+(`/tmp/life-r1-native-derivative-prefix-remaining`). The earlier carry setup
+passes, then another mixed profile correctly refuses signed repair facts with
+`PG_JOINT_REPAIR_IMPORT_FACTS_UNQUALIFIED`. This is not the earlier carry failure
+and is not a SQL statement-timeout exception. The failed case's monotonic duration
+is 4.786 s; its signed primary-clock facts are captured at 14:48:17 UTC and the
+PostgreSQL cleanup checkpoint is at 14:53:09 UTC. The entire suite records only
+55.658 s while primary logs span more than eight minutes. This strongly suggests
+host/VM suspension or a clock step; it does not identify which platform component
+paused, and it does not prove the earlier loaded SQL timeout has this cause.
+
+The synthetic repair helper now adds failure-only primary/monotonic elapsed-time
+notes. It preserves the original exception, source facts/signature and deadline;
+there is no automatic refresh or retry of a denied repair. The next isolated
+remaining-selector run uses a process-scoped macOS `caffeinate -i` idle-sleep
+inhibitor, ending with the test process. No production setting or power policy is
+changed. A clean result under this local condition would qualify those cases,
+not suspended-host operation or loaded production SQL reliability.
+
+Final remaining-selector qualification passes **174 cases**, zero failures,
+errors or skips, 1,918 deselected, six existing warnings, **741.55 s**
+(`/tmp/life-r1-native-derivative-prefix-awake`). Both earlier failed mixed
+profiles now pass. This final selector covers all outer legacy SWAP profiles,
+SPOT prefixes/holds/upgrades and snapshot-body upgrades. The earlier broad
+gate contributes 125 distinct passing core/derivative/configuration/event
+IDs outside this final selector; its 13 passing overlapping IDs are not
+additional coverage. Financial Python/SQL are fixed across these runs; only
+the outer test's account-capture placement and failure-only timing notes
+change. The final test list also identifies two unexecuted legacy outbox
+cases after the earlier fail-fast point. Both pass in **6.69 s**, 37 deselected,
+six existing warnings (`/tmp/life-r1-native-derivative-prefix-outbox`). Actual
+collection and XML test IDs confirm **301 distinct affected IDs** have passing
+coverage across these three runs, with no missing selected ID. This is combined
+coverage, not one full passing invocation. There is no claim of one clean full-service invocation.
+The existing 75-pass migration qualification remains current because SQL is
+unchanged. The first two failed integrations remain recorded, and neither
+suspended-host operation nor the loaded R5 SQL timeout is discharged.
