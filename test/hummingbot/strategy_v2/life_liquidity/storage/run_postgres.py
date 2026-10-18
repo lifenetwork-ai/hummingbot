@@ -144,6 +144,8 @@ def main():
         elif args.suite == 'quote_source':
             selector /= 'test_postgres_quote_account_source.py'
         selectors = [str(selector)]
+        if args.suite == 'carry':
+            selectors.append(str(selector.with_name('test_postgres_carry_proof_reuse.py')))
         if args.suite == 'legacy_imports':
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in ('legacy_applying', 'legacy_joint')]
         if args.suite == 'joint_recovery':

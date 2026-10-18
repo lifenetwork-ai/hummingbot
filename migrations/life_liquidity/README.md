@@ -841,3 +841,13 @@ account, policy, balance, activation or configured PostgreSQL sender.
   object keys keep C-collation sorting and arrays keep their original order.
   The existing function OID, private ACL, strictness and immutability remain.
   No proof cache, rewritten receipt, financial bootstrap or deadline change.
+
+- `000054_snapshot_carry_proof_reuse.sql`: the current snapshot already computes
+  `carry_verified`; reuse that result only inside the same stable function call
+  when checking carry readiness. A private helper retains the original current
+  source, collateral, funding, position and age checks. Every other caller,
+  including physical COMMIT guards, still uses the unchanged independent
+  `carry_current_ready`. All old OIDs/ACLs and historical output bytes remain.
+  Revoke every nonowner helper grant, including inherited default function
+  privileges; do not grant the runtime a boolean proof shortcut. No session
+  cache, financial bootstrap, receipt rewrite or timeout/freshness change.

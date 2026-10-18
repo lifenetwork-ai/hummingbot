@@ -166,7 +166,7 @@ class PgSpotRepository:
                 SELECT life_financial.spot_state($1) AS v)
                 SELECT v#>>'{account,version}' AS version,v->>'digest' AS digest,
                     v->>'observed_at' AS observed_at FROM current_state""", self._runtime.config.account_id)
-        value = await self._runtime._admit(read, safety=True)
+        value = await self._runtime._admit(read, safety=True, operation='spot_observation_cut')
         try:
             version = int(value['version'])
             checkpoint = StateCut(binding, version, version, (ResourceVersion('account', version),), value['digest'])

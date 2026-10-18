@@ -3093,6 +3093,25 @@ acquisition, validation, execute, guard, COMMIT, receipt parsing, retry/rollback
 and release remain distinguishable. Existing capacity, deadline, shielded caller
 cancellation, unhealthy-runtime and unknown-COMMIT behavior is unchanged.
 
+## Carry proof reuse within a snapshot
+
+Migration 54 reuses the `carry_verified` result already computed by
+`spot_state_before_swap` in the same STABLE call and MVCC view. The helper still
+checks current source freshness, collateral, funding, balances, positions and
+new claims/releases. No result survives the call or substitutes for physical
+COMMIT verification. The original independent `carry_current_ready` and every
+other existing function remain unchanged. The helper is owner-only, including
+when the owner's default privileges would grant new functions to other roles.
+
+`run_postgres --suite carry` includes six differential/call-count cases covering
+absent policy, pending, qualified, denied, expired and corrupt history. The
+original path and the optimized path must produce identical snapshot body,
+digest and flags, with one fewer carry proof when a carry policy exists.
+Current-source tests also require helper source parity with the original ready
+function: a future readiness change must update both and qualify them together.
+Migration tests retain every existing function OID/ACL/body except the single
+intended call-site substitution, and prove repeated startup without bootstrap.
+
 ## Native joint collateral bound
 
 Migration 43 composes the collateral bound with joint batch publication and

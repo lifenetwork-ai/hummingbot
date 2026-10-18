@@ -259,7 +259,7 @@ class PgRuntime:
                             result = await callback(c)
                             completed = True
                         except BaseException as error:
-                            if trace.error_phase is None or not isinstance(error, StorageError) and trace.error_token != id(error):
+                            if not trace.pending_failure:
                                 failure(error)
                             raise
                         finally:
@@ -382,6 +382,9 @@ class PgRuntime:
                     await rollback(transaction)
                     if attempt >= cfg.retry_count:
                         raise StorageConflict('PG_TRANSACTION_RETRY_EXHAUSTED') from None
+                    # Only a handled retry allows a later failure to supersede
+                    # this one. Cleanup failures must preserve the raw cause.
+                    _current_trace.get().pending_failure = False
                     phase('retry_wait')
                     await asyncio.sleep(cfg.retry_base_ms / 1000 * (2**attempt))
                 except asyncpg.PostgresError as error:

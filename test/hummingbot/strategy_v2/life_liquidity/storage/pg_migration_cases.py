@@ -1518,3 +1518,43 @@ async def test_canonical_upgrade_preserves_historical_bytes_hashes_strictness_an
     assert (await migrate(c, directory, action='up'))['applied'] == []
     for table in ('accounts', 'balances', 'operations', 'bill_approvals', 'legacy_applying_imports'):
         assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+
+
+@pytest.mark.asyncio
+async def test_carry_reuse_upgrade_preserves_original_guards_and_every_existing_acl(db):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 54:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    await c.execute('GRANT USAGE ON SCHEMA life_financial TO life_runtime_test,life_reporter_test')
+    await c.execute('GRANT EXECUTE ON FUNCTION life_financial.spot_state(uuid) TO life_runtime_test,life_reporter_test')
+    query = '''SELECT p.oid,p.oid::regprocedure::text AS signature,p.proacl,p.prosrc,p.provolatile,p.prosecdef,p.proconfig
+        FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='life_financial' ORDER BY p.oid'''
+    before = {r['signature']: dict(r) for r in await c.fetch(query)}
+    # An owner's function defaults must not turn the private boolean helper
+    # into a runtime shortcut around the complete proof.
+    await c.execute('ALTER DEFAULT PRIVILEGES IN SCHEMA life_financial GRANT EXECUTE ON FUNCTIONS TO life_runtime_test,life_reporter_test')
+    path = DEFAULT_DIRECTORY / '000054_snapshot_carry_proof_reuse.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    after = {r['signature']: dict(r) for r in await c.fetch(query)}
+    helper = 'life_financial.carry_ready_after_verification(uuid,boolean)'
+    assert set(after) - set(before) == {helper}
+    for signature, row in before.items():
+        expected = dict(row)
+        if signature == 'life_financial.spot_state_before_swap(uuid)':
+            expected['prosrc'] = row['prosrc'].replace('ready:=life_financial.carry_current_ready(p_account);',
+                                                       'ready:=life_financial.carry_ready_after_verification(p_account,verified);')
+        assert after[signature] == expected
+    expected_body = before['life_financial.carry_current_ready(uuid)']['prosrc'].replace(
+        'IF NOT life_financial.carry_verified(p_account) THEN', 'IF p_verified IS DISTINCT FROM true THEN')
+    assert after[helper]['prosrc'] == expected_body
+    assert after[helper]['provolatile'] == before['life_financial.carry_current_ready(uuid)']['provolatile']
+    assert after[helper]['prosecdef']
+    assert after[helper]['proconfig'] == ['search_path=pg_catalog']
+    for role in ('life_runtime_test', 'life_reporter_test', 'public'):
+        assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", role, helper)
+    assert (await migrate(c, directory, action='up'))['applied'] == []
+    for table in ('accounts', 'balances', 'operations', 'carry_checks', 'carry_payments', 'shared_capital_claims'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0

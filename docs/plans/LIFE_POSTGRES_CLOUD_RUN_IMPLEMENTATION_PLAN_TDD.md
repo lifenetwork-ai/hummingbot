@@ -1198,6 +1198,84 @@ trigger is declared fixed by this targeted pass. Financial SQL, timeout/freshnes
 budgets and negative-test matchers are unchanged. R1–R5 and configured PostgreSQL
 remain open/rejected; no new evidence file or external account access is added.
 
+### PG3 reuse of the carry proof within one snapshot (2026-10-18)
+
+Migration 54 removes one duplicate `carry_verified` traversal inside the same
+STABLE `spot_state_before_swap` call/MVCC view. Its owner-only helper keeps the
+entire original current-source, funding, collateral, position and age predicate.
+Every other caller, including physical COMMIT guards, retains the original
+independent ready function. There is no session/result cache or retained proof.
+All existing function bodies/OIDs/ACLs except that one call-site substitution
+remain unchanged. Nonowner helper grants inherited from owner default privileges
+are explicitly revoked; runtime/reporting cannot supply a boolean shortcut.
+
+TDD first reproduced the missing helper in six cases, then a default-function-ACL
+leak in the upgrade test. Six snapshot body/digest/decision/call-count comparisons
+pass across absent policy, pending, qualified, denied, expired and corrupt
+receipt states. The final migration suite passes **60 tests** (48.50 s,
+`/tmp/life-pg3-carry-proof-acl-final-migrations`), including 53→54 upgrade,
+preservation of every old function, default-grant refusal and repeat startup
+without account/money bootstrap. Future readiness changes must maintain exact
+helper/source parity; current-source native tests enforce that relationship.
+
+A five-pair alternating old/new local diagnostic on identical aged-source state
+with one qualified carry record measures warm median **15.379→13.676 ms** and
+cold median **63.331→56.164 ms** (about 11% reduction). Each arm has 50 warm and
+5 cold samples, unchanged 1,000-ms SQL/driver limits and identical output bytes
+(excluding capture time, including digest). These are helper-path measurements,
+not bot throughput, loaded reliability or whole-PG3 acceptance. The final ACL
+correction changes privilege removal only; the measured function bodies are
+unchanged. Diagnostic data stays in `/tmp/life-pg3-carry-proof-paired.json`.
+
+Telemetry additionally distinguishes a later release failure from a prior
+successful serialization retry, and a deadline during retry wait from the prior
+SQLSTATE. It preserves an unhandled original COMMIT failure even if both rollback
+and connection termination fail. The new chained-cleanup Red reproduces the
+previously incorrect `rollback` diagnostic phase; **30 unit/config tests pass**
+(0.79 s) after the correction. No financial SQL, timeout,
+source age, economic guard or matcher is changed by those diagnostic corrections.
+
+**Retained broad gate:** **357 passed / 5 failed**, 1,480 deselected, six existing
+warnings, 976.70 s (`/tmp/life-pg3-carry-proof-acl-final-native`). This is not a
+passing acceptance run. The COMMIT-disconnect failure is the diagnostic phase
+bug corrected above; physical uncertainty/holds were preserved. The other four
+failures remain latency/freshness failures:
+
+- `test_independent_stream_denial_retains_newer_evidence[future-funding]` fails
+  in initial shared-capital setup, before the intended stream mutation. The
+  command takes 1,075.66 ms, including 764.79 ms in COMMIT, and correctly rejects
+  expired capital facts with `P0001` / `PG_CAPITAL_FACTS_STALE_AT_COMMIT`.
+- Mixed retired-source USDT deposit / `wallet_after` / already-written transfer
+  fails preparing its original SWAP, before import/recovery. The final SWAP
+  command spends 764.52 ms in execution and returns `PG_CARRY_NOT_READY`.
+- Outer source `shared_after-entry4-fee4-None` reaches signed recovery but fails
+  reading its observation cut: execution 1,004.10 ms, client timeout, no COMMIT
+  attempted. The server separately records statement cancellation inside the
+  shared snapshot verification path. Client timeout has no SQLSTATE; do not
+  invent `57014` in the diagnostic sample. Observation cuts now have their own
+  static diagnostic operation family.
+- The negative original-SWAP `wire` test fails in initial arm with
+  `PG_SWAP_CUT_STALE`, before testing signed import mutation.
+
+No matcher, source clock, SQL budget or financial gate is relaxed. The earlier
+36-pass interrupted run was stopped to fix inherited helper privileges and is
+not an acceptance result. The earlier migration driver assertion failure
+compared PostgreSQL's internal `char` bytes to a Python string; the test now
+compares to the unchanged original function attribute. Neither intermediate
+result is substituted for the final migration or retained broad gate.
+
+After the diagnostic cleanup correction, the fixed targeted selector passes
+**39 tests**, 1,803 deselected, six existing warnings, 81.15 s
+(`/tmp/life-pg3-carry-proof-diagnostic-final-targeted`). It includes all five
+broad failures, the two older retained timeout cases, the six carry equivalence
+cases and the pool/transaction/physical-fault/diagnostic group. This is a scoped
+functional regression, not a loaded full-selector pass or proof that the four
+freshness/latency outliers are eliminated. No retry-until-green loop is used.
+
+**PG3 remains open under the fixed R1–R5 checklist.** These corrections do not
+install the configured PostgreSQL controller/service or complete provider,
+legacy, control/risk/session, hedge/runner/recorder and whole-product workflows.
+
 ### PG3 native hedge qualification (2026-10-17)
 
 Base `be18f304f`. Migration 41 and `PgHedgeRepository` add explicitly imported hedge policy/count/byte limits, permanent target versions, original-cut plans and native partial/terminal settlement. Actual SPOT/long/short inventory sizes one bounded maker child, with close-first behavior, exact contract lots, executable depth, basis, gross fee/funding, edge, exposure-age, retry and permanent cost-hold limits. Shared allocation, fresh carry qualification and original captured SWAP preparation publish atomically. Refusal rolls all child effects back but retains the attempt, conservative cost and retired IDs across operation kinds. Native fill accounting remains the only source of actual money; hedge observations cannot debit it twice or release a claim. Actual hedge-cost breach preserves truth and HALT.

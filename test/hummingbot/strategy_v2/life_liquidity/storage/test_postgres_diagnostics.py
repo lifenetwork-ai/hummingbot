@@ -17,6 +17,7 @@ class Connection:
         self.commit_fault = None
         self.guard_fault = None
         self.rollback_fault = None
+        self.terminate_fault = None
         self.replayed = False
 
     def get_server_pid(self):
@@ -52,7 +53,8 @@ class Connection:
             raise self.rollback_fault
 
     def terminate(self):
-        pass
+        if self.terminate_fault:
+            raise self.terminate_fault
 
 
 class Pool:
@@ -134,10 +136,13 @@ async def test_failure_retains_original_phase_without_sensitive_error_text(fault
 
 
 @pytest.mark.asyncio
-async def test_unknown_commit_rollback_error_cannot_replace_original_failure():
+@pytest.mark.parametrize('terminate_failed', [False, True])
+async def test_unknown_commit_rollback_error_cannot_replace_original_failure(terminate_failed):
     store, c = runtime()
     c.commit_fault = ConnectionError('private-test-password')
     c.rollback_fault = asyncpg.ConnectionDoesNotExistError('private-test-password')
+    if terminate_failed:
+        c.terminate_fault = asyncpg.InterfaceError('already released private-test-password')
     with pytest.raises(CommitUnknown):
         await transaction(store)
     sample = store.diagnostics[-1]
