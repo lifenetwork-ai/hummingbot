@@ -30,7 +30,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancial
 KEYS = OperatorKeys({'operator': b'i' * 32}, {'operator': frozenset(('IMPORT', 'RECOVER', 'DRAIN'))})
 
 
-async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashflow=None, spot_fill=None, file_result=None, retained_cashflows_only=False, spot_prefix=False, book_native_prefix=False, spot_open_only=False, book_native_cashflow=False, book_native_funding=False, prior_funding=(), prior_after_accounting=False, book_native_parent=False, book_native_accounting_parent=False, spot_prepared_only=False, native_arm_prepared_only=False, prior_embedded_spot=False, prior_spot_order=False, file_ack_only=False, prior_core_ack=False):
+async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashflow=None, spot_fill=None, file_result=None, retained_cashflows_only=False, spot_prefix=False, book_native_prefix=False, spot_open_only=False, book_native_cashflow=False, book_native_funding=False, prior_funding=(), prior_after_accounting=False, book_native_parent=False, book_native_accounting_parent=False, spot_prepared_only=False, native_arm_prepared_only=False, prior_embedded_spot=False, prior_spot_order=False, file_ack_only=False, prior_core_ack=False, prior_cancel=False):
     from test.hummingbot.strategy_v2.life_liquidity.storage import test_spot_financial_contracts as file_fixture
     from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_funding import setup as funding_setup
 
@@ -175,8 +175,29 @@ async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashfl
             assert (await store.apply_fills(prior, cut=(await store.snapshot(binding)).cut, owner=file_owner)).state == 'APPLIED'
             prior_ack = ack(file_owner, now, operation_id='previous-ack', prepare_operation_id='previous-prepare',
                             intent_id='previous-intent', client_order_id='previouswire', exchange_order_id='99887766')
-            await financial.acknowledge(prior_ack, cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)
-            await store.acknowledge(prior_ack, cut=(await store.snapshot(binding)).cut, owner=file_owner)
+            delayed_ack = bool(prior_cancel and prior_cancel.endswith('_before_ack'))
+            if not delayed_ack:
+                await financial.acknowledge(prior_ack, cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)
+                await store.acknowledge(prior_ack, cut=(await store.snapshot(binding)).cut, owner=file_owner)
+            if prior_cancel:
+                from hummingbot.strategy_v2.life_liquidity.storage.spot_lifecycle import SpotLifecycleCommand
+                cancel = SpotLifecycleCommand('previous-cancel', 'previous-prepare', 'previous-intent', 'previouswire', 'REQUEST_CANCEL')
+                await financial.apply_lifecycle(cancel, cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)
+                await store.apply_lifecycle(cancel, cut=(await store.snapshot(binding)).cut, owner=file_owner)
+                if prior_cancel.startswith('retry'):
+                    import asyncio
+                    retry_ms = await admin.fetchval('SELECT cancel_retry_interval_ms FROM life_financial.spot_order_policies WHERE account_id=$1', cfg.account_id)
+                    for attempt in range(3 if prior_cancel.startswith('retry_three') else 1):
+                        if attempt:
+                            await asyncio.sleep(retry_ms / 1000)
+                        clock[0] = await admin.fetchval('SELECT clock_timestamp()')
+                        retry = replace(cancel, operation_id='previous-cancel-attempt' + (str(attempt) if attempt else ''), action='RECORD_CANCEL_ATTEMPT',
+                                        attempted_at=clock[0], expected_cancel_attempts=attempt, retry_interval_ms=retry_ms)
+                        await financial.apply_lifecycle(retry, cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)
+                        await store.apply_lifecycle(retry, cut=(await store.snapshot(binding)).cut, owner=file_owner)
+            if delayed_ack:
+                await financial.acknowledge(prior_ack, cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)
+                await store.acknowledge(prior_ack, cut=(await store.snapshot(binding)).cut, owner=file_owner)
             previous_fills = (prior,)
             base, quote = base + D('1'), quote - D('1.001')
             b = payment.bundle

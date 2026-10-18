@@ -695,7 +695,8 @@ qualification/revision recorded in each increment below.
 - [ ] Prepared-receipt/terminal/settlement core command families and remaining repaired-origin histories required by the supported File recovery modes.
 - [x] Declared original PREPARED-only SPOT holds during core funding recovery, with independent native unsent provenance, actual File parity, cold restart and a real 61→62 upgrade.
 - [x] Declared earlier filled/ACKed other-order history omitted by the pending command, with original receipts, zero-money ACK proof, File parity and actual 62→63 upgrades.
-- [ ] Cancellation, terminal/NAV and economic settlement histories needed by supported File recovery modes.
+- [x] Declared original cancel-request/retry prefixes with independent native originals, unchanged retry history/holds and cold recovery.
+- [ ] Remaining cancellation, terminal/NAV and economic settlement histories needed by supported File recovery modes.
 - [ ] Outer SPOT and hedge/carry coordinator financial checkpoint recovery.
 - [ ] Complete authenticated order/trade/bill/runner scope and original collateral/liability source consumption at every required terminal/shared-release route.
 
@@ -3143,3 +3144,53 @@ fixture resumes are used. No configured DB/account, `.env`, exchange, deployment
 or new repository evidence file is used. Prepared-receipt/terminal/settlement,
 outer SPOT/coordinator and complete provider-source exits still keep R1 open;
 R2–R5 and configured PostgreSQL service eligibility remain open.
+
+### PG3 original cancel diagnostics during retired core recovery (2026-10-19)
+
+Base revision: `9477a5650`. Completed original cancel requests/retries may
+precede the interrupted core command. File operation/owner hashes, original
+result states, WAL flags, contiguous counters/callbacks and CANCEL_PENDING
+holds must agree. Migration 65 independently verifies the original native
+operations/receipts, preparation/order scope and historical progress; both
+sides retain their actual original IDs. ACK received after cancellation can
+advance the current order state without rewriting the earlier cancellation
+receipt. Missing native cancellation provenance remains refused. This does
+not synthesize retries or transport an unqualified historical callback.
+
+The initial Red replay reproduces PROFILE_UNSUPPORTED (8.68 s). Development
+checks expose an incorrect native preparation-column reference and a PL/pgSQL
+name ambiguity; the corrected private proof passes eight recovery cases
+(54.93 s), then ten including File/native corruption and cold refusal
+(62.74 s). An additional late-ACK Red replay reproduces rejection of a valid
+SEND_UNKNOWN→ACKED history. The final projection additionally binds each
+original File cancellation result to its native receipt, so a changed result
+cannot hide behind that valid later transition. Original times, source-age,
+SQL/transaction, monetary and risk limits are unchanged.
+
+The pre-late-ACK affected gate passes **90 cases**, zero failures/errors/skips,
+2,126 deselected, six existing warnings, **483.49 s**
+(`/tmp/life-r1-cancel-history-final`). This qualifies the preceding verifier,
+not the later late-ACK/result-state refinement. **88 actual migration cases
+pass**, zero failures/errors/skips, **90.33 s**
+(`/tmp/life-r1-cancel-migrations`), including actual 64→65, preserved OIDs/ACLs,
+private helper defaults, no table/money changes, atomic predecessor-shape
+refusal and repeated startup. **Current financial-source qualification: 27 passed**, zero failures/errors/
+skips, 2,198 deselected, six existing warnings, **153.16 s**
+(`/tmp/life-r1-cancel-current-source`). This contains all 20 cancel cases,
+including ACK-before/after cancellation, three retained retries, actual File
+parity, two cold restores, component mutations, cold corruption and actual
+64→65 original-order upgrade. The seven companion cases cover unsent origin,
+original ACK corruption, completed ACK child receipts, repaired-parent proofs
+and an actual old markerless import. This gate and the preceding 90-case gate
+have overlapping coverage and qualify their separately recorded verifier
+revisions; they are not one full passing invocation or R5 service acceptance.
+Hooks and diff checks pass. Failed development logs remain in `/tmp/life-r1-cancel-*`.
+
+Only disposable loopback PostgreSQL, synthetic keys/facts and actual File
+fixture resumes are used. IMPORT remains money-neutral; recovery keeps
+principal, fee/subsidy holds, gross spending, HALT and claims. No cancellation,
+terminal, release, account activation or permission is created. R1 remains open
+for required remaining histories, outer SPOT/coordinator recovery and complete
+authenticated account/collateral/liability source consumption at release.
+R2–R5 and configured PostgreSQL service eligibility remain open. No configured
+DB/account, `.env`, external exchange, deployment or new evidence file is used.

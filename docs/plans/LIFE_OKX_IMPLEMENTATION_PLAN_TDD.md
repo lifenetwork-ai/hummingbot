@@ -1,6 +1,17 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
-**Current PG3 R1 ACK/repaired-parent checkpoint (2026-10-19, base `eff51e548`):**
+**Current PG3 R1 cancel-history checkpoint (2026-10-19, base `9477a5650`):**
+migration 65 verifies original cancel requests/retries and retained native
+receipts/counters at the import revision. ACK received afterward can advance
+current order state without rewriting an earlier receipt. Recovery preserves
+holds, money, budgets, HALT and claims. **27 current-source cases pass**,
+including all 20 cancel profiles and actual 64→65 recovery; **88 migration
+cases pass**. A preceding 90-case gate qualifies its earlier verifier separately.
+See [scope and qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-original-cancel-diagnostics-during-retired-core-recovery-2026-10-19).
+**R1 remains open for remaining histories, outer SPOT/coordinator recovery and
+complete provider-source consumption; R2–R5 remain open.**
+
+**Earlier PG3 R1 ACK/repaired-parent checkpoint (2026-10-19, base `eff51e548`):**
 completed core ACK commands retain actual original receipts; migration 64
 recognizes signed repaired native batch parents at the original import cut.
 Raw pending rows, money, gross budgets, HALT and claims remain unchanged.

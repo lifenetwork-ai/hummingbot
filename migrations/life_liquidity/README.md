@@ -952,3 +952,12 @@ account, policy, balance, activation or configured PostgreSQL sender.
   and economic leaves as before. No table, helper, money, claim or permission
   is created. Existing OIDs/ACLs remain; unexpected predecessor shape rolls
   back atomically, and checksum-protected repeated startup is a no-op.
+
+- `000065_legacy_cancel_prefix.sql`: verify original SPOT cancel requests and
+  attempts at the File import revision, including exact native operations,
+  receipts, prepared order scope, contiguous retry counts and retained callback
+  times. Missing/orphaned history or changed retry evidence denies cold proof.
+  No cancel is sent, counter reset, terminal inferred or money/hold released.
+  The proof helper is private even under permissive owner defaults; existing
+  OIDs/ACLs remain. No table or policy default is added. Unexpected predecessor
+  shape rolls back atomically and checksum-protected repeat startup is a no-op.

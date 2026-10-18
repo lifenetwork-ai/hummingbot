@@ -13,6 +13,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.financial import AckSpot, Fil
 
 def spot_basis(source, old, batch, resources, wallet, loss, subsidy):
     commands = resources.get('commands', {})
+    records = json.loads(dict(source.journal_images)['wal'])['records']
     supplied = {v.prepare_operation_id: v for v in batch.spot_fills}
     original = {v.prepare_operation_id: v for v in old.spot_fills}
     # A later funding command may omit an earlier, fully observed order.
@@ -104,7 +105,7 @@ def spot_basis(source, old, batch, resources, wallet, loss, subsidy):
                 or row['state'] not in ('PREPARED', 'SEND_UNKNOWN', 'ACKED') or not matches_fill):
             raise StorageError('PG_LEGACY_APPLYING_FACTS_CHANGED')
         if row['state'] == 'PREPARED':
-            record = json.loads(dict(source.journal_images)['wal'])['records'].get(prepared.intent_id)
+            record = records.get(prepared.intent_id)
             if (value is not None or any(row.get(k) is not None for k in ('arm_owner', 'arm_cut', 'arm_fingerprint'))
                     or record is None or record['state'] != 'PREPARED' or record['exchange_order_id'] is not None
                     or record['cancel_requested'] or record['cancel_attempts'] or record['exchange_terminal_observed']
@@ -125,7 +126,7 @@ def spot_basis(source, old, batch, resources, wallet, loss, subsidy):
                                                    session_id=prepared.session_id, epoch=prepared.epoch)
                 or D(held['filled_base']) != quantities.get(prepared.intent_id, D('0'))
                 or D(held['remaining_base']) != prepared.quantity_base - D(held['filled_base'])
-                or held['state'] not in ('OPEN', 'UNKNOWN')
+                or held['state'] not in (('CANCEL_PENDING',) if records[prepared.intent_id]['cancel_requested'] else ('OPEN', 'UNKNOWN'))
                 or entry is None or entry['session_id'] != prepared.session_id
                 or D(entry['reserved']) != prepared.subsidy_quote_usdt or entry['actual'] is not None
                 or D(entry.get('fill_floor', '0')) != floors.get(prepared.intent_id, D('0')) or entry.get('inventory_cycle') is not None):
@@ -145,7 +146,7 @@ def spot_basis(source, old, batch, resources, wallet, loss, subsidy):
     for key, row in resources.get('acknowledgements', {}).items():
         ack = AckSpot(**{**row['command'], 'observed_at': datetime.fromisoformat(row['command']['observed_at'])})
         prepared = PrepareSpot.from_json(commands[ack.prepare_operation_id]['command'])
-        record = json.loads(dict(source.journal_images)['wal'])['records'].get(ack.intent_id)
+        record = records.get(ack.intent_id)
         if (key != ack.operation_id or row['state'] != 'ACKED'
                 or row['fingerprint'] != fingerprint({'command': ack.json(), 'owner': row['owner']})
                 or (ack.prepare_operation_id, ack.intent_id, ack.client_order_id, ack.market, ack.side, ack.session_id, ack.epoch)
@@ -155,4 +156,6 @@ def spot_basis(source, old, batch, resources, wallet, loss, subsidy):
         acknowledgements.append(ack.json())
     if acknowledgements:
         basis['spot_acknowledgements'] = sorted(acknowledgements, key=lambda v: v['operation_id'])
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.legacy_cancel_basis import cancel_basis
+    basis.update(cancel_basis(resources, records))
     return basis, base, cash, prefix_base, prefix_cash

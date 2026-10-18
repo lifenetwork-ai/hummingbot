@@ -3325,9 +3325,10 @@ recursive call from this local prefix helper into the full account proof.
 IMPORT stays money-neutral and recovery dedupes natural bill/trade IDs without
 rewriting original application IDs or receipts. Cold replay retains original
 HALT and claims. Declared core funding/transfer and outer SWAP/funding histories
-have actual File-resume parity checks; previously applied joint parents, other
-core commands, terminal/economic settlement and other undeclared histories
-remain refused. This extension does not close the full R1/provider or configured
+have actual File-resume parity checks. The later sections extend that scope to
+completed mixed/ACK commands and original APPLIED or signed repaired native
+parents. Terminal/economic settlement and other undeclared histories remain
+refused. This extension does not close the full R1/provider or configured
 service contracts.
 
 ### Completed funding history before retired core recovery
@@ -3419,3 +3420,15 @@ receipts and complete target economic leaves. Future roots, unused grants,
 missing/changed links and root corruption cannot release holds or make a cold
 import verified. Declared SPOT/SWAP cases have actual File parity and cold
 restart coverage. HALT, gross costs and claims remain unchanged.
+
+### Original cancel requests and retries during retired core recovery
+
+Completed cancel diagnostics retain their original operation IDs, owner hashes,
+request/attempt times and contiguous retry counters. The WAL cancel flag and
+CANCEL_PENDING reservation must agree; a request or retry cannot make principal,
+fee buffers, subsidy or claims available. Original native cancellation receipts
+and their historical progress must independently match the signed File source.
+Migration 65 checks that provenance again on cold reads and rejects omitted,
+changed or orphaned evidence. It creates no requests, orders, cancellations,
+terminal observations, release permissions or accounting events. Terminal and
+economic-settlement histories still require their separate R1 proofs.
