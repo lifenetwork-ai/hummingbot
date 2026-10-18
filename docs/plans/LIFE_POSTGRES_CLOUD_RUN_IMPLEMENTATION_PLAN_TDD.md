@@ -951,6 +951,96 @@ financial/source/SQL limits. No `.env`, configured DB/account, exchange request,
 deployment or new repository evidence file is used.
 
 
+### PG3 R1 mixed retired transfers and compound recovery (2026-10-18)
+
+Base revision: `f44b92c4b`. Migration 52 extends the existing retired outer
+SWAP/funding profile to exact approved LIFE/USDT transfers. Original native
+opening basis/order history and independent bill approvals remain prerequisites.
+
+- [x] Preserve original bill/asset/amount/time and historical independent LIFE
+  value, reference and receipt time through IMPORT → pending → signed RECOVER.
+  Transfer credits/withdrawals stay separate from fees, PNL and paid funding;
+  no transfer resets a budget or grants trading permission.
+- [x] Retain source interruptions before or after the transfer wallet write,
+  and before/during/after outer cash application. Native opening balances are
+  seeded independently; a partial source wallet is never copied as capital.
+- [x] Compare original source approvals with native approvals in private common
+  history proofs. Later independent approvals do not invalidate old history;
+  altered original approvals or even newly signed replacements of original
+  transfer facts are denied.
+- [x] Fix compound File recovery: selected approved cashflow events can accompany
+  the partial atomic wallet publication. Complete before/after simulation still
+  requires the exact original event set and balances.
+- [x] Fix direct/staged native opening-time admission to use the same integer
+  milliseconds as File and native causal replay. Previous-millisecond transfers
+  remain refused. Failed signed replacements keep their public error and expose
+  only a bounded kernel reason code in PostgreSQL diagnostics.
+
+**Qualification:** **157 affected File cases pass** (20.40 s,
+`/tmp/life-pg3-mixed-file-final.xml`), including compound wallet loss after
+before/after standalone transfer interruption. **58 migration cases pass**
+(45.53 s, `/tmp/life-pg3-mixed-migrations-final`), including actual 51→52
+upgrade, unchanged function OIDs/ACLs, private proofs and repeated startup
+without financial bootstrap. The final complete affected native invocation
+is pending on this frozen financial source. The focused before/during-cash
+selector passes **16 cases** (82.04 s,
+`/tmp/life-pg3-mixed-source-before-cash-fix`); it is not a whole-runner gate.
+The actual Red profile reproduced unsupported mixed source import; subsequent
+runs exposed the same-millisecond SQL rejection and File compound-wallet
+recovery mismatch (8 passes / 4 failures before the File fix). A later complete
+affected native invocation (`/tmp/life-pg3-mixed-current-affected`) retained
+**187 passes / 8 failures** (649.14 s): four before-cash File captures rejected
+an already written, still-CASHFLOWING transfer; one replacement reported
+`LIFE_JOINT_MEMBER_PENDING`; one original SWAP arm expired its capture; and two
+commands returned `PG_COMMIT_UNKNOWN` during physical COMMIT. Capturing only
+actually written, originally qualified pending transfers fixes the File path
+without publishing a receipt or resuming money. The synthetic import profile
+now declares its first prospective funding settlement four hours away before
+any admission, rather than unintentionally crossing the old 10-second forecast
+while constructing a multi-stage recovery. Paid bill facts and all funding
+rollover guards remain unchanged; no forecast is rolled forward during repair.
+The final complete native workflow must pass after these concrete corrections;
+the earlier failed invocation is not hidden by focused results. Original SWAP
+capture is now timestamped after its input cut is read, without widening the
+1000-ms capture/observation limits. The subsequent affected invocation
+(`/tmp/life-pg3-mixed-current-final`) retained **194 passes / 1 failure**
+(639.02 s): an original SWAP arm failed with
+`PG_CAPITAL_SNAPSHOT_UNQUALIFIED` during setup. A collector-callback experiment
+(`/tmp/life-pg3-mixed-imports-qualified`) retained **90 passes / 6 failures**
+(397.81 s): four expired original SWAP captures, one account/market source
+qualification denial and one physical `PG_COMMIT_UNKNOWN`. Those failures
+precede the import assertions; they are still failures of the required workflow.
+The next fixture captures coherent account/market observations together and
+removes unrelated source-publication transactions between immutable price
+capture and ARM. It does not refresh the original price, extend source ages,
+change SQL/transaction limits or retry failed gates until green. Qualification
+of that correction retains **94 passes / 2 failures** (340.47 s,
+`/tmp/life-pg3-mixed-coherent-source`): mixed USDT import hit the 1000-ms
+SQL timeout in `legacy_applying_pending`'s `spot_state` computation, while a
+mixed LIFE case expired its original shared-capital observation during ARM.
+No original order-price expiry or COMMIT-unknown failure appeared in this
+invocation; that does not erase the prior failures or qualify the full workflow.
+A separate single-case function-cost profile is diagnostic only, not a
+replacement passing gate. The isolated USDT profile passed in 13.18 s
+(`/tmp/life-pg3-mixed-sql-profile`); PostgreSQL function counters showed 22
+`spot_state` calls (895.416 ms cumulative inclusive time) and 39,298 recursive
+`canonical_json_v1` calls (251.467 ms self time) across that workflow. Nested
+function totals overlap and must not be summed. A separate LIFE-withdrawal
+boundary profile passed in 8.17 s
+(`/tmp/life-pg3-mixed-boundary-profile`): pending publication took 101.64 ms,
+repair 397.10 ms, and original SWAP transactions 64.14–127.95 ms end to end.
+These samples expose repeated proof work, but do not reproduce the timeout or
+prove which work caused its outlier. They do not establish cold/warm or loaded
+tail-latency acceptance, and neither passing diagnostic supersedes the two
+failures in the 96-case gate. Timing output stays under `/tmp`; no production
+profiler, weaker proof cache, timeout increase or additional evidence file is
+installed. Earlier broader latency/COMMIT failures
+remain visible in R5. No R1–R5 exit or configured service is closed by this slice.
+SPOT fill/prior joint/coordinator history, full provider reconciliation and the
+fixed R3 → R2/R4 → R5 contracts remain required. All qualification is isolated
+and synthetic; no configured account, `.env`, exchange or deployment is used.
+
+
 ### PG3 native hedge qualification (2026-10-17)
 
 Base `be18f304f`. Migration 41 and `PgHedgeRepository` add explicitly imported hedge policy/count/byte limits, permanent target versions, original-cut plans and native partial/terminal settlement. Actual SPOT/long/short inventory sizes one bounded maker child, with close-first behavior, exact contract lots, executable depth, basis, gross fee/funding, edge, exposure-age, retry and permanent cost-hold limits. Shared allocation, fresh carry qualification and original captured SWAP preparation publish atomically. Refusal rolls all child effects back but retains the attempt, conservative cost and retired IDs across operation kinds. Native fill accounting remains the only source of actual money; hedge observations cannot debit it twice or release a claim. Actual hedge-cost breach preserves truth and HALT.

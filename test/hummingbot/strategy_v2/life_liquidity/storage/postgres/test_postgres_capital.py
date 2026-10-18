@@ -37,6 +37,37 @@ def nav(at, ms, **changes):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('relative_ms', [-1, 0])
+async def test_transfer_opening_boundary_uses_the_same_millisecond_unit_as_file_causal_replay(database, relative_ms):
+    repo, cfg, owner, at, ms = await capital_store(database)
+    try:
+        c = database[0]
+        # An isolated pre-application opening fixture with a fractional-ms UTC
+        # timestamp. The exchange bill itself is an exact integer millisecond.
+        opening = datetime.fromtimestamp(ms / 1000, timezone.utc) + timedelta(microseconds=1)
+        await c.execute('ALTER TABLE life_financial.spot_capital_policies DISABLE TRIGGER USER')
+        await c.execute('UPDATE life_financial.spot_capital_policies SET opened_at=$1 WHERE account_id=$2', opening, cfg.account_id)
+        await c.execute('ALTER TABLE life_financial.spot_capital_policies ENABLE TRIGGER USER')
+        await c.execute('ALTER TABLE life_financial.bill_approvals DISABLE TRIGGER USER')
+        await c.execute('UPDATE life_financial.bill_approvals SET transfer_at=to_timestamp($1::double precision/1000) WHERE account_id=$2', ms + relative_ms, cfg.account_id)
+        await c.execute('ALTER TABLE life_financial.bill_approvals ENABLE TRIGGER USER')
+        now = await c.fetchval('SELECT clock_timestamp()')
+        command = flow(now, ms + relative_ms)
+        cut = (await repo.snapshot(cfg.binding)).cut
+        if relative_ms < 0:
+            with pytest.raises(StorageError, match='PG_CASHFLOW_UNAPPROVED'):
+                await repo.apply_cashflow(command, cut=cut, owner=owner)
+            assert (await repo.balance(cfg.binding)).total_quote_usdt == 10
+            assert await c.fetchval('SELECT count(*) FROM life_financial.cashflows') == 0
+        else:
+            assert (await repo.apply_cashflow(command, cut=cut, owner=owner)).state == 'APPLIED'
+            assert (await repo.balance(cfg.binding)).total_quote_usdt == 12
+            assert (await repo.apply_cashflow(command, cut=cut, owner=owner)).replayed
+    finally:
+        await repo.close()
+
+
+@pytest.mark.asyncio
 async def test_deposit_adjusts_nav_without_profit_budget_reset_or_double_counting(database):
     repo, cfg, owner, at, ms = await capital_store(database)
     try:

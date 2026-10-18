@@ -19,7 +19,9 @@ async def interrupted(tmp_path, monkeypatch, stage, *, before_report=None):
     assert await repo.reconcile(store.binding, owner)
     claim = await store._call(send_close, values)
     if before_report is not None:
-        await before_report(repo, store, recovery, values, claim, owner)
+        restored = await before_report(repo, store, recovery, values, claim, owner)
+        if restored is not None:
+            repo, store, recovery, values = restored
     report(values, bundle, claim)
     target, name = {
         'outer_before_cash': (repo, 'apply_cash_settlement'),
@@ -31,10 +33,13 @@ async def interrupted(tmp_path, monkeypatch, stage, *, before_report=None):
         'shared_after': (values[1], 'settle'),
     }[stage]
     original = getattr(target, name)
+    fired = False
 
     def crash(*args, **kwargs):
+        nonlocal fired
         if stage == 'receipt' and not args[0].startswith('joint-done:'):
             return original(*args, **kwargs)
+        fired = True
         if stage in ('wallet_after', 'loss_after', 'wal_after', 'shared_after'):
             original(*args, **kwargs)
         raise OSError('synthetic original outer saga interruption')
@@ -42,6 +47,7 @@ async def interrupted(tmp_path, monkeypatch, stage, *, before_report=None):
     with monkeypatch.context() as patches:
         patches.setattr(target, name, crash)
         assert not await repo.reconcile(store.binding, owner)
+        assert fired, recovery.reason_code
     repo, store, recovery, values = await reopen(tmp_path, store, recovery, values, owner)
     return repo, store, recovery, values, owner
 

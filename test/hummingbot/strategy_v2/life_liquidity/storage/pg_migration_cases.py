@@ -1424,3 +1424,28 @@ async def test_legacy_joint_basis_upgrade_keeps_old_oids_acl_and_adds_only_priva
     assert (await migrate(c, directory, action='up'))['applied'] == []
     for table in ('accounts', 'balances', 'operations', 'legacy_applying_policies', 'legacy_applying_imports', 'swap_preparations', 'swap_fill_policies'):
         assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+
+
+@pytest.mark.asyncio
+async def test_legacy_cashflow_upgrade_preserves_original_gates_and_private_approval_proof(db):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 52:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    signatures = ('life_financial.legacy_applying_verified(uuid)',
+                  'life_financial.joint_repair_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
+                  'life_financial.spot_capital_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,text,jsonb)',
+                  'life_financial.joint_stage_cashflow(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,text,jsonb)')
+    before = await c.fetch('SELECT oid,proacl FROM pg_proc WHERE oid=ANY($1::oid[]) ORDER BY oid',
+                           [await c.fetchval('SELECT to_regprocedure($1)::oid', s) for s in signatures])
+    path = DEFAULT_DIRECTORY / '000052_legacy_cashflow_basis.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    assert await c.fetch('SELECT oid,proacl FROM pg_proc WHERE oid=ANY($1::oid[]) ORDER BY oid', [r['oid'] for r in before]) == before
+    for role in ('life_runtime_test', 'life_reporter_test'):
+        for signature in ('life_financial.legacy_cashflow_basis_valid(uuid,jsonb)', 'life_financial.legacy_cashflow_verified(uuid)'):
+            assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", role, signature)
+    assert (await migrate(c, directory, action='up'))['applied'] == []
+    for table in ('accounts', 'balances', 'operations', 'bill_approvals', 'cashflows', 'legacy_applying_imports'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0

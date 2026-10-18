@@ -197,8 +197,9 @@ async def test_signed_funding_then_cold_refresh_updates_same_spot_wallet_once(tm
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('written', [False, True])
+@pytest.mark.parametrize('joint_wallet_interrupted', [False, True])
 @pytest.mark.parametrize('currency,amount', [('USDT', D('2')), ('USDT', D('-2')), ('LIFE', D('2')), ('LIFE', D('-2'))])
-async def test_pending_external_cashflow_and_new_swap_cash_share_qualified_replay(tmp_path, monkeypatch, written, currency, amount):
+async def test_pending_external_cashflow_and_new_swap_cash_share_qualified_replay(tmp_path, monkeypatch, written, joint_wallet_interrupted, currency, amount):
     from datetime import datetime, timezone
     from test.hummingbot.strategy_v2.life_liquidity.test_shared_capital_runner import setup_shared
 
@@ -232,6 +233,20 @@ async def test_pending_external_cashflow_and_new_swap_cash_share_qualified_repla
         report(values, bundle, claim)
         values[8]['snapshot'] = replace(values[8]['snapshot'], spot_cash_quote=expected_quote, spot_life_base=expected_base)
         repo, store, recovery, values = await reopen(tmp_path, store, recovery, values, owner)
+        if joint_wallet_interrupted:
+            publish = store._ledger.apply_joint_snapshot
+            fired = False
+
+            def stop_after_wallet(*args, **kwargs):
+                nonlocal fired
+                publish(*args, **kwargs)
+                fired = True
+                raise OSError('synthetic compound wallet reply loss')
+            with monkeypatch.context() as patches:
+                patches.setattr(store._ledger, 'apply_joint_snapshot', stop_after_wallet)
+                assert not await repo.reconcile(store.binding, owner)
+                assert fired, recovery.reason_code
+            repo, store, recovery, values = await reopen(tmp_path, store, recovery, values, owner)
         assert await repo.reconcile(store.binding, owner), recovery.reason_code
         assert await repo.reconcile(store.binding, owner), recovery.reason_code
         view = await store.snapshot(store.binding)

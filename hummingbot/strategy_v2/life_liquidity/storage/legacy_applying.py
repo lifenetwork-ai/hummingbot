@@ -254,8 +254,24 @@ class LegacyApplyingAdapter:
             # first write. Verify the completed core money independently of
             # potentially changed outer WAL/claim component hashes.
             self._verify_joint_cash_projection(meta.resources)
+            cashflows = dict(meta.resources.get('cashflows', {}))
+            if joint is not None:
+                # An admitted transfer can already be in the wallet while its
+                # standalone receipt is still CASHFLOWING, before outer cash
+                # starts. Read its original qualified facts without resuming
+                # it, and project only the transfers actually present. Known
+                # completed transfers may not disappear from the native wallet.
+                qualified = joint.qualified_cashflows()
+                actual = self._ledger.cashflow_events
+                if not set(cashflows) <= set(actual):
+                    raise StorageError('LEGACY_APPLYING_CASHFLOW_HISTORY_INCOMPLETE')
+                for bill, value in actual.items():
+                    fact = qualified.get(bill)
+                    if fact is None or value != (fact.currency, fact.signed_amount):
+                        raise StorageError('LEGACY_APPLYING_CASHFLOW_HISTORY_CHANGED')
+                    cashflows[bill] = fact.json()
             self._verify_capital_projection(meta.resources['commands'], meta.resources.get('fills', {}),
-                                            meta.resources.get('cashflows', {}), meta.resources.get('joint_cashflows', {}))
+                                            cashflows, meta.resources.get('joint_cashflows', {}))
         self._check_file()
         checkpoint = read_bytes(self._path, self.limits.max_checkpoint_bytes)
         source = LegacyApplyingSource(cut, checkpoint, tuple(sorted(self._raw().items())), facts, ancillary)

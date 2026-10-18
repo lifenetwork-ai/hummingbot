@@ -392,8 +392,13 @@ class LegacyJointCashAdapter(LegacyJointFillAdapter, LegacyJointCashflowAdapter,
                 for name in ('reservations', 'trades'):
                     if before_wallet[name] != current_wallet[name]:
                         raise StorageError('JOINT_CASH_RECOVERY_NATIVE_MISMATCH')
-                if ({key: v for key, v in before_wallet['account_events'].items() if v[0] != 'JOINT'}
-                        != {key: v for key, v in current_wallet['account_events'].items() if v[0] != 'JOINT'}):
+                selected_flows = {'CASHFLOW:' + row.bill_id for row in command.spot_cashflows}
+                # The same atomic wallet publication may have applied exactly
+                # these approved transfers alongside joint cash. The full
+                # before/after wallet simulation below still rejects changed,
+                # missing or extra events and every unexplained monetary delta.
+                if ({key: v for key, v in before_wallet['account_events'].items() if v[0] != 'JOINT' and key not in selected_flows}
+                        != {key: v for key, v in current_wallet['account_events'].items() if v[0] != 'JOINT' and key not in selected_flows}):
                     raise StorageError('JOINT_CASH_RECOVERY_NATIVE_MISMATCH')
             actual_cash = self._ledger.joint_cash_events
             before_cash = {key: Decimal(v['event']['signed_amount_usdt']) for key, v in old_events.items()}

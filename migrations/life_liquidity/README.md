@@ -823,3 +823,14 @@ account, policy, balance, activation or configured PostgreSQL sender.
   remain separate. Cold common verification rejects missing or repriced
   provenance. Existing OIDs/ACLs and script checksums are preserved, startup
   repeats without bootstrap, and the new proof functions stay private.
+
+- `000052_legacy_cashflow_basis.sql`: match original retired-source transfer
+  approvals to independently qualified native bills without inserting approvals.
+  Preserve original asset, signed amount, transfer time and historical LIFE
+  valuation through mixed transfer/SWAP/funding pending and signed RECOVER.
+  Later independent bill approvals do not invalidate earlier imported history;
+  changing an original approval does. Direct and staged cashflow admission use
+  the same millisecond opening boundary as File/native causal replay, including
+  refusal of a previous-millisecond bill. Preserve existing function OIDs/ACLs
+  and public error codes; failed signed replacement diagnostics retain only a
+  bounded kernel reason code. No capital, policy, account or activation bootstrap.

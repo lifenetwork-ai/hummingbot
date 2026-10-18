@@ -26,7 +26,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.legacy_applying impo
 from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancialRecoveryFacts
 
 
-async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('-.001'), funding=None):
+async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('-.001'), funding=None, cashflow=None, cashflow_written=False):
     from test.hummingbot.strategy_v2.life_liquidity import test_session
     from test.hummingbot.strategy_v2.life_liquidity.storage import test_legacy_joint_applying as file_fixture
     from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_carry import setup as carry_setup
@@ -36,6 +36,8 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
     from hummingbot.strategy_v2.life_liquidity.carry_monitor import FundingPayment
     from hummingbot.strategy_v2.life_liquidity.joint_recovery import RecoveryPayment
     from hummingbot.strategy_v2.life_liquidity.shared_capital import CapitalSnapshot
+    from hummingbot.strategy_v2.life_liquidity.storage.capital import ApprovedSpotCashflow, CashflowSpot
+    from hummingbot.strategy_v2.life_liquidity.storage.contracts import CommitUnknown
     from hummingbot.strategy_v2.life_liquidity.storage.postgres.funding import ApplyFunding
     from hummingbot.strategy_v2.life_liquidity.storage.postgres.swap import PgSwapRepository
     from hummingbot.strategy_v2.life_liquidity.storage.postgres.swap_fills import FillSwap, SwapFillObservation
@@ -46,6 +48,12 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
     original_report = file_fixture.report
     pnl = D('.25') * (D('1') - entry)
     final_cash = D('10') + pnl + fee + (funding or D('0'))
+    final_base = D('10')
+    if cashflow is not None:
+        currency, amount, price = cashflow
+        final_cash += amount if currency == 'USDT' else D('0')
+        final_base += amount if currency == 'LIFE' else D('0')
+    approval_at = int(now.timestamp() * 1000)
     final_collateral = final_cash + min(D('0'), D('.75') * (D('1') - entry))
 
     def clock_init(self):
@@ -57,7 +65,7 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
         stamp = int(values[6].wall.timestamp() * 1000)
         box['value'] = replace(box['value'], orders=(result,), observed_at_ms=stamp,
                                payments=() if funding is None else (RecoveryPayment('777', funding, stamp),))
-        values[8]['snapshot'] = replace(values[8]['snapshot'], spot_cash_quote=final_cash, collateral_quote=final_collateral)
+        values[8]['snapshot'] = replace(values[8]['snapshot'], spot_cash_quote=final_cash, spot_life_base=final_base, collateral_quote=final_collateral)
         return result
 
     prepared_target = {}
@@ -74,6 +82,12 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
                                    spot_options=dict(original_session_id=file_owner.session_id, opening_base_life=D('10'), config_hash=binding.config_hash,
                                                      configuration_body=lambda _: {'operator_verifier': KEYS.verifier().policy(), 'legacy_source_verifier': KEYS.verifier().policy()}))
         financial, cfg, owner, _, feed, capital, _, carry_feed, carry = native
+        # This replay is not a funding-rollover test. Declare a distant future
+        # settlement once, before any carry admission; never roll the forecast
+        # forward during recovery or hide a missing intervening paid bill.
+        old = carry_feed[0]
+        settlement = old.funding.observed_at_ms + 4 * 3600000
+        carry_feed[0] = replace(old, funding=replace(old.funding, settlement_ms=settlement, next_settlement_ms=settlement + 4 * 3600000))
         policy = dict(controller_id='life', tick_size_usdt='0.0001', min_size_contracts='1', max_quote_levels=8, max_capture_age_ms=1000)
         await admin.execute('INSERT INTO life_financial.swap_policies VALUES($1,$2,$3::jsonb,$4)', cfg.account_id, cfg.binding.policy_hash, json.dumps(policy), fingerprint(policy))
         opening = store._accounting_policy
@@ -83,44 +97,81 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
         await admin.execute('INSERT INTO life_financial.joint_batch_policies VALUES($1,$2,32,64,1048576)', cfg.account_id, cfg.binding.policy_hash)
         await admin.execute('INSERT INTO life_financial.joint_repair_policies VALUES($1,$2,64,64,1048576,5000)', cfg.account_id, cfg.binding.policy_hash)
         await admin.execute('INSERT INTO life_financial.legacy_applying_policies VALUES($1,$2,4,4194304,5000)', cfg.account_id, cfg.binding.policy_hash)
+        if cashflow is not None:
+            await admin.execute('INSERT INTO life_financial.spot_fill_policies VALUES($1,$2,1000,4096)', cfg.account_id, cfg.binding.policy_hash)
+            await admin.execute('INSERT INTO life_financial.bill_approvals VALUES($1,$2,$3,$4,to_timestamp($5::double precision/1000),$6)',
+                                cfg.account_id, '101', currency, amount, approval_at, b'synthetic-preverified-import')
         now = await admin.fetchval('SELECT clock_timestamp()')
         feed[0] = replace(anchor, sequence=2, observed_at_ms=int(now.timestamp() * 1000))
         carry_feed[0] = replace(carry_feed[0], account=replace(carry_feed[0].account, snapshot=feed[0]))
-        assert (await capital.reserve(ReserveCapital('original-claim', claim), await capital.cut(cfg.binding), owner)).decision.allowed
-        assert (await carry.check_carry(cfg.binding)).allowed
+        prefill = True
 
-        async def refresh_original_source():
-            # No fill has occurred yet. The fake venue still reports the actual
-            # original cash/position and complete empty paid-bill scope. Refresh
-            # each independent stream before the next real admission boundary;
-            # never carry a 1000-ms observation through unrelated setup work.
+        async def capture_account():
+            # Timestamp the fake response when the repository actually calls
+            # its collector, after cut/readback queries, not before those reads.
+            if not prefill:
+                raise StorageError('SYNTHETIC_PREFILL_SOURCE_CLOSED')
             stamp = int((await admin.fetchval('SELECT clock_timestamp()')).timestamp() * 1000)
             feed[0] = replace(feed[0], sequence=feed[0].sequence + 1, observed_at_ms=stamp)
+            # One coherent synthetic response captures account and independent
+            # market streams together. Later reads cannot re-date that response.
             old = carry_feed[0]
             carry_feed[0] = replace(old, account=replace(old.account, snapshot=feed[0]),
                                     mark=replace(old.mark, sequence=old.mark.sequence + 1, observed_at_ms=stamp),
                                     index=replace(old.index, sequence=old.index.sequence + 1, observed_at_ms=stamp),
                                     funding=replace(old.funding, sequence=old.funding.sequence + 1, observed_at_ms=stamp, coverage_through_ms=stamp),
                                     terms=replace(old.terms, sequence=old.terms.sequence + 1, observed_at_ms=stamp))
-            assert (await capital.check_capital(cfg.binding)).allowed
-            assert (await carry.check_carry(cfg.binding)).allowed
+            return feed[0]
 
-        await refresh_original_source()
+        async def capture_carry():
+            if not prefill:
+                raise StorageError('SYNTHETIC_PREFILL_SOURCE_CLOSED')
+            return carry_feed[0]
+
+        capital.observation, carry.observation = capture_account, capture_carry
+        assert (await capital.reserve(ReserveCapital('original-claim', claim), await capital.cut(cfg.binding), owner)).decision.allowed
+        assert (await carry.check_carry(cfg.binding)).allowed
+
+        # Capture the order only after its input cut is available. A preceding
+        # primary read is setup work, not part of the market capture's lifetime.
+        swap = PgSwapRepository(capital)
+        prepare_cut = await swap.cut(cfg.binding)
         now = await admin.fetchval('SELECT clock_timestamp()')
         config = OrderExecutorConfig(id=claim.intent_id, timestamp=now.timestamp(), controller_id='life', connector_name='okx_perpetual',
                                      trading_pair='LIFE-USDT', side=TradeType.SELL, position_action=PositionAction.CLOSE, amount=claim.quantity_base,
                                      price=claim.price_usdt, leverage=1, level_id='0', execution_strategy=ExecutionStrategy.LIMIT_MAKER)
-        swap = PgSwapRepository(capital)
         prepared = PrepareSwap.from_config('original-prepare', claim.wire_id, config)
-        await swap.prepare(prepared, cut=await swap.cut(cfg.binding), owner=owner)
-        await refresh_original_source()
+        await swap.prepare(prepared, cut=prepare_cut, owner=owner)
+        # Do not insert unrelated source-publication transactions between the
+        # immutable price capture and ARM. Both commands still enforce the
+        # original 1000-ms capture/account limits at entry and physical COMMIT.
         await swap.arm(prepared.operation_id, cut=await swap.cut(cfg.binding), owner=owner)
         await swap.acknowledge(prepared.operation_id, exchange_order_id='987654321', owner=owner)
+        prefill = False
         prepared_target.update(native=native, swap=swap, prepared=prepared, claim=claim)
         captured_now = await admin.fetchval('SELECT clock_timestamp()')
         values[6].wall = captured_now
         values[8]['snapshot'] = replace(values[8]['snapshot'], observed_at_ms=int(captured_now.timestamp() * 1000))
         values[7]['value'] = replace(values[7]['value'], observed_at_ms=int(captured_now.timestamp() * 1000))
+        if cashflow is not None:
+            # Explicit historical valuation at the original transfer time;
+            # setup latency cannot move a transfer's original price timestamp.
+            flow = CashflowSpot('original-cashflow', '101', currency, amount, approval_at, price, approval_at, approval_at,
+                                'quote_unit' if currency == 'USDT' else 'independent_market',
+                                captured_now.replace(microsecond=captured_now.microsecond // 1000 * 1000))
+
+            def stop(*_args, **_kwargs):
+                if cashflow_written:
+                    original_cashflow(*_args, **_kwargs)
+                raise OSError('synthetic cashflow interruption before wallet')
+            original_cashflow = store._ledger.record_cashflow
+            with monkeypatch.context() as patches:
+                patches.setattr(store._ledger, 'record_cashflow', stop)
+                with pytest.raises(CommitUnknown):
+                    await store.apply_cashflow(flow, cut=(await store.snapshot(binding)).cut, owner=file_owner)
+            prepared_target['cashflow'] = flow
+            from test.hummingbot.strategy_v2.life_liquidity.storage.test_joint_cash_repository import reopen
+            return await reopen(tmp_path, store, recovery, values, file_owner)
 
     with monkeypatch.context() as patches:
         patches.setattr(test_session.FakeClock, '__init__', clock_init)
@@ -132,7 +183,8 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
         async def fixture(path, **kwargs):
             from test.hummingbot.strategy_v2.life_liquidity.test_shared_capital_runner import setup_shared
             values = setup_shared(path / 'native', collateral=str(D('10') + min(D('0'), D('1') - entry)), budget_capacity=50)
-            return await original_fixture(path, **{**kwargs, 'operator_keys': KEYS, 'shared_values': values, 'opening_long_entry': entry})
+            approvals = () if cashflow is None else (ApprovedSpotCashflow('101', currency, amount, approval_at),)
+            return await original_fixture(path, **{**kwargs, 'operator_keys': KEYS, 'shared_values': values, 'opening_long_entry': entry, 'approvals': approvals})
 
         patches.setattr(file_fixture, 'fixture', fixture)
         patches.setattr(file_fixture, 'report', numeric_report)
@@ -146,7 +198,8 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
                     claim.session_id, claim.epoch, '987654321', D('.25'), (trade,), values[6].wall)
     fresh_now = await admin.fetchval('SELECT clock_timestamp()')
     values[6].wall = fresh_now
-    facts = SpotFinancialRecoveryFacts(binding, fresh_now, D('10'), final_cash, D('0'), D('0'), ('trade-1',), (), (claim.wire_id,), (), True, True, True)
+    facts = SpotFinancialRecoveryFacts(binding, fresh_now, final_base, final_cash, D('0'), D('0'), ('trade-1',),
+                                       () if cashflow is None else ('101',), (claim.wire_id,), (), True, True, True)
     drain = OwnerTransition('outer-drain', OwnerMode.DRAINING, file_owner)
     cut = (await store.snapshot(binding)).cut
     signature = KEYS.sign('operator', binding, 'DRAIN', drain.json(), cut, facts, issued_at=fresh_now, expires_at=fresh_now + timedelta(seconds=10))
@@ -158,14 +211,16 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
     await store.retire_legacy_applying(retirement, source=source, approval=signed, joint=joint)
     b = carry_feed[0]
     stamp = int(fresh_now.timestamp() * 1000)
-    snapshot = replace(b.account.snapshot, sequence=b.account.snapshot.sequence + 1, observed_at_ms=stamp, spot_cash_quote=final_cash, long_base=D('.75'), collateral_quote=final_collateral)
+    snapshot = replace(b.account.snapshot, sequence=b.account.snapshot.sequence + 1, observed_at_ms=stamp, spot_cash_quote=final_cash, spot_life_base=final_base,
+                       long_base=D('.75'), collateral_quote=final_collateral)
     b = replace(b, account=replace(b.account, snapshot=snapshot, included_funding_bill_ids=() if funding is None else ('777',)), mark=replace(b.mark, sequence=b.mark.sequence + 1, observed_at_ms=stamp),
                 index=replace(b.index, sequence=b.index.sequence + 1, observed_at_ms=stamp), funding=replace(b.funding, sequence=b.funding.sequence + 1, observed_at_ms=stamp, coverage_through_ms=stamp),
                 terms=replace(b.terms, sequence=b.terms.sequence + 1, observed_at_ms=stamp))
     if funding is not None:
         b = replace(b, funding=replace(b.funding, payments=(FundingPayment('777', at, funding),)))
     batch = PgJointBatchRepository(swap)
-    cmd = ImportLegacyApplying(source.content_digest, ApplyJointBatch('outer-pending', (), (fill,), (), ApplyFunding('outer-funding', b)))
+    flows = () if cashflow is None else (prepared_target['cashflow'],)
+    cmd = ImportLegacyApplying(source.content_digest, ApplyJointBatch('outer-pending', (), (fill,), flows, ApplyFunding('outer-funding', b)))
     await admin.execute('UPDATE life_financial.accounts SET halted=true WHERE account_id=$1', cfg.account_id)
     # This is a halted import, not source-readiness renewal. Capture its signed
     # diagnostic cut after the original pre-fill carry source has expired. Do
@@ -199,6 +254,102 @@ async def apply_recovery(database, batch, command, facts, store):
     await PgJointRepairApprovalImporter(database[0], batch, verifier=KEYS.verifier(), max_fact_age_ms=5000).approve(repair, approval=signed, cut=repair_cut, facts=proof)
     result = await PgJointRepairRepository(batch).resolve(repair, cut=repair_cut, owner=owner)
     return result, repair, repair_cut
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('written', [False, True])
+@pytest.mark.parametrize('stage', ['outer_before_cash', 'wallet_after', 'cash_done'])
+@pytest.mark.parametrize('currency,amount,price', [('USDT', D('2'), D('1')), ('USDT', D('-2'), D('1')),
+                                                   ('LIFE', D('2'), D('1.2')), ('LIFE', D('-2'), D('1.2'))])
+async def test_retired_mixed_source_recovers_original_external_transfer_swap_and_funding_once(database, tmp_path, monkeypatch, stage, currency, amount, price, written):
+    values, batch, command, cut, facts, approval, importer, store, source = await setup(
+        database, tmp_path, monkeypatch, stage, funding=D('-.1'), cashflow=(currency, amount, price), cashflow_written=written)
+    financial, cfg, _ = values[:3]
+    try:
+        held = await values[5].claims(cfg.binding)
+        budget = (await financial.snapshot(cfg.binding)).budget
+        assert (await importer.import_pending(command, source_store=store, approval=approval, cut=cut, facts=facts)).state == 'RECOVERY_REQUIRED'
+        assert (await financial.balance(cfg.binding)).total_quote_usdt == 10
+        assert await database[0].fetchval('SELECT count(*) FROM life_financial.cashflows') == 0
+        result, repair, repair_cut = await apply_recovery(database, batch, command, facts, store)
+        assert result.state == 'REPAIRED' and not result.trading_permission
+        assert (await PgJointRepairRepository(batch).resolve(repair, cut=repair_cut, owner=batch.owner)).replayed
+        view = await financial.snapshot(cfg.binding)
+        assert (view.balance.total_base_life, view.balance.total_quote_usdt) == (facts.account_base_life, facts.account_quote_usdt)
+        assert view.budget.session_execution_loss_usdt == budget.session_execution_loss_usdt + D('.001')
+        assert await values[5].claims(cfg.binding) == held
+        for table in ('cashflows', 'swap_fill_facts', 'funding_cash_payments'):
+            assert await database[0].fetchval('SELECT count(*) FROM life_financial.' + table) == 1
+        assert await store.frozen_legacy_applying_source(store.binding) == source
+        assert await database[0].fetchval('SELECT halted FROM life_financial.accounts')
+        raw = await database[0].fetchrow('SELECT independent_price FROM life_financial.cashflows')
+        assert raw['independent_price'] == price
+    finally:
+        await store.close()
+        await financial.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('fault', ['bill', 'amount', 'currency', 'time', 'price', 'value_time', 'reference_time', 'receipt_time',
+                                   'omitted', 'extra', 'scope', 'native_approval'])
+async def test_new_import_signature_cannot_rewrite_retired_original_cashflow_facts_or_approval(database, tmp_path, monkeypatch, fault):
+    values, _, command, cut, facts, _, importer, store, _ = await setup(
+        database, tmp_path, monkeypatch, 'wallet_after', funding=D('-.1'), cashflow=('LIFE', D('2'), D('1.2')))
+    financial, cfg, _ = values[:3]
+    try:
+        old = command.batch.cashflows[0]
+        changes = dict(bill=dict(bill_id='102'), amount=dict(signed_amount=D('1')), currency=dict(currency='USDT', independent_price_usdt=D('1'), source_kind='quote_unit'),
+                       time=dict(transfer_at_ms=old.transfer_at_ms + 1), price=dict(independent_price_usdt=D('2')),
+                       value_time=dict(value_at_ms=old.value_at_ms - 1), reference_time=dict(reference_observed_at_ms=old.reference_observed_at_ms + 1),
+                       receipt_time=dict(observed_at=old.observed_at + timedelta(microseconds=1)))
+        flows = (replace(old, **changes.get(fault, {})),)
+        if fault == 'omitted':
+            flows = ()
+        elif fault == 'extra':
+            flows += (replace(old, operation_id='extra-cashflow', bill_id='102'),)
+        elif fault == 'scope':
+            facts = replace(facts, account_cashflow_ids=())
+        elif fault == 'native_approval':
+            await database[0].execute('ALTER TABLE life_financial.bill_approvals DISABLE TRIGGER USER')
+            await database[0].execute('UPDATE life_financial.bill_approvals SET signed_amount=1 WHERE account_id=$1', cfg.account_id)
+            await database[0].execute('ALTER TABLE life_financial.bill_approvals ENABLE TRIGGER USER')
+        command = replace(command, batch=replace(command.batch, cashflows=flows))
+        cut = (await financial.observation_cut(cfg.binding)).cut
+        now = await database[0].fetchval('SELECT clock_timestamp()')
+        facts = replace(facts, observed_at=now)
+        approval = KEYS.sign('operator', cfg.binding, 'IMPORT', command.json(), cut, facts, issued_at=now, expires_at=now + timedelta(seconds=10))
+        with pytest.raises(StorageError, match='PG_LEGACY_APPLYING_'):
+            await importer.import_pending(command, source_store=store, approval=approval, cut=cut, facts=facts)
+        assert (await financial.balance(cfg.binding)).total_quote_usdt == 10
+        for table in ('legacy_applying_imports', 'joint_financial_batches', 'cashflows', 'swap_fill_facts', 'funding_cash_payments'):
+            assert await database[0].fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+    finally:
+        await store.close()
+        await financial.close()
+
+
+@pytest.mark.asyncio
+async def test_old_source_approval_is_permanent_but_a_future_independent_bill_does_not_invalidate_it(database, tmp_path, monkeypatch):
+    values, batch, command, cut, facts, approval, importer, store, _ = await setup(
+        database, tmp_path, monkeypatch, 'cash_done', cashflow=('USDT', D('2'), D('1')))
+    financial, cfg, _ = values[:3]
+    try:
+        await importer.import_pending(command, source_store=store, approval=approval, cut=cut, facts=facts)
+        await database[0].execute('INSERT INTO life_financial.bill_approvals VALUES($1,$2,$3,$4,$5,$6)',
+                                  cfg.account_id, '102', 'USDT', D('1'), facts.observed_at, b'synthetic-future-approval')
+        assert (await importer.lookup(command.operation_id)).state == 'RECOVERY_REQUIRED'
+        await apply_recovery(database, batch, command, facts, store)
+        assert (await importer.lookup(command.operation_id)).state == 'RECOVERY_REQUIRED'
+        assert (await financial.balance(cfg.binding)).total_quote_usdt == D('11.999')
+        await database[0].execute('ALTER TABLE life_financial.bill_approvals DISABLE TRIGGER USER')
+        await database[0].execute("UPDATE life_financial.bill_approvals SET signed_amount=3 WHERE account_id=$1 AND bill_id='101'", cfg.account_id)
+        await database[0].execute('ALTER TABLE life_financial.bill_approvals ENABLE TRIGGER USER')
+        with pytest.raises(StorageError, match='PG_LEGACY_APPLYING_UNVERIFIED'):
+            await importer.lookup(command.operation_id)
+        assert (await financial.snapshot(cfg.binding)).recovery_required
+    finally:
+        await store.close()
+        await financial.close()
 
 
 @pytest.mark.asyncio

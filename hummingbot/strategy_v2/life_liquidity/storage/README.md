@@ -138,7 +138,22 @@ remain after recovery; native terminal/release and activation are separate.
 Import DTOs canonicalize native decimal spellings before signature capture so
 cold decoding preserves the approved request. Original File bytes stay exact.
 
-This profile refuses earlier/mixed SPOT or external-flow history, installed
+Migration 52 also qualifies original LIFE/USDT deposits and withdrawals mixed
+with that SWAP/funding replay. Original bills, signed amounts and transfer-time
+valuations must match the retired outer proof and independent native approvals.
+The original File transfer may itself have stopped before or after its wallet
+write; source import derives money from original facts and independently seeded
+opening basis. A partial or completed source wallet is never the target seed.
+Later unrelated native bill approvals do not change that original provenance.
+Changing an original approval blocks common history and cold import lookup.
+
+File compound wallet recovery now accepts exactly the selected original
+cashflow additions alongside joint cash. Complete before/after wallet simulation
+still rejects every unexplained event or balance. SQL direct/staged transfer
+admission compares the opening boundary in the original millisecond unit used
+by File and native causal replay; a previous-millisecond bill remains denied.
+
+This profile refuses SPOT fill history, earlier financial history, installed
 legacy hedge/carry coordinator state and archives whose required provenance is
 not yet imported. Complete legacy parity, provider/liability mapping and the
 fixed remaining PG3 service/control/hedge/acceptance gates remain open. The
