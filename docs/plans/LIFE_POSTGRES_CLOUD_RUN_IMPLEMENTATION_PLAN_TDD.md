@@ -2398,3 +2398,103 @@ and complete runner scope. Configured PostgreSQL remains refused. The five fixed
 PG3 closure workstreams above retain their pending/control/session/risk,
 collateral/legacy recovery, full source/hedge/service and product acceptance work;
 PG3 is not closed by this increment.
+
+### PG3 signed collateral account reconciliation (2026-10-18)
+
+Base `976b576c3`. Migration 57 adds a bounded account-scoped read of one native
+financial cut, original replayed derivative entries and imported contract policy.
+It refuses unresolved financial observations, native liabilities and corrupt
+accounting while permitting observation after HALT. No table, capital, order,
+approval, monetary event or activation is created. The new read entrypoint starts
+private; explicit migration-owner provisioning grants read access. Predecessor
+schema qualification remains supported, but the reconciler requires migration
+57 and never falls back. Existing OIDs/ACLs remain unchanged except the original
+diagnostic route function's body, which adds only unfiltered config/positions
+GETs. Unrecognized predecessor text rolls back the complete migration.
+
+The explicit `PgCollateralReconciler` uses the actual pinned OKX/auth/REST chain
+with fake HTTP only in qualification. Two complete configuration/balance/position
+collections must normalize identically and match the same unchanged native cut.
+Current original UID/credentials and request signatures/ages are required.
+Contract quantities are converted with the imported LIFE contract value/lot;
+ONEWAY and both HEDGE legs preserve their entry basis. USDT currency equity must
+be cash plus signed SWAP UPL once. LIFE NAV, adjusted USD equity, foreign or
+isolated positions, unreported debt and reward/fixed balances cannot credit
+collateral. Missing/blank liability fields are refused, never silently zeroed.
+This intentionally strict supported response profile may refuse otherwise valid
+mode-specific blank fields or rounded provider PNL; no live tolerance is inferred.
+
+Balance/position update stamps remain original. An unchanged idle account does
+not need an invented fresh uTime: receipt/UID/signature age and collection clock
+checks establish read freshness separately. Double REST reads cannot prove no
+intervening change/revert. Reports grant no send/activation/release authority;
+received decoded pages are durable untrusted diagnostics and never cold source
+authentication. Full order/trade/bill/runner scope and consumption by required
+release/terminal workflows remain open.
+
+TDD Red fails collection because the new parser is absent
+(`/tmp/life-r1-collateral-source-red.xml`). The first integration development gate
+records **26 passes / 8 failures**, 26.66 s
+(`/tmp/life-r1-collateral-source-integration`): SQL diagnostics correctly rejected
+the new routes until migration 57 extended its whitelist; the native-liability
+fixture omitted the required row-version increment. The next run records
+**31 passes / 3 failures**, 30.09 s (`/tmp/life-r1-collateral-source-routes`):
+assertions incorrectly treated DB connection health as trading permission,
+expected pages after an early parser rejection, and attempted an invalid raw
+account-version update. The final fixture uses a real native session tick for a
+concurrent cut change. These are test/development corrections, not widened
+financial or age limits.
+
+The earlier affected regression passes **106 tests**, zero failures/errors/
+skips, 1,851 deselected, six existing Pydantic warnings, **183.02 s**
+(`/tmp/life-r1-collateral-source-frozen-affected`). This includes all **43 new
+parser/source/context cases**, existing signed financial reads and durable
+provider diagnostics/faults, plus ten actual predecessor-snapshot upgrade/parity
+cases. It precedes the final object-context and economic-timestamp guards. The earlier 34-case
+run (`/tmp/life-r1-collateral-source-native-cut`, 27.79 s) qualifies its earlier
+selector and is included in this later gate, not additional coverage.
+
+A subsequent TDD Red reproduces acceptance of provider update stamps older
+than already-booked native cash/position events (two expected failures, 9.63 s,
+`/tmp/life-r1-collateral-source-economic-time-red`). Migration 57 now retains the
+latest original economic cash time per currency and fill time per position side;
+provider uTime cannot predate those facts. Untouched opening balances may retain
+old update stamps. The tests use original fill/funding timestamps, never a
+re-dated fake response. The preceding object-context gate passes 109 cases
+(205.54 s, `/tmp/life-r1-collateral-source-final-context`); the economic-time gate
+passes 111 (202.10 s, `/tmp/life-r1-collateral-source-causal-final`). These are
+overlapping predecessor-source gates, not additional final coverage.
+
+The final context Red records two actual failures (9.12 s,
+`/tmp/life-r1-collateral-source-runtime-red`): replacing the reader's runtime
+leaked the original in-flight counter; replacing the reconciler's runtime
+revoked the replacement object rather than the original process. Both now retain
+and clean up/revoke the original runtime. Source/reader/writer objects are pinned;
+attribute-equivalent replacements cannot forge a qualified collection.
+
+**Final affected source gate:** **113 tests pass**, zero failures/errors/skips,
+1,851 deselected, six existing warnings, **208.43 s**
+(`/tmp/life-r1-collateral-source-release-affected`). This includes all **50 new
+parser/source/context cases**, the existing signed read/provider diagnostic
+faults and ten predecessor snapshot upgrades. Earlier 106/109/111 gates overlap
+and do not qualify every final source edit. No monetary/source/SQL limit was
+widened. The preliminary migration run records 65 passes / one test assertion
+failure (52.84 s, `/tmp/life-r1-collateral-source-migrations`): asyncpg returned
+PostgreSQL internal char metadata as bytes. Casting that metadata to SQL text
+fixes the test without changing financial SQL. Its subsequent 66-pass gate
+(53.09 s, `/tmp/life-r1-collateral-source-final-migrations`) precedes the economic
+timestamp additions. The final unchanged financial source passes all **66
+migration cases**, zero failures/errors/skips, **55.11 s**
+(`/tmp/life-r1-collateral-source-release-migrations`), including actual 56→57,
+unchanged old OIDs/ACLs, private defaults, full rollback, no table/money bootstrap
+and repeat startup. The native and migration counts are distinct gates, not
+whole-service acceptance.
+
+**R1 remains open.** This implements explicit signed collateral observation and
+matching, not full provider-scope/financial-release composition. Required prior
+accounted SPOT histories, outer SPOT/coordinator legacy profiles and exact
+original-source consumption still need their integrated exit replays. Direct
+native SPOT/cashflow/SWAP/funding/terminal signed repairs remain the existing
+qualified regressions. R2–R5 and configured PostgreSQL refusal are unchanged.
+No `.env`, configured DB/account, real exchange request, deployment or repository
+evidence file is used; SQL/source/transaction budgets are unchanged.

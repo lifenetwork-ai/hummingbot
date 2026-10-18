@@ -1,4 +1,4 @@
-"""Pinned signed OKX private reads for explicit SPOT financial collection.
+"""Pinned signed OKX reads for SPOT intake and account-wide collateral observation.
 
 No arbitrary URL/method/params, sender, activation or terminal release. Bounds
 limit collection work/accepted decoded JSON; they are not an HTTP streaming cap.
@@ -64,8 +64,13 @@ class PgSpotAccountReader:
         self._active, self._reads, self._bytes = False, 0, 0
         self._journal, self.collection_id = PgProviderJournal(self.repository), None
         self._read_active = False
+        self._context = (source, source.journal, self.repository, self.runtime, self.binding, self.owner, self._journal)
 
     def _original(self):
+        source, journal, repository, runtime, binding, owner, capture = self._context
+        if (self.source is not source or source.journal is not journal or self.repository is not repository
+                or self.runtime is not runtime or self.binding != binding or self.owner != owner or self._journal is not capture):
+            raise StorageError('PG_FINANCIAL_SOURCE_CONTEXT_CHANGED')
         self.source._credentials()
         if (not self._active or self.source.journal.repository is not self.repository
                 or self.repository._runtime is not self.runtime or self.source.journal.binding != self.binding
@@ -76,10 +81,11 @@ class PgSpotAccountReader:
     async def collection(self):
         if self._active or self._read_active:
             raise StorageError('PG_FINANCIAL_SOURCE_BACKPRESSURE')
+        runtime = self._context[3]
         self._active, self._reads, self._bytes = True, 0, 0
         self.collection_id = 'provider:' + uuid4().hex
-        self.runtime._ingress_epoch += 1
-        self.runtime._observation_inflight += 1
+        runtime._ingress_epoch += 1
+        runtime._observation_inflight += 1
         try:
             before, started = utc(self.source.journal.clock()), time.monotonic()
             async with asyncio.timeout(self.timeout_ms / 1000):
@@ -100,13 +106,13 @@ class PgSpotAccountReader:
                 if after < before or abs((after - before).total_seconds() - elapsed) * 1000 > self.source.max_clock_skew_ms:
                     raise StorageError('PG_ACCOUNT_CLOCK_UNQUALIFIED')
         except BaseException as error:
-            self.runtime._healthy = False
+            runtime._healthy = False
             if isinstance(error, (StorageError, asyncio.CancelledError)):
                 raise
             raise StorageError('PG_FINANCIAL_SOURCE_UNAVAILABLE') from None
         finally:
             self._active = False
-            self.runtime._observation_inflight -= 1
+            runtime._observation_inflight -= 1
 
     @classmethod
     def _route(cls, path, params):
@@ -119,6 +125,8 @@ class PgSpotAccountReader:
             C.OKX_ORDERS_ALGO_PENDING_PATH: {'instType': 'SPOT', 'limit': '100'},
             C.OKX_ORDER_DETAILS_PATH: {'instId': 'LIFE-USDT'},
             C.OKX_BALANCE_PATH: {},
+            C.OKX_ACCOUNT_CONFIG_PATH: {},
+            '/api/v5/account/positions': {},
         }.get(path)
         if required is None or any(params.get(key) != value for key, value in required.items()):
             raise StorageError('PG_FINANCIAL_SOURCE_ROUTE_INVALID')
@@ -224,3 +232,10 @@ class PgSpotAccountReader:
 
     async def get_spot_cash_balances(self):
         return await self._read(C.OKX_BALANCE_PATH, {})
+
+    async def get_account_configuration(self):
+        return await self._read(C.OKX_ACCOUNT_CONFIG_PATH, {})
+
+    async def get_all_account_positions(self):
+        # No instType/instId filter: foreign/isolated exposure must be visible.
+        return await self._read('/api/v5/account/positions', {})

@@ -1,6 +1,19 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
-**Current PG3 recovery checkpoint (2026-10-18, base `6bfd58a80`):** migration 56
+**Current PG3 R1 source checkpoint (2026-10-18, base `976b576c3`):** migration 57
+adds an explicit signed account-wide configuration/balance/position reconciliation
+against one unchanged native cut. It verifies contract/base units, original
+position entries, USDT cash/UPL equity, explicit zero liabilities and original
+economic update times, retaining
+HALT, holds and gross budgets. **113 affected cases pass**, including all 50 new
+parser/source/context cases, existing signed reads/provider diagnostics and
+predecessor snapshot upgrades; **66 migration cases pass**. Reports and cold
+decoded pages grant no trading
+or release permission. Required legacy histories and complete source consumption
+before terminal/shared release still prevent R1 closure; R2–R5 are unchanged.
+See [scope and qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-signed-collateral-account-reconciliation-2026-10-18).
+
+**Earlier PG3 recovery checkpoint (2026-10-18, base `6bfd58a80`):** migration 56
 adds exact original native SPOT preparation/ARM provenance to retired File
 SPOT/funding recovery. The actual File resume and two native cold restores agree
 on complete balances, remaining holds and gross budgets; changed original ARM

@@ -3222,3 +3222,42 @@ hashes remain valid. A caller must not assume byte equivalence for arbitrary
 Unicode bodies across those codecs. Complete configured source/codec-domain
 qualification remains part of PG3 R4/R5; PostgreSQL backend selection stays
 rejected.
+
+### Signed collateral account reconciliation
+
+`postgres.collateral_source.PgCollateralReconciler(reader, swap).collect()`
+compares two signed, unfiltered OKX account config/balance/position collections
+with one unchanged native financial cut. Use an explicit `PgSpotAccountReader`
+over the same repository, owner and UID; the observation-only identity supports
+HALT. Migration 57 and migration-owner read access provisioning are required.
+There is no older-schema or File fallback.
+
+The declared model is mode 2, USDT cross margin, LIFE cash inventory and
+LIFE-USDT-SWAP, with imported ONEWAY/HEDGE and contract/lot units. Contracts become
+LIFE exposure once; both hedge legs retain their entries. USDT `cashBal` plus
+signed SWAP UPL must equal USDT currency `eq`. LIFE equity and account-wide USD
+`totalEq`/`adjEq` never credit USDT collateral. The full position scope must
+explain currency UPL and initial/maintenance margin. Foreign currencies,
+isolated positions, reward/fixed balances and nonzero or missing/blank
+liabilities are refused. This strict profile can refuse an otherwise valid OKX
+response whose mode-specific fields are blank; no blank-to-zero or rounding
+allowance is installed as a live default. Field definitions are in the
+[OKX account API](https://www.okx.com/docs-v5/en/#trading-account-rest-api-get-balance).
+
+Old balance/position `uTime` is preserved as an update timestamp. It is not
+relabelled as a fresh market observation, and idle accounts are not rejected
+solely because no balances changed. An update cannot predate a subsequently
+booked native cash change for that currency or fill for that position side.
+Signed request/UID age, receipt clock and
+collection deadlines remain independently enforced. Two equal full reads detect
+observed changes; REST cannot prove that no change/revert occurred between
+requests. A native change, pending fact, mismatch, cancellation or identity
+failure produces no reconciliation report and revokes local runtime health.
+
+The returned report binds its original native cut and collection hash. It
+changes no money, claims, gross budget, HALT or permission. Received decoded
+pages remain durable **untrusted diagnostics**, including after cold restart;
+reading them is not fresh provider authentication. Configured collector,
+order/trade/bill/runner completeness and consumption by every required
+terminal/release route remain PG3 work. This helper does not close R1 or install
+the configured PostgreSQL service.

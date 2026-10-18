@@ -872,3 +872,14 @@ account, policy, balance, activation or configured PostgreSQL sender.
   function OIDs/ACLs; remove inherited nonowner helper grants. Ordinary reads,
   repair and cold readback retain the original order provenance. No order,
   claim, wallet, approval, policy or activation is bootstrapped.
+
+- `000057_collateral_source_context.sql`: expose one account-scoped, bounded,
+  read-only native cut for explicit signed balance/position reconciliation. It
+  retains HALT, rejects unresolved financial facts/native liabilities/corruption,
+  and returns original settled money, replayed position basis and imported
+  contract policy. Extend the existing decoded-diagnostic whitelist only for
+  unfiltered account configuration and account positions GETs. No new table or
+  financial/approval/send/release authority is created. Existing function OIDs
+  and ACLs remain; unexpected predecessor route shape rolls back the entire
+  migration. New function privileges are private until explicit migration-owner
+  access provisioning. Repeated migration startup is a no-op.

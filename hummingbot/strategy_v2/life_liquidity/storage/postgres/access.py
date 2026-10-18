@@ -92,6 +92,11 @@ async def provision_access(connection, *, principal, account_id, write):
         await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.spot_quote_arms_verified(uuid) TO "{principal}"')
         await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.recorder_executor_verified(uuid) TO "{principal}"')
         await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.spot_observation_context(uuid,integer,integer) TO "{principal}"')
+        # Preserve explicit qualification/provisioning of predecessor schemas.
+        # The reconciliation adapter itself requires migration 57; it has no
+        # legacy/File fallback when this entrypoint is absent or ungranted.
+        if await connection.fetchval("SELECT to_regprocedure('life_financial.collateral_reconciliation_context(uuid,integer,integer)') IS NOT NULL"):
+            await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.collateral_reconciliation_context(uuid,integer,integer) TO "{principal}"')
         await connection.execute(f'''GRANT EXECUTE ON FUNCTION life_financial.spot_read_financial_ingress(uuid,life_financial.identity),
             life_financial.spot_pending_financial_ingress(uuid,integer,integer) TO "{principal}"''')
         await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.spot_markout_frame(uuid,integer,integer) TO "{principal}"')

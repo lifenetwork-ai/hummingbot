@@ -1649,3 +1649,47 @@ async def test_legacy_spot_basis_upgrade_is_private_preserves_old_functions_and_
     for table in ('accounts', 'balances', 'operations', 'spot_preparations', 'legacy_applying_imports'):
         assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
     assert (await migrate(c, directory, action='up'))['applied'] == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('unexpected_shape', [False, True])
+async def test_collateral_context_upgrade_is_private_read_only_and_preserves_existing_financial_functions(db, unexpected_shape):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 57:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    await c.execute('ALTER DEFAULT PRIVILEGES IN SCHEMA life_financial GRANT EXECUTE ON FUNCTIONS TO life_runtime_test,life_reporter_test')
+    query = '''SELECT p.oid,p.oid::regprocedure::text AS signature,p.proacl,p.prosrc,p.provolatile::text AS provolatile,p.prosecdef,p.proconfig,p.proowner
+        FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='life_financial' ORDER BY p.oid'''
+    before = {r['signature']: dict(r) for r in await c.fetch(query)}
+    tables = await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace='life_financial'::regnamespace ORDER BY oid")
+    if unexpected_shape:
+        definition = await c.fetchval("SELECT pg_get_functiondef('life_financial.spot_provider_route(text,jsonb)'::regprocedure)")
+        await c.execute(definition.replace("THEN '{}'::jsonb ELSE NULL END;", "THEN  '{}'::jsonb ELSE NULL END;"))
+        before = {r['signature']: dict(r) for r in await c.fetch(query)}
+    path = DEFAULT_DIRECTORY / '000057_collateral_source_context.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    if unexpected_shape:
+        with pytest.raises(asyncpg.RaiseError, match='LIFE_COLLATERAL_SOURCE_ROUTE_MIGRATION_MISMATCH'):
+            await migrate(c, directory, action='up')
+        assert {r['signature']: dict(r) for r in await c.fetch(query)} == before
+        assert (await versions(c))[-1]['version'] == 56
+        return
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    after = {r['signature']: dict(r) for r in await c.fetch(query)}
+    helper = 'life_financial.collateral_reconciliation_context(uuid,integer,integer)'
+    assert set(after) - set(before) == {helper}
+    for key, value in before.items():
+        if key == 'life_financial.spot_provider_route(text,jsonb)':
+            assert {k: v for k, v in after[key].items() if k != 'prosrc'} == {k: v for k, v in value.items() if k != 'prosrc'}
+        else:
+            assert after[key] == value
+    assert after[helper]['provolatile'] == 's' and after[helper]['prosecdef']
+    assert after[helper]['proconfig'] == ['search_path=pg_catalog']
+    for role in ('public', 'life_runtime_test', 'life_reporter_test'):
+        assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", role, helper)
+    assert tables == await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace='life_financial'::regnamespace ORDER BY oid")
+    for table in ('accounts', 'balances', 'operations', 'shared_capital_claims', 'spot_provider_pages'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+    assert (await migrate(c, directory, action='up'))['applied'] == []

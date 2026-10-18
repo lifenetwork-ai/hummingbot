@@ -150,7 +150,7 @@ def main():
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in ('legacy_applying', 'legacy_core_cashflows', 'legacy_spot', 'legacy_joint')]
         if args.suite == 'joint_recovery':
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in (
-                'collateral', 'joint_batch', 'joint_repair', 'swap_fills', 'swap_accounting', 'funding', 'funding_repair', 'funding_cohort', 'swap_repair', 'spot_repair', 'cashflow_repair', 'terminal_repair', 'legacy_applying', 'legacy_core_cashflows', 'legacy_spot', 'legacy_joint', 'portfolio', 'swap_terminal', 'shared_release', 'late_capital')]
+                'collateral', 'collateral_source', 'joint_batch', 'joint_repair', 'swap_fills', 'swap_accounting', 'funding', 'funding_repair', 'funding_cohort', 'swap_repair', 'spot_repair', 'cashflow_repair', 'terminal_repair', 'legacy_applying', 'legacy_core_cashflows', 'legacy_spot', 'legacy_joint', 'portfolio', 'swap_terminal', 'shared_release', 'late_capital')]
         if args.suite == 'spot_recovery_paths':
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in (
                 'spot_observations', 'lifecycle', 'observation_context', 'inventory_settlement', 'financial_ingress', 'financial_commands')]
