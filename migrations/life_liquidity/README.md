@@ -781,3 +781,17 @@ account, policy, balance, activation or configured PostgreSQL sender.
   through ordinary observation routes. New helpers and the application table
   are private. Existing function OIDs/ACLs and numbered checksums are preserved;
   repeat startup applies this version once. No capital or trading grant is made.
+
+- `000049_terminal_repair.sql`: separately bounded signed reconciliation of
+  selected retained SWAP terminal pending observations. Original raw facts and
+  receipts remain immutable. Append-only approvals, roots and unique membership
+  bind the complete fresh terminal/account proof to the exact executed recovery;
+  unused approvals do not resolve anything. Versioned predicates preserve old
+  denial/terminal/release proofs. Current-owner OBSERVE/carry/NAV may refresh
+  sources only when valid terminal pending is the sole financial blocker; no
+  monetary pending or corrupt history receives that exception. Physical COMMIT
+  rechecks owner, expiry and source age. Reconciliation never marks an order
+  terminal, changes money, retires claims or activates trading; native terminal
+  and independent release remain separate. Existing function OIDs/ACLs and old
+  script checksums are retained; repeated automatic startup applies this version
+  once. Policy/import/access provisioning remain explicit privileged operations.

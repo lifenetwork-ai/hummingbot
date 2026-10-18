@@ -2852,9 +2852,42 @@ use resolution versions for historical checks. Financial recovery preserves
 HALT, gross costs and claims; it grants no activation or claim release. Ordinary
 new cashflows/NAV and fill/funding routes cannot bypass an unresolved bill.
 
-Use `run_postgres --suite cashflow_repair` for this profile. Terminal pending
-repair, interrupted legacy import, full collateral/liability/provider
-reconciliation and the fixed PG3 control/service/acceptance gates remain open.
+Use `run_postgres --suite cashflow_repair` for this profile. Native retained
+SWAP terminal pending is handled by the separate reconciliation profile below.
+Interrupted legacy import, full collateral/liability/provider reconciliation
+and the fixed PG3 control/service/acceptance gates remain open.
+
+## Signed terminal reconciliation (PG3 R1 increment, 2026-10-18)
+
+Migration 49 and `postgres.terminal_repair` support `ResolveSwapTerminals`:
+one explicit pending ID plus at most 255 additional IDs, with one fresh complete
+terminal observation per original preparation. This is a separately bounded
+policy; no recovery limits are installed implicitly. The privileged
+`PgTerminalRepairApprovalImporter` verifies the configured RECOVER public key,
+exact account cut, complete trade/bill/order/runner coverage and zero liabilities.
+The native command rechecks owner, scope, immutable provenance and deadlines at
+physical COMMIT. No replacement monetary event or fake joint/funding batch is
+created. Unrelated unresolved financial facts still block reconciliation.
+
+A `RECONCILED` receipt resolves diagnostics only. The original pending rows,
+commands, reasons and receipts remain `RECOVERY_REQUIRED`. Versioned immutable
+membership clears current barriers without changing earlier historical cuts.
+An unused approval, including another signed payload with identical facts,
+never clears a pending fact. Balances, positions, gross spending, HALT, original
+order state and shared claims remain unchanged. A separate fresh native terminal
+confirmation and separate original-claim retirement are required afterwards.
+
+When only valid terminal pending remains, original-owner OBSERVE/carry/NAV may
+collect the fresh source cut needed for reconciliation. This exception cannot
+create a reservation, clear HALT, conceal another monetary pending or bypass
+corrupt history. Native SPOT rejects invalid terminal confirmation instead of
+persisting a SWAP-style terminal-pending row; this profile does not fabricate
+SPOT pending diagnostics or replace its existing lifecycle checks.
+
+Use `run_postgres --suite terminal_repair`; `joint_recovery` includes the profile.
+All inputs remain explicit synthetic/caller assertions in these standalone
+ports. Provider authentication and complete configured-service acceptance are
+still required. Configured PostgreSQL selection remains rejected.
 
 ## Native PostgreSQL hedge coordination (PG3 increment, 2026-10-17)
 

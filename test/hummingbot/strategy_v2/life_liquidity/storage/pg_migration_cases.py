@@ -1327,3 +1327,40 @@ async def test_cashflow_repair_upgrade_preserves_gate_oids_acl_and_private_appli
     assert (await migrate(c, directory, action='up'))['applied'] == []
     for table in ('accounts', 'balances', 'operations', 'spot_cashflow_facts', 'spot_cashflow_applications', 'joint_repair_staging'):
         assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+
+
+@pytest.mark.asyncio
+async def test_terminal_repair_upgrade_preserves_existing_gate_oids_acl_and_repeat_startup(db):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 49:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    signatures = ('life_financial.swap_terminal_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
+                  'life_financial.swap_terminal_read(uuid,integer,integer,text)', 'life_financial.swap_terminal_verified(uuid)',
+                  'life_financial.swap_terminal_reason(uuid,jsonb,bigint,bigint)', 'life_financial.spot_state_before_shared_release(uuid)',
+                  'life_financial.joint_financial_pending(uuid)', 'life_financial.shared_release_proof(uuid,text,text,bigint,bigint)',
+                  'life_financial.shared_capital_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
+                  'life_financial.portfolio_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
+                  'life_financial.spot_state(uuid)', 'life_financial.commit_owner_guard()')
+    oids = [await c.fetchval('SELECT to_regprocedure($1)::oid', value) for value in signatures]
+    await c.execute('GRANT EXECUTE ON FUNCTION life_financial.swap_terminal_read(uuid,integer,integer,text) TO life_runtime_test,life_reporter_test')
+    await c.execute('GRANT EXECUTE ON FUNCTION life_financial.swap_terminal_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb) TO life_runtime_test')
+    path = DEFAULT_DIRECTORY / '000049_terminal_repair.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    assert [await c.fetchval('SELECT to_regprocedure($1)::oid', value) for value in signatures] == oids
+    for principal in ('life_runtime_test', 'life_reporter_test'):
+        assert await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", principal, signatures[1])
+        assert await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", principal, signatures[0]) is (principal == 'life_runtime_test')
+        for signature in ('life_financial.terminal_repair_reason(uuid,jsonb,bigint,bigint,jsonb)',
+                          'life_financial.terminal_repair_verified(uuid)', 'life_financial.terminal_only_recovery(uuid,jsonb)',
+                          'life_financial.terminal_repair_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
+                          'life_financial.terminal_repair_read(uuid,integer,integer,text)',
+                          'life_financial.terminal_pending_unresolved(uuid,text,bigint)'):
+            assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", principal, signature)
+        for table in ('terminal_repair_policies', 'terminal_repair_approvals', 'terminal_repair_facts', 'terminal_repair_members'):
+            assert not await c.fetchval("SELECT has_table_privilege($1,$2,'SELECT,INSERT,UPDATE,DELETE')", principal, 'life_financial.' + table)
+    assert (await migrate(c, directory, action='up'))['applied'] == []
+    for table in ('accounts', 'balances', 'operations', 'terminal_repair_approvals', 'terminal_repair_facts', 'terminal_repair_members'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
