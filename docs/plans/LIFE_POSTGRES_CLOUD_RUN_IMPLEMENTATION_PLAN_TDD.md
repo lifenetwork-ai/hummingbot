@@ -690,7 +690,8 @@ qualification/revision recorded in each increment below.
 - [x] Already booked native transfer prefixes: exact original economic facts, hashes and receipts; migration-59 combined recovery and upgrade qualification below.
 - [x] Declared original native SWAP/funding prefixes, with exact prior receipts/hashes, File parity, cold recovery and actual 59→60 upgrades.
 - [x] Completed funding-only core commands and original APPLIED native joint parents for the declared recovery profiles; original basis, exact leaves, gross budgets and cold restart remain verified.
-- [ ] Other completed core command families and repaired-origin native joint parent histories required by the supported File recovery modes.
+- [x] Declared completed core SPOT-fill/approved-transfer commands, with or without funding; exact child receipts, chronological economic replay and File/native cold parity.
+- [ ] Completed ACK/prepared-receipt/terminal/settlement core command families and repaired-origin native joint parent histories required by the supported File recovery modes.
 - [x] Declared original PREPARED-only SPOT holds during core funding recovery, with independent native unsent provenance, actual File parity, cold restart and a real 61→62 upgrade.
 - [ ] Prior other-order, cancellation, terminal/NAV and economic settlement histories needed by supported File recovery modes.
 - [ ] Outer SPOT and hedge/carry coordinator financial checkpoint recovery.
@@ -2997,3 +2998,56 @@ No configured `.env`/DB/account, real exchange, deployment or repository evidenc
 file is used. Source freshness, SQL/transaction limits and financial thresholds
 are unchanged. This increment addresses one R1 history family; the other fixed
 R1 requirements and R2–R5 remain open.
+
+### PG3 completed mixed core command history (2026-10-19)
+
+Base revision: `b9f606617`. The core history verifier additionally replays prior
+APPLIED commands containing cumulative SPOT fills and approved transfers, with
+or without funding events. Original command/cut/owner fingerprints and
+before-image hashes remain. Every before-wallet is explained from the explicit
+opening basis; an after-wallet adds only missing original principal/fees,
+approved transfer bills and paid funding. Earlier trades and transfers must
+remain in subsequent before-wallets and the final interrupted cut. Known
+cumulative fills cannot regress. Each embedded SPOT/transfer child must retain
+its actual APPLIED receipt and original fingerprint/application ID; economic
+equality alone cannot substitute for a missing receipt. Native causal money,
+gross budgets, natural trade/bill deduplication, HALT and claims are unchanged.
+No SQL, migration, table, permission or policy threshold is changed.
+
+TDD development gates (overlapping, not additive):
+
+- The first actual mixed-history replay fails with
+  `PG_LEGACY_APPLYING_PROFILE_UNSUPPORTED`, one failure, **7.40 s**
+  (`/tmp/life-r1-completed-mixed-red`). Initial seven cases pass, **35.08 s**
+  (`/tmp/life-r1-completed-mixed-green`); the expanded prefix selector passes
+  thirteen, **64.86 s** (`/tmp/life-r1-completed-mixed-prefix`).
+- A rehashed changed application-ID Red case then fails to raise, one failure,
+  **6.46 s** (`/tmp/life-r1-completed-mixed-receipt-red`). Actual original child
+  receipts are now mandatory. The expanded development gate passes **25 cases**,
+  **121.81 s**, 2,142 deselected, six existing warnings
+  (`/tmp/life-r1-completed-mixed-receipts`), covering three interruption stages,
+  BUY/LIFE and SELL/USDT fees, native booked/unbooked prefixes, funding-free
+  completed commands, debit/credit histories and actual File/two-cold-restart
+  parity. The final gate also includes the subsequently added missing-transfer-
+  receipt component mutation and a funding-only allocation fast path.
+- An overbroad attempt is deliberately interrupted after seven passing cases,
+  **38.76 s** (`/tmp/life-r1-completed-mixed-final`); it is not qualification or a
+  financial failure. Final qualification selects the new mixed commands and all
+  existing completed funding/history/parent and unsent baseline workflows that
+  exercise this change. Financial Python/SQL are frozen during that final gate;
+  it passes **62 cases**, zero failures/errors/skips, 2,105 deselected, six
+  existing warnings, **287.13 s**
+  (`/tmp/life-r1-completed-mixed-final-affected`). The 25 new-profile cases are
+  included, not additional. This covers funding-only predecessors, completed
+  mixed commands, original native parents, booked SPOT prefixes and the unsent
+  baseline. Subsequent other-order test fixture work is separate and does not
+  change the frozen financial source or the selected default paths. Hooks and
+  diff checks pass. This is affected R1 qualification, not R5 service acceptance.
+
+The migration-62/80-case SQL gate belongs to the preceding unsent-order commit;
+SQL is unchanged here. Only disposable local PostgreSQL, synthetic facts/keys
+and real File fixture resumes are used. No configured account/DB, `.env`, exchange
+request, deployment or repository evidence file is used. ACK/prepared-receipt/
+terminal/settlement histories, other-order/coordinator recovery, repaired-origin
+native parents and complete source consumption still require their fixed R1
+exits. This increment does not close R1 or R2–R5.

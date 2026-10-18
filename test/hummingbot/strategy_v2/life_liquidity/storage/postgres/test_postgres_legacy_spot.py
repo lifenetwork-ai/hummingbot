@@ -35,12 +35,12 @@ def arithmetic_profile(source, state, operations):
 
 
 async def recover_case(database, tmp_path, monkeypatch, stage, side, fee_currency, cashflow=None, spot_prefix=False, book_native_prefix=False,
-                       prepared=None, expected=None, spot_open_only=False, book_native_cashflow=False, prior_funding=(), prior_after_accounting=False, native_parent=False, spot_prepared_only=False):
+                       prepared=None, expected=None, spot_open_only=False, book_native_cashflow=False, prior_funding=(), prior_after_accounting=False, native_parent=False, spot_prepared_only=False, prior_embedded_spot=False):
     expected = {} if expected is None else expected
     values, batch, command, cut, facts, approval, importer, store, source = prepared or await setup(
         database, tmp_path, monkeypatch, stage, spot_fill=(side, fee_currency), file_result=expected, cashflow=cashflow,
         spot_prefix=spot_prefix, book_native_prefix=book_native_prefix, spot_open_only=spot_open_only, book_native_cashflow=book_native_cashflow,
-        prior_funding=prior_funding, prior_after_accounting=prior_after_accounting, book_native_accounting_parent=native_parent, spot_prepared_only=spot_prepared_only)
+        prior_funding=prior_funding, prior_after_accounting=prior_after_accounting, book_native_accounting_parent=native_parent, spot_prepared_only=spot_prepared_only, prior_embedded_spot=prior_embedded_spot)
     financial, cfg, owner = values[:3]
     cold = None
     c = database[0]

@@ -3344,6 +3344,16 @@ retain gross debits despite credits, and cold recovery preserves original HALT,
 holds and receipts. Completed historical commands containing other side effects
 still require their corresponding profiles.
 
+Completed core commands containing cumulative SPOT fills and approved transfers
+can also precede the interrupted funding command. Their original child receipts,
+owners/fingerprints, exact economic leaves and callback times are verified.
+Each before-wallet is explained from opening capital; each after-wallet applies
+only missing fills/fees/transfers and funding. Cumulative fill history cannot
+regress, and a later before-wallet cannot drop a completed trade or transfer.
+Application IDs cannot be invented even when resulting balances agree. ACK,
+prepared-receipt, terminal and economic-settlement command histories still need
+their own independent original-basis profiles.
+
 Migration 61 composes original APPLIED native joint parents with the same
 signed source. Each original member must retain its actual child operation,
 request, receipt and fingerprint; its economic leaves must occur unchanged in

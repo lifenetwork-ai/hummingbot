@@ -1,6 +1,17 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
-**Current PG3 R1 unsent-order checkpoint (2026-10-19, base `fd19637fc`):**
+**Current PG3 R1 mixed-command checkpoint (2026-10-19, base `b9f606617`):**
+retired core recovery verifies completed SPOT-fill/approved-transfer commands
+with or without funding events. Every historical before/after balance is
+explained from opening capital and original economic leaves; prior trades and
+transfers cannot disappear. Original child receipts/application IDs are required
+even when monetary totals agree. **62 affected cases pass**, including the 25
+new recovery/refusal cases, actual File resumes and two cold restores. SQL and
+all monetary/time thresholds are unchanged. See
+[scope and qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-completed-mixed-core-command-history-2026-10-19).
+**Other required R1 histories/source consumption and R2–R5 remain open.**
+
+**Earlier PG3 R1 unsent-order checkpoint (2026-10-19, base `fd19637fc`):**
 migration 62 retains original PREPARED-only SPOT holds during retired File
 funding recovery. File WAL/hold/subsidy and independent native preparation,
 receipt and absence of prior ARM/ACK/fill/cancel/terminal evidence must agree.

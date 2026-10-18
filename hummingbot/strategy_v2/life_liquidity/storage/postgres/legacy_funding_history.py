@@ -1,4 +1,4 @@
-"""Verify completed original File funding commands before one APPLYING cut.
+"""Replay completed original File financial commands before one APPLYING cut.
 
 Read-only evidence replay. No wallet adoption, policy defaults or permissions.
 Other historical command families still need their own original-basis proofs.
@@ -68,6 +68,51 @@ def _wallet_money(wallet, command, batch, flows, policy, events):
     return base, cash, paid
 
 
+def _after_money(wallet, command, batch, flows, base, cash, resources, owner):
+    """Replay only missing original leaves; an old wallet is never a seed."""
+    snapshots = {v.prepare_operation_id: v for v in batch.spot_fills} if command.spot_fills else {}
+    trades = set(wallet['trades'])
+    transfers = {k.removeprefix('CASHFLOW:') for k in wallet['account_events'] if k.startswith('CASHFLOW:')}
+    at = int(command.observed_at.timestamp() * 1000)
+    for old in command.spot_fills:
+        receipt = resources.get('fill_operations', {}).get(old.operation_id)
+        if (receipt is None or receipt['state'] != 'APPLIED' or receipt['command'] != old.json()
+                or receipt['owner'] != owner
+                or receipt['fingerprint'] != fingerprint({'command': old.json(), 'owner': owner})):
+            _refuse()
+        full = snapshots.get(old.prepare_operation_id)
+        excluded = ('operation_id', 'fills', 'cumulative_base_life', 'observed_at')
+        if (full is None or old.observed_at > command.observed_at
+                or {k: v for k, v in old.json().items() if k not in excluded}
+                != {k: v for k, v in full.json().items() if k not in excluded}
+                or old.cumulative_base_life > full.cumulative_base_life):
+            _refuse()
+        if not {key for key, row in wallet['trades'].items() if row[0] == old.intent_id} <= {f.trade_id for f in old.fills}:
+            _refuse()
+        known = {f.trade_id: f for f in full.fills}
+        for fill in old.fills:
+            if known.get(fill.trade_id) != fill or max(fill.fill_at_ms, fill.independent_value_at_ms, fill.independent_observed_at_ms) > at:
+                _refuse()
+            if fill.trade_id not in trades:
+                base += fill.quantity_base_life if old.side == 'BUY' else -fill.quantity_base_life
+                cash += -fill.quantity_base_life * fill.price_usdt if old.side == 'BUY' else fill.quantity_base_life * fill.price_usdt
+                base += fill.signed_fee if fill.fee_currency == 'LIFE' else D('0')
+                cash += fill.signed_fee if fill.fee_currency == 'USDT' else D('0')
+                trades.add(fill.trade_id)
+    for flow in command.spot_cashflows:
+        receipt = resources.get('cashflow_operations', {}).get(flow.operation_id)
+        if (receipt is None or receipt['state'] != 'APPLIED' or receipt['command'] != flow.json()
+                or receipt['fingerprint'] != fingerprint({'command': flow.json(), 'owner': receipt['owner']})
+                or flows.get(flow.bill_id) != flow or flow.observed_at > command.observed_at
+                or max(flow.transfer_at_ms, flow.value_at_ms, flow.reference_observed_at_ms) > at):
+            _refuse()
+        if flow.bill_id not in transfers:
+            base += flow.signed_amount if flow.currency == 'LIFE' else D('0')
+            cash += flow.signed_amount if flow.currency == 'USDT' else D('0')
+            transfers.add(flow.bill_id)
+    return base, cash, trades, transfers
+
+
 def funding_history(source, pending, batch, flows, policy):
     resources = json.loads(source.checkpoint_bytes)['state']['resources']
     rows = source.original_operations
@@ -92,13 +137,13 @@ def funding_history(source, pending, batch, flows, policy):
         if row['state'] != 'APPLIED' or cut.checkpoint.revision >= pending_cut.checkpoint.revision or cut.checkpoint.revision in revisions:
             _refuse()
         revisions.add(cut.checkpoint.revision)
-        if (old.spot_fills or old.spot_cashflows or old.spot_acks or old.spot_prepared_receipts
+        if (old.spot_acks or old.spot_prepared_receipts
                 or old.spot_terminal_operations or old.spot_settlement_operations):
             raise StorageError('PG_LEGACY_APPLYING_PROFILE_UNSUPPORTED')
         if any(complete.get(e.event_id) != e or e.event_id.split(':')[2] != 'FUNDING' for e in old.events):
             _refuse()
         previous.append((cut.checkpoint.revision, key, row, old))
-    expected, earlier = {}, set()
+    expected, earlier, prior_trades, prior_transfers = {}, set(), set(), set()
     opened = int(datetime.fromisoformat(policy['opened_at']).timestamp() * 1000)
     for _, key, row, old in sorted(previous):
         supplied = {e.event_id: e for e in old.events}
@@ -106,6 +151,10 @@ def funding_history(source, pending, batch, flows, policy):
             _refuse()
         wallet = json.loads(bytes.fromhex(row['before_native']['reservations']))
         base, cash, paid = _wallet_money(wallet, old, batch, flows, policy, complete)
+        if (not prior_trades <= set(wallet['trades'])
+                or not prior_transfers <= {k.removeprefix('CASHFLOW:') for k in wallet['account_events'] if k.startswith('CASHFLOW:')}):
+            _refuse()
+        base, cash, prior_trades, prior_transfers = _after_money(wallet, old, batch, flows, base, cash, resources, row['owner'])
         if paid != earlier or (old.account_base_life, old.account_quote_usdt) != (
                 base, cash + sum((e.signed_amount_usdt for e in old.events if e.event_id not in paid), D('0'))):
             _refuse()
@@ -113,5 +162,9 @@ def funding_history(source, pending, batch, flows, policy):
             expected.setdefault(event.event_id, {'event': event.json(), 'operation_id': key})
         earlier = set(supplied)
     if resources.get('joint_cashflows', {}) != expected:
+        _refuse()
+    before = json.loads(bytes.fromhex(pending_row['before_native']['reservations']))
+    if (not prior_trades <= set(before['trades'])
+            or not prior_transfers <= {k.removeprefix('CASHFLOW:') for k in before['account_events'] if k.startswith('CASHFLOW:')}):
         _refuse()
     return {key: complete[key] for key in expected}
