@@ -293,6 +293,8 @@ class FileCheckpointStore:
         return _FileUnitOfWork(self, cut, owner)
 
     def _commit(self, cut, owner, operation_id, changes, *, observation=False, not_after=None):
+        if getattr(self, '_legacy_applying_retired', False):
+            raise StorageError('LEGACY_APPLYING_SOURCE_RETIRED')
         if getattr(self, '_handoff_frozen', False):
             raise StorageError('CONFIGURATION_HANDOFF_SOURCE_FROZEN')
         # Private observational publication for domain adapters only. Generic UoW

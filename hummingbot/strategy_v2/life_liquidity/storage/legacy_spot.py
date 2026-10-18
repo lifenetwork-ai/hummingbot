@@ -70,6 +70,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.financial import (
 from hummingbot.strategy_v2.life_liquidity.storage.financial_configuration import LegacyFinancialConfigurationAdapter
 from hummingbot.strategy_v2.life_liquidity.storage.handoff import LegacyConfigurationHandoffControlAdapter
 from hummingbot.strategy_v2.life_liquidity.storage.joint_settlement import JointCashEvent, LegacyJointCashAdapter
+from hummingbot.strategy_v2.life_liquidity.storage.legacy_applying import LegacyApplyingAdapter
 from hummingbot.strategy_v2.life_liquidity.storage.pending import LegacyPendingAdapter
 from hummingbot.strategy_v2.life_liquidity.storage.prepare_recovery import LegacyPrepareRecoveryAdapter
 from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancialRecoveryPolicy
@@ -109,7 +110,7 @@ class LegacySpotFiles:
         return {key: value for key, value in self.__dict__.items() if key != 'binding' and value is not None}
 
 
-class LegacySpotStore(LegacyTargetImportAdapter, LegacyConfigurationHandoffControlAdapter, LegacyConfigurationHandoffAdapter, LegacyFinancialConfigurationAdapter, LegacySessionObservationAdapter, LegacyJointCashAdapter, LegacyRecoveryBatchAdapter, LegacyPendingAdapter, LegacySessionAdapter, LegacySpotLifecycleAdapter, LegacyControlAdapter, LegacySettlementAdapter, LegacyPrepareRecoveryAdapter, LegacyFinancialRecoveryAdapter,
+class LegacySpotStore(LegacyApplyingAdapter, LegacyTargetImportAdapter, LegacyConfigurationHandoffControlAdapter, LegacyConfigurationHandoffAdapter, LegacyFinancialConfigurationAdapter, LegacySessionObservationAdapter, LegacyJointCashAdapter, LegacyRecoveryBatchAdapter, LegacyPendingAdapter, LegacySessionAdapter, LegacySpotLifecycleAdapter, LegacyControlAdapter, LegacySettlementAdapter, LegacyPrepareRecoveryAdapter, LegacyFinancialRecoveryAdapter,
                       LegacyTerminalAdapter, FileCheckpointStore):
     atomic_scope = AtomicScope.RECOVERABLE_SAGA
 

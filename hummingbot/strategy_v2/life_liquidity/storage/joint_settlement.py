@@ -279,7 +279,7 @@ class LegacyJointCashAdapter(LegacyJointFillAdapter, LegacyJointCashflowAdapter,
             changes += tuple((name, encode(value)) for name, value in fill_updates.items())
         return self._commit(meta.cut, owner, key, changes, observation=True)
 
-    def _apply_joint_cash(self, command, cut, owner, resume=False, *, recovery_authority=None):
+    def _apply_joint_cash(self, command, cut, owner, resume=False, *, recovery_authority=None, preflight_only=False):
         self._require_accounting()
         self._assert_binding(command.binding)
         view = self._snapshot()
@@ -419,6 +419,10 @@ class LegacyJointCashAdapter(LegacyJointFillAdapter, LegacyJointCashflowAdapter,
             operations[command.operation_id] = previous
         before = {name: bytes.fromhex(value) for name, value in previous['before_native'].items()}
         self._joint_fill_native_preflight(command, before, self._raw(), resume)
+        if preflight_only:
+            if not resume or previous['state'] != 'APPLYING':
+                raise StorageError('JOINT_CASH_PREFLIGHT_REQUIRES_APPLYING')
+            return True
         try:
             if not resume:
                 self._publish_joint_cash('joint-start:' + command.operation_id, owner, operations, old_events,

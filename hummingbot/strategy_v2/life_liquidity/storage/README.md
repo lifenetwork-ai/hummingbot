@@ -39,6 +39,35 @@ and account transactions, not store this aggregate JSON as its financial schema.
 Migration infrastructure is separate and documented in
 [the migration guide](../../../../migrations/life_liquidity/README.md).
 
+## Interrupted core File source retirement
+
+`legacy_applying.py` captures one actual interrupted `JointCashSpot` saga while
+preserving every original coordinator/native byte, command/cut/writer, trade/bill
+identity and pre-application image. Capture validates the existing resume
+projection without finishing money, fees, loss or subsidy. DRAINING/RECOVERY_ONLY,
+complete fresh zero-liability facts and configured operator/recovery policies
+are required.
+
+`legacy_applying_source(binding, facts=..., cut=...)` returns evidence.
+`retire_legacy_applying(command, source=..., approval=...)` requires an exact
+`RetireLegacyApplying` signed by the distinct IMPORT role, an explicit target
+binding and database lineage. A durable bounded capsule is published first;
+the signed coordinator retirement is the irreversible source fence. Orphan
+capsules grant nothing. Physical publication rechecks freshness and original
+native bytes. Queued/later money and control operations then deny, including
+resume, and cold startup preserves that fence. Original-ID retries/readback
+cannot activate either writer. `frozen_legacy_applying_source(binding)` verifies
+the full sealed coordinator and native images after restart.
+
+This is **core source capture/retirement**, not a PostgreSQL financial importer.
+A bound `joint_repository_policy` is rejected until complete ancillary
+`JointRecovery` APPLYING capture exists. Native baseline/order provenance, typed
+primitive import/parity, distributed fencing and configured service acceptance
+remain required. Retirement never copies a partial final balance into PostgreSQL,
+releases an order/shared claim or authorizes an exchange request. No startup
+path retires a source automatically. See the
+[remaining R1 work](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-r1-interrupted-file-source-retirement-2026-10-18).
+
 ## Original-runtime final send fence
 
 `postgres/quote_transport.py` pins the original repository/runtime/binding/owner.

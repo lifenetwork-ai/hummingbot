@@ -39,7 +39,7 @@ class LegacyControlAdapter:
         snapshot = super()._read()
         records = snapshot.resources.get('control_operations', {})
         if self._operator_keys is None:
-            if records or 'control_seed' in snapshot.resources or 'import_origin' in snapshot.resources:
+            if records or 'control_seed' in snapshot.resources or 'import_origin' in snapshot.resources or 'legacy_applying_retirement' in snapshot.resources:
                 raise StorageUnavailable('CONTROL_KEYS_UNAVAILABLE')
             return snapshot
         try:
@@ -53,7 +53,10 @@ class LegacyControlAdapter:
             observation_grants = {}
             configuration = empty_configuration_head()
             handoff = empty_handoff_head()
+            retirement = None
             for key, row in sorted(records.items(), key=lambda item: item[1]['revision']):
+                if retirement is not None:
+                    raise StorageUnavailable('LEGACY_APPLYING_RETIRED_HISTORY_UNVERIFIED')
                 self._operator_keys.audit(row, self.binding)
                 entry = snapshot.resources['control_operations'][key]
                 if row['payload']['operation_id'] != key or row['revision'] != row['cut']['checkpoint']['revision'] + 1:
@@ -98,7 +101,11 @@ class LegacyControlAdapter:
                     inventory_mode = {'mode': payload['mode'], 'control_operation': key}
                 elif role == 'IMPORT':
                     payload = row['payload']
-                    if payload['kind'] == 'IMPORT_PREPARATION_ORIGIN':
+                    if payload['kind'] == 'RETIRE_LEGACY_APPLYING':
+                        from hummingbot.strategy_v2.life_liquidity.storage.legacy_applying import retirement_projection
+                        retirement = retirement_projection(payload, ownership, snapshot.resources['legacy_applying_retirement'])
+                        retirement.validate_source(self.binding)
+                    elif payload['kind'] == 'IMPORT_PREPARATION_ORIGIN':
                         restored = snapshot.resources['commands'][payload['prepare_operation_id']]
                         if (restored.get('original_cut') != payload['original_cut']
                                 or restored.get('original_owner') != payload['original_owner']):
@@ -124,6 +131,11 @@ class LegacyControlAdapter:
                     or configuration != snapshot.resources.get('financial_configuration', empty_configuration_head())
                     or handoff != snapshot.resources.get('configuration_handoff', empty_handoff_head())):
                 raise StorageUnavailable('CONTROL_PROJECTION_UNVERIFIED')
+            if (retirement is None) != (snapshot.resources.get('legacy_applying_retirement') is None):
+                raise StorageUnavailable('LEGACY_APPLYING_RETIREMENT_UNVERIFIED')
+            if retirement is not None and snapshot.cut.revision != records[retirement.operation_id]['revision']:
+                raise StorageUnavailable('LEGACY_APPLYING_RETIRED_HISTORY_UNVERIFIED')
+            self._legacy_applying_retired = retirement is not None
             self._handoff_frozen = handoff['active_operation_id'] is not None
         except (KeyError, ValueError, TypeError, StorageError):
             raise StorageUnavailable('CONTROL_HISTORY_UNVERIFIED') from None
@@ -147,6 +159,8 @@ class LegacyControlAdapter:
                 if previous['fingerprint'] != command_hash:
                     raise StorageConflict('CONTROL_OPERATION_CONFLICT')
                 return True
+            if getattr(self, '_legacy_applying_retired', False):
+                raise StorageError('LEGACY_APPLYING_SOURCE_RETIRED')
             if getattr(self, '_handoff_frozen', False) and payload.get('kind') not in (
                     'CANCEL_CONFIGURATION_HANDOFF', 'CONSUME_CONFIGURATION_HANDOFF'):
                 raise StorageError('CONFIGURATION_HANDOFF_SOURCE_FROZEN')
@@ -170,6 +184,8 @@ class LegacyControlAdapter:
                 raise StorageError('CONTROL_OWNER_EXPIRED_AT_COMMIT')
             if state['checked_at'] is not None and now < datetime.fromisoformat(state['checked_at']):
                 raise StorageError('CONTROL_CLOCK_ROLLBACK')
+            if approval.role == 'IMPORT' and payload['kind'] == 'RETIRE_LEGACY_APPLYING' and not 0 <= (now - facts.observed_at).total_seconds() * 1000 <= self._recovery_policy.max_fact_age_ms:
+                raise StorageError('LEGACY_APPLYING_FACTS_EXPIRED_AT_COMMIT')
             if approval.role == 'HANDOFF' and not 0 <= (now - facts.observed_at).total_seconds() * 1000 <= self._recovery_policy.max_fact_age_ms:
                 raise StorageError('HANDOFF_FACTS_EXPIRED_AT_COMMIT')
             if approval.role == 'HANDOFF' and payload['kind'] == 'AUTHORIZE_CONFIGURATION_HANDOFF':
