@@ -96,7 +96,7 @@ async def test_actual_61_unsent_preparation_upgrades_without_new_arm_or_hold_cha
     try:
         before = await financial.snapshot(cfg.binding)
         await financial.close()
-        assert (await migrate(database[0], action='up'))['applied'] == ['000062_legacy_unsent_spot.sql']
+        assert (await migrate(database[0], action='up'))['applied'] == ['000062_legacy_unsent_spot.sql', '000063_legacy_spot_ack_prefix.sql']
         cold, capital, batch, importer = await restore(cfg, owner, database[0])
         upgraded = await cold.snapshot(cfg.binding)
         assert (upgraded.balance, upgraded.budget, upgraded.cut) == (before.balance, before.budget, before.cut)

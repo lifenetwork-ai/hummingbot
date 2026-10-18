@@ -693,7 +693,8 @@ qualification/revision recorded in each increment below.
 - [x] Declared completed core SPOT-fill/approved-transfer commands, with or without funding; exact child receipts, chronological economic replay and File/native cold parity.
 - [ ] Completed ACK/prepared-receipt/terminal/settlement core command families and repaired-origin native joint parent histories required by the supported File recovery modes.
 - [x] Declared original PREPARED-only SPOT holds during core funding recovery, with independent native unsent provenance, actual File parity, cold restart and a real 61→62 upgrade.
-- [ ] Prior other-order, cancellation, terminal/NAV and economic settlement histories needed by supported File recovery modes.
+- [x] Declared earlier filled/ACKed other-order history omitted by the pending command, with original receipts, zero-money ACK proof, File parity and actual 62→63 upgrades.
+- [ ] Cancellation, terminal/NAV and economic settlement histories needed by supported File recovery modes.
 - [ ] Outer SPOT and hedge/carry coordinator financial checkpoint recovery.
 - [ ] Complete authenticated order/trade/bill/runner scope and original collateral/liability source consumption at every required terminal/shared-release route.
 
@@ -3051,3 +3052,51 @@ request, deployment or repository evidence file is used. ACK/prepared-receipt/
 terminal/settlement histories, other-order/coordinator recovery, repaired-origin
 native parents and complete source consumption still require their fixed R1
 exits. This increment does not close R1 or R2–R5.
+
+### PG3 earlier other-order and original ACK history (2026-10-19)
+
+Base revision: `b37b3b2d7`. A later interrupted core command may omit an
+earlier filled order. The importer reconstructs that order only from actual
+retained APPLIED cumulative fill receipts and verifies every original trade,
+fee, loss, remaining hold and source identity. Migration 63 independently
+checks native ACK requests, preparation/order scope, fingerprints, original
+receipts and zero-money ACK events at the import cut. A late duplicate ACK
+with an earlier observation stamp preserves the first financial event and
+every original receipt. Cold corruption denies proof without changing money,
+HALT or claims. Actual migration-62 imported bodies without the optional ACK
+projection still verify after upgrade, with their original bytes unchanged.
+
+The initial Red replay (`/tmp/life-r1-other-order-red`, one failure, 7.86 s)
+reproduces omitted older-order rejection. Intermediate diagnostics exposed
+missing native ACK-event coverage, use of a nonexistent ACK decoder, and a
+fixture carry cursor conflict. Atomic member refusals now retain only bounded
+kind/reason enums; this identified
+`LIFE_JOINT_MEMBER_PENDING_PAID_FUNDING_CARRY_STREAM_REPLAY_OR_MUTATION`.
+The new fake response advances the actual maximum of both original funding
+and carry counters. Original source stamps are not re-dated and no freshness,
+SQL/transaction, capital or risk threshold is widened. Failed development
+invocations remain in `/tmp/life-r1-other-order-*`; they are not qualification.
+
+Final new-profile qualification: **20 cases pass**, zero failures/errors/skips,
+2,167 deselected, six existing warnings, **116.04 s**
+(`/tmp/life-r1-other-order-final`). This includes BUY/SELL, wallet-before/receipt
+interruptions, completed funding/mixed histories, actual File resumes and two
+cold restores, original ACK/event corruption, late duplicate ACK, actual 62→63
+order upgrade and a real pre-upgrade markerless import. **84 actual migration
+cases pass**, zero failures/errors/skips, **73.81 s**
+(`/tmp/life-r1-other-order-migrations`), including predecessor OID/ACL retention,
+private helpers under permissive defaults, atomic unexpected-shape refusal, no
+table/money changes and repeat startup. The separate frozen-financial-source affected gate passes **85 cases**, zero
+failures/errors/skips, 2,102 deselected, six existing warnings, **368.17 s**
+(`/tmp/life-r1-other-order-affected`). It covers prior completed/mixed histories,
+original parents, prepared/unfilled holds, actual 54/57/58/59/60/61 upgrade paths,
+original-prefix cold corruption, native late ACK and atomic-member refusals.
+The selectors overlap older gates and are not additive or R5 service acceptance.
+Subsequent test-only fixture flags/new profile files do not change the default
+paths or financial source qualified by this gate. Hooks/diff checks pass.
+
+Only disposable pinned local PostgreSQL 16.15, synthetic keys/facts and actual
+File fixture resumes are used. No configured DB/account, `.env`, exchange,
+deployment or new repository evidence file is used. R1 retains the terminal/
+settlement, repaired-origin/coordinator and complete provider-source exits.
+Configured PostgreSQL selection and R2–R5 remain open.

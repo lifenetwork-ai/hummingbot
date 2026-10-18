@@ -3382,3 +3382,22 @@ PREPARED state, principal/fee/subsidy holds, permanent IDs, HALT and shared clai
 through cold restart; it neither arms nor grants readiness. Other-order,
 cancelled/terminal/settled and coordinator histories retain their separate R1
 requirements. Configured PostgreSQL remains rejected until full assembly.
+
+### Earlier other-order and ACK history during funding recovery
+
+A later interrupted command can omit an earlier filled order. Recovery derives
+its complete cumulative snapshot from retained original APPLIED fill receipts,
+then independently checks every trade, fee, gross loss and remaining hold.
+The signed target must retain that order's full unchanged economic history;
+no balance delta substitutes for missing receipts. Actual File ACK records also
+retain their original owner/fingerprint, preparation, WAL/order and callback.
+
+Migration 63 checks the corresponding native ACK operations and zero-money
+financial events at the original import revision. Original requests, receipts,
+versions and hashes remain immutable, including late duplicate callbacks with an
+earlier observation time. Cold corruption denies source proof and retains money,
+HALT and claims. Actual migration-62 bodies without the optional ACK projection
+still verify without rewriting their stored bytes. Neither IMPORT nor ACK
+provenance creates an order, a release, funding cash or trading readiness.
+Terminal/economic settlement, repaired-origin/coordinator histories and complete
+provider source consumption retain their fixed R1 requirements.

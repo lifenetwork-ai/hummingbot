@@ -1,6 +1,17 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
-**Current PG3 R1 mixed-command checkpoint (2026-10-19, base `b9f606617`):**
+**Current PG3 R1 other-order/ACK checkpoint (2026-10-19, base `b37b3b2d7`):**
+migration 63 verifies original zero-money ACKs and earlier filled orders omitted
+by the interrupted command. Original receipts, trade/fee/loss history, remaining
+holds, HALT and claims survive actual File parity and cold restores. **20 new
+profile cases and 84 migration cases pass**, including actual 62→63 and old
+import bodies without the optional ACK projection. Broader affected qualification
+is recorded in the PostgreSQL plan. See
+[scope and qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-earlier-other-order-and-original-ack-history-2026-10-19).
+**R1 remains open for terminal/settlement, repaired-origin/coordinator histories
+and complete provider-source consumption; R2–R5 remain open.**
+
+**Earlier PG3 R1 mixed-command checkpoint (2026-10-19, base `b9f606617`):**
 retired core recovery verifies completed SPOT-fill/approved-transfer commands
 with or without funding events. Every historical before/after balance is
 explained from opening capital and original economic leaves; prior trades and

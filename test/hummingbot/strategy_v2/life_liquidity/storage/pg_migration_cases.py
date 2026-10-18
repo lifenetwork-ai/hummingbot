@@ -1930,3 +1930,54 @@ async def test_legacy_unsent_spot_upgrade_preserves_catalog_and_rejects_unknown_
     for table in ('accounts', 'operations', 'financial_events', 'legacy_applying_imports'):
         assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
     assert (await migrate(c, directory, action='up'))['applied'] == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('unexpected_shape', ['none', 'pending', 'source', 'batch'])
+async def test_original_ack_prefix_upgrade_is_private_and_atomic_without_money_or_table_changes(db, unexpected_shape):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 63:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    await c.execute('ALTER DEFAULT PRIVILEGES IN SCHEMA life_financial GRANT EXECUTE ON FUNCTIONS TO life_runtime_test,life_reporter_test')
+    pending = 'life_financial.legacy_applying_pending(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)'
+    source = 'life_financial.legacy_spot_verified(uuid)'
+    batch = 'life_financial.joint_batch_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)'
+    if unexpected_shape != 'none':
+        signature, needle = {
+            'pending': (pending, 'OR NOT life_financial.legacy_parent_prefix_valid'),
+            'source': (source, 'AND NOT life_financial.legacy_spot_prefix_valid'),
+            'batch': (batch, "RAISE EXCEPTION 'LIFE_JOINT_MEMBER_PENDING'"),
+        }[unexpected_shape]
+        definition = await c.fetchval('SELECT pg_get_functiondef(to_regprocedure($1))', signature)
+        await c.execute(definition.replace(needle, needle.replace(' ', '  ', 1)))
+    query = '''SELECT p.oid,p.oid::regprocedure::text AS signature,p.proacl,p.prosrc,p.provolatile::text AS provolatile,p.prosecdef,p.proconfig,p.proowner
+        FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='life_financial' ORDER BY p.oid'''
+    before = {r['signature']: dict(r) for r in await c.fetch(query)}
+    tables = await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace='life_financial'::regnamespace ORDER BY oid")
+    path = DEFAULT_DIRECTORY / '000063_legacy_spot_ack_prefix.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    if unexpected_shape != 'none':
+        with pytest.raises(asyncpg.RaiseError, match='LIFE_LEGACY_ACK_PREFIX_MISMATCH'):
+            await migrate(c, directory, action='up')
+        assert {r['signature']: dict(r) for r in await c.fetch(query)} == before
+        assert (await versions(c))[-1]['version'] == 62
+        return
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    after = {r['signature']: dict(r) for r in await c.fetch(query)}
+    helper = 'life_financial.legacy_ack_prefix_valid(uuid,jsonb,jsonb,bigint)'
+    assert set(after) - set(before) == {helper}
+    for key, original in before.items():
+        if key in (pending, source, batch):
+            assert {k: v for k, v in after[key].items() if k != 'prosrc'} == {k: v for k, v in original.items() if k != 'prosrc'}
+        else:
+            assert after[key] == original
+    for role in ('public', 'life_runtime_test', 'life_reporter_test'):
+        assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", role, helper)
+    assert after[helper]['provolatile'] == 's' and after[helper]['prosecdef']
+    assert after[helper]['proconfig'] == ['search_path=pg_catalog']
+    assert tables == await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace='life_financial'::regnamespace ORDER BY oid")
+    for table in ('accounts', 'operations', 'financial_events', 'legacy_applying_imports'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+    assert (await migrate(c, directory, action='up'))['applied'] == []

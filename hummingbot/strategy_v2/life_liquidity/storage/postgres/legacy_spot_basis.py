@@ -8,13 +8,27 @@ from datetime import datetime, timezone
 from decimal import Decimal as D
 
 from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError, fingerprint
-from hummingbot.strategy_v2.life_liquidity.storage.financial import FillSpot, PrepareSpot
+from hummingbot.strategy_v2.life_liquidity.storage.financial import AckSpot, FillSpot, PrepareSpot
 
 
 def spot_basis(source, old, batch, resources, wallet, loss, subsidy):
     commands = resources.get('commands', {})
     supplied = {v.prepare_operation_id: v for v in batch.spot_fills}
     original = {v.prepare_operation_id: v for v in old.spot_fills}
+    # A later funding command may omit an earlier, fully observed order.
+    # Recover its complete cumulative snapshot only from actual retained
+    # original fill receipts. The checks below still verify every receipt,
+    # economic leaf, wallet trade/fee and remaining hold independently.
+    history = {}
+    for row in resources.get('fill_operations', {}).values():
+        candidate = FillSpot.from_json(row['command'])
+        key = candidate.prepare_operation_id
+        if key not in original:
+            previous = history.get(key)
+            if previous is None or (candidate.cumulative_base_life, candidate.observed_at, candidate.operation_id) > (
+                    previous.cumulative_base_life, previous.observed_at, previous.operation_id):
+                history[key] = candidate
+    original.update(history)
     if (set(supplied) != set(original) or len(supplied) != len(batch.spot_fills)
             or any({k: v for k, v in value.json().items() if k != 'operation_id'} !=
                    {k: v for k, v in original[key].json().items() if k != 'operation_id'} for key, value in supplied.items())):
@@ -127,4 +141,18 @@ def spot_basis(source, old, batch, resources, wallet, loss, subsidy):
     basis = {'spot_preparations': sorted(preparations, key=lambda v: v['operation_id'])} if preparations else {}
     if unsent:
         basis['spot_prepared_only_ids'] = sorted(unsent)
+    acknowledgements = []
+    for key, row in resources.get('acknowledgements', {}).items():
+        ack = AckSpot(**{**row['command'], 'observed_at': datetime.fromisoformat(row['command']['observed_at'])})
+        prepared = PrepareSpot.from_json(commands[ack.prepare_operation_id]['command'])
+        record = json.loads(dict(source.journal_images)['wal'])['records'].get(ack.intent_id)
+        if (key != ack.operation_id or row['state'] != 'ACKED'
+                or row['fingerprint'] != fingerprint({'command': ack.json(), 'owner': row['owner']})
+                or (ack.prepare_operation_id, ack.intent_id, ack.client_order_id, ack.market, ack.side, ack.session_id, ack.epoch)
+                != (prepared.operation_id, prepared.intent_id, prepared.client_order_id, prepared.market, prepared.side, prepared.session_id, prepared.epoch)
+                or record is None or record['state'] != 'ACKED' or record['exchange_order_id'] != ack.exchange_order_id):
+            raise StorageError('PG_LEGACY_APPLYING_ORIGINAL_BASIS_REQUIRED')
+        acknowledgements.append(ack.json())
+    if acknowledgements:
+        basis['spot_acknowledgements'] = sorted(acknowledgements, key=lambda v: v['operation_id'])
     return basis, base, cash, prefix_base, prefix_cash

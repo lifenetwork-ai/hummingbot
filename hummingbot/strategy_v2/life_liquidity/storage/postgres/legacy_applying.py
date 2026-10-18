@@ -226,6 +226,11 @@ class PgLegacyApplyingImporter:
             policy = joint_profile(source, command)
         else:
             policy = funding_profile(source, command)
+        # Existing imports before the explicit ACK basis retained the complete
+        # signed File capsule without this redundant projection. Still verify
+        # its actual ACK receipts above, preserving those original body bytes.
+        if 'source_basis' in record and 'spot_acknowledgements' not in record['source_basis']:
+            policy.pop('spot_acknowledgements', None)
         if 'source_basis' in record and record['source_basis'] != policy:
             raise StorageError('PG_LEGACY_APPLYING_ORIGINAL_BASIS_REQUIRED')
         facts = SpotFinancialRecoveryFacts.from_json(record['facts'])

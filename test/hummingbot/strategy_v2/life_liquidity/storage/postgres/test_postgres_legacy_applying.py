@@ -30,7 +30,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancial
 KEYS = OperatorKeys({'operator': b'i' * 32}, {'operator': frozenset(('IMPORT', 'RECOVER', 'DRAIN'))})
 
 
-async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashflow=None, spot_fill=None, file_result=None, retained_cashflows_only=False, spot_prefix=False, book_native_prefix=False, spot_open_only=False, book_native_cashflow=False, book_native_funding=False, prior_funding=(), prior_after_accounting=False, book_native_parent=False, book_native_accounting_parent=False, spot_prepared_only=False, native_arm_prepared_only=False, prior_embedded_spot=False):
+async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashflow=None, spot_fill=None, file_result=None, retained_cashflows_only=False, spot_prefix=False, book_native_prefix=False, spot_open_only=False, book_native_cashflow=False, book_native_funding=False, prior_funding=(), prior_after_accounting=False, book_native_parent=False, book_native_accounting_parent=False, spot_prepared_only=False, native_arm_prepared_only=False, prior_embedded_spot=False, prior_spot_order=False, file_ack_only=False):
     from test.hummingbot.strategy_v2.life_liquidity.storage import test_spot_financial_contracts as file_fixture
     from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_funding import setup as funding_setup
 
@@ -131,19 +131,59 @@ async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashfl
         raise AssertionError('embedded history fixture requires completed commands after accounting')
     if not prior_after_accounting:
         await complete_history()
-    fills = ()
+    fills, previous_fills = (), ()
     if spot_fill is not None:
         from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_shared_capital import (
             native_claim,
         )
-        from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_spot_observations import filled
+        from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_spot_observations import (
+            ack,
+            filled,
+        )
 
         from hummingbot.strategy_v2.life_liquidity.storage.products import ReserveCapital
         side, fee_currency = spot_fill
         if cashflow is None:
             await admin.execute('INSERT INTO life_financial.spot_fill_policies VALUES($1,$2,1000,4096)', cfg.account_id, cfg.binding.policy_hash)
+        if prior_spot_order:
+            # Original independent native/File order, fully observed before the
+            # interrupted command. That later command need not repeat it.
+            stamp = int((await admin.fetchval('SELECT clock_timestamp()')).timestamp() * 1000)
+            values[4][0] = replace(values[4][0], sequence=values[4][0].sequence + 1, observed_at_ms=stamp)
+            b = values[7][0]
+            values[7][0] = replace(b, account=replace(b.account, snapshot=values[4][0]),
+                                   mark=replace(b.mark, sequence=b.mark.sequence + 1, observed_at_ms=stamp),
+                                   index=replace(b.index, sequence=b.index.sequence + 1, observed_at_ms=stamp),
+                                   funding=replace(b.funding, sequence=b.funding.sequence + 1, observed_at_ms=stamp, coverage_through_ms=stamp),
+                                   terms=replace(b.terms, sequence=b.terms.sequence + 1, observed_at_ms=stamp))
+            previous_claim = replace(native_claim(owner, 'previous-intent', amount='2', price='1'), wire_id='previouswire')
+            assert (await values[5].reserve(ReserveCapital('previous-claim', previous_claim), await values[5].cut(cfg.binding), owner)).decision.allowed
+            assert (await values[8].check_carry(cfg.binding)).allowed
+            changes = dict(operation_id='previous-prepare', intent_id='previous-intent', client_order_id='previouswire',
+                           quote_level=1, side='BUY', risk_epoch=1, fee_buffer_quote_usdt=D('.002'))
+            await financial.prepare(file_fixture.order(owner, **changes), cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)
+            await financial.arm('previous-prepare', cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)
+            await store.prepare(file_fixture.order(file_owner, **changes), cut=(await store.snapshot(binding)).cut, owner=file_owner)
+            await store.arm('previous-prepare', cut=(await store.snapshot(binding)).cut, owner=file_owner)
+            now = await admin.fetchval('SELECT clock_timestamp()')
+            clock[0] = now
+            prior = filled(file_owner, now, operation_id='previous-fill', prepare_operation_id='previous-prepare',
+                           intent_id='previous-intent', client_order_id='previouswire', exchange_order_id='99887766')
+            prior = replace(prior, fills=(replace(prior.fills[0], trade_id='previous-trade', signed_fee=D('-.001'), independent_price_usdt=D('1')),))
+            assert (await financial.apply_fills(prior, cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)).state == 'APPLIED'
+            assert (await store.apply_fills(prior, cut=(await store.snapshot(binding)).cut, owner=file_owner)).state == 'APPLIED'
+            prior_ack = ack(file_owner, now, operation_id='previous-ack', prepare_operation_id='previous-prepare',
+                            intent_id='previous-intent', client_order_id='previouswire', exchange_order_id='99887766')
+            await financial.acknowledge(prior_ack, cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)
+            await store.acknowledge(prior_ack, cut=(await store.snapshot(binding)).cut, owner=file_owner)
+            previous_fills = (prior,)
+            base, quote = base + D('1'), quote - D('1.001')
+            b = payment.bundle
+            payment = replace(payment, bundle=replace(b, account=replace(b.account, snapshot=replace(b.account.snapshot,
+                              spot_life_base=base, spot_cash_quote=quote, collateral_quote=b.account.snapshot.collateral_quote - D('1.001')))))
         stamp = int((await admin.fetchval('SELECT clock_timestamp()')).timestamp() * 1000)
-        values[4][0] = replace(values[4][0], sequence=values[4][0].sequence + 1, observed_at_ms=stamp)
+        values[4][0] = replace(values[4][0], sequence=values[4][0].sequence + 1, observed_at_ms=stamp,
+                               **(dict(spot_life_base=D('6'), spot_cash_quote=D('8.999'), collateral_quote=D('8.999')) if prior_spot_order else {}))
         b = values[7][0]
         values[7][0] = replace(b, account=replace(b.account, snapshot=values[4][0]),
                                mark=replace(b.mark, sequence=b.mark.sequence + 1, observed_at_ms=stamp), index=replace(b.index, sequence=b.index.sequence + 1, observed_at_ms=stamp),
@@ -176,6 +216,8 @@ async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashfl
             b = payment.bundle
             payment = replace(payment, bundle=replace(b, account=replace(b.account, snapshot=replace(b.account.snapshot,
                               spot_life_base=base, spot_cash_quote=quote, collateral_quote=quote))))
+        if file_ack_only:
+            await store.acknowledge(ack(file_owner, now), cut=(await store.snapshot(binding)).cut, owner=file_owner)
     if flows:
         # A core command has no outer recovery authority. Its transfer must
         # already have an APPLIED receipt before a new joint command starts.
@@ -256,8 +298,8 @@ async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashfl
         store = await open_file()
     now = await admin.fetchval('SELECT clock_timestamp()')
     clock[0] = now
-    facts = SpotFinancialRecoveryFacts(binding, now, base, quote, D('0'), D('0'), tuple(f.trade_id for v in fills for f in v.fills),
-                                       tuple(v.bill_id for v in flows), () if spot_prepared_only else ('wire1',) if spot_open_only else tuple(v.client_order_id for v in fills), (), True, True, True)
+    facts = SpotFinancialRecoveryFacts(binding, now, base, quote, D('0'), D('0'), tuple(f.trade_id for v in (*previous_fills, *fills) for f in v.fills),
+                                       tuple(v.bill_id for v in flows), tuple(v.client_order_id for v in previous_fills) + (() if spot_prepared_only else ('wire1',) if spot_open_only else tuple(v.client_order_id for v in fills)), (), True, True, True)
     drain = OwnerTransition('file-drain', OwnerMode.DRAINING, file_owner)
     cut = (await store.snapshot(binding)).cut
     signature = KEYS.sign('operator', binding, 'DRAIN', drain.json(), cut, facts, issued_at=now, expires_at=now + timedelta(seconds=10))
@@ -268,7 +310,7 @@ async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashfl
     signature = KEYS.sign('operator', binding, 'IMPORT', retire.json(), cut, facts, issued_at=now, expires_at=now + timedelta(seconds=10))
     await store.retire_legacy_applying(retire, source=source, approval=signature)
     batch = PgJointBatchRepository(funding.swap)
-    command = ImportLegacyApplying(source.content_digest, ApplyJointBatch('legacy-pending', fills, (), flows, payment))
+    command = ImportLegacyApplying(source.content_digest, ApplyJointBatch('legacy-pending', (*previous_fills, *fills), (), flows, payment))
     await admin.execute('UPDATE life_financial.accounts SET halted=true WHERE account_id=$1', cfg.account_id)
     cut = (await financial.observation_cut(cfg.binding)).cut
     now = await admin.fetchval('SELECT clock_timestamp()')

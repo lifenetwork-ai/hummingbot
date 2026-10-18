@@ -35,22 +35,22 @@ def arithmetic_profile(source, state, operations):
 
 
 async def recover_case(database, tmp_path, monkeypatch, stage, side, fee_currency, cashflow=None, spot_prefix=False, book_native_prefix=False,
-                       prepared=None, expected=None, spot_open_only=False, book_native_cashflow=False, prior_funding=(), prior_after_accounting=False, native_parent=False, spot_prepared_only=False, prior_embedded_spot=False):
+                       prepared=None, expected=None, spot_open_only=False, book_native_cashflow=False, prior_funding=(), prior_after_accounting=False, native_parent=False, spot_prepared_only=False, prior_embedded_spot=False, prior_spot_order=False):
     expected = {} if expected is None else expected
     values, batch, command, cut, facts, approval, importer, store, source = prepared or await setup(
         database, tmp_path, monkeypatch, stage, spot_fill=(side, fee_currency), file_result=expected, cashflow=cashflow,
         spot_prefix=spot_prefix, book_native_prefix=book_native_prefix, spot_open_only=spot_open_only, book_native_cashflow=book_native_cashflow,
-        prior_funding=prior_funding, prior_after_accounting=prior_after_accounting, book_native_accounting_parent=native_parent, spot_prepared_only=spot_prepared_only, prior_embedded_spot=prior_embedded_spot)
+        prior_funding=prior_funding, prior_after_accounting=prior_after_accounting, book_native_accounting_parent=native_parent, spot_prepared_only=spot_prepared_only, prior_embedded_spot=prior_embedded_spot, prior_spot_order=prior_spot_order)
     financial, cfg, owner = values[:3]
     cold = None
     c = database[0]
     try:
         before, claims = await financial.snapshot(cfg.binding), await values[5].claims(cfg.binding)
-        originals = await c.fetchval("SELECT jsonb_agg(to_jsonb(o) ORDER BY operation_id) FROM life_financial.operations o WHERE account_id=$1 AND operation_id LIKE 'native-prior-%'", cfg.account_id)
+        originals = await c.fetchval("SELECT jsonb_agg(to_jsonb(o) ORDER BY operation_id) FROM life_financial.operations o WHERE account_id=$1 AND (operation_id LIKE 'native-prior-%' OR operation_id IN ('previous-fill','previous-ack'))", cfg.account_id)
         assert (await importer.import_pending(command, source_store=store, approval=approval, cut=cut, facts=facts)).state == 'RECOVERY_REQUIRED'
         imported = await financial.snapshot(cfg.binding)
         assert imported.balance == before.balance and imported.budget == before.budget
-        assert await c.fetchval('SELECT count(*) FROM life_financial.financial_events WHERE account_id=$1', cfg.account_id) == int(book_native_prefix) + int(book_native_cashflow) + (len(command.batch.funding.bundle.funding.payments) if native_parent else 0)
+        assert await c.fetchval('SELECT count(*) FROM life_financial.financial_events WHERE account_id=$1', cfg.account_id) == 2 * int(prior_spot_order) + int(book_native_prefix) + int(book_native_cashflow) + (len(command.batch.funding.bundle.funding.payments) if native_parent else 0)
         await financial.close()
         cold, capital, batch, importer = await restore(cfg, owner, c)
         assert (await importer.import_pending(command, source_store=None, approval=approval, cut=cut, facts=facts)).replayed
@@ -63,7 +63,9 @@ async def recover_case(database, tmp_path, monkeypatch, stage, side, fee_currenc
         prior_sequence = await c.fetchval("""SELECT COALESCE(max(greatest(
             (bundle#>>'{account,snapshot,sequence}')::bigint,(bundle#>>'{mark,sequence}')::bigint,
             (bundle#>>'{index,sequence}')::bigint,(bundle#>>'{funding,sequence}')::bigint,
-            (bundle#>>'{terms,sequence}')::bigint)),0) FROM life_financial.funding_observations WHERE account_id=$1""", cfg.account_id)
+            (bundle#>>'{terms,sequence}')::bigint)),0) FROM (
+                SELECT bundle FROM life_financial.funding_observations WHERE account_id=$1
+                UNION ALL SELECT bundle FROM life_financial.carry_checks WHERE account_id=$1) captured""", cfg.account_id)
         sequence = max(prior_sequence, b.account.snapshot.sequence, b.mark.sequence, b.index.sequence, b.funding.sequence, b.terms.sequence) + 1
         fresh = replace(b, account=replace(b.account, snapshot=replace(b.account.snapshot, sequence=sequence, observed_at_ms=at)),
                         mark=replace(b.mark, sequence=sequence, observed_at_ms=at), index=replace(b.index, sequence=sequence, observed_at_ms=at),
@@ -72,7 +74,7 @@ async def recover_case(database, tmp_path, monkeypatch, stage, side, fee_currenc
                               funding=replace(command.batch.funding, operation_id='spot-funding-paid', bundle=fresh))
         repair = ResolveJointSources('spot-funding-repair', command.operation_id, replacement)
         trades = tuple(('SPOT', f.trade_id) for group in command.batch.spot_fills for f in group.fills)
-        proof = JointRepairFacts(replace(facts, observed_at=now, accepted_wire_ids=('SwapWire1',) if spot_prepared_only else ('SwapWire1', 'wire1')), trades, tuple(p.bill_id for p in b.funding.payments), True,
+        proof = JointRepairFacts(replace(facts, observed_at=now, accepted_wire_ids=('SwapWire1', *facts.accepted_wire_ids)), trades, tuple(p.bill_id for p in b.funding.payments), True,
                                  int(store._accounting_policy.opened_at.timestamp() * 1000), at)
         signed = KEYS.sign('operator', cfg.binding, 'RECOVER', repair.json(), repair_cut, proof, issued_at=now, expires_at=now + timedelta(seconds=10))
         await PgJointRepairApprovalImporter(c, batch, verifier=KEYS.verifier(), max_fact_age_ms=5000).approve(repair, approval=signed, cut=repair_cut, facts=proof)
@@ -84,7 +86,7 @@ async def recover_case(database, tmp_path, monkeypatch, stage, side, fee_currenc
         assert view.balance == expected['balance']
         assert view.budget == expected['budget']
         assert await capital.claims(cfg.binding) == claims
-        assert await c.fetchval("SELECT jsonb_agg(to_jsonb(o) ORDER BY operation_id) FROM life_financial.operations o WHERE account_id=$1 AND operation_id LIKE 'native-prior-%'", cfg.account_id) == originals
+        assert await c.fetchval("SELECT jsonb_agg(to_jsonb(o) ORDER BY operation_id) FROM life_financial.operations o WHERE account_id=$1 AND (operation_id LIKE 'native-prior-%' OR operation_id IN ('previous-fill','previous-ack'))", cfg.account_id) == originals
         if native_parent:
             assert (await batch.lookup('native-prior-parent', cfg.binding)).state == 'APPLIED'
         assert await c.fetchval("SELECT gross_debits_usdt FROM life_financial.funding_observations WHERE account_id=$1 AND state='APPLIED'", cfg.account_id) == D('.1') + sum((max(D('0'), -v) for v in prior_funding), D('0'))
@@ -308,7 +310,7 @@ async def test_existing_57_prefix_upgrades_then_recovers_with_original_money_and
     values, _, command, cut, facts, approval, _, store, source = prepared
     financial = values[0]
     try:
-        assert (await migrate(database[0], action='up'))['applied'] == ['000058_legacy_spot_prefix.sql', '000059_legacy_cashflow_prefix.sql', '000060_legacy_derivative_prefix.sql', '000061_legacy_parent_prefix.sql', '000062_legacy_unsent_spot.sql']
+        assert (await migrate(database[0], action='up'))['applied'] == ['000058_legacy_spot_prefix.sql', '000059_legacy_cashflow_prefix.sql', '000060_legacy_derivative_prefix.sql', '000061_legacy_parent_prefix.sql', '000062_legacy_unsent_spot.sql', '000063_legacy_spot_ack_prefix.sql']
         financial, capital, batch, importer = await restore(values[1], values[2], database[0])
         values = list(values)
         values[0], values[5] = financial, capital
@@ -336,7 +338,7 @@ async def test_58_orphan_prefix_refusal_after_59_upgrade_uses_original_predecess
         await c.execute('CREATE SCHEMA prefix_reference')
         await c.execute(old.replace('FUNCTION life_financial.legacy_spot_prefix_valid(', 'FUNCTION prefix_reference.legacy_spot_prefix_valid('))
         await c.execute('REVOKE ALL ON FUNCTION prefix_reference.legacy_spot_prefix_valid(uuid,jsonb,bigint) FROM PUBLIC')
-        assert (await migrate(c, action='up'))['applied'] == ['000059_legacy_cashflow_prefix.sql', '000060_legacy_derivative_prefix.sql', '000061_legacy_parent_prefix.sql', '000062_legacy_unsent_spot.sql']
+        assert (await migrate(c, action='up'))['applied'] == ['000059_legacy_cashflow_prefix.sql', '000060_legacy_derivative_prefix.sql', '000061_legacy_parent_prefix.sql', '000062_legacy_unsent_spot.sql', '000063_legacy_spot_ack_prefix.sql']
         financial, _, _, importer = await restore(values[1], values[2], c)
         await importer.import_pending(command, source_store=store, approval=approval, cut=cut, facts=facts)
         tx = c.transaction()

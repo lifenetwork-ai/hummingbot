@@ -933,3 +933,13 @@ account, policy, balance, activation or configured PostgreSQL sender.
   release, money, table or policy default is created. Predecessor OIDs/ACLs and
   strict atomic unknown-shape rollback are preserved; numbered startup remains
   checksum-protected and idempotent.
+
+- `000063_legacy_spot_ack_prefix.sql`: verify original SPOT ACK operations and
+  zero-money ACK events at the retired File import cut. Require original
+  preparation/order scope, hashes, receipts and economic times; late duplicate
+  callbacks retain the first event and every original receipt. Missing/orphaned
+  or changed evidence fails cold proof. Existing imported bodies without the
+  optional ACK projection retain their original bytes. Atomic batch refusals
+  expose only a bounded member-kind/reason enum. No table, money, order, release
+  or permission is created. Predecessor OIDs/ACLs, private helper defaults,
+  checksum/idempotency and atomic unexpected-shape rollback remain.
