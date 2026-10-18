@@ -2023,7 +2023,7 @@ async def test_repaired_parent_upgrade_keeps_all_oids_acls_tables_and_is_atomic_
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('unexpected_shape', [False, True])
-@pytest.mark.parametrize('version,profile', [(65, 'cancel'), (66, 'terminal')])
+@pytest.mark.parametrize('version,profile', [(65, 'cancel'), (66, 'terminal'), (67, 'settlement')])
 async def test_lifecycle_history_upgrade_is_private_atomic_and_idempotent_without_money_or_table_changes(db, unexpected_shape, version, profile):
     c, _, directory = db
     for path in DEFAULT_DIRECTORY.glob('*.sql'):

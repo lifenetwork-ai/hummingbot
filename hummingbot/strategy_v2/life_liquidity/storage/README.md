@@ -3448,3 +3448,20 @@ changed original receipts, duplicate coverage and later terminal operations
 cannot explain the earlier cut; cold verification rechecks the same proof.
 Inventory-cycle settlements, interrupted terminal commands, outer coordinator
 recovery and complete provider-source consumption retain their R1 requirements.
+
+### Original completed inventory cycles during retired core recovery
+
+Migration 67 adds the independent proof for previously SETTLED standalone SPOT
+cycles. Exact original member identities, fills/fees, physical flatness, gross
+execution cost, actual subsidy and committed-before amounts are replayed from
+the frozen File source. Native original requests, receipts, facts, proof digest,
+membership and costs must independently match at the original import revision.
+Missing provenance or altered native membership makes the cold proof invalid.
+
+This recognizes an existing settlement; it performs no settlement or refund.
+Later monetary recovery preserves the original cost, HALT and shared claims.
+When File/native observation IDs differ, the signed target selects the existing
+native ID and retains the original File ID in the source. It cannot reopen a
+terminal fill under a new alias. Interrupted SETTLING/core side-effect families,
+outer coordinator recovery and complete provider-source consumption remain
+separate, open requirements within R1.

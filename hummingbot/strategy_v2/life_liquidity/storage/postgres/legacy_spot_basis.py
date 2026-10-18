@@ -95,6 +95,8 @@ def spot_basis(source, old, batch, resources, wallet, loss, subsidy):
         raise StorageError('PG_LEGACY_APPLYING_ORIGINAL_BASIS_REQUIRED')
     from hummingbot.strategy_v2.life_liquidity.storage.postgres.legacy_terminal_basis import terminal_basis
     terminals = terminal_basis(resources, records, wallet, quantities)
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.legacy_settlement_basis import settlement_basis
+    settlements, settled = settlement_basis(resources, records, subsidy)
     base, cash, preparations, intents, unsent = D('0'), D('0'), [], set(), []
     for key, row in commands.items():
         value = original.get(key)
@@ -124,6 +126,7 @@ def spot_basis(source, old, batch, resources, wallet, loss, subsidy):
         held = wallet['reservations'].get(prepared.intent_id)
         entry = subsidy['entries'].get(prepared.intent_id)
         zero_terminal = row['state'] == 'TERMINAL' and quantities.get(prepared.intent_id, D('0')) == 0
+        expected_actual = settled.get(prepared.intent_id, D('0') if zero_terminal else None)
         if (held is None or held['intent'] != dict(intent_id=prepared.intent_id, side=prepared.side,
                                                    quantity_base=str(prepared.quantity_base), limit_price_usdt=str(prepared.limit_price_usdt),
                                                    session_id=prepared.session_id, epoch=prepared.epoch)
@@ -133,9 +136,9 @@ def spot_basis(source, old, batch, resources, wallet, loss, subsidy):
                                          ('CANCEL_PENDING',) if records[prepared.intent_id]['cancel_requested'] else ('OPEN', 'UNKNOWN'))
                 or entry is None or entry['session_id'] != prepared.session_id
                 or D(entry['reserved']) != prepared.subsidy_quote_usdt
-                or (entry['actual'] is None if zero_terminal else entry['actual'] is not None)
-                or entry['actual'] is not None and D(entry['actual']) != 0
-                or D(entry.get('fill_floor', '0')) != floors.get(prepared.intent_id, D('0')) or entry.get('inventory_cycle') is not None):
+                or ((entry['actual'] is None or D(entry['actual']) != expected_actual) if expected_actual is not None else entry['actual'] is not None)
+                or D(entry.get('fill_floor', '0')) != floors.get(prepared.intent_id, D('0'))
+                or prepared.intent_id not in settled and entry.get('inventory_cycle') is not None):
             raise StorageError('PG_LEGACY_APPLYING_ORIGINAL_BASIS_REQUIRED')
         for f in (() if value is None else value.fills):
             base += f.quantity_base_life if value.side == 'BUY' else -f.quantity_base_life
@@ -165,4 +168,5 @@ def spot_basis(source, old, batch, resources, wallet, loss, subsidy):
     from hummingbot.strategy_v2.life_liquidity.storage.postgres.legacy_cancel_basis import cancel_basis
     basis.update(cancel_basis(resources, records))
     basis.update(terminals)
+    basis.update(settlements)
     return basis, base, cash, prefix_base, prefix_cash

@@ -1,6 +1,17 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
-**Current PG3 R1 completed-terminal checkpoint (2026-10-19, base `e0205677c`):**
+**Current PG3 R1 completed-cycle checkpoint (2026-10-19, base `12406d6c6`):**
+migration 67 retains already settled standalone SPOT inventory cycles without
+refunding actual subsidy or gross execution cost. Original File/native IDs,
+receipts, proofs, facts, members and costs must independently match. **80 native
+regressions, one separate terminal-alias refusal, seven File cost cases and
+92 actual migration cases pass**; the native 80 include the preceding 71 cases,
+not additional coverage. See
+[scope and qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-original-completed-inventory-settlement-history-2026-10-19).
+**R1 remains open for interrupted/core side effects, remaining histories, outer
+SPOT/coordinator recovery and complete provider-source consumption; R2–R5 remain open.**
+
+**Earlier PG3 R1 completed-terminal checkpoint (2026-10-19, base `e0205677c`):**
 migration 66 retains exact original zero-fill/partially filled SPOT terminals,
 including earlier cancel/retry and late ACK receipts, at the original import cut.
 IMPORT does not release principal, subsidy or shared claims. **71 affected

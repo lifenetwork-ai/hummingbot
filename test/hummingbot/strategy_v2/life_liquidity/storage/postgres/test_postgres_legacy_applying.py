@@ -30,7 +30,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancial
 KEYS = OperatorKeys({'operator': b'i' * 32}, {'operator': frozenset(('IMPORT', 'RECOVER', 'DRAIN'))})
 
 
-async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashflow=None, spot_fill=None, file_result=None, retained_cashflows_only=False, spot_prefix=False, book_native_prefix=False, spot_open_only=False, book_native_cashflow=False, book_native_funding=False, prior_funding=(), prior_after_accounting=False, book_native_parent=False, book_native_accounting_parent=False, spot_prepared_only=False, native_arm_prepared_only=False, prior_embedded_spot=False, prior_spot_order=False, file_ack_only=False, prior_core_ack=False, prior_cancel=False, prior_terminal=False, native_terminal=True):
+async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashflow=None, spot_fill=None, file_result=None, retained_cashflows_only=False, spot_prefix=False, book_native_prefix=False, spot_open_only=False, book_native_cashflow=False, book_native_funding=False, prior_funding=(), prior_after_accounting=False, book_native_parent=False, book_native_accounting_parent=False, spot_prepared_only=False, native_arm_prepared_only=False, prior_embedded_spot=False, prior_spot_order=False, file_ack_only=False, prior_core_ack=False, prior_cancel=False, prior_terminal=False, native_terminal=True, before_joint=None):
     from test.hummingbot.strategy_v2.life_liquidity.storage import test_spot_financial_contracts as file_fixture
     from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_funding import setup as funding_setup
 
@@ -306,6 +306,8 @@ async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashfl
                           (*prior_events, JointCashEvent(f'JOINT:{paid.settled_at_ms}:FUNDING:{paid.bill_id}', paid.signed_payment_quote)),
                           base, quote, True, True, 'okx_joint_reconciled',
                           spot_cashflows=() if retained_cashflows_only else flows, spot_fills=fills)
+    if before_joint is not None:
+        await before_joint(store, financial, owner, file_owner, joint)
     target, method = ((store._ledger, 'apply_joint_snapshot') if stage.startswith('wallet')
                       else (store._loss, 'record') if stage == 'loss_after'
                       else (store._subsidy, 'record_fill_floor') if stage == 'floor_after' else (store, '_publish_joint_cash'))

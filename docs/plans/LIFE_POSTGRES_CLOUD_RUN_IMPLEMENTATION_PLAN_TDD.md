@@ -697,7 +697,8 @@ qualification/revision recorded in each increment below.
 - [x] Declared earlier filled/ACKed other-order history omitted by the pending command, with original receipts, zero-money ACK proof, File parity and actual 62→63 upgrades.
 - [x] Declared original cancel-request/retry prefixes with independent native originals, unchanged retry history/holds and cold recovery.
 - [x] Declared already completed original SPOT terminal prefixes, including zero-fill subsidy settlement, partially filled economic holds and late-ACK/cancel history; exact independent native receipts, File parity and two cold restores. See the migration-66 qualification below.
-- [ ] Remaining cancellation, terminal/NAV and economic settlement histories needed by supported File recovery modes.
+- [x] Declared already completed standalone SPOT inventory-cycle history, with exact original member/fill identities, gross execution cost, settled subsidy and native receipts; File parity, two cold restores and actual 66→67 recovery. See the migration-67 qualification below.
+- [ ] Remaining abort/cancel and NAV histories, plus interrupted terminal/inventory-settlement histories required by supported File modes. The completed standalone prefixes above do not cover pending side effects.
 - [ ] Outer SPOT and hedge/carry coordinator financial checkpoint recovery.
 - [ ] Complete authenticated order/trade/bill/runner scope and original collateral/liability source consumption at every required terminal/shared-release route.
 
@@ -3248,3 +3249,82 @@ skips, **92.37 s**, `/tmp/life-r1-terminal-frozen-migrations`. This includes
 tables/empty financial state, atomic unexpected-predecessor refusal and repeated
 startup. The native and migration gates are separate selectors, not additional
 full-service acceptance or a closure of R1/R5.
+
+
+### PG3 original completed inventory settlement history (2026-10-19)
+
+Migration 67 verifies original SETTLED standalone SPOT cycles during retired
+core monetary recovery. The File adapter replays original member identities,
+complete fills/fees, physical flatness, gross execution cost, actual subsidy
+and committed-before amounts. An already profitable close does not erase a
+paid fill cost. Original native operations/fingerprints, complete facts,
+receipts, proof digests, membership and costs must independently match at the
+original import revision. Missing/changed/duplicate/later native provenance
+cannot supply the missing proof. Cold corruption of either an original receipt
+or native cycle member denies recovery proof without changing money or claims.
+
+This recognizes an already applied cycle. IMPORT performs no settlement,
+release, subsidy refund or claim retirement. It does not create another money
+seed or reset a budget. HALT and original gross spending remain. Private indexed
+identity/member proofs preserve predecessor OIDs/ACLs; no table or policy default
+is added. Unexpected predecessor shape rolls back atomically, and automatic
+numbered startup remains checksum-protected and idempotent.
+
+When File and native fill-operation IDs differ, the signed target must select
+the actual existing native original. The frozen source retains the original
+File child ID. A fresh alias cannot reopen a terminal order. The first coupled
+development run reached IMPORT but correctly refused a replacement containing
+such an alias. The qualified fixture selects the real native original; this is
+not a relaxation of terminal observation/release guards. Earlier Red diagnostics
+also reproduced unsupported settled subsidy history and a missing legacy
+optional QUOTE budget-scope field; absent scope retains its existing QUOTE
+meaning, with no new monetary or live default.
+
+**Scope remains bounded:** the coupled native cases exercise already completed
+standalone cycles with quote fees. Separate genuine File adapter tests cover
+LIFE fees and profitable/lossy round trips. These are not complete outer
+coordinator, interrupted SETTLING, pending terminal/prepared-receipt or core
+side-effect recovery contracts. Those histories and complete authenticated
+provider/collateral/liability source consumption remain required within R1.
+R1 and R2–R5 stay open; configured PostgreSQL selection remains rejected.
+Only disposable loopback PostgreSQL, synthetic keys/facts and real File fixture
+commands/resumes are used. No configured DB/account, `.env`, exchange request,
+deployment or repository evidence file is used; all source-age, SQL/transaction,
+risk, capital and monetary limits remain unchanged.
+
+
+**Frozen financial-source qualification:** **80 native cases pass**, zero
+failures/errors/skips, six existing warning categories, **420.15 s**,
+`/tmp/life-r1-settlement-frozen-regression`. This includes all 71 preceding
+terminal/cancel/ACK/unsent/old-import/snapshot-upgrade regressions plus nine new
+settlement cases: both interruption points, identical/distinct native/File
+observation IDs, source/native mutation, absence of native settlement, committed
+receipt/member corruption and actual 66→67 original-data recovery. Exact
+balances, original receipts, gross budgets, HALT and shared claims survive two
+cold restores. The earlier six-case gate overlaps this final gate and is not
+additional coverage or current whole-service acceptance.
+
+**File cost qualification:** **7 cases pass**, zero failures/errors/skips, one
+existing warning, **2.87 s**, `/tmp/life-r1-settled-file-costs.xml`. Actual File
+settlement commands supply the inputs for USDT/LIFE fee and profit/loss adapter
+replay; a changed settled-cost overlay cannot erase the original cost.
+
+
+**Terminal-alias refusal:** the separate current-source regression
+`/tmp/life-r1-settlement-alias-refusal` passes **1 case**, zero failures/errors/
+skips, six existing warning categories, **9.43 s**. A newly signed fill-operation
+alias can retain a pending IMPORT observation, but cannot reopen the terminal
+cycle through signed repair. The replacement is refused without another fill,
+funding application, subsidy refund or claim retirement; cold money and gross
+budgets remain exact and HALT/pending evidence survive. This separate invocation
+uses the same financial/migration source as the 80-case gate; it is not an
+81-case single invocation or the R5 service acceptance gate.
+
+
+**Actual migration qualification:** **92 cases pass**, zero failures/errors/
+skips, **90.33 s**, `/tmp/life-r1-settlement-frozen-migrations`. Actual 66→67
+upgrade preserves predecessor OIDs/ACLs, rejects unexpected predecessor shape
+atomically, keeps the helper private under permissive defaults, creates no
+financial table/default/data and repeats startup without re-executing SQL.
+Hooks and diff checks pass. This and the native/File gates are distinct test
+invocations; no R1/R5 or configured-service eligibility box is closed.

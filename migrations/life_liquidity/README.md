@@ -973,3 +973,15 @@ account, policy, balance, activation or configured PostgreSQL sender.
   rather than scanning the source array again for every terminal. Existing
   OIDs/ACLs remain; the helper is private, no table/default is added, unexpected
   predecessor shape rolls back, and checksum-protected repeat startup is a no-op.
+
+- `000067_legacy_settlement_prefix.sql`: retain already settled original SPOT
+  inventory cycles in retired File monetary recovery. Native operation IDs,
+  command/facts, fingerprints, receipts, proof digests, member costs and original
+  committed amounts must match the signed File cycle at the original import cut.
+  File cost is replayed from original member identities/fills, including fees,
+  gross execution loss and physical inventory flatness. Missing native settlement
+  provenance cannot refund subsidy or create an import. An independently named
+  native fill must be selected explicitly in the signed target; the File source
+  keeps its original ID. No table, settlement/refund, money, claim retirement or
+  permission is created. The helper is private, predecessor OIDs/ACLs remain,
+  unexpected predecessor shape rolls back and repeated startup is a no-op.
