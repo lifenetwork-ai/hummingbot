@@ -793,6 +793,76 @@ Qualification: initial Red collection failed because the new API did not exist (
 **Closure:** native typed import/parity above and collateral/liability/provider reconciliation stay in R1. The fixed R3 → R2/R4 → R5 follow-up and all recorded native latency/COMMIT-uncertainty failures remain open. Configured PostgreSQL financial selection remains rejected.
 
 
+### PG3 R1 native interrupted funding import (2026-10-18)
+
+Base revision: `909f278c4`. Migration 50 implements the first **actual native
+interrupted financial import**, with a declared core funding-only profile.
+This does not close the full legacy parity row or R1–R5.
+
+- [x] Read the physically retired File capsule plus its original signed IMPORT
+  record/publication time. Verify external source and target public keys against
+  immutable target configuration; bind the exact same-account target namespace,
+  DB lineage, source digest, original command/cut/writer and complete zero-liability
+  facts. Require an existing independently qualified original native opening
+  capital policy. Never copy the partially written File wallet into native cash.
+- [x] Retain original bill IDs, signed amounts and settlement times as a genuine
+  money-neutral `JOINT_BATCH` pending, with private immutable bounded source
+  provenance. Approval and pending publication have separate physical COMMIT and
+  cold-readback boundaries; missing/corrupt provenance blocks common financial
+  verification. Neither boundary changes cash, gross costs, claims or HALT.
+- [x] Block ordinary batch/funding writers while a source approval has not yet
+  published its pending root, including same-ID and changed-ID batch attempts.
+  A new Red test reproduced actual accounting before pending publication; the DB
+  operation guard now rolls back that bypass. Late ACK/reporting remain available.
+- [x] Use the existing separately signed RECOVER route and native causal funding
+  kernel against fresh complete sources. Preserve the original raw pending
+  receipt, bill identity and held claims after application; no import/readback
+  resets HALT or authorizes terminal/shared release.
+- [ ] Extend the profile to outer joint SPOT/SWAP/trade/cashflow history and all
+  supported File cut points, with original order/session/basis and gross-budget
+  parity. Missing derivative quantity/reference or missing original history must
+  deny; funding PNL is never used as an external-flow substitute. The current
+  profile explicitly refuses those sources, prior NAV/costs and nonzero source
+  loss/subsidy history rather than silently dropping them.
+
+**Current qualification:** the complete focused native profile passes **34 cases**,
+zero failures/errors/skips, one existing warning category, **107.13 s**,
+`/tmp/life-pg3-legacy-funding-handshake-final`. It covers actual File wallet-before,
+wallet-after and receipt interruptions; exact signed native import/RECOVER;
+wrong keys/roles/digests/bills/basis/liabilities/scope/cut; physical source/owner/
+expiry/capacity faults; private permissions; corrupted history; both actual
+process exits around pending COMMIT; and eight reply/backend-loss cases at source
+approval or pending COMMIT. Cold original-ID lookup/retry does not duplicate money,
+approval or pending history. **56 migration cases pass** (42.78 s,
+`/tmp/life-pg3-legacy-funding-publication-migrations`), including actual 49→50,
+unchanged existing gate OIDs/ACLs, private proof/source tables, empty bootstrap and
+repeat startup. **79 affected File/control/source cases pass** (15.90 s,
+`/tmp/life-pg3-legacy-funding-file-regression.xml`), with existing warnings only.
+
+Five affected existing native batch/joint-RECOVER/ordinary funding paths also pass
+(16.82 s, 438 deselected, `/tmp/life-pg3-legacy-funding-native-regression`).
+This is a targeted regression, not the complete 443-case recovery selection.
+
+The earlier `/tmp/life-pg3-legacy-funding-native-final1` stopped before import with
+one 1000-ms `spot_state → carry_current_ready → carry_verified` setup timeout.
+It remains an R5 latency failure; no query limit or source-age relaxation was
+made. `/tmp/life-pg3-legacy-funding-publication-final` stopped at **32 passed / one
+failure**: the process fixture carried a pre-signed time-sensitive cut through
+Python child startup. The final child first completes imports/primary admission,
+then requests an actual fresh parent cut/facts/signature before execution. This
+fix changes fixture sequencing, not source ages, approval TTL, clocks or SQL
+budgets. The final 34-case invocation includes both process cases and the fixed
+publication bypass. Earlier development/fault selectors overlap these cases and
+are not extra qualification. No whole-service or full R5 pass is claimed.
+
+**Closure remains:** outer legacy parity and complete provider/collateral/liability
+reconciliation in R1; then R3 → R2/R4 → R5 as fixed above. Configured PostgreSQL
+selection stays rejected. No requirement is moved to a later phase. Qualification
+uses only the pinned disposable loopback PostgreSQL 16.15 ARM image (2 CPU/1 GiB),
+synthetic File sources/keys and unchanged limits. No `.env`, configured DB/account,
+exchange request, deployment or new repository evidence file is used.
+
+
 ### PG3 native hedge qualification (2026-10-17)
 
 Base `be18f304f`. Migration 41 and `PgHedgeRepository` add explicitly imported hedge policy/count/byte limits, permanent target versions, original-cut plans and native partial/terminal settlement. Actual SPOT/long/short inventory sizes one bounded maker child, with close-first behavior, exact contract lots, executable depth, basis, gross fee/funding, edge, exposure-age, retry and permanent cost-hold limits. Shared allocation, fresh carry qualification and original captured SWAP preparation publish atomically. Refusal rolls all child effects back but retains the attempt, conservative cost and retired IDs across operation kinds. Native fill accounting remains the only source of actual money; hedge observations cannot debit it twice or release a claim. Actual hedge-cost breach preserves truth and HALT.

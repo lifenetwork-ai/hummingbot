@@ -203,7 +203,7 @@ def retirement_projection(payload, ownership, descriptor):
 class LegacyApplyingAdapter:
     def _before_call(self, function, args):
         if getattr(self, '_legacy_applying_retired', False):
-            allowed = ('_read', '_snapshot', '_read_frozen_applying', '_retire_legacy_applying')
+            allowed = ('_read', '_snapshot', '_read_frozen_applying', '_read_frozen_applying_frame', '_retire_legacy_applying')
             if (getattr(function, '__self__', None) is not self or not any(
                     getattr(function, '__func__', None) is getattr(getattr(self, name), '__func__', None) for name in allowed)):
                 raise StorageError('LEGACY_APPLYING_SOURCE_RETIRED')
@@ -374,6 +374,17 @@ class LegacyApplyingAdapter:
     async def frozen_legacy_applying_source(self, binding):
         self._assert_binding(binding)
         return await self._call(self._read_frozen_applying)
+
+    def _read_frozen_applying_frame(self):
+        source = self._read_frozen_applying()
+        with self._state.inspect() as state:
+            operation = state['resources']['legacy_applying_retirement']['operation_id']
+            return source, thaw(state['resources']['control_operations'][operation]), state['checked_at']
+
+    async def frozen_legacy_applying_frame(self, binding):
+        """Read the verified, physically retired source and its original signature."""
+        self._assert_binding(binding)
+        return await self._call(self._read_frozen_applying_frame)
 
     def _retire_legacy_applying(self, command, source, approval, joint=None):
         meta = self._read()

@@ -75,6 +75,37 @@ releases an order/shared claim or authorizes an exchange request. No startup
 path retires a source automatically. See the
 [remaining R1 work](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-r1-interrupted-file-source-retirement-2026-10-18).
 
+### Native interrupted funding import
+
+Migration 50 and `postgres/legacy_applying.py` implement an explicit core
+funding-only profile. `frozen_legacy_applying_frame(binding)` returns the verified
+retired capsule, original IMPORT signature and original publication time. A
+separate migration-owner importer verifies external source/target public keys
+against immutable target configuration, exact target database/namespace and
+current signed IMPORT cut/facts. The original native opening capital policy
+must already exist and match the source; a partial File wallet never becomes
+an opening balance. Source orders/trades/external flows, prior NAV/cost history,
+nonzero loss or subsidy entries and outer joint capsules are refused by this
+initial profile.
+
+`ImportLegacyApplying` retains exact original bill IDs, signed amounts and times
+as a money-neutral `JOINT_BATCH` pending. Approval storage and pending publication
+have independent COMMIT/readback boundaries. An unconsumed approval blocks
+ordinary financial writers, including same-ID and changed-ID batch attempts;
+late ACK and reporting observations remain recordable. Source signature/capsule
+and native relational/hash proofs are retained permanently. Runtime/reporting
+cannot read or edit the private source approval; imported original-ID lookup
+audits signatures using the original publication times, without renewing them.
+
+The existing separately signed `ResolveJointSources` RECOVER route then applies
+the original funding through native causal accounting against fresh complete
+sources. Raw pending receipts stay immutable, HALT and claims remain held, and
+no approval/readback grants readiness or releases an order. This is a declared
+interrupted financial profile, not the PG6 general bootstrap/importer. Outer
+joint/SPOT/SWAP parity, provider/collateral reconciliation and configured service
+acceptance remain PG3 work. Disposable functional qualification does not close
+the recorded R5 SQL latency failures.
+
 ## Original-runtime final send fence
 
 `postgres/quote_transport.py` pins the original repository/runtime/binding/owner.

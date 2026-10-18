@@ -795,3 +795,15 @@ account, policy, balance, activation or configured PostgreSQL sender.
   and independent release remain separate. Existing function OIDs/ACLs and old
   script checksums are retained; repeated automatic startup applies this version
   once. Policy/import/access provisioning remain explicit privileged operations.
+
+- `000050_legacy_applying_import.sql`: private bounded interrupted-source
+  approvals and an exact runtime pending publication. IMPORT creates no money,
+  activation or claim release; the existing signed RECOVER route applies the
+  original primitives separately. Stored source/target key policies, original
+  source digest/cut/signature and target original opening basis are retained.
+  Physical COMMIT rechecks freshness, original owner and HALT. An orphan source
+  approval blocks ordinary financial writers before its diagnostic root exists.
+  Corrupt/missing import provenance invalidates common batch/account proofs.
+  Existing gate OIDs/ACLs and prior numbered checksums remain unchanged; no
+  accounts, capital or policy defaults are seeded. Runtime/reporting cannot
+  edit/read the private source approvals or invoke private proof helpers.

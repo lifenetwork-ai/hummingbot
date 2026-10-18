@@ -1364,3 +1364,36 @@ async def test_terminal_repair_upgrade_preserves_existing_gate_oids_acl_and_repe
     assert (await migrate(c, directory, action='up'))['applied'] == []
     for table in ('accounts', 'balances', 'operations', 'terminal_repair_approvals', 'terminal_repair_facts', 'terminal_repair_members'):
         assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+
+
+@pytest.mark.asyncio
+async def test_legacy_applying_upgrade_preserves_existing_gate_oids_and_keeps_source_approval_private(db):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 50:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    signatures = ('life_financial.joint_batch_verified(uuid)', 'life_financial.spot_state(uuid)',
+                  'life_financial.joint_batch_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
+                  'life_financial.joint_batch_read(uuid,integer,integer,text)',
+                  'life_financial.joint_repair_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
+                  'life_financial.commit_owner_guard()')
+    oids = [await c.fetchval('SELECT to_regprocedure($1)::oid', signature) for signature in signatures]
+    await c.execute('GRANT EXECUTE ON FUNCTION life_financial.joint_batch_read(uuid,integer,integer,text) TO life_runtime_test,life_reporter_test')
+    await c.execute('GRANT EXECUTE ON FUNCTION life_financial.joint_batch_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb) TO life_runtime_test')
+    path = DEFAULT_DIRECTORY / '000050_legacy_applying_import.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    assert [await c.fetchval('SELECT to_regprocedure($1)::oid', signature) for signature in signatures] == oids
+    for role in ('life_runtime_test', 'life_reporter_test'):
+        assert await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", role, signatures[3])
+        assert await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", role, signatures[2]) is (role == 'life_runtime_test')
+        for signature in ('life_financial.legacy_applying_verified(uuid)', 'life_financial.legacy_applying_fresh(uuid,text)',
+                          'life_financial.legacy_applying_commit_guard()',
+                          'life_financial.legacy_applying_pending(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)'):
+            assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", role, signature)
+        for table in ('legacy_applying_policies', 'legacy_applying_imports'):
+            assert not await c.fetchval("SELECT has_table_privilege($1,$2,'SELECT,INSERT,UPDATE,DELETE')", role, 'life_financial.' + table)
+    assert (await migrate(c, directory, action='up'))['applied'] == []
+    for table in ('accounts', 'balances', 'operations', 'legacy_applying_policies', 'legacy_applying_imports'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0

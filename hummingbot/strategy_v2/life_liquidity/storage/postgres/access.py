@@ -10,6 +10,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError
 
 # One policy for provisioning and every uncached primary admission check.
 MUTATING_ENTRYPOINTS = (
+    'life_financial.legacy_applying_pending(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
     'life_financial.guard_account(uuid,jsonb,jsonb,bigint)',
     'life_financial.allocate_balance(uuid,jsonb,jsonb,bigint,life_financial.identity,life_financial.digest,text,life_financial.positive_amount)',
     'life_financial.spot_capture_ack_ingress(uuid,jsonb)',
@@ -78,7 +79,7 @@ async def provision_access(connection, *, principal, account_id, write):
             raise StorageError('PG_ACCESS_ACCOUNT_MISSING')
         # Names were validated above; SQL values remain bound parameters.
         await connection.execute(f'GRANT USAGE ON SCHEMA life_financial,life_storage,life_migrations TO "{principal}"')
-        tables = await connection.fetch("SELECT tablename FROM pg_tables WHERE schemaname='life_financial' AND tablename NOT IN ('access_bindings','joint_batch_staging','joint_repair_staging','hedge_staging')")
+        tables = await connection.fetch("SELECT tablename FROM pg_tables WHERE schemaname='life_financial' AND tablename NOT IN ('access_bindings','joint_batch_staging','joint_repair_staging','hedge_staging','legacy_applying_policies','legacy_applying_imports')")
         for row in tables:
             name = role_name(row['tablename'])
             await connection.execute(f'GRANT SELECT ON life_financial."{name}" TO "{principal}"')
