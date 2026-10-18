@@ -851,3 +851,15 @@ account, policy, balance, activation or configured PostgreSQL sender.
   Revoke every nonowner helper grant, including inherited default function
   privileges; do not grant the runtime a boolean proof shortcut. No session
   cache, financial bootstrap, receipt rewrite or timeout/freshness change.
+
+- `000055_snapshot_body_pipeline.sql`: move the sixteen existing snapshot layer
+  bodies into private `spot_body*` functions; their original entrypoints retain
+  their OIDs, ACLs, attributes and complete body/digest/capture-time contract.
+  Body layers consume their predecessor's body directly. A public snapshot
+  serializes its snapshot digest once, while all historical/financial hashes
+  and proofs still run. The entire transformation is transactional and refuses
+  unrecognized signatures, return expressions or predecessor calls. Default
+  nonowner grants are removed from every body helper. No account, financial
+  record, authorization, risk limit or freshness budget is created or changed.
+  Future snapshot field/proof changes belong in the corresponding body layer;
+  the retained wrappers serialize only. Existing numbered scripts stay immutable.

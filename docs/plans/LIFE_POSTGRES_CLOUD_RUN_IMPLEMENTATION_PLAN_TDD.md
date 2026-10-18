@@ -1276,6 +1276,49 @@ freshness/latency outliers are eliminated. No retry-until-green loop is used.
 install the configured PostgreSQL controller/service or complete provider,
 legacy, control/risk/session, hedge/runner/recorder and whole-product workflows.
 
+### PG3 snapshot body pipeline (2026-10-18)
+
+Migration 55 retains all financial predicates and separates each of the 16
+snapshot layers' body construction from its public serialization. A parent
+previously computed, then immediately discarded, its predecessor's digest and
+capture time. Owner-only `spot_body*` functions now pass the original body to
+the next layer; every retained `spot_state*` entrypoint still returns the same
+fields and original body-text SHA256 digest, plus its capture time. Existing
+OIDs, ACLs and function attributes are preserved. Default function grants cannot
+expose a body helper; an unexpected historical function shape aborts the entire
+upgrade. This adds no proof cache or authorization shortcut. Later changes to
+snapshot predicates/fields must change the body function, not its serializer.
+
+The first Red case reproduced the missing helper. **62 migration tests pass**
+(49.94 s, `/tmp/life-pg3-snapshot-body-migrations`), including actual 54→55,
+default-grant removal, unchanged financial/COMMIT functions, unexpected-chain
+rollback and repeat startup. **16 snapshot/carry tests pass** (65.91 s,
+`/tmp/life-pg3-snapshot-body-equivalence-and-paired`): original pre-upgrade
+functions retained in an isolated oracle schema match the new body/digest
+across absent, pending, qualified, expired, corrupt, SPOT partial-fill and
+legacy pending/recovered states. The later old-receipt replay assertion is
+included in the pending frozen regression below, not this earlier result.
+
+Five alternating pairs on identical state measure warm medians of
+16.196→15.152 ms (qualified carry), 12.601→11.380 ms (SPOT partial fill), and
+50.561→47.710 ms (legacy recovered): about **6–10%** lower. Cold medians are
+63.686→61.374, 48.573→46.986 and 138.280→137.111 ms respectively; the complex
+legacy cold path improves by **less than 1%**. Each arm has 50 warm and five
+cold samples, unchanged 1,000-ms SQL/driver limits, and identical outputs except
+capture time. These are local read-path diagnostics, not throughput, loaded
+timeout reliability or whole-product qualification. Measurements stay under
+`/tmp/life-pg3-snapshot-body-paired-*.json`. Most financial history-proof cost
+remains; this does not establish that the previous outliers are eliminated.
+
+The fixed current-source native regression passes **372 tests**, zero failures,
+errors or skips, 1,480 deselected, six existing warnings, **975.23 s**
+(`/tmp/life-pg3-snapshot-body-frozen-native`). It includes every previously
+failed workflow and the old SPOT receipt replay after upgrade, on one frozen
+financial source. The older 357-pass/5-failure gate above remains retained;
+this single clean scoped invocation does not prove loaded timeout reliability
+or qualify the complete native suite/configured service. **R1–R5 and PG3 remain
+open; configured PostgreSQL selection stays refused.**
+
 ### PG3 native hedge qualification (2026-10-17)
 
 Base `be18f304f`. Migration 41 and `PgHedgeRepository` add explicitly imported hedge policy/count/byte limits, permanent target versions, original-cut plans and native partial/terminal settlement. Actual SPOT/long/short inventory sizes one bounded maker child, with close-first behavior, exact contract lots, executable depth, basis, gross fee/funding, edge, exposure-age, retry and permanent cost-hold limits. Shared allocation, fresh carry qualification and original captured SWAP preparation publish atomically. Refusal rolls all child effects back but retains the attempt, conservative cost and retired IDs across operation kinds. Native fill accounting remains the only source of actual money; hedge observations cannot debit it twice or release a claim. Actual hedge-cost breach preserves truth and HALT.

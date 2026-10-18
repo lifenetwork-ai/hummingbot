@@ -35,11 +35,16 @@ async def test_same_snapshot_body_digest_and_decisions_with_one_fewer_proof(data
             await c.execute('ALTER TABLE life_financial.operations ENABLE TRIGGER USER')
         # Independent original path: exactly the pre-optimization body and its
         # original ready function (which still performs its own full proof).
-        definition = await c.fetchval("SELECT pg_get_functiondef('life_financial.spot_state_before_swap(uuid)'::regprocedure)")
+        definition = await c.fetchval("SELECT pg_get_functiondef('life_financial.spot_body_before_swap(uuid)'::regprocedure)")
         assert definition.count('life_financial.carry_ready_after_verification(p_account,verified)') == 1
-        historical = definition.replace('life_financial.spot_state_before_swap(', 'life_financial.test_prior_carry_state(')
+        historical = definition.replace('life_financial.spot_body_before_swap(', 'life_financial.test_prior_carry_body(')
         historical = historical.replace('life_financial.carry_ready_after_verification(p_account,verified)', 'life_financial.carry_current_ready(p_account)')
         await c.execute(historical)
+        await c.execute('''CREATE FUNCTION life_financial.test_prior_carry_state(p_account uuid) RETURNS jsonb
+            LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog AS $$
+            DECLARE b jsonb;BEGIN b:=life_financial.test_prior_carry_body(p_account);
+            RETURN b||jsonb_build_object('digest',encode(sha256(convert_to(b::text,'UTF8')),'hex'),'observed_at',clock_timestamp());END;$$''')
+        await c.execute('REVOKE ALL ON FUNCTION life_financial.test_prior_carry_body(uuid) FROM PUBLIC')
         await c.execute('REVOKE ALL ON FUNCTION life_financial.test_prior_carry_state(uuid) FROM PUBLIC')
         await c.execute('INSERT INTO life_financial.access_bindings VALUES(current_user,$1,false)', cfg.account_id)
         # A test-only sequence counts actual proof invocations without replacing

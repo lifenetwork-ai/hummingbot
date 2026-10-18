@@ -1,12 +1,14 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
-**Current PostgreSQL checkpoint (2026-10-18):** bounded runtime phase/PID/SQLSTATE
-diagnostics and migration 54's reuse of a carry proof within one snapshot are
-implemented; the measured isolated read path is about 11% faster. Migration
-tests pass, but the retained broad native gate has 357 passes / 5 failures
-(one diagnostic cleanup defect subsequently corrected; four latency/freshness
-failures remain). **PG3 is not closed**, and configured PostgreSQL remains
-rejected. See [current qualification and remaining gates](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-reuse-of-the-carry-proof-within-one-snapshot-2026-10-18).
+**Current PostgreSQL checkpoint (2026-10-18):** migration 55 avoids discarded
+nested snapshot digest serialization while retaining every financial proof,
+public digest and existing OID/ACL. **372 native regression tests and 62 migration
+tests pass**, including all previously failed workflows and old receipt replay
+after upgrade. Warm snapshot diagnostics improve about 6–10% over migration 54;
+the complex cold legacy read improves less than 1%. The older 357-pass/5-failure
+gate remains recorded; one clean scoped invocation does not prove loaded timeout
+reliability or complete service acceptance. **PG3 is not closed**, and configured
+PostgreSQL remains rejected. See [qualification and remaining gates](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-snapshot-body-pipeline-2026-10-18).
 
 **PG3 explicit SWAP sender/recovery checkpoint (2026-10-17, base `0ee397b84`):**
 exact signed post-auth/throttle request bytes now bind one atomic native arm;

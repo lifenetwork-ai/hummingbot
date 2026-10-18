@@ -3093,10 +3093,33 @@ acquisition, validation, execute, guard, COMMIT, receipt parsing, retry/rollback
 and release remain distinguishable. Existing capacity, deadline, shielded caller
 cancellation, unhealthy-runtime and unknown-COMMIT behavior is unchanged.
 
-## Carry proof reuse within a snapshot
+## Snapshot body pipeline
 
-Migration 54 reuses the `carry_verified` result already computed by
-`spot_state_before_swap` in the same STABLE call and MVCC view. The helper still
+Migration 55 gives each of the sixteen snapshot layers an owner-only `spot_body*`
+implementation. Its original `spot_state*` function retains its OID, permissions,
+attributes and body/digest/observed-time API, and delegates to that implementation.
+Body layers no longer serialize a snapshot digest/capture time immediately
+discarded by the next layer. The public snapshot performs one snapshot digest
+serialization. All other financial fingerprints, accounting, provider-history,
+ownership, current-source and physical COMMIT checks remain intact.
+
+The base body retains account-scope checks; helpers have no public/runtime/
+reporting EXECUTE grant, even when default privileges grant newly created
+functions. There is no result cache or cross-statement proof reuse. Unexpected
+source structure aborts the complete migration without leaving partial wrappers
+or helpers. Future changes to snapshot fields/proofs must update the body layer,
+whose wrapper only performs final serialization.
+
+Qualification compares all sixteen layers to copies of the actual pre-upgrade
+version-54 implementations in a separate test schema, on the same account/MVCC
+cut. Those copies retain the old nested digest chain. The test schema/grants are
+confined to disposable test databases. Comparison includes every field, digest
+and recovery/unverified flag, plus role/scope and old-receipt replay checks.
+
+## Carry proof reuse within a snapshot (migration 54)
+
+Migration 54 reuses the `carry_verified` result already computed by the carry
+snapshot layer (now `spot_body_before_swap`) in the same STABLE call and MVCC view. The helper still
 checks current source freshness, collateral, funding, balances, positions and
 new claims/releases. No result survives the call or substitutes for physical
 COMMIT verification. The original independent `carry_current_ready` and every

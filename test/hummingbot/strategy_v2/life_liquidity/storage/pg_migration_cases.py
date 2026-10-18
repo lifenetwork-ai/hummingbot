@@ -1558,3 +1558,52 @@ async def test_carry_reuse_upgrade_preserves_original_guards_and_every_existing_
     assert (await migrate(c, directory, action='up'))['applied'] == []
     for table in ('accounts', 'balances', 'operations', 'carry_checks', 'carry_payments', 'shared_capital_claims'):
         assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('unexpected_chain', [False, True])
+async def test_snapshot_body_upgrade_preserves_old_oids_acl_and_atomic_shape_refusal(db, unexpected_chain):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 55:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    await c.execute('GRANT USAGE ON SCHEMA life_financial TO life_runtime_test,life_reporter_test')
+    await c.execute('GRANT EXECUTE ON FUNCTION life_financial.spot_state(uuid) TO life_runtime_test,life_reporter_test')
+    await c.execute('ALTER DEFAULT PRIVILEGES IN SCHEMA life_financial GRANT EXECUTE ON FUNCTIONS TO life_runtime_test,life_reporter_test')
+    if unexpected_chain:
+        definition = await c.fetchval("SELECT pg_get_functiondef('life_financial.spot_state(uuid)'::regprocedure)")
+        await c.execute(definition.replace("(p_account)-'digest'-'observed_at'", "(p_account) - 'digest' - 'observed_at'"))
+    query = '''SELECT p.oid,p.oid::regprocedure::text AS signature,p.proacl,p.prosrc,p.provolatile,p.prosecdef,
+        p.proconfig,p.proisstrict,p.proparallel,p.proleakproof,p.proowner,p.prorettype,p.proargnames
+        FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='life_financial' ORDER BY p.oid'''
+    before = {r['signature']: dict(r) for r in await c.fetch(query)}
+    path = DEFAULT_DIRECTORY / '000055_snapshot_body_pipeline.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    if unexpected_chain:
+        with pytest.raises(asyncpg.RaiseError, match='LIFE_SNAPSHOT_BODY_CHAIN_MISMATCH'):
+            await migrate(c, directory, action='up')
+        assert {r['signature']: dict(r) for r in await c.fetch(query)} == before
+        assert (await versions(c))[-1]['version'] == 54
+        return
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    after = {r['signature']: dict(r) for r in await c.fetch(query)}
+    states = {s for s in before if s.startswith('life_financial.spot_state')}
+    bodies = {s.replace('spot_state', 'spot_body') for s in states}
+    assert len(states) == 16 and set(after) - set(before) == bodies
+    for signature, row in before.items():
+        if signature not in states:
+            assert after[signature] == row  # Every financial/COMMIT proof stays exact.
+            continue
+        assert {k: v for k, v in after[signature].items() if k != 'prosrc'} == {k: v for k, v in row.items() if k != 'prosrc'}
+        body_signature = signature.replace('spot_state', 'spot_body')
+        body = after[body_signature]
+        for key in ('provolatile', 'prosecdef', 'proconfig', 'proisstrict', 'proparallel', 'proleakproof', 'proowner', 'prorettype', 'proargnames'):
+            assert body[key] == row[key]
+        assert body_signature.split('(')[0] + '(p_account)' in after[signature]['prosrc']
+        assert "'digest'" in after[signature]['prosrc'] and 'clock_timestamp()' in after[signature]['prosrc']
+        for role in ('life_runtime_test', 'life_reporter_test', 'public'):
+            assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", role, body_signature)
+    assert (await migrate(c, directory, action='up'))['applied'] == []
+    for table in ('accounts', 'balances', 'operations', 'carry_checks', 'shared_capital_claims'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0

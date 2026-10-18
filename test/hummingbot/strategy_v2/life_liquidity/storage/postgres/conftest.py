@@ -5,7 +5,7 @@ from uuid import uuid4
 import pytest
 import pytest_asyncio
 
-from hummingbot.strategy_v2.life_liquidity.storage.postgres.migrations import migrate
+from hummingbot.strategy_v2.life_liquidity.storage.postgres.migrations import DEFAULT_DIRECTORY, migrate
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.runtime import PgRuntime
 
 
@@ -19,7 +19,7 @@ def pytest_runtest_makereport(item, call):
 
 
 @pytest_asyncio.fixture
-async def database(request, monkeypatch):
+async def database(request, monkeypatch, tmp_path):
     dsn = os.environ.get('LIFE_PG_TEST_DSN')
     if not dsn:
         pytest.skip('Requires run_postgres.py disposable database')
@@ -41,7 +41,16 @@ async def database(request, monkeypatch):
     migration_dsn = root.replace('postgres@', 'life_pg2_migrator@') + '/' + name
     c = await asyncpg.connect(migration_dsn)
     try:
-        await migrate(c, action='up')
+        directory = DEFAULT_DIRECTORY
+        if hasattr(request, 'param'):
+            # Explicit upgrade-test starting point, on this disposable DB only.
+            assert type(request.param) is int and request.param > 0
+            directory = tmp_path / 'prior_migrations'
+            directory.mkdir()
+            for path in DEFAULT_DIRECTORY.glob('*.sql'):
+                if int(path.name.split('_', 1)[0]) <= request.param:
+                    (directory / path.name).write_bytes(path.read_bytes())
+        await migrate(c, directory, action='up')
         yield c, root + '/' + name, migration_dsn
     finally:
         await c.close()
