@@ -1106,6 +1106,72 @@ codec/domain for every configured cross-language request; arbitrary Unicode
 bodies cannot silently inherit an ASCII compatibility assumption. Configured
 PostgreSQL stays rejected. No new repository evidence file is created.
 
+### PG3 investigation of the two retained read timeouts (2026-10-18)
+
+Source: `4211de4ef`; production code and financial deadlines are unchanged.
+Diagnostic settings and probe-only read contexts are confined to disposable
+loopback databases. The original 280-pass/2-failure invocation remains the
+acceptance result.
+
+**Established cause of failure:** PostgreSQL cancelled the complete
+`SELECT life_financial.spot_state($1)` statement at its 1,000-ms limit. The hedge
+test had already rejected the expired COMMIT and verified zero child rows; its
+subsequent `balance()` calls a complete snapshot. The negative retired-import
+bill test failed obtaining its original capital cut, before testing bill
+mutation. `_admit` maps these failures to `PG_DATABASE_UNAVAILABLE`, losing the
+phase/cause in the public error. The final hedge aggregation stack frame is the
+interruption point, not proof that this aggregation consumed the whole second.
+
+**Measurements, all on disposable loopback PostgreSQL (2 CPU/1 GiB):**
+
+- Both original cases pass in the unchanged targeted invocation (11.43 s,
+  `/tmp/life-pg3-timeout-target-baseline`), and in the monitored invocation
+  (11.15 s, `/tmp/life-pg3-timeout-instrumented`). Snapshot callbacks take about
+  28–57 ms; connection admission/validation takes about 2–7 ms. No lock blocker
+  is observed. The extracted hedge aggregation costs about 0.086–0.102 ms to
+  execute, with estimated cost 37.26, empty target/plan/settlement tables and no
+  JIT. These samples do not establish the resource state of the historical failures.
+- An exported MVCC snapshot preserves each original critical state for 136
+  read-only trials (68 per case). Cold connections take about 66–93 ms;
+  reused automatic/generic plans have medians about 13–20 ms; forced-custom
+  warm-plan medians are about 29–42 ms. No timeout occurs. The original tests also pass (15.89 s,
+  `/tmp/life-pg3-timeout-cold-plan-probe`). No trading command is replayed by
+  those read probes, and no source clock or lifetime is extended.
+- The full instrumented selector retains **278 passes / 4 failures** in 852.45 s
+  (`/tmp/life-pg3-timeout-long-instrumented`); both original cases pass. Two
+  different cashflow fixtures time out in native SWAP preparation. Process
+  sampling shows roughly a second of accounted backend CPU, no observed lock
+  blockers and negligible I/O in the logged plans; one interval also contains
+  cgroup CPU throttling. Another import fixture fails with `PG_SWAP_CUT_STALE`
+  after a roughly one-second reserve/carry/prepare/arm sequence, including a
+  407-ms reserve. A quote-wire negative test receives
+  `LIFE_QUOTE_ADMISSION_STALE` before its expected field rejection. These last
+  two failures are freshness/precondition failures, not SQL statement timeouts.
+- A separate lightweight SQL heartbeat is usually below 1 ms but has bursts up
+  to 357 ms during the run. It stays below 10 ms during the stale-import
+  interval, while that backend consumes CPU. Global runtime variability and
+  expensive financial paths are both observed; neither alone can be assigned
+  as the historical cause of the original two outliers.
+- Control without `auto_explain`: six selected cases (the original two plus
+  the four instrumented failures), exactly two repetitions each, all pass:
+  **12 passes**, 38.34 s (`/tmp/life-pg3-timeout-no-explain-control`), snapshot
+  maximum about 64 ms. It retains process monitoring. A short control is not a
+  matched full-selector comparison, so observer overhead is not quantified and
+  the four diagnostic failures cannot replace the original acceptance result.
+
+**Conclusion and next R5 work:** the historical outliers' exact trigger remains
+unproven. Whole-state verification is a measured CPU hot path; a missing index,
+deadlock, JIT defect or corrupt monetary calculation is not demonstrated here.
+Retain bounded production-safe phase/duration/query-family/backend/SQLSTATE
+diagnostics so the next uninstrumented failure is attributable. Then profile
+and reduce repeated proofs, intermediate JSON assembly and discarded hashes
+within one account-version/MVCC cut, preserving every final proof and physical
+COMMIT check. Require equivalent decisions/digests and matched cold/warm/loaded
+measurements before accepting a change. Do not widen limits or weaken negative
+test matchers to turn these gates green. R5 and configured PostgreSQL remain
+open/rejected. Probe code, plans and samples stay in `/tmp`; no repository
+evidence file or deployed-account access is introduced.
+
 ### PG3 native hedge qualification (2026-10-17)
 
 Base `be18f304f`. Migration 41 and `PgHedgeRepository` add explicitly imported hedge policy/count/byte limits, permanent target versions, original-cut plans and native partial/terminal settlement. Actual SPOT/long/short inventory sizes one bounded maker child, with close-first behavior, exact contract lots, executable depth, basis, gross fee/funding, edge, exposure-age, retry and permanent cost-hold limits. Shared allocation, fresh carry qualification and original captured SWAP preparation publish atomically. Refusal rolls all child effects back but retains the attempt, conservative cost and retired IDs across operation kinds. Native fill accounting remains the only source of actual money; hedge observations cannot debit it twice or release a claim. Actual hedge-cost breach preserves truth and HALT.
