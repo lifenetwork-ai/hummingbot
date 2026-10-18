@@ -10,6 +10,18 @@ gate remains recorded; one clean scoped invocation does not prove loaded timeout
 reliability or complete service acceptance. **PG3 is not closed**, and configured
 PostgreSQL remains rejected. See [qualification and remaining gates](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-snapshot-body-pipeline-2026-10-18).
 
+**PG3 core recovery checkpoint (2026-10-18, base `351718e4c`):** explicit import
+now covers completed original approved LIFE/USDT transfers retained in a core
+command before its funding application was interrupted. Independent opening/bill
+approvals and original valuations are mandatory; import stays money-neutral and
+separate signed RECOVER applies once across cold restart without changing HALT,
+claims or gross budgets. **120 current-source legacy import tests pass**, including
+24 new cases. This later importer extension leaves SQL unchanged; the snapshot
+gate above qualifies its own preceding source. See [scope and qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-core-transfer-and-interrupted-funding-import-2026-10-18).
+Other legacy profiles, complete collateral/liability reconciliation, native
+control/risk/session, configured hedge/controller/runner/recorder and whole-service
+acceptance remain required under PG3's unchanged R1–R5 exit checklist.
+
 **PG3 explicit SWAP sender/recovery checkpoint (2026-10-17, base `0ee397b84`):**
 exact signed post-auth/throttle request bytes now bind one atomic native arm;
 received ACK capture precedes qualified native application and delivery. Cold

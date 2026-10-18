@@ -30,11 +30,15 @@ from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancial
 KEYS = OperatorKeys({'operator': b'i' * 32}, {'operator': frozenset(('IMPORT', 'RECOVER', 'DRAIN'))})
 
 
-async def setup(database, tmp_path, monkeypatch, stage='wallet_after'):
+async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashflow=None):
     from test.hummingbot.strategy_v2.life_liquidity.storage import test_spot_financial_contracts as file_fixture
     from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_funding import setup as funding_setup
 
-    from hummingbot.strategy_v2.life_liquidity.storage.capital import SpotAccountingPolicy
+    from hummingbot.strategy_v2.life_liquidity.storage.capital import (
+        ApprovedSpotCashflow,
+        CashflowSpot,
+        SpotAccountingPolicy,
+    )
     from hummingbot.strategy_v2.life_liquidity.storage.joint_settlement import JointCashEvent, JointCashSpot
     from hummingbot.strategy_v2.life_liquidity.storage.legacy_spot import open_legacy_spot
     from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancialRecoveryPolicy
@@ -53,7 +57,23 @@ async def setup(database, tmp_path, monkeypatch, stage='wallet_after'):
         files, _, file_owner = file_fixture.create_fixture(tmp_path)
     binding = replace(cfg.binding, lineage=uuid4())
     clock = [now]
-    accounting = SpotAccountingPolicy(D('5'), D('10'), D('1'), opened, '100', ())
+    flows, approvals = (), ()
+    base, quote = D('5'), D('9.9')
+    if cashflow is not None:
+        currency, amount, price = cashflow
+        await admin.execute('INSERT INTO life_financial.spot_fill_policies VALUES($1,$2,1000,4096)', cfg.account_id, cfg.binding.policy_hash)
+        at = int(now.timestamp() * 1000)
+        approvals = (ApprovedSpotCashflow('101', currency, amount, at),)
+        flows = (CashflowSpot('file-transfer', '101', currency, amount, at, price, at, at,
+                              'quote_unit' if currency == 'USDT' else 'independent_market', now),)
+        base += amount if currency == 'LIFE' else D('0')
+        quote += amount if currency == 'USDT' else D('0')
+        b = payment.bundle
+        payment = replace(payment, bundle=replace(b, account=replace(b.account, snapshot=replace(b.account.snapshot,
+                          spot_life_base=base, spot_cash_quote=quote, collateral_quote=b.account.snapshot.collateral_quote + (amount if currency == 'USDT' else D('0'))))))
+        await admin.execute('INSERT INTO life_financial.bill_approvals VALUES($1,$2,$3,$4,to_timestamp($5::double precision/1000),$6)',
+                            cfg.account_id, '101', currency, amount, at, b'synthetic-preverified-import')
+    accounting = SpotAccountingPolicy(D('5'), D('10'), D('1'), opened, '100', approvals)
 
     async def open_file(*, create=False):
         return await open_legacy_spot(files, binding=binding, limits=file_fixture.CAPACITY,
@@ -63,10 +83,15 @@ async def setup(database, tmp_path, monkeypatch, stage='wallet_after'):
                                       accounting_policy=accounting, recovery_policy=SpotFinancialRecoveryPolicy(5000), operator_keys=KEYS)
 
     store = await open_file(create=True)
+    if flows:
+        # A core command has no outer recovery authority. Its transfer must
+        # already have an APPLIED receipt before a new joint command starts.
+        # Partially written transfer + joint recovery uses the outer profile.
+        await store.apply_cashflow(flows[0], cut=(await store.snapshot(binding)).cut, owner=file_owner)
     paid = payment.bundle.funding.payments[0]
     joint = JointCashSpot('file-joint', binding, 'c' * 64, now,
                           (JointCashEvent(f'JOINT:{paid.settled_at_ms}:FUNDING:{paid.bill_id}', paid.signed_payment_quote),),
-                          D('5'), D('9.9'), True, True, 'okx_joint_reconciled')
+                          base, quote, True, True, 'okx_joint_reconciled', spot_cashflows=flows)
     target, method = ((store._ledger, 'apply_joint_snapshot') if stage.startswith('wallet') else (store, '_publish_joint_cash'))
     original = getattr(target, method)
 
@@ -85,7 +110,7 @@ async def setup(database, tmp_path, monkeypatch, stage='wallet_after'):
     store = await open_file()
     now = await admin.fetchval('SELECT clock_timestamp()')
     clock[0] = now
-    facts = SpotFinancialRecoveryFacts(binding, now, D('5'), D('9.9'), D('0'), D('0'), (), (), (), (), True, True, True)
+    facts = SpotFinancialRecoveryFacts(binding, now, base, quote, D('0'), D('0'), (), tuple(v.bill_id for v in flows), (), (), True, True, True)
     drain = OwnerTransition('file-drain', OwnerMode.DRAINING, file_owner)
     cut = (await store.snapshot(binding)).cut
     signature = KEYS.sign('operator', binding, 'DRAIN', drain.json(), cut, facts, issued_at=now, expires_at=now + timedelta(seconds=10))
@@ -96,7 +121,7 @@ async def setup(database, tmp_path, monkeypatch, stage='wallet_after'):
     signature = KEYS.sign('operator', binding, 'IMPORT', retire.json(), cut, facts, issued_at=now, expires_at=now + timedelta(seconds=10))
     await store.retire_legacy_applying(retire, source=source, approval=signature)
     batch = PgJointBatchRepository(funding.swap)
-    command = ImportLegacyApplying(source.content_digest, ApplyJointBatch('legacy-pending', (), (), (), payment))
+    command = ImportLegacyApplying(source.content_digest, ApplyJointBatch('legacy-pending', (), (), flows, payment))
     await admin.execute('UPDATE life_financial.accounts SET halted=true WHERE account_id=$1', cfg.account_id)
     cut = (await financial.observation_cut(cfg.binding)).cut
     now = await admin.fetchval('SELECT clock_timestamp()')

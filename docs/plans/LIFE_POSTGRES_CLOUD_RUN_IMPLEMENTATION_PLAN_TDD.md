@@ -1319,6 +1319,55 @@ this single clean scoped invocation does not prove loaded timeout reliability
 or qualify the complete native suite/configured service. **R1–R5 and PG3 remain
 open; configured PostgreSQL selection stays refused.**
 
+### PG3 core transfer and interrupted funding import (2026-10-18)
+
+Base `351718e4c`. The explicit core legacy importer now accepts completed approved
+LIFE/USDT transfers retained in the original `JointCashSpot` command before its
+funding application was interrupted. It checks the complete original selected
+bill set, asset/signed amount/time and historical valuation/reference/observation
+facts. Original pre-application wallet events must be explained by the independent
+opening policy and exactly those transfers. Missing or unrelated prior history,
+SPOT trades and the other undeclared profiles remain refused. This is not general
+legacy bootstrap or full R1 closure.
+
+The existing migration-52 SQL checks independently imported native original bill
+approvals for this core profile as well as outer imports; no new DDL/table or
+automatic approval is needed. IMPORT remains money-neutral and signed RECOVER
+uses the native causal cashflow/funding kernels. Original pending receipts,
+source bytes, bill identities, HALT, claims and gross budgets survive replay.
+
+TDD Red reproduces `PG_LEGACY_APPLYING_PROFILE_UNSUPPORTED` for an actual File
+USDT transfer followed by interrupted funding
+(`/tmp/life-pg3-core-cashflow-original-profile-red`). Earlier fixture iterations
+incorrectly attempted a new core operation after an unresolved transfer/cold
+restore; the existing File gates correctly refused them. The supported fixture
+now completes the transfer before starting the core operation, with no guard
+bypass. A subsequent `P0002` in the new test fixture exposed its missing explicit
+SPOT accounting policy; that policy is now declared only in the synthetic
+fixture, not bootstrapped by the service.
+
+The first focused matrix passes **24 cases**, 1,852 deselected, six existing
+warnings, **77.55 s** (`/tmp/life-pg3-core-cashflow-policy-green`). It covers both
+assets and debit/credit transfers at wallet-before/wallet-after/receipt failure,
+cold pending import and 12 exact-reason denials, including an unsigned native
+original approval. Stronger post-RECOVER cold replay and gross-budget assertions
+are included in the pending frozen legacy regression, not that earlier result.
+The `legacy_imports` and `joint_recovery` selectors include the new module.
+
+The final frozen-source `legacy_imports` regression passes **120 tests**, zero
+failures/errors/skips, six existing warnings, **399.13 s**
+(`/tmp/life-pg3-core-cashflow-frozen-imports`). This includes all 24 new cases,
+now with a second cold restore after RECOVER, original-ID replay, unchanged
+SPOT loss/subsidy budgets, retained gross funding debit, money-neutral import,
+permanent original pending/source, unchanged File wallet and held shared claims.
+Existing standalone import faults/successors and outer mixed SWAP/transfer/
+funding workflows also pass. The earlier 372-case snapshot gate qualifies
+`351718e4c`, before this Python importer extension; these are distinct scoped
+gates, not one full-service acceptance run. SQL/migrations are unchanged by the
+extension. R1–R5 remain unchecked and configured PostgreSQL remains rejected.
+No financial/source/SQL budget is widened and no configured account/DB, exchange
+request or new evidence file is used.
+
 ### PG3 native hedge qualification (2026-10-17)
 
 Base `be18f304f`. Migration 41 and `PgHedgeRepository` add explicitly imported hedge policy/count/byte limits, permanent target versions, original-cut plans and native partial/terminal settlement. Actual SPOT/long/short inventory sizes one bounded maker child, with close-first behavior, exact contract lots, executable depth, basis, gross fee/funding, edge, exposure-age, retry and permanent cost-hold limits. Shared allocation, fresh carry qualification and original captured SWAP preparation publish atomically. Refusal rolls all child effects back but retains the attempt, conservative cost and retired IDs across operation kinds. Native fill accounting remains the only source of actual money; hedge observations cannot debit it twice or release a claim. Actual hedge-cost breach preserves truth and HALT.

@@ -86,14 +86,13 @@ def funding_profile(source, command):
     envelope = json.loads(source.checkpoint_bytes)
     resources = envelope['state']['resources']
     if (source.ancillary_images or len(source.original_operations) != 1 or len(source.core_pending_operation_ids) != 1
-            or any(resources.get(k) for k in ('commands', 'fills', 'cashflows', 'joint_cashflows', 'recovery_batches',
+            or any(resources.get(k) for k in ('commands', 'fills', 'joint_cashflows', 'recovery_batches',
                                               'nav_operations', 'product_operations', 'lifecycle_operations'))
-            or command.batch.spot_fills or command.batch.swap_fills or command.batch.cashflows
-            or source.facts.account_trade_ids or source.facts.account_cashflow_ids):
+            or command.batch.spot_fills or command.batch.swap_fills or source.facts.account_trade_ids):
         raise StorageError('PG_LEGACY_APPLYING_PROFILE_UNSUPPORTED')
     row = next(iter(source.original_operations.values()))
     old = JointCashSpot.from_json(row['command'])
-    if old.spot_fills or old.spot_cashflows or old.spot_acks or old.spot_prepared_receipts or old.spot_terminal_operations or old.spot_settlement_operations:
+    if old.spot_fills or old.spot_acks or old.spot_prepared_receipts or old.spot_terminal_operations or old.spot_settlement_operations:
         raise StorageError('PG_LEGACY_APPLYING_PROFILE_UNSUPPORTED')
     original = {}
     for event in old.events:
@@ -106,17 +105,46 @@ def funding_profile(source, command):
             or {p.bill_id: (p.settled_at_ms, p.signed_payment_quote) for p in payments} != original):
         raise StorageError('PG_LEGACY_APPLYING_FACTS_CHANGED')
     policy = envelope['policy']['legacy_spot']['accounting_policy']
+    flows = {v.bill_id: v for v in old.spot_cashflows}
+    approved = {v['bill_id']: v for v in policy['approved_cashflows']}
+    if (len(approved) != len(policy['approved_cashflows'])
+            or len(command.batch.cashflows) != len(flows)
+            or {v.bill_id for v in command.batch.cashflows} != set(flows)
+            or set(source.facts.account_cashflow_ids) != set(flows)):
+        raise StorageError('PG_LEGACY_APPLYING_FACTS_CHANGED')
+    expected_base, expected_cash = Decimal(policy['opening_base_life']), Decimal(policy['opening_quote_usdt'])
+    for value in command.batch.cashflows:
+        original_flow, approval = flows[value.bill_id], approved.get(value.bill_id)
+        if (approval is None or any(value.json()[k] != original_flow.json()[k] for k in original_flow.json() if k != 'operation_id')
+                or (approval['currency'], Decimal(approval['signed_amount']), approval['transfer_at_ms'])
+                != (value.currency, value.signed_amount, value.transfer_at_ms)):
+            raise StorageError('PG_LEGACY_APPLYING_FACTS_CHANGED')
+        expected_base += value.signed_amount if value.currency == 'LIFE' else Decimal('0')
+        expected_cash += value.signed_amount if value.currency == 'USDT' else Decimal('0')
+    for value in resources.get('cashflow_operations', {}).values():
+        flow = LegacySpotStore._cashflow_from_json(value['command'])
+        if flow.bill_id not in flows or flow != flows[flow.bill_id] or value['state'] not in ('CASHFLOWING', 'APPLIED'):
+            raise StorageError('PG_LEGACY_APPLYING_PROFILE_UNSUPPORTED')
+    if any(key not in flows or value != flows[key].json() for key, value in resources.get('cashflows', {}).items()):
+        raise StorageError('PG_LEGACY_APPLYING_FACTS_CHANGED')
     before = json.loads(bytes.fromhex(row['before_native']['reservations']))
     loss = json.loads(bytes.fromhex(row['before_native']['loss']))
     subsidy = json.loads(bytes.fromhex(row['before_native']['subsidy']))
+    before_base, before_cash = Decimal(policy['opening_base_life']), Decimal(policy['opening_quote_usdt'])
+    for key, event in before['account_events'].items():
+        flow = flows.get(key.removeprefix('CASHFLOW:'))
+        if (not key.startswith('CASHFLOW:') or flow is None
+                or (event[0], event[1], Decimal(event[2])) != ('CASHFLOW', flow.currency, flow.signed_amount)):
+            raise StorageError('PG_LEGACY_APPLYING_ORIGINAL_BASIS_REQUIRED')
+        before_base += flow.signed_amount if flow.currency == 'LIFE' else Decimal('0')
+        before_cash += flow.signed_amount if flow.currency == 'USDT' else Decimal('0')
     if ((source.facts.account_base_life, source.facts.account_quote_usdt) != (old.account_base_life, old.account_quote_usdt)
             or any(Decimal(event['loss_quote']) != 0 for event in loss['events'].values()) or subsidy['entries']
-            or before['trades'] or before['account_events'] or before['reservations']
-            or Decimal(before['life_balance']) != Decimal(policy['opening_base_life'])
-            or Decimal(before['usdt_balance']) != Decimal(policy['opening_quote_usdt'])
-            or policy['approved_cashflows'] or any(int(at) < int(datetime.fromisoformat(policy['opened_at']).timestamp() * 1000) for at, _ in original.values())
-            or old.account_base_life != Decimal(policy['opening_base_life'])
-            or old.account_quote_usdt != Decimal(policy['opening_quote_usdt']) + sum((amount for _, amount in original.values()), Decimal(0))):
+            or before['trades'] or before['reservations']
+            or Decimal(before['life_balance']) != before_base or Decimal(before['usdt_balance']) != before_cash
+            or any(int(at) < int(datetime.fromisoformat(policy['opened_at']).timestamp() * 1000) for at, _ in original.values())
+            or old.account_base_life != expected_base
+            or old.account_quote_usdt != expected_cash + sum((amount for _, amount in original.values()), Decimal(0))):
         raise StorageError('PG_LEGACY_APPLYING_ORIGINAL_BASIS_REQUIRED')
     return policy
 

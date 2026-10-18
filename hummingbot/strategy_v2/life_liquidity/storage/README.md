@@ -78,15 +78,26 @@ path retires a source automatically. See the
 ### Native interrupted funding import
 
 Migration 50 and `postgres/legacy_applying.py` implement an explicit core
-funding-only profile. `frozen_legacy_applying_frame(binding)` returns the verified
+funding profile, including the completed approved transfers explicitly retained
+in the original `JointCashSpot` command. `frozen_legacy_applying_frame(binding)` returns the verified
 retired capsule, original IMPORT signature and original publication time. A
 separate migration-owner importer verifies external source/target public keys
 against immutable target configuration, exact target database/namespace and
 current signed IMPORT cut/facts. The original native opening capital policy
 must already exist and match the source; a partial File wallet never becomes
-an opening balance. Source orders/trades/external flows, prior NAV/cost history,
-nonzero loss or subsidy entries and outer joint capsules are refused by this
-initial profile.
+an opening balance. Source orders/trades, unrelated prior transfer/NAV/cost
+history, nonzero loss or subsidy entries and outer joint capsules are refused
+by this core profile. The separate outer profile below handles its declared
+mixed SWAP/transfer/funding history.
+
+For a declared core transfer/funding source, every selected original bill,
+asset, signed amount, transfer time, historical LIFE valuation/reference and
+observation time must match. The pre-application wallet is explained from the
+independent original opening policy plus only those verified transfers; it is
+never adopted as a new opening balance. The existing migration-52 approval
+predicate additionally requires the independently imported native original
+bill approvals. IMPORT cannot create those approvals or credit either wallet.
+Other prior/core/coordinator histories remain unsupported until qualified.
 
 `ImportLegacyApplying` retains exact original bill IDs, signed amounts and times
 as a money-neutral `JOINT_BATCH` pending. Approval storage and pending publication
