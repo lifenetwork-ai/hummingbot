@@ -807,3 +807,19 @@ account, policy, balance, activation or configured PostgreSQL sender.
   Existing gate OIDs/ACLs and prior numbered checksums remain unchanged; no
   accounts, capital or policy defaults are seeded. Runtime/reporting cannot
   edit/read the private source approvals or invoke private proof helpers.
+
+- `000051_legacy_joint_basis.sql`: private original SWAP basis/claim/order/ACK
+  proofs for retired outer joint imports. One initial retired source per account
+  namespace prevents competing orphan approvals. Explicit signed successors may
+  renew expired unpublished grants without changing original history; partial
+  unique indexes/FK and private proofs prevent forks, source replacement and
+  supersession of a published pending root. A superseded grant cannot publish
+  later. Existing duplicate initial origins abort migration without discarding
+  signed history. Existing target opening quantities and
+  entry prices must agree with the retained source; all original claims at the
+  signed cut must be represented. Source import never creates that original
+  basis or order skeleton. Native accounting still owns quantities, realized
+  PNL, fees, gross budgets and paid funding; terminal/shared release and readiness
+  remain separate. Cold common verification rejects missing or repriced
+  provenance. Existing OIDs/ACLs and script checksums are preserved, startup
+  repeats without bootstrap, and the new proof functions stay private.

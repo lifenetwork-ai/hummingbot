@@ -863,6 +863,94 @@ synthetic File sources/keys and unchanged limits. No `.env`, configured DB/accou
 exchange request, deployment or new repository evidence file is used.
 
 
+### PG3 R1 outer SWAP source import (2026-10-18)
+
+Base revision: `643846345`. Migration 51 and `postgres/legacy_joint.py` extend
+the existing source IMPORT → money-neutral pending → signed RECOVER route to
+first outer `JointRecovery` SWAP history, with optional original paid funding.
+This is part of R1; it does not complete all legacy parity or another fixed row.
+
+- [x] Preserve actual File interruptions before cash begins, during wallet writes,
+  after cash completion, after WAL terminal and after shared settlement. Match
+  original trade IDs/quantities/prices/times/fees/realized PNL/sequence and bill
+  IDs/amounts/times; retain exact original File participant images and source
+  retirement. Never copy a partial wallet or prematurely adopt source claim release.
+- [x] Require already qualified original native SPOT/long/short opening basis,
+  exact original session/claim/preparation/ACK and complete claim scope at the
+  signed cut. Native proof preserves those origins across later recovery and
+  flags missing/repriced provenance in common history, including a rehashed body.
+  Independently signed historical reference supplements cannot replace missing
+  derivative quantities or reprice original PNL. Import creates no original order.
+- [x] Exercise actual native SWAP/funding kernels: gross PNL loss and fee cost,
+  fee rebates, PNL gains/losses and funding debits/credits retain their distinct
+  accounting. Native pending/readback and successful RECOVER preserve HALT and
+  held target claims; explicit native terminal/release/activation remain separate.
+- [x] Canonicalize native decimal spellings before command signature capture.
+  Derived Carry DTO values such as trailing-zero balances must decode to the same
+  approved request; original sealed File bytes are not rewritten.
+- [x] Limit one initial retired original source per target account namespace.
+  A competing import identity is refused. Expired unpublished approvals need an
+  explicit fresh signed IMPORT successor naming the original approval, same
+  retired capsule and exact fresh cut/facts; previous rows are never rewritten.
+  Partial unique indexes, an FK and private proofs prevent forks and replacement
+  of a published root. A superseded grant cannot publish later. Renewal leaves
+  the diagnostic barrier in place until actual pending publication; separate
+  RECOVER still owns every monetary effect. Retained successors count toward
+  the existing explicit count/byte limits. Old shape/signatures stay valid.
+- [ ] Complete mixed SPOT/external-flow/prior financial history and installed
+  legacy hedge/carry coordinator state, plus remaining File/native decisions and
+  gross-budget parity. Those profiles and archive origins remain refused until
+  their complete provenance is imported; the original larger R1 exit stays open.
+
+**Final current-source qualification:** the complete `legacy_imports` selector
+passes **59 native cases**, zero failures/errors/skips, 6 existing warning
+categories, **211.80 s**, `/tmp/life-pg3-legacy-successor-qualified`.
+This includes the 36 core funding/source/successor cases and 23 outer SWAP
+cases; targeted predecessor/successor selectors are not extra coverage.
+**57 migration cases pass** (44.73 s,
+`/tmp/life-pg3-legacy-successor-final-migrations`), including 50→51 upgrade,
+OID/ACL preservation, private proofs and repeat startup without bootstrap.
+**118 affected File cases pass** (19.72 s,
+`/tmp/life-pg3-legacy-joint-file-regression.xml`); subsequent production changes
+are confined to PostgreSQL import/proofs. The preceding 57-case combined
+profile (196.83 s, `/tmp/life-pg3-legacy-combined-final`) predates the final
+source/successor guards and is not additional qualification. These are distinct
+scopes, not whole-product acceptance.
+
+Red/development findings: the first real outer import reproduced the unsupported
+profile. A private SQL alias ambiguity was corrected. The source fixture now
+seeds the target's original order/session before the shared historical fill,
+preserving real fill-after-preparation causality. Existing mode-2 collateral
+checks correctly refused the old File fixture's 100-USDT risk observation for a
+roughly 10-USDT wallet; the new synthetic profile supplies conservative actual
+cash/UPL collateral, without relaxing the guard. The halted import fixture signs
+its diagnostic cut after the old pre-fill 1000-ms carry observation has expired;
+it does not renew readiness, widen TTL or insert an invented intermediate source.
+`/tmp/life-pg3-legacy-origin-identity-red` reproduced two distinct stored source
+approvals for one original namespace. The explicit successor Red case then
+showed why a blanket ban on any new approval ID would strand an expired,
+unpublished source. The final route retains and supersedes that history with a
+new signature, permits no branch/published-root replacement, and exercises actual
+RECOVER after expiry without duplicate bills.
+
+The later complete `/tmp/life-pg3-legacy-origin-native-final` invocation retained
+**57 passes / 1 failure**: `PG_CARRY_NOT_READY` during original native SWAP arm,
+before the negative `side` import assertion. This was a stale 1000-ms fixture
+observation, not a canceled SQL statement. The fixture now captures independent
+account/mark/index/funding/terms streams immediately before original prepare and
+arm, while the fake venue still has its unchanged original pre-fill position;
+stream sequences remain increasing through import and RECOVER. No source-age,
+SQL, transaction or monetary limit is widened. The final 59-case current-source profile above passes with that sequencing
+correction, including the previously failing negative `side` case. Earlier broader 1000-ms SQL latency/COMMIT
+failures remain separate R5 blockers.
+
+No R1–R5 box, configured PostgreSQL service, PG8 performance or demo/live gate is
+closed. Qualification uses the pinned disposable loopback PostgreSQL 16.15 ARM
+image (2 CPU/1 GiB), synthetic original seeds/keys/File sources and unchanged
+financial/source/SQL limits. No `.env`, configured DB/account, exchange request,
+deployment or new repository evidence file is used.
+
+
 ### PG3 native hedge qualification (2026-10-17)
 
 Base `be18f304f`. Migration 41 and `PgHedgeRepository` add explicitly imported hedge policy/count/byte limits, permanent target versions, original-cut plans and native partial/terminal settlement. Actual SPOT/long/short inventory sizes one bounded maker child, with close-first behavior, exact contract lots, executable depth, basis, gross fee/funding, edge, exposure-age, retry and permanent cost-hold limits. Shared allocation, fresh carry qualification and original captured SWAP preparation publish atomically. Refusal rolls all child effects back but retains the attempt, conservative cost and retired IDs across operation kinds. Native fill accounting remains the only source of actual money; hedge observations cannot debit it twice or release a claim. Actual hedge-cost breach preserves truth and HALT.

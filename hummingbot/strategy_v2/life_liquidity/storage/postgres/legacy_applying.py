@@ -1,9 +1,10 @@
-"""Explicit retired File funding import; original basis is a prerequisite.
+"""Explicit retired File financial import; original basis is a prerequisite.
 
 IMPORT retains a money-neutral JOINT_BATCH pending. A different signed RECOVER
-command must run the existing native accounting kernels. This declared profile
-refuses trades, orders, external flows and earlier financial history; it cannot
-bootstrap a wallet, translate missing derivative quantities or grant readiness.
+command must run the existing native accounting kernels. Unsupported/missing
+history denies. This cannot bootstrap a wallet, translate missing derivative
+quantities or grant readiness. Expired unpublished approvals need a separately
+signed successor; no retained approval or deadline is rewritten.
 """
 import asyncio
 import base64
@@ -36,25 +37,38 @@ from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancial
 class ImportLegacyApplying:
     source_digest: str
     batch: ApplyJointBatch
+    supersedes_operation_id: str | None = None
 
     def __post_init__(self):
         digest(self.source_digest)
         if type(self.batch) is not ApplyJointBatch:
             raise StorageError('PG_LEGACY_APPLYING_COMMAND_INVALID')
+        # Carry DTO arithmetic may retain equivalent trailing zero spellings.
+        # Canonicalize at command construction, before signature/identity, so
+        # cold decoding cannot change the approved request bytes afterwards.
+        object.__setattr__(self, 'batch', ApplyJointBatch.from_json(self.batch.json()))
+        if self.supersedes_operation_id is not None:
+            identifier(self.supersedes_operation_id)
+            if len(self.supersedes_operation_id) > 96 or self.supersedes_operation_id == self.operation_id:
+                raise StorageError('PG_LEGACY_APPLYING_SUCCESSOR_INVALID')
 
     @property
     def operation_id(self):
         return self.batch.operation_id
 
     def json(self):
-        return dict(kind='IMPORT_LEGACY_APPLYING', operation_id=self.operation_id, source_digest=self.source_digest, batch=self.batch.json())
+        result = dict(kind='IMPORT_LEGACY_APPLYING', operation_id=self.operation_id, source_digest=self.source_digest, batch=self.batch.json())
+        if self.supersedes_operation_id is not None:
+            result['supersedes_operation_id'] = self.supersedes_operation_id
+        return result
 
     @classmethod
     def from_json(cls, value):
         try:
-            if type(value) is not dict or set(value) != {'kind', 'operation_id', 'source_digest', 'batch'}:
+            if type(value) is not dict or set(value) != {'kind', 'operation_id', 'source_digest', 'batch'} | (
+                    {'supersedes_operation_id'} if 'supersedes_operation_id' in value else set()):
                 raise ValueError()
-            command = cls(value['source_digest'], ApplyJointBatch.from_json(value['batch']))
+            command = cls(value['source_digest'], ApplyJointBatch.from_json(value['batch']), value.get('supersedes_operation_id'))
             if command.json() != value:
                 raise ValueError()
             return command
@@ -134,7 +148,7 @@ class PgLegacyApplyingImporter:
     def _audit_record(self, record, captured_at):
         source = LegacyApplyingSource.unpack(base64.b64decode(record['source'], validate=True))
         payload = record['payload']
-        command = ImportLegacyApplying(payload['source_digest'], ApplyJointBatch.from_json(payload['batch']))
+        command = ImportLegacyApplying.from_json(payload)
         if command.json() != payload or source.content_digest != command.source_digest:
             raise StorageError('PG_LEGACY_APPLYING_SOURCE_CHANGED')
         retirement = record['retirement']
@@ -150,14 +164,18 @@ class PgLegacyApplyingImporter:
                                     'IMPORT', retired.json(), source.cut, source.facts, datetime.fromisoformat(record['retired_at']))
         self.verifier.verify(approval_from_record(record, self.binding), self.binding, 'IMPORT', payload,
                              FinancialCut.from_json(record['cut']), SpotFinancialRecoveryFacts.from_json(record['facts']), captured_at)
-        policy = funding_profile(source, command)
+        if source.ancillary_images:
+            from hummingbot.strategy_v2.life_liquidity.storage.postgres.legacy_joint import joint_profile
+            policy = joint_profile(source, command)
+        else:
+            policy = funding_profile(source, command)
         if 'source_basis' in record and record['source_basis'] != policy:
             raise StorageError('PG_LEGACY_APPLYING_ORIGINAL_BASIS_REQUIRED')
         facts = SpotFinancialRecoveryFacts.from_json(record['facts'])
         if (facts.account_base_life != source.facts.account_base_life or facts.account_quote_usdt != source.facts.account_quote_usdt
                 or facts.liability_base_life or facts.liability_quote_usdt or not facts.order_scope_complete
                 or not facts.bill_scope_complete or not facts.runner_scope_complete
-                or facts.account_trade_ids or facts.account_cashflow_ids):
+                or facts.account_trade_ids != source.facts.account_trade_ids or facts.account_cashflow_ids):
             raise StorageError('PG_LEGACY_APPLYING_FACTS_CHANGED')
         return source, policy
 
@@ -217,10 +235,25 @@ class PgLegacyApplyingImporter:
                             raise StorageConflict('PG_LEGACY_APPLYING_IDENTITY_CONFLICT')
                         await tx.rollback()
                         return
-                    if type(source_store) is not LegacySpotStore:
+                    parent = None
+                    if command.supersedes_operation_id is not None:
+                        parent = await self._row(command.supersedes_operation_id)
+                        if (parent is None or parent['payload']['source_digest'] != command.source_digest
+                                or await c.fetchval('SELECT EXISTS(SELECT 1 FROM life_financial.operations WHERE account_id=$1 AND operation_id=$2)', cfg.account_id, command.supersedes_operation_id)
+                                or await c.fetchval('SELECT EXISTS(SELECT 1 FROM life_financial.legacy_applying_imports WHERE account_id=$1 AND supersedes_operation_id=$2)', cfg.account_id, command.supersedes_operation_id)):
+                            raise StorageConflict('PG_LEGACY_APPLYING_SUCCESSOR_INVALID')
+                    elif await c.fetchval('SELECT EXISTS(SELECT 1 FROM life_financial.legacy_applying_imports WHERE account_id=$1)', cfg.account_id):
+                        raise StorageConflict('PG_LEGACY_APPLYING_ORIGIN_ALREADY_IMPORTED')
+                    if source_store is None and parent is not None:
+                        source = LegacyApplyingSource.unpack(base64.b64decode(parent['source'], validate=True))
+                        retirement, retired_at = parent['retirement'], parent['retired_at']
+                    elif type(source_store) is not LegacySpotStore:
                         raise StorageError('PG_LEGACY_APPLYING_RETIRED_STORE_REQUIRED')
-                    source, retirement, retired_at = await source_store.frozen_legacy_applying_frame(source_store.binding)
+                    else:
+                        source, retirement, retired_at = await source_store.frozen_legacy_applying_frame(source_store.binding)
                     expected.update(source=base64.b64encode(source.pack()).decode(), retirement=retirement, retired_at=retired_at)
+                    if parent is not None and any(expected[k] != parent[k] for k in ('source', 'retirement', 'retired_at', 'source_verifier_policy')):
+                        raise StorageConflict('PG_LEGACY_APPLYING_SUCCESSOR_INVALID')
                     now = await c.fetchval('SELECT clock_timestamp()')
                     _, policy = self._audit(expected, now)
                     key_policy = await c.fetchval('SELECT body FROM life_financial.configurations WHERE account_id=$1 AND config_hash=$2', cfg.account_id, self.binding.config_hash)
@@ -241,12 +274,16 @@ class PgLegacyApplyingImporter:
                             or datetime.fromisoformat(policy['opened_at']) != native['opened_at'] or policy['anchor_bill_id'] != native['anchor_bill']):
                         raise StorageError('PG_LEGACY_APPLYING_ORIGINAL_BASIS_REQUIRED')
                     expected.update(account=json.loads(account), source_basis=policy)
+                    if 'swap_opening' in policy and not await c.fetchval('SELECT life_financial.legacy_joint_basis_valid($1,$2::jsonb,$3)',
+                                                                         cfg.account_id, json.dumps(policy), cut.checkpoint.revision):
+                        raise StorageError('PG_LEGACY_APPLYING_ORIGINAL_SWAP_BASIS_REQUIRED')
                     raw = json.dumps(expected, sort_keys=True, separators=(',', ':'))
                     if len(raw.encode()) > 4194304:
                         raise StorageError('PG_LEGACY_APPLYING_BOUND')
-                    await c.execute('''INSERT INTO life_financial.legacy_applying_imports VALUES($1,$2,$3,$4::jsonb,
-                        encode(sha256(convert_to(($4::jsonb)::text,'UTF8')),'hex'),$5)''', cfg.account_id, command.operation_id, command.source_digest, raw, now)
-                    if await source_store.frozen_legacy_applying_frame(source_store.binding) != (source, retirement, retired_at):
+                    await c.execute('''INSERT INTO life_financial.legacy_applying_imports
+                        (account_id,operation_id,source_digest,body,body_hash,captured_at,supersedes_operation_id) VALUES($1,$2,$3,$4::jsonb,
+                        encode(sha256(convert_to(($4::jsonb)::text,'UTF8')),'hex'),$5,$6)''', cfg.account_id, command.operation_id, command.source_digest, raw, now, command.supersedes_operation_id)
+                    if source_store is not None and await source_store.frozen_legacy_applying_frame(source_store.binding) != (source, retirement, retired_at):
                         raise StorageError('PG_LEGACY_APPLYING_SOURCE_CHANGED')
                     committing = True
                     await self._commit(tx)

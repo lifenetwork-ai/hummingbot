@@ -33,7 +33,7 @@ from hummingbot.strategy_v2.life_liquidity.state import IntentWAL
 D = Decimal
 
 
-def setup_recovery(tmp_path, *, values=None):
+def setup_recovery(tmp_path, *, values=None, opening_long_entry=D('1')):
     values = values or setup_shared(tmp_path, collateral="100", budget_capacity=50)
     c, capital, sender, spot, swap, wal, clock, account, feed, strategy, sc, pc = values
     if not c._order_safety_wal.path.exists():
@@ -54,7 +54,7 @@ def setup_recovery(tmp_path, *, values=None):
     recovery = JointRecovery(tmp_path / "joint_recovery.json", controller=c, collect=collect,
                              cancel_swap=cancel, clock_ms=lambda: int(clock.wall.timestamp() * 1000),
                              max_age_ms=1000, cancel_retry_ms=100, max_cancels_per_cycle=2, poll_interval_ms=250,
-                             opening_long_entry=D("1"),
+                             opening_long_entry=opening_long_entry,
                              opening_short_entry=D("1") if feed["snapshot"].short_base > 0 else D("0"), create=True)
     c.install_joint_recovery(recovery)
     return recovery, values, bundle, canceled
@@ -200,7 +200,8 @@ def cold_restore(recovery, v):
         c.install_hedge_coordinator(coordinator)
     joint = JointRecovery(recovery.journal.path, controller=c, collect=recovery.collect, cancel_swap=recovery.cancel_swap,
                           clock_ms=recovery.clock_ms, max_age_ms=1000, cancel_retry_ms=100, max_cancels_per_cycle=2, poll_interval_ms=250,
-                          opening_long_entry=D("1"), opening_short_entry=D("0"), create=False)
+                          opening_long_entry=D(recovery.journal.policy['opening_long_entry']),
+                          opening_short_entry=D(recovery.journal.policy['opening_short_entry']), create=False)
     c.install_joint_recovery(joint)
     strategy = SimpleNamespace(connectors={"okx": spot, "okx_perpetual": swap}, controllers={"life": c})
     c.trading_permissions_ready = lambda: True

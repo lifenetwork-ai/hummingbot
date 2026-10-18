@@ -14,10 +14,12 @@ from hummingbot.strategy_v2.life_liquidity.storage.control_plane import OwnerTra
 from hummingbot.strategy_v2.life_liquidity.storage.legacy_applying import RetireLegacyApplying
 
 
-async def interrupted(tmp_path, monkeypatch, stage):
+async def interrupted(tmp_path, monkeypatch, stage, *, before_report=None):
     repo, store, recovery, values, bundle, owner = await fixture(tmp_path, operator_keys=KEYS)
     assert await repo.reconcile(store.binding, owner)
     claim = await store._call(send_close, values)
+    if before_report is not None:
+        await before_report(repo, store, recovery, values, claim, owner)
     report(values, bundle, claim)
     target, name = {
         'outer_before_cash': (repo, 'apply_cash_settlement'),

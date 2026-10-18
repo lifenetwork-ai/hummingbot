@@ -69,7 +69,7 @@ Capture performs no financial observation/check/reconcile publication; physical
 retirement and cold reads verify every component again. Archives remain denied;
 this financial capsule does not include recorder/control-plane service backup.
 Existing core-only format-1 capsules retain their original serialization. Native baseline/order provenance, typed
-primitive import/parity, distributed fencing and configured service acceptance
+complete primitive import/parity, distributed fencing and configured service acceptance
 remain required. Retirement never copies a partial final balance into PostgreSQL,
 releases an order/shared claim or authorizes an exchange request. No startup
 path retires a source automatically. See the
@@ -101,10 +101,48 @@ The existing separately signed `ResolveJointSources` RECOVER route then applies
 the original funding through native causal accounting against fresh complete
 sources. Raw pending receipts stay immutable, HALT and claims remain held, and
 no approval/readback grants readiness or releases an order. This is a declared
-interrupted financial profile, not the PG6 general bootstrap/importer. Outer
+interrupted financial profile, not the PG6 general bootstrap/importer. Complete
 joint/SPOT/SWAP parity, provider/collateral reconciliation and configured service
 acceptance remain PG3 work. Disposable functional qualification does not close
 the recorded R5 SQL latency failures.
+
+### Native outer SWAP import
+
+Migration 51 and `postgres/legacy_joint.py` extend the same IMPORT/pending/RECOVER
+route to a first outer `JointRecovery` SWAP history, with optional paid funding.
+It handles capture before core cash begins, while the wallet is partial and
+after cash/WAL/shared settlement has completed but the outer receipt remains
+APPLYING. Source bytes retain all participants and the exact original state;
+native import never adopts the source's partial balance or settled-claim result.
+One retired original source is permitted per target account namespace; a second
+import ID cannot leave a competing orphan approval. Exact original-ID replay
+remains available. An expired unpublished approval may be superseded only by
+an explicit fresh IMPORT signature with `supersedes_operation_id`, the same
+retired capsule and original native basis, and a new exact cut/facts. Immutable
+predecessor rows remain; one successor per predecessor prevents forks. A
+published pending root cannot be superseded: its separate RECOVER route remains
+required. Retained successors count toward the existing explicit capacity bounds.
+
+The target must already retain independently qualified original opening SPOT and
+long/short quantities/entries, the original session/claim, preparation and ACK.
+Private native history checks match that original basis and all original claims
+at the signed cut. Missing/repriced basis or substituted order/session/wire/side,
+trade quantity/price/time/fee/PNL/sequence is refused, even with a new target
+signature. Historical independent reference values are explicit signed target
+supplements; they cannot replace missing original derivative quantities or PNL.
+
+RECOVER uses native causal SWAP/funding accounting, including gross fee/loss
+and separate funding debits. Positive PNL, rebates and funding receipts cannot
+refund prior gross costs. The original pending receipt and held target claim
+remain after recovery; native terminal/release and activation are separate.
+Import DTOs canonicalize native decimal spellings before signature capture so
+cold decoding preserves the approved request. Original File bytes stay exact.
+
+This profile refuses earlier/mixed SPOT or external-flow history, installed
+legacy hedge/carry coordinator state and archives whose required provenance is
+not yet imported. Complete legacy parity, provider/liability mapping and the
+fixed remaining PG3 service/control/hedge/acceptance gates remain open. The
+configured PostgreSQL service remains rejected.
 
 ## Original-runtime final send fence
 

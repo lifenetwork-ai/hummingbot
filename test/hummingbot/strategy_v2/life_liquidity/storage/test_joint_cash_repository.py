@@ -28,8 +28,8 @@ from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancial
 from hummingbot.strategy_v2.life_liquidity.storage.terminal import SpotTerminalPolicy
 
 
-async def fixture(tmp_path, *, spot=False, approvals=(), settlement_policy=None, operator_keys=None):
-    recovery, values, bundle, _ = setup_recovery(tmp_path / 'native')
+async def fixture(tmp_path, *, spot=False, approvals=(), settlement_policy=None, operator_keys=None, shared_values=None, opening_long_entry=D('1')):
+    recovery, values, bundle, _ = setup_recovery(tmp_path / 'native', values=shared_values, opening_long_entry=opening_long_entry)
     c, _, _, _, _, _, clock, _, _, _, _, _ = values
     _, binding, owner = create_fixture(tmp_path / 'seed')
     session = c._order_safety_manager.current_session

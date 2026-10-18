@@ -401,3 +401,86 @@ async def test_unpublished_import_cannot_be_bypassed_by_an_ordinary_financial_wr
     finally:
         await store.close()
         await financial.close()
+
+
+@pytest.mark.asyncio
+async def test_a_second_import_identity_cannot_create_an_orphan_approval_and_deadlock_recovery(database, tmp_path, monkeypatch):
+    values, batch, command, cut, facts, approval, importer, store, _ = await setup(database, tmp_path, monkeypatch)
+    financial, cfg, _ = values[:3]
+    try:
+        await importer._approve(command, store, approval, cut, facts)
+        other = replace(command, batch=replace(command.batch, operation_id='different-source-import'))
+        signed = KEYS.sign('operator', cfg.binding, 'IMPORT', other.json(), cut, facts,
+                           issued_at=approval.issued_at, expires_at=approval.expires_at)
+        with pytest.raises(StorageError, match='PG_LEGACY_APPLYING_ORIGIN_ALREADY_IMPORTED'):
+            await importer._approve(other, store, signed, cut, facts)
+        assert await database[0].fetchval('SELECT count(*) FROM life_financial.legacy_applying_imports WHERE account_id=$1', cfg.account_id) == 1
+        assert (await importer.import_pending(command, source_store=None, approval=approval, cut=cut, facts=facts)).state == 'RECOVERY_REQUIRED'
+        assert (await financial.balance(cfg.binding)).total_quote_usdt == 10
+    finally:
+        await store.close()
+        await financial.close()
+
+
+@pytest.mark.asyncio
+async def test_expired_unpublished_source_needs_explicit_signed_successor_not_history_rewrite(database, tmp_path, monkeypatch):
+    import asyncio
+    values, batch, old, cut, facts, approval, importer, store, _ = await setup(database, tmp_path, monkeypatch)
+    financial, cfg, owner = values[:3]
+    try:
+        await importer._approve(old, store, approval, cut, facts)
+        original = await database[0].fetchval('SELECT body FROM life_financial.legacy_applying_imports WHERE account_id=$1', cfg.account_id)
+        await asyncio.sleep(5.05)  # Existing max fact age is 5000 ms.
+        with pytest.raises(StorageError):
+            await importer.import_pending(old, source_store=None, approval=approval, cut=cut, facts=facts)
+        now = await database[0].fetchval('SELECT clock_timestamp()')
+        facts = replace(facts, observed_at=now)
+        cut = (await financial.observation_cut(cfg.binding)).cut
+        renewed = replace(old, batch=replace(old.batch, operation_id='renewed-pending'), supersedes_operation_id=old.operation_id)
+        assert ImportLegacyApplying.from_json(renewed.json()) == renewed
+        signed = KEYS.sign('operator', cfg.binding, 'IMPORT', renewed.json(), cut, facts, issued_at=now, expires_at=now + timedelta(seconds=10))
+        assert (await importer.import_pending(renewed, source_store=None, approval=signed, cut=cut, facts=facts)).state == 'RECOVERY_REQUIRED'
+        assert (await financial.balance(cfg.binding)).total_quote_usdt == 10
+        assert await database[0].fetchval('SELECT body FROM life_financial.legacy_applying_imports WHERE account_id=$1 AND operation_id=$2', cfg.account_id, old.operation_id) == original
+        assert (await importer.lookup(old.operation_id)) is None
+        assert (await importer.lookup(renewed.operation_id)).state == 'RECOVERY_REQUIRED'
+        # The signed successor cannot itself branch or replace a published root.
+        branch = replace(renewed, batch=replace(renewed.batch, operation_id='branched-pending'))
+        sign_branch = KEYS.sign('operator', cfg.binding, 'IMPORT', branch.json(), cut, facts, issued_at=now, expires_at=now + timedelta(seconds=10))
+        with pytest.raises(StorageError):
+            await importer._approve(branch, None, sign_branch, cut, facts)
+        published = replace(branch, supersedes_operation_id=renewed.operation_id)
+        current = (await financial.observation_cut(cfg.binding)).cut
+        sign_published = KEYS.sign('operator', cfg.binding, 'IMPORT', published.json(), current, facts,
+                                   issued_at=now, expires_at=now + timedelta(seconds=10))
+        with pytest.raises(StorageError, match='PG_LEGACY_APPLYING_SUCCESSOR_INVALID'):
+            await importer._approve(published, None, sign_published, current, facts)
+        assert await database[0].fetchval('SELECT count(*) FROM life_financial.legacy_applying_imports WHERE account_id=$1', cfg.account_id) == 2
+        assert len(await values[5].claims(cfg.binding)) == 1
+        assert not (await importer.import_pending(renewed, source_store=None, approval=signed, cut=cut, facts=facts)).trading_permission
+        now = await database[0].fetchval('SELECT clock_timestamp()')
+        at = int(now.timestamp() * 1000)
+        b = renewed.batch.funding.bundle
+        b = replace(b, account=replace(b.account, snapshot=replace(b.account.snapshot, sequence=3, observed_at_ms=at)),
+                    mark=replace(b.mark, sequence=3, observed_at_ms=at), index=replace(b.index, sequence=3, observed_at_ms=at),
+                    funding=replace(b.funding, sequence=3, observed_at_ms=at, coverage_through_ms=at,
+                                    settlement_ms=at + 10000, next_settlement_ms=at + 10000 + 4 * 3600000), terms=replace(b.terms, sequence=3, observed_at_ms=at))
+        repair = ResolveJointSources('renewal-recover', renewed.operation_id,
+                                     replace(renewed.batch, operation_id='renewal-applied', funding=replace(renewed.batch.funding, operation_id='renewal-funding', bundle=b)))
+        opening = await database[0].fetchval('SELECT floor(extract(epoch FROM opened_at)*1000)::bigint FROM life_financial.spot_capital_policies WHERE account_id=$1', cfg.account_id)
+        proof = JointRepairFacts(replace(facts, observed_at=now, accepted_wire_ids=('SwapWire1',)), (), ('777',), True, opening, at)
+        repair_cut = (await financial.observation_cut(cfg.binding)).cut
+        recover_approval = KEYS.sign('operator', cfg.binding, 'RECOVER', repair.json(), repair_cut, proof, issued_at=now, expires_at=now + timedelta(seconds=10))
+        await PgJointRepairApprovalImporter(database[0], batch, verifier=KEYS.verifier(), max_fact_age_ms=5000).approve(
+            repair, approval=recover_approval, cut=repair_cut, facts=proof)
+        repo = PgJointRepairRepository(batch)
+        assert (await repo.resolve(repair, cut=repair_cut, owner=owner)).state == 'REPAIRED'
+        assert (await repo.resolve(repair, cut=repair_cut, owner=owner)).replayed
+        assert (await financial.balance(cfg.binding)).total_quote_usdt == D('9.9')
+        assert await database[0].fetchval('SELECT count(*) FROM life_financial.funding_cash_payments WHERE account_id=$1', cfg.account_id) == 1
+        assert (await importer.lookup(old.operation_id)) is None
+        assert (await importer.lookup(renewed.operation_id)).state == 'RECOVERY_REQUIRED'
+        assert await database[0].fetchval('SELECT count(*) FROM life_financial.operations WHERE account_id=$1 AND operation_id=$2', cfg.account_id, old.operation_id) == 0
+    finally:
+        await store.close()
+        await financial.close()
