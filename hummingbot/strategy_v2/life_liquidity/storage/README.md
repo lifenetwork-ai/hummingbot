@@ -3329,3 +3329,29 @@ have actual File-resume parity checks; previously applied joint parents, other
 core commands, terminal/economic settlement and other undeclared histories
 remain refused. This extension does not close the full R1/provider or configured
 service contracts.
+
+### Completed funding history before retired core recovery
+
+The core File importer verifies completed funding-only `JointCashSpot` commands
+before its single APPLYING command. Each original command, owner/cut fingerprint
+and before-image hash remains present; completed cuts precede the interrupted
+cut. Every historical before-wallet is explained from the independently seeded
+opening basis, exact retained SPOT/fee/approved-transfer leaves and cumulative
+funding events. A missing earlier paid event, wrong receipt money or changed
+origin fails even when the synthetic metadata digest is recomputed. Historical
+money is never adopted as a new opening wallet. Full cumulative funding bills
+retain gross debits despite credits, and cold recovery preserves original HALT,
+holds and receipts. Completed historical commands containing other side effects
+still require their corresponding profiles.
+
+Migration 61 composes original APPLIED native joint parents with the same
+signed source. Each original member must retain its actual child operation,
+request, receipt and fingerprint; its economic leaves must occur unchanged in
+the complete File target. SPOT/SWAP cumulative snapshots can add later leaves,
+with original preparation/order/session identity unchanged. Funding retains all
+original bills and times. These local prefix checks do not recurse into the
+full account proof; existing native causal cash/position/cost verification still
+runs at admission and physical COMMIT. Corruption, orphan operations and pending
+parents refuse cold proof and cannot release a claim. Later recovery parents do
+not rewrite the historical import cut. Repaired-origin parents and undeclared
+File histories remain refused; configured PostgreSQL selection is still rejected.

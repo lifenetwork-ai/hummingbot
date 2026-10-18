@@ -30,7 +30,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancial
 KEYS = OperatorKeys({'operator': b'i' * 32}, {'operator': frozenset(('IMPORT', 'RECOVER', 'DRAIN'))})
 
 
-async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashflow=None, spot_fill=None, file_result=None, retained_cashflows_only=False, spot_prefix=False, book_native_prefix=False, spot_open_only=False, book_native_cashflow=False, book_native_funding=False):
+async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashflow=None, spot_fill=None, file_result=None, retained_cashflows_only=False, spot_prefix=False, book_native_prefix=False, spot_open_only=False, book_native_cashflow=False, book_native_funding=False, prior_funding=(), prior_after_accounting=False, book_native_parent=False, book_native_accounting_parent=False):
     from test.hummingbot.strategy_v2.life_liquidity.storage import test_spot_financial_contracts as file_fixture
     from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_funding import setup as funding_setup
 
@@ -53,12 +53,29 @@ async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashfl
                                                                      **({} if initial is None else {'original_session_id': initial[2].session_id})))
     financial, cfg, owner = values[:3]
     admin = database[0]
-    if book_native_funding:
-        original_payment = replace(payment, operation_id='native-prior-funding')
-        assert (await funding.apply_funding(original_payment, cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)).state == 'APPLIED'
+    if prior_funding:
+        from hummingbot.strategy_v2.life_liquidity.carry_monitor import FundingPayment
+        original = payment.bundle.funding.payments[0]
+        earlier = tuple(FundingPayment(str(770 + i), original.settled_at_ms - len(prior_funding) + i, amount)
+                        for i, amount in enumerate(prior_funding))
+        b = payment.bundle
+        amount = sum(prior_funding, D('0'))
+        payment = replace(payment, bundle=replace(b,
+                                                  account=replace(b.account, included_funding_bill_ids=tuple(p.bill_id for p in (*earlier, original)),
+                                                                  snapshot=replace(b.account.snapshot, spot_cash_quote=b.account.snapshot.spot_cash_quote + amount,
+                                                                                   collateral_quote=b.account.snapshot.collateral_quote + amount)),
+                                                  funding=replace(b.funding, payments=(*earlier, original))))
     await admin.execute('INSERT INTO life_financial.joint_batch_policies VALUES($1,$2,32,64,1048576)', cfg.account_id, cfg.binding.policy_hash)
     await admin.execute('INSERT INTO life_financial.joint_repair_policies VALUES($1,$2,64,64,1048576,5000)', cfg.account_id, cfg.binding.policy_hash)
     await admin.execute('INSERT INTO life_financial.legacy_applying_policies VALUES($1,$2,4,4194304,5000)', cfg.account_id, cfg.binding.policy_hash)
+    if book_native_funding:
+        original_payment = replace(payment, operation_id='native-prior-funding')
+        if book_native_parent:
+            prior_batch = ApplyJointBatch('native-prior-parent', (), (), (), original_payment)
+            assert (await PgJointBatchRepository(funding.swap).apply(prior_batch,
+                                                                     cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)).state == 'APPLIED'
+        else:
+            assert (await funding.apply_funding(original_payment, cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)).state == 'APPLIED'
     now = await admin.fetchval('SELECT clock_timestamp()')
     opened = await admin.fetchval('SELECT opened_at FROM life_financial.spot_capital_policies WHERE account_id=$1', cfg.account_id)
     with monkeypatch.context() as patches:
@@ -67,7 +84,7 @@ async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashfl
     binding = replace(cfg.binding, lineage=uuid4())
     clock = [now]
     flows, approvals = (), ()
-    base, quote = D('5'), D('9.9')
+    base, quote = D('5'), D('9.9') + sum(prior_funding, D('0'))
     if cashflow is not None:
         currency, amount, price = cashflow
         await admin.execute('INSERT INTO life_financial.spot_fill_policies VALUES($1,$2,1000,4096)', cfg.account_id, cfg.binding.policy_hash)
@@ -92,6 +109,22 @@ async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashfl
                                       accounting_policy=accounting, recovery_policy=SpotFinancialRecoveryPolicy(5000), operator_keys=KEYS)
 
     store = await open_file(create=True)
+    prior_events = ()
+
+    async def complete_history():
+        nonlocal prior_events
+        if not prior_funding:
+            return
+        before = (await store.snapshot(binding)).balance
+        running_cash = before.total_quote_usdt
+        for i, previous in enumerate(payment.bundle.funding.payments[:-1]):
+            prior_events += (JointCashEvent(f'JOINT:{previous.settled_at_ms}:FUNDING:{previous.bill_id}', previous.signed_payment_quote),)
+            running_cash += previous.signed_payment_quote
+            old = JointCashSpot(f'file-prior-funding-{i}', binding, format(i + 1, '064x'), clock[0],
+                                prior_events, before.total_base_life, running_cash, True, True, 'okx_joint_reconciled')
+            assert (await store.apply_joint_cash(old, cut=(await store.snapshot(binding)).cut, owner=file_owner)).state == 'APPLIED'
+    if not prior_after_accounting:
+        await complete_history()
     fills = ()
     if spot_fill is not None:
         from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_shared_capital import (
@@ -126,7 +159,7 @@ async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashfl
                 prefix = replace(f.fills[0], trade_id='trade0', quantity_base_life=D('.5'), signed_fee=D('-.001'))
                 first = replace(f, operation_id='file-prefix', cumulative_base_life=D('.5'), fills=(prefix,))
                 await store.apply_fills(first, cut=(await store.snapshot(binding)).cut, owner=file_owner)
-                if book_native_prefix:
+                if book_native_prefix and not book_native_accounting_parent:
                     assert (await financial.apply_fills(first, cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)).state == 'APPLIED'
                 f = replace(f, fills=(prefix, replace(f.fills[0], quantity_base_life=D('.5'), signed_fee=D('-.019'))))
             fills = (f,)
@@ -140,12 +173,45 @@ async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashfl
         # already have an APPLIED receipt before a new joint command starts.
         # Partially written transfer + joint recovery uses the outer profile.
         await store.apply_cashflow(flows[0], cut=(await store.snapshot(binding)).cut, owner=file_owner)
-        if book_native_cashflow:
+        if book_native_cashflow and not book_native_accounting_parent:
             prior = replace(flows[0], operation_id='native-prior-transfer')
             assert (await financial.apply_cashflow(prior, cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)).state == 'APPLIED'
-    paid = payment.bundle.funding.payments[0]
+    if prior_after_accounting:
+        await complete_history()
+    if book_native_accounting_parent:
+        # One independently declared final fake provider snapshot for the
+        # ORIGINAL atomic prefix batch, from opening + its exact leaves.
+        # Do not use the partial File wallet as a native opening balance.
+        received = await admin.fetchval('SELECT clock_timestamp()')
+        stamp = int(received.timestamp() * 1000)
+        original_spot = replace(first, operation_id='native-prior-spot', observed_at=received)
+        original_flows = tuple(replace(v, operation_id='native-prior-transfer') for v in flows)
+        original_base, original_cash = D('5'), D('10')
+        for item in original_spot.fills:
+            original_base += item.quantity_base_life if original_spot.side == 'BUY' else -item.quantity_base_life
+            original_cash += -item.quantity_base_life * item.price_usdt if original_spot.side == 'BUY' else item.quantity_base_life * item.price_usdt
+            original_base += item.signed_fee if item.fee_currency == 'LIFE' else D('0')
+            original_cash += item.signed_fee if item.fee_currency == 'USDT' else D('0')
+        for item in original_flows:
+            original_base += item.signed_amount if item.currency == 'LIFE' else D('0')
+            original_cash += item.signed_amount if item.currency == 'USDT' else D('0')
+        original_cash += sum((p.signed_payment_quote for p in payment.bundle.funding.payments), D('0'))
+        b = payment.bundle
+        observed = replace(b, account=replace(b.account, snapshot=replace(b.account.snapshot,
+                                                                          sequence=b.account.snapshot.sequence + 1, observed_at_ms=stamp,
+                                                                          spot_life_base=original_base, spot_cash_quote=original_cash, collateral_quote=original_cash)),
+                           mark=replace(b.mark, sequence=b.mark.sequence + 1, observed_at_ms=stamp),
+                           index=replace(b.index, sequence=b.index.sequence + 1, observed_at_ms=stamp),
+                           funding=replace(b.funding, sequence=b.funding.sequence + 1, observed_at_ms=stamp, coverage_through_ms=stamp),
+                           terms=replace(b.terms, sequence=b.terms.sequence + 1, observed_at_ms=stamp))
+        parent = ApplyJointBatch('native-prior-parent', (original_spot,), (), original_flows,
+                                 replace(payment, operation_id='native-prior-funding', bundle=observed))
+        await admin.execute('UPDATE life_financial.accounts SET halted=true WHERE account_id=$1', cfg.account_id)
+        assert (await PgJointBatchRepository(funding.swap).apply(parent,
+                                                                 cut=(await financial.observation_cut(cfg.binding)).cut, owner=owner)).state == 'APPLIED'
+    paid = payment.bundle.funding.payments[-1]
     joint = JointCashSpot('file-joint', binding, 'c' * 64, now,
-                          (JointCashEvent(f'JOINT:{paid.settled_at_ms}:FUNDING:{paid.bill_id}', paid.signed_payment_quote),),
+                          (*prior_events, JointCashEvent(f'JOINT:{paid.settled_at_ms}:FUNDING:{paid.bill_id}', paid.signed_payment_quote)),
                           base, quote, True, True, 'okx_joint_reconciled',
                           spot_cashflows=() if retained_cashflows_only else flows, spot_fills=fills)
     target, method = ((store._ledger, 'apply_joint_snapshot') if stage.startswith('wallet')

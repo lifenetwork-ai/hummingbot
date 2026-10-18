@@ -85,12 +85,12 @@ def funding_profile(source, command):
     """All historical money must be present; never infer it from partial cash."""
     envelope = json.loads(source.checkpoint_bytes)
     resources = envelope['state']['resources']
-    if (source.ancillary_images or len(source.original_operations) != 1 or len(source.core_pending_operation_ids) != 1
-            or any(resources.get(k) for k in ('joint_cashflows', 'recovery_batches',
+    if (source.ancillary_images or len(source.core_pending_operation_ids) != 1
+            or any(resources.get(k) for k in ('recovery_batches',
                                               'nav_operations', 'product_operations', 'lifecycle_operations'))
             or command.batch.swap_fills):
         raise StorageError('PG_LEGACY_APPLYING_PROFILE_UNSUPPORTED')
-    row = next(iter(source.original_operations.values()))
+    row = source.original_operations[source.core_pending_operation_ids[0]]
     old = JointCashSpot.from_json(row['command'])
     if old.spot_acks or old.spot_prepared_receipts or old.spot_terminal_operations or old.spot_settlement_operations:
         raise StorageError('PG_LEGACY_APPLYING_PROFILE_UNSUPPORTED')
@@ -142,6 +142,8 @@ def funding_profile(source, command):
             raise StorageError('PG_LEGACY_APPLYING_PROFILE_UNSUPPORTED')
     if any(key not in flows or value != flows[key].json() for key, value in resources.get('cashflows', {}).items()):
         raise StorageError('PG_LEGACY_APPLYING_FACTS_CHANGED')
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.legacy_funding_history import funding_history
+    completed = funding_history(source, old, command.batch, flows, policy)
     before = json.loads(bytes.fromhex(row['before_native']['reservations']))
     if not retained <= {key.removeprefix('CASHFLOW:') for key in before['account_events'] if key.startswith('CASHFLOW:')}:
         raise StorageError('PG_LEGACY_APPLYING_ORIGINAL_BASIS_REQUIRED')
@@ -153,12 +155,19 @@ def funding_profile(source, command):
     for key, event in before['account_events'].items():
         if key.startswith('FEE:'):  # Exact prefix membership/value was checked by spot_basis.
             continue
+        if key in completed:
+            if (event[0], event[1], Decimal(event[2])) != ('JOINT', 'USDT', completed[key].signed_amount_usdt):
+                raise StorageError('PG_LEGACY_APPLYING_ORIGINAL_BASIS_REQUIRED')
+            before_cash += completed[key].signed_amount_usdt
+            continue
         flow = flows.get(key.removeprefix('CASHFLOW:'))
         if (not key.startswith('CASHFLOW:') or flow is None
                 or (event[0], event[1], Decimal(event[2])) != ('CASHFLOW', flow.currency, flow.signed_amount)):
             raise StorageError('PG_LEGACY_APPLYING_ORIGINAL_BASIS_REQUIRED')
         before_base += flow.signed_amount if flow.currency == 'LIFE' else Decimal('0')
         before_cash += flow.signed_amount if flow.currency == 'USDT' else Decimal('0')
+    if {key for key in before['account_events'] if key.startswith('JOINT:')} != set(completed):
+        raise StorageError('PG_LEGACY_APPLYING_ORIGINAL_BASIS_REQUIRED')
     if ((source.facts.account_base_life, source.facts.account_quote_usdt) != (old.account_base_life, old.account_quote_usdt)
             or Decimal(before['life_balance']) != before_base or Decimal(before['usdt_balance']) != before_cash
             or any(int(at) < int(datetime.fromisoformat(policy['opened_at']).timestamp() * 1000) for at, _ in original.values())

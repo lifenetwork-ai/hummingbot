@@ -689,7 +689,8 @@ qualification/revision recorded in each increment below.
 - [x] Declared first outer File SWAP/funding/approved-transfer interruption profiles, including original entry basis and signed recovery.
 - [x] Already booked native transfer prefixes: exact original economic facts, hashes and receipts; migration-59 combined recovery and upgrade qualification below.
 - [x] Declared original native SWAP/funding prefixes, with exact prior receipts/hashes, File parity, cold recovery and actual 59→60 upgrades.
-- [ ] Prior applied core financial commands and prior native joint batches outside the declared first-command profiles.
+- [x] Completed funding-only core commands and original APPLIED native joint parents for the declared recovery profiles; original basis, exact leaves, gross budgets and cold restart remain verified.
+- [ ] Other completed core command families and repaired-origin native joint parent histories required by the supported File recovery modes.
 - [ ] Prior other-order, PREPARED-only, cancellation, terminal/NAV and economic settlement histories needed by supported File recovery modes.
 - [ ] Outer SPOT and hedge/carry coordinator financial checkpoint recovery.
 - [ ] Complete authenticated order/trade/bill/runner scope and original collateral/liability source consumption at every required terminal/shared-release route.
@@ -2822,3 +2823,116 @@ coverage, not one full passing invocation. There is no claim of one clean full-s
 The existing 75-pass migration qualification remains current because SQL is
 unchanged. The first two failed integrations remain recorded, and neither
 suspended-host operation nor the loaded R5 SQL timeout is discharged.
+
+### PG3 completed funding history and original native parents (2026-10-18)
+
+Base revision: `4385a663a`. The File core importer now verifies completed
+funding-only commands before one APPLYING command. It retains every original
+owner/cut fingerprint and before-image hash, checks chronological command cuts
+and cumulative bill origins, and independently explains each historical
+before-wallet from opening capital plus exact SPOT/fee/approved-transfer/funding
+facts. Known SPOT/transfer activity may precede the completed funding commands.
+A partial wallet, missing historical bill or net funding amount cannot become a
+new opening basis or refund gross funding costs. Other completed command
+families and undeclared histories still require their own financial profiles.
+
+Migration 61 additionally verifies already APPLIED native joint parents and
+all original member requests/receipts against the signed complete File target.
+Original child identities, source hashes, versions and economic leaves remain;
+new cumulative SPOT/SWAP snapshots can add missing leaves without replaying the
+old money. Source proof is local and does not recursively call the complete
+account proof. Native causal money/positions/gross costs and physical COMMIT
+barriers remain independent requirements. Original pending/repaired parents are
+not promoted to APPLIED. Historical cut filtering preserves the import basis
+when later repair parents appear. The private helper preserves predecessor
+OIDs/ACLs and changes no table, money, permission or policy default.
+
+TDD development results (overlapping selectors, not additive coverage):
+
+- Completed File history Red: one failure, 6.38 s,
+  `/tmp/life-r1-completed-core-history-red`, reproduces the unsupported legitimate
+  completed-command profile. Initial green: 18 passes, 80.25 s,
+  `/tmp/life-r1-completed-core-history-green`, covering debit/credit histories,
+  three interruption stages, File resume and two native cold restores.
+- Independent rehashed-basis refusal: one test covers eleven metadata,
+  before-wallet, bill/origin/cut and unsupported-terminal mutations; 6.04 s,
+  `/tmp/life-r1-completed-core-history-refusal`. This is a read-only component
+  test on actual captured evidence; it grants no authority to replace the
+  retired source. Four combined SPOT/transfer/history parity cases pass,
+  22.81 s, `/tmp/life-r1-completed-core-history-combined`.
+- Original native parent Red: one failure, 6.70 s,
+  `/tmp/life-r1-native-parent-prefix-red`, reproduces the old blanket parent
+  refusal. Six funding-parent/File-history recovery cases pass, 30.03 s,
+  `/tmp/life-r1-native-parent-prefix-green`.
+- Initial SWAP/transfer/funding-parent cases: two passes, 12.82 s,
+  `/tmp/life-r1-native-parent-prefix-swap`, before adding the independent File
+  resume oracle to this selector. The SPOT-prefix parent attempt has one
+  replacement refusal, 7.95 s, `/tmp/life-r1-native-parent-prefix-spot`: its
+  fixed repair sequence 3 conflicts with the original parent's sequence 3.
+  Newly captured fake responses now advance the actual fixture cursors; no
+  old source or policy is changed. Both cases pass, 14.07 s,
+  `/tmp/life-r1-native-parent-prefix-spot-cursors`.
+- Parent integrity/cold corruption/actual 60→61 upgrades: six passes, 26.34 s,
+  `/tmp/life-r1-native-parent-prefix-integrity`. Selected rolled-back
+  owner-only corruptions retain system FKs, and committed member corruption
+  denies cold source proof with HALT and original claims held.
+
+The actual migration suite passes **78 cases**, zero failures/errors/skips,
+**65.04 s** (`/tmp/life-r1-completed-history-parent-migrations`), including
+actual 60→61 upgrades, repeat startup, OID/ACL preservation and atomic refusal
+of unexpected predecessor function bodies. The combined native attempt stops
+at **213 passes / one failure**, 1,791 deselected, six existing warnings,
+**754.58 s** (`/tmp/life-r1-completed-history-parent-final`). The original
+native-funding prefix at `funding1-outer_before_cash` is rejected by
+`LIFE_JOINT_MEMBER_PENDING` inside signed recovery. It is not a statement timeout
+and the trace does not identify the nested member's denial reason. The last two
+account-cut reads take about 98 and 372 ms; replacement execution takes about
+408 ms, so the 1,000-ms bundle freshness window is under pressure. This is a
+diagnostic observation, not proof that expiry caused the member refusal.
+
+The outer fixture now establishes its unchanged halted accounting cut before
+collecting the fresh fake provider response, avoiding spending that response's
+validity on the first cut read. Signed approval still independently checks the
+same cut; no source age, approval expiry, SQL timeout or production function is
+changed. Failure-only primary/monotonic timing now covers replacement execution
+as well as approval. All **nine** original SWAP/funding-prefix cases pass in
+**46.52 s**, 2,122 deselected, six existing warnings
+(`/tmp/life-r1-completed-history-parent-cut-before-capture`). The subsequent
+remaining selector passes **70 cases** before a different setup failure,
+**278.71 s**, 1,941 deselected, six existing warnings
+(`/tmp/life-r1-completed-history-parent-final-remaining`). Its second original
+SWAP/transfer/funding-parent case has `LIFE_SPOT_CUT_CONFLICT` before COMMIT.
+The actual File resume oracle can overlap expiry of the old pre-fill carry
+readiness. That new-parent fixture now waits for the original source to expire
+under HALT, captures the stable original cut, then collects the original parent's
+own fresh fake account/market response. It does not replace an old receipt,
+economic leaf or signed File source. All **eight** parent/proof/corruption/actual
+upgrade cases pass, **39.14 s**, 2,123 deselected, six existing warnings
+(`/tmp/life-r1-completed-history-parent-stable-original-cut`).
+
+The following SPOT/snapshot selector passes **87 cases** before one old
+component-test mock raises `AttributeError` for its missing `cut` field,
+**380.68 s**, 2,018 deselected, six existing warnings
+(`/tmp/life-r1-completed-history-parent-final-spot-snapshot`). Actual source
+objects have the required field. The two arithmetic-refusal fixtures now provide
+that original cut and rehash changed before-images/command fingerprints, so the
+economic hold/fee/loss checks are reached rather than merely rejecting stale
+metadata. These component copies grant no signed-source or native-import
+authority. The final remaining selector passes **26 cases**, zero failures,
+errors or skips, 2,105 deselected, six existing warnings, **108.97 s**
+(`/tmp/life-r1-completed-history-parent-final-last`). It includes both corrected
+component tests, the remaining SPOT/history/parent recovery profiles, actual
+snapshot/prefix upgrades and both legacy outbox cases. Actual collection and XML
+IDs establish **340 distinct selected IDs with passing coverage and no missing
+ID** across the 213-, 70-, 8-, 87- and 26-pass runs above. Overlapping cases are
+not added. Financial Python/SQL are frozen throughout these qualification runs;
+the affected fixture changes are requalified by their later selectors. All
+three failed invocations remain recorded. This is combined affected coverage,
+not one full passing invocation or the R5 configured-service acceptance gate.
+The 78-pass migration gate remains current because SQL has not changed.
+Only disposable local PostgreSQL, synthetic facts/keys and actual File fixture
+forks are used. Process-scoped local idle-sleep inhibition preserves the test
+clock condition; it is not production durability or loaded SQL reliability.
+No `.env`, configured DB/account, exchange request, deployment, evidence file or
+widened deadline is introduced. R1–R5 and configured-service acceptance remain
+open under the fixed exits.

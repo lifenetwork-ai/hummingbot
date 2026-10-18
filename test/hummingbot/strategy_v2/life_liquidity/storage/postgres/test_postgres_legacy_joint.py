@@ -27,7 +27,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.legacy_applying impo
 from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancialRecoveryFacts
 
 
-async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('-.001'), funding=None, cashflow=None, cashflow_written=False, book_native_swap=False, book_native_funding=False, file_result=None):
+async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('-.001'), funding=None, cashflow=None, cashflow_written=False, book_native_swap=False, book_native_funding=False, file_result=None, book_native_parent=False):
     from test.hummingbot.strategy_v2.life_liquidity import test_session
     from test.hummingbot.strategy_v2.life_liquidity.storage import test_legacy_joint_applying as file_fixture
     from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_carry import setup as carry_setup
@@ -224,7 +224,7 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
     trade = SwapFillObservation('trade-1', D('.25'), D('1'), 'USDT', fee, at, D('1'), at, at, 'independent_market', pnl, None)
     fill = FillSwap('original-fill', prepared.operation_id, claim.intent_id, claim.wire_id, 'LIFE-USDT', claim.side,
                     claim.session_id, claim.epoch, '987654321', D('.25'), (trade,), values[6].wall)
-    if book_native_swap:
+    if book_native_swap and not book_native_parent:
         # Received fills remain accountable under HALT. Pin that explicit
         # stopped state before capturing the cut; a live source TTL crossing
         # must not turn this recovery fixture into a transient-ready retry.
@@ -246,6 +246,20 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
     retirement = RetireLegacyApplying('outer-retire', source.content_digest, cfg.binding, cfg.database_lineage)
     signed = KEYS.sign('operator', binding, 'IMPORT', retirement.json(), cut, facts, issued_at=fresh_now, expires_at=fresh_now + timedelta(seconds=10))
     await store.retire_legacy_applying(retirement, source=source, approval=signed, joint=joint)
+    original_cut = None
+    if book_native_parent:
+        # The independent File resume oracle may outlive the original carry
+        # response. Establish the original accounting batch on an explicitly
+        # halted, expired-readiness cut, then collect its own new response.
+        # Crossing that earlier TTL must not alter the cut during application.
+        await admin.execute('UPDATE life_financial.accounts SET halted=true WHERE account_id=$1', cfg.account_id)
+        current = await admin.fetchval('SELECT clock_timestamp()')
+        deadline = max(feed[0].observed_at_ms, carry_feed[0].mark.observed_at_ms,
+                       carry_feed[0].index.observed_at_ms, carry_feed[0].funding.observed_at_ms,
+                       carry_feed[0].terms.observed_at_ms) + 1001
+        await asyncio.sleep(max(0, deadline - current.timestamp() * 1000) / 1000)
+        original_cut = (await financial.observation_cut(cfg.binding)).cut
+        fresh_now = await admin.fetchval('SELECT clock_timestamp()')
     b = carry_feed[0]
     stamp = int(fresh_now.timestamp() * 1000)
     snapshot = replace(b.account.snapshot, sequence=b.account.snapshot.sequence + 1, observed_at_ms=stamp, spot_cash_quote=final_cash, spot_life_base=final_base,
@@ -255,12 +269,18 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
                 terms=replace(b.terms, sequence=b.terms.sequence + 1, observed_at_ms=stamp))
     if funding is not None:
         b = replace(b, funding=replace(b.funding, payments=(FundingPayment('777', at, funding),)))
-    if book_native_funding:
+    flows = () if cashflow is None else (prepared_target['cashflow'],)
+    if book_native_parent:
+        original_parent = ApplyJointBatch('native-prior-parent', (),
+                                          (replace(fill, operation_id='native-prior-swap'),),
+                                          tuple(replace(v, operation_id='native-prior-transfer') for v in flows),
+                                          ApplyFunding('native-prior-funding', b))
+        assert (await PgJointBatchRepository(swap).apply(original_parent, cut=original_cut, owner=owner)).state == 'APPLIED'
+    elif book_native_funding:
         from hummingbot.strategy_v2.life_liquidity.storage.postgres.funding import PgFundingRepository
         assert (await PgFundingRepository(swap).apply_funding(ApplyFunding('native-prior-funding', b),
                                                               cut=(await financial.observation_cut(cfg.binding)).cut, owner=owner)).state == 'APPLIED'
     batch = PgJointBatchRepository(swap)
-    flows = () if cashflow is None else (prepared_target['cashflow'],)
     cmd = ImportLegacyApplying(source.content_digest, ApplyJointBatch('outer-pending', (), (fill,), flows, ApplyFunding('outer-funding', b)))
     await admin.execute('UPDATE life_financial.accounts SET halted=true WHERE account_id=$1', cfg.account_id)
     # This is a halted import, not source-readiness renewal. Capture its signed
@@ -281,6 +301,10 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
 async def apply_recovery(database, batch, command, facts, store):
     financial, cfg, owner = batch.financial, batch.runtime.config, batch.owner
     b = command.batch.funding.bundle
+    # Establish the unchanged halted accounting cut before collecting the new
+    # fake provider response. Reading the cut is not a source refresh and must
+    # not consume the response's 1000-ms validity window unnecessarily.
+    repair_cut = (await financial.observation_cut(cfg.binding)).cut
     now = await database[0].fetchval('SELECT clock_timestamp()')
     captured_monotonic = time.monotonic()
     at = int(now.timestamp() * 1000)
@@ -291,10 +315,10 @@ async def apply_recovery(database, batch, command, facts, store):
                                  replace(command.batch, operation_id='outer-applied', funding=replace(command.batch.funding, operation_id='outer-funding-applied', bundle=b)))
     proof = JointRepairFacts(replace(facts, observed_at=now), (('SWAP', 'trade-1'),), tuple(p.bill_id for p in command.batch.funding.bundle.funding.payments), True,
                              int(store._accounting_policy.opened_at.timestamp() * 1000), at)
-    repair_cut = (await financial.observation_cut(cfg.binding)).cut
     signed = KEYS.sign('operator', cfg.binding, 'RECOVER', repair.json(), repair_cut, proof, issued_at=now, expires_at=now + timedelta(seconds=10))
     try:
         await PgJointRepairApprovalImporter(database[0], batch, verifier=KEYS.verifier(), max_fact_age_ms=5000).approve(repair, approval=signed, cut=repair_cut, facts=proof)
+        result = await PgJointRepairRepository(batch).resolve(repair, cut=repair_cut, owner=owner)
     except StorageError as error:
         # Failure-only synthetic timing, without another source capture,
         # retry or deadline change. Host/VM suspension may advance primary
@@ -309,7 +333,6 @@ async def apply_recovery(database, batch, command, facts, store):
         except Exception:
             error.add_note('Synthetic repair timing unavailable; original failure retained')
         raise
-    result = await PgJointRepairRepository(batch).resolve(repair, cut=repair_cut, owner=owner)
     return result, repair, repair_cut
 
 
@@ -580,6 +603,46 @@ async def test_native_swap_and_funding_prefix_recovery_does_not_charge_original_
         assert await c.fetchval('SELECT halted FROM life_financial.accounts WHERE account_id=$1', cfg.account_id)
         assert (await batch.lookup(command.operation_id, cfg.binding)).state == 'RECOVERY_REQUIRED'
         assert (await importer.lookup(command.operation_id)).replayed
+        assert await store.frozen_legacy_applying_source(store.binding) == source
+    finally:
+        await store.close()
+        await financial.close()
+        if cold is not None:
+            await cold.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('cashflow', [('USDT', D('2'), D('1')), ('LIFE', D('-2'), D('1.2'))])
+async def test_original_native_swap_cashflow_funding_parent_preserves_all_children_during_file_recovery(database, tmp_path, monkeypatch, cashflow):
+    from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_legacy_core_cashflows import restore
+    expected_file = {}
+    values, batch, command, cut, facts, approval, importer, store, source = await setup(
+        database, tmp_path, monkeypatch, 'wallet_after', entry=D('1.02'), funding=D('-.1'),
+        cashflow=cashflow, cashflow_written=True, book_native_parent=True, file_result=expected_file)
+    financial, cfg, owner = values[:3]
+    cold = None
+    c = database[0]
+    try:
+        held, money, budget = await values[5].claims(cfg.binding), await financial.balance(cfg.binding), await financial.budget(cfg.binding)
+        originals = await c.fetchval("SELECT jsonb_agg(to_jsonb(o) ORDER BY operation_id) FROM life_financial.operations o WHERE account_id=$1 AND operation_id LIKE 'native-prior-%'", cfg.account_id)
+        assert money.total_quote_usdt == facts.account_quote_usdt
+        assert money.total_base_life == facts.account_base_life
+        await importer.import_pending(command, source_store=store, approval=approval, cut=cut, facts=facts)
+        await financial.close()
+        cold, capital, batch, importer = await restore(cfg, owner, c)
+        assert (await importer.lookup(command.operation_id)).replayed
+        _, repair, repair_cut = await apply_recovery(database, batch, command, facts, store)
+        await cold.close()
+        cold, capital, batch, importer = await restore(cfg, owner, c)
+        assert (await PgJointRepairRepository(batch).resolve(repair, cut=repair_cut, owner=owner)).replayed
+        assert await cold.balance(cfg.binding) == money == expected_file['balance']
+        assert await cold.budget(cfg.binding) == budget == expected_file['budget']
+        assert await capital.claims(cfg.binding) == held
+        assert (await batch.lookup('native-prior-parent', cfg.binding)).state == 'APPLIED'
+        assert await c.fetchval("SELECT jsonb_agg(to_jsonb(o) ORDER BY operation_id) FROM life_financial.operations o WHERE account_id=$1 AND operation_id LIKE 'native-prior-%'", cfg.account_id) == originals
+        for table in ('spot_cashflow_facts', 'swap_fill_facts', 'funding_cash_payments'):
+            assert await c.fetchval('SELECT count(*) FROM life_financial.' + table + ' WHERE account_id=$1', cfg.account_id) == 1
+        assert await c.fetchval('SELECT halted FROM life_financial.accounts WHERE account_id=$1', cfg.account_id)
         assert await store.frozen_legacy_applying_source(store.binding) == source
     finally:
         await store.close()

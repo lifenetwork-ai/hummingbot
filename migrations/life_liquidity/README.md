@@ -912,3 +912,14 @@ account, policy, balance, activation or configured PostgreSQL sender.
   checksum/idempotency rules apply. No tables, policy defaults or trading,
   activation or release permission are created. Prior joint-batch and other
   unsupported histories still require their separate recovery contracts.
+
+- `000061_legacy_parent_prefix.sql`: admit original APPLIED native joint parents
+  only with their unchanged member requests/receipts, child operations and
+  complete economic leaves in the signed retired File target. Check original
+  versions/hashes, cash deltas and funding-bill coverage; missing operations,
+  pending parents or changed members fail closed. Historical cut filtering
+  excludes later repair parents from the original prefix. Existing independent
+  native cash/position/budget proofs remain mandatory. The new helper is private;
+  predecessor OIDs/ACLs, atomic unknown-shape rollback and automatic numbered
+  startup/checksum/idempotency rules remain. No table, money, policy default,
+  activation, release or trading capability is created.
