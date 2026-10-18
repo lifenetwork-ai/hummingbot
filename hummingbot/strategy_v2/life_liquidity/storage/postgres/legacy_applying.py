@@ -106,6 +106,21 @@ def funding_profile(source, command):
         raise StorageError('PG_LEGACY_APPLYING_FACTS_CHANGED')
     policy = envelope['policy']['legacy_spot']['accounting_policy']
     flows = {v.bill_id: v for v in old.spot_cashflows}
+    retained = set()
+    # A completed transfer remains account history even when the interrupted
+    # command does not repeat it. Require its actual original APPLIED receipt;
+    # a pending standalone transfer is not a completed prefix.
+    for bill, raw in resources.get('cashflows', {}).items():
+        flow = LegacySpotStore._cashflow_from_json(raw)
+        if bill != flow.bill_id or bill in flows and flow != flows[bill]:
+            raise StorageError('PG_LEGACY_APPLYING_FACTS_CHANGED')
+        if bill not in flows:
+            receipt = resources.get('cashflow_operations', {}).get(flow.operation_id)
+            if (receipt is None or receipt['state'] != 'APPLIED'
+                    or LegacySpotStore._cashflow_from_json(receipt['command']) != flow):
+                raise StorageError('PG_LEGACY_APPLYING_ORIGINAL_BASIS_REQUIRED')
+            retained.add(bill)
+            flows[bill] = flow
     approved = {v['bill_id']: v for v in policy['approved_cashflows']}
     if (len(approved) != len(policy['approved_cashflows'])
             or len(command.batch.cashflows) != len(flows)
@@ -128,12 +143,16 @@ def funding_profile(source, command):
     if any(key not in flows or value != flows[key].json() for key, value in resources.get('cashflows', {}).items()):
         raise StorageError('PG_LEGACY_APPLYING_FACTS_CHANGED')
     before = json.loads(bytes.fromhex(row['before_native']['reservations']))
+    if not retained <= {key.removeprefix('CASHFLOW:') for key in before['account_events'] if key.startswith('CASHFLOW:')}:
+        raise StorageError('PG_LEGACY_APPLYING_ORIGINAL_BASIS_REQUIRED')
     loss = json.loads(bytes.fromhex(row['before_native']['loss']))
     subsidy = json.loads(bytes.fromhex(row['before_native']['subsidy']))
     from hummingbot.strategy_v2.life_liquidity.storage.postgres.legacy_spot_basis import spot_basis
-    spot, spot_base, spot_cash = spot_basis(source, old, command.batch, resources, before, loss, subsidy)
-    before_base, before_cash = Decimal(policy['opening_base_life']), Decimal(policy['opening_quote_usdt'])
+    spot, spot_base, spot_cash, prefix_base, prefix_cash = spot_basis(source, old, command.batch, resources, before, loss, subsidy)
+    before_base, before_cash = Decimal(policy['opening_base_life']) + prefix_base, Decimal(policy['opening_quote_usdt']) + prefix_cash
     for key, event in before['account_events'].items():
+        if key.startswith('FEE:'):  # Exact prefix membership/value was checked by spot_basis.
+            continue
         flow = flows.get(key.removeprefix('CASHFLOW:'))
         if (not key.startswith('CASHFLOW:') or flow is None
                 or (event[0], event[1], Decimal(event[2])) != ('CASHFLOW', flow.currency, flow.signed_amount)):

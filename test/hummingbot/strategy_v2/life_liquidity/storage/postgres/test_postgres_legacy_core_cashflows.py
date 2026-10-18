@@ -30,13 +30,16 @@ async def restore(cfg, owner, connection):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('retained_only', [False, True])
 @pytest.mark.parametrize('stage', ['wallet_before', 'wallet_after', 'receipt'])
 @pytest.mark.parametrize('currency,amount,price', [('USDT', D('2'), D('1')), ('USDT', D('-2'), D('1')),
                                                    ('LIFE', D('2'), D('1.2')), ('LIFE', D('-2'), D('1.2'))])
 async def test_core_transfer_and_funding_import_is_neutral_then_cold_recovery_applies_original_facts_once(
-        database, tmp_path, monkeypatch, stage, currency, amount, price):
+        database, tmp_path, monkeypatch, stage, currency, amount, price, retained_only):
+    expected_file = {}
     values, batch, command, cut, facts, approval, importer, store, source = await setup(
-        database, tmp_path, monkeypatch, stage, cashflow=(currency, amount, price))
+        database, tmp_path, monkeypatch, stage, cashflow=(currency, amount, price),
+        file_result=expected_file, retained_cashflows_only=retained_only)
     financial, cfg, owner = values[:3]
     cold = None
     c = database[0]
@@ -74,6 +77,8 @@ async def test_core_transfer_and_funding_import_is_neutral_then_cold_recovery_ap
         cold, capital, batch, importer = await restore(cfg, owner, c)
         assert (await PgJointRepairRepository(batch).resolve(repair, cut=repair_cut, owner=owner)).replayed
         wallet = await cold.balance(cfg.binding)
+        assert wallet == expected_file['balance']
+        assert await cold.budget(cfg.binding) == expected_file['budget']
         assert wallet.total_base_life == facts.account_base_life == D('5') + (amount if currency == 'LIFE' else D('0'))
         assert wallet.total_quote_usdt == facts.account_quote_usdt == D('9.9') + (amount if currency == 'USDT' else D('0'))
         row = await c.fetchrow('SELECT a.*,f.independent_price FROM life_financial.cashflows f JOIN life_financial.bill_approvals a USING(account_id,bill_id) WHERE f.account_id=$1', cfg.account_id)
@@ -98,10 +103,11 @@ async def test_core_transfer_and_funding_import_is_neutral_then_cold_recovery_ap
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('retained_only', [False, True])
 @pytest.mark.parametrize('fault', ['bill', 'amount', 'currency', 'price', 'time', 'value_time', 'reference_time', 'receipt_time', 'missing', 'extra', 'scope', 'unsigned_native_bill'])
-async def test_new_target_signature_cannot_change_original_core_transfer_or_supply_its_approval(database, tmp_path, monkeypatch, fault):
+async def test_new_target_signature_cannot_change_original_core_transfer_or_supply_its_approval(database, tmp_path, monkeypatch, fault, retained_only):
     values, batch, command, cut, facts, _, importer, store, _ = await setup(
-        database, tmp_path, monkeypatch, cashflow=('LIFE', D('2'), D('1.2')))
+        database, tmp_path, monkeypatch, cashflow=('LIFE', D('2'), D('1.2')), retained_cashflows_only=retained_only)
     financial, cfg, _ = values[:3]
     try:
         flow = command.batch.cashflows[0]

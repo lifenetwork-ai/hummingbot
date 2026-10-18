@@ -3,20 +3,22 @@
 This validates evidence, never provisions orders, money or permissions. Native
 preparations are checked independently in SQL before IMPORT and on cold reads.
 """
+from datetime import datetime, timezone
 from decimal import Decimal as D
 
 from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError, fingerprint
-from hummingbot.strategy_v2.life_liquidity.storage.financial import PrepareSpot
+from hummingbot.strategy_v2.life_liquidity.storage.financial import FillSpot, PrepareSpot
 
 
 def spot_basis(source, old, batch, resources, wallet, loss, subsidy):
     commands = resources.get('commands', {})
     if not old.spot_fills:
-        if (batch.spot_fills or commands or resources.get('fills') or source.facts.account_trade_ids
+        if (batch.spot_fills or commands or resources.get('fills') or resources.get('fill_operations') or source.facts.account_trade_ids
                 or wallet['trades'] or wallet['reservations'] or subsidy['entries']
+                or any(key.startswith('FEE:') for key in wallet['account_events'])
                 or any(D(v['loss_quote']) for v in loss['events'].values())):
             raise StorageError('PG_LEGACY_APPLYING_PROFILE_UNSUPPORTED')
-        return {}, D('0'), D('0')
+        return {}, D('0'), D('0'), D('0'), D('0')
     supplied = {v.prepare_operation_id: v for v in batch.spot_fills}
     original = {v.prepare_operation_id: v for v in old.spot_fills}
     if (set(supplied) != set(original) or len(supplied) != len(batch.spot_fills)
@@ -26,11 +28,62 @@ def spot_basis(source, old, batch, resources, wallet, loss, subsidy):
     trades = {f.trade_id for value in original.values() for f in value.fills}
     if trades != set(source.facts.account_trade_ids):
         raise StorageError('PG_LEGACY_APPLYING_FACTS_CHANGED')
-    # A prior accounted SPOT prefix requires its own full historical basis;
-    # this first financial command cannot silently adopt that wallet/cost.
-    if (set(commands) != set(original) or resources.get('fills') or wallet['trades']
-            or any(D(v['loss_quote']) for v in loss['events'].values())):
+    # Independently explain every original prefix trade, fee, hold and gross
+    # loss from the unchanged cumulative snapshots. Never adopt a partial
+    # wallet balance or infer a missing trade from its monetary delta.
+    known = resources.get('fills', {})
+    if set(commands) != set(original):
         raise StorageError('PG_LEGACY_APPLYING_PROFILE_UNSUPPORTED')
+    if set(known) != set(wallet['trades']):
+        raise StorageError('PG_LEGACY_APPLYING_ORIGINAL_BASIS_REQUIRED')
+    by_trade = {f.trade_id: (value, f) for value in original.values() for f in value.fills}
+    if len(by_trade) != sum(len(v.fills) for v in original.values()):
+        raise StorageError('PG_LEGACY_APPLYING_FACTS_CHANGED')
+    receipts = set()
+    for key, row in resources.get('fill_operations', {}).items():
+        prior = FillSpot.from_json(row['command'])
+        full = original.get(prior.prepare_operation_id)
+        if (key != prior.operation_id or row['state'] != 'APPLIED' or full is None
+                or row['fingerprint'] != fingerprint({'command': prior.json(), 'owner': row['owner']})
+                or {k: v for k, v in prior.json().items() if k not in ('operation_id', 'fills', 'cumulative_base_life', 'observed_at')}
+                != {k: v for k, v in full.json().items() if k not in ('operation_id', 'fills', 'cumulative_base_life', 'observed_at')}
+                or D(row['execution_loss_usdt']) != sum((f.loss(prior.side) for f in prior.fills), D('0'))
+                or any(f.trade_id not in known or f.trade_id not in by_trade or f != by_trade[f.trade_id][1] for f in prior.fills)):
+            raise StorageError('PG_LEGACY_APPLYING_ORIGINAL_BASIS_REQUIRED')
+        receipts.update(f.trade_id for f in prior.fills)
+    if receipts != set(known):
+        raise StorageError('PG_LEGACY_APPLYING_ORIGINAL_BASIS_REQUIRED')
+    prefix_base, prefix_cash, losses, fee_events = D('0'), D('0'), {}, {}
+    quantities, floors = {}, {}
+    for trade, retained in known.items():
+        if trade not in by_trade:
+            raise StorageError('PG_LEGACY_APPLYING_FACTS_CHANGED')
+        value, fill = by_trade[trade]
+        expected = dict(prepare_operation_id=value.prepare_operation_id, intent_id=value.intent_id,
+                        exchange_order_id=value.exchange_order_id, fill=fill.json())
+        held_trade = wallet['trades'][trade]
+        if (retained != expected or len(held_trade) != 3
+                or (held_trade[0], D(held_trade[1]), D(held_trade[2])) !=
+                (value.intent_id, fill.quantity_base_life, fill.price_usdt)):
+            raise StorageError('PG_LEGACY_APPLYING_ORIGINAL_BASIS_REQUIRED')
+        quantities[value.intent_id] = quantities.get(value.intent_id, D('0')) + fill.quantity_base_life
+        floors[value.intent_id] = floors.get(value.intent_id, D('0')) + fill.loss(value.side)
+        losses['fill:' + trade] = dict(session_id=value.session_id,
+                                       day=datetime.fromtimestamp(fill.fill_at_ms / 1000, timezone.utc).date().isoformat(),
+                                       loss_quote=str(fill.loss(value.side)))
+        fee_events['FEE:' + trade] = ['FEE', fill.fee_currency, str(fill.signed_fee)]
+        prefix_base += fill.quantity_base_life if value.side == 'BUY' else -fill.quantity_base_life
+        prefix_cash += -fill.quantity_base_life * fill.price_usdt if value.side == 'BUY' else fill.quantity_base_life * fill.price_usdt
+        prefix_base += fill.signed_fee if fill.fee_currency == 'LIFE' else D('0')
+        prefix_cash += fill.signed_fee if fill.fee_currency == 'USDT' else D('0')
+    # Existing File ledgers retain a zero-valued opening marker. Keep that
+    # historical profile; every actual known fill still needs its exact event
+    # and an unexplained nonzero cost is never discarded.
+    if (any(loss['events'].get(key) != value for key, value in losses.items())
+            or any(key not in losses and D(value['loss_quote']) != 0 for key, value in loss['events'].items())):
+        raise StorageError('PG_LEGACY_APPLYING_ORIGINAL_BASIS_REQUIRED')
+    if {k: v for k, v in wallet['account_events'].items() if k.startswith('FEE:')} != fee_events:
+        raise StorageError('PG_LEGACY_APPLYING_ORIGINAL_BASIS_REQUIRED')
     base, cash, preparations, intents = D('0'), D('0'), [], set()
     for key, value in original.items():
         row = commands[key]
@@ -48,11 +101,12 @@ def spot_basis(source, old, batch, resources, wallet, loss, subsidy):
         if (held is None or held['intent'] != dict(intent_id=prepared.intent_id, side=prepared.side,
                                                    quantity_base=str(prepared.quantity_base), limit_price_usdt=str(prepared.limit_price_usdt),
                                                    session_id=prepared.session_id, epoch=prepared.epoch)
-                or D(held['remaining_base']) != prepared.quantity_base or D(held['filled_base']) != 0
+                or D(held['filled_base']) != quantities.get(value.intent_id, D('0'))
+                or D(held['remaining_base']) != prepared.quantity_base - D(held['filled_base'])
                 or held['state'] not in ('OPEN', 'UNKNOWN')
                 or entry is None or entry['session_id'] != prepared.session_id
                 or D(entry['reserved']) != prepared.subsidy_quote_usdt or entry['actual'] is not None
-                or D(entry.get('fill_floor', '0')) != 0 or entry.get('inventory_cycle') is not None):
+                or D(entry.get('fill_floor', '0')) != floors.get(value.intent_id, D('0')) or entry.get('inventory_cycle') is not None):
             raise StorageError('PG_LEGACY_APPLYING_ORIGINAL_BASIS_REQUIRED')
         for f in value.fills:
             base += f.quantity_base_life if value.side == 'BUY' else -f.quantity_base_life
@@ -62,4 +116,4 @@ def spot_basis(source, old, batch, resources, wallet, loss, subsidy):
         preparations.append(prepared.json())
     if set(wallet['reservations']) != intents or set(subsidy['entries']) != intents:
         raise StorageError('PG_LEGACY_APPLYING_ORIGINAL_BASIS_REQUIRED')
-    return {'spot_preparations': sorted(preparations, key=lambda v: v['operation_id'])}, base, cash
+    return {'spot_preparations': sorted(preparations, key=lambda v: v['operation_id'])}, base, cash, prefix_base, prefix_cash

@@ -104,7 +104,7 @@ async def test_actual_upgrade_keeps_every_old_layer_body_digest_flags_and_scope(
         await c.execute(f'GRANT EXECUTE ON FUNCTION snapshot_reference.{name}(uuid) TO life_pg2_runtime')
     await c.execute('INSERT INTO life_financial.access_bindings VALUES(current_user,$1,false)', cfg.account_id)
     assert (await migrate(c, action='up'))['applied'] == ['000055_snapshot_body_pipeline.sql', '000056_legacy_spot_basis.sql',
-                                                          '000057_collateral_source_context.sql']
+                                                          '000057_collateral_source_context.sql', '000058_legacy_spot_prefix.sql']
     cold = await PgRuntime.open(cfg)
     try:
         async def compare_public(connection):

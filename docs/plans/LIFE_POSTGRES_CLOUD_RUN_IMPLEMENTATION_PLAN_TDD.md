@@ -2498,3 +2498,88 @@ native SPOT/cashflow/SWAP/funding/terminal signed repairs remain the existing
 qualified regressions. R2–R5 and configured PostgreSQL refusal are unchanged.
 No `.env`, configured DB/account, real exchange request, deployment or repository
 evidence file is used; SQL/source/transaction budgets are unchanged.
+
+### PG3 retained File transfers and exact SPOT prefixes (2026-10-18)
+
+Base revision: `189fed302`. The core interrupted funding profile now explains
+completed File transfers omitted from the current `JointCashSpot` command.
+Every retained-only bill needs its original APPLIED receipt, original approved
+asset/amount/time and exact before-wallet event. The signed native recovery
+batch includes the full bill history; its separate original native approval
+remains mandatory. The actual File resume supplies independent balances/budgets
+for native comparison.
+
+Completed standalone File SPOT prefixes now retain their original cumulative
+APPLIED receipts, command/owner fingerprints, exact trade identities and
+independent valuations. Original before-wallet trade and signed fee events,
+filled/remaining holds, session/day gross loss and subsidy floors must all
+agree. Preserve genuine zero-valued opening markers; never adopt a partially
+written wallet as opening capital or reset gross spending. BUY/SELL and signed
+LIFE/USDT fees keep their original units and values.
+
+Migration 58 additionally admits already booked native SPOT leaves only when
+each matches the unchanged full original snapshots and its independently
+committed native SPOT command/receipt. The original import revision limits this
+proof; later repaired facts cannot rewrite that historical cut. Other existing
+native monetary families remain refused by this declared profile. Existing
+order/ARM provenance and unresolved-fact barriers remain mandatory. IMPORT
+stays money-neutral, and native recovery applies missing trades once while
+retaining the original prefix receipts and fees. Fractional money requires the
+same numeric zero spelling as the existing joint receipt proof; no monetary
+value or comparison tolerance changes. Existing function OIDs/ACLs remain,
+helpers are private despite permissive defaults, and no table or financial
+bootstrap is introduced.
+
+TDD retained-transfer Red reproduced two legitimate omitted USDT transfer
+histories rejected at original-before-wallet validation
+(`/tmp/life-r1-retained-cashflows-red`). After the complete original receipt/event
+check, the expanded transfer selector passes **48 cases** (157.50 s,
+`/tmp/life-r1-retained-cashflows-expanded`). The initial SPOT-prefix Red records
+one unsupported-history failure (`/tmp/life-r1-spot-prefix-red`). An intermediate
+40-failure matrix (`/tmp/life-r1-spot-prefix-expanded`, 136.58 s) exposed an
+overstrict comparison that discarded File's original zero opening marker. The
+following matrix passed 20 File-only-prefix cases and refused the first already
+booked native prefix (`/tmp/life-r1-spot-prefix-matrix`, 96.79 s): the old native
+entrypoint prohibited all financial events. The first migration-58 run then
+reproduced the fractional zero receipt mismatch at deferred COMMIT
+(`/tmp/life-r1-native-spot-prefix-first`, one failure). Both defects are addressed
+without relaxing financial evidence or SQL deadlines.
+
+The subsequent SPOT matrix passes **40 cases**, zero failures/errors/skips,
+183 deselected, one existing warning, **188.90 s**
+(`/tmp/life-r1-native-spot-prefix-matrix-v58`): five crash stages × BUY/SELL ×
+LIFE/USDT fee × native prefix absent/present. The additional refusal selector
+passes **3 cases**, zero failures/errors/skips, **12.00 s**
+(`/tmp/life-r1-prefix-refusal`), including twenty independent original File
+money/fee/hold/loss/floor/receipt mutations, original native trade/source-command
+mutations and cold source corruption. Earlier matrices precede final receipt
+membership hardening and do not replace a final combined source gate.
+
+**Final combined financial-source gate:** **240 tests pass**, zero failures,
+errors or skips, 1,791 deselected, six existing warnings, **905.60 s**
+(`/tmp/life-r1-prefix-final-regression`). This includes all 225 legacy
+core/transfer/SPOT/outer-SWAP cases, ten predecessor snapshot upgrades and five
+existing legacy outbox/configuration/event cases. The separately added actual
+57→58 booked-prefix upgrade/cold-recovery case passes (**6.35 s**,
+`/tmp/life-r1-prefix-existing-57-upgrade`, 225 deselected, one existing warning,
+zero failures/errors/skips); it is not part of the 240. Both gates use the same
+unchanged financial Python/SQL. The original 240-case collection predates only
+the new upgrade test and its optional fixture reuse argument; no production
+behavior changed between these gates. Earlier 40/48/3-case gates overlap these
+tests and are not additional coverage. The pinned disposable PostgreSQL 16.15
+ARM process retains its original 2-CPU/1-GiB and SQL/source/transaction limits.
+
+All **69 migration cases pass**, zero failures/errors/skips, **59.03 s**
+(`/tmp/life-r1-prefix-final-migrations`). This includes actual 57→58 catalog
+upgrade, unchanged predecessor OIDs/ACLs, private helper defaults, atomic
+rollback on either unexpected predecessor shape, no table/money bootstrap and
+idempotent repeat startup. This gate is separate from native recovery and does
+not claim whole-service acceptance or resolution of loaded R5 timeout defects.
+
+**R1 and PG3 remain open.** Pre-import native cashflow/SWAP/funding facts, prior
+settled/terminal histories, outer SPOT/coordinator profiles and complete provider
+scope/terminal/shared-release consumption still need their fixed exit replays.
+R2–R5 remain unchanged. Existing configured PostgreSQL selection stays rejected;
+no trading, source-signing, activation, release or deployment eligibility is
+created. No configured DB/account, exchange request, `.env` or new repository
+evidence file is used.

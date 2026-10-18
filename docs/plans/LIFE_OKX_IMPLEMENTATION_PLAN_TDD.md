@@ -1,6 +1,17 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
-**Current PG3 R1 source checkpoint (2026-10-18, base `976b576c3`):** migration 57
+**Current PG3 R1 history checkpoint (2026-10-18, base `189fed302`):** retired
+File funding recovery now includes completed original transfers omitted from
+the current command and completed SPOT prefixes. Migration 58 independently
+matches already booked native SPOT leaves against the original approved full
+snapshots at the import cut. Recovery retains original money, fees, holds and
+gross loss/subsidy; IMPORT remains money-neutral. **240 affected regressions and
+one separately added 57→58 booked-prefix upgrade/cold-recovery case pass;
+69 migration tests pass.** See
+[scope and qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-retained-file-transfers-and-exact-spot-prefixes-2026-10-18).
+**R1–R5 and configured-service acceptance remain open.**
+
+**Earlier PG3 R1 source checkpoint (2026-10-18, base `976b576c3`):** migration 57
 adds an explicit signed account-wide configuration/balance/position reconciliation
 against one unchanged native cut. It verifies contract/base units, original
 position entries, USDT cash/UPL equity, explicit zero liabilities and original

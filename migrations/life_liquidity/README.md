@@ -883,3 +883,13 @@ account, policy, balance, activation or configured PostgreSQL sender.
   and ACLs remain; unexpected predecessor route shape rolls back the entire
   migration. New function privileges are private until explicit migration-owner
   access provisioning. Repeated migration startup is a no-op.
+
+- `000058_legacy_spot_prefix.sql`: permit an independently booked native SPOT
+  prefix only when every original fact agrees with the signed File cumulative
+  snapshots at the original import cut. Preserve original event/receipt IDs,
+  fees, holds and gross spending; repair applies the missing leaves once.
+  Other pre-import financial families still require their own basis profiles.
+  Money-neutral pending receipts retain the existing joint proof's numeric
+  spelling for fractional balances. Existing function OIDs/ACLs remain; the new
+  helper is private. No table, money, policy or permission is created. Automatic
+  numbered startup migration and checksum/idempotency rules remain unchanged.

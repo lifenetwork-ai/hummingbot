@@ -3261,3 +3261,28 @@ reading them is not fresh provider authentication. Configured collector,
 order/trade/bill/runner completeness and consumption by every required
 terminal/release route remain PG3 work. This helper does not close R1 or install
 the configured PostgreSQL service.
+
+### Retired File prefixes before interrupted core funding
+
+The core legacy importer includes completed, approved File transfers even when
+the interrupted `JointCashSpot` does not repeat them. Every retained-only bill
+needs its actual original APPLIED receipt and before-wallet event. Its economic
+identity and valuation remain unchanged in the signed native recovery batch;
+the original native bill approval is still an independent prerequisite.
+
+A completed standalone File SPOT prefix needs its exact original fill receipts,
+trades, signed LIFE/USDT fee events, filled/remaining hold, session/day gross loss
+and subsidy floor. Before-wallet money is explained from original opening
+capital plus those facts, never adopted as a new opening balance. Zero-valued
+historical File opening markers remain intact. A missing receipt or changed
+trade/fee/hold/loss/floor denies import.
+
+Migration 58 additionally accepts native SPOT leaves already booked before the
+import cut, provided each exact observation and original source command occurs
+in the complete approved original snapshots. Later repair facts are checked at
+their own versions and do not alter that historical cut. Native kernels dedupe
+the existing trades and charge only missing leaves; money-neutral IMPORT does
+not rewrite their receipts. Cold readback rechecks provenance and cannot grant
+activation or release. This declared profile does not admit pre-import native
+cashflow/SWAP/funding events, prior terminal/settled histories, outer SPOT or
+coordinator legacy profiles. R1 and full configured PG3 remain open.

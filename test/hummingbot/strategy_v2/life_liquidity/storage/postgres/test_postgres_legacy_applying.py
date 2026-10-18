@@ -30,7 +30,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancial
 KEYS = OperatorKeys({'operator': b'i' * 32}, {'operator': frozenset(('IMPORT', 'RECOVER', 'DRAIN'))})
 
 
-async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashflow=None, spot_fill=None, file_result=None):
+async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashflow=None, spot_fill=None, file_result=None, retained_cashflows_only=False, spot_prefix=False, book_native_prefix=False):
     from test.hummingbot.strategy_v2.life_liquidity.storage import test_spot_financial_contracts as file_fixture
     from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_funding import setup as funding_setup
 
@@ -118,6 +118,13 @@ async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashfl
         clock[0] = now
         f = filled(file_owner, now, side=side)
         f = replace(f, fills=(replace(f.fills[0], fee_currency=fee_currency),))
+        if spot_prefix:
+            prefix = replace(f.fills[0], trade_id='trade0', quantity_base_life=D('.5'), signed_fee=D('-.001'))
+            first = replace(f, operation_id='file-prefix', cumulative_base_life=D('.5'), fills=(prefix,))
+            await store.apply_fills(first, cut=(await store.snapshot(binding)).cut, owner=file_owner)
+            if book_native_prefix:
+                assert (await financial.apply_fills(first, cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)).state == 'APPLIED'
+            f = replace(f, fills=(prefix, replace(f.fills[0], quantity_base_life=D('.5'), signed_fee=D('-.019'))))
         fills = (f,)
         base += (D('1') if side == 'BUY' else D('-1')) + (D('-.02') if fee_currency == 'LIFE' else D('0'))
         quote += (D('-1') if side == 'BUY' else D('1')) + (D('-.02') if fee_currency == 'USDT' else D('0'))
@@ -132,7 +139,8 @@ async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashfl
     paid = payment.bundle.funding.payments[0]
     joint = JointCashSpot('file-joint', binding, 'c' * 64, now,
                           (JointCashEvent(f'JOINT:{paid.settled_at_ms}:FUNDING:{paid.bill_id}', paid.signed_payment_quote),),
-                          base, quote, True, True, 'okx_joint_reconciled', spot_cashflows=flows, spot_fills=fills)
+                          base, quote, True, True, 'okx_joint_reconciled',
+                          spot_cashflows=() if retained_cashflows_only else flows, spot_fills=fills)
     target, method = ((store._ledger, 'apply_joint_snapshot') if stage.startswith('wallet')
                       else (store._loss, 'record') if stage == 'loss_after'
                       else (store._subsidy, 'record_fill_floor') if stage == 'floor_after' else (store, '_publish_joint_cash'))
