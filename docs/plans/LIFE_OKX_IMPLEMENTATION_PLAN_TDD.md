@@ -1,6 +1,15 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
-**Current PG3 R1 history checkpoint (2026-10-18, base `189fed302`):** retired
+**Current PG3 R1 unfilled-order checkpoint (2026-10-18, base `e9cb8c35f`):**
+core File funding recovery retains original sent SPOT orders even when they
+have no fills in the interrupted command. Exact original preparations,
+fingerprints, holds/subsidy and independent native preparation/ARM remain
+mandatory. **176 affected cases pass**, including ten new recovery/refusal
+cases and the original booked-prefix upgrade. No SQL or permission changes.
+See [scope and qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-unfilled-spot-orders-during-core-funding-recovery-2026-10-18).
+**R1–R5 and configured-service acceptance remain open.**
+
+**Earlier PG3 R1 history checkpoint (2026-10-18, base `189fed302`):** retired
 File funding recovery now includes completed original transfers omitted from
 the current command and completed SPOT prefixes. Migration 58 independently
 matches already booked native SPOT leaves against the original approved full

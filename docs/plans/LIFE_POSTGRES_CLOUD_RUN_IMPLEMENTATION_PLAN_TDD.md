@@ -2583,3 +2583,50 @@ R2–R5 remain unchanged. Existing configured PostgreSQL selection stays rejecte
 no trading, source-signing, activation, release or deployment eligibility is
 created. No configured DB/account, exchange request, `.env` or new repository
 evidence file is used.
+
+### PG3 unfilled SPOT orders during core funding recovery (2026-10-18)
+
+Base revision: `e9cb8c35f`. A complete core funding source may include sent SPOT
+orders that have no fills in the interrupted command. Previously the importer
+rejected any such retained preparation as unsupported. The core SPOT basis now
+checks every retained original preparation, while every filled snapshot still
+needs its exact original command. Missing/duplicate order identities, modified
+preparation fingerprints, unexplained trades/fees and lost/reset principal or
+subsidy holds remain refusals. Migration 56 already independently requires the
+matching original native preparation and canonical original ARM at the import
+cut; this is not permission to synthesize an order, ARM, balance or reservation.
+
+Actual File resume and two native cold restores must agree on complete money
+and budgets. An unfilled order remains SEND_UNKNOWN with its original remaining
+hold and subsidy; its claim survives. Funding applies the original bill once,
+and HALT/new-send refusal remain. PREPARED-only, terminated/settled and
+outer/coordinator profiles are not added by this increment. No SQL, schema,
+runtime/source/transaction timeout, live input or permission changes.
+
+TDD Red reproduces a legitimate BUY/wallet-before interruption rejected as
+`PG_LEGACY_APPLYING_PROFILE_UNSUPPORTED` (**one failure**, 5.23 s,
+`/tmp/life-r1-unfilled-spot-red`). The following six-case matrix passes
+(26.79 s, `/tmp/life-r1-unfilled-spot-green`): BUY/SELL × wallet-before,
+wallet-after and receipt crashes. The expanded gate passes **10 cases**,
+zero failures/errors/skips, 226 deselected, one existing warning, **39.84 s**
+(`/tmp/life-r1-unfilled-spot-refusal`). It additionally checks seven independent
+File hold/subsidy mutations and three actual native preparation/ARM corruptions;
+no invalid import publishes money or source rows. These earlier gates precede
+the final equivalent identity-comparison refactor and overlap the combined
+source qualification below. Logs remain only in `/tmp`; no repository evidence
+file or configured database/account/exchange is used.
+
+**Final affected financial-source gate:** **176 tests pass**, zero failures,
+errors or skips, 60 deselected, one existing warning, **667.63 s**
+(`/tmp/life-r1-unfilled-spot-final`). This includes every core funding, retained
+transfer and SPOT legacy case, all ten new unfilled-order cases, the earlier
+booked-prefix matrix and actual 57→58 booked-prefix upgrade. Financial Python
+and SQL remain fixed throughout this gate. The 60 outer-SWAP cases use the
+unchanged separate `joint_profile` branch and are reported by the earlier
+`e9cb8c35f` qualification, not as rerun current-source coverage. SQL is unchanged
+from that commit's 69-pass migration gate. No loaded timeout, full R1 or
+whole-service R5 closure is inferred from this focused result. Hooks pass.
+
+R1–R5 remain open under their fixed exits; configured PostgreSQL stays rejected.
+The remaining histories and complete provider/release/control/runner assembly
+retain their existing requirements and execution order.

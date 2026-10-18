@@ -22,10 +22,11 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.migrations import mi
 
 
 async def recover_case(database, tmp_path, monkeypatch, stage, side, fee_currency, cashflow=None, spot_prefix=False, book_native_prefix=False,
-                       prepared=None, expected=None):
+                       prepared=None, expected=None, spot_open_only=False):
     expected = {} if expected is None else expected
     values, batch, command, cut, facts, approval, importer, store, source = prepared or await setup(
-        database, tmp_path, monkeypatch, stage, spot_fill=(side, fee_currency), file_result=expected, cashflow=cashflow, spot_prefix=spot_prefix, book_native_prefix=book_native_prefix)
+        database, tmp_path, monkeypatch, stage, spot_fill=(side, fee_currency), file_result=expected, cashflow=cashflow,
+        spot_prefix=spot_prefix, book_native_prefix=book_native_prefix, spot_open_only=spot_open_only)
     financial, cfg, owner = values[:3]
     cold = None
     c = database[0]
@@ -46,7 +47,8 @@ async def recover_case(database, tmp_path, monkeypatch, stage, side, fee_currenc
         replacement = replace(command.batch, operation_id='spot-funding-applied',
                               funding=replace(command.batch.funding, operation_id='spot-funding-paid', bundle=fresh))
         repair = ResolveJointSources('spot-funding-repair', command.operation_id, replacement)
-        proof = JointRepairFacts(replace(facts, observed_at=now, accepted_wire_ids=('SwapWire1', 'wire1')), ((('SPOT', 'trade0'), ('SPOT', 'trade1')) if spot_prefix else (('SPOT', 'trade1'),)), ('777',), True,
+        trades = tuple(('SPOT', f.trade_id) for group in command.batch.spot_fills for f in group.fills)
+        proof = JointRepairFacts(replace(facts, observed_at=now, accepted_wire_ids=('SwapWire1', 'wire1')), trades, ('777',), True,
                                  int(store._accounting_policy.opened_at.timestamp() * 1000), at)
         repair_cut = (await cold.observation_cut(cfg.binding)).cut
         signed = KEYS.sign('operator', cfg.binding, 'RECOVER', repair.json(), repair_cut, proof, issued_at=now, expires_at=now + timedelta(seconds=10))
@@ -60,12 +62,15 @@ async def recover_case(database, tmp_path, monkeypatch, stage, side, fee_currenc
         assert view.budget == expected['budget']
         assert await capital.claims(cfg.binding) == claims
         assert await c.fetchval("SELECT gross_debits_usdt FROM life_financial.funding_observations WHERE account_id=$1 AND state='APPLIED'", cfg.account_id) == D('.1')
-        assert await c.fetchval('SELECT count(*) FROM life_financial.spot_fill_facts WHERE account_id=$1', cfg.account_id) == (2 if spot_prefix else 1)
+        assert await c.fetchval('SELECT count(*) FROM life_financial.spot_fill_facts WHERE account_id=$1', cfg.account_id) == len(trades)
         assert await c.fetchval('SELECT count(*) FROM life_financial.funding_cash_payments WHERE account_id=$1', cfg.account_id) == 1
         assert await c.fetchval('SELECT halted FROM life_financial.accounts WHERE account_id=$1', cfg.account_id)
         assert (await batch.lookup(command.operation_id, cfg.binding)).state == 'RECOVERY_REQUIRED'
         assert (await importer.lookup(command.operation_id)).replayed
         assert await store.frozen_legacy_applying_source(store.binding) == source
+        if spot_open_only:
+            assert (await cold.attempt('intent1', cfg.binding)).state.value == 'SEND_UNKNOWN'
+            assert view.balance.reserved_quote_usdt > 0 if side == 'BUY' else view.balance.reserved_base_life > 0
         with pytest.raises(StorageError):
             await cold.arm('operation1', cut=view.cut, owner=owner)
     finally:
@@ -183,6 +188,76 @@ async def test_prior_spot_prefix_survives_import_and_cold_recovery_without_recre
         database, tmp_path, monkeypatch, stage, side, fee_currency, book_native_prefix):
     await recover_case(database, tmp_path, monkeypatch, stage, side, fee_currency,
                        spot_prefix=True, book_native_prefix=book_native_prefix)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('stage', ['wallet_before', 'wallet_after', 'receipt'])
+@pytest.mark.parametrize('side', ['BUY', 'SELL'])
+async def test_funding_recovery_preserves_original_unfilled_spot_order_and_holds(database, tmp_path, monkeypatch, stage, side):
+    await recover_case(database, tmp_path, monkeypatch, stage, side, 'USDT', spot_open_only=True)
+
+
+@pytest.mark.asyncio
+async def test_unfilled_spot_prefix_cannot_drop_or_reset_its_original_holds(database, tmp_path, monkeypatch):
+    values, _, command, _, _, _, _, store, source = await setup(
+        database, tmp_path, monkeypatch, spot_fill=('BUY', 'USDT'), spot_open_only=True)
+    try:
+        envelope = json.loads(source.checkpoint_bytes)
+        original = copy.deepcopy(source.original_operations)
+        operation = next(iter(original))
+        funding_profile(source, command)
+        for journal, change in (
+            ('reservations', lambda v: v['reservations'].clear()),
+            ('reservations', lambda v: v['reservations']['intent1'].update(remaining_base='0')),
+            ('reservations', lambda v: v['reservations']['intent1'].update(filled_base='1')),
+            ('subsidy', lambda v: v['entries'].clear()),
+            ('subsidy', lambda v: v['entries']['intent1'].update(reserved='0')),
+            ('subsidy', lambda v: v['entries']['intent1'].update(actual='0')),
+            ('subsidy', lambda v: v['entries']['intent1'].update(fill_floor='1')),
+        ):
+            # Pure arithmetic refusal over copies, not resigned source imports.
+            operations = copy.deepcopy(original)
+            before = json.loads(bytes.fromhex(operations[operation]['before_native'][journal]))
+            change(before)
+            operations[operation]['before_native'][journal] = json.dumps(before).encode().hex()
+            profile = SimpleNamespace(checkpoint_bytes=json.dumps(envelope).encode(), original_operations=operations,
+                                      ancillary_images=(), core_pending_operation_ids=source.core_pending_operation_ids, facts=source.facts)
+            with pytest.raises(StorageError, match='PG_LEGACY_APPLYING_ORIGINAL_BASIS_REQUIRED'):
+                funding_profile(profile, command)
+    finally:
+        await store.close()
+        await values[0].close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('fault', ['prepared', 'arm', 'arm_id'])
+async def test_unfilled_file_order_still_requires_exact_independent_native_preparation_and_arm(database, tmp_path, monkeypatch, fault):
+    values, _, command, _, facts, _, importer, store, _ = await setup(
+        database, tmp_path, monkeypatch, spot_fill=('BUY', 'USDT'), spot_open_only=True)
+    financial, cfg = values[:2]
+    c = database[0]
+    try:
+        table = 'spot_preparations' if fault == 'prepared' else 'operations'
+        await c.execute(f'ALTER TABLE life_financial.{table} DISABLE TRIGGER USER')
+        statement = {
+            'prepared': "UPDATE life_financial.spot_preparations SET request=jsonb_set(request,'{reference_price_usdt}','\"2\"') WHERE account_id=$1",
+            'arm': "UPDATE life_financial.operations SET command=jsonb_set(command,'{prepare}','\"other\"') WHERE account_id=$1 AND operation_id='arm:operation1'",
+            'arm_id': "UPDATE life_financial.operations SET operation_id='changed-arm' WHERE account_id=$1 AND operation_id='arm:operation1'",
+        }[fault]
+        await c.execute(statement, cfg.account_id)
+        await c.execute(f'ALTER TABLE life_financial.{table} ENABLE TRIGGER USER')
+        now = await c.fetchval('SELECT clock_timestamp()')
+        facts = replace(facts, observed_at=now)
+        cut = (await financial.observation_cut(cfg.binding)).cut
+        approval = KEYS.sign('operator', cfg.binding, 'IMPORT', command.json(), cut, facts, issued_at=now, expires_at=now + timedelta(seconds=10))
+        with pytest.raises(StorageError, match='PG_LEGACY_APPLYING_ORIGINAL_SPOT_BASIS_REQUIRED'):
+            await importer.import_pending(command, source_store=store, approval=approval, cut=cut, facts=facts)
+        for table in ('legacy_applying_imports', 'spot_fill_facts', 'funding_cash_payments'):
+            assert await c.fetchval(f'SELECT count(*) FROM life_financial.{table} WHERE account_id=$1', cfg.account_id) == 0
+        assert await c.fetchval('SELECT halted FROM life_financial.accounts WHERE account_id=$1', cfg.account_id)
+    finally:
+        await store.close()
+        await financial.close()
 
 
 @pytest.mark.asyncio

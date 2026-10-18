@@ -3286,3 +3286,12 @@ not rewrite their receipts. Cold readback rechecks provenance and cannot grant
 activation or release. This declared profile does not admit pre-import native
 cashflow/SWAP/funding events, prior terminal/settled histories, outer SPOT or
 coordinator legacy profiles. R1 and full configured PG3 remain open.
+
+The core profile also retains sent SPOT orders with no fills in the current
+funding command. Each order still needs its exact original File preparation,
+fingerprint, live principal/fee holds and subsidy reservation, plus the
+independently committed original native preparation/ARM. No missing order or
+hold is inferred from account money. Funding recovery preserves those unknown
+attempts and their claims through cold restart; it never aborts/rearms them or
+turns their reserved subsidy into available cash. This uses the existing
+migration-56 provenance check and does not add a table or permission.
