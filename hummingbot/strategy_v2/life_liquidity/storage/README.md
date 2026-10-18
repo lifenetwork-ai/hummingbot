@@ -3355,3 +3355,20 @@ runs at admission and physical COMMIT. Corruption, orphan operations and pending
 parents refuse cold proof and cannot release a claim. Later recovery parents do
 not rewrite the historical import cut. Repaired-origin parents and undeclared
 File histories remain refused; configured PostgreSQL selection is still rejected.
+
+### Original unsent SPOT holds during funding recovery
+
+Retired File recovery can retain an original PREPARED-only order. Its original
+command/hold/subsidy and WAL identity must agree, with no exchange order, cancel,
+terminal, accepted-wire or runner evidence. The explicit `spot_prepared_only_ids`
+basis is verified independently by migration 62 against the original native
+preparation fingerprint and receipt at the import revision. A generic ARM or
+wire-bound quote ARM before that revision refuses the unsent claim, even when
+File balances and holds agree. Later events do not retroactively change that
+historical proof. Missing markers retain the original sent-order ARM requirement.
+
+IMPORT remains money-neutral. Separate signed funding recovery preserves the
+PREPARED state, principal/fee/subsidy holds, permanent IDs, HALT and shared claims
+through cold restart; it neither arms nor grants readiness. Other-order,
+cancelled/terminal/settled and coordinator histories retain their separate R1
+requirements. Configured PostgreSQL remains rejected until full assembly.

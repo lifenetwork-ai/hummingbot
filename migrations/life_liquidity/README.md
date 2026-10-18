@@ -923,3 +923,13 @@ account, policy, balance, activation or configured PostgreSQL sender.
   predecessor OIDs/ACLs, atomic unknown-shape rollback and automatic numbered
   startup/checksum/idempotency rules remain. No table, money, policy default,
   activation, release or trading capability is created.
+
+- `000062_legacy_unsent_spot.sql`: retain original PREPARED-only SPOT holds
+  during retired File funding recovery. A private historical-cut proof requires
+  the original preparation fingerprint/receipt and excludes any prior generic
+  or wire-bound quote ARM, ACK, fill, cancellation or terminal evidence. Later
+  lifecycle events cannot rewrite the original import cut. Existing sent-order
+  proofs remain mandatory when the explicit unsent marker is absent. No ARM,
+  release, money, table or policy default is created. Predecessor OIDs/ACLs and
+  strict atomic unknown-shape rollback are preserved; numbered startup remains
+  checksum-protected and idempotent.

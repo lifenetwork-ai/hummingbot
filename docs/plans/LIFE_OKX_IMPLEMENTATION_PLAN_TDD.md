@@ -1,6 +1,18 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
-**Current PG3 R1 completed-history checkpoint (2026-10-18, base `4385a663a`):**
+**Current PG3 R1 unsent-order checkpoint (2026-10-19, base `fd19637fc`):**
+migration 62 retains original PREPARED-only SPOT holds during retired File
+funding recovery. File WAL/hold/subsidy and independent native preparation,
+receipt and absence of prior ARM/ACK/fill/cancel/terminal evidence must agree.
+Both generic and wire-bound quote ARM are checked at the original import cut.
+Recovery preserves money, fees, gross budgets, HALT and claims through two cold
+restarts without granting send/release permission. **239 affected recovery and
+48 PREPARED/quote-send cases pass** (overlapping coverage); **80 actual migration
+cases pass**, including 61→62 and repeated startup. See
+[scope and qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-original-unsent-spot-recovery-2026-10-19).
+**Other required R1 histories/source consumption and R2–R5 remain open.**
+
+**Earlier PG3 R1 completed-history checkpoint (2026-10-18, base `4385a663a`):**
 core recovery verifies prior completed funding-only commands, and migration 61
 preserves original APPLIED native SPOT/SWAP/transfer/funding parents and children.
 Only missing economic leaves are applied; File parity, original money/receipts,

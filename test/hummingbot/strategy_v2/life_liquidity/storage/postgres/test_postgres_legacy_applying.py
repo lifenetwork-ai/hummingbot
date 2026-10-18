@@ -30,7 +30,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancial
 KEYS = OperatorKeys({'operator': b'i' * 32}, {'operator': frozenset(('IMPORT', 'RECOVER', 'DRAIN'))})
 
 
-async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashflow=None, spot_fill=None, file_result=None, retained_cashflows_only=False, spot_prefix=False, book_native_prefix=False, spot_open_only=False, book_native_cashflow=False, book_native_funding=False, prior_funding=(), prior_after_accounting=False, book_native_parent=False, book_native_accounting_parent=False):
+async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashflow=None, spot_fill=None, file_result=None, retained_cashflows_only=False, spot_prefix=False, book_native_prefix=False, spot_open_only=False, book_native_cashflow=False, book_native_funding=False, prior_funding=(), prior_after_accounting=False, book_native_parent=False, book_native_accounting_parent=False, spot_prepared_only=False, native_arm_prepared_only=False):
     from test.hummingbot.strategy_v2.life_liquidity.storage import test_spot_financial_contracts as file_fixture
     from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_funding import setup as funding_setup
 
@@ -147,12 +147,14 @@ async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashfl
         assert (await values[8].check_carry(cfg.binding)).allowed
         changes = dict(side=side, risk_epoch=1, fee_buffer_base_life=D('0'), fee_buffer_quote_usdt=D('.002'))
         await financial.prepare(file_fixture.order(owner, **changes), cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)
-        await financial.arm('operation1', cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)
+        if not spot_prepared_only or native_arm_prepared_only:
+            await financial.arm('operation1', cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)
         await store.prepare(file_fixture.order(file_owner, **changes), cut=(await store.snapshot(binding)).cut, owner=file_owner)
-        await store.arm('operation1', cut=(await store.snapshot(binding)).cut, owner=file_owner)
+        if not spot_prepared_only:
+            await store.arm('operation1', cut=(await store.snapshot(binding)).cut, owner=file_owner)
         now = await admin.fetchval('SELECT clock_timestamp()')
         clock[0] = now
-        if not spot_open_only:
+        if not spot_open_only and not spot_prepared_only:
             f = filled(file_owner, now, side=side)
             f = replace(f, fills=(replace(f.fills[0], fee_currency=fee_currency),))
             if spot_prefix:
@@ -249,7 +251,7 @@ async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashfl
     now = await admin.fetchval('SELECT clock_timestamp()')
     clock[0] = now
     facts = SpotFinancialRecoveryFacts(binding, now, base, quote, D('0'), D('0'), tuple(f.trade_id for v in fills for f in v.fills),
-                                       tuple(v.bill_id for v in flows), ('wire1',) if spot_open_only else tuple(v.client_order_id for v in fills), (), True, True, True)
+                                       tuple(v.bill_id for v in flows), () if spot_prepared_only else ('wire1',) if spot_open_only else tuple(v.client_order_id for v in fills), (), True, True, True)
     drain = OwnerTransition('file-drain', OwnerMode.DRAINING, file_owner)
     cut = (await store.snapshot(binding)).cut
     signature = KEYS.sign('operator', binding, 'DRAIN', drain.json(), cut, facts, issued_at=now, expires_at=now + timedelta(seconds=10))

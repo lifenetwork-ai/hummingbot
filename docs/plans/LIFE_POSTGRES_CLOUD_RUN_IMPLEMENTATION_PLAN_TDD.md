@@ -691,7 +691,8 @@ qualification/revision recorded in each increment below.
 - [x] Declared original native SWAP/funding prefixes, with exact prior receipts/hashes, File parity, cold recovery and actual 59→60 upgrades.
 - [x] Completed funding-only core commands and original APPLIED native joint parents for the declared recovery profiles; original basis, exact leaves, gross budgets and cold restart remain verified.
 - [ ] Other completed core command families and repaired-origin native joint parent histories required by the supported File recovery modes.
-- [ ] Prior other-order, PREPARED-only, cancellation, terminal/NAV and economic settlement histories needed by supported File recovery modes.
+- [x] Declared original PREPARED-only SPOT holds during core funding recovery, with independent native unsent provenance, actual File parity, cold restart and a real 61→62 upgrade.
+- [ ] Prior other-order, cancellation, terminal/NAV and economic settlement histories needed by supported File recovery modes.
 - [ ] Outer SPOT and hedge/carry coordinator financial checkpoint recovery.
 - [ ] Complete authenticated order/trade/bill/runner scope and original collateral/liability source consumption at every required terminal/shared-release route.
 
@@ -2936,3 +2937,63 @@ clock condition; it is not production durability or loaded SQL reliability.
 No `.env`, configured DB/account, exchange request, deployment, evidence file or
 widened deadline is introduced. R1–R5 and configured-service acceptance remain
 open under the fixed exits.
+
+### PG3 original unsent SPOT recovery (2026-10-19)
+
+Base revision: `fd19637fc`. Original PREPARED-only SPOT orders are retained during
+core File funding import/recovery, without creating an ARM or releasing holds.
+File command fingerprints, exact original WAL/order identity, hold quantity,
+fee/subsidy and absence of exchange/cancel/terminal/runner acceptance evidence
+remain mandatory. The explicit unsent marker is independent of ordinary sent
+orders. Migration 62 checks the original native preparation fingerprint/receipt
+and absence of generic or wire-bound quote ARM, ACK, fill, cancellation and
+terminal history at the import revision. A later mutable attempt state cannot
+rewrite this historical proof. Existing sent-order basis remains unchanged.
+The helper is private; predecessor OIDs/ACLs and atomic migration shape checks
+remain. No money, table, policy default, activation, send or release grant is added.
+
+TDD development gates (overlapping, not additive):
+
+- The original unsent replay fails with `PG_LEGACY_APPLYING_FACTS_CHANGED`,
+  one failure, 8.02 s (`/tmp/life-r1-prepared-red`). Initial SQL development
+  exposes an unparenthesized PL/pgSQL CASE; the next proof attempt rejects the
+  native preparation fingerprint because its legacy API hashes a full typed
+  FinancialCut, not the stored request's scalar digest. The verifier now
+  reconstructs the actual original typed-cut identity, including the distinct
+  quote-action command shape; it does not replace an old hash or receipt.
+- Six BUY/SELL/three-crash-point replays plus one native proof pass, 35.60 s
+  (`/tmp/life-r1-prepared-green-identity`), with actual File resume and two native
+  cold restores. The expanded gate initially has eight passes/one fixture
+  failure: its cold-upgrade replay retained a closed capital adapter. Rebinding
+  that fixture to the actual restored adapter yields ten passes, 48.29 s
+  (`/tmp/life-r1-prepared-focused-cold-context`). Original holds/budgets and HALT
+  remain; an already-armed native order is refused as unsent.
+- The first migration gate has 78 passes/two failures, 78.59 s
+  (`/tmp/life-r1-prepared-migrations`): the two new async tests lacked their
+  asyncio marker. This is corrected without a production change; final migration
+  qualification is pending.
+- An additional actual wire-bound quote-ARM Red case demonstrates that the new
+  helper initially overlooked `SPOT_QUOTE_ARM`, one failure, 6.89 s
+  (`/tmp/life-r1-prepared-quote-arm-red`). It now checks both ARM families and
+  the permanent ARM operation identity. The final PREPARED/quote-ARM selector
+  passes **48 cases**, zero failures/errors/skips, 2,094 deselected, six existing
+  warnings, **137.41 s** (`/tmp/life-r1-prepared-quote-focused`), including the
+  new negative case and historical-cut check after a real quote ARM.
+- Final actual migration qualification passes **80 cases**, zero failures/errors/
+  skips, **77.38 s** (`/tmp/life-r1-prepared-migrations-final`): actual 61→62,
+  private helper under permissive defaults, original OIDs/ACLs, no bootstrap,
+  repeat startup and atomic unexpected-predecessor refusal. The expanded
+  affected legacy SPOT/history/snapshot regression passes **239 cases**, zero
+  failures/errors/skips, 1,903 deselected, six existing warnings, **995.98 s**
+  (`/tmp/life-r1-prepared-final-regression`). The PREPARED and actual upgrade
+  cases overlap the 48-pass sender selector and are not additional coverage.
+  Financial Python/SQL remain frozen across the final native and migration
+  gates. A subsequent test-only mixed-command history extension is separate
+  work and is not part of this qualification or commit. Existing numbered
+  migrations and financial thresholds are unchanged.
+
+Only disposable local PostgreSQL and synthetic File/provider facts are used.
+No configured `.env`/DB/account, real exchange, deployment or repository evidence
+file is used. Source freshness, SQL/transaction limits and financial thresholds
+are unchanged. This increment addresses one R1 history family; the other fixed
+R1 requirements and R2–R5 remain open.

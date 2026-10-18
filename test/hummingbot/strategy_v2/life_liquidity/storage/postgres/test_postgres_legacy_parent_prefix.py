@@ -123,7 +123,7 @@ async def test_actual_60_parent_history_upgrades_then_imports_without_rewriting_
         definition = await c.fetchval("SELECT pg_get_functiondef('life_financial.legacy_applying_pending(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)'::regprocedure)")
         assert 'OR EXISTS(SELECT 1 FROM life_financial.joint_financial_batches WHERE account_id=p_account)' in definition
         await financial.close()
-        assert (await migrations.migrate(c, action='up'))['applied'] == ['000061_legacy_parent_prefix.sql']
+        assert (await migrations.migrate(c, action='up'))['applied'] == ['000061_legacy_parent_prefix.sql', '000062_legacy_unsent_spot.sql']
         assert await c.fetchval("SELECT jsonb_agg(to_jsonb(o) ORDER BY operation_id) FROM life_financial.operations o WHERE account_id=$1", cfg.account_id) == original
         cold, capital, batch, importer = await restore(cfg, owner, c)
         assert (await batch.lookup('native-prior-parent', cfg.binding)).state == 'APPLIED'

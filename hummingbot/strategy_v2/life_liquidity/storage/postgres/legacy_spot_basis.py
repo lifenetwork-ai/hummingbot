@@ -3,6 +3,7 @@
 This validates evidence, never provisions orders, money or permissions. Native
 preparations are checked independently in SQL before IMPORT and on cold reads.
 """
+import json
 from datetime import datetime, timezone
 from decimal import Decimal as D
 
@@ -77,7 +78,7 @@ def spot_basis(source, old, batch, resources, wallet, loss, subsidy):
         raise StorageError('PG_LEGACY_APPLYING_ORIGINAL_BASIS_REQUIRED')
     if {k: v for k, v in wallet['account_events'].items() if k.startswith('FEE:')} != fee_events:
         raise StorageError('PG_LEGACY_APPLYING_ORIGINAL_BASIS_REQUIRED')
-    base, cash, preparations, intents = D('0'), D('0'), [], set()
+    base, cash, preparations, intents, unsent = D('0'), D('0'), [], set(), []
     for key, row in commands.items():
         value = original.get(key)
         prepared = PrepareSpot.from_json(row['command'])
@@ -86,8 +87,20 @@ def spot_basis(source, old, batch, resources, wallet, loss, subsidy):
         ) == (value.prepare_operation_id, value.intent_id, value.client_order_id, value.market, value.side, value.session_id, value.epoch)
         if (key != prepared.operation_id
                 or row['fingerprint'] != fingerprint({'command': prepared.json(), 'cut': row['original_cut'], 'owner': row['original_owner']})
-                or row['state'] not in ('SEND_UNKNOWN', 'ACKED') or not matches_fill):
+                or row['state'] not in ('PREPARED', 'SEND_UNKNOWN', 'ACKED') or not matches_fill):
             raise StorageError('PG_LEGACY_APPLYING_FACTS_CHANGED')
+        if row['state'] == 'PREPARED':
+            record = json.loads(dict(source.journal_images)['wal'])['records'].get(prepared.intent_id)
+            if (value is not None or any(row.get(k) is not None for k in ('arm_owner', 'arm_cut', 'arm_fingerprint'))
+                    or record is None or record['state'] != 'PREPARED' or record['exchange_order_id'] is not None
+                    or record['cancel_requested'] or record['cancel_attempts'] or record['exchange_terminal_observed']
+                    or (record['client_order_id'], record['session_id'], record['epoch'], record['reservation_id'],
+                        record['slot_market'], record['slot_side'], record['slot_level'])
+                    != (prepared.client_order_id, prepared.session_id, prepared.epoch, prepared.intent_id,
+                        prepared.market, prepared.side, prepared.quote_level)
+                    or prepared.client_order_id in (*source.facts.accepted_wire_ids, *source.facts.runner_wire_ids)):
+                raise StorageError('PG_LEGACY_APPLYING_ORIGINAL_BASIS_REQUIRED')
+            unsent.append(prepared.operation_id)
         if prepared.intent_id in intents:
             raise StorageError('PG_LEGACY_APPLYING_FACTS_CHANGED')
         intents.add(prepared.intent_id)
@@ -111,4 +124,7 @@ def spot_basis(source, old, batch, resources, wallet, loss, subsidy):
         preparations.append(prepared.json())
     if set(wallet['reservations']) != intents or set(subsidy['entries']) != intents:
         raise StorageError('PG_LEGACY_APPLYING_ORIGINAL_BASIS_REQUIRED')
-    return ({'spot_preparations': sorted(preparations, key=lambda v: v['operation_id'])} if preparations else {}), base, cash, prefix_base, prefix_cash
+    basis = {'spot_preparations': sorted(preparations, key=lambda v: v['operation_id'])} if preparations else {}
+    if unsent:
+        basis['spot_prepared_only_ids'] = sorted(unsent)
+    return basis, base, cash, prefix_base, prefix_cash
