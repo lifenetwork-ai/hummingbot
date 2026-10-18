@@ -961,3 +961,15 @@ account, policy, balance, activation or configured PostgreSQL sender.
   The proof helper is private even under permissive owner defaults; existing
   OIDs/ACLs remain. No table or policy default is added. Unexpected predecessor
   shape rolls back atomically and checksum-protected repeat startup is a no-op.
+
+- `000066_legacy_terminal_prefix.sql`: retain already completed original SPOT
+  terminals during retired File money recovery. Exact native operations,
+  fingerprints, receipts, order identity, full original facts and subsidy-release
+  status must match at the original import cut. Zero-fill terminals preserve the
+  original zero settlement; filled terminals retain their economic-cost hold.
+  Missing, changed, duplicate or later native evidence fails cold proof. Import
+  does not confirm an order, release money/subsidy or retire a shared claim.
+  The proof uses indexed original identities and one account-scoped count,
+  rather than scanning the source array again for every terminal. Existing
+  OIDs/ACLs remain; the helper is private, no table/default is added, unexpected
+  predecessor shape rolls back, and checksum-protected repeat startup is a no-op.

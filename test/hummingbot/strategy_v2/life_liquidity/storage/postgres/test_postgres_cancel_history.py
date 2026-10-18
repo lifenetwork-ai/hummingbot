@@ -146,7 +146,7 @@ async def test_actual_64_original_cancels_upgrade_without_resetting_retries_hold
         rows = await c.fetchval('SELECT jsonb_agg(to_jsonb(o) ORDER BY operation_id) FROM life_financial.operations o WHERE account_id=$1', cfg.account_id)
         progress = await c.fetchval("SELECT to_jsonb(p) FROM life_financial.spot_cancel_progress p WHERE account_id=$1 AND intent_id='previous-intent'", cfg.account_id)
         await financial.close()
-        assert (await migrate(c, action='up'))['applied'] == ['000065_legacy_cancel_prefix.sql']
+        assert (await migrate(c, action='up'))['applied'] == ['000065_legacy_cancel_prefix.sql', '000066_legacy_terminal_prefix.sql']
         cold, capital, batch, importer = await restore(cfg, owner, c)
         after = await cold.snapshot(cfg.binding)
         assert (after.balance, after.budget, after.cut) == (before.balance, before.budget, before.cut)

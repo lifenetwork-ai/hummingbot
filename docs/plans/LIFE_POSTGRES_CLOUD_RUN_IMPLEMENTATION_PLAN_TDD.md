@@ -696,6 +696,7 @@ qualification/revision recorded in each increment below.
 - [x] Declared original PREPARED-only SPOT holds during core funding recovery, with independent native unsent provenance, actual File parity, cold restart and a real 61→62 upgrade.
 - [x] Declared earlier filled/ACKed other-order history omitted by the pending command, with original receipts, zero-money ACK proof, File parity and actual 62→63 upgrades.
 - [x] Declared original cancel-request/retry prefixes with independent native originals, unchanged retry history/holds and cold recovery.
+- [x] Declared already completed original SPOT terminal prefixes, including zero-fill subsidy settlement, partially filled economic holds and late-ACK/cancel history; exact independent native receipts, File parity and two cold restores. See the migration-66 qualification below.
 - [ ] Remaining cancellation, terminal/NAV and economic settlement histories needed by supported File recovery modes.
 - [ ] Outer SPOT and hedge/carry coordinator financial checkpoint recovery.
 - [ ] Complete authenticated order/trade/bill/runner scope and original collateral/liability source consumption at every required terminal/shared-release route.
@@ -3194,3 +3195,56 @@ for required remaining histories, outer SPOT/coordinator recovery and complete
 authenticated account/collateral/liability source consumption at release.
 R2–R5 and configured PostgreSQL service eligibility remain open. No configured
 DB/account, `.env`, external exchange, deployment or new evidence file is used.
+
+
+### PG3 original completed terminal history during retired core recovery (2026-10-19)
+
+Migration 66 retains original completed SPOT terminal facts at the pre-import
+revision. File preparation/receipt hashes, WAL terminal identity, fills,
+remaining principal and subsidy must match independent native operations and
+receipts. A zero-fill terminal retains its original zero-cost settlement;
+a partially filled terminal retains its economic-cost hold. Cancel/retry and
+late-ACK receipts remain immutable. A missing original native terminal denies
+IMPORT without changing money, budgets, claims or the account cut. Cold reads
+recheck the historical proof; a later terminal cannot explain an earlier cut.
+
+The helper uses indexed operation/preparation lookups, unique source identities
+and one account-scoped terminal count. It does not scan the entire source array
+again for every original terminal. It is private, adds no table or policy default
+and preserves predecessor OIDs/ACLs. It grants no order, terminal confirmation,
+shared release or trading capability.
+
+**Native current-source qualification:** **71 cases pass**, zero failures/errors/
+skips, six existing warning categories, **380.76 s**, `/tmp/life-r1-terminal-frozen-regression`.
+This includes all 21 new terminal cases (zero/partial fills, BUY/SELL siblings,
+late ACK/retry, missing native evidence, component mutation, committed cold
+corruption and actual 65→66 recovery), existing cancellation/ACK/unsent profiles,
+actual old markerless import and all nine actual migration-54 snapshot-body
+upgrade states. Exact actual File resume values, original native receipts,
+gross costs, HALT and retained shared claims survive two cold restores.
+
+The initial Red case reproduced rejection of valid completed terminal history
+(`/tmp/life-r1-terminal-history-red`). The first 8-profile development gate passed
+on its earlier source. One development cold-corruption assertion incorrectly
+expected another connection to observe an uncommitted mutation; the final test
+commits disposable corruption before reopening and verifies denial without
+changing money or claims. Another intermediate run overlapped a migration-source edit with old fixture
+startup and encountered the expected checksum rejection;
+the final 71-case gate uses frozen financial/migration source. Earlier diagnostic
+runs do not qualify the final verifier and are not added to its case count.
+
+Remaining interrupted terminal/prepared-receipt/settlement command families,
+other required economic histories, outer SPOT/coordinator recovery and complete
+provider/collateral/liability consumption retain their fixed R1 requirements.
+R1 and R2–R5 remain open; configured PostgreSQL selection remains rejected.
+Only disposable loopback PostgreSQL, synthetic facts and File fixture resumes
+are used, with unchanged source-age, SQL, transaction, risk and monetary limits.
+No configured DB/account, `.env`, exchange request, deployment or evidence file
+is introduced.
+
+**Actual migration qualification:** **90 cases pass**, zero failures/errors/
+skips, **92.37 s**, `/tmp/life-r1-terminal-frozen-migrations`. This includes
+65→66 private helper/OID/ACL preservation under permissive defaults, unchanged
+tables/empty financial state, atomic unexpected-predecessor refusal and repeated
+startup. The native and migration gates are separate selectors, not additional
+full-service acceptance or a closure of R1/R5.

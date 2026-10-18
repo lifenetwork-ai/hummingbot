@@ -1,6 +1,16 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
-**Current PG3 R1 cancel-history checkpoint (2026-10-19, base `9477a5650`):**
+**Current PG3 R1 completed-terminal checkpoint (2026-10-19, base `e0205677c`):**
+migration 66 retains exact original zero-fill/partially filled SPOT terminals,
+including earlier cancel/retry and late ACK receipts, at the original import cut.
+IMPORT does not release principal, subsidy or shared claims. **71 affected
+cases and 90 actual migration cases pass**, including all 21 new terminal cases,
+65→66 recovery and all nine migration-54 snapshot upgrade states. See
+[scope and qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-original-completed-terminal-history-during-retired-core-recovery-2026-10-19).
+**R1 remains open for remaining interrupted/economic histories, outer SPOT/
+coordinator recovery and complete provider-source consumption; R2–R5 remain open.**
+
+**Earlier PG3 R1 cancel-history checkpoint (2026-10-19, base `9477a5650`):**
 migration 65 verifies original cancel requests/retries and retained native
 receipts/counters at the import revision. ACK received afterward can advance
 current order state without rewriting an earlier receipt. Recovery preserves

@@ -2023,10 +2023,11 @@ async def test_repaired_parent_upgrade_keeps_all_oids_acls_tables_and_is_atomic_
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('unexpected_shape', [False, True])
-async def test_cancel_history_upgrade_is_private_atomic_and_idempotent_without_money_or_table_changes(db, unexpected_shape):
+@pytest.mark.parametrize('version,profile', [(65, 'cancel'), (66, 'terminal')])
+async def test_lifecycle_history_upgrade_is_private_atomic_and_idempotent_without_money_or_table_changes(db, unexpected_shape, version, profile):
     c, _, directory = db
     for path in DEFAULT_DIRECTORY.glob('*.sql'):
-        if int(path.name.split('_', 1)[0]) < 65:
+        if int(path.name.split('_', 1)[0]) < version:
             (directory / path.name).write_bytes(path.read_bytes())
     await migrate(c, directory, action='up')
     await c.execute('ALTER DEFAULT PRIVILEGES IN SCHEMA life_financial GRANT EXECUTE ON FUNCTIONS TO life_runtime_test,life_reporter_test')
@@ -2038,17 +2039,17 @@ async def test_cancel_history_upgrade_is_private_atomic_and_idempotent_without_m
         FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='life_financial' ORDER BY p.oid'''
     before = {r['signature']: dict(r) for r in await c.fetch(query)}
     tables = await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace='life_financial'::regnamespace ORDER BY oid")
-    path = DEFAULT_DIRECTORY / '000065_legacy_cancel_prefix.sql'
+    path = DEFAULT_DIRECTORY / f'{version:06d}_legacy_{profile}_prefix.sql'
     (directory / path.name).write_bytes(path.read_bytes())
     if unexpected_shape:
-        with pytest.raises(asyncpg.RaiseError, match='LIFE_LEGACY_CANCEL_PREFIX_MISMATCH'):
+        with pytest.raises(asyncpg.RaiseError, match=f'LIFE_LEGACY_{profile.upper()}_PREFIX_MISMATCH'):
             await migrate(c, directory, action='up')
         assert {r['signature']: dict(r) for r in await c.fetch(query)} == before
-        assert (await versions(c))[-1]['version'] == 64
+        assert (await versions(c))[-1]['version'] == version - 1
         return
     assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
     after = {r['signature']: dict(r) for r in await c.fetch(query)}
-    helper = 'life_financial.legacy_cancel_prefix_valid(uuid,jsonb,bigint)'
+    helper = f'life_financial.legacy_{profile}_prefix_valid(uuid,jsonb,bigint)'
     assert set(after) - set(before) == {helper}
     for key, original in before.items():
         if key == signature:

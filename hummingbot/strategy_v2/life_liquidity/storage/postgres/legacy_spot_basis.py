@@ -93,6 +93,8 @@ def spot_basis(source, old, batch, resources, wallet, loss, subsidy):
         raise StorageError('PG_LEGACY_APPLYING_ORIGINAL_BASIS_REQUIRED')
     if {k: v for k, v in wallet['account_events'].items() if k.startswith('FEE:')} != fee_events:
         raise StorageError('PG_LEGACY_APPLYING_ORIGINAL_BASIS_REQUIRED')
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.legacy_terminal_basis import terminal_basis
+    terminals = terminal_basis(resources, records, wallet, quantities)
     base, cash, preparations, intents, unsent = D('0'), D('0'), [], set(), []
     for key, row in commands.items():
         value = original.get(key)
@@ -102,7 +104,7 @@ def spot_basis(source, old, batch, resources, wallet, loss, subsidy):
         ) == (value.prepare_operation_id, value.intent_id, value.client_order_id, value.market, value.side, value.session_id, value.epoch)
         if (key != prepared.operation_id
                 or row['fingerprint'] != fingerprint({'command': prepared.json(), 'cut': row['original_cut'], 'owner': row['original_owner']})
-                or row['state'] not in ('PREPARED', 'SEND_UNKNOWN', 'ACKED') or not matches_fill):
+                or row['state'] not in ('PREPARED', 'SEND_UNKNOWN', 'ACKED', 'TERMINAL') or not matches_fill):
             raise StorageError('PG_LEGACY_APPLYING_FACTS_CHANGED')
         if row['state'] == 'PREPARED':
             record = records.get(prepared.intent_id)
@@ -121,14 +123,18 @@ def spot_basis(source, old, batch, resources, wallet, loss, subsidy):
         intents.add(prepared.intent_id)
         held = wallet['reservations'].get(prepared.intent_id)
         entry = subsidy['entries'].get(prepared.intent_id)
+        zero_terminal = row['state'] == 'TERMINAL' and quantities.get(prepared.intent_id, D('0')) == 0
         if (held is None or held['intent'] != dict(intent_id=prepared.intent_id, side=prepared.side,
                                                    quantity_base=str(prepared.quantity_base), limit_price_usdt=str(prepared.limit_price_usdt),
                                                    session_id=prepared.session_id, epoch=prepared.epoch)
                 or D(held['filled_base']) != quantities.get(prepared.intent_id, D('0'))
-                or D(held['remaining_base']) != prepared.quantity_base - D(held['filled_base'])
-                or held['state'] not in (('CANCEL_PENDING',) if records[prepared.intent_id]['cancel_requested'] else ('OPEN', 'UNKNOWN'))
+                or D(held['remaining_base']) != (D('0') if row['state'] == 'TERMINAL' else prepared.quantity_base - D(held['filled_base']))
+                or held['state'] not in (('TERMINAL',) if row['state'] == 'TERMINAL' else
+                                         ('CANCEL_PENDING',) if records[prepared.intent_id]['cancel_requested'] else ('OPEN', 'UNKNOWN'))
                 or entry is None or entry['session_id'] != prepared.session_id
-                or D(entry['reserved']) != prepared.subsidy_quote_usdt or entry['actual'] is not None
+                or D(entry['reserved']) != prepared.subsidy_quote_usdt
+                or (entry['actual'] is None if zero_terminal else entry['actual'] is not None)
+                or entry['actual'] is not None and D(entry['actual']) != 0
                 or D(entry.get('fill_floor', '0')) != floors.get(prepared.intent_id, D('0')) or entry.get('inventory_cycle') is not None):
             raise StorageError('PG_LEGACY_APPLYING_ORIGINAL_BASIS_REQUIRED')
         for f in (() if value is None else value.fills):
@@ -151,11 +157,12 @@ def spot_basis(source, old, batch, resources, wallet, loss, subsidy):
                 or row['fingerprint'] != fingerprint({'command': ack.json(), 'owner': row['owner']})
                 or (ack.prepare_operation_id, ack.intent_id, ack.client_order_id, ack.market, ack.side, ack.session_id, ack.epoch)
                 != (prepared.operation_id, prepared.intent_id, prepared.client_order_id, prepared.market, prepared.side, prepared.session_id, prepared.epoch)
-                or record is None or record['state'] != 'ACKED' or record['exchange_order_id'] != ack.exchange_order_id):
+                or record is None or record['state'] not in ('ACKED', 'TERMINAL') or record['exchange_order_id'] != ack.exchange_order_id):
             raise StorageError('PG_LEGACY_APPLYING_ORIGINAL_BASIS_REQUIRED')
         acknowledgements.append(ack.json())
     if acknowledgements:
         basis['spot_acknowledgements'] = sorted(acknowledgements, key=lambda v: v['operation_id'])
     from hummingbot.strategy_v2.life_liquidity.storage.postgres.legacy_cancel_basis import cancel_basis
     basis.update(cancel_basis(resources, records))
+    basis.update(terminals)
     return basis, base, cash, prefix_base, prefix_cash

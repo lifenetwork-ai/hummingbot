@@ -14,7 +14,7 @@ def cancel_basis(resources, records):
                 or row['state'] != 'APPLIED' or row['result'] not in ('SEND_UNKNOWN', 'ACKED')
                 or row['identity'] != fingerprint({'command': command.json(), 'owner': row['owner']})
                 or prepared is None or prepared['original_owner'] != row['owner']
-                or prepared['state'] not in (('SEND_UNKNOWN', 'ACKED') if row['result'] == 'SEND_UNKNOWN' else ('ACKED',))
+                or prepared['state'] not in (('SEND_UNKNOWN', 'ACKED', 'TERMINAL') if row['result'] == 'SEND_UNKNOWN' else ('ACKED', 'TERMINAL'))
                 or row['prior_state'] != row['result'] or row['phase'] != 'CANCELING'
                 or (command.intent_id, command.client_order_id) != (prepared['command']['intent_id'], prepared['command']['client_order_id'])
                 or record is None or record['state'] != prepared['state'] or not record['cancel_requested']):

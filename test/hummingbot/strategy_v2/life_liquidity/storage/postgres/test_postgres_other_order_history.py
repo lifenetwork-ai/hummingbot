@@ -98,7 +98,7 @@ async def test_actual_62_original_order_ack_upgrades_without_rewriting_receipts_
         before = await financial.snapshot(cfg.binding)
         rows = await c.fetchval("SELECT jsonb_agg(to_jsonb(o) ORDER BY operation_id) FROM life_financial.operations o WHERE account_id=$1", cfg.account_id)
         await financial.close()
-        assert (await migrate(c, action='up'))['applied'] == ['000063_legacy_spot_ack_prefix.sql', '000064_legacy_repaired_parent_prefix.sql', '000065_legacy_cancel_prefix.sql']
+        assert (await migrate(c, action='up'))['applied'] == ['000063_legacy_spot_ack_prefix.sql', '000064_legacy_repaired_parent_prefix.sql', '000065_legacy_cancel_prefix.sql', '000066_legacy_terminal_prefix.sql']
         cold, capital, batch, importer = await restore(cfg, owner, c)
         after = await cold.snapshot(cfg.binding)
         assert (after.balance, after.budget, after.cut) == (before.balance, before.budget, before.cut)
@@ -141,7 +141,7 @@ async def test_original_62_import_without_ack_projection_still_verifies_after_up
             assert 'spot_acknowledgements' not in json.loads(body)['source_basis']
             before = await financial.snapshot(cfg.binding)
             await financial.close()
-        assert (await migrate(database[0], action='up'))['applied'] == ['000063_legacy_spot_ack_prefix.sql', '000064_legacy_repaired_parent_prefix.sql', '000065_legacy_cancel_prefix.sql']
+        assert (await migrate(database[0], action='up'))['applied'] == ['000063_legacy_spot_ack_prefix.sql', '000064_legacy_repaired_parent_prefix.sql', '000065_legacy_cancel_prefix.sql', '000066_legacy_terminal_prefix.sql']
         cold, _, _, importer = await restore(cfg, owner, database[0])
         assert (await importer.lookup(command.operation_id)).replayed
         after = await cold.snapshot(cfg.binding)

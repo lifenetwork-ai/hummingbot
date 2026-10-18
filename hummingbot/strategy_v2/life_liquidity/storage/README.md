@@ -3432,3 +3432,19 @@ Migration 65 checks that provenance again on cold reads and rejects omitted,
 changed or orphaned evidence. It creates no requests, orders, cancellations,
 terminal observations, release permissions or accounting events. Terminal and
 economic-settlement histories still require their separate R1 proofs.
+
+### Original completed SPOT terminals during retired core recovery
+
+Migration 66 retains independently recorded native terminal identities and exact
+facts at the original import revision. The File preparation, terminal receipt,
+WAL, remaining principal and subsidy must agree with those originals. A zero-fill
+terminal retains its already settled zero subsidy; a partially filled terminal
+retains its economic-cost hold. Earlier cancel receipts remain unchanged even
+when the current order is terminal or its ACK was received after cancellation.
+
+IMPORT publishes a pending monetary observation only. It performs no terminal,
+subsidy refund or shared-claim retirement. Missing native terminal provenance,
+changed original receipts, duplicate coverage and later terminal operations
+cannot explain the earlier cut; cold verification rechecks the same proof.
+Inventory-cycle settlements, interrupted terminal commands, outer coordinator
+recovery and complete provider-source consumption retain their R1 requirements.
