@@ -1,6 +1,9 @@
 """Opt-in real PostgreSQL tests; use run_migrations.py, never a user's database."""
 import asyncio
+import hashlib
+import json
 import os
+import random
 import sys
 import uuid
 
@@ -1448,4 +1451,70 @@ async def test_legacy_cashflow_upgrade_preserves_original_gates_and_private_appr
             assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", role, signature)
     assert (await migrate(c, directory, action='up'))['applied'] == []
     for table in ('accounts', 'balances', 'operations', 'bill_approvals', 'cashflows', 'legacy_applying_imports'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+
+
+@pytest.mark.asyncio
+async def test_canonical_upgrade_preserves_historical_bytes_hashes_strictness_and_acl(db):
+    from hummingbot.strategy_v2.life_liquidity.storage.contracts import fingerprint
+
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 53:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    signature = 'life_financial.canonical_json_v1(jsonb)'
+    before = await c.fetchrow('''SELECT oid,proacl,provolatile,proisstrict,prosecdef,proparallel,proleakproof,proconfig
+        FROM pg_proc WHERE oid=to_regprocedure($1)''', signature)
+    # Freeze the actual pre-upgrade implementation as an independent oracle,
+    # including its numeric rendering and C-collation object key order.
+    await c.execute('CREATE SCHEMA canonical_reference')
+    original = await c.fetchval('SELECT pg_get_functiondef(to_regprocedure($1))', signature)
+    await c.execute(original.replace('life_financial.canonical_json_v1', 'canonical_reference.historical_v1'))
+
+    rng = random.Random(53)
+    strings = ['', 'a', 'é', 'e\u0301', '中', '😀', '\n\r\t\b\f', '\\"', '\u2028']
+
+    def sample(depth):
+        leaf = rng.choice([None, True, False, rng.randrange(-10**12, 10**12), rng.choice(strings)])
+        if depth == 0 or rng.randrange(3) == 0:
+            return leaf
+        if rng.randrange(2):
+            return [sample(depth - 1) for _ in range(rng.randrange(5))]
+        return {key: sample(depth - 1) for key in rng.sample(strings, rng.randrange(5))}
+
+    values = [None, True, False, 0, -1, *strings, [], {}, [[], {}, None],
+              {'aa': 1, 'b': 2, 'A': 3, 'é': 4, '中': 5, '😀': 6}]
+    values += [sample(4) for _ in range(256)]
+    raw = [json.dumps(value, ensure_ascii=False, separators=(',', ':')) for value in values]
+    raw += ['{"scaled":1.000,"zero":-0.000,"large":1e30,"small":-1e-30}',
+            '{"n":' + '9' * 1200 + '}', '[' * 64 + '"deep"' + ']' * 64,
+            '{"duplicate":1,"duplicate":2}', ' { "x" : [ true , null , 0 ] } ']
+    old = await c.fetch('''SELECT canonical_reference.historical_v1(value::jsonb) AS body,
+        encode(sha256(convert_to(canonical_reference.historical_v1(value::jsonb),'UTF8')),'hex') AS digest
+        FROM unnest($1::text[]) WITH ORDINALITY AS e(value,ordinal) ORDER BY ordinal''', raw)
+    path = DEFAULT_DIRECTORY / '000053_canonical_scalar_fast_path.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    assert await c.fetchrow('''SELECT oid,proacl,provolatile,proisstrict,prosecdef,proparallel,proleakproof,proconfig
+        FROM pg_proc WHERE oid=to_regprocedure($1)''', signature) == before
+    current = await c.fetch('''SELECT life_financial.canonical_json_v1(value::jsonb) AS body,
+        encode(sha256(convert_to(life_financial.canonical_json_v1(value::jsonb),'UTF8')),'hex') AS digest
+        FROM unnest($1::text[]) WITH ORDINALITY AS e(value,ordinal) ORDER BY ordinal''', raw)
+    assert current == old
+    for value, row in zip(values, current):
+        expected = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
+        assert row['body'] == expected
+        assert row['digest'] == hashlib.sha256(expected.encode()).hexdigest()
+        # Existing native v1 uses UTF-8 JSON; the Python fingerprint codec
+        # escapes non-ASCII. This optimization must preserve v1 history, not
+        # silently change that separate codec/domain contract.
+        if expected.isascii():
+            assert row['digest'] == fingerprint(value)
+    assert await c.fetchval('SELECT life_financial.canonical_json_v1(NULL::jsonb)') is None
+    assert await c.fetchval("SELECT life_financial.canonical_json_v1('null'::jsonb)") == 'null'
+    for role in ('life_runtime_test', 'life_reporter_test', 'public'):
+        assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", role, signature)
+    assert (await migrate(c, directory, action='up'))['applied'] == []
+    for table in ('accounts', 'balances', 'operations', 'bill_approvals', 'legacy_applying_imports'):
         assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0

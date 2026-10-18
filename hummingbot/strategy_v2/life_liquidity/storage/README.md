@@ -3103,3 +3103,20 @@ It includes batch, signed joint/direct-funding source repair, ordinary funding,
 NAV, terminal, shared release, late
 observations and collateral tests. It does not replace whole-service acceptance
 or the other four fixed PG3 workstreams.
+
+### Canonical JSON verification cost
+
+Migration 53 keeps the exact native canonical v1 format but serializes scalar
+children directly. Container recursion and every read/COMMIT proof remain;
+no cached verification can conceal a changed original bill, receipt or body.
+Paired isolated serializer measurements show a 32–76% reduction for the sampled
+payload shapes. This measures serializer cost, not whole-bot throughput or
+loaded tail latency. See the current PG plan for qualification and remaining
+SQL/freshness failures.
+
+Native v1 writes Unicode directly; Python `storage.contracts.fingerprint`
+escapes non-ASCII. Migration 53 preserves this existing distinction so original
+hashes remain valid. A caller must not assume byte equivalence for arbitrary
+Unicode bodies across those codecs. Complete configured source/codec-domain
+qualification remains part of PG3 R4/R5; PostgreSQL backend selection stays
+rejected.

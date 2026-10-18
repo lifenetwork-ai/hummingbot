@@ -834,3 +834,10 @@ account, policy, balance, activation or configured PostgreSQL sender.
   refusal of a previous-millisecond bill. Preserve existing function OIDs/ACLs
   and public error codes; failed signed replacement diagnostics retain only a
   bounded kernel reason code. No capital, policy, account or activation bootstrap.
+
+- `000053_canonical_scalar_fast_path.sql`: avoid recursive function calls for
+  scalar JSON children while retaining canonical v1 byte order, UTF-8 escaping,
+  numeric rendering and every historical hash. Objects/arrays still recurse;
+  object keys keep C-collation sorting and arrays keep their original order.
+  The existing function OID, private ACL, strictness and immutability remain.
+  No proof cache, rewritten receipt, financial bootstrap or deadline change.

@@ -1041,6 +1041,71 @@ fixed R3 → R2/R4 → R5 contracts remain required. All qualification is isolat
 and synthetic; no configured account, `.env`, exchange or deployment is used.
 
 
+### PG3 canonical v1 scalar optimization (2026-10-18)
+
+Base revision: `597bc8d66`. The prior isolated financial profile recorded 39,298
+recursive canonical serializer calls across one mixed-recovery workflow. Migration
+53 bypasses recursion only for scalar children. It preserves native v1 output,
+C-collation object order, array order, JSON null/SQL NULL distinction, decimal
+rendering, function OID/ACL, strictness and immutability. Every historical proof
+still computes its hash; no receipt, budget, source TTL or SQL limit is changed.
+
+- [x] Compare exact bytes and SHA-256 digests with the frozen pre-upgrade function
+  over deterministic nested payloads, Unicode/escapes, empty containers, duplicate
+  keys, scaled/large numbers and depth-64 arrays; preserve private runtime/reporter
+  privileges and repeat-startup behavior without bootstrap.
+- [x] Run the complete migration gate: **59 passed** in 45.26 s
+  (`/tmp/life-pg3-canonical-final-migrations`).
+- [ ] Pass the frozen native regression spanning capital, direct cashflow
+  repair, joint batch, retired imports, transaction faults, quote arm and hedge.
+  Current invocation retains **280 passes / 2 failures**, 1,553 deselections,
+  no errors/skips and six existing-category warnings in 822.09 s
+  (`/tmp/life-pg3-canonical-native-regression`). The hedge market-deadline case
+  correctly rejects COMMIT and shows no child rows, but its later balance read
+  times out in `spot_state`. The retired import negative bill case times out
+  in `spot_state` while obtaining its original capital cut, before the denial
+  assertion. Both become `PG_DATABASE_UNAVAILABLE`; no serializer mismatch is
+  reported. All 24 mixed-recovery positive cases pass in this invocation. These
+  scoped passes do not make the combined gate green or close R5 tail latency.
+
+**Paired serializer measurements:** five alternating old/new pairs per shape,
+100 changing payloads per sample, one warm-up per function, same disposable
+PostgreSQL 16.15 ARM process (2 CPU/1 GiB). The historical implementation remains
+an independent function inside the isolated test database. All paired output
+lengths and final hashes agree. Median time per 100 payloads:
+
+| Payload | Historical v1 | Scalar optimization | Reduction |
+| --- | ---: | ---: | ---: |
+| 256 scalar object fields | 139.171 ms | 62.373 ms | 55.2% |
+| Array of 1,024 scalars | 324.037 ms | 76.912 ms | 76.3% |
+| Batch of 64 nested requests | 508.669 ms | 345.749 ms | 32.0% |
+
+These are helper-level warm measurements, not whole-bot speedups or cold/loaded
+tail-latency acceptance (`/tmp/life-pg3-canonical-paired-benchmark`; results in
+`/tmp/life-pg3-canonical-paired-results.json`). The earlier 94-pass/2-failure gate
+remains red until its workflow passes on current source; no R1–R5 exit closes.
+
+An additional instrumented instance of the same LIFE-withdrawal mixed-recovery
+case passes in 8.27 s (`/tmp/life-pg3-canonical-native-cost-profile`). Canonical
+function calls drop from **39,298 to 6,026** (84.7%) against the preceding
+same-case function profile. This is a work-count diagnostic, not an additional
+unique passing test or a controlled whole-workflow timing comparison. The two
+broader timeout contexts both point to the hedge JSON aggregation inside
+`spot_state_before_swap_boundary`; a timeout's final stack frame does not prove
+that aggregation alone caused it. R5 still needs cold/warm and loaded query/proof
+cost isolation before changing that path or attributing the outliers to indexes.
+
+**Existing codec distinction exposed by compatibility testing:** native canonical
+v1 preserves UTF-8 Unicode, while Python `storage.contracts.fingerprint` escapes
+non-ASCII. The first compatibility assertion incorrectly assumed those formats
+were interchangeable (`/tmp/life-pg3-canonical-compatibility`); the pre/post SQL
+bytes already agreed. The corrected test uses an independent UTF-8 digest oracle
+and checks Python equivalence only for ASCII bodies. Migration 53 intentionally
+does not rewrite historical hashes. R4/R5 still require an explicit accepted
+codec/domain for every configured cross-language request; arbitrary Unicode
+bodies cannot silently inherit an ASCII compatibility assumption. Configured
+PostgreSQL stays rejected. No new repository evidence file is created.
+
 ### PG3 native hedge qualification (2026-10-17)
 
 Base `be18f304f`. Migration 41 and `PgHedgeRepository` add explicitly imported hedge policy/count/byte limits, permanent target versions, original-cut plans and native partial/terminal settlement. Actual SPOT/long/short inventory sizes one bounded maker child, with close-first behavior, exact contract lots, executable depth, basis, gross fee/funding, edge, exposure-age, retry and permanent cost-hold limits. Shared allocation, fresh carry qualification and original captured SWAP preparation publish atomically. Refusal rolls all child effects back but retains the attempt, conservative cost and retired IDs across operation kinds. Native fill accounting remains the only source of actual money; hedge observations cannot debit it twice or release a claim. Actual hedge-cost breach preserves truth and HALT.
