@@ -30,7 +30,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancial
 KEYS = OperatorKeys({'operator': b'i' * 32}, {'operator': frozenset(('IMPORT', 'RECOVER', 'DRAIN'))})
 
 
-async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashflow=None, spot_fill=None, file_result=None, retained_cashflows_only=False, spot_prefix=False, book_native_prefix=False, spot_open_only=False, book_native_cashflow=False, book_native_funding=False, prior_funding=(), prior_after_accounting=False, book_native_parent=False, book_native_accounting_parent=False, spot_prepared_only=False, native_arm_prepared_only=False, prior_embedded_spot=False, prior_spot_order=False, file_ack_only=False, prior_core_ack=False, prior_cancel=False, prior_terminal=False, native_terminal=True, before_joint=None):
+async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashflow=None, spot_fill=None, file_result=None, retained_cashflows_only=False, spot_prefix=False, book_native_prefix=False, spot_open_only=False, book_native_cashflow=False, book_native_funding=False, prior_funding=(), prior_after_accounting=False, book_native_parent=False, book_native_accounting_parent=False, spot_prepared_only=False, native_arm_prepared_only=False, prior_embedded_spot=False, prior_spot_order=False, file_ack_only=False, prior_core_ack=False, prior_cancel=False, prior_terminal=False, native_terminal=True, before_joint=None, spot_aborted_only=False, native_abort=True, nav_prices=(), native_nav=True):
     from test.hummingbot.strategy_v2.life_liquidity.storage import test_spot_financial_contracts as file_fixture
     from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_funding import setup as funding_setup
 
@@ -43,12 +43,29 @@ async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashfl
     from hummingbot.strategy_v2.life_liquidity.storage.legacy_spot import open_legacy_spot
     from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancialRecoveryPolicy
     from hummingbot.strategy_v2.life_liquidity.storage.terminal import SpotTerminalPolicy
+    if spot_aborted_only:
+        spot_prepared_only = True
     initial = None
     if spot_fill is not None:
         with monkeypatch.context() as patches:
             patches.setattr(file_fixture, 'NOW', await database[0].fetchval('SELECT clock_timestamp()'))
             initial = file_fixture.create_fixture(tmp_path)
-    values, funding, payment = await funding_setup(database, carry_options=dict(refresh_initial_facts=True),
+    nav_commands = []
+
+    async def original_navs(financial, cfg, owner):
+        from hummingbot.strategy_v2.life_liquidity.storage.capital import ObserveSpotNAV
+        if nav_prices:
+            await database[0].execute('INSERT INTO life_financial.spot_fill_policies VALUES($1,$2,1000,4096)', cfg.account_id, cfg.binding.policy_hash)
+        for i, price in enumerate(nav_prices):
+            at = await database[0].fetchval('SELECT clock_timestamp()')
+            stamp = int(at.timestamp() * 1000)
+            command = ObserveSpotNAV(f'native-prior-nav-{i}', price, stamp, stamp, 'independent_market', at)
+            nav_commands.append(command)
+            if native_nav:
+                await financial.observe_nav(command, cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)
+
+    values, funding, payment = await funding_setup(database, before_swap_accounting=original_navs,
+                                                   carry_options=dict(refresh_initial_facts=True),
                                                    spot_options=dict(configuration_body=lambda _: {'operator_verifier': KEYS.verifier().policy(),
                                                                                                    'legacy_source_verifier': KEYS.verifier().policy()},
                                                                      **({} if initial is None else {'original_session_id': initial[2].session_id})))
@@ -111,6 +128,8 @@ async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashfl
                                       terminal_policy=SpotTerminalPolicy(5000) if prior_terminal else None)
 
     store = await open_file(create=True)
+    for command in nav_commands:
+        await store.observe_nav(command, cut=(await store.snapshot(binding)).cut, owner=file_owner)
     prior_events = ()
 
     async def complete_history():
@@ -146,7 +165,7 @@ async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashfl
 
         from hummingbot.strategy_v2.life_liquidity.storage.products import ReserveCapital
         side, fee_currency = spot_fill
-        if cashflow is None:
+        if cashflow is None and not nav_prices:
             await admin.execute('INSERT INTO life_financial.spot_fill_policies VALUES($1,$2,1000,4096)', cfg.account_id, cfg.binding.policy_hash)
         if prior_spot_order:
             # Original independent native/File order, fully observed before the
@@ -242,6 +261,12 @@ async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashfl
             await store.arm('operation1', cut=(await store.snapshot(binding)).cut, owner=file_owner)
         now = await admin.fetchval('SELECT clock_timestamp()')
         clock[0] = now
+        if spot_aborted_only:
+            from hummingbot.strategy_v2.life_liquidity.storage.spot_lifecycle import SpotLifecycleCommand
+            aborted = SpotLifecycleCommand('native-prior-abort', 'operation1', 'intent1', 'wire1', 'ABORT_PREPARED')
+            if native_abort:
+                assert (await financial.apply_lifecycle(aborted, cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)).state == 'ABORTED_BEFORE_SEND'
+            assert (await store.apply_lifecycle(aborted, cut=(await store.snapshot(binding)).cut, owner=file_owner)).state == 'ABORTED_BEFORE_SEND'
         if not spot_open_only and not spot_prepared_only:
             f = filled(file_owner, now, side=side)
             f = replace(f, fills=(replace(f.fills[0], fee_currency=fee_currency),))

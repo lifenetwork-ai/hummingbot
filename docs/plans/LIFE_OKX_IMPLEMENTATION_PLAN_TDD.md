@@ -1,6 +1,16 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
-**Current PG3 R1 completed-cycle checkpoint (2026-10-19, base `12406d6c6`):**
+**Current PG3 R1 abort/NAV checkpoint (2026-10-19, base `e47e8a994`):**
+migration 68 retains original completed unsent aborts and historical pre-SWAP
+SPOT NAV/highwater during signed monetary recovery. Native original provenance,
+receipts and historical money must match; import grants no release or current
+portfolio valuation. See [scope and qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-original-unsent-abort-and-nav-history-2026-10-19).
+**R1 remains open.** Its remaining work is grouped into coupled outer/core
+recovery (including interrupted side effects and required joint histories),
+provider evidence consumption at terminal/shared release, and a common R1
+regression. The fixed R2–R5 exits and configured-backend denial remain unchanged.
+
+**Earlier PG3 R1 completed-cycle checkpoint (2026-10-19, base `12406d6c6`):**
 migration 67 retains already settled standalone SPOT inventory cycles without
 refunding actual subsidy or gross execution cost. Original File/native IDs,
 receipts, proofs, facts, members and costs must independently match. **80 native

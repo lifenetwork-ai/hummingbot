@@ -985,3 +985,14 @@ account, policy, balance, activation or configured PostgreSQL sender.
   keeps its original ID. No table, settlement/refund, money, claim retirement or
   permission is created. The helper is private, predecessor OIDs/ACLs remain,
   unexpected predecessor shape rolls back and repeated startup is a no-op.
+
+- `000068_legacy_abort_nav_history.sql`: retain original completed no-send aborts
+  and pre-SWAP SPOT NAV observations during retired File monetary recovery.
+  Exact native request/receipt, original preparation and pre-abort unsent state
+  must prove each abort. NAV measurement/highwater and the native monetary
+  fingerprint are verified at the original NAV revision, excluding later fills
+  and transfers. Coverage is exact at the import cut, including missing/orphaned
+  originals. These historical observations grant no current portfolio valuation,
+  new send, release or claim retirement. Two private helpers are added; existing
+  function OIDs/ACLs and tables remain unchanged. Unknown predecessor definitions
+  roll back atomically; repeated checksum-verified startup is a no-op.

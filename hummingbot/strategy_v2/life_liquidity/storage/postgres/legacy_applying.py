@@ -86,8 +86,7 @@ def funding_profile(source, command):
     envelope = json.loads(source.checkpoint_bytes)
     resources = envelope['state']['resources']
     if (source.ancillary_images or len(source.core_pending_operation_ids) != 1
-            or any(resources.get(k) for k in ('recovery_batches',
-                                              'nav_operations', 'product_operations'))
+            or any(resources.get(k) for k in ('recovery_batches', 'product_operations'))
             or command.batch.swap_fills):
         raise StorageError('PG_LEGACY_APPLYING_PROFILE_UNSUPPORTED')
     row = source.original_operations[source.core_pending_operation_ids[0]]

@@ -35,12 +35,13 @@ def arithmetic_profile(source, state, operations):
 
 
 async def recover_case(database, tmp_path, monkeypatch, stage, side, fee_currency, cashflow=None, spot_prefix=False, book_native_prefix=False,
-                       prepared=None, expected=None, spot_open_only=False, book_native_cashflow=False, prior_funding=(), prior_after_accounting=False, native_parent=False, spot_prepared_only=False, prior_embedded_spot=False, prior_spot_order=False, prior_spot_zero=False):
+                       prepared=None, expected=None, spot_open_only=False, book_native_cashflow=False, prior_funding=(), prior_after_accounting=False, native_parent=False, spot_prepared_only=False, prior_embedded_spot=False, prior_spot_order=False, prior_spot_zero=False, spot_aborted_only=False):
     expected = {} if expected is None else expected
     values, batch, command, cut, facts, approval, importer, store, source = prepared or await setup(
         database, tmp_path, monkeypatch, stage, spot_fill=(side, fee_currency), file_result=expected, cashflow=cashflow,
         spot_prefix=spot_prefix, book_native_prefix=book_native_prefix, spot_open_only=spot_open_only, book_native_cashflow=book_native_cashflow,
-        prior_funding=prior_funding, prior_after_accounting=prior_after_accounting, book_native_accounting_parent=native_parent, spot_prepared_only=spot_prepared_only, prior_embedded_spot=prior_embedded_spot, prior_spot_order=prior_spot_order)
+        prior_funding=prior_funding, prior_after_accounting=prior_after_accounting, book_native_accounting_parent=native_parent, spot_prepared_only=spot_prepared_only, prior_embedded_spot=prior_embedded_spot, prior_spot_order=prior_spot_order,
+        spot_aborted_only=spot_aborted_only)
     financial, cfg, owner = values[:3]
     cold = None
     c = database[0]
@@ -96,9 +97,10 @@ async def recover_case(database, tmp_path, monkeypatch, stage, side, fee_currenc
         assert (await batch.lookup(command.operation_id, cfg.binding)).state == 'RECOVERY_REQUIRED'
         assert (await importer.lookup(command.operation_id)).replayed
         assert await store.frozen_legacy_applying_source(store.binding) == source
-        if spot_open_only or spot_prepared_only:
-            assert (await cold.attempt('intent1', cfg.binding)).state.value == ('PREPARED' if spot_prepared_only else 'SEND_UNKNOWN')
-            assert view.balance.reserved_quote_usdt > 0 if side == 'BUY' else view.balance.reserved_base_life > 0
+        if spot_open_only or spot_prepared_only or spot_aborted_only:
+            assert (await cold.attempt('intent1', cfg.binding)).state.value == ('ABORTED_BEFORE_SEND' if spot_aborted_only else 'PREPARED' if spot_prepared_only else 'SEND_UNKNOWN')
+            if not spot_aborted_only:
+                assert view.balance.reserved_quote_usdt > 0 if side == 'BUY' else view.balance.reserved_base_life > 0
         with pytest.raises(StorageError):
             await cold.arm('operation1', cut=view.cut, owner=owner)
     finally:
@@ -310,7 +312,7 @@ async def test_existing_57_prefix_upgrades_then_recovers_with_original_money_and
     values, _, command, cut, facts, approval, _, store, source = prepared
     financial = values[0]
     try:
-        assert (await migrate(database[0], action='up'))['applied'] == ['000058_legacy_spot_prefix.sql', '000059_legacy_cashflow_prefix.sql', '000060_legacy_derivative_prefix.sql', '000061_legacy_parent_prefix.sql', '000062_legacy_unsent_spot.sql', '000063_legacy_spot_ack_prefix.sql', '000064_legacy_repaired_parent_prefix.sql', '000065_legacy_cancel_prefix.sql', '000066_legacy_terminal_prefix.sql', '000067_legacy_settlement_prefix.sql']
+        assert (await migrate(database[0], action='up'))['applied'] == ['000058_legacy_spot_prefix.sql', '000059_legacy_cashflow_prefix.sql', '000060_legacy_derivative_prefix.sql', '000061_legacy_parent_prefix.sql', '000062_legacy_unsent_spot.sql', '000063_legacy_spot_ack_prefix.sql', '000064_legacy_repaired_parent_prefix.sql', '000065_legacy_cancel_prefix.sql', '000066_legacy_terminal_prefix.sql', '000067_legacy_settlement_prefix.sql', '000068_legacy_abort_nav_history.sql']
         financial, capital, batch, importer = await restore(values[1], values[2], database[0])
         values = list(values)
         values[0], values[5] = financial, capital
@@ -338,7 +340,7 @@ async def test_58_orphan_prefix_refusal_after_59_upgrade_uses_original_predecess
         await c.execute('CREATE SCHEMA prefix_reference')
         await c.execute(old.replace('FUNCTION life_financial.legacy_spot_prefix_valid(', 'FUNCTION prefix_reference.legacy_spot_prefix_valid('))
         await c.execute('REVOKE ALL ON FUNCTION prefix_reference.legacy_spot_prefix_valid(uuid,jsonb,bigint) FROM PUBLIC')
-        assert (await migrate(c, action='up'))['applied'] == ['000059_legacy_cashflow_prefix.sql', '000060_legacy_derivative_prefix.sql', '000061_legacy_parent_prefix.sql', '000062_legacy_unsent_spot.sql', '000063_legacy_spot_ack_prefix.sql', '000064_legacy_repaired_parent_prefix.sql', '000065_legacy_cancel_prefix.sql', '000066_legacy_terminal_prefix.sql', '000067_legacy_settlement_prefix.sql']
+        assert (await migrate(c, action='up'))['applied'] == ['000059_legacy_cashflow_prefix.sql', '000060_legacy_derivative_prefix.sql', '000061_legacy_parent_prefix.sql', '000062_legacy_unsent_spot.sql', '000063_legacy_spot_ack_prefix.sql', '000064_legacy_repaired_parent_prefix.sql', '000065_legacy_cancel_prefix.sql', '000066_legacy_terminal_prefix.sql', '000067_legacy_settlement_prefix.sql', '000068_legacy_abort_nav_history.sql']
         financial, _, _, importer = await restore(values[1], values[2], c)
         await importer.import_pending(command, source_store=store, approval=approval, cut=cut, facts=facts)
         tx = c.transaction()

@@ -8,6 +8,8 @@ def cancel_basis(resources, records):
     requests, latest, rows, states = set(), {}, [], {}
     for key, row in resources.get('lifecycle_operations', {}).items():
         command = SpotLifecycleCommand.from_json(row['command'])
+        if command.action == 'ABORT_PREPARED':
+            continue  # The independent abort proof checks the original unsent request.
         prepared = commands.get(command.prepare_operation_id)
         record = records.get(command.intent_id)
         if (key != command.operation_id or command.action not in ('REQUEST_CANCEL', 'RECORD_CANCEL_ATTEMPT')

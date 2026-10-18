@@ -14,11 +14,13 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.swap_fills import (
 )
 
 
-async def setup(database, *, acknowledge=True, carry_options=None, spot_options=None):
+async def setup(database, *, acknowledge=True, carry_options=None, spot_options=None, before_swap_accounting=None):
     values, swap, prepared = await swap_setup(database, carry_options=carry_options, spot_options=spot_options)
     financial, cfg, owner = values[:3]
     await database[0].execute("INSERT INTO life_financial.spot_capital_policies VALUES($1,$2,5,10,1,$3,'100',4096)",
                               cfg.account_id, cfg.binding.policy_hash, owner.valid_from - timedelta(seconds=1))
+    if before_swap_accounting is not None:
+        await before_swap_accounting(financial, cfg, owner)
     await database[0].execute('''INSERT INTO life_financial.swap_fill_policies
         VALUES($1,$2,0,0,0,0,64,128,500)''', cfg.account_id, cfg.binding.policy_hash)
     assert await database[0].fetchval('SELECT life_financial.swap_accounting_verified($1)', cfg.account_id)

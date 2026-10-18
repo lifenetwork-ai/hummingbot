@@ -97,6 +97,8 @@ def spot_basis(source, old, batch, resources, wallet, loss, subsidy):
     terminals = terminal_basis(resources, records, wallet, quantities)
     from hummingbot.strategy_v2.life_liquidity.storage.postgres.legacy_settlement_basis import settlement_basis
     settlements, settled = settlement_basis(resources, records, subsidy)
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.legacy_lifecycle_basis import abort_basis, nav_basis
+    aborts = abort_basis(resources, records, wallet, subsidy, source.facts)
     base, cash, preparations, intents, unsent = D('0'), D('0'), [], set(), []
     for key, row in commands.items():
         value = original.get(key)
@@ -106,7 +108,7 @@ def spot_basis(source, old, batch, resources, wallet, loss, subsidy):
         ) == (value.prepare_operation_id, value.intent_id, value.client_order_id, value.market, value.side, value.session_id, value.epoch)
         if (key != prepared.operation_id
                 or row['fingerprint'] != fingerprint({'command': prepared.json(), 'cut': row['original_cut'], 'owner': row['original_owner']})
-                or row['state'] not in ('PREPARED', 'SEND_UNKNOWN', 'ACKED', 'TERMINAL') or not matches_fill):
+                or row['state'] not in ('PREPARED', 'SEND_UNKNOWN', 'ACKED', 'TERMINAL', 'ABORTED_BEFORE_SEND') or not matches_fill):
             raise StorageError('PG_LEGACY_APPLYING_FACTS_CHANGED')
         if row['state'] == 'PREPARED':
             record = records.get(prepared.intent_id)
@@ -125,14 +127,15 @@ def spot_basis(source, old, batch, resources, wallet, loss, subsidy):
         intents.add(prepared.intent_id)
         held = wallet['reservations'].get(prepared.intent_id)
         entry = subsidy['entries'].get(prepared.intent_id)
-        zero_terminal = row['state'] == 'TERMINAL' and quantities.get(prepared.intent_id, D('0')) == 0
+        ended = row['state'] in ('TERMINAL', 'ABORTED_BEFORE_SEND')
+        zero_terminal = ended and quantities.get(prepared.intent_id, D('0')) == 0
         expected_actual = settled.get(prepared.intent_id, D('0') if zero_terminal else None)
         if (held is None or held['intent'] != dict(intent_id=prepared.intent_id, side=prepared.side,
                                                    quantity_base=str(prepared.quantity_base), limit_price_usdt=str(prepared.limit_price_usdt),
                                                    session_id=prepared.session_id, epoch=prepared.epoch)
                 or D(held['filled_base']) != quantities.get(prepared.intent_id, D('0'))
-                or D(held['remaining_base']) != (D('0') if row['state'] == 'TERMINAL' else prepared.quantity_base - D(held['filled_base']))
-                or held['state'] not in (('TERMINAL',) if row['state'] == 'TERMINAL' else
+                or D(held['remaining_base']) != (D('0') if ended else prepared.quantity_base - D(held['filled_base']))
+                or held['state'] not in (('TERMINAL',) if ended else
                                          ('CANCEL_PENDING',) if records[prepared.intent_id]['cancel_requested'] else ('OPEN', 'UNKNOWN'))
                 or entry is None or entry['session_id'] != prepared.session_id
                 or D(entry['reserved']) != prepared.subsidy_quote_usdt
@@ -169,4 +172,6 @@ def spot_basis(source, old, batch, resources, wallet, loss, subsidy):
     basis.update(cancel_basis(resources, records))
     basis.update(terminals)
     basis.update(settlements)
+    basis.update(aborts)
+    basis.update(nav_basis(resources, json.loads(source.checkpoint_bytes)['state']['ownership']['token'], source.facts.observed_at))
     return basis, base, cash, prefix_base, prefix_cash

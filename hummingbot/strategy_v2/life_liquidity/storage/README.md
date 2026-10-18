@@ -3465,3 +3465,26 @@ native ID and retains the original File ID in the source. It cannot reopen a
 terminal fill under a new alias. Interrupted SETTLING/core side-effect families,
 outer coordinator recovery and complete provider-source consumption remain
 separate, open requirements within R1.
+
+### Original no-send abort and NAV history during retired core recovery
+
+Migration 68 qualifies completed original `ABORT_PREPARED` history and historical
+SPOT NAV alongside interrupted funding recovery. File preparation/lifecycle/WAL,
+zero-fill principal and subsidy records must agree. Independent native provenance
+must establish the exact original unsent preparation, abort request and receipt;
+an invented abort cannot discard a hold or justify an import.
+
+NAV retains the original File observation, measurement and highwater. Native
+requests, receipts, measurements and the monetary digest at each original NAV
+revision must independently agree. Later fills/funding do not rewrite those
+observations. The File financial fingerprint is retained historical metadata;
+it does not replace native monetary verification. SPOT NAV after SWAP activation
+remains forbidden, and a pre-SWAP diagnostic remains non-current on that account.
+No portfolio NAV, release, send or backend-selection permission is introduced.
+
+Import and signed monetary repair preserve original receipts, NAV history,
+HALT, gross budgets and shared claims across cold restart. Missing original
+native history denies import; committed corruption invalidates cold readback.
+Interrupted lifecycle/settlement side effects, core command families, outer
+coordinator recovery and complete provider consumption still require their R1
+exit workflows.
