@@ -216,7 +216,7 @@ async def test_actual_66_settled_cycle_upgrades_without_resetting_original_actua
     try:
         before = await financial.snapshot(cfg.binding)
         await financial.close()
-        assert (await migrate(c, action='up'))['applied'] == ['000067_legacy_settlement_prefix.sql', '000068_legacy_abort_nav_history.sql']
+        assert (await migrate(c, action='up'))['applied'] == ['000067_legacy_settlement_prefix.sql', '000068_legacy_abort_nav_history.sql', '000069_legacy_joint_spot_claims.sql']
         cold, capital, batch, importer = await restore(cfg, owner, c)
         after = await cold.snapshot(cfg.binding)
         assert (after.balance, after.budget, after.cut) == (before.balance, before.budget, before.cut)

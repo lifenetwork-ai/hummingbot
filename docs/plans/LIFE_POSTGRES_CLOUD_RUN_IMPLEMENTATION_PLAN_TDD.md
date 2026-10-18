@@ -3,8 +3,8 @@
 Created: 2026-10-11
 
 **Current execution checkpoint (2026-10-19):** PG3 is working on **R1 accounting/
-recovery**. Migration 68 completes the declared original unsent-abort/pre-SWAP
-NAV profile; it does not close R1. Remaining R1 work is grouped into coupled
+recovery**. Migration 69 adds declared coupled outer SPOT/SWAP/funding recovery and original
+terminal/inventory side-effect profiles. It does not close R1. Remaining R1 work is grouped into coupled
 outer/core pending recovery, complete provider-source consumption at releases,
 and current-source qualification. See the [fixed exit checklist](#fixed-pg3-exit-checklist-2026-10-17)
 and [latest scope/qualification](#pg3-original-unsent-abort-and-nav-history-2026-10-19).
@@ -709,7 +709,8 @@ qualification/revision recorded in each increment below.
 - [x] Declared already completed standalone SPOT inventory-cycle history, with exact original member/fill identities, gross execution cost, settled subsidy and native receipts; File parity, two cold restores and actual 66→67 recovery. See the migration-67 qualification below.
 - [x] Declared completed original unsent aborts and pre-SWAP SPOT NAV histories during core funding recovery; exact native provenance and historical monetary cut, retained highwater/receipts, File parity, cold corruption refusal and actual 67→68 upgrade.
 - [ ] Interrupted lifecycle (including abort/cancel), terminal/inventory-settlement and other required NAV histories. The completed standalone prefixes above do not cover pending side effects or joint portfolio valuation.
-- [ ] Outer SPOT and hedge/carry coordinator financial checkpoint recovery.
+- [x] Declared coupled outer SPOT/SWAP/funding crash profiles, including USDT/LIFE SPOT fees and interrupted File terminal/inventory side effects with independent original native completions; exact File money/budget parity and original-ID cold replay. See migration-69 qualification below.
+- [ ] Remaining outer SPOT and hedge/carry coordinator histories, including original product checkpoints and the remaining side-effect/valuation/repaired-origin families required by supported File modes.
 - [ ] Complete authenticated order/trade/bill/runner scope and original collateral/liability source consumption at every required terminal/shared-release route.
 
 **Remaining R1 execution sequence:** finish the coupled workflows below rather
@@ -3406,3 +3407,64 @@ privileges from both new helpers, seeds no account/money, refuses each of the
 three unexpected predecessor definitions atomically, and repeats as a no-op.
 Changed-file hooks and whitespace checks pass. Earlier development gates record
 those earlier revisions only and are not added to this current-source count.
+
+### PG3 coupled outer SPOT/SWAP and original pending side effects (2026-10-19)
+
+Base `122c6a6b9` plus this delivery. Migration 69 qualifies native SPOT claims
+alongside SWAP claims in the original outer account basis. Every original claim
+receipt/arithmetic and SPOT preparation/ARM identity is reverified. Monetary
+recovery preserves SPOT principal, USDT/LIFE fees, derivative PnL/SWAP fees and
+paid funding as distinct original leaves. The pre-core wallet is recomputed;
+current metadata after an APPLIED core is checked against its current image.
+No partially written wallet becomes the target's opening basis.
+
+The read-only pending-side-effect view explains original File TERMINATING and
+SETTLING images and committed-reply-loss cases. It validates original requests,
+ordered WAL/principal/subsidy states and exact atomic cycle budget membership;
+existing terminal/cycle proofs then check the resulting admission view. The
+physical signed File capsule remains unchanged. Independently recorded native
+original completions at the import cut are required. IMPORT and monetary repair
+perform no additional terminal, inventory refund or shared-claim retirement.
+Missing native completion leaves money, holds, gross spending and claims intact.
+
+The corruption Red (`/tmp/life-r1-outer-spot-green4`, 25 passed/1 failed) showed
+that corrupt original shared-claim fingerprints marked the current snapshot
+unsafe but did not invalidate import readback. Rechecking the original capital
+operation fixes that gap. A subsequent positive-proof diagnostic caught the
+standalone preparation/ARM identity formats: those hash the original complete
+FinancialCut, rather than the shortened SQL command JSON. The proof now uses the
+actual original identity format. The combined regression also caught equivalent
+`0.005`/`0.0050` historical gross-cost spellings in a loss-with-rebate case;
+comparison preserves the original event bytes and requires equal numeric gross
+cost. Rebate does not reduce previously incurred PnL or fee loss. Intermediate
+failed/development runs qualify no completion gate.
+
+The original committed parser at `122c6a6b9` rejects the valid original mixed
+BUY/USDT outer-before-cash source with
+`PG_LEGACY_APPLYING_PROFILE_UNSUPPORTED` (one selected case,
+`/tmp/life-r1-outer-baseline-red`). The baseline replay substitutes only that
+original committed Python parser in the disposable test process; it does not
+rewrite repository history or migrate a configured database.
+
+**Final qualification:** **227 affected native recovery cases pass**, zero
+failures/errors/skips, **1138.03 s**, in
+`/tmp/life-r1-outer-coupled-final-regression`. This includes the preceding
+99-case abort/NAV/lifecycle/history selection, 71 existing outer SWAP cases and
+57 new mixed/pending-side-effect cases; focused passes are included, not added.
+The same combined workflow previously passed 91 cases and failed the rebate
+case in `/tmp/life-r1-outer-coupled-frozen-regression`; it now passes on the
+fixed, frozen financial source. **100 actual migration cases pass** (97.52 s,
+`/tmp/life-r1-outer-coupled-final-migrations`), including 68→69 definition/ACL/OID
+preservation, repeat startup and atomic refusal of each unexpected predecessor.
+**102 related File cases pass** (53.97 s,
+`/tmp/life-r1-outer-coupled-final-file.xml`). Final gates have no failures,
+errors or skips; existing warning categories remain. Native qualification uses
+the pinned disposable PostgreSQL 16.15 ARM image, 2 CPU/1 GiB, synthetic keys/
+facts and unchanged SQL 1 s/transaction 6 s/idle 4 s and source-age limits.
+
+This closes the declared coupled SPOT/SWAP/funding and original terminal/cycle
+profiles only. Remaining PREPARING/ABORTING/CANCELING/core families, repaired-
+origin/joint-valuation histories, hedge/carry product checkpoints and complete
+authenticated provider/runner/collateral consumption retain the R1 exit. R1 and
+R2–R5 remain open; configured PostgreSQL remains denied. No `.env`, configured
+account, external exchange, deployment or new evidence file is used.

@@ -19,13 +19,11 @@ def joint_profile(source, command):
     state, policy = raw['joint_recovery']['state'], raw['joint_recovery']['policy']
     basis = envelope['policy']['legacy_spot']['accounting_policy']
     bundle, anchor = state['bundle'], state['anchor']
-    if (command.batch.spot_fills
-            or state['opening_cashflows'] or state['opening_joint'] or state['runner_fills'] or state['excluded'] or state['rearms']
-            or any(resources.get(k) for k in ('commands', 'fills', 'recovery_batches', 'nav_operations',
-                                              'product_operations', 'lifecycle_operations'))
+    if (state['opening_cashflows'] or state['opening_joint'] or state['runner_fills'] or state['excluded'] or state['rearms']
+            or any(resources.get(k) for k in ('recovery_batches', 'product_operations'))
             or any(resources['joint_repository_policy']['products'].values())
             or set(source.original_operations) - set(source.pending_operation_ids)
-            or any(order['claim']['product'] != 'SWAP' for order in bundle['orders'])):
+            or any(order['claim']['product'] not in ('SPOT', 'SWAP') for order in bundle['orders'])):
         raise StorageError('PG_LEGACY_APPLYING_PROFILE_UNSUPPORTED')
     if (D(anchor['spot_life_base']) != D(basis['opening_base_life']) or D(anchor['spot_cash_quote']) != D(basis['opening_quote_usdt'])
             or anchor['pending']
@@ -56,9 +54,12 @@ def joint_profile(source, command):
     if any(k not in flows or v != flows[k].json() for k, v in resources.get('cashflows', {}).items()):
         raise StorageError('PG_LEGACY_APPLYING_FACTS_CHANGED')
     original_events, trades, claims = {}, {}, []
-    supplied = {fill.intent_id: fill for fill in command.batch.swap_fills}
-    if (len(supplied) != len(command.batch.swap_fills)
+    supplied = {fill.intent_id: fill for fill in (*command.batch.swap_fills, *command.batch.spot_fills)}
+    if (len(supplied) != len(command.batch.swap_fills) + len(command.batch.spot_fills)
             or set(supplied) != {o['claim']['intent_id'] for o in bundle['orders'] if o['trades']}):
+        raise StorageError('PG_LEGACY_APPLYING_FACTS_CHANGED')
+    if ({f.intent_id for f in command.batch.spot_fills} != {o['claim']['intent_id'] for o in bundle['orders'] if o['claim']['product'] == 'SPOT' and o['trades']}
+            or {f.intent_id for f in command.batch.swap_fills} != {o['claim']['intent_id'] for o in bundle['orders'] if o['claim']['product'] == 'SWAP' and o['trades']}):
         raise StorageError('PG_LEGACY_APPLYING_FACTS_CHANGED')
     for order in bundle['orders']:
         claim = order['claim']
@@ -72,17 +73,25 @@ def joint_profile(source, command):
                 or {f.trade_id for f in fill.fills} != {t['trade_id'] for t in order['trades']}):
             raise StorageError('PG_LEGACY_APPLYING_FACTS_CHANGED')
         provided = {f.trade_id: f for f in fill.fills}
+        product = claim['product']
         for t in order['trades']:
             actual = provided[t['trade_id']]
-            if (t['trade_id'] in trades or t['fee_currency'] != 'USDT'
+            if (t['trade_id'] in trades or t['fee_currency'] not in (('USDT',) if product == 'SWAP' else ('LIFE', 'USDT'))
                     or (actual.quantity_base_life, actual.price_usdt, actual.fee_currency, actual.signed_fee,
-                        actual.fill_at_ms, actual.realized_pnl_usdt, actual.sequence)
+                        actual.fill_at_ms, actual.realized_pnl_usdt if product == 'SWAP' else D('0'), actual.sequence if product == 'SWAP' else None)
                     != (D(t['quantity_base']), D(t['price_usdt']), t['fee_currency'], D(t['signed_fee']), t['at_ms'], D(t['realized_pnl_quote']), t['sequence'])):
                 raise StorageError('PG_LEGACY_APPLYING_FACTS_CHANGED')
             trades[t['trade_id']] = t
-            cash = D(t['realized_pnl_quote']) + D(t['signed_fee'])
-            expected_cash += cash
-            original_events[f"JOINT:{t['at_ms']}:TRADE:{t['trade_id']}"] = cash
+            if product == 'SWAP':
+                cash = D(t['realized_pnl_quote']) + D(t['signed_fee'])
+                expected_cash += cash
+                original_events[f"JOINT:{t['at_ms']}:TRADE:{t['trade_id']}"] = cash
+            else:
+                if t['sequence'] is not None or D(t['realized_pnl_quote']) != 0:
+                    raise StorageError('PG_LEGACY_APPLYING_FACTS_CHANGED')
+                quantity, price = D(t['quantity_base']), D(t['price_usdt'])
+                expected_base += (quantity if claim['side'] == 'BUY' else -quantity) + (D(t['signed_fee']) if t['fee_currency'] == 'LIFE' else D('0'))
+                expected_cash += (-quantity * price if claim['side'] == 'BUY' else quantity * price) + (D(t['signed_fee']) if t['fee_currency'] == 'USDT' else D('0'))
         claims.append(dict(claim=claim, prepare_operation_id=fill.prepare_operation_id, exchange_order_id=order['exchange_order_id']))
     payments = {p['bill_id']: (p['at_ms'], D(p['signed_amount_quote'])) for p in bundle['payments']}
     if (len(payments) != len(bundle['payments']) or len(payments) != len(command.batch.funding.bundle.funding.payments)
@@ -100,8 +109,9 @@ def joint_profile(source, command):
     row = source.original_operations.get(source.pending_operation_ids[0])
     if row is not None:
         old = JointCashSpot.from_json(row['command'])
-        if (old.spot_fills or {v.bill_id: v for v in old.spot_cashflows} != flows or old.spot_acks or old.spot_prepared_receipts
-                or old.spot_terminal_operations or old.spot_settlement_operations
+        from hummingbot.strategy_v2.life_liquidity.storage.postgres.legacy_funding_history import _completed_acks
+        _completed_acks(old, resources, row['owner'])
+        if ({v.bill_id: v for v in old.spot_cashflows} != flows or old.spot_prepared_receipts
                 or {event.event_id: event.signed_amount_usdt for event in old.events} != original_events
                 or (old.account_base_life, old.account_quote_usdt) != (source.facts.account_base_life, source.facts.account_quote_usdt)):
             raise StorageError('PG_LEGACY_APPLYING_FACTS_CHANGED')
@@ -110,17 +120,47 @@ def joint_profile(source, command):
         before = dict(source.journal_images)
     wallet, loss, subsidy = (json.loads(before[k]) for k in ('reservations', 'loss', 'subsidy'))
     before_base, before_cash = D(basis['opening_base_life']), D(basis['opening_quote_usdt'])
-    for key, event in wallet['account_events'].items():
-        flow = flows.get(key.removeprefix('CASHFLOW:'))
-        if (not key.startswith('CASHFLOW:') or flow is None
-                or (event[0], event[1], D(event[2])) != ('CASHFLOW', flow.currency, flow.signed_amount)):
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.legacy_spot_basis import spot_basis
+
+    # An APPLIED core has published fill metadata. Its current verified wallet
+    # explains that metadata; the original before-wallet is replayed separately.
+    original_fills = command.batch.spot_fills if row is None else old.spot_fills
+    images = dict(source.journal_images) if row is not None and row['state'] == 'APPLIED' else before
+    current_wallet, current_loss, current_subsidy = (json.loads(images[k]) for k in ('reservations', 'loss', 'subsidy'))
+    other_losses = {}
+    if row is not None and row['state'] == 'APPLIED':
+        for order in bundle['orders']:
+            if order['claim']['product'] != 'SWAP':
+                continue
+            from datetime import timezone
+            for trade in order['trades']:
+                other_losses['swap:' + trade['trade_id']] = dict(session_id=order['claim']['session_id'],
+                                                                 day=datetime.fromtimestamp(trade['at_ms'] / 1000, timezone.utc).date().isoformat(),
+                                                                 loss_quote=str(max(D('0'), -D(trade['signed_fee'])) + max(D('0'), -D(trade['realized_pnl_quote']))))
+    spot_ids = {t['trade_id'] for order in bundle['orders'] if order['claim']['product'] == 'SPOT' for t in order['trades']}
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.legacy_pending_basis import pending_view
+    records = json.loads(dict(source.journal_images)['wal'])['records']
+    resources, current_wallet, current_subsidy, records, pending = pending_view(
+        resources, current_wallet, current_subsidy, records,
+        terminal_ids=tuple(resources.get('terminal_operations', {})) if row is None else old.spot_terminal_operations,
+        settlement_ids=tuple(resources.get('settlement_operations', {})) if row is None else old.spot_settlement_operations)
+    spot, _, _, prefix_base, prefix_cash = spot_basis(source, None, command.batch, resources, current_wallet, current_loss,
+                                                      current_subsidy, original_fills=original_fills, account_trade_ids=spot_ids, other_losses=other_losses, records_override=records)
+    # Recompute the original pre-core wallet from the original target fills.
+    # An observed trade never becomes an opening-balance adjustment.
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.legacy_funding_history import _wallet_money
+    if row is not None:
+        before_base, before_cash, paid = _wallet_money(wallet, old, command.batch, flows, basis, {})
+        if paid:
             raise StorageError('PG_LEGACY_APPLYING_ORIGINAL_BASIS_REQUIRED')
-        before_base += flow.signed_amount if flow.currency == 'LIFE' else D('0')
-        before_cash += flow.signed_amount if flow.currency == 'USDT' else D('0')
-    if (wallet['trades'] or wallet['reservations'] or subsidy['entries']
-            or any(D(e['loss_quote']) for e in loss['events'].values())
-            or D(wallet['life_balance']) != before_base or D(wallet['usdt_balance']) != before_cash):
+    else:
+        from datetime import timezone
+        before_base, before_cash, paid = _wallet_money(wallet, None, command.batch, flows, basis, {},
+                                                       observed_at=datetime.fromtimestamp(bundle['observed_at_ms'] / 1000, timezone.utc))
+        if paid:
+            raise StorageError('PG_LEGACY_APPLYING_ORIGINAL_BASIS_REQUIRED')
+    if (D(wallet['life_balance']) != before_base or D(wallet['usdt_balance']) != before_cash):
         raise StorageError('PG_LEGACY_APPLYING_ORIGINAL_BASIS_REQUIRED')
-    return {**basis, 'swap_opening': dict(opening_long_base=anchor['long_base'], opening_short_base=anchor['short_base'],
-                                          opening_long_entry=policy['opening_long_entry'], opening_short_entry=policy['opening_short_entry']),
+    return {**basis, **spot, **pending, 'swap_opening': dict(opening_long_base=anchor['long_base'], opening_short_base=anchor['short_base'],
+                                                             opening_long_entry=policy['opening_long_entry'], opening_short_entry=policy['opening_short_entry']),
             'claims': sorted(claims, key=lambda row: row['claim']['intent_id'])}

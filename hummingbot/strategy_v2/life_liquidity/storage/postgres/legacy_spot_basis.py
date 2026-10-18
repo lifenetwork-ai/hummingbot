@@ -11,11 +11,11 @@ from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError
 from hummingbot.strategy_v2.life_liquidity.storage.financial import AckSpot, FillSpot, PrepareSpot
 
 
-def spot_basis(source, old, batch, resources, wallet, loss, subsidy):
+def spot_basis(source, old, batch, resources, wallet, loss, subsidy, *, original_fills=None, account_trade_ids=None, other_losses=None, records_override=None):
     commands = resources.get('commands', {})
-    records = json.loads(dict(source.journal_images)['wal'])['records']
+    records = json.loads(dict(source.journal_images)['wal'])['records'] if records_override is None else records_override
     supplied = {v.prepare_operation_id: v for v in batch.spot_fills}
-    original = {v.prepare_operation_id: v for v in old.spot_fills}
+    original = {v.prepare_operation_id: v for v in (old.spot_fills if original_fills is None else original_fills)}
     # A later funding command may omit an earlier, fully observed order.
     # Recover its complete cumulative snapshot only from actual retained
     # original fill receipts. The checks below still verify every receipt,
@@ -35,7 +35,7 @@ def spot_basis(source, old, batch, resources, wallet, loss, subsidy):
                    {k: v for k, v in original[key].json().items() if k != 'operation_id'} for key, value in supplied.items())):
         raise StorageError('PG_LEGACY_APPLYING_FACTS_CHANGED')
     trades = {f.trade_id for value in original.values() for f in value.fills}
-    if trades != set(source.facts.account_trade_ids):
+    if trades != set(source.facts.account_trade_ids if account_trade_ids is None else account_trade_ids):
         raise StorageError('PG_LEGACY_APPLYING_FACTS_CHANGED')
     # Independently explain every original prefix trade, fee, hold and gross
     # loss from the unchanged cumulative snapshots. Never adopt a partial
@@ -88,6 +88,13 @@ def spot_basis(source, old, batch, resources, wallet, loss, subsidy):
     # Existing File ledgers retain a zero-valued opening marker. Keep that
     # historical profile; every actual known fill still needs its exact event
     # and an unexplained nonzero cost is never discarded.
+    for key, value in (other_losses or {}).items():
+        actual = loss['events'].get(key)
+        if (actual is None or set(actual) != set(value)
+                or {k: v for k, v in actual.items() if k != 'loss_quote'} != {k: v for k, v in value.items() if k != 'loss_quote'}
+                or D(actual['loss_quote']) != D(value['loss_quote'])):
+            raise StorageError('PG_LEGACY_APPLYING_ORIGINAL_BASIS_REQUIRED')
+        losses[key] = actual
     if (any(loss['events'].get(key) != value for key, value in losses.items())
             or any(key not in losses and D(value['loss_quote']) != 0 for key, value in loss['events'].items())):
         raise StorageError('PG_LEGACY_APPLYING_ORIGINAL_BASIS_REQUIRED')

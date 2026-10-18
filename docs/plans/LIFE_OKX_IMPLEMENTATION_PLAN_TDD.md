@@ -1,6 +1,15 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
-**Current PG3 R1 abort/NAV checkpoint (2026-10-19, base `e47e8a994`):**
+**Current PG3 R1 coupled-recovery checkpoint (2026-10-19, base `122c6a6b9`):**
+migration 69 admits original mixed SPOT/SWAP/funding recovery, including LIFE/
+USDT SPOT fees and interrupted terminal/inventory side effects with independent
+native original completions. Import and monetary repair retain all shared
+claims. See [scope and qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-coupled-outer-spotswap-and-original-pending-side-effects-2026-10-19).
+R1 remains open for the other pending/coordinator histories and complete
+provider/runner/collateral evidence consumption. The fixed R2–R5 exits and
+configured PostgreSQL backend denial remain unchanged.
+
+**Earlier PG3 R1 abort/NAV checkpoint (2026-10-19, base `e47e8a994`):**
 migration 68 retains original completed unsent aborts and historical pre-SWAP
 SPOT NAV/highwater during signed monetary recovery. Native original provenance,
 receipts and historical money must match; import grants no release or current

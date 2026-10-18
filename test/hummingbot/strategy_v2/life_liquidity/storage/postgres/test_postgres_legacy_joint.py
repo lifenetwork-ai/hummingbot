@@ -27,7 +27,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.legacy_applying impo
 from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancialRecoveryFacts
 
 
-async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('-.001'), funding=None, cashflow=None, cashflow_written=False, book_native_swap=False, book_native_funding=False, file_result=None, book_native_parent=False):
+async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('-.001'), funding=None, cashflow=None, cashflow_written=False, book_native_swap=False, book_native_funding=False, file_result=None, book_native_parent=False, spot_side=None, spot_fee_currency='USDT', spot_terminal_stage=None, spot_settlement_stage=None, native_terminal=True, native_settlement=True):
     from test.hummingbot.strategy_v2.life_liquidity import test_session
     from test.hummingbot.strategy_v2.life_liquidity.storage import test_legacy_joint_applying as file_fixture
     from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_carry import setup as carry_setup
@@ -47,6 +47,7 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
         SwapFillObservation,
     )
     from hummingbot.strategy_v2.life_liquidity.storage.products import ReserveCapital
+    from hummingbot.strategy_v2.life_liquidity.storage.settlement import SpotSettlementPolicy
     from hummingbot.strategy_v2.life_liquidity.storage.swap import PrepareSwap
     admin = database[0]
     now = await admin.fetchval('SELECT clock_timestamp()')
@@ -54,6 +55,17 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
     pnl = D('.25') * (D('1') - entry)
     final_cash = D('10') + pnl + fee + (funding or D('0'))
     final_base = D('10')
+    if spot_side is not None:
+        final_base += D('1') if spot_side == 'BUY' else D('-1')
+        final_cash += D('-1') if spot_side == 'BUY' else D('1')
+        if spot_fee_currency == 'USDT':
+            final_cash -= D('.02')
+        else:
+            final_base -= D('.02')
+    if spot_settlement_stage is not None:
+        assert spot_fee_currency == 'USDT'
+        final_base += D('-1') if spot_side == 'BUY' else D('1')
+        final_cash += D('.98') if spot_side == 'BUY' else D('-1.02')
     if cashflow is not None:
         currency, amount, price = cashflow
         final_cash += amount if currency == 'USDT' else D('0')
@@ -68,9 +80,31 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
         result = original_report(values, box, claim)
         result = replace(result, exchange_order_id='987654321', trades=(replace(result.trades[0], realized_pnl_quote=pnl, signed_fee=fee),))
         stamp = int(values[6].wall.timestamp() * 1000)
-        box['value'] = replace(box['value'], orders=(result,), observed_at_ms=stamp,
+        orders = (result,)
+        if spot_side is not None:
+            from hummingbot.strategy_v2.life_liquidity.joint_recovery import RecoveryOrder, RecoveryTrade
+            from hummingbot.strategy_v2.life_liquidity.storage.financial import FillSpot, SpotFillObservation
+            prepared, spot_claim = prepared_target['spot']
+            leaf = SpotFillObservation('spottrade1', D('1'), D('1'), spot_fee_currency, D('-.02'), stamp,
+                                       D('1'), stamp, stamp, 'independent_market')
+            prepared_target.setdefault('spot_fill', FillSpot('original-spot-fill', prepared.operation_id, prepared.intent_id,
+                                                             prepared.client_order_id, prepared.market, prepared.side, prepared.session_id, prepared.epoch,
+                                                             '123456789', D('1'), (leaf,), values[6].wall))
+            leaf = prepared_target['spot_fill'].fills[0]
+            orders += (RecoveryOrder(spot_claim, '123456789', 'partially_filled' if spot_terminal_stage is None and spot_settlement_stage is None else 'canceled',
+                                     (RecoveryTrade('spottrade1', D('1'), D('1'), spot_fee_currency, D('-.02'), D('0'), leaf.fill_at_ms),)),)
+        if spot_settlement_stage is not None:
+            extra = prepared_target['extra_spot_fills'][0]
+            extra_claim = prepared_target['extra_spot'][1]
+            orders += (RecoveryOrder(extra_claim, extra.exchange_order_id, 'canceled', tuple(
+                RecoveryTrade(f.trade_id, f.quantity_base_life, f.price_usdt, f.fee_currency, f.signed_fee, D('0'), f.fill_at_ms)
+                for f in extra.fills)),)
+        file_sequence = max(values[8]['snapshot'].sequence, prepared_target.get('file_source_sequence', 1) + 1)
+        box['value'] = replace(box['value'], snapshot_sequence=file_sequence, orders=orders, pending_wire_ids=() if spot_side is None or spot_terminal_stage is not None or spot_settlement_stage is not None else ('spotwire',), observed_at_ms=stamp,
                                payments=() if funding is None else (RecoveryPayment('777', funding, stamp),))
-        values[8]['snapshot'] = replace(values[8]['snapshot'], spot_cash_quote=final_cash, spot_life_base=final_base, collateral_quote=final_collateral)
+        values[7]['value'] = replace(values[7]['value'], snapshot_sequence=file_sequence, observed_at_ms=stamp)
+        values[8]['snapshot'] = replace(values[8]['snapshot'], sequence=file_sequence, observed_at_ms=stamp, spot_cash_quote=final_cash, spot_life_base=final_base, collateral_quote=final_collateral,
+                                        pending=() if spot_side is None or spot_terminal_stage is not None or spot_settlement_stage is not None else (prepared_target['spot'][1],))
         return result
 
     prepared_target = {}
@@ -157,12 +191,139 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
         # original 1000-ms capture/account limits at entry and physical COMMIT.
         await swap.arm(prepared.operation_id, cut=await swap.cut(cfg.binding), owner=owner)
         await swap.acknowledge(prepared.operation_id, exchange_order_id='987654321', owner=owner)
+        if spot_side is not None:
+            from test.hummingbot.strategy_v2.life_liquidity.storage.test_spot_financial_contracts import order
+
+            from hummingbot.strategy_v2.life_liquidity.shared_capital import CapitalClaim
+            spot = replace(order(file_owner), operation_id='spot-prepare', intent_id='spotintent', client_order_id='spotwire',
+                           side=spot_side, risk_epoch=1, subsidy_quote_usdt=D('.5'), fee_buffer_base_life=D('0'), fee_buffer_quote_usdt=D('.002'))
+            spot_claim = CapitalClaim(spot.intent_id, spot.client_order_id, binding.account_uid, spot.session_id,
+                                      spot.epoch, 1, 1, 'SPOT', spot.side, 'OPEN', spot.quantity_base, spot.limit_price_usdt, 1)
+            if cashflow is None:
+                await admin.execute('INSERT INTO life_financial.spot_fill_policies VALUES($1,$2,1000,4096)', cfg.account_id, cfg.binding.policy_hash)
+            assert (await capital.reserve(ReserveCapital('original-spot-claim', spot_claim), await capital.cut(cfg.binding), owner)).decision.allowed
+            assert (await capital.check_capital(cfg.binding)).allowed
+            assert (await carry.check_carry(cfg.binding)).allowed
+            await financial.prepare(spot, cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)
+            await financial.arm(spot.operation_id, cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)
+            assert (await store._call(values[1].reserve, spot_claim)).allowed
+            await store.prepare(spot, cut=(await store.snapshot(binding)).cut, owner=file_owner)
+            await store.arm(spot.operation_id, cut=(await store.snapshot(binding)).cut, owner=file_owner)
+            prepared_target['spot'] = spot, spot_claim
+            if spot_settlement_stage is not None:
+                from hummingbot.strategy_v2.life_liquidity.storage.financial import AckSpot
+                now = await admin.fetchval('SELECT clock_timestamp()')
+                now = now.replace(microsecond=now.microsecond // 1000 * 1000)
+                ack = AckSpot('original-spot-ack', spot.operation_id, spot.intent_id, spot.client_order_id,
+                              spot.market, spot.side, spot.session_id, spot.epoch, '123456789', now)
+                await financial.acknowledge(ack, cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)
+                await store.acknowledge(replace(ack, observed_at=values[6].wall), cut=(await store.snapshot(binding)).cut, owner=file_owner)
+                extra = replace(spot, operation_id='extra-spot-prepare', intent_id='extraspot', client_order_id='extraspotwire',
+                                side='SELL' if spot_side == 'BUY' else 'BUY', quote_level=1)
+                extra_claim = replace(spot_claim, intent_id=extra.intent_id, wire_id=extra.client_order_id, side=extra.side)
+                assert (await capital.reserve(ReserveCapital('extra-spot-claim', extra_claim), await capital.cut(cfg.binding), owner)).decision.allowed
+                assert (await capital.check_capital(cfg.binding)).allowed
+                assert (await carry.check_carry(cfg.binding)).allowed
+                await financial.prepare(extra, cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)
+                await financial.arm(extra.operation_id, cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)
+                assert (await store._call(values[1].reserve, extra_claim)).allowed
+                await store.prepare(extra, cut=(await store.snapshot(binding)).cut, owner=file_owner)
+                await store.arm(extra.operation_id, cut=(await store.snapshot(binding)).cut, owner=file_owner)
+                ack_now = await admin.fetchval('SELECT clock_timestamp()')
+                ack_now = ack_now.replace(microsecond=ack_now.microsecond // 1000 * 1000)
+                ack_extra = AckSpot('extra-spot-ack', extra.operation_id, extra.intent_id, extra.client_order_id,
+                                    extra.market, extra.side, extra.session_id, extra.epoch, '123456790', ack_now)
+                await financial.acknowledge(ack_extra, cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)
+                await store.acknowledge(replace(ack_extra, observed_at=values[6].wall),
+                                        cut=(await store.snapshot(binding)).cut, owner=file_owner)
+                prepared_target['extra_spot'] = extra, extra_claim
         prefill = False
         prepared_target.update(native=native, swap=swap, prepared=prepared, claim=claim)
         captured_now = await admin.fetchval('SELECT clock_timestamp()')
+        captured_now = captured_now.replace(microsecond=captured_now.microsecond // 1000 * 1000)
         values[6].wall = captured_now
         values[8]['snapshot'] = replace(values[8]['snapshot'], observed_at_ms=int(captured_now.timestamp() * 1000))
         values[7]['value'] = replace(values[7]['value'], observed_at_ms=int(captured_now.timestamp() * 1000))
+        if spot_terminal_stage is not None or spot_settlement_stage is not None:
+            from test.hummingbot.strategy_v2.life_liquidity.storage.test_joint_cash_repository import reopen
+
+            from hummingbot.strategy_v2.life_liquidity.storage.financial import FillSpot, SpotFillObservation
+            from hummingbot.strategy_v2.life_liquidity.storage.terminal import SpotTerminalFacts, TerminalSpot
+            originals = (prepared_target['spot'],) + (() if spot_settlement_stage is None else (prepared_target['extra_spot'],))
+            observed_trades = []
+            for n, (prepared_spot, _) in enumerate(originals):
+                captured_now = await admin.fetchval('SELECT clock_timestamp()')
+                captured_now = captured_now.replace(microsecond=captured_now.microsecond // 1000 * 1000)
+                values[6].wall = captured_now
+                stamp = int(captured_now.timestamp() * 1000)
+                trade_id, exchange = ('spottrade1', '123456789') if n == 0 else ('spottrade2', '123456790')
+                leaf = SpotFillObservation(trade_id, D('1'), D('1'), spot_fee_currency, D('-.02'), stamp,
+                                           D('1'), stamp, stamp, 'independent_market')
+                fill = FillSpot('original-spot-fill' if n == 0 else 'extra-spot-fill', prepared_spot.operation_id,
+                                prepared_spot.intent_id, prepared_spot.client_order_id, prepared_spot.market, prepared_spot.side,
+                                prepared_spot.session_id, prepared_spot.epoch, exchange, D('1'), (leaf,), captured_now)
+                assert (await financial.apply_fills(fill, cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)).state == 'APPLIED'
+                assert (await store.apply_fills(fill, cut=(await store.snapshot(binding)).cut, owner=file_owner)).state == 'APPLIED'
+                observed_trades.append(trade_id)
+                view = await financial.snapshot(cfg.binding)
+                evidence = SpotTerminalFacts(cfg.binding, captured_now, 'CANCELED', D('1'), prepared_spot.quantity_base,
+                                             prepared_spot.limit_price_usdt, (leaf,), view.balance.total_base_life, view.balance.total_quote_usdt,
+                                             D('0'), D('0'), tuple(observed_trades), (), () if n == len(originals) - 1 else ('extraspotwire',),
+                                             () if n == len(originals) - 1 else ('123456790',), (), True, True, True)
+                terminal = TerminalSpot('original-spot-terminal' if n == 0 else 'extra-spot-terminal',
+                                        prepared_spot.operation_id, prepared_spot.intent_id, prepared_spot.client_order_id,
+                                        prepared_spot.market, prepared_spot.side, prepared_spot.session_id, prepared_spot.epoch, exchange, evidence)
+                if native_terminal:
+                    assert (await financial.confirm_terminal(terminal, cut=view.cut, owner=owner)).state == 'TERMINAL'
+                file_terminal = replace(terminal, facts=replace(evidence, binding=binding))
+                if spot_terminal_stage is None:
+                    await store.confirm_terminal(file_terminal, cut=(await store.snapshot(binding)).cut, owner=file_owner)
+                else:
+                    target, name = {'observation': (store._wal, 'mark_exchange_terminal_observed'),
+                                    'principal': (store._ledger, 'confirm_terminal'), 'wal': (store._wal, 'mark_terminal'),
+                                    'receipt': (store, '_publish_terminal')}[spot_terminal_stage]
+                    original = getattr(target, name)
+
+                    def interrupted_terminal(*args, **kwargs):
+                        if spot_terminal_stage == 'receipt' and not args[0].startswith('term-done:'):
+                            return original(*args, **kwargs)
+                        if spot_terminal_stage != 'receipt':
+                            original(*args, **kwargs)
+                        raise OSError('synthetic original pending terminal')
+                    with monkeypatch.context() as patch:
+                        patch.setattr(target, name, interrupted_terminal)
+                        with pytest.raises(CommitUnknown):
+                            await store.confirm_terminal(file_terminal, cut=(await store.snapshot(binding)).cut, owner=file_owner)
+                prepared_target['spot_fill' if n == 0 else 'extra_spot_fills'] = fill if n == 0 else (fill,)
+            if spot_settlement_stage is not None:
+                from hummingbot.strategy_v2.life_liquidity.storage.postgres.settlement import (
+                    PgInventorySettlementRepository,
+                )
+                from hummingbot.strategy_v2.life_liquidity.storage.settlement import SettleSpotInventory
+                command = SettleSpotInventory('original-spot-cycle', 'original-spot-cycle', tuple(p.intent_id for p, _ in originals))
+                view = await financial.snapshot(cfg.binding)
+                evidence = SpotFinancialRecoveryFacts(cfg.binding, captured_now, view.balance.total_base_life, view.balance.total_quote_usdt,
+                                                      D('0'), D('0'), tuple(observed_trades), (), ('spotwire', 'extraspotwire'), (), True, True, True)
+                await admin.execute('INSERT INTO life_financial.spot_settlement_policies VALUES($1,$2,1000)', cfg.account_id, cfg.binding.policy_hash)
+                if native_settlement:
+                    await PgInventorySettlementRepository(financial).settle_inventory(command, facts=evidence, cut=view.cut, owner=owner)
+                target, name = (store, '_publish_settlement') if spot_settlement_stage == 'receipt' else (store._subsidy, '_settle_inventory_cycle')
+                original = getattr(target, name)
+
+                def interrupted_cycle(*args, **kwargs):
+                    if spot_settlement_stage == 'receipt' and not args[0].startswith('settle-done:'):
+                        return original(*args, **kwargs)
+                    if spot_settlement_stage != 'before':
+                        original(*args, **kwargs)
+                    raise OSError('synthetic original pending inventory settlement')
+                with monkeypatch.context() as patch:
+                    patch.setattr(target, name, interrupted_cycle)
+                    with pytest.raises(CommitUnknown):
+                        await store.settle_inventory(command, facts=replace(evidence, binding=binding),
+                                                     cut=(await store.snapshot(binding)).cut, owner=file_owner)
+            captured_now = await admin.fetchval('SELECT clock_timestamp()')
+            values[6].wall = captured_now.replace(microsecond=captured_now.microsecond // 1000 * 1000)
+            return await reopen(tmp_path, store, recovery, values, file_owner)
         if cashflow is not None:
             # Explicit historical valuation at the original transfer time;
             # setup latency cannot move a transfer's original price timestamp.
@@ -194,10 +355,24 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
             from test.hummingbot.strategy_v2.life_liquidity.test_shared_capital_runner import setup_shared
             values = setup_shared(path / 'native', collateral=str(D('10') + min(D('0'), D('1') - entry)), budget_capacity=50)
             approvals = () if cashflow is None else (ApprovedSpotCashflow('101', currency, amount, approval_at),)
-            return await original_fixture(path, **{**kwargs, 'operator_keys': KEYS, 'shared_values': values, 'opening_long_entry': entry, 'approvals': approvals})
+            return await original_fixture(path, **{**kwargs, 'operator_keys': KEYS, 'shared_values': values, 'opening_long_entry': entry, 'approvals': approvals, 'spot': spot_side is not None,
+                                                   **({} if spot_settlement_stage is None else {'settlement_policy': SpotSettlementPolicy(1000)})})
 
         patches.setattr(file_fixture, 'fixture', fixture)
         patches.setattr(file_fixture, 'report', numeric_report)
+        if spot_side is not None:
+            from hummingbot.strategy_v2.life_liquidity.storage.joint import FileJointRepository
+            reconcile = FileJointRepository.reconcile
+
+            async def spot_reconcile(repo, binding, owner, **kwargs):
+                if 'spot_fill' in prepared_target:
+                    old = prepared_target['spot_fill']
+                    facts = SpotFinancialRecoveryFacts(binding, repo.store._clock(), final_base, final_cash, D('0'), D('0'),
+                                                       ('spottrade1',) + (() if spot_settlement_stage is None else ('spottrade2',)), () if cashflow is None else ('101',),
+                                                       ('spotwire',) + (() if spot_settlement_stage is None else ('extraspotwire',)), (), True, True, True)
+                    kwargs = dict(spot_fills=(old, *prepared_target.get('extra_spot_fills', ())), spot_facts=facts, **kwargs)
+                return await reconcile(repo, binding, owner, **kwargs)
+            patches.setattr(FileJointRepository, 'reconcile', spot_reconcile)
         joint, store, recovery, values, file_owner = await file_fixture.interrupted(tmp_path, patches, stage, before_report=before_report)
     if file_result is not None:
         # Fork only this disposable File fixture at its exact crash bytes.
@@ -205,7 +380,11 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
         # then restore the crash branch before retirement. Native facts and
         # the permanent source-retirement fence are never rewound.
         images = {p: p.read_bytes() for p in tmp_path.rglob('*') if p.is_file()}
-        assert await joint.reconcile(store.binding, file_owner), recovery.reason_code
+        options = {} if spot_side is None else dict(spot_fills=(prepared_target['spot_fill'], *prepared_target.get('extra_spot_fills', ())),
+                                                    spot_facts=SpotFinancialRecoveryFacts(store.binding, values[6].wall, final_base, final_cash, D('0'), D('0'),
+                                                                                          ('spottrade1',) + (() if spot_settlement_stage is None else ('spottrade2',)), () if cashflow is None else ('101',),
+                                                                                          ('spotwire',) + (() if spot_settlement_stage is None else ('extraspotwire',)), (), True, True, True))
+        assert await joint.reconcile(store.binding, file_owner, **options), recovery.reason_code
         expected = await store.snapshot(store.binding)
         file_result.update(balance=expected.balance, budget=expected.budget)
         await store.close()
@@ -235,8 +414,8 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
         assert (await PgSwapFillRepository(swap).apply_fills(original_fill, cut=native_cut, owner=owner)).state == 'APPLIED'
     fresh_now = await admin.fetchval('SELECT clock_timestamp()')
     values[6].wall = fresh_now
-    facts = SpotFinancialRecoveryFacts(binding, fresh_now, final_base, final_cash, D('0'), D('0'), ('trade-1',),
-                                       () if cashflow is None else ('101',), (claim.wire_id,), (), True, True, True)
+    facts = SpotFinancialRecoveryFacts(binding, fresh_now, final_base, final_cash, D('0'), D('0'), ('trade-1',) + (() if spot_side is None else ('spottrade1',)) + (() if spot_settlement_stage is None else ('spottrade2',)),
+                                       () if cashflow is None else ('101',), (claim.wire_id,) + (() if spot_side is None else ('spotwire',)) + (() if spot_settlement_stage is None else ('extraspotwire',)), (), True, True, True)
     drain = OwnerTransition('outer-drain', OwnerMode.DRAINING, file_owner)
     cut = (await store.snapshot(binding)).cut
     signature = KEYS.sign('operator', binding, 'DRAIN', drain.json(), cut, facts, issued_at=fresh_now, expires_at=fresh_now + timedelta(seconds=10))
@@ -281,7 +460,7 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
         assert (await PgFundingRepository(swap).apply_funding(ApplyFunding('native-prior-funding', b),
                                                               cut=(await financial.observation_cut(cfg.binding)).cut, owner=owner)).state == 'APPLIED'
     batch = PgJointBatchRepository(swap)
-    cmd = ImportLegacyApplying(source.content_digest, ApplyJointBatch('outer-pending', (), (fill,), flows, ApplyFunding('outer-funding', b)))
+    cmd = ImportLegacyApplying(source.content_digest, ApplyJointBatch('outer-pending', () if spot_side is None else (prepared_target['spot_fill'], *prepared_target.get('extra_spot_fills', ())), (fill,), flows, ApplyFunding('outer-funding', b)))
     await admin.execute('UPDATE life_financial.accounts SET halted=true WHERE account_id=$1', cfg.account_id)
     # This is a halted import, not source-readiness renewal. Capture its signed
     # diagnostic cut after the original pre-fill carry source has expired. Do
@@ -326,7 +505,7 @@ async def apply_recovery(database, batch, command, facts, store):
                 funding=replace(b.funding, sequence=sequence, observed_at_ms=at, coverage_through_ms=at), terms=replace(b.terms, sequence=sequence, observed_at_ms=at))
     repair = ResolveJointSources('outer-recover', command.operation_id,
                                  replace(command.batch, operation_id='outer-applied', funding=replace(command.batch.funding, operation_id='outer-funding-applied', bundle=b)))
-    proof = JointRepairFacts(replace(facts, observed_at=now), (('SWAP', 'trade-1'),), tuple(p.bill_id for p in command.batch.funding.bundle.funding.payments), True,
+    proof = JointRepairFacts(replace(facts, observed_at=now), tuple((product, f.trade_id) for product, groups in (('SPOT', command.batch.spot_fills), ('SWAP', command.batch.swap_fills)) for group in groups for f in group.fills), tuple(p.bill_id for p in command.batch.funding.bundle.funding.payments), True,
                              int(store._accounting_policy.opened_at.timestamp() * 1000), at)
     signed = KEYS.sign('operator', cfg.binding, 'RECOVER', repair.json(), repair_cut, proof, issued_at=now, expires_at=now + timedelta(seconds=10))
     try:

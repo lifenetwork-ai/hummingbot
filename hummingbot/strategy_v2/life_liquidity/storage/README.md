@@ -3488,3 +3488,33 @@ native history denies import; committed corruption invalidates cold readback.
 Interrupted lifecycle/settlement side effects, core command families, outer
 coordinator recovery and complete provider consumption still require their R1
 exit workflows.
+
+### Coupled outer SPOT/SWAP monetary recovery and pending side effects
+
+Migration 69 extends original outer-account claim proof to native SPOT as well
+as SWAP. The signed frozen File order/trade facts, SPOT preparation/ARM and
+independently admitted native shared claim must agree. SPOT principal and
+USDT/LIFE fees remain separate from derivative PnL, SWAP fees and paid funding.
+The original pre-core wallet is replayed from economic leaves; an APPLIED core's
+current fill metadata is checked against its current wallet separately.
+
+`legacy_pending_basis.pending_view` is a read-only admission projection. It
+validates the original File terminal request and the actual ordered partial
+WAL/principal/subsidy states, or the exact before/after atomic inventory budget
+image. It then permits the existing terminal/cycle evidence check on that view.
+The signed source bytes and physical files remain unchanged. Independently
+recorded native original completions at the import cut are still mandatory;
+this path performs no terminal/settlement, refund or shared-claim retirement.
+Missing native completion denies import with all monetary holds preserved.
+
+Cold import proof rechecks original shared-capital receipt/arithmetic and the
+original preparation/ARM identity hashes. Corrupt original provenance must
+invalidate import readback even when a separate account snapshot already reports
+recovery required. An expired readiness response cannot be used as a fresh
+release grant. IMPORT and signed monetary repair preserve original receipts,
+HALT, shared claims, gross execution loss and actual settled subsidy.
+
+Remaining PREPARING/ABORTING/CANCELING families, original coordinator product
+histories, required joint valuation/repaired-origin histories and authenticated
+provider/runner evidence consumption at every required release retain their
+fixed R1 exit requirements. Configured PostgreSQL remains denied.

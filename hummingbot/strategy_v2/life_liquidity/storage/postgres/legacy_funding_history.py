@@ -37,11 +37,12 @@ def _completed_acks(command, resources, owner):
             _refuse()
 
 
-def _wallet_money(wallet, command, batch, flows, policy, events):
+def _wallet_money(wallet, command, batch, flows, policy, events, *, observed_at=None):
     """Explain each historical before-wallet from the independently seeded basis."""
     base, cash = D(policy['opening_base_life']), D(policy['opening_quote_usdt'])
     trades = {f.trade_id: (row, f) for row in batch.spot_fills for f in row.fills}
-    at = int(command.observed_at.timestamp() * 1000)
+    observed_at = command.observed_at if observed_at is None else observed_at
+    at = int(observed_at.timestamp() * 1000)
     fee_events = {}
     for trade_id, recorded in wallet['trades'].items():
         if trade_id not in trades:
@@ -67,7 +68,7 @@ def _wallet_money(wallet, command, batch, flows, policy, events):
         elif key.startswith('CASHFLOW:'):
             flow = flows.get(key.removeprefix('CASHFLOW:'))
             if (flow is None or (kind, currency, amount) != ('CASHFLOW', flow.currency, flow.signed_amount)
-                    or flow.observed_at > command.observed_at
+                    or flow.observed_at > observed_at
                     or max(flow.transfer_at_ms, flow.value_at_ms, flow.reference_observed_at_ms) > at):
                 _refuse()
         elif key.startswith('JOINT:'):

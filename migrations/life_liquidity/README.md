@@ -996,3 +996,15 @@ account, policy, balance, activation or configured PostgreSQL sender.
   new send, release or claim retirement. Two private helpers are added; existing
   function OIDs/ACLs and tables remain unchanged. Unknown predecessor definitions
   roll back atomically; repeated checksum-verified startup is a no-op.
+
+- `000069_legacy_joint_spot_claims.sql`: qualify independently admitted native
+  SPOT claims/preparations together with SWAP claims in a retired outer account
+  recovery. Original shared-capital receipts/arithmetic are reverified, including
+  on cold import readback. SPOT preparation and ARM fingerprints are recomputed
+  using their original identity formats and cuts; an unrelated current-state
+  diagnostic is not sufficient proof of the original import. The SPOT cohort
+  proof runs once per outer basis, not once per claim. Both existing private
+  function OIDs/ACLs remain, no table/policy/money/claim or grant is created,
+  unexpected predecessor definitions roll back and checksum-verified repeat
+  startup is a no-op. Original independent terminal/inventory completions can
+  explain interrupted File side effects without executing another release.

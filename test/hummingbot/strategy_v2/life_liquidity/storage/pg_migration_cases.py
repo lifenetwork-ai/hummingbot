@@ -2116,3 +2116,46 @@ async def test_abort_nav_upgrade_is_private_atomic_and_idempotent_without_money_
     for table in ('accounts', 'operations', 'financial_events', 'legacy_applying_imports'):
         assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
     assert (await migrate(c, directory, action='up'))['applied'] == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('unexpected_shape', [False, 'joint', 'prepare', 'arm'])
+async def test_mixed_outer_claim_upgrade_changes_only_original_private_proof_without_seeding_money(db, unexpected_shape):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 69:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    signature = 'life_financial.legacy_joint_basis_valid(uuid,jsonb,bigint)'
+    if unexpected_shape:
+        target, needle = {
+            'joint': (signature, "OR c.product<>'SWAP'"),
+            'prepare': ('life_financial.legacy_spot_basis_valid(uuid,jsonb,bigint)', "AND o.command->>'kind'='SPOT_PREPARE'"),
+            'arm': ('life_financial.legacy_spot_basis_valid(uuid,jsonb,bigint)', "AND o.command->>'prepare'=d.operation_id::text AND o.committed_version<=p_version"),
+        }[unexpected_shape]
+        definition = await c.fetchval('SELECT pg_get_functiondef(to_regprocedure($1))', target)
+        assert needle in definition
+        await c.execute(definition.replace(needle, needle.replace(' ', '  ')))
+    query = '''SELECT p.oid,p.oid::regprocedure::text AS signature,p.proacl,p.prosrc,p.provolatile::text AS provolatile,p.prosecdef,p.proconfig,p.proowner
+        FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='life_financial' ORDER BY p.oid'''
+    before = {r['signature']: dict(r) for r in await c.fetch(query)}
+    tables = await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace='life_financial'::regnamespace ORDER BY oid")
+    path = DEFAULT_DIRECTORY / '000069_legacy_joint_spot_claims.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    if unexpected_shape:
+        with pytest.raises(asyncpg.RaiseError, match='LIFE_LEGACY_JOINT_SPOT_MISMATCH'):
+            await migrate(c, directory, action='up')
+        assert {r['signature']: dict(r) for r in await c.fetch(query)} == before
+        assert (await versions(c))[-1]['version'] == 68
+        return
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    after = {r['signature']: dict(r) for r in await c.fetch(query)}
+    assert set(after) == set(before)
+    for key, original in before.items():
+        assert after[key] == (original if key not in {signature, 'life_financial.legacy_spot_basis_valid(uuid,jsonb,bigint)'} else {**original, 'prosrc': after[key]['prosrc']})
+    for role in ('public', 'life_runtime_test', 'life_reporter_test'):
+        assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", role, signature)
+    assert tables == await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace='life_financial'::regnamespace ORDER BY oid")
+    for table in ('accounts', 'operations', 'financial_events', 'legacy_applying_imports'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+    assert (await migrate(c, directory, action='up'))['applied'] == []
