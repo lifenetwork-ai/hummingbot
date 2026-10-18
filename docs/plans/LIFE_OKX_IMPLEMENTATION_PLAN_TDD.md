@@ -1,6 +1,16 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
-**Current PostgreSQL checkpoint (2026-10-18):** migration 55 avoids discarded
+**Current PG3 recovery checkpoint (2026-10-18, base `6bfd58a80`):** migration 56
+adds exact original native SPOT preparation/ARM provenance to retired File
+SPOT/funding recovery. The actual File resume and two native cold restores agree
+on complete balances, remaining holds and gross budgets; changed original ARM
+IDs now invalidate provenance. **563 R1 regression cases pass before the final
+ARM-ID condition; 48 affected cases pass afterward**, including combined approved
+transfers/SPOT/funding and corruption. **64 migration tests pass**. These overlapping gates are not one full
+current-service acceptance run. See [scope and qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-core-spot-and-funding-recovery-2026-10-18).
+**PG3 remains open under R1–R5; configured PostgreSQL stays rejected.**
+
+**Earlier PostgreSQL snapshot checkpoint (2026-10-18):** migration 55 avoids discarded
 nested snapshot digest serialization while retaining every financial proof,
 public digest and existing OID/ACL. **372 native regression tests and 62 migration
 tests pass**, including all previously failed workflows and old receipt replay

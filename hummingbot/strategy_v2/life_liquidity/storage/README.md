@@ -85,10 +85,9 @@ separate migration-owner importer verifies external source/target public keys
 against immutable target configuration, exact target database/namespace and
 current signed IMPORT cut/facts. The original native opening capital policy
 must already exist and match the source; a partial File wallet never becomes
-an opening balance. Source orders/trades, unrelated prior transfer/NAV/cost
-history, nonzero loss or subsidy entries and outer joint capsules are refused
-by this core profile. The separate outer profile below handles its declared
-mixed SWAP/transfer/funding history.
+an opening balance. Unrelated prior transfer/NAV/cost history and outer joint
+capsules are refused by this core profile. The core SPOT extension and separate
+outer profile below handle their declared order/trade histories.
 
 For a declared core transfer/funding source, every selected original bill,
 asset, signed amount, transfer time, historical LIFE valuation/reference and
@@ -116,6 +115,32 @@ interrupted financial profile, not the PG6 general bootstrap/importer. Complete
 joint/SPOT/SWAP parity, provider/collateral reconciliation and configured service
 acceptance remain PG3 work. Disposable functional qualification does not close
 the recorded R5 SQL latency failures.
+
+### Native core SPOT/funding recovery
+
+Migration 56 and `postgres/legacy_spot_basis.py` extend the same signed route to
+an interrupted first core SPOT-fill/funding command. All original fill fields,
+trade/wire/order/session IDs, reference valuations and signed LIFE/USDT fees must
+match. Original pre-application principal/subsidy holds must match the original
+File preparation and opening wallet; unrelated or prior accounted SPOT history
+is still refused. Existing approved transfers may accompany that command.
+
+The target must already contain each exact original native SPOT preparation and
+an independently committed canonical `arm:<prepare_operation_id>` from the same original binding/writer, at the
+signed import cut. It cannot remap quantities, fees, reference, subsidy, slots,
+session, risk epoch or IDs. The importer creates no preparation/arm/claim. Private
+SQL proofs recheck this provenance on ordinary financial reads, repair and cold
+lookup; an altered native preparation or arm invalidates the imported source.
+Existing OIDs/ACLs remain; owner default grants cannot expose the new helpers.
+
+IMPORT publishes only the original money-neutral pending root. Separate signed
+RECOVER uses the existing native SPOT/funding accounting and retains gross costs,
+conservative subsidy floors, remaining holds, HALT and original pending records.
+Cold replay never rearms or releases claims. The disposable test forks exact
+pre-retirement File crash bytes sequentially, runs the actual File resume for
+balance/budget parity, then restores the crash branch for sealed retirement.
+This is synthetic financial workflow qualification, not configured service or
+distributed fencing. R1 and the remaining PG3 exits stay open.
 
 ### Native outer SWAP import
 

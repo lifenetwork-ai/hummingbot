@@ -1607,3 +1607,45 @@ async def test_snapshot_body_upgrade_preserves_old_oids_acl_and_atomic_shape_ref
     assert (await migrate(c, directory, action='up'))['applied'] == []
     for table in ('accounts', 'balances', 'operations', 'carry_checks', 'shared_capital_claims'):
         assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('unexpected_shape', [False, True])
+async def test_legacy_spot_basis_upgrade_is_private_preserves_old_functions_and_bootstraps_nothing(db, unexpected_shape):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 56:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    await c.execute('ALTER DEFAULT PRIVILEGES IN SCHEMA life_financial GRANT EXECUTE ON FUNCTIONS TO life_runtime_test,life_reporter_test')
+    if unexpected_shape:
+        definition = await c.fetchval("SELECT pg_get_functiondef('life_financial.legacy_applying_verified(uuid)'::regprocedure)")
+        await c.execute(definition.replace('legacy_cashflow_verified(p_account)', 'legacy_cashflow_verified( p_account )'))
+    query = '''SELECT p.oid,p.oid::regprocedure::text AS signature,p.proacl,p.prosrc,p.provolatile,p.prosecdef,p.proconfig,p.proowner
+        FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='life_financial' ORDER BY p.oid'''
+    before = {r['signature']: dict(r) for r in await c.fetch(query)}
+    path = DEFAULT_DIRECTORY / '000056_legacy_spot_basis.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    if unexpected_shape:
+        with pytest.raises(asyncpg.RaiseError, match='LIFE_LEGACY_SPOT_BASIS_MISMATCH'):
+            await migrate(c, directory, action='up')
+        assert {r['signature']: dict(r) for r in await c.fetch(query)} == before
+        assert (await versions(c))[-1]['version'] == 55
+        return
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    after = {r['signature']: dict(r) for r in await c.fetch(query)}
+    new = {'life_financial.legacy_spot_basis_valid(uuid,jsonb,bigint)', 'life_financial.legacy_spot_verified(uuid)'}
+    assert set(after) - set(before) == new
+    for signature, original in before.items():
+        actual = after[signature]
+        if signature == 'life_financial.legacy_applying_verified(uuid)':
+            assert {k: v for k, v in actual.items() if k != 'prosrc'} == {k: v for k, v in original.items() if k != 'prosrc'}
+            assert 'legacy_spot_verified(p_account)' in actual['prosrc']
+        else:
+            assert actual == original
+    for signature in new:
+        for role in ('public', 'life_runtime_test', 'life_reporter_test'):
+            assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", role, signature)
+    for table in ('accounts', 'balances', 'operations', 'spot_preparations', 'legacy_applying_imports'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+    assert (await migrate(c, directory, action='up'))['applied'] == []

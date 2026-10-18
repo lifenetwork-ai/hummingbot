@@ -30,7 +30,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancial
 KEYS = OperatorKeys({'operator': b'i' * 32}, {'operator': frozenset(('IMPORT', 'RECOVER', 'DRAIN'))})
 
 
-async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashflow=None):
+async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashflow=None, spot_fill=None, file_result=None):
     from test.hummingbot.strategy_v2.life_liquidity.storage import test_spot_financial_contracts as file_fixture
     from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_funding import setup as funding_setup
 
@@ -42,9 +42,15 @@ async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashfl
     from hummingbot.strategy_v2.life_liquidity.storage.joint_settlement import JointCashEvent, JointCashSpot
     from hummingbot.strategy_v2.life_liquidity.storage.legacy_spot import open_legacy_spot
     from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancialRecoveryPolicy
+    initial = None
+    if spot_fill is not None:
+        with monkeypatch.context() as patches:
+            patches.setattr(file_fixture, 'NOW', await database[0].fetchval('SELECT clock_timestamp()'))
+            initial = file_fixture.create_fixture(tmp_path)
     values, funding, payment = await funding_setup(database, carry_options=dict(refresh_initial_facts=True),
                                                    spot_options=dict(configuration_body=lambda _: {'operator_verifier': KEYS.verifier().policy(),
-                                                                                                   'legacy_source_verifier': KEYS.verifier().policy()}))
+                                                                                                   'legacy_source_verifier': KEYS.verifier().policy()},
+                                                                     **({} if initial is None else {'original_session_id': initial[2].session_id})))
     financial, cfg, owner = values[:3]
     admin = database[0]
     await admin.execute('INSERT INTO life_financial.joint_batch_policies VALUES($1,$2,32,64,1048576)', cfg.account_id, cfg.binding.policy_hash)
@@ -54,7 +60,7 @@ async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashfl
     opened = await admin.fetchval('SELECT opened_at FROM life_financial.spot_capital_policies WHERE account_id=$1', cfg.account_id)
     with monkeypatch.context() as patches:
         patches.setattr(file_fixture, 'NOW', opened)
-        files, _, file_owner = file_fixture.create_fixture(tmp_path)
+        files, _, file_owner = initial or file_fixture.create_fixture(tmp_path)
     binding = replace(cfg.binding, lineage=uuid4())
     clock = [now]
     flows, approvals = (), ()
@@ -83,6 +89,41 @@ async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashfl
                                       accounting_policy=accounting, recovery_policy=SpotFinancialRecoveryPolicy(5000), operator_keys=KEYS)
 
     store = await open_file(create=True)
+    fills = ()
+    if spot_fill is not None:
+        from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_shared_capital import (
+            native_claim,
+        )
+        from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_spot_observations import filled
+
+        from hummingbot.strategy_v2.life_liquidity.storage.products import ReserveCapital
+        side, fee_currency = spot_fill
+        if cashflow is None:
+            await admin.execute('INSERT INTO life_financial.spot_fill_policies VALUES($1,$2,1000,4096)', cfg.account_id, cfg.binding.policy_hash)
+        stamp = int((await admin.fetchval('SELECT clock_timestamp()')).timestamp() * 1000)
+        values[4][0] = replace(values[4][0], sequence=values[4][0].sequence + 1, observed_at_ms=stamp)
+        b = values[7][0]
+        values[7][0] = replace(b, account=replace(b.account, snapshot=values[4][0]),
+                               mark=replace(b.mark, sequence=b.mark.sequence + 1, observed_at_ms=stamp), index=replace(b.index, sequence=b.index.sequence + 1, observed_at_ms=stamp),
+                               funding=replace(b.funding, sequence=b.funding.sequence + 1, observed_at_ms=stamp, coverage_through_ms=stamp), terms=replace(b.terms, sequence=b.terms.sequence + 1, observed_at_ms=stamp))
+        claim = replace(native_claim(owner, 'intent1', side=side, amount='2', price='1'), wire_id='wire1')
+        assert (await values[5].reserve(ReserveCapital('spotclaim', claim), await values[5].cut(cfg.binding), owner)).decision.allowed
+        assert (await values[8].check_carry(cfg.binding)).allowed
+        changes = dict(side=side, risk_epoch=1, fee_buffer_base_life=D('0'), fee_buffer_quote_usdt=D('.002'))
+        await financial.prepare(file_fixture.order(owner, **changes), cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)
+        await financial.arm('operation1', cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)
+        await store.prepare(file_fixture.order(file_owner, **changes), cut=(await store.snapshot(binding)).cut, owner=file_owner)
+        await store.arm('operation1', cut=(await store.snapshot(binding)).cut, owner=file_owner)
+        now = await admin.fetchval('SELECT clock_timestamp()')
+        clock[0] = now
+        f = filled(file_owner, now, side=side)
+        f = replace(f, fills=(replace(f.fills[0], fee_currency=fee_currency),))
+        fills = (f,)
+        base += (D('1') if side == 'BUY' else D('-1')) + (D('-.02') if fee_currency == 'LIFE' else D('0'))
+        quote += (D('-1') if side == 'BUY' else D('1')) + (D('-.02') if fee_currency == 'USDT' else D('0'))
+        b = payment.bundle
+        payment = replace(payment, bundle=replace(b, account=replace(b.account, snapshot=replace(b.account.snapshot,
+                          spot_life_base=base, spot_cash_quote=quote, collateral_quote=quote))))
     if flows:
         # A core command has no outer recovery authority. Its transfer must
         # already have an APPLIED receipt before a new joint command starts.
@@ -91,26 +132,43 @@ async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashfl
     paid = payment.bundle.funding.payments[0]
     joint = JointCashSpot('file-joint', binding, 'c' * 64, now,
                           (JointCashEvent(f'JOINT:{paid.settled_at_ms}:FUNDING:{paid.bill_id}', paid.signed_payment_quote),),
-                          base, quote, True, True, 'okx_joint_reconciled', spot_cashflows=flows)
-    target, method = ((store._ledger, 'apply_joint_snapshot') if stage.startswith('wallet') else (store, '_publish_joint_cash'))
+                          base, quote, True, True, 'okx_joint_reconciled', spot_cashflows=flows, spot_fills=fills)
+    target, method = ((store._ledger, 'apply_joint_snapshot') if stage.startswith('wallet')
+                      else (store._loss, 'record') if stage == 'loss_after'
+                      else (store._subsidy, 'record_fill_floor') if stage == 'floor_after' else (store, '_publish_joint_cash'))
     original = getattr(target, method)
 
     def crash(*args, **kwargs):
         if stage == 'receipt' and not args[0].startswith('joint-done:'):
             return original(*args, **kwargs)
-        if stage == 'wallet_after':
+        if stage in ('wallet_after', 'loss_after', 'floor_after'):
             original(*args, **kwargs)
         raise OSError('synthetic File saga interruption')
 
+    joint_cut = (await store.snapshot(binding)).cut
     with monkeypatch.context() as patches:
         patches.setattr(target, method, crash)
         with pytest.raises(CommitUnknown):
-            await store.apply_joint_cash(joint, cut=(await store.snapshot(binding)).cut, owner=file_owner)
+            await store.apply_joint_cash(joint, cut=joint_cut, owner=file_owner)
     await store.close()
     store = await open_file()
+    if file_result is not None:
+        # Fork the disposable File history sequentially at its exact crash
+        # bytes. Run the real File resume to obtain independent parity values,
+        # then restore that crash branch for signed source retirement. No
+        # configured path, native DB money or retirement fence is rewound.
+        images = {p: p.read_bytes() for p in vars(files).values() if p is not None}
+        await store.resume_joint_cash(joint, cut=joint_cut, owner=file_owner)
+        expected = await store.snapshot(binding)
+        file_result.update(balance=expected.balance, budget=expected.budget)
+        await store.close()
+        for p, raw in images.items():
+            p.write_bytes(raw)
+        store = await open_file()
     now = await admin.fetchval('SELECT clock_timestamp()')
     clock[0] = now
-    facts = SpotFinancialRecoveryFacts(binding, now, base, quote, D('0'), D('0'), (), tuple(v.bill_id for v in flows), (), (), True, True, True)
+    facts = SpotFinancialRecoveryFacts(binding, now, base, quote, D('0'), D('0'), tuple(f.trade_id for v in fills for f in v.fills),
+                                       tuple(v.bill_id for v in flows), tuple(v.client_order_id for v in fills), (), True, True, True)
     drain = OwnerTransition('file-drain', OwnerMode.DRAINING, file_owner)
     cut = (await store.snapshot(binding)).cut
     signature = KEYS.sign('operator', binding, 'DRAIN', drain.json(), cut, facts, issued_at=now, expires_at=now + timedelta(seconds=10))
@@ -121,7 +179,7 @@ async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashfl
     signature = KEYS.sign('operator', binding, 'IMPORT', retire.json(), cut, facts, issued_at=now, expires_at=now + timedelta(seconds=10))
     await store.retire_legacy_applying(retire, source=source, approval=signature)
     batch = PgJointBatchRepository(funding.swap)
-    command = ImportLegacyApplying(source.content_digest, ApplyJointBatch('legacy-pending', (), (), flows, payment))
+    command = ImportLegacyApplying(source.content_digest, ApplyJointBatch('legacy-pending', fills, (), flows, payment))
     await admin.execute('UPDATE life_financial.accounts SET halted=true WHERE account_id=$1', cfg.account_id)
     cut = (await financial.observation_cut(cfg.binding)).cut
     now = await admin.fetchval('SELECT clock_timestamp()')

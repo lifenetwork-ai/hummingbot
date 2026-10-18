@@ -863,3 +863,12 @@ account, policy, balance, activation or configured PostgreSQL sender.
   record, authorization, risk limit or freshness budget is created or changed.
   Future snapshot field/proof changes belong in the corresponding body layer;
   the retained wrappers serialize only. Existing numbered scripts stay immutable.
+
+- `000056_legacy_spot_basis.sql`: independently match a retired core SPOT source
+  to already committed native preparation JSON and the original pre-import arm.
+  Require exact source membership, the canonical original `arm:<prepare ID>`
+  primary key and original binding/writer/version order.
+  Link the private proof into legacy financial integrity without changing old
+  function OIDs/ACLs; remove inherited nonowner helper grants. Ordinary reads,
+  repair and cold readback retain the original order provenance. No order,
+  claim, wallet, approval, policy or activation is bootstrapped.

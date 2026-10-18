@@ -1368,6 +1368,74 @@ extension. R1–R5 remain unchecked and configured PostgreSQL remains rejected.
 No financial/source/SQL budget is widened and no configured account/DB, exchange
 request or new evidence file is used.
 
+### PG3 core SPOT and funding recovery (2026-10-18)
+
+Base `6bfd58a80`. Migration 56 independently binds a retired core SPOT source
+to exact already-committed native preparation JSON and its original pre-import
+arm/binding/writer/version order. IMPORT creates no preparation, arm, claim or
+money. Separate signed RECOVER runs the existing native SPOT/funding kernels.
+Every original fill/fee/reference/order/session identity is retained; unrelated
+or prior accounted SPOT/NAV/cost histories and outer SPOT/coordinator profiles
+remain refused. R1–R5 remain unchanged and open; configured PostgreSQL stays
+rejected.
+
+The 20-case workflow matrix covers BUY/SELL × LIFE/USDT fees × interruption at
+wallet-before/wallet-after/loss/subsidy-floor/final receipt. A sequential fork of
+the exact disposable File crash bytes runs the actual File resume independently
+to compare every balance/hold and budget field after two native cold restores.
+Two more workflows combine approved LIFE deposits/USDT withdrawals with SPOT and
+funding. Thirteen signed-mutation denials retain exact reason codes. Three
+post-import native preparation/arm/arm-ID corruption cases exercise cold
+financial/source refusal.
+
+TDD Red reproduces the missing import profile on a valid actual File source
+(`/tmp/life-pg3-spot-funding-valid-source-red`). Development corrections fixed
+File provenance field names and a PL/pgSQL record/table-alias ambiguity; a
+temporary disposable diagnostic removed only that helper's exception handler
+and was removed from the final tests. The focused development run records
+42 passes / 2 test API errors (175.90 s,
+`/tmp/life-pg3-spot-funding-focused`): 20 parity, 12 mutation and ten snapshot
+upgrade cases pass. The two corruption tests used `ObservedAccountCut.snapshot`,
+which does not exist; they now call the actual financial snapshot. Their final
+qualification belongs to the frozen recovery invocation below.
+
+Retain the earlier interrupted matrix (9 pass / 1 failure, 46.78 s,
+`/tmp/life-pg3-spot-funding-matrix-green`): initial original SWAP preparation,
+before SPOT/recovery, exceeds the unchanged 1,000-ms driver/SQL budget.
+Diagnostic elapsed time is 1,736.94 ms: execute 1,200.34 ms, rollback 438.65 ms,
+no COMMIT attempted, raw timeout with no client SQLSTATE. This is a recurrence
+of the R5 latency blocker; do not reinterpret it as a financial defect fixed
+by later scoped passes or relax a deadline/matcher.
+
+The frozen `joint_recovery` gate passes **563 tests**, zero failures/errors/skips,
+six existing warnings, **1,771.45 s**
+(`/tmp/life-pg3-spot-funding-frozen-recovery`). This includes the original 34
+SPOT/source cases and all selected collateral/fill/funding/repair/NAV/terminal/
+release/legacy regressions. It precedes the final private ARM identity condition.
+
+A subsequent Red (`/tmp/life-pg3-spot-arm-identity-red`) proves that renaming the
+original ARM operation while retaining its receipt was accepted by the new
+provenance helper. The final helper additionally requires the exact original
+`arm:<prepare_operation_id>` key; this preserves the permanent ID and uses its
+primary-key lookup. No other financial function or gate changes. The final
+affected selector passes **48 tests**, zero failures/errors/skips, 1,866
+deselected, six existing warnings, **202.21 s**
+(`/tmp/life-pg3-spot-funding-final-identity-and-snapshots`): all 38 current SPOT/
+transfer/funding/source cases plus ten snapshot upgrades. The 34 earlier source
+cases overlap this selector; do not add the counts or call it a second full R1
+run. The later multiline parameter formatting changes whitespace only.
+
+The final migration gate passes **64 tests**, zero failures/errors/skips,
+**52.94 s** (`/tmp/life-pg3-spot-funding-final-migrations`), including actual
+55→56, unchanged existing OIDs/ACLs, inherited-grant removal, full rollback on
+an unexpected predecessor shape, empty financial tables and repeat startup.
+R1–R5 and PG3 remain open:
+these financial workflows do not install provider/collateral reconciliation,
+the remaining legacy histories, control/risk/session or configured service/
+runner/hedge/recorder routes. The earlier latency failure remains retained.
+No configured `.env`/DB/account, real exchange, deployment or new evidence file
+is used.
+
 ### PG3 native hedge qualification (2026-10-17)
 
 Base `be18f304f`. Migration 41 and `PgHedgeRepository` add explicitly imported hedge policy/count/byte limits, permanent target versions, original-cut plans and native partial/terminal settlement. Actual SPOT/long/short inventory sizes one bounded maker child, with close-first behavior, exact contract lots, executable depth, basis, gross fee/funding, edge, exposure-age, retry and permanent cost-hold limits. Shared allocation, fresh carry qualification and original captured SWAP preparation publish atomically. Refusal rolls all child effects back but retains the attempt, conservative cost and retired IDs across operation kinds. Native fill accounting remains the only source of actual money; hedge observations cannot debit it twice or release a claim. Actual hedge-cost breach preserves truth and HALT.
