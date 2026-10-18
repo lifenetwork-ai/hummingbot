@@ -11,10 +11,30 @@ from decimal import Decimal as D
 from hummingbot.strategy_v2.life_liquidity.storage.contracts import OwnerToken, StorageError, fingerprint
 from hummingbot.strategy_v2.life_liquidity.storage.financial import FinancialCut
 from hummingbot.strategy_v2.life_liquidity.storage.joint_settlement import JointCashSpot
+from hummingbot.strategy_v2.life_liquidity.storage.legacy_spot import LegacySpotStore
 
 
 def _refuse():
     raise StorageError('PG_LEGACY_APPLYING_ORIGINAL_BASIS_REQUIRED')
+
+
+def _completed_acks(command, resources, owner):
+    """Zero-money side effects still need their actual original receipts.
+
+    The independent native ACK prefix proof checks native preparation/order,
+    receipt and event provenance. This checks the original File parent/child
+    relation; equal account totals cannot replace an omitted ACK receipt.
+    """
+    for ack in command.spot_acks:
+        row = resources.get('acknowledgements', {}).get(ack.operation_id)
+        prepared = resources.get('commands', {}).get(ack.prepare_operation_id)
+        if (row is None or prepared is None or row['state'] != 'ACKED'
+                or row['owner'] != owner or LegacySpotStore._ack_from_json(row['command']) != ack
+                or row['fingerprint'] != fingerprint({'command': ack.json(), 'owner': owner})
+                or ack.observed_at > command.observed_at
+                or any(ack.json()[k] != prepared['command'][k] for k in (
+                    'intent_id', 'client_order_id', 'market', 'side', 'session_id', 'epoch'))):
+            _refuse()
 
 
 def _wallet_money(wallet, command, batch, flows, policy, events):
@@ -137,9 +157,10 @@ def funding_history(source, pending, batch, flows, policy):
         if row['state'] != 'APPLIED' or cut.checkpoint.revision >= pending_cut.checkpoint.revision or cut.checkpoint.revision in revisions:
             _refuse()
         revisions.add(cut.checkpoint.revision)
-        if (old.spot_acks or old.spot_prepared_receipts
+        if (old.spot_prepared_receipts
                 or old.spot_terminal_operations or old.spot_settlement_operations):
             raise StorageError('PG_LEGACY_APPLYING_PROFILE_UNSUPPORTED')
+        _completed_acks(old, resources, row['owner'])
         if any(complete.get(e.event_id) != e or e.event_id.split(':')[2] != 'FUNDING' for e in old.events):
             _refuse()
         previous.append((cut.checkpoint.revision, key, row, old))

@@ -691,7 +691,8 @@ qualification/revision recorded in each increment below.
 - [x] Declared original native SWAP/funding prefixes, with exact prior receipts/hashes, File parity, cold recovery and actual 59→60 upgrades.
 - [x] Completed funding-only core commands and original APPLIED native joint parents for the declared recovery profiles; original basis, exact leaves, gross budgets and cold restart remain verified.
 - [x] Declared completed core SPOT-fill/approved-transfer commands, with or without funding; exact child receipts, chronological economic replay and File/native cold parity.
-- [ ] Completed ACK/prepared-receipt/terminal/settlement core command families and repaired-origin native joint parent histories required by the supported File recovery modes.
+- [x] Declared completed ACK-bearing core commands and original signed repaired native SPOT/SWAP batch parents; exact receipts, original cut, File parity and cold restart.
+- [ ] Prepared-receipt/terminal/settlement core command families and remaining repaired-origin histories required by the supported File recovery modes.
 - [x] Declared original PREPARED-only SPOT holds during core funding recovery, with independent native unsent provenance, actual File parity, cold restart and a real 61→62 upgrade.
 - [x] Declared earlier filled/ACKed other-order history omitted by the pending command, with original receipts, zero-money ACK proof, File parity and actual 62→63 upgrades.
 - [ ] Cancellation, terminal/NAV and economic settlement histories needed by supported File recovery modes.
@@ -3089,7 +3090,7 @@ private helpers under permissive defaults, atomic unexpected-shape refusal, no
 table/money changes and repeat startup. The separate frozen-financial-source affected gate passes **85 cases**, zero
 failures/errors/skips, 2,102 deselected, six existing warnings, **368.17 s**
 (`/tmp/life-r1-other-order-affected`). It covers prior completed/mixed histories,
-original parents, prepared/unfilled holds, actual 54/57/58/59/60/61 upgrade paths,
+original parents, prepared/unfilled holds, actual 57/58/59/60/61 upgrade paths,
 original-prefix cold corruption, native late ACK and atomic-member refusals.
 The selectors overlap older gates and are not additive or R5 service acceptance.
 Subsequent test-only fixture flags/new profile files do not change the default
@@ -3100,3 +3101,45 @@ File fixture resumes are used. No configured DB/account, `.env`, exchange,
 deployment or new repository evidence file is used. R1 retains the terminal/
 settlement, repaired-origin/coordinator and complete provider-source exits.
 Configured PostgreSQL selection and R2–R5 remain open.
+
+### PG3 completed ACK commands and repaired native batch parents (2026-10-19)
+
+Base revision: `eff51e548`. Completed core ACK commands retain their actual
+ACKED File children, owners/fingerprints, callback times and original order
+scope; zero money cannot substitute for a receipt. Migration 64 recognizes
+original native joint parents reconciled through signed repair. The original
+RECOVERY_REQUIRED row/receipt, zero money and empty members remain immutable.
+The resolution must actually commit at/before the import cut, with verified
+original approval/root linkage. Each APPLIED replacement still passes the
+existing original-child and complete-economic-leaf proof. No source age,
+SQL/transaction, monetary or risk limit changes; no new table or helper.
+
+The first ACK Red test reproduces `PROFILE_UNSUPPORTED` (7.98 s); the nine-case
+ACK development gate passes in 51.51 s. The first repaired-parent Red test
+reproduces proof denial at import COMMIT; the next development run exposes a
+fixture event count missing its booked transfer, followed by a collection-only
+fixture indentation error. Corrected SPOT/SWAP/historical-cut/corruption cases
+pass seven tests in 42.49 s. These development runs are diagnostic, not final
+combined qualification; logs remain in `/tmp/life-r1-completed-ack-*` and
+`/tmp/life-r1-repaired-parent-*`.
+
+**Frozen financial-source affected qualification:** **82 passed**, zero
+failures/errors/skips, 2,123 deselected, six existing warnings, **414.73 s**
+(`/tmp/life-r1-history-resolution-final`). This includes nine completed-ACK
+cases, nine repaired-parent cases, actual 63→64 recovery and cold root
+corruption, earlier other-order ACK histories/62 upgrades, original parents,
+completed mixed commands and actual 54 snapshot-body upgrades. The subsets
+and preceding gates overlap; they are not additive or R5 service acceptance.
+A documentation correction removes the earlier 85-case gate's 54-upgrade
+claim: its selector did not select that function. The actual 54-upgrade cases
+are included in this 82-case gate. **86 actual migration cases pass**, zero failures/errors/skips, **74.28 s**
+(`/tmp/life-r1-history-resolution-migrations`), including actual 63→64,
+unchanged OIDs/ACLs/tables, atomic unexpected-shape rollback and repeated
+startup without new financial facts. Subsequent cancellation-only fixture flags/new tests do not
+change the qualified financial source or selected default paths.
+
+Only disposable pinned local PostgreSQL, synthetic facts/keys and actual File
+fixture resumes are used. No configured DB/account, `.env`, exchange, deployment
+or new repository evidence file is used. Prepared-receipt/terminal/settlement,
+outer SPOT/coordinator and complete provider-source exits still keep R1 open;
+R2–R5 and configured PostgreSQL service eligibility remain open.

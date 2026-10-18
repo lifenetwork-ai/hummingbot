@@ -3401,3 +3401,21 @@ still verify without rewriting their stored bytes. Neither IMPORT nor ACK
 provenance creates an order, a release, funding cash or trading readiness.
 Terminal/economic settlement, repaired-origin/coordinator histories and complete
 provider source consumption retain their fixed R1 requirements.
+
+### Completed core ACKs and repaired original native batch parents
+
+A completed core command may contain original ACKs. Each must retain its actual
+ACKED File child, owner/fingerprint, callback and preparation/order identity;
+equal money does not replace an ACK receipt. Existing native ACK provenance
+remains independent. A pending core command containing ACK side effects still
+requires its separate recovery contract.
+
+Migration 64 recognizes original native joint parents previously reconciled
+through signed repair. The raw pending parent is not promoted or rewritten.
+Its original request/fingerprint/receipt, zero monetary delta and empty members
+remain exact; a committed resolution root must exist at the original import
+revision. Every APPLIED replacement still retains its original child requests,
+receipts and complete target economic leaves. Future roots, unused grants,
+missing/changed links and root corruption cannot release holds or make a cold
+import verified. Declared SPOT/SWAP cases have actual File parity and cold
+restart coverage. HALT, gross costs and claims remain unchanged.

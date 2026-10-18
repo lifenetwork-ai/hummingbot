@@ -30,7 +30,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancial
 KEYS = OperatorKeys({'operator': b'i' * 32}, {'operator': frozenset(('IMPORT', 'RECOVER', 'DRAIN'))})
 
 
-async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashflow=None, spot_fill=None, file_result=None, retained_cashflows_only=False, spot_prefix=False, book_native_prefix=False, spot_open_only=False, book_native_cashflow=False, book_native_funding=False, prior_funding=(), prior_after_accounting=False, book_native_parent=False, book_native_accounting_parent=False, spot_prepared_only=False, native_arm_prepared_only=False, prior_embedded_spot=False, prior_spot_order=False, file_ack_only=False):
+async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashflow=None, spot_fill=None, file_result=None, retained_cashflows_only=False, spot_prefix=False, book_native_prefix=False, spot_open_only=False, book_native_cashflow=False, book_native_funding=False, prior_funding=(), prior_after_accounting=False, book_native_parent=False, book_native_accounting_parent=False, spot_prepared_only=False, native_arm_prepared_only=False, prior_embedded_spot=False, prior_spot_order=False, file_ack_only=False, prior_core_ack=False):
     from test.hummingbot.strategy_v2.life_liquidity.storage import test_spot_financial_contracts as file_fixture
     from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_funding import setup as funding_setup
 
@@ -113,7 +113,7 @@ async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashfl
 
     async def complete_history():
         nonlocal prior_events
-        if not prior_funding and not prior_embedded_spot:
+        if not prior_funding and not prior_embedded_spot and not prior_core_ack:
             return
         before = (await store.snapshot(binding)).balance
         running_cash = before.total_quote_usdt
@@ -125,7 +125,8 @@ async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashfl
                 running_cash = quote + D('.1') - sum(prior_funding, D('0')) + sum((p.signed_amount_usdt for p in prior_events), D('0'))
             old = JointCashSpot(f'file-prior-funding-{i}', binding, format(i + 1, '064x'), clock[0],
                                 prior_events, base if prior_embedded_spot else before.total_base_life, running_cash, True, True, 'okx_joint_reconciled',
-                                spot_fills=fills if prior_embedded_spot else (), spot_cashflows=flows if prior_embedded_spot else ())
+                                spot_fills=fills if prior_embedded_spot else (), spot_cashflows=flows if prior_embedded_spot else (),
+                                spot_acks=(prior_ack,) if prior_core_ack else ())
             assert (await store.apply_joint_cash(old, cut=(await store.snapshot(binding)).cut, owner=file_owner)).state == 'APPLIED'
     if prior_embedded_spot and not prior_after_accounting:
         raise AssertionError('embedded history fixture requires completed commands after accounting')

@@ -287,7 +287,13 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
     # diagnostic cut after the original pre-fill carry source has expired. Do
     # not sign a transient ready digest just as its 1000-ms source TTL crosses.
     now = await admin.fetchval('SELECT clock_timestamp()')
-    deadline = max(feed[0].observed_at_ms, carry_feed[0].mark.observed_at_ms,
+    retained = await admin.fetchval("""SELECT COALESCE(max(greatest(
+        (bundle#>>'{account,snapshot,observed_at_ms}')::bigint,(bundle#>>'{mark,observed_at_ms}')::bigint,
+        (bundle#>>'{index,observed_at_ms}')::bigint,(bundle#>>'{funding,observed_at_ms}')::bigint,
+        (bundle#>>'{terms,observed_at_ms}')::bigint)),0) FROM (
+        SELECT bundle FROM life_financial.funding_observations WHERE account_id=$1
+        UNION ALL SELECT bundle FROM life_financial.carry_checks WHERE account_id=$1) captured""", cfg.account_id)
+    deadline = max(retained, feed[0].observed_at_ms, carry_feed[0].mark.observed_at_ms,
                    carry_feed[0].index.observed_at_ms, carry_feed[0].funding.observed_at_ms,
                    carry_feed[0].terms.observed_at_ms) + 1001
     await asyncio.sleep(max(0, deadline - now.timestamp() * 1000) / 1000)
@@ -305,12 +311,19 @@ async def apply_recovery(database, batch, command, facts, store):
     # fake provider response. Reading the cut is not a source refresh and must
     # not consume the response's 1000-ms validity window unnecessarily.
     repair_cut = (await financial.observation_cut(cfg.binding)).cut
+    previous = await database[0].fetchval("""SELECT COALESCE(max(greatest(
+        (bundle#>>'{account,snapshot,sequence}')::bigint,(bundle#>>'{mark,sequence}')::bigint,
+        (bundle#>>'{index,sequence}')::bigint,(bundle#>>'{funding,sequence}')::bigint,
+        (bundle#>>'{terms,sequence}')::bigint)),0) FROM (
+        SELECT bundle FROM life_financial.funding_observations WHERE account_id=$1
+        UNION ALL SELECT bundle FROM life_financial.carry_checks WHERE account_id=$1) captured""", cfg.account_id)
+    sequence = max(previous, b.account.snapshot.sequence, b.mark.sequence, b.index.sequence, b.funding.sequence, b.terms.sequence) + 1
     now = await database[0].fetchval('SELECT clock_timestamp()')
     captured_monotonic = time.monotonic()
     at = int(now.timestamp() * 1000)
-    b = replace(b, account=replace(b.account, snapshot=replace(b.account.snapshot, sequence=b.account.snapshot.sequence + 1, observed_at_ms=at)),
-                mark=replace(b.mark, sequence=b.mark.sequence + 1, observed_at_ms=at), index=replace(b.index, sequence=b.index.sequence + 1, observed_at_ms=at),
-                funding=replace(b.funding, sequence=b.funding.sequence + 1, observed_at_ms=at, coverage_through_ms=at), terms=replace(b.terms, sequence=b.terms.sequence + 1, observed_at_ms=at))
+    b = replace(b, account=replace(b.account, snapshot=replace(b.account.snapshot, sequence=sequence, observed_at_ms=at)),
+                mark=replace(b.mark, sequence=sequence, observed_at_ms=at), index=replace(b.index, sequence=sequence, observed_at_ms=at),
+                funding=replace(b.funding, sequence=sequence, observed_at_ms=at, coverage_through_ms=at), terms=replace(b.terms, sequence=sequence, observed_at_ms=at))
     repair = ResolveJointSources('outer-recover', command.operation_id,
                                  replace(command.batch, operation_id='outer-applied', funding=replace(command.batch.funding, operation_id='outer-funding-applied', bundle=b)))
     proof = JointRepairFacts(replace(facts, observed_at=now), (('SWAP', 'trade-1'),), tuple(p.bill_id for p in command.batch.funding.bundle.funding.payments), True,

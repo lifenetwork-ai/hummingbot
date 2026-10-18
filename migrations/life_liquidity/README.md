@@ -943,3 +943,12 @@ account, policy, balance, activation or configured PostgreSQL sender.
   expose only a bounded member-kind/reason enum. No table, money, order, release
   or permission is created. Predecessor OIDs/ACLs, private helper defaults,
   checksum/idempotency and atomic unexpected-shape rollback remain.
+
+- `000064_legacy_repaired_parent_prefix.sql`: retain a repaired original joint
+  parent's immutable RECOVERY_REQUIRED request, receipt, zero money and empty
+  members. Require the signed repair proof and an actual committed resolution
+  at the historical import revision; a later root or unused approval cannot
+  clear an old barrier. Verify every APPLIED replacement's original children
+  and economic leaves as before. No table, helper, money, claim or permission
+  is created. Existing OIDs/ACLs remain; unexpected predecessor shape rolls
+  back atomically, and checksum-protected repeated startup is a no-op.
