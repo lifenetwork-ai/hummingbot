@@ -1090,3 +1090,33 @@ signed timestamp strings. These migrations do not seed accounts, capital,
 approvals, grants or live thresholds. They implement logical control; process,
 credential and transport exclusion remain PG4. The migration owner remains
 trusted under PG0; SQL checksums do not attest a malicious schema owner.
+
+## 000078: native safety from accounted NAV
+
+`000078_native_safety.sql` creates empty explicit risk policies and immutable
+bounded risk events. SQL computes PAUSED/DEGRADED/NORMAL and permanent HALTED from
+accounted SPOT NAV or qualified shared portfolio/carry margin. Caller readiness
+flags cannot substitute drawdown, wallet or collateral. Permission epochs change
+on state/generation/runtime-observer changes; observation versions still retain
+each original refresh. This permits a reserved claim to survive a healthy refresh
+without accepting a proposal from an earlier permission epoch.
+
+The mandatory deferred financial guard checks current risk, source age/value,
+owner/generation, permission epoch and local runtime observer at physical COMMIT.
+DEGRADED SPOT recovery probes require explicit opt-in campaign capacity and count
+gross actual filled base. Every enabled shared/SWAP allocation requires NORMAL.
+HALT never refunds a hold or blocks accounting of original late fill/fee/ACK truth.
+An original receipt is diagnostic and cannot heal process admission.
+
+Audited replacements preserve financial function OIDs/ACLs and reject unexpected
+predecessor body, security, volatility or search path atomically. New calculators
+and mutation functions remain private until explicit scoped provisioning. Existing
+mapped readers/writers gain only a scoped `risk_enabled` read on upgrade; an
+account with risk enabled needs explicit risk command/read grants on every primary
+admission. A migrated account without risk retains its existing profile. There is
+no old-schema or File fallback in the production runtime.
+
+The runtime observer GUC binds the adapter lifetime; it is not authentication
+against a caller controlling its database credential, or a PG4 physical sender
+fence. Markout/stress and inventory/EXIT gates remain R3 work. Configured PostgreSQL
+selection, source assembly, scaling and deployment/demo/live gates remain open.

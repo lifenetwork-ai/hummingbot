@@ -12,9 +12,19 @@ cutover. No raw-wallet reinitialization or automatic activation is allowed.
 zero failures/errors/skips, including source-consuming SPOT/SWAP terminal/shared
 release, pending repair, original-ID crash/cancellation recovery and File economic
 comparisons. Migration qualification passes **124 cases**. R3 control/risk/session
-is next. **PG3 and R2–R5 remain open; configured PostgreSQL remains rejected** in the
+is in progress. **PG3 and R2–R5 remain open; configured PostgreSQL remains rejected** in the
 [PostgreSQL plan](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-native-r1-closure-2026-10-19).
 Clean stopped File cutover remains PG6; active File checkpoint migration is not selected.
+
+**R3 control/session and native safety checkpoint (2026-10-19):** signed logical
+control, separate fresh-generation activation and fixed-deadline successors are
+implemented. Native safety derives drawdown/margin from accounted NAV/portfolio,
+keeps HALT permanent, bounds sequential recovery probes and rechecks permission
+epochs at financial COMMIT. The focused control/risk selector passes **78 cases**;
+the audited 76–78 upgrade selector passes **16 cases**. Cold readback grants no
+permission, and late fill/fee/ACK truth remains accountable after HALT. **R3 stays
+open** for native markout/bootstrap, stress/rolling capacity, inventory/EXIT and
+coupled acceptance. See [scope and qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-r3-native-safety-and-permission-epochs-2026-10-19).
 
 **Earlier PG3 R1 checkpoint (2026-10-19):** original ACKed zero-fill SWAP
 orders retain their independently admitted preparation/ARM/ACK and claims during

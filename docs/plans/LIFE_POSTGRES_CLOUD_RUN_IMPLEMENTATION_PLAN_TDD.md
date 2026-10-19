@@ -2449,7 +2449,7 @@ Base commit: `c7aef0477`. This implements the quote/observation/cancel subitems 
 4. Qualify PostgreSQL on a VM, then evaluate Cloud Run in PG9 sandbox/demo using the same worker build.
 5. Proceed to PG10 production read-only qualification and the separately approved existing R/C canary on the topology whose applicable PG9 gate has closed. Cloud Run additionally requires PG9.7 ownership/deployment proof and favorable economics. If it is deferred, the qualified VM may proceed through PG10/R/C while Cloud Run-specific items stay open; no production approval is bypassed.
 
-The current financial task is the selected **native R1 accounting/recovery acceptance**, followed by R3 and R2/R4. The 2026-10-19 user decision excludes active File hedge/carry/coordinator migration; clean stopped File cutover remains PG6. Hedge composition, pending/control/risk/session services and the complete configured source/controller/runner/recorder/final-send assembly remain required. Native coupled batches, signed single/cohort funding and exact SPOT/SWAP fill repair, portfolio NAV, terminal and original shared-claim retirement are implemented; this does not close the remaining recovery or service requirements. Use the [remaining PG3 closure work](#remaining-pg3-closure-work) as the implementation backlog. Standalone typed storage and explicit fake-HTTP callbacks do not discharge those contracts or select the PostgreSQL backend. PG1 remains closed for its declared offline File scope; PG2 release/identity/durability, PG0/O.8 and PG4–PG10 retain their separate gates. The explicit scope decision is recorded above; no native PG3 recovery or configured-service requirement is moved to another phase to claim closure.
+Native R1 is closed for the selected fresh-PostgreSQL scope. The current task is **R3 native control/risk/session**, followed by R2/R4 and R5. The 2026-10-19 user decision excludes active File hedge/carry/coordinator migration; clean stopped File cutover remains PG6. Hedge composition, pending/control/risk/session services and the complete configured source/controller/runner/recorder/final-send assembly remain required. Native coupled batches, signed single/cohort funding and exact SPOT/SWAP fill repair, portfolio NAV, terminal and original shared-claim retirement are implemented; this does not close the remaining recovery or service requirements. Use the [remaining PG3 closure work](#remaining-pg3-closure-work) as the implementation backlog. Standalone typed storage and explicit fake-HTTP callbacks do not discharge those contracts or select the PostgreSQL backend. PG1 remains closed for its declared offline File scope; PG2 release/identity/durability, PG0/O.8 and PG4–PG10 retain their separate gates. The explicit scope decision is recorded above; no native PG3 recovery or configured-service requirement is moved to another phase to claim closure.
 
 
 ### PG3 explicit SWAP request and ACK qualification (2026-10-17)
@@ -4097,3 +4097,71 @@ R3.1 and R3.2 close for logical native control/session scope. R3.3/R3.4 and R3
 remain open. The focused control suite now contains 45 cases including the new
 parent-at-COMMIT reproduction; the earlier 44-case result is not relabeled as a
 45-case full run.
+
+### PG3 R3 native safety and permission epochs (2026-10-19)
+
+Migration 78 adds empty risk policy and immutable event tables, native safety
+calculation and a mandatory deferred financial COMMIT gate. Every value is
+explicitly imported; no account, capital, threshold or activation is seeded.
+`PgRiskRepository` accepts fresh source readiness/time only. Drawdown and margin
+come from accounted native SPOT NAV or the qualified shared portfolio/carry model;
+a shared account cannot substitute SPOT-only NAV. Collateral is a constraint,
+never additional cash. Missing/stale values pause; breaches durably latch HALT.
+Good late observations, price recovery and signed ACTIVATE cannot clear HALT.
+
+Observation versions are distinct from permission epochs. Every observation
+retains its original command, native value cut, owner, runtime observer, decision
+and receipt. The permission epoch changes when state/generation/observer changes,
+so captured proposals are invalidated without making every healthy source refresh
+invalidate a reserved shared claim. Cold processes retain diagnostic history but
+need a new signed generation and fresh sources before rebuilding permission.
+
+The native financial COMMIT gate rechecks original ownership, current risk state,
+source age/value, permission epoch and runtime observer. DEGRADED SPOT probes
+require explicit optional campaign capacity, are sequential and count gross
+actual SPOT filled base. Ordinary SWAP/shared reservations require NORMAL.
+Actual fills, fees, wallet and budget truth remain in their original financial
+repositories. Principal holds do not invalidate their own preparation; cash and
+margin constraints are still independently checked. Qualified source collection,
+mandatory configured application installation and final transport topology remain
+R4. The observer GUC binds the adapter's local lifetime; it is not authentication
+against a caller controlling that DB credential or PG4 sender exclusion.
+
+The standalone risk gate passed 30 cases before the final optional-role profile
+correction. Its actual process/backend/cancellation, economic boundaries and
+File SafetyGate comparisons are recorded in `/tmp/life-r3-risk-full` (73.17 s).
+The six audited upgrade cases pass (`/tmp/life-r3-risk-upgrade`, 9.20 s). The first
+affected regression exposed an overly broad mandatory role profile for old
+accounts without risk enabled. The fixed profile grants old mapped roles only a
+scoped enablement read; enabled risk still requires explicit command/read grants
+on each admission. The original failed upgrade plus role case pass after the fix
+(`/tmp/life-r3-risk-optional-profile-fixed`, two cases, 10.63 s). Final-current-source
+regression is reported separately below, without summing overlapping test counts.
+
+**R3 remains open:** native markout/bootstrap, reservation-derived stress and
+rolling capacity, inventory/EXIT modes and independent EXIT spending, then coupled
+R3 acceptance. Bounded retained risk history fails closed at its explicitly
+imported count/byte ceiling; archival/scaling and deployment durability remain
+separate gates. This increment does not select configured PostgreSQL or qualify
+any demo/live account.
+
+Final focused current-source gate: **78 passed**, zero failures/errors/skips,
+six existing warning categories, **183.55 s**
+(`/tmp/life-r3-control-risk-final`). This includes all 45 signed control/session
+cases and 33 native safety cases, including late fill/fee/ACK truth after HALT and
+mandatory role grants after risk enablement. The independent File risk/runtime/
+diagnostic/migration-file unit selection passes **78 cases**, six existing
+warnings, **6.74 s** (`/tmp/life-r3-risk-unit.xml`); counts overlap with other
+qualification sets and are not summed.
+
+The broad optional financial selector `/tmp/life-r3-risk-affected-current` was
+interrupted before completion to continue the unfinished R3 implementation; it is
+**not a passed full regression**. Its interruption includes a pytest teardown
+traceback. The earlier role-profile failure remains recorded above together with
+its successful original upgrade reproduction. Complete whole-product/current-
+source acceptance remains R5; R3.3/R3.4 remain unchecked.
+
+Final control/risk migration upgrade selector: **16 passed**, zero failures/
+errors/skips, **23.41 s**, `/tmp/life-r3-control-risk-upgrades-final`. It covers
+migrations 76–78 on the final source, including scoped risk enablement and unchanged
+prior financial OIDs/ACLs. Changed-file formatting/import/security hooks pass.

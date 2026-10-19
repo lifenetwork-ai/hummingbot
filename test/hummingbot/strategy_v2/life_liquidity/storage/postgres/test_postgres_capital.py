@@ -13,8 +13,8 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.runtime import PgRun
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot import PgSpotRepository
 
 
-async def capital_store(database, flows=(('101', 'USDT', '2'),), *, max_events=4096):
-    repo, cfg, owner = await spot(database)
+async def capital_store(database, flows=(('101', 'USDT', '2'),), *, max_events=4096, financial_values=None):
+    repo, cfg, owner = await spot(database) if financial_values is None else financial_values
     c = database[0]
     at = await c.fetchval('SELECT clock_timestamp()')
     ms = int(at.timestamp() * 1000)

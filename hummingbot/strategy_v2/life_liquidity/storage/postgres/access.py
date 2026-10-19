@@ -55,6 +55,8 @@ MUTATING_ENTRYPOINTS = (
     'life_financial.spot_arm_quote(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
 )
 
+NATIVE_RISK_ENTRYPOINT = 'life_financial.risk_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)'
+
 
 def role_name(value):
     if type(value) is not str or re.fullmatch(r'[a-z][a-z0-9_]{0,62}', value) is None:
@@ -86,6 +88,9 @@ async def provision_access(connection, *, principal, account_id, write):
         await connection.execute(f'GRANT SELECT ON life_storage.storage_metadata,life_migrations.schema_migrations TO "{principal}"')
         await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.can_access(uuid,boolean) TO "{principal}"')
         await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.spot_state(uuid) TO "{principal}"')
+        if await connection.fetchval("SELECT to_regprocedure('life_financial.risk_frame(uuid)') IS NOT NULL"):
+            await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.risk_frame(uuid) TO "{principal}"')
+            await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.risk_enabled(uuid) TO "{principal}"')
         await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.spot_read_ack_ingress(uuid,life_financial.identity) TO "{principal}"')
         await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.spot_capital_read(uuid,text) TO "{principal}"')
         await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.spot_action_read(uuid) TO "{principal}"')
@@ -119,5 +124,7 @@ async def provision_access(connection, *, principal, account_id, write):
         await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.swap_boundary_read(uuid,integer,integer,text),life_financial.swap_read_ack(uuid,integer,integer,text) TO "{principal}"')
         if write:
             await connection.execute('GRANT EXECUTE ON FUNCTION ' + ','.join(MUTATING_ENTRYPOINTS) + f' TO "{principal}"')
+            if await connection.fetchval('SELECT to_regprocedure($1) IS NOT NULL', NATIVE_RISK_ENTRYPOINT):
+                await connection.execute('GRANT EXECUTE ON FUNCTION ' + NATIVE_RISK_ENTRYPOINT + f' TO "{principal}"')
         await connection.execute('''INSERT INTO life_financial.access_bindings(principal,account_id,can_write) VALUES($1,$2,$3)
             ON CONFLICT(principal,account_id) DO UPDATE SET can_write=EXCLUDED.can_write''', principal, account_id, write)

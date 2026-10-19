@@ -12,7 +12,7 @@ from collections import deque
 from dataclasses import dataclass, field
 from decimal import Decimal
 from pathlib import Path
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from hummingbot.strategy_v2.life_liquidity.storage.contracts import (
     CommitUnknown,
@@ -24,7 +24,11 @@ from hummingbot.strategy_v2.life_liquidity.storage.contracts import (
     fingerprint,
     identifier,
 )
-from hummingbot.strategy_v2.life_liquidity.storage.postgres.access import MUTATING_ENTRYPOINTS, role_name
+from hummingbot.strategy_v2.life_liquidity.storage.postgres.access import (
+    MUTATING_ENTRYPOINTS,
+    NATIVE_RISK_ENTRYPOINT,
+    role_name,
+)
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.diagnostics import _current_trace, _Trace, failure, phase
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.migrations import _ssl_context, load_migrations
 
@@ -132,6 +136,8 @@ class PgRuntime:
         self._closing = False
         self._healthy = False
         self._ingress_epoch = 0
+        # A diagnostic risk receipt from another runtime cannot arm this one.
+        self._risk_observer = uuid4()
         self._observation_inflight = 0
         self._close_task = None
         self._bundle = ()
@@ -207,6 +213,17 @@ class PgRuntime:
             (SELECT pg_catalog.bool_and(pg_catalog.to_regprocedure(signature) IS NOT NULL
                 AND pg_catalog.has_function_privilege(current_user,pg_catalog.to_regprocedure(signature),'EXECUTE') OPERATOR(pg_catalog.=) $2)
             FROM pg_catalog.unnest($4::pg_catalog.text[]) AS signatures(signature)) AS profile''', cfg.account_id, cfg.write, len(self._bundle) + 1, list(MUTATING_ENTRYPOINTS))
+        # A migrated account without an imported risk service retains its old
+        # privilege profile. Once enabled, risk command/read grants are mandatory
+        # on every admission. No production schema/version fallback is allowed.
+        if any(m.version == 78 for m in self._bundle):
+            risk = await c.fetchrow('''SELECT life_financial.risk_enabled($1) AS enabled,
+                has_function_privilege(current_user,$2,'EXECUTE') AS mutate,
+                has_function_privilege(current_user,'life_financial.risk_frame(uuid)','EXECUTE') AS read''',
+                                    cfg.account_id, NATIVE_RISK_ENTRYPOINT)
+            if (risk['enabled'] and (risk['mutate'] is not cfg.write or risk['read'] is not True)
+                    or not cfg.write and risk['mutate']):
+                raise StorageUnavailable('PG_RISK_ROLE_PROFILE_INVALID')
         if (row['principal'] != cfg.principal or row['replica'] or row['major'] != cfg.server_major
                 or row['readonly'] != 'off' or row['sync'] != 'on' or row['fsync'] != 'on' or row['full_page'] != 'on'
                 or row['timezone'] != 'UTC' or row['search_path'] != 'pg_catalog' or row['lineage'] != cfg.database_lineage):
@@ -361,7 +378,8 @@ class PgRuntime:
                 try:
                     phase('begin')
                     await transaction.start()
-                    await c.execute("SELECT set_config('lock_timeout',$1,true)", str(cfg.statement_timeout_ms))
+                    await c.execute("SELECT set_config('lock_timeout',$1,true),set_config('life.risk_observer',$2,true)",
+                                    str(cfg.statement_timeout_ms), str(self._risk_observer))
                     if source_fence is not None:
                         source_fence.check()
                         await c.execute("SELECT set_config('life.joint_source_deadline',$1,true)", json.dumps(source_fence.deadline))

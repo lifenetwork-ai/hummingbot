@@ -3702,3 +3702,31 @@ upgrade families pass **10 cases**. Coverage includes original filled economics,
 physical COMMIT deadlines, backend termination, actual process exit, caller
 cancellation, immutable history corruption, role denial and capacity rejection.
 Native risk/probe/stress/inventory/EXIT and coupled R3 acceptance remain open.
+
+## Native safety and original permission epochs
+
+`postgres.risk.PgRiskRepository` records native safety observations. Drawdown and
+margin come from permanent native economics and qualified SPOT or shared portfolio
+sources; no drawdown/margin override is accepted from the caller. SQL retains each
+original observation and separately versions permission epochs. Native financial
+COMMIT rechecks risk state, owner/generation, local observer, source freshness and
+captured epoch. Same-state healthy refreshes retain the epoch required by an
+existing shared claim. A cold runtime cannot use a historical NORMAL receipt as
+permission; a new signed generation must rebuild fresh risk evidence. HALT stays
+latched while late fill/fee/ACK truth remains accountable.
+
+Run the focused native control/session/safety gate with:
+
+```sh
+python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_postgres \
+  --suite r3_risk --fail-fast --output /tmp/UNIQUE_RUN_NAME
+```
+
+The current focused selector passes **78 cases**, zero failures/errors/skips.
+It covers signed control/session plus native safety, physical process/backend/
+cancellation failures, File SafetyGate boundaries, explicit role grants, real
+portfolio claim/prepare/arm and gross probe capacity. This closes the safety
+primitive only. R3 remains open for native markout/bootstrap, stress/rolling
+capacity, inventory/EXIT and coupled acceptance. R4 configured assembly remains
+required. Risk history retains explicit count/byte bounds and fails closed on
+exhaustion; no archival/performance or live defaults are inferred.
