@@ -437,6 +437,24 @@ async def test_native_portfolio_risk_claim_refresh_prepare_and_arm_share_one_per
     financial, cfg, owner = values[:3]
     swap = portfolio.swap
     capital = values[5]
+    captured_sequence = None
+
+    async def capture_account():
+        nonlocal captured_sequence
+        snapshot = values[4][0]
+        if snapshot.sequence != captured_sequence:
+            # Synthetic provider: collect actual current native wallet and its
+            # capture time when the callback runs, after cut/read preparation.
+            # A RESERVE reading the same sequence retains the exact old source;
+            # it cannot renew freshness by relabelling a cached observation.
+            row = await database[0].fetchrow("""SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint AS at_ms,
+                (SELECT total FROM life_financial.balances WHERE account_id=$1 AND asset='LIFE') AS base,
+                (SELECT total FROM life_financial.balances WHERE account_id=$1 AND asset='USDT') AS cash""", cfg.account_id)
+            snapshot = replace(snapshot, observed_at_ms=row['at_ms'], spot_life_base=row['base'], spot_cash_quote=row['cash'], collateral_quote=row['cash'])
+            values[4][0] = snapshot
+            captured_sequence = snapshot.sequence
+        return snapshot
+    capital.observation = capture_account
     try:
         opening = await database[0].fetchval('SELECT risk_epoch FROM life_financial.accounts')
         await database[0].execute('INSERT INTO life_financial.risk_service_policies VALUES($1,$2,$3,1000,1,0,.25,2,1000,1000,64,1048576)', cfg.account_id, cfg.binding.policy_hash, opening)
@@ -460,6 +478,13 @@ async def test_native_portfolio_risk_claim_refresh_prepare_and_arm_share_one_per
                                      level_id='1', execution_strategy=ExecutionStrategy.LIMIT_MAKER)
         prepared = PrepareSwap.from_config('new-prepare', candidate.wire_id, config)
         await swap.prepare(prepared, cut=await swap.cut(cfg.binding), owner=owner)
+        # Preparation/primary proof work consumes real source lifetime. Capture
+        # a new account/carry/NAV cut before this distinct financial boundary;
+        # refreshing facts must preserve the original claim/permission epoch.
+        await refresh(database, values)
+        await portfolio.measure(MeasurePortfolio('risk-nav3'), cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)
+        armed_ready = await observe(database, financial, cfg, owner, risk, 'risk4')
+        assert armed_ready.state == 'NORMAL' and armed_ready.risk_epoch == normal.risk_epoch
         armed = await swap.arm(prepared.operation_id, cut=await swap.cut(cfg.binding), owner=owner)
         assert armed.state == 'SEND_UNKNOWN'
         assert (await financial.balance(cfg.binding)).total_quote_usdt == 10

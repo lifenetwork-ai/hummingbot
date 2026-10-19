@@ -11,12 +11,16 @@ cutover. No raw-wallet reinitialization or automatic activation is allowed.
 **Native R1 is closed:** the frozen accounting/recovery gate passes **736 cases**,
 zero failures/errors/skips, including source-consuming SPOT/SWAP terminal/shared
 release, pending repair, original-ID crash/cancellation recovery and File economic
-comparisons. Migration qualification passes **124 cases**. R3 control/risk/session
-is in progress. **PG3 and R2–R5 remain open; configured PostgreSQL remains rejected** in the
+comparisons. Migration qualification passes **124 cases** at that R1 revision.
+**Native R3 is also closed:** 382 frozen control/session/risk/mode cases, 56 File mode
+cases and 38 audited 75→82 migration cases pass. INVENTORY/EXIT retain their original
+targets, spending, permanent IDs and HALT across faults; separate EXIT capacity cannot
+be consumed by QUOTE. See [R3 closure](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-native-r3-closure-2026-10-19).
+**PG3, R2, R4 and R5 remain open; configured PostgreSQL remains rejected** in the
 [PostgreSQL plan](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-native-r1-closure-2026-10-19).
 Clean stopped File cutover remains PG6; active File checkpoint migration is not selected.
 
-**R3 control/session, safety and markout checkpoint (2026-10-19):** signed
+**Earlier R3 control/session, safety and markout checkpoint (2026-10-19):** signed
 logical control, separate fresh-generation activation and fixed-deadline
 successors are implemented. Native safety derives drawdown/margin from accounted
 NAV/portfolio, keeps HALT permanent and rechecks permission epochs at financial
@@ -28,7 +32,7 @@ upgrades pass **21 cases**. **R3 stays open** for stress/rolling capacity,
 inventory/EXIT and coupled acceptance. See
 [scope and qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-r3-native-markout-and-bounded-bootstrap-2026-10-19).
 
-**R3 stress checkpoint (2026-10-19):** native stress/rolling capacity now derives
+**Earlier R3 stress checkpoint (2026-10-19):** native stress/rolling capacity now derives
 exposure from permanent wallet/fill/reservation facts and rechecks source age,
 reference, owner, epoch and local observer at financial COMMIT. The focused
 safety/stress gate passes **51 cases**; the audited 79→80 upgrade gate passes

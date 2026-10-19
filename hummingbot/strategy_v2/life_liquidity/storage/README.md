@@ -3783,3 +3783,36 @@ must not be presented as quote-only availability by a future configured adapter.
 The frozen control/session/mode gate passes **58 cases**; audited 80→81 upgrades
 pass **6 cases**. Inventory/EXIT child planning and native settlement remain open;
 non-MM admission stays refused. R3 and R4 configured installation remain open.
+
+
+## Native inventory/EXIT and R3 closure
+
+Migration 82 binds each INVENTORY/EXIT child to its original signed mode,
+independent market observation, native preparation, fixed campaign and financial
+IDs. `PgExecutionRepository.observe(NativeExecutionMarket(...), cut=..., owner=...)`
+stages bounded source facts; `frame()` is advisory and returns no trading permission.
+Native PREPARE/ARM/quote-ARM COMMIT rechecks price, lot/minimum, fees, participation,
+fixed target/deadline, depth, benchmark/cost and separate budget capacity. Inventory
+needs NORMAL and ready markout; bounded reduce-only EXIT permits NORMAL/DEGRADED,
+with all other safety gates intact. Non-MM routes without a qualified native bridge
+remain refused until configured R4 assembly.
+
+`PgSpotRepository.snapshot().budget` reports QUOTE capacity. The execution frame
+reports separate QUOTE and EXIT windows; their sum remains the original native
+aggregate subsidy ceiling. QUOTE exhaustion cannot spend EXIT capacity. After
+native terminal completion, call `settle_exit(operation_id, intent_id, facts=...,
+cut=..., owner=...)` with fresh complete quiescent account/order/bill/runner facts.
+It atomically reconciles the original conservative hold to actual independent
+cost once, preserving gross execution loss, wallet money, original windows and
+HALT. Retrying the same original identity after an unknown COMMIT/cold reopen
+cannot authorize a new send or release twice. R4 must install this explicit route
+in the configured terminal application; no configured backend is enabled here.
+
+Enabled accounts require explicit least-privilege market/settlement/read grants
+on every primary admission. Empty migration policy tables install no live defaults.
+The frozen `run_postgres --suite r3_risk --fail-fast` gate passes **382 cases**;
+**56 File mode tests** and **38 audited migration cases** pass separately. R3 is
+closed for this native scope; R2/R4/R5, PG4 physical fencing, performance/scaling,
+clean cutover and deployment/demo/live eligibility retain their own gates. See
+[the closure qualification](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-native-r3-closure-2026-10-19)
+for source scope and the resolved source-capture fixture failure.

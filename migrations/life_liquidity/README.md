@@ -1173,3 +1173,22 @@ settlement remain unqualified and their new-risk admission remains refused.
 Audited predecessor checks preserve control OIDs/ACLs. New helpers stay private;
 no account, capital, default mode or live threshold is seeded. Framework migration
 history makes repeated up/startup calls a no-op. R3 is still open.
+
+
+## 000082: native inventory/EXIT financial gates
+
+`000082_native_execution_children.sql` creates empty immutable bounded execution
+observations, original child membership and exact EXIT settlement proofs. It
+requires signed original mode/policy context and recomputes inventory/EXIT
+admission at physical financial COMMIT, retaining original gross budgets and
+identities. QUOTE/EXIT have separate explicit ceilings; their sum is the existing
+native aggregate subsidy ceiling. Fresh complete terminal/account facts reconcile
+EXIT holds to actual independent cost once; reads/replay never restore permission.
+
+Audited body/security/path/volatility checks refuse unexpected predecessors before
+publishing an upgrade, preserving existing function OIDs/ACLs. New helpers stay
+private; explicitly provision scoped writers/readers after upgrading. No account,
+capital, approval, default mode or live threshold is seeded. The migration ledger
+makes repeated enabled startup/up calls a no-op. All **38 audited 75→82 profiles**
+pass with the final source. Native R3 is closed; configured source/service/runner
+installation, PG4 fencing, scaling, clean cutover and deployment/live gates remain.

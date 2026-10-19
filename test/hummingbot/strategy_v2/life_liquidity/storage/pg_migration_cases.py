@@ -2719,3 +2719,50 @@ async def test_native_execution_upgrade_preserves_control_oids_acl_and_requires_
     for table in ('execution_policies', 'risk_events', 'accounts', 'operations', 'activation_grants', 'grant_consumptions', 'financial_events'):
         assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
     assert (await migrate(c, directory, action='up'))['applied'] == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('unexpected_shape', ['none', 'commit_body', 'prepare_body', 'security', 'search_path', 'volatility'])
+async def test_native_execution_children_upgrade_is_audited_atomic_and_private(db, unexpected_shape):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 82:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    commit = 'life_financial.execution_policy_qualified(uuid)'
+    prepare = 'life_financial.spot_prepare_action_core(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb,jsonb)'
+    target = prepare if unexpected_shape == 'prepare_body' else commit
+    if unexpected_shape in ('commit_body', 'prepare_body'):
+        definition = await c.fetchval('SELECT pg_get_functiondef(to_regprocedure($1))', target)
+        await c.execute(definition.replace('BEGIN', 'BEGIN\n-- unexpected', 1))
+    elif unexpected_shape == 'security':
+        await c.execute('ALTER FUNCTION ' + target + ' SECURITY INVOKER')
+    elif unexpected_shape == 'search_path':
+        await c.execute('ALTER FUNCTION ' + target + ' SET search_path=pg_catalog,public')
+    elif unexpected_shape == 'volatility':
+        await c.execute('ALTER FUNCTION ' + target + ' VOLATILE')
+    query = '''SELECT p.oid,p.oid::regprocedure::text AS signature,p.proacl,p.prosrc,p.provolatile::text AS provolatile,p.prosecdef,p.proconfig,p.proowner
+        FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='life_financial' ORDER BY p.oid'''
+    before = {r['signature']: dict(r) for r in await c.fetch(query)}
+    tables = await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace='life_financial'::regnamespace ORDER BY oid")
+    path = DEFAULT_DIRECTORY / '000082_native_execution_children.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    if unexpected_shape != 'none':
+        with pytest.raises(asyncpg.RaiseError, match='LIFE_EXECUTION_CHILD_MIGRATION_MISMATCH'):
+            await migrate(c, directory, action='up')
+        assert {r['signature']: dict(r) for r in await c.fetch(query)} == before
+        assert tables == await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace='life_financial'::regnamespace ORDER BY oid")
+        assert (await versions(c))[-1]['version'] == 81
+        return
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    after = {r['signature']: dict(r) for r in await c.fetch(query)}
+    for signature, original in before.items():
+        assert after[signature] == (original if signature not in (commit, prepare, 'life_financial.execution_admit(uuid,life_financial.operations)', 'life_financial.commit_owner_guard()', 'life_financial.risk_admit(uuid,life_financial.operations)', 'life_financial.risk_markout_admit(uuid,life_financial.operations)', 'life_financial.spot_lifecycle_verified(uuid)') else {**original, 'prosrc': after[signature]['prosrc']})
+    added = set(after) - set(before)
+    assert {key.split('.')[1].split('(')[0] for key in added} == {'execution_market_valid', 'execution_market_verified', 'execution_market_command', 'execution_budget_frame', 'execution_terms_valid', 'execution_decision', 'execution_child_cost', 'execution_attach_child', 'execution_children_verified', 'execution_market_frame', 'execution_enabled', 'execution_market_commit_guard', 'execution_exit_evidence', 'execution_exit_verified', 'execution_exit_commit_check', 'execution_exit_settle', 'execution_quote_budget_frame'}
+    for signature in added:
+        for role in ('public', 'life_runtime_test', 'life_reporter_test'):
+            assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", role, signature)
+    for table in ('execution_market_facts', 'execution_children', 'execution_exit_settlements', 'execution_policies', 'risk_events', 'accounts', 'operations', 'activation_grants', 'grant_consumptions', 'financial_events'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+    assert (await migrate(c, directory, action='up'))['applied'] == []

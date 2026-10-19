@@ -50,7 +50,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.financial import (
     SpotSession,
     SpotSnapshot,
 )
-from hummingbot.strategy_v2.life_liquidity.storage.postgres.runtime import PgRuntime
+from hummingbot.strategy_v2.life_liquidity.storage.postgres.runtime import PgRuntime, sql_error
 from hummingbot.strategy_v2.life_liquidity.storage.quote_send import ArmQuoteAction, QuoteArmReceipt
 from hummingbot.strategy_v2.life_liquidity.storage.session import SessionTick, SessionTickReceipt
 from hummingbot.strategy_v2.life_liquidity.storage.spot_lifecycle import SpotLifecycleCommand, SpotLifecycleReceipt
@@ -102,6 +102,16 @@ class PgSpotRepository:
         self._binding(binding)
 
         async def read(c):
+            if any(m.version == 82 for m in self._runtime._bundle):
+                import asyncpg
+                try:
+                    # Both STABLE projections consume this one primary MVCC cut;
+                    # quote capacity excludes EXIT holds and original spending.
+                    return await c.fetchval("""SELECT v||jsonb_build_object('execution_quote_budget',
+                        CASE WHEN life_financial.execution_enabled($1) THEN life_financial.execution_quote_budget_frame($1) ELSE NULL END)
+                        FROM (SELECT life_financial.spot_state($1) AS v) original""", self._runtime.config.account_id)
+                except asyncpg.RaiseError as error:
+                    raise sql_error(error) from None
             return await c.fetchval('SELECT life_financial.spot_state($1)', self._runtime.config.account_id)
         value = await self._runtime._admit(read, safety=True, operation='spot_state')
         try:
@@ -124,6 +134,12 @@ class PgSpotRepository:
         subsidy = {scope: amount('SUBSIDY', scope, 'committed') + amount('SUBSIDY', scope, 'incurred') for scope in ('SESSION', 'DAY', 'CAMPAIGN')}
         loss = {scope: amount('LOSS', scope, 'incurred') for scope in ('SESSION', 'DAY', 'CAMPAIGN')}
         limits = {scope: D(str(p['subsidy_' + scope.lower()])) for scope in subsidy}
+        if value.get('execution_quote_budget') is not None:
+            windows = value['execution_quote_budget']['windows']
+            if len(windows) != 3 or {w['scope'] for w in windows} != {'session', 'day', 'campaign'} or value['execution_quote_budget']['trading_permission'] is not False:
+                raise StorageUnavailable('PG_EXECUTION_QUOTE_BUDGET_INVALID')
+            subsidy = {w['scope'].upper(): D(w['committed']) + D(w['incurred']) for w in windows}
+            limits = {w['scope'].upper(): D(w['limit']) for w in windows}
         exhausted = any(loss[scope] + amount('LOSS', scope, 'committed') >= D(str(p['loss_' + scope.lower()])) for scope in loss)
         cut = StateCut(binding, a['version'], a['version'], (ResourceVersion('account', a['version']),), value['digest'])
         observed = datetime.fromisoformat(value['observed_at'])

@@ -19,7 +19,8 @@ are not added to the final acceptance count. The frozen `r1_accounting` gate
 passes **736 cases**, zero failures/errors/skips, 2090.22 s, with unchanged
 source/test/migration hashes. **R1 is closed for the selected native scope.**
 See [closure qualification](#pg3-native-r1-closure-2026-10-19).
-**PG3 stays open and configured PostgreSQL stays rejected until R2–R5 are qualified.**
+**Native R3 is also closed:** the frozen control/session/risk/mode gate passes **382 cases**, with **56 File mode cases** and **38 audited migration cases**. See [R3 closure](#pg3-native-r3-closure-2026-10-19).
+**PG3 stays open and configured PostgreSQL stays rejected until R2, R4 and R5 are qualified.**
 
 **Earlier execution checkpoint (2026-10-19, base `7a42c6c49` plus that delivery):**
 R1 retains an original ACKed, zero-fill SWAP through interrupted funding recovery,
@@ -719,11 +720,11 @@ failing integration result visible until the same current-source workflow passes
 
 - [x] **R1 — accounting/recovery (selected fresh-PostgreSQL scope):** complete authenticated collateral/zero-liability and order/trade/bill comparison; signed resolution of native SPOT fill/cashflow, SWAP fill, funding and terminal pending facts; source-consuming explicit SPOT/SWAP terminal/shared release. Exit replay: original observations/IDs survive crash, exact cash/positions/gross budgets agree with the qualified File economic model, and unresolved/foreign/stale facts prevent release. The frozen `run_postgres --suite r1_accounting --fail-fast` gate passes **736 cases**, zero failures/errors/skips; see the closure qualification below. The dedicated mode-2, non-borrowing USDT model is the selected model. Active File `APPLYING` hedge/carry/coordinator migration is outside this delivery by the explicit 2026-10-19 decision; clean stopped cutover remains PG6. Native pending recovery is not excluded. Actual configured runner topology and mandatory application installation remain R4; raw repository DTOs/SQL receipts are bookkeeping, not authenticated source authority.
 - [ ] **R2 — hedge composition:** qualified source → cancel existing makers → native hedge plan/child → guarded final SWAP request → durable ACK/fills → settlement. Exit replay: partial fills, stop during await and retry exhaustion retain the original cost/claims; unknown proceeds never finance a sibling.
-- [ ] **R3 — control/risk/session:** signed pending repair and successor reconciliation/activation; persistent native markout/probe/stress/inventory/EXIT gates. Exit replay: restart and late observations retain HALT, budgets and approvals; each enabled risk mode reaches its native financial gate.
+- [x] **R3 — control/risk/session:** signed pending repair and successor reconciliation/activation; persistent native markout/probe/stress/inventory/EXIT gates. Exit replay: restart and late observations retain HALT, budgets and approvals; each enabled risk mode reaches its native financial gate.
   - [x] R3.1: Signed native DRAIN/REVOKE/RECOVER and separate new-generation ACTIVATE; retain the original observation writer, permanent approvals/grant consumption, HALT and financial history across cancellation/unknown COMMIT. Migration 76 and the control port are qualified by the 44-case native control/successor gate, physical COMMIT/process/backend/cancellation and corruption cases, and the audited upgrades recorded below. No PG4 lease/credential exclusion is inferred.
   - [x] R3.2: Native successor reconciliation/observation from the expired original session, complete quiescent facts and a fixed imported duration; preserve clock/expiry latches and require a separate signed ACTIVATE.
-  - [ ] R3.3: Durable markout/probe/stress/inventory/EXIT decisions, original spending and mode-specific permission at native prepare/arm/COMMIT gates; reads, late facts and restart cannot restore permission or refund budgets. Native safety/recovery probes, markout/bootstrap and reservation-derived stress/rolling capacity are qualified below; inventory/EXIT spending remains open.
-  - [ ] R3.4: One frozen coupled native control/session/risk regression with File economic parity, cold readback/corruption/role refusals and process/backend/cancellation failures. Configured source/runner installation remains R4.
+  - [x] R3.3: Durable markout/probe/stress/inventory/EXIT decisions, original spending and mode-specific permission at native prepare/arm/COMMIT gates; reads, late facts and restart cannot restore permission or refund budgets. Native safety/recovery probes, markout/bootstrap, reservation-derived stress/rolling capacity and original inventory/EXIT spending are qualified by the frozen 382-case closure gate below.
+  - [x] R3.4: One frozen coupled native control/session/risk regression with File economic parity, cold readback/corruption/role refusals and process/backend/cancellation failures. The frozen 382-case native gate, 56 File mode tests and 38 audited upgrade cases pass; see the R3 closure qualification below. Configured source/runner installation remains R4.
 - [ ] **R4 — configured assembly:** install planner/reference/book/fee, complete runner/account scope, SPOT/SWAP final request guards, ingress/collectors and recorder/SDK history in the actual controller/service. Exit replay: start the configured PostgreSQL service with fake exchange; both products complete the selected workflow; a missing route fails startup without File fallback. PostgreSQL selection remains rejected until this passes.
 - [ ] **R5 — current-source acceptance:** all supported File/native decisions and units agree; whole-runner restart/corruption/role tests and process/backend faults pass at capture, send, ACK, settlement, release and signed repair. Resolve the observed SQL statement timeout, then run the complete affected workflow on one frozen source revision. PG0 trust/anchor requirements remain explicit; neither local tests nor a database receipt prove exactly-once exchange delivery.
 
@@ -4278,3 +4279,76 @@ pass. Overlapping gate counts are not summed.
 acceptance remain open.** Non-MM order admission stays refused until those native
 gateways are installed and qualified. This increment does not close R3 or expose
 configured PostgreSQL; source/runner installation remains R4.
+
+
+### PG3 native R3 closure (2026-10-19)
+
+Migration 82 completes the native INVENTORY/EXIT financial gates over the signed
+mode journal from migration 81. An explicit immutable execution policy fixes the
+campaign, benchmark, inventory target/start/deadline, participation, tick/lot/minimum,
+fee/depth/impact/slippage/cost limits and separate QUOTE/EXIT budgets. There are no
+implicit live values. New market facts and child membership retain their original
+mode approval, owner/session/epoch, observer, source, preparation and permanent IDs.
+
+At physical PREPARE/ARM/quote-ARM COMMIT, SQL recomputes the decision from original
+native wallet, reservation and fill facts. Inventory uses NORMAL safety and ready
+markout; insufficient-sample bootstrap cannot authorize inventory execution. Own
+native fills are subtracted from external participation volume. Mode changes and
+restart do not reset the fixed campaign target, benchmark, deadline or spending.
+EXIT permits only bounded SELL reduction toward its target under NORMAL/DEGRADED;
+HALTED/PAUSED states, missing source and other financial barriers still refuse it.
+A genuine EXIT may bypass markout sampling, with its separate target/cost gates.
+Unqualified non-MM cross-product/dispatch routes are refused; configured source,
+action/runner/final-send installation retains its R4 gate.
+
+QUOTE cannot borrow EXIT capacity. Native aggregate ceilings remain the exact sum
+of the two explicitly imported ceilings. Public SPOT budget snapshots now expose
+the QUOTE projection; `PgExecutionRepository.frame()` exposes both scoped projections.
+Original estimated subsidy and actual-cost floors remain held until settlement.
+`settle_exit(operation_id, intent_id, facts=..., cut=..., owner=...)` consumes fresh,
+complete quiescent account/order/bill/runner facts after native terminal completion.
+It releases the original hold and records independently valued actual cost once,
+in the original session/day/campaign windows. It never refunds gross execution loss
+or modifies wallet money. Unknown COMMIT retains the original identity and hold;
+late/cold settlement remains observation-only after HALT. Reusing another operation
+for an already settled intent cannot release or spend again. The configured R4
+service must install this terminal-to-settlement route explicitly.
+
+Market reads and receipts always report `trading_permission=false`. Bounded original
+history, cold corruption, immutable policy/source/child/settlement proofs and uncached
+least-privilege checks remain mandatory. Newly provisioned writers need explicit
+market/settlement grants; reporters receive scoped reads only. Signed logical mode
+control and the local observer are not PG4 physical sender/credential fencing.
+
+**Frozen qualification:** **382** native cases pass, zero failures/errors/skips,
+**1012.70** s (`/tmp/life-r3-closure-capture`); all 507 frozen source/test/migration
+hashes remain unchanged. The selector includes control/successors, risk, markout,
+bootstrap, stress/rolling capacity, signed modes, inventory/EXIT, session,
+preparation, inventory settlement and lifecycle. It covers File economic parity,
+partial/zero fills, quote exhaustion with retained EXIT capacity, fixed inventory
+progress, actual deadline/source expiry at COMMIT, late/cold HALT, corruption,
+privilege drift and real process/backend/caller-cancellation faults. File inventory,
+exit service and exit budget tests pass **56 cases** (39.58 s,
+`/tmp/life-r3-file-modes.xml`). Audited 75→82 upgrade profiles pass **38 cases**
+(57.78 s, `/tmp/life-r3-closure-upgrades`), preserving original function
+OIDs/ACLs and atomic refusal of unexpected body/security/path/volatility. Repeated
+migration calls are a no-op. These overlapping selectors are not added together.
+
+Two earlier full-selector attempts stopped after 25 passes at portfolio ARM with
+`PG_RISK_VALUE_CHANGED_OR_STALE`. The unchanged 1 s guard correctly refused an old
+source. The final synthetic provider collects actual current wallet/time at its
+callback, after cut preparation; reading the same sequence preserves its exact
+original source instead of renewing cached data. The workflow also captures fresh
+account/carry/NAV/risk before the distinct ARM boundary and checks that the original
+claim and permission epoch remain unchanged. Diagnostic-only SQL instrumentation
+was removed before this frozen gate. No SQL/transaction/idle timeout, source-age,
+monetary or risk threshold was widened. These results are functional qualification,
+not PG8 throughput/latency or live economic calibration.
+
+**R3 and R3.1–R3.4 are closed for the selected native scope.** Existing R1 native
+signed pending repair remains its separately qualified accounting/recovery input;
+active File migration is still not selected. **R2, R4, R5 and full PG3 remain open.**
+Configured PostgreSQL selection remains rejected. Provider authentication, complete
+configured topology/SDK history and final request transport must pass R4/R5; PG4,
+PG6, PG8 and deployment/demo/live gates retain their own exits. This work creates
+no evidence artifact and enables no exchange/account deployment.

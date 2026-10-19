@@ -11,13 +11,15 @@ from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError
 from hummingbot.strategy_v2.life_liquidity.storage.control_plane import OperatorKeys
 
 
-async def execution_store(database):
+async def execution_store(database, *, execution_terms=None):
     keys = OperatorKeys({'operator': b'x' * 32}, {'operator': frozenset(('ACTIVATE', 'DRAIN', 'REVOKE', 'RECOVER', 'OBSERVE_SESSION', 'INVENTORY'))})
     values = await spot(database, configuration_body=lambda _: dict(operator_verifier=keys.verifier().policy()))
     repo, cfg, owner, risk = await risk_store(database, financial_values=values)
     await database[0].execute('INSERT INTO life_financial.access_bindings VALUES(current_user,$1,true)', cfg.account_id)
     await database[0].execute('INSERT INTO life_financial.control_policies VALUES($1,$2,1000,64,1048576,60000)', cfg.account_id, cfg.binding.policy_hash)
     body = dict(campaign_id='execution1', quote_budget=dict(campaign='6', day='3', session='.24'), exit_budget=dict(campaign='4', day='2', session='1.76'))
+    if execution_terms is not None:
+        body.update(execution_terms)
     await database[0].execute('INSERT INTO life_financial.execution_policies VALUES($1,$2,$3,$4::jsonb)', cfg.account_id, cfg.binding.policy_hash, fingerprint(body), json.dumps(body))
     await refresh(database, repo, cfg, owner, risk, 'execution-nav')
     ready = await observe(database, repo, cfg, owner, risk, 'normal')

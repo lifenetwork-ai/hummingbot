@@ -55,6 +55,10 @@ MUTATING_ENTRYPOINTS = (
     'life_financial.spot_arm_quote(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
 )
 
+NATIVE_EXIT_ENTRYPOINT = 'life_financial.execution_exit_settle(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb,jsonb)'
+
+NATIVE_EXECUTION_ENTRYPOINT = 'life_financial.execution_market_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)'
+
 NATIVE_STRESS_ENTRYPOINT = 'life_financial.risk_stress_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)'
 
 NATIVE_RISK_ENTRYPOINT = 'life_financial.risk_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)'
@@ -93,6 +97,8 @@ async def provision_access(connection, *, principal, account_id, write):
         if await connection.fetchval("SELECT to_regprocedure('life_financial.risk_frame(uuid)') IS NOT NULL"):
             await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.risk_frame(uuid) TO "{principal}"')
             await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.risk_enabled(uuid) TO "{principal}"')
+        if await connection.fetchval("SELECT to_regprocedure('life_financial.execution_enabled(uuid)') IS NOT NULL"):
+            await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.execution_market_frame(uuid),life_financial.execution_quote_budget_frame(uuid),life_financial.execution_enabled(uuid) TO "{principal}"')
         if await connection.fetchval("SELECT to_regprocedure('life_financial.risk_stress_frame(uuid)') IS NOT NULL"):
             await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.risk_stress_frame(uuid),life_financial.risk_stress_enabled(uuid) TO "{principal}"')
         if await connection.fetchval("SELECT to_regprocedure('life_financial.risk_markout_frame(uuid)') IS NOT NULL"):
@@ -134,5 +140,7 @@ async def provision_access(connection, *, principal, account_id, write):
                 await connection.execute('GRANT EXECUTE ON FUNCTION ' + NATIVE_RISK_ENTRYPOINT + f' TO "{principal}"')
             if await connection.fetchval('SELECT to_regprocedure($1) IS NOT NULL', NATIVE_STRESS_ENTRYPOINT):
                 await connection.execute('GRANT EXECUTE ON FUNCTION ' + NATIVE_STRESS_ENTRYPOINT + f' TO "{principal}"')
+            if await connection.fetchval('SELECT to_regprocedure($1) IS NOT NULL', NATIVE_EXECUTION_ENTRYPOINT):
+                await connection.execute('GRANT EXECUTE ON FUNCTION ' + NATIVE_EXECUTION_ENTRYPOINT + ',' + NATIVE_EXIT_ENTRYPOINT + f' TO "{principal}"')
         await connection.execute('''INSERT INTO life_financial.access_bindings(principal,account_id,can_write) VALUES($1,$2,$3)
             ON CONFLICT(principal,account_id) DO UPDATE SET can_write=EXCLUDED.can_write''', principal, account_id, write)
