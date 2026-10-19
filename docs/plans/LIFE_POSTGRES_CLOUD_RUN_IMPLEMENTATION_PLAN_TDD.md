@@ -6,10 +6,12 @@ Created: 2026-10-11
 recovery**. Migration 69 adds declared coupled outer SPOT/SWAP/funding recovery and original
 terminal/inventory side-effect profiles. The subsequent original prepared-receipt/
 lifecycle increment has 40 native and 85 File passes, but the common 219-case
-gate has 3 failures; R1 is not closed. Remaining R1 work is grouped into coupled
+gate has 3 failures. Migration 70 reduces repeated pre-write proofs; its initial
+12 native cases and 107 migration cases pass. The next common gate is pending;
+R1 is not closed. Remaining R1 work is grouped into coupled
 outer/core pending recovery, complete provider-source consumption at releases,
 and current-source qualification. See the [fixed exit checklist](#fixed-pg3-exit-checklist-2026-10-17)
-and [latest scope/qualification](#pg3-original-prepared-receipt-and-coupled-lifecycle-recovery-2026-10-19).
+and [latest scope/qualification](#pg3-r1-repair-latency-and-repeated-pre-write-proofs-2026-10-19).
 Configured PostgreSQL remains denied; R2–R5 retain their exits. Older dated
 checkpoints below qualify their recorded source and scope only.
 
@@ -3560,3 +3562,41 @@ families, complete authenticated provider/runner/collateral source consumption
 at releases, and a passing common R1 regression. R2–R5, configured PostgreSQL
 selection and demo/live eligibility remain open. No `.env`, configured DB,
 exchange account, deployment or new repository evidence file is used.
+
+### PG3 R1 repair latency and repeated pre-write proofs (2026-10-19)
+
+Base `c82396dfa`. The previous common selector's 216 passes / 3 failures remain
+recorded above. A disposable nested-function profile of the pending inventory
+workflow found nine legacy/joint history checks and 4,397 canonical JSON calls
+between import and repair completion. The same workflow with pre-write view
+reuse needed seven legacy/joint checks and 3,746 canonical JSON calls. One
+paired diagnostic measured the repair command at 617.251 ms before and
+484.163 ms after; SQL execution fell from 277.012 to 153.367 ms. These are
+single diagnostic observations, not a production percentile or live budget.
+
+Migration 70 adds an owner-only child helper used only by the original signed
+repair, before any financial write. It verifies the exact private staging
+transaction/approval/replacement, original account/version/cut, body hash and
+proof flags. The migration checks the audited predecessor body and the complete
+region between the original view and child call; altered intervening programs
+are refused atomically. Post-write/COMMIT proofs, gross monetary replay and
+source-age checks are unchanged. Fresh capital/carry commands reuse their
+complete snapshot's proof flags; replay retains independent full verification.
+No cache, new-risk retry, source recapture, permission or threshold is introduced.
+
+Initial native qualification passes **12 cases** in 79.57 s
+(`/tmp/life-r1-repair-view-initial`): all three previously failing cases and nine
+private-helper/transaction tests. The latter reject direct use with a real view
+and signed approval but no private stage, altered account/version/digest/body/
+command/proof, a deleted stage and a financial version write before reuse. All
+refusals preserve original pending facts, money, budgets, HALT and claims.
+This initial selector precedes the final predecessor-hash checks; migration and
+common frozen-source qualification remain pending. R1 and R2–R5 stay open.
+
+The final migration bundle passes **107 actual PostgreSQL cases** in 114.25 s
+(`/tmp/life-r1-repair-view-migrations/integration.xml`), zero failures/errors/
+skips. This includes all seven new 69→70 upgrade/repeat/atomic-mismatch profiles,
+including an altered intervening pre-write program. Existing public OIDs/ACLs,
+table identities and empty monetary state are retained; the helper is denied
+to PUBLIC/runtime/reporting. The common native regression is still pending and
+the previous three failures are not declared resolved by the focused rerun.

@@ -164,7 +164,7 @@ async def test_actual_63_signed_repaired_parent_upgrades_and_recovers_original_m
         before = await financial.snapshot(cfg.binding)
         rows = await c.fetchval('SELECT jsonb_agg(to_jsonb(o) ORDER BY operation_id) FROM life_financial.operations o WHERE account_id=$1', cfg.account_id)
         await financial.close()
-        assert (await migrate(c, action='up'))['applied'] == ['000064_legacy_repaired_parent_prefix.sql', '000065_legacy_cancel_prefix.sql', '000066_legacy_terminal_prefix.sql', '000067_legacy_settlement_prefix.sql', '000068_legacy_abort_nav_history.sql', '000069_legacy_joint_spot_claims.sql']
+        assert (await migrate(c, action='up'))['applied'] == ['000064_legacy_repaired_parent_prefix.sql', '000065_legacy_cancel_prefix.sql', '000066_legacy_terminal_prefix.sql', '000067_legacy_settlement_prefix.sql', '000068_legacy_abort_nav_history.sql', '000069_legacy_joint_spot_claims.sql', '000070_repair_view_reuse.sql']
         cold, capital, batch, importer = await restore(cfg, owner, c)
         after = await cold.snapshot(cfg.binding)
         assert (after.balance, after.budget, after.cut) == (before.balance, before.budget, before.cut)

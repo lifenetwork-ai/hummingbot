@@ -1,6 +1,13 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
-**Current PG3 R1 prepared/lifecycle checkpoint (2026-10-19, base `5770cd693`):**
+**Current PG3 R1 latency checkpoint (2026-10-19, base `c82396dfa`):**
+migration 70 reuses the exact private pre-write repair view and snapshot proof
+flags; all post-write/COMMIT checks and deadlines remain. Initial qualification
+passes the three previously failing cases plus nine helper/context cases;
+107 actual migration cases pass. The common native regression is pending.
+**R1 and PG3 remain open.** See [scope and qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-r1-repair-latency-and-repeated-pre-write-proofs-2026-10-19).
+
+**Earlier PG3 R1 prepared/lifecycle checkpoint (2026-10-19, base `5770cd693`):**
 original PREPARING receipts and interrupted abort/cancel bookkeeping compose
 with outer SWAP/funding recovery without another send or repeated refund.
 The received-SWAP-ACK expiry fix is committed as `0a145bc81`. The new 40 native

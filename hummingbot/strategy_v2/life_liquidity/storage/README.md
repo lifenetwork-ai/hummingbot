@@ -3541,3 +3541,20 @@ Original coordinator product histories, required remaining core/joint
 valuation/repaired-origin histories and authenticated provider/runner evidence
 consumption at every required release retain their fixed R1 exit requirements.
 Configured PostgreSQL remains denied.
+
+### SQL work before signed monetary repair
+
+Migration 70 reuses the exact verified pre-write snapshot within one signed
+repair call. Its child helper is owner-only and additionally requires the
+transaction-local staging capability for the original approval/replacement,
+account/version and cut. Supplying a decoded snapshot or a signed approval alone
+is insufficient. No financial write may intervene; any account-version change
+is refused. All later economic replay, post-write proof and physical COMMIT
+checks still run. No original source time, signature, retry budget or deadline
+is renewed.
+
+Fresh shared-capital/carry commands also use the proof flags already produced
+by their complete locked snapshot. Readback/replay keeps the original independent
+proof. The current cut comparison and every original freshness/ownership guard
+remain. These changes reduce repeated SQL work; they neither authenticate a
+provider nor install the configured PostgreSQL service.

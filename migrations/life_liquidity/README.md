@@ -1008,3 +1008,18 @@ account, policy, balance, activation or configured PostgreSQL sender.
   unexpected predecessor definitions roll back and checksum-verified repeat
   startup is a no-op. Original independent terminal/inventory completions can
   explain interrupted File side effects without executing another release.
+
+- `000070_repair_view_reuse.sql`: a signed monetary repair passes its already
+  verified, account-locked pre-write snapshot to one owner-only child helper.
+  The helper requires the exact transaction-local staging row, signed replacement,
+  original account/version/cut, complete snapshot digest and verified proof flags.
+  A standalone view/approval cannot call it, and it cannot span a financial
+  version change. Post-write and physical COMMIT proofs remain independent.
+  Fresh capital/carry commands consume the proof flags from their complete
+  snapshot rather than recomputing those same proofs; original-operation replay
+  retains independent full verification. The audited predecessor program and
+  pre-write region are checked before installing reuse. Existing public function
+  OIDs/ACLs remain; there is no table, money/claim/policy change, source refresh,
+  new send permission, session cache or deadline increase. Unexpected predecessor
+  code rolls back the entire migration. Repeated checksum-verified startup is a
+  no-op.

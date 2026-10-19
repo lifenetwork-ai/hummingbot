@@ -2159,3 +2159,55 @@ async def test_mixed_outer_claim_upgrade_changes_only_original_private_proof_wit
     for table in ('accounts', 'operations', 'financial_events', 'legacy_applying_imports'):
         assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
     assert (await migrate(c, directory, action='up'))['applied'] == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('unexpected_shape', [False, 'batch', 'view', 'repair', 'capital', 'carry', 'intervening'])
+async def test_prewrite_repair_view_upgrade_is_private_atomic_and_preserves_public_contracts(db, unexpected_shape):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 70:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    batch = 'life_financial.joint_batch_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)'
+    repair = batch.replace('joint_batch_command', 'joint_repair_command')
+    capital = batch.replace('joint_batch_command', 'shared_capital_command')
+    carry = batch.replace('joint_batch_command', 'carry_check')
+    if unexpected_shape:
+        target, needle = {
+            'batch': (batch, "IF NOT life_financial.joint_batch_verified(p_account)"),
+            'view': (batch, 'view:=life_financial.spot_state(p_account);'),
+            'repair': (repair, 'child:=life_financial.joint_batch_command('),
+            'intervening': (repair, 'view:=life_financial.spot_state(p_account);'),
+            'capital': (capital, 'IF NOT life_financial.shared_capital_verified(p_account)'),
+            'carry': (carry, 'IF NOT life_financial.carry_verified(p_account)'),
+        }[unexpected_shape]
+        definition = await c.fetchval('SELECT pg_get_functiondef(to_regprocedure($1))', target)
+        assert definition.count(needle) == 1
+        changed = needle + '\n    PERFORM 1;' if unexpected_shape == 'intervening' else needle.replace(' ', '  ') if ' ' in needle else needle.replace(':=', ':= ')
+        await c.execute(definition.replace(needle, changed))
+    query = '''SELECT p.oid,p.oid::regprocedure::text AS signature,p.proacl,p.prosrc,p.provolatile::text AS provolatile,p.prosecdef,p.proconfig,p.proowner
+        FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='life_financial' ORDER BY p.oid'''
+    before = {r['signature']: dict(r) for r in await c.fetch(query)}
+    tables = await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace='life_financial'::regnamespace ORDER BY oid")
+    path = DEFAULT_DIRECTORY / '000070_repair_view_reuse.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    if unexpected_shape:
+        with pytest.raises(asyncpg.RaiseError, match='LIFE_REPAIR_VIEW_.*_MISMATCH|LIFE_ADMISSION_VIEW_.*_MISMATCH'):
+            await migrate(c, directory, action='up')
+        assert {r['signature']: dict(r) for r in await c.fetch(query)} == before
+        assert (await versions(c))[-1]['version'] == 69
+        return
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    after = {r['signature']: dict(r) for r in await c.fetch(query)}
+    helper = 'life_financial.joint_batch_from_repair_view(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb,jsonb)'
+    assert set(after) - set(before) == {helper}
+    for key, original in before.items():
+        assert after[key] == (original if key not in {repair, capital, carry} else {**original, 'prosrc': after[key]['prosrc']})
+    assert after[helper]['provolatile'] == 'v' and after[helper]['prosecdef'] and after[helper]['proconfig'] == ['search_path=pg_catalog']
+    for role in ('public', 'life_runtime_test', 'life_reporter_test'):
+        assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", role, helper)
+    assert tables == await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace='life_financial'::regnamespace ORDER BY oid")
+    for table in ('accounts', 'operations', 'financial_events', 'legacy_applying_imports'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+    assert (await migrate(c, directory, action='up'))['applied'] == []
