@@ -56,6 +56,20 @@ async def test_policy_read_is_exact_scoped_and_historical_not_a_send_grant(datab
 
 
 @pytest.mark.asyncio
+async def test_valid_dispatched_action_can_read_policy_without_treating_operational_queue_as_financial_pending(database):
+    repo, cfg, _, _ = await bridge(database)
+    try:
+        before = await repo.snapshot(cfg.binding)
+        assert before.recovery_required
+        policy = await repo.quote_admission_policy(cfg.binding)
+        assert policy.policy.binding == cfg.binding
+        assert policy.cut == before.cut
+        assert await repo.snapshot(cfg.binding) == before
+    finally:
+        await repo.close()
+
+
+@pytest.mark.asyncio
 async def test_same_credential_signed_uid_and_db_ages_are_bound_to_original_order(database):
     t = await transport(database)
     reads = account_http(t)

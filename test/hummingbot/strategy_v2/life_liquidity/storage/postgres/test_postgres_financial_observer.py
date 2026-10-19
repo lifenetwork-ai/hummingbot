@@ -224,7 +224,9 @@ async def test_state_change_during_collection_keeps_new_financial_input_unapplie
 
 @pytest.mark.asyncio
 async def test_cold_original_delivery_repair_uses_new_runtime_without_restoring_permission(database, monkeypatch):
-    from hummingbot.strategy_v2.life_liquidity.storage.postgres.quote_account_source import PgQuoteAccountSource
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.observation_account_source import (
+        PgObservationAccountSource,
+    )
     from hummingbot.strategy_v2.life_liquidity.storage.postgres.runner_journal import PgQuoteRunnerJournal
     from hummingbot.strategy_v2.life_liquidity.storage.postgres.runtime import PgRuntime
     from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot import PgSpotRepository
@@ -245,9 +247,11 @@ async def test_cold_original_delivery_repair_uses_new_runtime_without_restoring_
         journal = PgQuoteRunnerJournal(cold, owner=t.owner, controller_id=t.journal.controller_id,
                                        config_version=t.journal.config_version, runner_facts=t.journal.runner_facts,
                                        local_ready=lambda: False, clock=t.journal.clock, max_actions=64)
-        account = await PgQuoteAccountSource.create(journal, connector=t.connector, admission_source=t.facts,
-                                                    max_uid_age_ms=1000, max_auth_age_ms=1000, max_clock_skew_ms=100,
-                                                    max_pending=2, collection_timeout_ms=1000)
+        # Pending cold delivery needs an observation-only identity, never a
+        # quote-capable factory or a reconstruction of old source permission.
+        account = await PgObservationAccountSource.create(journal, connector=t.connector,
+                                                          max_uid_age_ms=1000, max_auth_age_ms=1000, max_clock_skew_ms=100,
+                                                          max_pending=2, collection_timeout_ms=1000)
         reader = PgSpotAccountReader(account, max_reads=64, max_bytes=1048576, timeout_ms=1000)
         restored = PgSpotFinancialObserver(reader, independent_fill_value=observer.fill_value,
                                            independent_cashflow_value=observer.cashflow_value,

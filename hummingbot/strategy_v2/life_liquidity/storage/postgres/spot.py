@@ -190,13 +190,18 @@ class PgSpotRepository:
             return await c.fetchrow('''WITH current_state AS MATERIALIZED (
                 SELECT life_financial.spot_state($1) AS v)
                 SELECT p.*,v#>>'{account,version}' AS version,v->>'digest' AS digest,
-                    v->>'observed_at' AS observed_at,v->>'unverified' AS unverified
+                    v->>'observed_at' AS observed_at,v->>'unverified' AS unverified,
+                    v->>'financial_recovery_required' AS financial_recovery_required
                 FROM current_state CROSS JOIN life_financial.spot_quote_admission_policies p
                 WHERE p.account_id=$1''', self._runtime.config.account_id)
         row = await self._runtime._admit(read, safety=True)
         if row is None:
             raise StorageError('PG_QUOTE_ADMISSION_POLICY_REQUIRED')
-        if row['policy_hash'] != binding.policy_hash or row['unverified'] != 'false':
+        # A valid retained pending fact is not corruption, but it still cannot
+        # initialize a quote-capable source. Observation-only recovery uses its
+        # separate owner/identity reader. Both flags belong to this one SQL cut.
+        if (row['policy_hash'] != binding.policy_hash or row['unverified'] != 'false'
+                or row['financial_recovery_required'] != 'false'):
             raise StorageUnavailable('PG_QUOTE_POLICY_UNVERIFIED')
         policy = QuoteAdmissionPolicy(binding, *(row[key] for key in (
             'objective', 'min_net_edge_bps', 'uncertainty_bps', 'tick_size', 'lot_size', 'min_size',
