@@ -147,10 +147,10 @@ class PgSpotFinancialObserver(SpotFinancialParser):
             raise StorageError('PG_FINANCIAL_OBSERVER_WALLET_INVALID')
         balances = {}
         for row in account[0]['details']:
-            self._strings(row, ('ccy', 'cashBal'))
-            if row.get('liab') is not None and type(row['liab']) is not str:
+            self._strings(row, ('ccy', 'cashBal', 'liab'))
+            if not row['liab']:
                 raise StorageError('PG_FINANCIAL_OBSERVER_WIRE_TYPES_INVALID')
-            asset, value, liability = row['ccy'], Decimal(row['cashBal']), Decimal(row.get('liab') or '0')
+            asset, value, liability = row['ccy'], Decimal(row['cashBal']), Decimal(row['liab'])
             if (asset in balances or not value.is_finite() or value < 0 or not liability.is_finite() or liability != 0
                     or asset not in ('LIFE', 'USDT') and value != 0):
                 raise StorageError('PG_FINANCIAL_OBSERVER_WALLET_SCOPE')

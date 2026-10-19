@@ -327,3 +327,25 @@ async def test_new_complete_authenticated_snapshot_covers_older_pending_intake_w
         assert not t.repo._runtime.healthy and len(t.session.sent) == 1
     finally:
         await t.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('liability', ['missing', '', None])
+async def test_unknown_liability_cannot_be_defaulted_to_zero_before_financial_intake(database, liability):
+    t, observer, payloads, _, _ = await observed_source(database)
+    row = payloads['/api/v5/account/balance'][0]['details'][0]
+    if liability == 'missing':
+        del row['liab']
+    else:
+        row['liab'] = liability
+    try:
+        before = await t.repo.snapshot(t.cfg.binding)
+        with pytest.raises(StorageError, match='PG_FINANCIAL_OBSERVER_WIRE_TYPES_INVALID'):
+            await observer.observe()
+        after = await t.repo.snapshot(t.cfg.binding)
+        assert after.balance == before.balance and after.budget == before.budget
+        assert after.cut.checkpoint.revision == before.cut.checkpoint.revision
+        assert await database[0].fetchval('SELECT count(*) FROM life_financial.spot_financial_ingress') == 0
+        assert not t.repo._runtime.healthy and len(t.session.sent) == 1
+    finally:
+        await t.close()
