@@ -8,7 +8,7 @@ financial reservation.
 
 ## Current implemented scope
 
-**Current status (2026-10-16, base `faff89ee3` plus this delivery):** the configured file service and its
+**Current status (2026-10-19):** the configured file service and its
 typed application adapters are described in the later sections. The early
 checkpoint descriptions below record the narrower foundation at its introduction.
 PG1-C1–C4 and PG1.1–PG1.4 are qualified for the declared offline file-service scope.
@@ -3816,3 +3816,26 @@ closed for this native scope; R2/R4/R5, PG4 physical fencing, performance/scalin
 clean cutover and deployment/demo/live eligibility retain their own gates. See
 [the closure qualification](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-native-r3-closure-2026-10-19)
 for source scope and the resolved source-capture fixture failure.
+
+
+## Native hedge application (PG3 R2)
+
+`postgres/hedge_application.py` composes `PgHedgeRepository` with the actual
+protected derivative SDK submit path. `create` requires explicit pause,
+cancellation, recapture and local-fence ports plus bounded time settings;
+`execute` pauses makers before awaiting cancellation/recapture and native
+planning. The SQL planner independently rejects unresolved maker scope.
+Only a new native child can reach the one-shot final request guard. Successful
+completion requires native ACK capture and the matching SDK creation event;
+readback never schedules a retained child again. Stop/caller cancellation does
+not cancel the SDK-owned RPC or erase a later received ACK.
+
+`record_fills`, `record_terminal` and `settle` are native bookkeeping APIs. They
+retain original IDs, economic cost and claims, compare exact replay contents,
+and do not resume makers or grant another send. Provider source labels and
+caller DTOs authenticate nothing; configured installation must supply the
+qualified accounting/terminal/release applications and complete SDK history.
+The configured PostgreSQL controller remains rejected pending R2/R4/R5 exits.
+
+The disposable coupled selector is `run_postgres --suite hedge_composition`.
+It uses synthetic money, fake HTTP, real SDK tracking and native PostgreSQL.

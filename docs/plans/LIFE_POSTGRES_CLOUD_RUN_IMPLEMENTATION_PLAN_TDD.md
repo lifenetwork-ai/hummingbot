@@ -4352,3 +4352,52 @@ Configured PostgreSQL selection remains rejected. Provider authentication, compl
 configured topology/SDK history and final request transport must pass R4/R5; PG4,
 PG6, PG8 and deployment/demo/live gates retain their own exits. This work creates
 no evidence artifact and enables no exchange/account deployment.
+
+
+### PG3 R2 native hedge SDK composition (2026-10-19)
+
+`PgHedgeApplication` now composes the original native repositories with a
+bounded asynchronous cycle: synchronously pause SPOT proposals, await maker
+cancellation, recapture account/carry/market inputs, publish the native hedge
+plan and child, then use the derivative connector's protected SDK submit path.
+The SDK tracks the original wire ID, quantity, position action and leverage.
+The final request guard verifies the actual signed/throttled contract bytes;
+completion requires the corresponding SDK creation event after durable native
+ACK capture. SDK price/quantity transforms cannot substitute another child.
+
+Cancellation acknowledgement is not terminal proof. The native planner still
+refuses unresolved provider/native maker scope. No local stop, caller
+cancellation, SDK failure, unknown response, partial fill, terminal observation
+or settlement releases a shared claim or refunds gross attempt cost. Late ACK
+and fill observations remain recordable after stop. A diagnostic replay of an
+existing plan never submits its child again, including a retained PREPARED child.
+Fill/terminal/settlement replay compares original binding, owner and command,
+and reads the original committed receipt instead of creating a fresh cut.
+
+Run the coupled native application/hedge/SWAP request regression with
+`python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_postgres --suite hedge_composition --fail-fast --output /tmp/<new-run-directory>`.
+All inputs are synthetic and HTTP is fake; the SDK, request authentication,
+REST chain and native financial gates are real code paths. No new schema,
+monetary default, timeout increase or repository evidence artifact is introduced.
+
+**Qualification:** one frozen `hedge_composition --fail-fast` invocation passes
+**118 cases**, zero failures/errors/skips and four existing Pydantic deprecation
+warnings, in 335.17 s. The 693 recorded source/test/SQL file hashes are unchanged
+throughout the run; logs and JUnit are under `/tmp/life-r2-sdk-qualified` and the
+hash manifest is `/tmp/life-r2-composition-frozen-final.json`. This includes SDK
+tracking, cancellation before/after submission, late ACK after caller cancellation,
+partial-fill/replay accounting, terminal/retry exhaustion, unresolved maker
+refusal, changed SDK leverage/quantization, and binding replacement during
+throttle, together with the existing native hedge/final-transport fault cases.
+The integration tests caught and fixed missing SDK tracking and replay using a
+fresh financial cut. Earlier focused runs overlap this gate and are not added
+to its count. No SQL/transaction/source freshness, monetary or risk threshold
+was widened. This is functional qualification, not PG8 scalability acceptance.
+
+**R2 remains open for authenticated source/cancellation installation and complete
+runner scope, together with R4.** The callbacks and raw accounting observations
+are installation contracts, not provider authentication. Configured service
+assembly must install the existing authenticated collection/terminal/release
+applications and mandatory SDK history for both products. R4, R5 and full PG3
+remain open; configured PostgreSQL remains rejected. No live/deployment,
+physical fencing or performance eligibility is inferred.
