@@ -216,7 +216,7 @@ async def test_actual_66_settled_cycle_upgrades_without_resetting_original_actua
     try:
         before = await financial.snapshot(cfg.binding)
         await financial.close()
-        assert (await migrate(c, action='up'))['applied'] == ['000067_legacy_settlement_prefix.sql', '000068_legacy_abort_nav_history.sql', '000069_legacy_joint_spot_claims.sql', '000070_repair_view_reuse.sql', '000071_required_ack_completion.sql', '000072_unfilled_swap_prefix.sql', '000073_joint_provider_routes.sql', '000074_joint_source_deadline.sql', '000075_joint_trade_id_sets.sql', '000076_signed_native_control.sql', '000077_reconciled_session_successors.sql', '000078_native_safety.sql', '000079_native_markout_gate.sql', '000080_native_stress.sql']
+        assert (await migrate(c, action='up'))['applied'] == ['000067_legacy_settlement_prefix.sql', '000068_legacy_abort_nav_history.sql', '000069_legacy_joint_spot_claims.sql', '000070_repair_view_reuse.sql', '000071_required_ack_completion.sql', '000072_unfilled_swap_prefix.sql', '000073_joint_provider_routes.sql', '000074_joint_source_deadline.sql', '000075_joint_trade_id_sets.sql', '000076_signed_native_control.sql', '000077_reconciled_session_successors.sql', '000078_native_safety.sql', '000079_native_markout_gate.sql', '000080_native_stress.sql', '000081_native_execution_modes.sql']
         cold, capital, batch, importer = await restore(cfg, owner, c)
         after = await cold.snapshot(cfg.binding)
         assert (after.balance, after.budget, after.cut) == (before.balance, before.budget, before.cut)

@@ -1157,3 +1157,19 @@ accounts need explicit scoped stress command/read grants. Existing mapped roles
 receive only a scoped enablement read on upgrade. No account, capital, activation
 or live default is seeded. Framework migration history makes repeated up/startup
 calls a no-op. Inventory/EXIT and configured service installation remain open.
+
+
+## 000081: signed native execution mode control
+
+`000081_native_execution_modes.sql` creates an empty explicit execution policy and
+extends the original signed control journal without replacing its authority.
+Enabled accounts need a separately signed initial mode. Complete quiescent facts,
+original owner, observer, policy digest and physical-COMMIT approval age are
+retained. New mode history cannot reset owner, spent cost or permission.
+
+Native aggregate subsidy limits must equal explicit QUOTE plus EXIT ceilings.
+MM independently respects its QUOTE share. Inventory/EXIT child gateways and
+settlement remain unqualified and their new-risk admission remains refused.
+Audited predecessor checks preserve control OIDs/ACLs. New helpers stay private;
+no account, capital, default mode or live threshold is seeded. Framework migration
+history makes repeated up/startup calls a no-op. R3 is still open.

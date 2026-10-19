@@ -3768,3 +3768,18 @@ The focused safety/stress gate passes **51 cases**; audited 79→80 upgrades pas
 required grants fail closed. History uses explicit count/byte limits and fixed-size
 predecessor hashes. Inventory/EXIT and coupled R3 mode acceptance remain open;
 configured authenticated source/runner installation remains R4.
+
+
+## Signed native execution modes
+
+`PgControlRepository.set_execution_mode(NativeExecutionMode(...))` uses the explicit
+INVENTORY operator role and original complete quiescent facts. An account with an
+execution policy needs a signed initial mode. Mode history binds the original
+owner, local observer and policy digest; receipts and replay grant no permission.
+MM's QUOTE capacity is independently bounded and cannot borrow EXIT capacity.
+Native aggregate subsidy ceilings equal explicit QUOTE plus EXIT ceilings; they
+must not be presented as quote-only availability by a future configured adapter.
+
+The frozen control/session/mode gate passes **58 cases**; audited 80→81 upgrades
+pass **6 cases**. Inventory/EXIT child planning and native settlement remain open;
+non-MM admission stays refused. R3 and R4 configured installation remain open.

@@ -4245,3 +4245,36 @@ Authenticated configured source/runner installation remains R4. The local
 observer nonce is a lifetime binding, not a PG4 credential/sender fence. Bounded
 history, synthetic sources and local tests do not qualify scaling, Cloud Run,
 deployment durability or demo/live trading.
+
+
+### PG3 R3 signed execution mode control (2026-10-19)
+
+Migration 81 adds an empty execution policy. An enabled account needs a separately
+signed initial mode; no implicit MM default is installed. The original control
+journal retains approval, policy digest, cut, complete quiescent facts, original
+owner, observer and receipt. Mode changes preserve owner, money, budgets and fixed
+campaign terms. Original-ID replay is diagnostic, and cancellation/unknown COMMIT
+cannot heal admission. Authority uses the existing explicit INVENTORY operator
+role. Logical mode control is distinct from PG4 sender/credential exclusion.
+
+The native aggregate subsidy ceiling must exactly equal explicit QUOTE plus EXIT
+ceilings at campaign/day/session scopes. MM preparation independently checks its
+QUOTE share and cannot borrow EXIT capacity. This combined native accounting
+ceiling is not a quote-only availability view; R4 must use the mode-specific
+budget projection when installing configured services. Original financial
+reservations, losses and receipts retain their existing authority and identity.
+
+Frozen control/session/mode gate: **58 passed**, zero failures/errors/skips,
+six existing warnings, **147.07 s** (`/tmp/life-r3-mode-control-final`). This includes
+45 existing control/successor cases and 13 mode cases: explicit initial mode,
+signature/role/policy refusal, preserved owner/economics, independent QUOTE cap,
+unresolved-order quiescence, unknown COMMIT, physical approval expiry and corrupted
+or missing history. Audited 80→81 upgrades pass **6 cases**, zero failures/errors/
+skips, **10.03 s** (`/tmp/life-r3-mode-upgrades-final`), preserving original control
+OIDs/ACLs and atomically refusing changed predecessor shapes. Changed-file hooks
+pass. Overlapping gate counts are not summed.
+
+**Inventory/EXIT child planning, native spending/settlement and coupled R3 mode
+acceptance remain open.** Non-MM order admission stays refused until those native
+gateways are installed and qualified. This increment does not close R3 or expose
+configured PostgreSQL; source/runner installation remains R4.

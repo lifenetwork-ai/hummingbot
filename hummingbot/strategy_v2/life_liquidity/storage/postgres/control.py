@@ -17,6 +17,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.contracts import (
     StateBinding,
     StorageError,
     StorageUnavailable,
+    digest,
     fingerprint,
     identifier,
     utc,
@@ -36,6 +37,44 @@ from hummingbot.strategy_v2.life_liquidity.storage.session import SessionTick
 
 @dataclass(frozen=True)
 class NativeControlReceipt(ControlReceipt):
+    trading_permission: bool = field(default=False, init=False)
+
+
+@dataclass(frozen=True)
+class NativeExecutionMode:
+    operation_id: str
+    mode: str
+    campaign_id: str
+    policy_digest: str
+    observer_id: UUID
+
+    def __post_init__(self):
+        identifier(self.operation_id)
+        identifier(self.campaign_id)
+        digest(self.policy_digest)
+        if len(self.operation_id) > 96 or self.mode not in ('MM', 'INVENTORY', 'EXIT') or type(self.observer_id) is not UUID or self.observer_id.int == 0:
+            raise StorageError('PG_EXECUTION_MODE_COMMAND_INVALID')
+
+    @property
+    def role(self):
+        return 'INVENTORY'
+
+    @property
+    def token(self):
+        return None
+
+    def json(self):
+        return dict(kind='EXECUTION_MODE', operation_id=self.operation_id, mode=self.mode, campaign_id=self.campaign_id,
+                    policy_digest=self.policy_digest, observer_id=str(self.observer_id))
+
+
+@dataclass(frozen=True)
+class NativeExecutionModeReceipt:
+    binding: StateBinding
+    operation_id: str
+    mode: str
+    observer_id: UUID
+    replayed: bool
     trading_permission: bool = field(default=False, init=False)
 
 
@@ -125,6 +164,8 @@ class PgControlRepository:
 
     @staticmethod
     def _receipt(binding, value, *, replayed):
+        if value.get('kind') == 'EXECUTION_MODE' and value.get('trading_permission') is False:
+            return NativeExecutionModeReceipt(binding, value['operation_id'], value['mode'], UUID(value['observer_id']), replayed)
         if value.get('kind') == 'SESSION_SUCCESSOR' and value.get('trading_permission') is False:
             return NativeSuccessorReceipt(binding, value['operation_id'], value['parent_session_id'], value['session_id'],
                                           value['epoch'], datetime.fromisoformat(value['started_at']),
@@ -176,6 +217,11 @@ class PgControlRepository:
             raise StorageError('PG_CONTROL_COMMAND_INVALID')
         return await self._submit(command, approval=approval, facts=facts, cut=cut)
 
+    async def set_execution_mode(self, command, *, approval, facts, cut):
+        if type(command) is not NativeExecutionMode:
+            raise StorageError('PG_EXECUTION_MODE_COMMAND_INVALID')
+        return await self._submit(command, approval=approval, facts=facts, cut=cut)
+
     async def reconcile_successor(self, command, *, approval, facts, cut):
         if type(command) is not ReconcileSessionSuccessor:
             raise StorageError('PG_SUCCESSOR_COMMAND_INVALID')
@@ -183,7 +229,7 @@ class PgControlRepository:
 
     async def _submit(self, command, *, approval, facts, cut):
         self._original()
-        if (type(command) not in (OwnerTransition, ReconcileSessionSuccessor) or type(approval) is not OperatorApproval
+        if (type(command) not in (OwnerTransition, ReconcileSessionSuccessor, NativeExecutionMode) or type(approval) is not OperatorApproval
                 or type(facts) is not SpotFinancialRecoveryFacts or type(cut) is not FinancialCut
                 or facts.binding != self.binding or cut.checkpoint.binding != self.binding):
             raise StorageError('PG_CONTROL_COMMAND_INVALID')
@@ -191,7 +237,8 @@ class PgControlRepository:
             raise StorageUnavailable('PG_CONTROL_BACKPRESSURE')
         # No signed control result or historical receipt may restore process-local
         # send readiness. Capture invalidation occurs before the first await.
-        self.runtime._healthy = False
+        if type(command) is not NativeExecutionMode:
+            self.runtime._healthy = False
         self.runtime._ingress_epoch += 1
         task = asyncio.create_task(self._apply(command, approval, facts, cut))
         self._tasks.add(task)
@@ -201,7 +248,11 @@ class PgControlRepository:
             if not done.cancelled():
                 done.exception()
         task.add_done_callback(complete)
-        return await asyncio.shield(task)
+        try:
+            return await asyncio.shield(task)
+        except asyncio.CancelledError:
+            self.runtime._healthy = False
+            raise
 
     async def _apply(self, command, approval, facts, cut):
         import asyncpg
@@ -236,7 +287,10 @@ class PgControlRepository:
                     self.verifier.verify(approval, self.binding, command.role, command.json(), cut, facts, now)
                     grant_id = None
                     successor = None
-                    if type(command) is ReconcileSessionSuccessor:
+                    execution = None
+                    if type(command) is NativeExecutionMode:
+                        execution = await self._execution(command, before, policy, facts, now)
+                    elif type(command) is ReconcileSessionSuccessor:
                         successor = await self._successor(command, before, current, policy, facts, now)
                     else:
                         token = command.token
@@ -271,7 +325,10 @@ class PgControlRepository:
                                         cfg.account_id, actual_mode, token.process_id, token.generation, token.epoch,
                                         token.session_id, token.valid_from, token.expires_at)
                     after = json.loads(await c.fetchval('SELECT to_jsonb(a) FROM life_financial.accounts a WHERE account_id=$1', cfg.account_id))
-                    if successor is not None:
+                    if execution is not None:
+                        receipt = dict(kind='EXECUTION_MODE', operation_id=command.operation_id, mode=command.mode, observer_id=str(command.observer_id),
+                                       version=after['version'], replayed=False, trading_permission=False)
+                    elif successor is not None:
                         receipt = {**successor, 'version': after['version'], 'replayed': False, 'trading_permission': False}
                     else:
                         receipt = dict(kind='NATIVE_CONTROL', operation_id=command.operation_id, mode=command.mode.value,
@@ -296,6 +353,8 @@ class PgControlRepository:
                     self._original()
                     return self._receipt(self.binding, receipt, replayed=False)
             except BaseException as error:
+                if type(command) is NativeExecutionMode:
+                    self.runtime._healthy = False
                 try:
                     if transaction is not None and not c.is_closed() and c.is_in_transaction():
                         await transaction.rollback()
@@ -309,6 +368,20 @@ class PgControlRepository:
                 if isinstance(error, (StorageError, asyncio.CancelledError)):
                     raise
                 raise StorageUnavailable('PG_CONTROL_ABORTED') from None
+
+    async def _execution(self, command, before, policy, facts, now):
+        c, cfg = self.connection, self.runtime.config
+        p = await c.fetchval('SELECT body FROM life_financial.execution_policies WHERE account_id=$1 AND policy_digest=$2', cfg.account_id, command.policy_digest)
+        if (p is None or command.observer_id != self.runtime._risk_observer
+                or before['mode'] != 'ACTIVE' or not await c.fetchval('SELECT life_financial.execution_policy_qualified($1)', cfg.account_id)
+                or not await c.fetchval('SELECT life_financial.execution_facts_qualified($1,$2::jsonb)', cfg.account_id, json.dumps(facts.json()))):
+            raise StorageError('PG_EXECUTION_MODE_QUIESCENCE_REQUIRED')
+        p = json.loads(p)
+        if (command.campaign_id != p['campaign_id'] or command.mode != 'MM' and type(p.get(command.mode.lower())) is not dict):
+            raise StorageError('PG_EXECUTION_MODE_DISABLED')
+        await c.execute('SELECT life_financial.guard_account($1,$2::jsonb,$3::jsonb,$4)', cfg.account_id, json.dumps(self.binding.json()), json.dumps(_owner(before).json()), before['version'])
+        await c.execute('UPDATE life_financial.accounts SET version=version+1 WHERE account_id=$1', cfg.account_id)
+        return True
 
     async def _target_successor(self, token, before):
         c, account = self.connection, self.runtime.config.account_id
