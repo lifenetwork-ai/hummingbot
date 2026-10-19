@@ -27,7 +27,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.legacy_applying impo
 from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancialRecoveryFacts
 
 
-async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('-.001'), funding=None, cashflow=None, cashflow_written=False, book_native_swap=False, book_native_funding=False, file_result=None, book_native_parent=False, spot_side=None, spot_fee_currency='USDT', spot_terminal_stage=None, spot_settlement_stage=None, native_terminal=True, native_settlement=True, spot_unsent=False, native_abort=True, spot_cancel=None, native_cancel=True, spot_ack=None, native_ack=True, prior_outer=False, prior_file_repair=False, native_prior_file_repair=True, swap_filled=True, native_swap_ack=True, native_swap_ack_id='987654321'):
+async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('-.001'), funding=None, cashflow=None, cashflow_written=False, book_native_swap=False, book_native_funding=False, file_result=None, book_native_parent=False, spot_side=None, spot_fee_currency='USDT', spot_terminal_stage=None, spot_settlement_stage=None, native_terminal=True, native_settlement=True, spot_unsent=False, native_abort=True, spot_cancel=None, native_cancel=True, spot_ack=None, native_ack=True, prior_outer=False, prior_file_repair=False, native_prior_file_repair=True, swap_filled=True, native_swap_ack=True, native_swap_ack_id='987654321', swap_trade_id='trade-1'):
     from test.hummingbot.strategy_v2.life_liquidity import test_session
     from test.hummingbot.strategy_v2.life_liquidity.storage import test_legacy_joint_applying as file_fixture
     from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_carry import setup as carry_setup
@@ -90,7 +90,7 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
             result = prepared_target['prior_order']
         else:
             result = original_report(values, box, claim)
-            result = replace(result, exchange_order_id='987654321', trades=(replace(result.trades[0], realized_pnl_quote=pnl, signed_fee=fee),))
+            result = replace(result, exchange_order_id='987654321', trades=(replace(result.trades[0], trade_id=swap_trade_id, realized_pnl_quote=pnl, signed_fee=fee),))
             if not swap_filled:
                 result = replace(result, state='live', trades=())
         stamp = int(values[6].wall.timestamp() * 1000)
@@ -550,7 +550,7 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
     trade_at = prepared_target.get('original_trade_at', at)
     fill = None
     if swap_filled:
-        trade = SwapFillObservation('trade-1', D('.25'), D('1'), 'USDT', fee, trade_at, D('1'), trade_at, trade_at, 'independent_market', pnl, None)
+        trade = SwapFillObservation(swap_trade_id, D('.25'), D('1'), 'USDT', fee, trade_at, D('1'), trade_at, trade_at, 'independent_market', pnl, None)
         fill = FillSwap('original-fill', prepared.operation_id, claim.intent_id, claim.wire_id, 'LIFE-USDT', claim.side,
                         claim.session_id, claim.epoch, '987654321', D('.25'), (trade,), values[6].wall)
     if book_native_swap and not book_native_parent:
@@ -572,7 +572,7 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
         assert (await PgSwapFillRepository(swap).apply_fills(original_fill, cut=native_cut, owner=owner)).state == 'APPLIED'
     fresh_now = await admin.fetchval('SELECT clock_timestamp()')
     values[6].wall = fresh_now
-    facts = SpotFinancialRecoveryFacts(binding, fresh_now, final_base, final_cash, D('0'), D('0'), (('trade-1',) if swap_filled else ()) + (() if spot_side is None or spot_unsent else ('spottrade1',)) + (() if spot_settlement_stage is None else ('spottrade2',)),
+    facts = SpotFinancialRecoveryFacts(binding, fresh_now, final_base, final_cash, D('0'), D('0'), tuple(sorted(set(((swap_trade_id,) if swap_filled else ()) + (() if spot_side is None or spot_unsent else ('spottrade1',)) + (() if spot_settlement_stage is None else ('spottrade2',))))),
                                        () if cashflow is None else ('101',), (claim.wire_id,) + (() if spot_side is None or spot_unsent else ('spotwire',)) + (() if spot_settlement_stage is None else ('extraspotwire',)), (), True, True, True)
     drain = OwnerTransition('outer-drain', OwnerMode.DRAINING, file_owner)
     cut = (await store.snapshot(binding)).cut

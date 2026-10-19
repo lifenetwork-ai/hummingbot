@@ -78,7 +78,7 @@ class PgSharedReleaseRepository:
         value = await self._read(operation_id, binding)
         return None if value is None else self._receipt({**value['receipt'], 'replayed': True})
 
-    async def release(self, command, *, cut, owner):
+    async def release(self, command, *, cut, owner, _source_fence=None):
         self._original()
         if type(command) is not ReleaseSharedClaim or owner != self.owner:
             raise StorageError('PG_SHARED_RELEASE_CONTEXT_INVALID')
@@ -89,7 +89,7 @@ class PgSharedReleaseRepository:
         try:
             return await self.runtime._transaction('SELECT life_financial.shared_release_command($1,$2,$3,$4,$5,$6,$7)',
                                                    (self.runtime.config.account_id, self.binding.json(), owner.json(), version, digest, fingerprint(request), body),
-                                                   owner, self._receipt, observation=True)
+                                                   owner, self._receipt, observation=True, source_fence=_source_fence)
         except StorageError as error:
             if str(error) in ('PG_SHARED_RELEASE_BOUND', 'PG_SHARED_RELEASE_SOURCE_UNQUALIFIED'):
                 self.runtime._healthy = False

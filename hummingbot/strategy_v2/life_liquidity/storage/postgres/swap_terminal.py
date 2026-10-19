@@ -111,7 +111,7 @@ class PgSwapTerminalRepository:
         value = await self._read(operation_id, binding)
         return None if value is None else self._receipt({**value['receipt'], 'replayed': True})
 
-    async def confirm(self, command, *, cut, owner):
+    async def confirm(self, command, *, cut, owner, _source_fence=None):
         self._original()
         if type(command) is not ConfirmSwapTerminal or owner != self.owner:
             raise StorageError('PG_SWAP_TERMINAL_CONTEXT_INVALID')
@@ -122,7 +122,7 @@ class PgSwapTerminalRepository:
         try:
             return await self.runtime._transaction('SELECT life_financial.swap_terminal_command($1,$2,$3,$4,$5,$6,$7)',
                                                    (self.runtime.config.account_id, self.binding.json(), owner.json(), version, digest, fingerprint(request), body),
-                                                   owner, self._receipt, observation=True)
+                                                   owner, self._receipt, observation=True, source_fence=_source_fence)
         except StorageError as error:
             if str(error) in ('PG_SWAP_TERMINAL_OBSERVATION_BOUND', 'PG_SWAP_TERMINAL_SOURCE_STALE_AT_COMMIT'):
                 self.runtime._healthy = False

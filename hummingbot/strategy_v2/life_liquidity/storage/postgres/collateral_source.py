@@ -172,6 +172,35 @@ class PgCollateralReconciler:
             ctx.prec = 160
             return value, self.financial._snapshot(value['snapshot'], self.binding)
 
+    async def _sample(self, policy):
+        config = await self.reader.get_account_configuration()
+        balance = await self.reader.get_spot_cash_balances()
+        positions = await self.reader.get_all_account_positions()
+        if len(config['data']) != 1 or len(balance['data']) != 1:
+            raise StorageError('PG_COLLATERAL_RESPONSE_INVALID')
+        sample = parse_account(config['data'][0], balance['data'][0], positions['data'],
+                               account_uid=self.binding.account_uid, position_mode=policy['position_mode'],
+                               leverage=policy['leverage'], contract_value_life=D(policy['contract_value_life']),
+                               lot_contracts=D(policy['lot_contracts']),
+                               observed_at_ms=int(utc(self.reader.source.journal.clock()).timestamp() * 1000))
+        return sample, {'account': config, 'balance': balance, 'positions': positions}
+
+    def _match(self, original, view, current, after, account):
+        if view.cut != after.cut or original['positions'] != current['positions']:
+            raise StorageError('PG_COLLATERAL_NATIVE_CUT_CHANGED')
+        legs = original['positions']
+        if ((account.base_life, account.cash_usdt) != (view.balance.total_base_life, view.balance.total_quote_usdt)
+                or (account.long_base, account.short_base, account.long_entry, account.short_entry) !=
+                tuple(D(legs[k]) for k in ('long_base', 'short_base', 'long_entry', 'short_entry'))):
+            raise StorageError('PG_COLLATERAL_NATIVE_MISMATCH')
+        stamps = dict(account.updates)
+        if (any(stamps[ccy] < at for ccy, at in original['money_update_ms'].items())
+                or any(stamps[side] < at for side, at in original['position_update_ms'].items() if side in stamps)):
+            raise StorageError('PG_COLLATERAL_TIMESTAMP_PREDATES_NATIVE')
+        self.reader.source._credentials()
+        if not self.reader.source._uid_fresh():
+            raise StorageError('PG_COLLATERAL_SOURCE_EXPIRED')
+
     async def collect(self):
         """Observation-only; a new collection is required after any ledger change.
 
@@ -185,34 +214,14 @@ class PgCollateralReconciler:
             async with self.reader.collection():
                 samples, payloads = [], []
                 for _ in range(2):
-                    config = await self.reader.get_account_configuration()
-                    balance = await self.reader.get_spot_cash_balances()
-                    positions = await self.reader.get_all_account_positions()
-                    payloads.append({'account': config, 'balance': balance, 'positions': positions})
-                    if len(config['data']) != 1 or len(balance['data']) != 1:
-                        raise StorageError('PG_COLLATERAL_RESPONSE_INVALID')
-                    samples.append(parse_account(config['data'][0], balance['data'][0], positions['data'],
-                                                 account_uid=self.binding.account_uid, position_mode=policy['position_mode'],
-                                                 leverage=policy['leverage'], contract_value_life=D(policy['contract_value_life']),
-                                                 lot_contracts=D(policy['lot_contracts']),
-                                                 observed_at_ms=int(utc(self.reader.source.journal.clock()).timestamp() * 1000)))
+                    sample, payload = await self._sample(policy)
+                    samples.append(sample)
+                    payloads.append(payload)
                 if samples[0] != samples[1]:
                     raise StorageError('PG_COLLATERAL_SOURCE_CHANGED')
             current, after = await self._native()
-            if view.cut != after.cut or original['positions'] != current['positions']:
-                raise StorageError('PG_COLLATERAL_NATIVE_CUT_CHANGED')
-            account, legs = samples[0], original['positions']
-            if ((account.base_life, account.cash_usdt) != (view.balance.total_base_life, view.balance.total_quote_usdt)
-                    or (account.long_base, account.short_base, account.long_entry, account.short_entry) !=
-                    tuple(D(legs[k]) for k in ('long_base', 'short_base', 'long_entry', 'short_entry'))):
-                raise StorageError('PG_COLLATERAL_NATIVE_MISMATCH')
-            stamps = dict(account.updates)
-            if (any(stamps[ccy] < at for ccy, at in original['money_update_ms'].items())
-                    or any(stamps[side] < at for side, at in original['position_update_ms'].items() if side in stamps)):
-                raise StorageError('PG_COLLATERAL_TIMESTAMP_PREDATES_NATIVE')
-            self.reader.source._credentials()
-            if not self.reader.source._uid_fresh():
-                raise StorageError('PG_COLLATERAL_SOURCE_EXPIRED')
+            account = samples[0]
+            self._match(original, view, current, after, account)
             return CollateralReconciliation(view.cut, self.reader.collection_id,
                                             fingerprint(payloads), account)
         except BaseException:

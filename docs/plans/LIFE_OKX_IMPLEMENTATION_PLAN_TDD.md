@@ -1,6 +1,22 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
-**Current PG3 R1 checkpoint (2026-10-19):** original ACKed zero-fill SWAP
+**Current PostgreSQL delivery scope (2026-10-19, user decision):** fresh
+PostgreSQL start, followed by File cutover only after stopping and fully
+reconciling the old bot. Active File hedge/carry/coordinator checkpoint migration
+is not selected. PG6 must preserve original capital/cost basis, inventory,
+cashflow-adjusted NAV/highwater, spent budgets and all deduplication/receipt IDs;
+unknown sends, pending accounting, active claims/holds or SWAP positions block
+cutover. No raw-wallet reinitialization or automatic activation is allowed.
+
+**Native R1 is closed:** the frozen accounting/recovery gate passes **736 cases**,
+zero failures/errors/skips, including source-consuming SPOT/SWAP terminal/shared
+release, pending repair, original-ID crash/cancellation recovery and File economic
+comparisons. Migration qualification passes **124 cases**. R3 control/risk/session
+is next. **PG3 and R2–R5 remain open; configured PostgreSQL remains rejected** in the
+[PostgreSQL plan](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-native-r1-closure-2026-10-19).
+Clean stopped File cutover remains PG6; active File checkpoint migration is not selected.
+
+**Earlier PG3 R1 checkpoint (2026-10-19):** original ACKed zero-fill SWAP
 orders retain their independently admitted preparation/ARM/ACK and claims during
 funding recovery. Migration 72 passes 113 migration cases; 53 File/source cases
 and 12 new native workflows pass. An integration-discovered quote-source pending

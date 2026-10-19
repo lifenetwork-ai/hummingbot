@@ -97,6 +97,8 @@ async def provision_access(connection, *, principal, account_id, write):
         # legacy/File fallback when this entrypoint is absent or ungranted.
         if await connection.fetchval("SELECT to_regprocedure('life_financial.collateral_reconciliation_context(uuid,integer,integer)') IS NOT NULL"):
             await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.collateral_reconciliation_context(uuid,integer,integer) TO "{principal}"')
+        if await connection.fetchval("SELECT to_regprocedure('life_financial.check_joint_source_deadline(uuid,text)') IS NOT NULL"):
+            await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.check_joint_source_deadline(uuid,text) TO "{principal}"')
         await connection.execute(f'''GRANT EXECUTE ON FUNCTION life_financial.spot_read_financial_ingress(uuid,life_financial.identity),
             life_financial.spot_pending_financial_ingress(uuid,integer,integer) TO "{principal}"''')
         await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.spot_markout_frame(uuid,integer,integer) TO "{principal}"')

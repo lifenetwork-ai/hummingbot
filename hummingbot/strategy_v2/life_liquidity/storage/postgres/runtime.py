@@ -326,9 +326,14 @@ class PgRuntime:
                                        (cfg.account_id, cfg.binding.json(), owner.json(), command.expected_version,
                                         command.operation_id, identity, command.asset, command.amount), owner, PgReceipt.parse)
 
-    async def _transaction(self, query, args, owner, parse, *, observation=False, untrusted_ingress=False):
+    async def _transaction(self, query, args, owner, parse, *, observation=False, untrusted_ingress=False, source_fence=None):
         """Internal fixed-command boundary shared by typed repository adapters."""
         import asyncpg
+        if source_fence is not None:
+            from hummingbot.strategy_v2.life_liquidity.storage.postgres.source_fence import JointSourceFence
+            if type(source_fence) is not JointSourceFence or not observation or untrusted_ingress:
+                raise StorageError('PG_JOINT_SOURCE_CONSUMER_INVALID')
+            source_fence.authorize(self, query, args, owner)
         if untrusted_ingress and (not observation or query not in (
                 'SELECT life_financial.spot_capture_ack_ingress($1,$2)',
                 'SELECT life_financial.swap_capture_ack($1,$2)',
@@ -357,8 +362,13 @@ class PgRuntime:
                     phase('begin')
                     await transaction.start()
                     await c.execute("SELECT set_config('lock_timeout',$1,true)", str(cfg.statement_timeout_ms))
+                    if source_fence is not None:
+                        source_fence.check()
+                        await c.execute("SELECT set_config('life.joint_source_deadline',$1,true)", json.dumps(source_fence.deadline))
                     phase('execute')
                     receipt = await c.fetchval(query, *args)
+                    if source_fence is not None:
+                        await c.execute('SELECT life_financial.check_joint_source_deadline($1,$2)', cfg.account_id, source_fence.operation_id)
                     # Replay has no effect and is allowed after owner expiry.
                     if not receipt['replayed'] and not untrusted_ingress:
                         phase('guard')
@@ -371,7 +381,7 @@ class PgRuntime:
                     trace = _current_trace.get()
                     trace.commit_attempted = True
                     phase('commit')
-                    await self._commit(transaction)
+                    await self._commit(transaction if source_fence is None else source_fence.transaction(transaction))
                     trace.commit_confirmed = True
                     phase('parse')
                     return parse(receipt)
@@ -401,6 +411,12 @@ class PgRuntime:
                         raise CommitUnknown('PG_COMMIT_UNKNOWN') from None
                     raise StorageUnavailable('PG_TRANSACTION_ABORTED') from None
                 except BaseException as error:
+                    if source_fence is not None and source_fence.rejected_before_commit:
+                        # The local fence refused before transaction.commit was
+                        # called. This is a definite rollback, not a lost reply.
+                        committing = False
+                        boundary['attempted'] = False
+                        _current_trace.get().commit_attempted = False
                     failure(error)
                     self._healthy = False
                     phase('rollback')

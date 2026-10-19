@@ -2298,3 +2298,142 @@ async def test_unfilled_swap_prefix_upgrade_preserves_original_oids_acl_tables_a
     for table in ('accounts', 'operations', 'financial_events', 'legacy_applying_imports'):
         assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
     assert (await migrate(c, directory, action='up'))['applied'] == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('unexpected_shape', ['none', 'body', 'search_path', 'security', 'volatility'])
+async def test_joint_provider_routes_upgrade_preserves_oids_acl_and_refuses_unknown_predecessor(db, unexpected_shape):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 73:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    signature = 'life_financial.spot_provider_route(text,jsonb)'
+    if unexpected_shape == 'body':
+        definition = await c.fetchval('SELECT pg_get_functiondef(to_regprocedure($1))', signature)
+        await c.execute(definition.replace("extra:='{}'::jsonb;", "extra:= '{}'::jsonb;", 1))
+    elif unexpected_shape == 'search_path':
+        await c.execute('ALTER FUNCTION ' + signature + ' SET search_path=pg_catalog,public')
+    elif unexpected_shape == 'security':
+        await c.execute('ALTER FUNCTION ' + signature + ' SECURITY DEFINER')
+    elif unexpected_shape == 'volatility':
+        await c.execute('ALTER FUNCTION ' + signature + ' STABLE')
+    query = '''SELECT p.oid,p.oid::regprocedure::text AS signature,p.proacl,p.prosrc,p.provolatile::text AS provolatile,p.prosecdef,p.proconfig,p.proowner
+        FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='life_financial' ORDER BY p.oid'''
+    before = {r['signature']: dict(r) for r in await c.fetch(query)}
+    tables = await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace='life_financial'::regnamespace ORDER BY oid")
+    path = DEFAULT_DIRECTORY / '000073_joint_provider_routes.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    if unexpected_shape != 'none':
+        with pytest.raises(asyncpg.RaiseError, match='LIFE_JOINT_SOURCE_ROUTE_MIGRATION_MISMATCH'):
+            await migrate(c, directory, action='up')
+        assert {r['signature']: dict(r) for r in await c.fetch(query)} == before
+        assert (await versions(c))[-1]['version'] == 72
+        return
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    after = {r['signature']: dict(r) for r in await c.fetch(query)}
+    assert set(after) == set(before)
+    for key, original in before.items():
+        assert after[key] == (original if key != signature else {**original, 'prosrc': after[key]['prosrc']})
+    for role in ('public', 'life_runtime_test', 'life_reporter_test'):
+        assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", role, signature)
+    for params, accepted in [
+        ({'limit': '100'}, True),
+        ({'limit': '100', 'after': '123'}, True),
+        ({'limit': '100', 'instId': 'LIFE-USDT'}, False),
+        ({'instType': 'SWAP', 'limit': '100'}, True),
+        ({'instType': 'SWAP', 'limit': '100', 'after': '123'}, True),
+        ({'instType': 'SWAP', 'limit': '100', 'instId': 'LIFE-USDT-SWAP'}, False),
+        ({'instType': 'SWAP', 'limit': '100', 'after': '1&instId=LIFE-USDT-SWAP'}, False),
+        ({'instType': 'FUTURES', 'limit': '100'}, False),
+        ({'instType': 'SWAP', 'limit': 100}, False),
+    ]:
+        assert await c.fetchval('SELECT life_financial.spot_provider_route($1,$2::jsonb)',
+                                '/api/v5/trade/orders-pending', json.dumps(params)) is accepted
+    for product, accepted in [('SPOT', False), ('SWAP', True)]:
+        assert await c.fetchval('SELECT life_financial.spot_provider_route($1,$2::jsonb)', '/api/v5/trade/orders-algo-pending',
+                                json.dumps(dict(instType=product, limit='100', ordType='chase'))) is accepted
+    assert tables == await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace='life_financial'::regnamespace ORDER BY oid")
+    for table in ('accounts', 'operations', 'financial_events', 'spot_provider_heads', 'spot_provider_pages'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+    assert (await migrate(c, directory, action='up'))['applied'] == []
+
+
+@pytest.mark.asyncio
+async def test_joint_source_deadline_upgrade_adds_only_private_checks_and_defers_after_existing_guards(db):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 74:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    query = '''SELECT p.oid,p.oid::regprocedure::text AS signature,p.proacl,p.prosrc,p.provolatile::text AS provolatile,p.prosecdef,p.proconfig,p.proowner
+        FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='life_financial' ORDER BY p.oid'''
+    before = {r['signature']: dict(r) for r in await c.fetch(query)}
+    tables = await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace='life_financial'::regnamespace ORDER BY oid")
+    path = DEFAULT_DIRECTORY / '000074_joint_source_deadline.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    after = {r['signature']: dict(r) for r in await c.fetch(query)}
+    added = {'life_financial.check_joint_source_deadline(uuid,text)', 'life_financial.joint_source_commit_guard()'}
+    assert set(after) - set(before) == added
+    assert all(after[key] == value for key, value in before.items())
+    for helper in added:
+        assert after[helper]['prosecdef'] and after[helper]['proconfig'] == ['search_path=pg_catalog']
+        for role in ('public', 'life_runtime_test', 'life_reporter_test'):
+            assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", role, helper)
+    triggers = await c.fetch('''SELECT tgname,tgdeferrable,tginitdeferred FROM pg_trigger
+        WHERE tgrelid='life_financial.accounts'::regclass AND NOT tgisinternal AND tgdeferrable ORDER BY tgname''')
+    assert triggers[-1]['tgname'] == 'zz_joint_source_account_commit'
+    assert triggers[-1]['tgdeferrable'] and triggers[-1]['tginitdeferred']
+    assert tables == await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace='life_financial'::regnamespace ORDER BY oid")
+    for table in ('accounts', 'operations', 'financial_events', 'spot_provider_heads', 'spot_provider_pages'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+    assert (await migrate(c, directory, action='up'))['applied'] == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('unexpected_shape', ['none', 'order_body', 'inventory_body', 'security', 'search_path'])
+async def test_joint_trade_id_set_upgrade_is_atomic_preserves_port_oids_acl_and_does_not_rekey_fills(db, unexpected_shape):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 75:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    order = 'life_financial.spot_order_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,text,jsonb,boolean)'
+    inventory = 'life_financial.spot_settle_inventory(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb,jsonb,boolean)'
+    for port in (order, inventory):
+        await c.execute('GRANT EXECUTE ON FUNCTION ' + port + ' TO life_runtime_test')
+    if unexpected_shape in ('order_body', 'inventory_body'):
+        target = order if unexpected_shape == 'order_body' else inventory
+        definition = await c.fetchval('SELECT pg_get_functiondef(to_regprocedure($1))', target)
+        assert 'jsonb_agg(trade_id ORDER BY trade_id' in definition
+        await c.execute(definition.replace('jsonb_agg(trade_id ORDER BY trade_id', 'jsonb_agg(trade_id  ORDER BY trade_id', 1))
+    elif unexpected_shape == 'security':
+        await c.execute('ALTER FUNCTION ' + order + ' SECURITY INVOKER')
+    elif unexpected_shape == 'search_path':
+        await c.execute('ALTER FUNCTION ' + inventory + ' SET search_path=pg_catalog,public')
+    query = '''SELECT p.oid,p.oid::regprocedure::text AS signature,p.proacl,p.prosrc,p.provolatile::text AS provolatile,p.prosecdef,p.proconfig,p.proowner
+        FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='life_financial' ORDER BY p.oid'''
+    before = {r['signature']: dict(r) for r in await c.fetch(query)}
+    tables = await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace='life_financial'::regnamespace ORDER BY oid")
+    path = DEFAULT_DIRECTORY / '000075_joint_trade_id_sets.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    if unexpected_shape != 'none':
+        with pytest.raises(asyncpg.RaiseError, match='LIFE_JOINT_TRADE_SET_MIGRATION_MISMATCH'):
+            await migrate(c, directory, action='up')
+        assert {r['signature']: dict(r) for r in await c.fetch(query)} == before
+        assert (await versions(c))[-1]['version'] == 74
+        return
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    after = {r['signature']: dict(r) for r in await c.fetch(query)}
+    assert set(after) == set(before)
+    for key, original in before.items():
+        assert after[key] == (original if key not in {order, inventory} else {**original, 'prosrc': after[key]['prosrc']})
+    for port in (order, inventory):
+        assert await c.fetchval("SELECT has_function_privilege('life_runtime_test',$1,'EXECUTE')", port)
+        for role in ('public', 'life_reporter_test'):
+            assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", role, port)
+    assert tables == await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace='life_financial'::regnamespace ORDER BY oid")
+    for table in ('accounts', 'operations', 'fills', 'fees', 'financial_events', 'budget_events'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+    assert (await migrate(c, directory, action='up'))['applied'] == []

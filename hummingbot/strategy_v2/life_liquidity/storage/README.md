@@ -3640,3 +3640,38 @@ Observation-only identity supports cold delivery recovery without restoring that
 source's quote capability. An operational action backlog alone is not financial
 pending and remains eligible for policy reads. The original regression results
 and exact passing repairs are recorded in the implementation plan.
+
+## Signed joint account comparison and explicit release
+
+`postgres.joint_source.PgJointAccountReconciler` compares existing native facts
+with two stable signed account rounds, original UID/credentials, product-scoped
+SPOT/SWAP trades, anchored bills/transfers/funding, unfiltered pending regular/algo
+orders and zero-liability collateral/position evidence. Unknown activity or an
+incomplete history fails closed within explicit bounds; collection changes no
+money and grants no send permission.
+
+`postgres.joint_release.PgJointReleaseApplication` requires a fresh original
+report for each SPOT/SWAP terminal or shared-claim retirement. Exact command/cut,
+ingress epoch, runner quiescence, original NAV time and client/server COMMIT
+freshness are checked. A diagnostic copied from storage cannot become a report.
+Cancellation before COMMIT revokes it and rolls back; committed effects recover
+by original receipt only. The optional migration-74 deadline GUC is not source
+authentication. Raw repositories remain bookkeeping kernels. Complete owning
+runner topology and mandatory installation on configured service routes are R4;
+configured PostgreSQL selection remains rejected until the plan's gates pass.
+
+Run the selected native R1 gate in the existing Hummingbot environment:
+
+```sh
+python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_postgres \
+  --suite r1_accounting --fail-fast --output /tmp/UNIQUE_RUN_NAME
+```
+
+The output directory must not already exist. This uses a disposable local database
+and synthetic HTTP, never configured credentials. The frozen qualification passes
+**736 cases**, zero failures/errors/skips. It closes native R1; R2–R5 and configured
+PostgreSQL remain open. The selected delivery is fresh PostgreSQL operation, then
+clean stopped File cutover in PG6.
+Active/interrupted File hedge/carry checkpoints are not selected. Native pending
+recovery remains required. Cutover must retain capital/cost basis, spent budgets
+and permanent deduplication/receipt history; an opening wallet cannot reset them.

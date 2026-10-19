@@ -1044,3 +1044,21 @@ account, policy, balance, activation or configured PostgreSQL sender.
   it preserves function identity/ACLs and creates no tables or financial facts.
   Repeated startup is a migration-runner no-op. All 113 migration cases pass,
   including unknown-body/search-path/security refusal and actual 71→72 upgrade.
+
+- `000073_joint_provider_routes.sql`: extend the audited provider request grammar
+  for pinned LIFE SWAP order/fill reads and unfiltered account-wide pending-order
+  reads, including SWAP chase algos. Existing route function identity/ACLs remain;
+  unexpected predecessor code/settings abort the upgrade. No grants or money.
+- `000074_joint_source_deadline.sql`: add a private exact-operation source
+  deadline checker and a last deferred account-COMMIT constraint for the explicit
+  authenticated joint release application. Its transaction-local GUC supplies a
+  deadline, not source authentication or new repository authority. An absent GUC
+  preserves existing low-level bookkeeping contracts; configured installation
+  remains separately gated. No policy values or financial rows are initialized.
+- `000075_joint_trade_id_sets.sql`: audited replacements of existing SPOT
+  terminal/inventory functions make their flat account trade-ID sets distinct.
+  Original product-scoped financial facts remain independent when SPOT and SWAP
+  use the same trade ID. Existing function OIDs/ACLs remain; unknown predecessor
+  bodies/settings abort atomically. These three migrations share the existing
+  checksum/version/advisory-lock runner; repeated startup is a no-op. The actual
+  124-case migration gate passes, including upgrades and negative checks.

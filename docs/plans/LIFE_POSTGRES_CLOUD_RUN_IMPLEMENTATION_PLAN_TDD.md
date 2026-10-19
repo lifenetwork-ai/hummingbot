@@ -2,7 +2,26 @@
 
 Created: 2026-10-11
 
-**Current execution checkpoint (2026-10-19, base `7a42c6c49` plus this delivery):**
+**Current delivery scope (2026-10-19, explicit operator decision):** prioritize a
+fresh PostgreSQL deployment. Planned File → PostgreSQL cutover requires that
+the File bot has stopped and its account has been fully reconciled. Importing
+actively interrupted File hedge/carry/coordinator checkpoints is **not selected**
+for this delivery; existing qualified import profiles and strict refusals remain.
+This is a user-approved scope change, not a claim that the omitted histories work.
+Native PostgreSQL crash/pending recovery remains mandatory in R1. The concrete
+clean-cutover gates belong to [PG6](#pg6--import-backups-restoration-and-rollback).
+
+The current increment adds signed complete account comparison and an explicit
+source-consuming SPOT/SWAP terminal/shared-release application. Migration 73–75
+qualification passes **124 cases**; the joint-source gate passes **205 cases**;
+product-scoped duplicate trade recovery passes **12 cases**. These earlier selectors
+are not added to the final acceptance count. The frozen `r1_accounting` gate
+passes **736 cases**, zero failures/errors/skips, 2090.22 s, with unchanged
+source/test/migration hashes. **R1 is closed for the selected native scope.**
+See [closure qualification](#pg3-native-r1-closure-2026-10-19).
+**PG3 stays open and configured PostgreSQL stays rejected until R2–R5 are qualified.**
+
+**Earlier execution checkpoint (2026-10-19, base `7a42c6c49` plus that delivery):**
 R1 retains an original ACKed, zero-fill SWAP through interrupted funding recovery,
 with independent native preparation/ARM/ACK and historical fill exclusion.
 Migration 72 passes **113 migration cases**; **53 File/source cases** and the
@@ -627,7 +646,7 @@ PG3 tests seed explicitly synthetic ownership/grant rows through test-only setup
   - [x] **Standalone SPOT inventory/subsidy settlement:** SQL computes closed terminal cycle costs from permanent exact fill/fee facts, requires net-flat LIFE including fee asset effects, spends at least original gross execution loss plus any uncovered realized cycle cost, and releases only prior subsidy holds into actual incurred spend. Original session/day/campaign buckets and identities remain; wallets and execution-loss counters never change. Replay/cold readback, corruption/role denials, complete original facts and physical COMMIT checks apply. All 37 cases and the 903-case full PostgreSQL gate pass; configured and shared-product composition remains open.
   - [x] **Standalone SPOT horizon markout storage/readback:** immutable independent horizon observations bind permanent accounted fills and exact BUY/SELL arithmetic. SQL validates explicit imported horizon/cohort policy and original wire types; bounded coherent reads distinguish missing, pending, insufficient and adverse cohorts. Replay retains original prices, while current proof rejects missing or inconsistent facts/receipts/attribution. Reads and writes grant no trading permission and change no wallet/budget. Configured risk/probe/stress and authenticated market source composition remain open.
   - [ ] **Remaining accounting:** configured provider ingress/listeners and durable raw-response diagnostic composition, configured markout/probe/stress, configured inventory/subsidy settlement, all enabled product/portfolio composition and approved resolution of durable pending observations. No unsupported liability model or implicit pending-fact clearance. Standalone capital/approval increments do not close full causal portfolio accounting or PG3.2.
-- [ ] PG3.3: Port enabled SWAP/hedge/carry/inventory/joint recovery, including causal same-time fills and interrupted `APPLYING` checkpoints. Explicitly disable every unported product/mode.
+- [ ] PG3.3: Port enabled native SWAP/hedge/carry/inventory/joint recovery, including causal same-time fills and native interrupted accounting. Preserve qualified File economic parity. Active File `APPLYING` hedge/carry/coordinator migration is not selected by the 2026-10-19 decision; stopped clean cutover remains PG6. Explicitly disable every unported product/mode.
   - [x] **Standalone native hedge coordination and settlement:** versioned targets and original-cut decisions; actual-position/depth/fee/funding planning; atomic shared claim → carry → SWAP preparation; permanent retry/cost/identity retention; native partial/terminal settlement and cost-breach HALT. Installed-policy SPOT/SWAP gates and physical source/market checks are implemented. The 43-case current-source native suite passes; see [qualification](#pg3-native-hedge-qualification-2026-10-17). Configured cancellation/source/runner/final-send composition remains open.
   - [x] **Signed source-only joint pending repair:** privileged Ed25519 RECOVER approval binds the exact pending parent, replacement, current cut and complete account/product/bill facts. Only fresh account/funding sources may change; original fills, fees and cashflows stay immutable. One account transaction applies the accepted replacement, records its resolution link and preserves the original pending receipt, HALT, held claims and gross spending. Other pending parents and direct native pending families remain blocking; duplicate equivalent parents need separate signatures. No activation or configured collector is installed. See [qualification](#pg3-signed-joint-source-repair-qualification-2026-10-17).
   - [x] **Late account/capital facts without activation:** original current-owner OBSERVE uses the safety queue after HALT/DRAINING/RECOVERY_ONLY or actual expiry while retaining complete source/money/leg, generation and physical-COMMIT proofs. Budgets, claims, deadlines, HALT and local revocation remain intact; a fresh runtime cannot allocate. Actual budget-HALT → account/carry → NAV → terminal/release cleanup passes. See [qualification](#pg3-late-capital-observation-qualification-2026-10-17).
@@ -683,11 +702,11 @@ preceding native hedge increment is committed as `0ee397b84`.
 
 #### Remaining PG3 closure work
 
-These are implementation requirements within PG3, not demo/live dependencies or work moved to PG4–PG10. Checked standalone slices above do not discharge these larger contracts.
+These are implementation requirements within PG3, not demo/live dependencies or work moved to PG4–PG10. Checked standalone slices above do not discharge these larger contracts. The explicit 2026-10-19 user decision narrows File cutover to stopped, reconciled sources in PG6; active File hedge/carry/coordinator migration is outside the selected delivery. Native PostgreSQL recovery and all configured-service gates remain here.
 
-1. **Causal SWAP and portfolio accounting / joint recovery:** standalone native fills/fees, basis/realized PNL and paid funding cash are qualified above; standalone cut-bound portfolio NAV is also qualified; standalone native terminal and original-claim retirement are also qualified; the native coupled financial batch and explicit cold NAV/terminal/claim-retirement chain are also qualified; remaining actual collateral reconciliation and interrupted legacy/pending recovery must compose those facts; independent permanent identities, same-time causality and capital/liability reconciliation. Port the existing File joint financial/settlement semantics. Terminal/shared claim release must consume complete original evidence once; interrupted legacy `APPLYING` and ambiguous native COMMIT retain unknowns. Pass coupled File/native replays with identical balances, holds, gross budgets and identities before exposing release.
+1. **Causal SWAP and portfolio accounting / joint recovery:** standalone native fills/fees, basis/realized PNL and paid funding cash are qualified above; standalone cut-bound portfolio NAV is also qualified; standalone native terminal and original-claim retirement are also qualified; the native coupled financial batch and explicit cold NAV/terminal/claim-retirement chain are also qualified; actual authenticated collateral reconciliation and native pending recovery must compose those facts; independent permanent identities, same-time causality and capital/liability reconciliation. Port the existing File joint financial/settlement semantics. Terminal/shared claim release must consume complete original evidence once; ambiguous native COMMIT retains unknowns. Unselected active File `APPLYING` sources remain refused for cutover. Pass coupled File/native replays with identical balances, holds, gross budgets and identities before exposing release.
 2. **Hedge execution and settlement composition:** the standalone native coordinator and settlement increment is qualified below. Complete configured cancellation of existing SPOT makers, qualified market/account capture, native application/runner dispatch and configured final SWAP send composition remain required. The explicit signed HTTP/received-ACK adapter is qualified separately below; it does not install that runtime. Preserve versioned targets, permanent child identity/retry/cost, actual-position sizing and native shared/carry/terminal proofs throughout that assembly. Pending hedge proceeds cannot finance another leg or count as completed hedge inventory.
-3. **Pending/control/session/risk services:** current-owner observation-only account refresh after HALT/expiry is implemented and qualified above; remaining signed recovery beyond the declared profiles below, including interrupted legacy `APPLYING` import; qualified successor observation/reconciliation and signed activation; native risk/markout/probe/stress/inventory/EXIT state and gateways. No unresolved observation disappears and no readback, denial or replay implicitly resets money, budget, HALT or permission.
+3. **Pending/control/session/risk services:** current-owner observation-only account refresh after HALT/expiry is implemented and qualified above; remaining configured signed native recovery beyond the declared profiles below; qualified successor observation/reconciliation and signed activation; native risk/markout/probe/stress/inventory/EXIT state and gateways. No unresolved observation disappears and no readback, denial or replay implicitly resets money, budget, HALT or permission.
 4. **Complete configured source and execution assembly:** qualify the planner/reference/book/fee and complete runner/account scope, then compose the signed source, actual final captured SPOT/SWAP request bytes, one-use post-auth/throttle freshness, durable ingress, collector, recorder and mandatory qualified SDK history. Install the actual controller/service only when every selected route has its native financial gate. Preserve the explicit PostgreSQL backend rejection until that assembly is complete.
 5. **Whole-product acceptance:** all supported File/native cases and full runner/executor replays, original-ID cold restart, loss/corruption/role cases and actual process/backend failures around final submission/ACK/terminal release/pending repair. Apply the PG0 trust/anchor contract explicitly. Qualify current source; report frozen older regressions by their own commit. Demo/live account proof, release/deployment durability and PG8/O.8 scalability retain their separate gates.
 
@@ -698,20 +717,23 @@ standalone test pass updates the relevant row; it does not add a sixth workstrea
 or close the row. Any newly found defect belongs to its existing row. Keep a
 failing integration result visible until the same current-source workflow passes.
 
-- [ ] **R1 — accounting/recovery:** complete collateral and zero-liability source reconciliation; signed resolution of direct SPOT fill/cashflow, SWAP fill, funding and terminal pending facts; interrupted legacy `APPLYING` import. Exit replay: original observations/IDs survive crash, exact cash/positions/gross budgets agree with File, and no terminal/shared release occurs while another fact is unresolved. Native collateral upper-bound checks alone do not satisfy provider reconciliation or every File collateral model.
+- [x] **R1 — accounting/recovery (selected fresh-PostgreSQL scope):** complete authenticated collateral/zero-liability and order/trade/bill comparison; signed resolution of native SPOT fill/cashflow, SWAP fill, funding and terminal pending facts; source-consuming explicit SPOT/SWAP terminal/shared release. Exit replay: original observations/IDs survive crash, exact cash/positions/gross budgets agree with the qualified File economic model, and unresolved/foreign/stale facts prevent release. The frozen `run_postgres --suite r1_accounting --fail-fast` gate passes **736 cases**, zero failures/errors/skips; see the closure qualification below. The dedicated mode-2, non-borrowing USDT model is the selected model. Active File `APPLYING` hedge/carry/coordinator migration is outside this delivery by the explicit 2026-10-19 decision; clean stopped cutover remains PG6. Native pending recovery is not excluded. Actual configured runner topology and mandatory application installation remain R4; raw repository DTOs/SQL receipts are bookkeeping, not authenticated source authority.
 - [ ] **R2 — hedge composition:** qualified source → cancel existing makers → native hedge plan/child → guarded final SWAP request → durable ACK/fills → settlement. Exit replay: partial fills, stop during await and retry exhaustion retain the original cost/claims; unknown proceeds never finance a sibling.
 - [ ] **R3 — control/risk/session:** signed pending repair and successor reconciliation/activation; persistent native markout/probe/stress/inventory/EXIT gates. Exit replay: restart and late observations retain HALT, budgets and approvals; each enabled risk mode reaches its native financial gate.
 - [ ] **R4 — configured assembly:** install planner/reference/book/fee, complete runner/account scope, SPOT/SWAP final request guards, ingress/collectors and recorder/SDK history in the actual controller/service. Exit replay: start the configured PostgreSQL service with fake exchange; both products complete the selected workflow; a missing route fails startup without File fallback. PostgreSQL selection remains rejected until this passes.
 - [ ] **R5 — current-source acceptance:** all supported File/native decisions and units agree; whole-runner restart/corruption/role tests and process/backend faults pass at capture, send, ACK, settlement, release and signed repair. Resolve the observed SQL statement timeout, then run the complete affected workflow on one frozen source revision. PG0 trust/anchor requirements remain explicit; neither local tests nor a database receipt prove exactly-once exchange delivery.
 
 **Execution order:** R1 → R3 → R2/R4 → R5. Existing standalone gates remain
-regression inputs. Use `run_postgres --suite joint_recovery` for the existing
+regression inputs. Use `run_postgres --suite r1_accounting` for the selected
+native R1 gate; `run_postgres --suite joint_recovery` additionally retains existing
 coupled batch/repair/NAV/terminal/release/late-observation paths plus collateral,
 ordinary SWAP fill/arithmetic, funding and direct funding/SWAP repair
 checks; it is a focused R1 regression, not the R5 whole-service acceptance gate.
 
 **R1 profile progress inside the fixed exit:** these entries identify completed
-profiles and remaining integration work. They do not change the R1 exit, imply
+profiles and remaining integration work. Historical active-File requirements
+explicitly marked not selected below are superseded by the 2026-10-19 user
+decision. Other entries do not change the R1 exit, imply
 that every profile has been rerun on the latest source, or close R2–R5. Use the
 qualification/revision recorded in each increment below.
 
@@ -724,22 +746,22 @@ qualification/revision recorded in each increment below.
 - [x] Completed funding-only core commands and original APPLIED native joint parents for the declared recovery profiles; original basis, exact leaves, gross budgets and cold restart remain verified.
 - [x] Declared completed core SPOT-fill/approved-transfer commands, with or without funding; exact child receipts, chronological economic replay and File/native cold parity.
 - [x] Declared completed ACK-bearing core commands and original signed repaired native SPOT/SWAP batch parents; exact receipts, original cut, File parity and cold restart.
-- [ ] Remaining prepared-receipt/terminal/settlement core commands **inside their original bound outer coordinator**, plus required repaired-origin histories. Core-only admission of these side effects remains forbidden; see the source-routing constraint below.
+- **Not selected for this delivery:** remaining active File prepared/terminal/settlement coordinator and repaired-origin migration histories. They remain unsupported unless independently qualified; the core-only parser still refuses them.
 - [x] Declared original PREPARED-only SPOT holds during core funding recovery, with independent native unsent provenance, actual File parity, cold restart and a real 61→62 upgrade.
 - [x] Declared earlier filled/ACKed other-order history omitted by the pending command, with original receipts, zero-money ACK proof, File parity and actual 62→63 upgrades.
 - [x] Declared original cancel-request/retry prefixes with independent native originals, unchanged retry history/holds and cold recovery.
 - [x] Declared already completed original SPOT terminal prefixes, including zero-fill subsidy settlement, partially filled economic holds and late-ACK/cancel history; exact independent native receipts, File parity and two cold restores. See the migration-66 qualification below.
 - [x] Declared already completed standalone SPOT inventory-cycle history, with exact original member/fill identities, gross execution cost, settled subsidy and native receipts; File parity, two cold restores and actual 66→67 recovery. See the migration-67 qualification below.
 - [x] Declared completed original unsent aborts and pre-SWAP SPOT NAV histories during core funding recovery; exact native provenance and historical monetary cut, retained highwater/receipts, File parity, cold corruption refusal and actual 67→68 upgrade.
-- [ ] Interrupted lifecycle (including abort/cancel), terminal/inventory-settlement and other required NAV histories. The completed standalone prefixes above do not cover pending side effects or joint portfolio valuation.
+- **Not selected for this delivery:** remaining interrupted File lifecycle/terminal/inventory/NAV migration histories. Native PostgreSQL lifecycle, valuation, settlement and pending recovery remain inside R1 and its frozen gate.
 - [x] Declared coupled outer SPOT/SWAP/funding crash profiles, including USDT/LIFE SPOT fees and interrupted File terminal/inventory side effects with independent original native completions; exact File money/budget parity and original-ID cold replay. See migration-69 qualification below.
 - [x] Declared original PREPARING receipts and partial unsent abort/cancel bookkeeping coupled with outer SWAP/funding recovery: 40 native cases and 85 affected File cases pass. The later frozen `e8a86d4ad` common gate passes all 447 cases, including the three earlier failures; remaining R1 families and source consumption still require qualification. See the original prepared-receipt/lifecycle increment below.
 - [x] Declared original ACK interruptions and ACK-bearing core funding, with exact native ACK completion proofs; completed original File repair cohorts, including multiple interrupted superseding attempts. The 60 native cases below qualify these profiles; broader current-source recovery/source acceptance remains open.
 - [x] Declared earlier completed outer SWAP cash parents before later funding interruptions, preserving exact opening, original writer/economic leaves, gross cost and first-publisher history. Frozen `b4fdab333` passes 149 affected native cases, including the 24-case new economic/crash matrix.
 - [x] Declared completed original SPOT repair → completed outer SWAP cash parent → later funding crash histories, with USDT/LIFE fees and independent native-prefix states; 16 new native workflows, exact File money/gross-budget parity, retained HALT/claims and two cold opens.
 - [x] Declared original ACKed, zero-fill SWAP during outer funding interruption; independent native preparation/ARM/ACK, historical booked/pending-fill refusal, original claims and cold File parity. See the migration-72 qualification below.
-- [ ] Remaining outer SPOT and hedge/carry coordinator histories, including original product checkpoints and the remaining side-effect/valuation/repaired-origin families required by supported File modes.
-- [ ] Complete authenticated order/trade/bill/runner scope and original collateral/liability source consumption at every required terminal/shared-release route.
+- **Not selected for this delivery:** migration of remaining active File outer SPOT/hedge/carry checkpoints and their valuation/repaired-origin history. A clean stopped source is required by PG6; none of these checkpoints may be silently adopted.
+- [x] Explicit source-consuming terminal/shared-release application: complete signed order/trade/bill comparison, original collateral/zero-liability, fresh owning-journal runner facts, exact original command and physical-COMMIT expiry checks. The 205-case gate qualifies this explicit synthetic-source application. Actual complete runner topology and installing the application on every configured service route remain R4; a bare kernel/receipt cannot substitute for it.
 
 **Source-routing constraint:** a `JointCashSpot` payload containing prepared
 receipts or terminal/settlement side effects is not authority to start that work.
@@ -750,26 +772,23 @@ implement a standalone bypass to satisfy an ambiguous checklist label. Qualifica
 passes **10 File routing/authority cases** (9.57 s, `/tmp/life-r1-source-routing.xml`):
 all seven outer crash stages refuse missing coordinator capture without changing
 cut, native bytes or claims; the existing prepared/terminal/settlement authority
-refusals also pass. Supported coupled histories still need the remaining proofs.
+refusals also pass. This constraint remains for qualified historical profiles;
+unselected active File histories are not cutover inputs.
 
-**Remaining R1 execution sequence:** finish the coupled workflows below rather
-than treating another standalone prefix helper as R1 closure. This groups the
-unchecked R1 rows above; it adds no exit workstream and removes no requirement.
+**Selected R1 completion sequence (2026-10-19):**
 
-1. **Outer coordinator and pending side effects together:** actual File joint
-   recovery → frozen original core/outer images → signed native pending import
-   → accounting → terminal/inventory settlement → coordinator recovery. Include
-   original prepared receipts, interrupted abort/cancel/terminal/settlement,
-   required repaired-origin and joint valuation histories. Check both sides of
-   each monetary/release boundary and original-ID cold replay in this workflow.
-2. **Consume complete provider evidence at releases:** connect authenticated
-   order/trade/bill/runner scope and original collateral/zero-liability sources
-   to every terminal/shared-release route. A diagnostic collection or a source
-   label alone cannot authorize a release.
-3. **Qualify R1 on one frozen revision:** run the complete affected File/native
-   recovery workflows, fault/cold/upgrade cases and original money/position/gross
-   budget comparisons. Record any failing workflow explicitly; do not close R1
-   by summing passes from earlier source revisions. R2–R5 retain their own exits.
+1. Consume signed provider orders, trades, anchored account-wide bills and original
+   collateral/zero-liability at explicit SPOT/SWAP terminal and shared release.
+   Preserve original native IDs, NAV timestamps, money, spending and claims.
+   A diagnostic collection or journal decoded from storage grants no authority.
+2. Qualify native pending repair, lifecycle, inventory settlement, joint valuation
+   and release together with transaction/process/backend faults, cancellation,
+   original-ID readback, stale/foreign facts, corruption and File economics.
+   Use one frozen `r1_accounting` run; earlier overlapping counts do not close it.
+3. Keep active File import profiles as historical qualified regressions. Do not
+   continue adding unselected hedge/carry checkpoint formats to close native R1.
+   PG6 must reject non-quiescent sources before staging clean cutover. R2–R5
+   retain their original configured workflow and acceptance exits.
 
 **Earlier R1 increment — native collateral bound (2026-10-17, base `1fb9f32b6`):** migration 43 binds joint publication/history, portfolio basis and terminal/shared release to the dedicated mode-2, non-borrowing USDT cash/UPL model. With portfolio policy installed, shared/carry new-risk admission and physical COMMIT also require the bound and zero native liabilities. Weighted entry prices retain decimal28 precision; collateral capacity uses a conservative ceiling that cannot round upward into additional funds. Funding liability remains a separate shared-risk deduction. Invalid batches retain original pending/HALT/claims with no provisional money. Portfolio source failure revokes the original local runtime; a cold runtime also rejects the same invalid source. Runtime/reporting roles cannot execute the new private helpers.
 
@@ -2130,8 +2149,8 @@ Dependencies: PG2/PG3; can overlap PG4.
 
 Dependencies: PG3–PG5.
 
-- [ ] PG6.1: Add offline import for complete legacy and segmented file cuts plus SQLite recorder provenance. Stop the file writer, acquire existing account ownership, validate every source digest/policy/binding and freeze an immutable source manifest.
-- [ ] PG6.2: Import into `IMPORTING` staging with resumable batches and stable source operation IDs. Preserve original deadlines/epochs, all terminal tombstones, unresolved sends/holds, fees/cashflows/approvals, spent budgets and interrupted joint/action state.
+- [ ] PG6.1: Add offline import for complete **stopped, reconciled** legacy/segmented File cuts plus SQLite recorder provenance. Fence the old writer and sending credentials, acquire account ownership, validate every source digest/policy/binding and freeze an immutable source manifest. Require complete exchange/account/runner reconciliation: no live regular/algo order, unknown send/ACK/fill/fee/bill, pending monetary or recorder attribution, active executor, outstanding financial/shared/hedge/carry claim or unsettled hold; SWAP positions must be closed. Retained SPOT inventory requires its original exact quantity and cost basis. Reject an active/interrupted File product checkpoint; do not force-release claims to make it clean.
+- [ ] PG6.2: Import the clean source into `IMPORTING` staging with resumable batches and stable source operation IDs. Preserve original starting capital/cost basis, retained inventory, cashflows, NAV/highwater, gross loss and subsidy/funding spending, deadlines/epochs, all terminal tombstones, wire/trade/bill/approval/operation identities and deduplication/receipt history. An opening wallet is not a replacement historical basis or a budget reset. The source cannot acquire unresolved sends/holds or new activity between qualification and activation; revalidate the frozen cut. Active File product-state migration requires a separate explicit scope decision.
 - [ ] PG6.3: Compare exact financial totals, complete identity sets and recovered decisions; activate the imported lineage atomically and **unarmed**. Missing/corrupt source evidence blocks activation; never initialize empty authority to work around an import failure.
 - [ ] PG6.4: Keep the source immutable and non-sending. Before any DB-owned orders, reversal can discard staging. After DB-owned orders, rollback requires reconciled export/cutover and a new fenced generation; toggling the backend flag is prohibited.
 - [ ] PG6.5: Exercise backup/PITR restore into an isolated database. Restore is unarmed, has a new controlled lineage, rejects stale grants/epochs, and requires old-credential exclusion plus exchange history reconciliation since the restored cut. No empty history or replayed budget reset.
@@ -2139,7 +2158,7 @@ Dependencies: PG3–PG5.
 
 **Red tests:** `test_postgres_import.py`, `test_postgres_restore.py`, `test_postgres_cutover_rollback.py` with killed/resumed importer and fresh processes.
 
-**Done when:** both source formats import exactly, repeated import is idempotent, restorations cannot rearm, and the rollback runbook has a passing rehearsal.
+**Done when:** both clean stopped source formats import exactly, non-quiescent sources are rejected, repeated import is idempotent, restorations cannot rearm, and the rollback runbook has a passing rehearsal.
 
 ### PG7 — Portable container and Cloud infrastructure definitions
 
@@ -2426,7 +2445,7 @@ Base commit: `c7aef0477`. This implements the quote/observation/cancel subitems 
 4. Qualify PostgreSQL on a VM, then evaluate Cloud Run in PG9 sandbox/demo using the same worker build.
 5. Proceed to PG10 production read-only qualification and the separately approved existing R/C canary on the topology whose applicable PG9 gate has closed. Cloud Run additionally requires PG9.7 ownership/deployment proof and favorable economics. If it is deferred, the qualified VM may proceed through PG10/R/C while Cloud Run-specific items stay open; no production approval is bypassed.
 
-The next financial implementation task is **interrupted legacy `APPLYING` import**, with actual collateral/liability reconciliation, hedge planning/settlement, pending/control/risk/session services and the complete configured source/controller/runner/recorder/final-send assembly still required. Native coupled batches, signed single/cohort funding and exact SPOT/SWAP fill repair, portfolio NAV, terminal and original shared-claim retirement are implemented; this does not close the remaining recovery or service requirements. Use the [remaining PG3 closure work](#remaining-pg3-closure-work) as the implementation backlog. Standalone typed storage and explicit fake-HTTP callbacks do not discharge those contracts or select the PostgreSQL backend. PG1 remains closed for its declared offline File scope; PG2 release/identity/durability, PG0/O.8 and PG4–PG10 retain their separate gates. No unresolved PG3 work is moved to another phase to claim closure.
+The current financial task is the selected **native R1 accounting/recovery acceptance**, followed by R3 and R2/R4. The 2026-10-19 user decision excludes active File hedge/carry/coordinator migration; clean stopped File cutover remains PG6. Hedge composition, pending/control/risk/session services and the complete configured source/controller/runner/recorder/final-send assembly remain required. Native coupled batches, signed single/cohort funding and exact SPOT/SWAP fill repair, portfolio NAV, terminal and original shared-claim retirement are implemented; this does not close the remaining recovery or service requirements. Use the [remaining PG3 closure work](#remaining-pg3-closure-work) as the implementation backlog. Standalone typed storage and explicit fake-HTTP callbacks do not discharge those contracts or select the PostgreSQL backend. PG1 remains closed for its declared offline File scope; PG2 release/identity/durability, PG0/O.8 and PG4–PG10 retain their separate gates. The explicit scope decision is recorded above; no native PG3 recovery or configured-service requirement is moved to another phase to claim closure.
 
 
 ### PG3 explicit SWAP request and ACK qualification (2026-10-17)
@@ -3882,3 +3901,139 @@ run and full R1/R5 acceptance are not claimed. Changed-file hooks pass. The focu
 `legacy_imports`/`joint_recovery` selectors include the new native module.
 R1 and R2–R5 remain open for their fixed exits. No configured DB, `.env`, exchange,
 deployment or new repository evidence file is used.
+
+### PG3 signed joint sources and terminal/shared-release consumption (2026-10-19)
+
+**Selected scope:** the operator explicitly chose fresh PostgreSQL operation and
+clean stopped File cutover. Active File hedge/carry/coordinator migration is no
+longer an R1 delivery requirement. Existing qualified legacy profiles and parser
+refusals remain; this does not qualify an omitted checkpoint. PG6 retains the
+clean-cutover, identity, budget and cost-basis requirements stated above. Native
+PostgreSQL crash/pending recovery remains required.
+
+`PgJointAccountReconciler` compares an existing bounded native cut with signed
+UID-bracketed account reads: original SPOT/SWAP orders, product-scoped trades,
+anchored account-wide bills, approved transfers, paid funding, account-wide
+pending regular/algo orders, collateral, positions and explicit zero liabilities.
+Unfiltered pending-order reads also expose foreign MARGIN/FUTURES/OPTION orders;
+a zero position alone cannot establish account completeness. Two stable complete
+rounds and runner journal observations must agree with the unchanged native cut.
+Unknown/missing/changed facts deny without adopting or applying money. Missing
+liability fields are rejected by the financial observer (`e7064cdc7`); blank does
+not mean zero. Sources are bounded by existing row/byte/request/page/time limits.
+
+`PgJointReleaseApplication` consumes a new original process-local report for each
+SPOT terminal, SWAP terminal or original shared-claim retirement. It binds the
+exact account, owner, intent, preparation, native cut, command bytes and ingress
+epoch; quiescent runner facts are required. It preserves the independent NAV's
+original timestamp. Decoding a stored diagnostic, equal dataclass reconstruction
+or a cold collector cannot recreate report authority. Pre-COMMIT source revocation
+rolls back; a genuinely lost committed reply recovers only the original receipt.
+Caller cancellation invalidates the source while the physical transaction drains:
+pre-COMMIT cancellation rolls back; post-COMMIT recovery cannot repeat the effect.
+
+Migration 73 extends only audited provider-route validation for pinned SWAP and
+account-wide pending requests. Migration 74 adds an optional last deferred
+account-COMMIT deadline check for the explicit application. The transaction-local
+GUC is **not authentication**, and a bare low-level kernel is not this application.
+Migration 75 makes legacy flat account trade-ID sets distinct while retaining
+`(account, product, trade_id)` financial identities. Both SPOT and SWAP may use the
+same textual trade ID without losing a fact or doubling the terminal ID set.
+Python legacy recovery also keys trade evidence by product. All migrations retain
+existing function OIDs/ACLs, refuse unknown predecessors and add no monetary
+bootstrap. Existing numbered migrations are unchanged.
+
+**Qualification before the common R1 gate:**
+
+- **124 migration cases pass**, zero failures/errors/skips, 127.89 s,
+  `/tmp/life-r1-joint-source-final-migrations`; includes actual 72→73→74→75,
+  unchanged ACL/OID checks, unknown predecessor refusal and repeat startup.
+- **205 source/application cases pass**, zero failures/errors/skips, 439.40 s,
+  `/tmp/life-r1-joint-source-awake-final`; actual signed auth/REST chain with
+  synthetic keys and fake HTTP, real disposable PostgreSQL. Foreign orders,
+  missing trades/fees/funding, nonzero/unknown liabilities, changed ingress,
+  client expiry and deferred server-side expiry preserve claims. Lost committed
+  replies retain original IDs. Two-product workflows include USDT/LIFE SPOT fees,
+  transfers, paid funding, terminal and original claim retirement.
+- **12 product-ID collision recovery cases pass**, zero failures/errors/skips,
+  71.11 s, `/tmp/life-r1-legacy-trade-namespace-green`: original File crash cuts,
+  native signed recovery, exact gross-budget/money parity and two cold opens.
+- **4 cancellation cases pass**, zero failures/errors/skips, 21.09 s,
+  `/tmp/life-r1-source-cancellation`, both sides of COMMIT for terminal and release.
+  They are included in the expanded common gate rather than added to its count.
+
+The first combined source gate (`/tmp/life-r1-joint-source-final`) stopped at
+40 passed/1 failed during fixture setup. The PostgreSQL log gap matches host
+clamshell sleep from 11:27:06 to 11:39:17 +07:00 (731 s); the existing 1 s SQL
+statement expired across sleep. The exact six identity-recheck cases and then the
+whole 205-case source suite passed while awake. No SQL/transaction/source-age or
+financial limit was widened. This environmental rerun is not a loaded latency,
+PG8/O.8 or R5 acceptance claim. Original intermediate failures remain diagnostic.
+
+The new `run_postgres --suite r1_accounting --fail-fast` selector covers the
+selected fresh-native scope on one frozen source: transaction guards, lifecycle,
+inventory settlement/File economics, collateral and source consumption, joint
+batch/repair, SPOT/SWAP fills, funding and signed pending repair, NAV, terminal,
+shared release and late observations. R1 can be checked only after that gate
+passes. Actual runner topology and mandatory configured application/ingress/SDK
+installation remain R4; raw DTOs, SQL receipts and source labels cannot discharge
+that gate. R2–R5, configured PostgreSQL selection, demo/live eligibility and
+Cloud Run deployment remain open. No configured `.env`, database, account,
+exchange, deployment or new repository evidence file was used.
+
+**Collection-epoch race regression:** the new test first reproduced adoption of
+an ingress epoch arriving during initial native scope capture without changing
+the cut (`/tmp/life-r1-source-ingress-race-red`, 1 failed). Collection now captures
+its expected epoch before the first await, permits exactly its own one reader
+invalidation and rejects any other ingress throughout provider and final native
+reads. The initial-scope, provider-round and final-scope cases plus the four
+cancellation cases all pass: **7 passed**, 28.50 s,
+`/tmp/life-r1-source-ingress-race-green`. The first common gate was explicitly
+interrupted at 24 passes to add this regression; it is not an acceptance result.
+The restarted frozen gate is `/tmp/life-r1-native-accounting-final`.
+
+### PG3 native R1 closure (2026-10-19)
+
+- [x] Signed complete order/trade/anchored-bill and collateral/zero-liability
+  comparison for the selected dedicated mode-2 account model.
+- [x] Native SPOT fill/cashflow, SWAP fill, funding and terminal pending repair,
+  with original signatures, immutable source IDs and retained HALT/claims.
+- [x] Explicit source-consuming SPOT/SWAP terminal and original shared release,
+  including stale/foreign/missing evidence, ingress during collection/COMMIT,
+  actual deferred server expiry, caller cancellation and lost committed replies.
+- [x] Native transaction/lifecycle/inventory/portfolio/late-observation regression,
+  File economic comparisons, process/backend faults, cold original-ID recovery,
+  corruption and role refusals on one frozen source.
+
+**Final common gate:** `storage.run_postgres --suite r1_accounting --fail-fast`,
+**736 passed**, zero failures/errors/skips, six existing Pydantic warnings,
+**2090.22 s**, `/tmp/life-r1-native-accounting-final/integration.xml`. The gate
+includes the new source/epoch/cancellation cases; their earlier focused counts
+are not additional. The 33 changed Python/test/SQL file hashes recorded before
+execution still match afterwards (`/tmp/life-r1-native-source-manifest.json`).
+Base is `e7064cdc7` plus this delivery. The SQL migration gate remains **124 passed**;
+SQL files did not change during subsequent Python race/cancellation work.
+The existing **12** product-scoped trade-ID legacy recovery cases also pass;
+these are retained historical support, not a requirement to implement unselected
+active File checkpoint families. The interrupted first 24-pass gate and the
+race's Red failure remain diagnostic, superseded by this passing common gate.
+
+This closes **R1 only**, under the explicit 2026-10-19 user decision. Fresh native
+PostgreSQL crash recovery is qualified here; clean stopped File cutover is still
+an unimplemented PG6 gate. Active File hedge/carry/coordinator migration remains
+unselected and unsupported unless separately qualified. Existing strict refusals
+remain. Full configured runner topology, authenticated market/fee/planner sources,
+mandatory application/ingress/recorder/SDK installation and enabling the backend
+still require R4. R3 control/risk/session is next, followed by R2/R4 and R5.
+No deployment/demo/live or latency/scalability eligibility follows this functional
+run. No timeout, source-age, financial budget or capacity was widened, and no new
+repository evidence file was created.
+
+**Final affected upgrade regression:** **24 passed**, zero failures/errors/skips,
+119.96 s, `/tmp/life-r1-affected-upgrades-final/integration.xml`. This checks the
+changed original-history/snapshot upgrade paths through migration 75, retaining
+original money, holds, budgets, receipts and cold verification. The broad harness
+collected other tests but deselected them; 2,546 deselections are not passes or
+skips. These upgrade cases are separate from the 736 native R1 gate. Source/test/
+SQL hashes still match the frozen manifest. Changed-file hooks and diff checks
+pass before the delivery commit.

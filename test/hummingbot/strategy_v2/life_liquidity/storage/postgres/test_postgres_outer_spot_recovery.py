@@ -153,7 +153,7 @@ async def test_actual_68_outer_spot_upgrade_recovers_original_mixed_money_and_cl
     try:
         before, claims = await financial.snapshot(cfg.binding), await values[5].claims(cfg.binding)
         await financial.close()
-        assert (await migrate(c, action='up'))['applied'] == ['000069_legacy_joint_spot_claims.sql', '000070_repair_view_reuse.sql', '000071_required_ack_completion.sql', '000072_unfilled_swap_prefix.sql']
+        assert (await migrate(c, action='up'))['applied'] == ['000069_legacy_joint_spot_claims.sql', '000070_repair_view_reuse.sql', '000071_required_ack_completion.sql', '000072_unfilled_swap_prefix.sql', '000073_joint_provider_routes.sql', '000074_joint_source_deadline.sql', '000075_joint_trade_id_sets.sql']
         cold, capital, batch, importer = await restore(cfg, owner, c)
         after = await cold.snapshot(cfg.binding)
         assert (after.balance, after.budget, after.cut) == (before.balance, before.budget, before.cut)

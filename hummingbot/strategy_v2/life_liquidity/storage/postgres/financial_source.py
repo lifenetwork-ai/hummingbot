@@ -1,4 +1,4 @@
-"""Pinned signed OKX reads for SPOT intake and account-wide collateral observation.
+"""Pinned signed OKX reads for joint intake and account-wide reconciliation.
 
 No arbitrary URL/method/params, sender, activation or terminal release. Bounds
 limit collection work/accepted decoded JSON; they are not an HTTP streaming cap.
@@ -49,6 +49,8 @@ class _FinancialReadGuard:
 
 
 class PgSpotAccountReader:
+    SWAP_ALGO_TYPES = (*OkxSpotOrderGateway.SPOT_ALGO_TYPES, 'chase')
+
     def __init__(self, source, *, max_reads, max_bytes, timeout_ms):
         if (type(source) not in (PgQuoteAccountSource, PgObservationAccountSource)
                 or type(source) is PgQuoteAccountSource and source._policy is None
@@ -118,6 +120,25 @@ class PgSpotAccountReader:
     def _route(cls, path, params):
         if type(params) is not dict or any(type(key) is not str or type(value) is not str for key, value in params.items()):
             raise StorageError('PG_FINANCIAL_SOURCE_ROUTE_INVALID')
+        if path in (C.OKX_ORDERS_PENDING_PATH, C.OKX_ORDERS_ALGO_PENDING_PATH) and 'instType' not in params:
+            if path == C.OKX_ORDERS_ALGO_PENDING_PATH and params == {'limit': '100', 'ordType': 'chase'}:
+                return
+            return cls._route(path, {**params, 'instType': 'SPOT'})
+        # Normalize only the fixed SWAP instrument/product to the existing
+        # exact SPOT query grammar. Account-wide routes retain no instId filter;
+        # a per-order history must carry both the original ordId and instrument.
+        if (path in (C.OKX_TRADE_FILLS_HISTORY_PATH, C.OKX_ORDERS_PENDING_PATH, C.OKX_ORDERS_ALGO_PENDING_PATH)
+                and params.get('instType') == 'SWAP'):
+            if 'instId' in params and params['instId'] != 'LIFE-USDT-SWAP':
+                raise StorageError('PG_FINANCIAL_SOURCE_ROUTE_INVALID')
+            if path == C.OKX_ORDERS_ALGO_PENDING_PATH and params == {'instType': 'SWAP', 'limit': '100', 'ordType': 'chase'}:
+                return
+            normalized = {**params, 'instType': 'SPOT'}
+            if 'instId' in normalized:
+                normalized['instId'] = 'LIFE-USDT'
+            return cls._route(path, normalized)
+        if path == C.OKX_ORDER_DETAILS_PATH and params.get('instId') == 'LIFE-USDT-SWAP':
+            return cls._route(path, {**params, 'instId': 'LIFE-USDT'})
         required = {
             C.OKX_ACCOUNT_BILLS_ARCHIVE_PATH: {'limit': '100'},
             C.OKX_TRADE_FILLS_HISTORY_PATH: {'instType': 'SPOT', 'limit': '100'},
@@ -229,6 +250,37 @@ class PgSpotAccountReader:
         if ord_type not in OkxSpotOrderGateway.SPOT_ALGO_TYPES:
             raise StorageError('PG_FINANCIAL_SOURCE_ALGO_INVALID')
         return await self._read(C.OKX_ORDERS_ALGO_PENDING_PATH, {'ordType': ord_type, 'instType': 'SPOT', 'limit': '100'})
+
+    async def get_all_swap_fill_history_page(self, after=None):
+        return await self._read(C.OKX_TRADE_FILLS_HISTORY_PATH, self._page({'instType': 'SWAP', 'limit': '100'}, after))
+
+    async def get_swap_fill_history_page(self, exchange_order_id, after=None):
+        identifier(exchange_order_id)
+        return await self._read(C.OKX_TRADE_FILLS_HISTORY_PATH,
+                                self._page({'instType': 'SWAP', 'instId': 'LIFE-USDT-SWAP',
+                                            'ordId': exchange_order_id, 'limit': '100'}, after))
+
+    async def get_swap_order_by_client_id(self, client_order_id):
+        identifier(client_order_id)
+        return await self._read(C.OKX_ORDER_DETAILS_PATH, {'instId': 'LIFE-USDT-SWAP', 'clOrdId': client_order_id})
+
+    async def get_all_open_swap_orders_page(self, after=None):
+        return await self._read(C.OKX_ORDERS_PENDING_PATH, self._page({'instType': 'SWAP', 'limit': '100'}, after))
+
+    async def get_all_open_orders_page(self, after=None):
+        # No product/instrument filter: foreign MARGIN/FUTURES/OPTION/EVENTS
+        # orders must remain visible even while account positions are zero.
+        return await self._read(C.OKX_ORDERS_PENDING_PATH, self._page({'limit': '100'}, after))
+
+    async def get_all_pending_algo_orders_page(self, ord_type):
+        if ord_type not in self.SWAP_ALGO_TYPES:
+            raise StorageError('PG_FINANCIAL_SOURCE_ALGO_INVALID')
+        return await self._read(C.OKX_ORDERS_ALGO_PENDING_PATH, {'ordType': ord_type, 'limit': '100'})
+
+    async def get_all_pending_swap_algo_orders_page(self, ord_type):
+        if ord_type not in self.SWAP_ALGO_TYPES:
+            raise StorageError('PG_FINANCIAL_SOURCE_ALGO_INVALID')
+        return await self._read(C.OKX_ORDERS_ALGO_PENDING_PATH, {'ordType': ord_type, 'instType': 'SWAP', 'limit': '100'})
 
     async def get_spot_cash_balances(self):
         return await self._read(C.OKX_BALANCE_PATH, {})

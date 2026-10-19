@@ -473,22 +473,24 @@ class PgSpotRepository:
                                    value['state'], value['subsidy_settled'], value['replayed'], self.atomic_scope)
         raise StorageUnavailable('PG_ORDER_RECEIPT_INVALID')
 
-    async def _order_command(self, command, cut, owner, kind, *, resume=False):
+    async def _order_command(self, command, cut, owner, kind, *, resume=False, source_fence=None):
         version, digest = self._cut(cut, owner)
         identity = fingerprint({'kind': kind, 'command': command.json(), 'owner': owner.json(), 'binding': self.binding.json()})
         args = (self._runtime.config.account_id, self.binding.json(), owner.json(), version, digest, identity, kind, command.json(), resume)
+        if source_fence is not None:
+            self._runtime._ingress_epoch += 1
         return await self._runtime._transaction('SELECT life_financial.spot_order_command($1,$2,$3,$4,$5,$6,$7,$8,$9)',
-                                                args, owner, self._order_receipt, observation=True)
+                                                args, owner, self._order_receipt, observation=True, source_fence=source_fence)
 
     async def apply_lifecycle(self, command, *, cut, owner):
         if type(command) is not SpotLifecycleCommand:
             raise StorageError('PG_ORDER_COMMAND_INVALID')
         return await self._order_command(command, cut, owner, 'SPOT_LIFECYCLE')
 
-    async def confirm_terminal(self, command, *, cut, owner):
+    async def confirm_terminal(self, command, *, cut, owner, _source_fence=None):
         if type(command) is not TerminalSpot or command.facts.binding != self.binding:
             raise StorageError('PG_TERMINAL_COMMAND_INVALID')
-        return await self._order_command(command, cut, owner, 'SPOT_TERMINAL')
+        return await self._order_command(command, cut, owner, 'SPOT_TERMINAL', source_fence=_source_fence)
 
     async def resume_terminal(self, command, *, cut, owner):
         if type(command) is not TerminalSpot or command.facts.binding != self.binding:

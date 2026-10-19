@@ -104,12 +104,12 @@ def joint_profile(source, command):
         product = claim['product']
         for t in order['trades']:
             actual = provided[t['trade_id']]
-            if (t['trade_id'] in trades or t['fee_currency'] not in (('USDT',) if product == 'SWAP' else ('LIFE', 'USDT'))
+            if ((product, t['trade_id']) in trades or t['fee_currency'] not in (('USDT',) if product == 'SWAP' else ('LIFE', 'USDT'))
                     or (actual.quantity_base_life, actual.price_usdt, actual.fee_currency, actual.signed_fee,
                         actual.fill_at_ms, actual.realized_pnl_usdt if product == 'SWAP' else D('0'), actual.sequence if product == 'SWAP' else None)
                     != (D(t['quantity_base']), D(t['price_usdt']), t['fee_currency'], D(t['signed_fee']), t['at_ms'], D(t['realized_pnl_quote']), t['sequence'])):
                 raise StorageError('PG_LEGACY_APPLYING_FACTS_CHANGED')
-            trades[t['trade_id']] = t
+            trades[product, t['trade_id']] = t
             if product == 'SWAP':
                 cash = D(t['realized_pnl_quote']) + D(t['signed_fee'])
                 expected_cash += cash
@@ -132,7 +132,8 @@ def joint_profile(source, command):
         event = JointCashEvent(f'JOINT:{at}:FUNDING:{bill}', amount)
         target_events[event.event_id] = event
     if (expected_cash != source.facts.account_quote_usdt or expected_base != source.facts.account_base_life
-            or set(source.facts.account_trade_ids) != set(trades) or set(source.facts.account_cashflow_ids) != set(flows)):
+            or set(source.facts.account_trade_ids) != {trade_id for _, trade_id in trades}
+            or set(source.facts.account_cashflow_ids) != set(flows)):
         raise StorageError('PG_LEGACY_APPLYING_FACTS_CHANGED')
     # The complete core saga may not have started yet, or may already be
     # APPLIED. Its original pre-images are authoritative in both latter cases;
