@@ -57,6 +57,7 @@ async def test_status_has_no_ddl_and_repeat_up_does_not_reexecute(db):
     assert not await c.fetchval("SELECT to_regnamespace('life_migrations') IS NOT NULL")
     assert len((await migrate(c, directory, action='up'))['applied']) == 2
     assert (await migrate(c, directory, action='up'))['applied'] == []
+
     assert (await migrate(c, directory))['pending'] == []
     assert await c.fetchval('SELECT n FROM sample.counter') == 2
     assert [r['version'] for r in await versions(c)] == [1, 2]
@@ -2435,5 +2436,102 @@ async def test_joint_trade_id_set_upgrade_is_atomic_preserves_port_oids_acl_and_
             assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", role, port)
     assert tables == await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace='life_financial'::regnamespace ORDER BY oid")
     for table in ('accounts', 'operations', 'fills', 'fees', 'financial_events', 'budget_events'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+    assert (await migrate(c, directory, action='up'))['applied'] == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('unexpected_shape', ['none', 'body', 'security', 'search_path', 'volatility'])
+async def test_signed_native_control_upgrade_preserves_existing_guards_and_revokes_no_existing_acl(db, unexpected_shape):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 76:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    target = 'life_financial.guard_account(uuid,jsonb,jsonb,bigint)'
+    await c.execute('GRANT EXECUTE ON FUNCTION ' + target + ' TO life_runtime_test')
+    if unexpected_shape == 'body':
+        definition = await c.fetchval('SELECT pg_get_functiondef(to_regprocedure($1))', target)
+        await c.execute(definition.replace('at := clock_timestamp();', 'at :=  clock_timestamp();', 1))
+    elif unexpected_shape == 'security':
+        await c.execute('ALTER FUNCTION ' + target + ' SECURITY INVOKER')
+    elif unexpected_shape == 'search_path':
+        await c.execute('ALTER FUNCTION ' + target + ' SET search_path=pg_catalog,public')
+    elif unexpected_shape == 'volatility':
+        await c.execute('ALTER FUNCTION ' + target + ' STABLE')
+    query = '''SELECT p.oid,p.oid::regprocedure::text AS signature,p.proacl,p.prosrc,p.provolatile::text AS provolatile,p.prosecdef,p.proconfig,p.proowner
+        FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='life_financial' ORDER BY p.oid'''
+    before = {r['signature']: dict(r) for r in await c.fetch(query)}
+    tables = await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace='life_financial'::regnamespace ORDER BY oid")
+    path = DEFAULT_DIRECTORY / '000076_signed_native_control.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    if unexpected_shape != 'none':
+        with pytest.raises(asyncpg.RaiseError, match='LIFE_CONTROL_MIGRATION_MISMATCH'):
+            await migrate(c, directory, action='up')
+        assert {r['signature']: dict(r) for r in await c.fetch(query)} == before
+        assert tables == await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace='life_financial'::regnamespace ORDER BY oid")
+        assert (await versions(c))[-1]['version'] == 75
+        return
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    after = {r['signature']: dict(r) for r in await c.fetch(query)}
+    patched = {target, 'life_financial.guard_spot_observation(uuid,jsonb,jsonb,bigint)',
+               'life_financial.commit_owner_guard()', 'life_financial.spot_state(uuid)'}
+    helpers = {'life_financial.control_owner(jsonb)', 'life_financial.control_verified(uuid)',
+               'life_financial.control_facts_qualified(uuid,jsonb)', 'life_financial.control_commit_check(uuid,text)'}
+    assert set(after) - set(before) == helpers
+    for signature, original in before.items():
+        assert after[signature] == (original if signature not in patched else {**original, 'prosrc': after[signature]['prosrc']})
+    assert await c.fetchval("SELECT has_function_privilege('life_runtime_test',$1,'EXECUTE')", target)
+    for signature in helpers:
+        for role in ('public', 'life_runtime_test', 'life_reporter_test'):
+            assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", role, signature)
+    for table in ('accounts', 'operations', 'activation_grants', 'grant_consumptions', 'control_policies', 'control_records', 'financial_events'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+    assert (await migrate(c, directory, action='up'))['applied'] == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('unexpected_shape', ['none', 'body', 'security', 'search_path', 'volatility'])
+async def test_native_successor_upgrade_preserves_control_oids_acl_and_rejects_changed_predecessor(db, unexpected_shape):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 77:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    target = 'life_financial.control_verified(uuid)'
+    await c.execute('GRANT EXECUTE ON FUNCTION ' + target + ' TO life_reporter_test')
+    if unexpected_shape == 'body':
+        definition = await c.fetchval('SELECT pg_get_functiondef(to_regprocedure($1))', target)
+        await c.execute(definition.replace('BEGIN', 'BEGIN\n-- unexpected predecessor', 1))
+    elif unexpected_shape == 'security':
+        await c.execute('ALTER FUNCTION ' + target + ' SECURITY INVOKER')
+    elif unexpected_shape == 'search_path':
+        await c.execute('ALTER FUNCTION ' + target + ' SET search_path=pg_catalog,public')
+    elif unexpected_shape == 'volatility':
+        await c.execute('ALTER FUNCTION ' + target + ' VOLATILE')
+    query = '''SELECT p.oid,p.oid::regprocedure::text AS signature,p.proacl,p.prosrc,p.provolatile::text AS provolatile,p.prosecdef,p.proconfig,p.proowner
+        FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='life_financial' ORDER BY p.oid'''
+    before = {r['signature']: dict(r) for r in await c.fetch(query)}
+    tables = await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace='life_financial'::regnamespace ORDER BY oid")
+    path = DEFAULT_DIRECTORY / '000077_reconciled_session_successors.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    if unexpected_shape != 'none':
+        with pytest.raises(asyncpg.RaiseError, match='LIFE_SUCCESSOR_CONTROL_MIGRATION_MISMATCH'):
+            await migrate(c, directory, action='up')
+        assert {r['signature']: dict(r) for r in await c.fetch(query)} == before
+        assert tables == await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace='life_financial'::regnamespace ORDER BY oid")
+        assert (await versions(c))[-1]['version'] == 76
+        return
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    after = {r['signature']: dict(r) for r in await c.fetch(query)}
+    helpers = {'life_financial.control_successor_verified(uuid,text)', 'life_financial.control_successor_commit(uuid,text)'}
+    assert set(after) - set(before) == helpers
+    patched = {target, 'life_financial.control_commit_check(uuid,text)'}
+    for signature, original in before.items():
+        assert after[signature] == (original if signature not in patched else {**original, 'prosrc': after[signature]['prosrc']})
+    for signature in helpers:
+        for role in ('public', 'life_runtime_test', 'life_reporter_test'):
+            assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", role, signature)
+    for table in ('accounts', 'operations', 'activation_grants', 'grant_consumptions', 'control_policies', 'control_records', 'session_successors'):
         assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
     assert (await migrate(c, directory, action='up'))['applied'] == []

@@ -12,8 +12,8 @@ from hummingbot.strategy_v2.life_liquidity.storage.settlement import SettleSpotI
 from hummingbot.strategy_v2.life_liquidity.storage.terminal import SpotTerminalFacts, TerminalSpot
 
 
-async def cycle(database, *, sell_price=D('1'), fee_currency='USDT', sell_quantity=D('1'), sell_reference=D('.9'), buy_reference=D('.9'), usdt_fee=D('-.02'), max_age_ms=1000, close_last=True):
-    repo, cfg, owner = await spot(database)
+async def cycle(database, *, sell_price=D('1'), fee_currency='USDT', sell_quantity=D('1'), sell_reference=D('.9'), buy_reference=D('.9'), usdt_fee=D('-.02'), max_age_ms=1000, close_last=True, financial_values=None):
+    repo, cfg, owner = await spot(database) if financial_values is None else financial_values
     c = database[0]
     await c.execute("INSERT INTO life_financial.spot_capital_policies VALUES($1,$2,5,10,1,$3,'100',4096)", cfg.account_id, cfg.binding.policy_hash, owner.valid_from)
     await c.execute('INSERT INTO life_financial.spot_fill_policies VALUES($1,$2,1000,4096)', cfg.account_id, cfg.binding.policy_hash)

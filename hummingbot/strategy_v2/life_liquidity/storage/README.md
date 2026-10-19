@@ -3675,3 +3675,30 @@ clean stopped File cutover in PG6.
 Active/interrupted File hedge/carry checkpoints are not selected. Native pending
 recovery remains required. Cutover must retain capital/cost basis, spent budgets
 and permanent deduplication/receipt history; an opening wallet cannot reset them.
+
+## Native signed control and successor sessions
+
+`postgres.control.PgControlRepository` uses a separate migration-owner connection
+and externally supplied public verifier keys. It retains no signing secret. It
+implements signed DRAIN/REVOKE/RECOVER, fresh-generation ACTIVATE, and expired
+parent successor reconciliation. All effects retain original approvals/cuts and
+receipts; retry and lookup never renew a grant, reset budgets or enable the
+original process. Logical revocation retains RECOVERY_ONLY accounting for late
+observations. Activation requires fresh complete quiescent facts and cannot clear
+HALT. Session successors use the original parent's expiry plus an explicit
+imported duration; reconciliation/readback cannot restart their clock. They need
+a separate signed ACTIVATE. This is logical control, separate from PG4 sender and
+credential exclusion. Configured PostgreSQL selection remains rejected.
+
+The focused disposable gate is:
+
+```sh
+python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_postgres \
+  --suite r3_control --fail-fast --output /tmp/UNIQUE_RUN_NAME
+```
+
+The initial frozen control/successor gate passes **44 cases**; the two audited
+upgrade families pass **10 cases**. Coverage includes original filled economics,
+physical COMMIT deadlines, backend termination, actual process exit, caller
+cancellation, immutable history corruption, role denial and capacity rejection.
+Native risk/probe/stress/inventory/EXIT and coupled R3 acceptance remain open.

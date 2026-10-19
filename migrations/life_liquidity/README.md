@@ -1062,3 +1062,31 @@ account, policy, balance, activation or configured PostgreSQL sender.
   bodies/settings abort atomically. These three migrations share the existing
   checksum/version/advisory-lock runner; repeated startup is a no-op. The actual
   124-case migration gate passes, including upgrades and negative checks.
+
+## 000076–000077: signed logical control and session successors
+
+`000076_signed_native_control.sql` adds empty, immutable, bounded control policy
+and approval history. `postgres.control.PgControlRepository` verifies externally
+supplied Ed25519 public keys against the registered configuration, then commits
+the original signature, facts, cut, ownership effect and receipt together. The
+runtime role cannot insert approval/grant rows or invoke private helpers. ACTIVE
+requires a separately signed, unused generation and complete quiescent native
+facts; HALT, money, spent budgets and history remain intact. Logical UNARMED
+keeps the native observation writer in RECOVERY_ONLY so late ACK/fill accounting
+is possible. Control results and readback never enable local submission.
+
+`000077_reconciled_session_successors.sql` adds empty parent/child links. A signed
+OBSERVE_SESSION operation can reconcile an expired, transitioning, clock-qualified
+parent using fresh complete facts and an independent anchor. The deterministic
+child starts at the original parent expiry and ends after the explicitly imported
+successor duration. Late reconciliation cannot extend that deadline. The old
+writer remains current until a separate signed ACTIVATE. Parent clock-only
+observations persist rollback checks without claiming market readiness.
+
+Both upgrades preserve original function OIDs, ACLs and prior financial checks.
+Unexpected predecessor body, security, volatility or search path rolls back the
+whole upgrade. Timestamp comparisons use instants while retaining the original
+signed timestamp strings. These migrations do not seed accounts, capital,
+approvals, grants or live thresholds. They implement logical control; process,
+credential and transport exclusion remain PG4. The migration owner remains
+trusted under PG0; SQL checksums do not attest a malicious schema owner.

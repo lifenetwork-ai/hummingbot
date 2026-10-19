@@ -720,6 +720,10 @@ failing integration result visible until the same current-source workflow passes
 - [x] **R1 — accounting/recovery (selected fresh-PostgreSQL scope):** complete authenticated collateral/zero-liability and order/trade/bill comparison; signed resolution of native SPOT fill/cashflow, SWAP fill, funding and terminal pending facts; source-consuming explicit SPOT/SWAP terminal/shared release. Exit replay: original observations/IDs survive crash, exact cash/positions/gross budgets agree with the qualified File economic model, and unresolved/foreign/stale facts prevent release. The frozen `run_postgres --suite r1_accounting --fail-fast` gate passes **736 cases**, zero failures/errors/skips; see the closure qualification below. The dedicated mode-2, non-borrowing USDT model is the selected model. Active File `APPLYING` hedge/carry/coordinator migration is outside this delivery by the explicit 2026-10-19 decision; clean stopped cutover remains PG6. Native pending recovery is not excluded. Actual configured runner topology and mandatory application installation remain R4; raw repository DTOs/SQL receipts are bookkeeping, not authenticated source authority.
 - [ ] **R2 — hedge composition:** qualified source → cancel existing makers → native hedge plan/child → guarded final SWAP request → durable ACK/fills → settlement. Exit replay: partial fills, stop during await and retry exhaustion retain the original cost/claims; unknown proceeds never finance a sibling.
 - [ ] **R3 — control/risk/session:** signed pending repair and successor reconciliation/activation; persistent native markout/probe/stress/inventory/EXIT gates. Exit replay: restart and late observations retain HALT, budgets and approvals; each enabled risk mode reaches its native financial gate.
+  - [x] R3.1: Signed native DRAIN/REVOKE/RECOVER and separate new-generation ACTIVATE; retain the original observation writer, permanent approvals/grant consumption, HALT and financial history across cancellation/unknown COMMIT. Migration 76 and the control port are qualified by the 44-case native control/successor gate, physical COMMIT/process/backend/cancellation and corruption cases, and the audited upgrades recorded below. No PG4 lease/credential exclusion is inferred.
+  - [x] R3.2: Native successor reconciliation/observation from the expired original session, complete quiescent facts and a fixed imported duration; preserve clock/expiry latches and require a separate signed ACTIVATE.
+  - [ ] R3.3: Durable markout/probe/stress/inventory/EXIT decisions, original spending and mode-specific permission at native prepare/arm/COMMIT gates; reads, late facts and restart cannot restore permission or refund budgets.
+  - [ ] R3.4: One frozen coupled native control/session/risk regression with File economic parity, cold readback/corruption/role refusals and process/backend/cancellation failures. Configured source/runner installation remains R4.
 - [ ] **R4 — configured assembly:** install planner/reference/book/fee, complete runner/account scope, SPOT/SWAP final request guards, ingress/collectors and recorder/SDK history in the actual controller/service. Exit replay: start the configured PostgreSQL service with fake exchange; both products complete the selected workflow; a missing route fails startup without File fallback. PostgreSQL selection remains rejected until this passes.
 - [ ] **R5 — current-source acceptance:** all supported File/native decisions and units agree; whole-runner restart/corruption/role tests and process/backend faults pass at capture, send, ACK, settlement, release and signed repair. Resolve the observed SQL statement timeout, then run the complete affected workflow on one frozen source revision. PG0 trust/anchor requirements remain explicit; neither local tests nor a database receipt prove exactly-once exchange delivery.
 
@@ -4037,3 +4041,59 @@ collected other tests but deselected them; 2,546 deselections are not passes or
 skips. These upgrade cases are separate from the 736 native R1 gate. Source/test/
 SQL hashes still match the frozen manifest. Changed-file hooks and diff checks
 pass before the delivery commit.
+
+### PG3 R3 native signed control and successors (2026-10-19)
+
+Migration 76 and `PgControlRepository` commit signed DRAIN/REVOKE/RECOVER and a
+separate new-generation ACTIVATE against the original primary cut and explicit
+control limits. The registered public-key policy and Ed25519 signature are
+checked before writing. Logical UNARMED retains the original native observation
+writer in RECOVERY_ONLY. Late held-order ACK/fill accounting remains possible;
+there is no refund, budget reset, HALT clear or local readiness restoration.
+Original-ID retry consumes no additional grant. This does not provide PG4 process,
+credential or transport exclusion.
+
+Migration 77 reconciles a transitioning expired parent into one deterministic
+market-reference child, using signed fresh complete facts and an independent
+anchor. The child's start is the original parent expiry; its duration is an
+explicit imported value. Reconciliation and cold readback never extend expiry or
+activate it. Clock-only observation uses native session ticks with all readiness
+flags false. A separate signed ACTIVATE must satisfy both parent/child clock
+latches, the fixed child deadline and fresh quiescent facts.
+
+- Frozen native control/successor selector: **44 passed**, zero failures/errors/
+  skips, six existing warning categories, **104.97 s**. Raw log/XML:
+  `/tmp/life-r3-control-complete`. Includes a real filled/fee/subsidy cycle before
+  both same-session and successor activation, process exit before/after COMMIT,
+  backend termination, owned cancellation, stale/incomplete/foreign/liability
+  refusals, corrupt records/receipts/grants and atomic capacity limits.
+- Audited migration 76/77 qualification: **10 passed**, zero failures/errors/
+  skips, **16.72 s**, `/tmp/life-r3-control-upgrades-fixed`. Existing function OIDs,
+  ACLs, security/search-path/volatility survive the expected upgrade; unexpected
+  predecessors roll back all DDL. Repeated startup applies nothing and seeds no
+  financial rows. The first upgrade run exposed misplaced test assertions; those
+  assertions were restored to their original test before the passing rerun.
+- A real timestamp equivalence defect was reproduced with signed expiry
+  `.100000` versus PostgreSQL JSON `.1`. Validation now compares timestamp
+  instants while retaining original signed strings. Both spelling cases pass.
+- These are standalone native control/session results. **R3 stays open** for
+  durable native risk/probe/stress/inventory/EXIT and coupled R3 acceptance.
+  Actual configured source/controller/runner installation is R4. The PG0 trusted
+  owner contract, fresh-PostgreSQL delivery scope and later release/demo/live
+  gates remain unchanged. No configured database, exchange, deployment or new
+  evidence artifact was used.
+
+The complete migration regression passes **134 cases**, zero failures/errors/
+skips, **150.81 s** (`/tmp/life-r3-control-migrations-final`). A subsequent
+physical-COMMIT fault exposed a missing parent clock-latch recheck during child
+ACTIVATE. The new check rejects that transaction atomically; its negative and
+normal successor activation cases both pass, **5.99 s**
+(`/tmp/life-r3-parent-commit-green`). The full migration run predates that final
+branch; the audited 76/77 upgrade selector is rerun on the final branch below.
+
+The final parent-latch branch also passes the **10 audited upgrade cases**, zero
+failures/errors/skips, **15.63 s**, `/tmp/life-r3-control-upgrades-parent-final`.
+R3.1 and R3.2 close for logical native control/session scope. R3.3/R3.4 and R3
+remain open. The focused control suite now contains 45 cases including the new
+parent-at-COMMIT reproduction; the earlier 44-case result is not relabeled as a
+45-case full run.
