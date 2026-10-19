@@ -28,6 +28,13 @@ upgrades pass **21 cases**. **R3 stays open** for stress/rolling capacity,
 inventory/EXIT and coupled acceptance. See
 [scope and qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-r3-native-markout-and-bounded-bootstrap-2026-10-19).
 
+**R3 stress checkpoint (2026-10-19):** native stress/rolling capacity now derives
+exposure from permanent wallet/fill/reservation facts and rechecks source age,
+reference, owner, epoch and local observer at financial COMMIT. The focused
+safety/stress gate passes **51 cases**; the audited 79→80 upgrade gate passes
+**5 cases**. Inventory/EXIT and coupled R3 mode acceptance remain open. See
+[qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-r3-native-stress-and-rolling-capacity-2026-10-19).
+
 **Earlier PG3 R1 checkpoint (2026-10-19):** original ACKed zero-fill SWAP
 orders retain their independently admitted preparation/ARM/ACK and claims during
 funding recovery. Migration 72 passes 113 migration cases; 53 File/source cases

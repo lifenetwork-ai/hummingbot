@@ -3752,3 +3752,19 @@ the candidate and preserves money/budgets. Stress/rolling capacity, inventory/EX
 coupled R3 mode acceptance and R4 configured installation remain open. Retained
 history has explicit fail-closed count/byte bounds; this is not a scalability or
 live-account qualification.
+
+
+## Native reservation-derived stress
+
+`postgres.stress.PgStressRepository` records explicit independent stress inputs.
+SQL derives actual inventory, cash, original open quantities and same-side rolling
+fills; pending BUY/SELL quantities never net to finance each other. Native
+financial COMMIT rechecks current exposure, reference, age, owner/epoch and local
+observer. Original-ID replay and `frame()` are diagnostics with
+`trading_permission=False`. Cold readback cannot heal runtime admission.
+
+The focused safety/stress gate passes **51 cases**; audited 79→80 upgrades pass
+**5 cases**. Missing/corrupt history, source expiry during COMMIT and revoked
+required grants fail closed. History uses explicit count/byte limits and fixed-size
+predecessor hashes. Inventory/EXIT and coupled R3 mode acceptance remain open;
+configured authenticated source/runner installation remains R4.

@@ -1140,3 +1140,20 @@ new helpers remain private, and scoped diagnostics need explicit provisioning.
 No account, live threshold, capital or activation is seeded. Framework migration
 history makes repeated startup/up calls a no-op. Stress/rolling capacity,
 inventory/EXIT, configured assembly and deployment/demo/live gates remain open.
+
+
+## 000080: native stress and rolling capacity
+
+`000080_native_stress.sql` creates empty immutable stress policies and original
+bounded observations. Private SQL calculators use native wallet/fill/reservation
+truth, all-one-side stress and actual rolling same-side fills. A deferred guard
+rechecks every new SPOT prepare/ARM/quote-ARM at physical COMMIT. Source age,
+qualified reference, owner/generation, permission epoch and the local runtime
+observer remain mandatory. Reads and original-ID replay grant no permission.
+
+The audited observation-guard extension preserves financial OIDs/ACLs and rejects
+unexpected predecessor shape atomically. New helpers remain private; enabled
+accounts need explicit scoped stress command/read grants. Existing mapped roles
+receive only a scoped enablement read on upgrade. No account, capital, activation
+or live default is seeded. Framework migration history makes repeated up/startup
+calls a no-op. Inventory/EXIT and configured service installation remain open.

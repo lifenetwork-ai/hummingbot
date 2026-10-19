@@ -2627,3 +2627,48 @@ async def test_native_markout_upgrade_preserves_financial_oids_acl_and_has_no_im
     for table in ('risk_markout_probe_policies', 'risk_service_policies', 'risk_events', 'accounts', 'operations', 'financial_events'):
         assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
     assert (await migrate(c, directory, action='up'))['applied'] == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('unexpected_shape', ['none', 'body', 'security', 'search_path', 'volatility'])
+async def test_native_stress_upgrade_preserves_financial_oids_acl_and_has_no_implicit_source_policy(db, unexpected_shape):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 80:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    target = 'life_financial.commit_owner_guard()'
+    if unexpected_shape == 'body':
+        definition = await c.fetchval('SELECT pg_get_functiondef(to_regprocedure($1))', target)
+        await c.execute(definition.replace('BEGIN', 'BEGIN\n-- unexpected', 1))
+    elif unexpected_shape == 'security':
+        await c.execute('ALTER FUNCTION ' + target + ' SECURITY INVOKER')
+    elif unexpected_shape == 'search_path':
+        await c.execute('ALTER FUNCTION ' + target + ' SET search_path=pg_catalog,public')
+    elif unexpected_shape == 'volatility':
+        await c.execute('ALTER FUNCTION ' + target + ' STABLE')
+    query = """SELECT p.oid,p.oid::regprocedure::text AS signature,p.proacl,p.prosrc,p.provolatile::text AS provolatile,p.prosecdef,p.proconfig,p.proowner
+        FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='life_financial' ORDER BY p.oid"""
+    before = {r['signature']: dict(r) for r in await c.fetch(query)}
+    tables = await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace='life_financial'::regnamespace ORDER BY oid")
+    path = DEFAULT_DIRECTORY / '000080_native_stress.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    if unexpected_shape != 'none':
+        with pytest.raises(asyncpg.RaiseError, match='LIFE_STRESS_MIGRATION_MISMATCH'):
+            await migrate(c, directory, action='up')
+        assert {r['signature']: dict(r) for r in await c.fetch(query)} == before
+        assert tables == await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace='life_financial'::regnamespace ORDER BY oid")
+        assert (await versions(c))[-1]['version'] == 79
+        return
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    after = {r['signature']: dict(r) for r in await c.fetch(query)}
+    for signature, original in before.items():
+        assert after[signature] == (original if signature != target else {**original, 'prosrc': after[signature]['prosrc']})
+    added = set(after) - set(before)
+    assert {key.split('.')[1].split('(')[0] for key in added} == {'risk_stress_source_valid', 'risk_stress_evaluate', 'risk_stress_verified', 'risk_stress_command', 'risk_stress_admit', 'risk_stress_enabled', 'risk_stress_frame', 'risk_stress_commit_check', 'risk_stress_commit_guard'}
+    for signature in added:
+        for role in ('public', 'life_runtime_test', 'life_reporter_test'):
+            assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", role, signature)
+    for table in ('risk_stress_policies', 'risk_stress_events', 'risk_service_policies', 'risk_events', 'accounts', 'operations', 'financial_events'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+    assert (await migrate(c, directory, action='up'))['applied'] == []

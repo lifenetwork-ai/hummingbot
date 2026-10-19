@@ -27,6 +27,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.contracts import (
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.access import (
     MUTATING_ENTRYPOINTS,
     NATIVE_RISK_ENTRYPOINT,
+    NATIVE_STRESS_ENTRYPOINT,
     role_name,
 )
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.diagnostics import _current_trace, _Trace, failure, phase
@@ -224,6 +225,13 @@ class PgRuntime:
             if (risk['enabled'] and (risk['mutate'] is not cfg.write or risk['read'] is not True)
                     or not cfg.write and risk['mutate']):
                 raise StorageUnavailable('PG_RISK_ROLE_PROFILE_INVALID')
+        if any(m.version == 80 for m in self._bundle):
+            stress = await c.fetchrow('''SELECT life_financial.risk_stress_enabled($1) AS enabled,
+                has_function_privilege(current_user,$2,'EXECUTE') AS mutate,
+                has_function_privilege(current_user,'life_financial.risk_stress_frame(uuid)','EXECUTE') AS read''', cfg.account_id, NATIVE_STRESS_ENTRYPOINT)
+            if (stress['enabled'] and (stress['mutate'] is not cfg.write or stress['read'] is not True)
+                    or not cfg.write and stress['mutate']):
+                raise StorageUnavailable('PG_STRESS_ROLE_PROFILE_INVALID')
         if (row['principal'] != cfg.principal or row['replica'] or row['major'] != cfg.server_major
                 or row['readonly'] != 'off' or row['sync'] != 'on' or row['fsync'] != 'on' or row['full_page'] != 'on'
                 or row['timezone'] != 'UTC' or row['search_path'] != 'pg_catalog' or row['lineage'] != cfg.database_lineage):

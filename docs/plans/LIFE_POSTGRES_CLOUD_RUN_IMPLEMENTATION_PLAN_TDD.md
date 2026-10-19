@@ -722,7 +722,7 @@ failing integration result visible until the same current-source workflow passes
 - [ ] **R3 — control/risk/session:** signed pending repair and successor reconciliation/activation; persistent native markout/probe/stress/inventory/EXIT gates. Exit replay: restart and late observations retain HALT, budgets and approvals; each enabled risk mode reaches its native financial gate.
   - [x] R3.1: Signed native DRAIN/REVOKE/RECOVER and separate new-generation ACTIVATE; retain the original observation writer, permanent approvals/grant consumption, HALT and financial history across cancellation/unknown COMMIT. Migration 76 and the control port are qualified by the 44-case native control/successor gate, physical COMMIT/process/backend/cancellation and corruption cases, and the audited upgrades recorded below. No PG4 lease/credential exclusion is inferred.
   - [x] R3.2: Native successor reconciliation/observation from the expired original session, complete quiescent facts and a fixed imported duration; preserve clock/expiry latches and require a separate signed ACTIVATE.
-  - [ ] R3.3: Durable markout/probe/stress/inventory/EXIT decisions, original spending and mode-specific permission at native prepare/arm/COMMIT gates; reads, late facts and restart cannot restore permission or refund budgets. Native safety/recovery probes and markout/bootstrap are qualified below; reservation-derived stress/rolling capacity and inventory/EXIT spending remain open.
+  - [ ] R3.3: Durable markout/probe/stress/inventory/EXIT decisions, original spending and mode-specific permission at native prepare/arm/COMMIT gates; reads, late facts and restart cannot restore permission or refund budgets. Native safety/recovery probes, markout/bootstrap and reservation-derived stress/rolling capacity are qualified below; inventory/EXIT spending remains open.
   - [ ] R3.4: One frozen coupled native control/session/risk regression with File economic parity, cold readback/corruption/role refusals and process/backend/cancellation failures. Configured source/runner installation remains R4.
 - [ ] **R4 — configured assembly:** install planner/reference/book/fee, complete runner/account scope, SPOT/SWAP final request guards, ingress/collectors and recorder/SDK history in the actual controller/service. Exit replay: start the configured PostgreSQL service with fake exchange; both products complete the selected workflow; a missing route fails startup without File fallback. PostgreSQL selection remains rejected until this passes.
 - [ ] **R5 — current-source acceptance:** all supported File/native decisions and units agree; whole-runner restart/corruption/role tests and process/backend faults pass at capture, send, ACK, settlement, release and signed repair. Resolve the observed SQL statement timeout, then run the complete affected workflow on one frozen source revision. PG0 trust/anchor requirements remain explicit; neither local tests nor a database receipt prove exactly-once exchange delivery.
@@ -4206,3 +4206,42 @@ independent EXIT spending, then coupled mode acceptance. Authenticated configure
 source/runner installation remains R4; whole-product acceptance remains R5.
 Explicit retained-history count/byte limits fail closed; no scalability,
 archival, deployment durability or demo/live qualification is inferred.
+
+
+### PG3 R3 native stress and rolling capacity (2026-10-19)
+
+Migration 80 stores explicit immutable stress policies and bounded original
+observations. Exposure comes from native wallet/fill/reservation truth; callers
+cannot supply inventory, pending quantity or filled-volume totals. Financial
+prepare/ARM/quote-ARM recomputes stress at physical COMMIT, with all-one-side
+scenarios, gross pending exposure, fees, depth, collateral and rolling actual
+same-side fills. The current qualified NAV/portfolio reference, generation,
+permission epoch, local observer and original source age must still match.
+
+Original observation/receipt history survives unknown COMMIT and cold restart;
+readback never heals admission or grants permission. History has fixed-size
+predecessor hashes, exact original operation/receipt/policy comparisons,
+monotonic clock/rollback checks and explicit count/byte ceilings. Source expiry
+during actual COMMIT rolls back the candidate without changing money or holds.
+Runtime roles cannot write policies/events or invoke private calculators; an
+enabled stress service requires uncached command/read grants on every admission.
+No account, threshold, capital or activation is seeded.
+
+Frozen focused safety/stress selection: **51 passed**, zero failures/errors/skips,
+one existing Pydantic warning, **119.74 s** (`/tmp/life-r3-stress-risk-final`).
+This includes 33 existing safety cases and 18 stress cases. Coverage includes
+actual hold/ARM parity with the File stress evaluator, original-ID lost-COMMIT
+recovery, cold permission refusal, corrupted/missing history, private role
+boundaries, gross actual fills after terminal completion, source expiry at
+physical COMMIT and revoked grants. The audited 79→80 upgrade gate passes
+**5 cases**, zero failures/errors/skips, **9.90 s**
+(`/tmp/life-r3-stress-upgrades-final`), preserving financial OIDs/ACLs and refusing
+changed predecessor body/security/search path/volatility atomically. Changed-file
+formatting/import/security hooks pass. Overlapping qualification counts are not
+summed; complete R3 mode acceptance is still required.
+
+**R3.3/R3.4 remain open for inventory/EXIT and coupled mode acceptance.**
+Authenticated configured source/runner installation remains R4. The local
+observer nonce is a lifetime binding, not a PG4 credential/sender fence. Bounded
+history, synthetic sources and local tests do not qualify scaling, Cloud Run,
+deployment durability or demo/live trading.
