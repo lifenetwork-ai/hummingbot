@@ -27,7 +27,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.legacy_applying impo
 from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancialRecoveryFacts
 
 
-async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('-.001'), funding=None, cashflow=None, cashflow_written=False, book_native_swap=False, book_native_funding=False, file_result=None, book_native_parent=False, spot_side=None, spot_fee_currency='USDT', spot_terminal_stage=None, spot_settlement_stage=None, native_terminal=True, native_settlement=True, spot_unsent=False, native_abort=True, spot_cancel=None, native_cancel=True, spot_ack=None, native_ack=True):
+async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('-.001'), funding=None, cashflow=None, cashflow_written=False, book_native_swap=False, book_native_funding=False, file_result=None, book_native_parent=False, spot_side=None, spot_fee_currency='USDT', spot_terminal_stage=None, spot_settlement_stage=None, native_terminal=True, native_settlement=True, spot_unsent=False, native_abort=True, spot_cancel=None, native_cancel=True, spot_ack=None, native_ack=True, prior_outer=False):
     from test.hummingbot.strategy_v2.life_liquidity import test_session
     from test.hummingbot.strategy_v2.life_liquidity.storage import test_legacy_joint_applying as file_fixture
     from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_carry import setup as carry_setup
@@ -72,13 +72,20 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
         final_base += amount if currency == 'LIFE' else D('0')
     approval_at = int(now.timestamp() * 1000)
     final_collateral = final_cash + min(D('0'), D('.75') * (D('1') - entry))
+    if prior_outer and (funding is None or cashflow is not None or spot_side is not None or book_native_parent):
+        raise AssertionError('completed outer fixture declares one original SWAP prefix and a later funding bill')
 
     def clock_init(self):
         self.wall, self.mono = now, 100.0
 
     def numeric_report(values, box, claim):
-        result = original_report(values, box, claim)
-        result = replace(result, exchange_order_id='987654321', trades=(replace(result.trades[0], realized_pnl_quote=pnl, signed_fee=fee),))
+        if prior_outer and 'prior_order' in prepared_target:
+            # A later account response retains the original trade time, price,
+            # fee and ID; only its NEW funding bill is observed now.
+            result = prepared_target['prior_order']
+        else:
+            result = original_report(values, box, claim)
+            result = replace(result, exchange_order_id='987654321', trades=(replace(result.trades[0], realized_pnl_quote=pnl, signed_fee=fee),))
         stamp = int(values[6].wall.timestamp() * 1000)
         orders = (result,)
         if spot_side is not None:
@@ -103,10 +110,11 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
                 RecoveryTrade(f.trade_id, f.quantity_base_life, f.price_usdt, f.fee_currency, f.signed_fee, D('0'), f.fill_at_ms)
                 for f in extra.fills)),)
         file_sequence = max(values[8]['snapshot'].sequence, prepared_target.get('file_source_sequence', 1) + 1)
+        prior = prepared_target.get('reporting_prior', False)
         box['value'] = replace(box['value'], snapshot_sequence=file_sequence, orders=orders, pending_wire_ids=() if spot_side is None or spot_unsent or spot_terminal_stage is not None or spot_settlement_stage is not None else ('spotwire',), observed_at_ms=stamp,
-                               payments=() if funding is None else (RecoveryPayment('777', funding, stamp),))
+                               payments=() if funding is None or prior else (RecoveryPayment('777', funding, stamp),))
         values[7]['value'] = replace(values[7]['value'], snapshot_sequence=file_sequence, observed_at_ms=stamp)
-        values[8]['snapshot'] = replace(values[8]['snapshot'], sequence=file_sequence, observed_at_ms=stamp, spot_cash_quote=final_cash, spot_life_base=final_base, collateral_quote=final_collateral,
+        values[8]['snapshot'] = replace(values[8]['snapshot'], sequence=file_sequence, observed_at_ms=stamp, spot_cash_quote=final_cash - (funding if prior else D('0')), spot_life_base=final_base, collateral_quote=final_collateral - (funding if prior else D('0')),
                                         pending=() if spot_side is None or spot_unsent or spot_terminal_stage is not None or spot_settlement_stage is not None else (prepared_target['spot'][1],))
         return result
 
@@ -277,6 +285,21 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
         values[6].wall = captured_now
         values[8]['snapshot'] = replace(values[8]['snapshot'], observed_at_ms=int(captured_now.timestamp() * 1000))
         values[7]['value'] = replace(values[7]['value'], observed_at_ms=int(captured_now.timestamp() * 1000))
+        if prior_outer:
+            from test.hummingbot.strategy_v2.life_liquidity.storage.test_joint_cash_repository import reopen
+            prepared_target['reporting_prior'] = True
+            original = numeric_report(values, prepared_target['file_bundle'], claim)
+            assert await joint.reconcile(binding, file_owner), recovery.reason_code
+            prepared_target.update(prior_order=original, original_trade_at=original.trades[0].at_ms,
+                                   file_source_sequence=values[8]['snapshot'].sequence)
+            joint, store, recovery, values = await reopen(tmp_path, store, recovery, values, file_owner)
+            # Observe a genuinely later fake response on the primary timeline.
+            # Do not advance a test wall clock into the future or re-date trade-1.
+            await asyncio.sleep(recovery.poll_interval_ms / 1000)
+            received = await admin.fetchval('SELECT clock_timestamp()')
+            values[6].wall = received.replace(microsecond=received.microsecond // 1000 * 1000)
+            prepared_target.pop('reporting_prior')
+            return joint, store, recovery, values
         if spot_ack is not None:
             from test.hummingbot.strategy_v2.life_liquidity.storage.test_joint_cash_repository import reopen
 
@@ -440,8 +463,10 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
             from test.hummingbot.strategy_v2.life_liquidity.test_shared_capital_runner import setup_shared
             values = setup_shared(path / 'native', collateral=str(D('10') + min(D('0'), D('1') - entry)), budget_capacity=50)
             approvals = () if cashflow is None else (ApprovedSpotCashflow('101', currency, amount, approval_at),)
-            return await original_fixture(path, **{**kwargs, 'operator_keys': KEYS, 'shared_values': values, 'opening_long_entry': entry, 'approvals': approvals, 'spot': spot_side is not None,
-                                                   **({} if spot_settlement_stage is None else {'settlement_policy': SpotSettlementPolicy(1000)})})
+            result = await original_fixture(path, **{**kwargs, 'operator_keys': KEYS, 'shared_values': values, 'opening_long_entry': entry, 'approvals': approvals, 'spot': spot_side is not None,
+                                                     **({} if spot_settlement_stage is None else {'settlement_policy': SpotSettlementPolicy(1000)})})
+            prepared_target['file_bundle'] = result[4]
+            return result
 
         patches.setattr(file_fixture, 'fixture', fixture)
         patches.setattr(file_fixture, 'report', numeric_report)
@@ -492,7 +517,8 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
     financial, cfg, owner, _, feed, capital, _, carry_feed, carry = native
     binding = store.binding
     at = recovery.clock_ms()
-    trade = SwapFillObservation('trade-1', D('.25'), D('1'), 'USDT', fee, at, D('1'), at, at, 'independent_market', pnl, None)
+    trade_at = prepared_target.get('original_trade_at', at)
+    trade = SwapFillObservation('trade-1', D('.25'), D('1'), 'USDT', fee, trade_at, D('1'), trade_at, trade_at, 'independent_market', pnl, None)
     fill = FillSwap('original-fill', prepared.operation_id, claim.intent_id, claim.wire_id, 'LIFE-USDT', claim.side,
                     claim.session_id, claim.epoch, '987654321', D('.25'), (trade,), values[6].wall)
     if book_native_swap and not book_native_parent:
@@ -500,6 +526,14 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
         # stopped state before capturing the cut; a live source TTL crossing
         # must not turn this recovery fixture into a transient-ready retry.
         await admin.execute('UPDATE life_financial.accounts SET halted=true WHERE account_id=$1', cfg.account_id)
+        # Wait for the ORIGINAL response to expire before capturing this late
+        # accounting cut. HALT alone does not stop its readiness digest changing
+        # at expiry. No source value/time is changed and no rejected call retries.
+        current = await admin.fetchval('SELECT clock_timestamp()')
+        deadline = max(feed[0].observed_at_ms, carry_feed[0].mark.observed_at_ms,
+                       carry_feed[0].index.observed_at_ms, carry_feed[0].funding.observed_at_ms,
+                       carry_feed[0].terms.observed_at_ms) + 1001
+        await asyncio.sleep(max(0, deadline - current.timestamp() * 1000) / 1000)
         native_cut = (await financial.observation_cut(cfg.binding)).cut
         received = await admin.fetchval('SELECT clock_timestamp()')
         original_fill = replace(fill, operation_id='native-prior-swap', observed_at=received)

@@ -2,18 +2,19 @@
 
 Created: 2026-10-11
 
-**Current execution checkpoint (2026-10-19):** PG3 is working on **R1 accounting/
-recovery**. Migration 69 adds declared coupled outer SPOT/SWAP/funding recovery and original
-terminal/inventory side-effect profiles. The subsequent original prepared-receipt/
-lifecycle increment has 40 native and 85 File passes, but the common 219-case
-gate has 3 failures. Migration 70 reduces repeated pre-write proofs; its initial
-12 native cases and 107 migration cases pass. The next common gate is pending;
-R1 is not closed. Remaining R1 work is grouped into coupled
-outer/core pending recovery, complete provider-source consumption at releases,
-and current-source qualification. See the [fixed exit checklist](#fixed-pg3-exit-checklist-2026-10-17)
-and [latest scope/qualification](#pg3-r1-repair-latency-and-repeated-pre-write-proofs-2026-10-19).
-Configured PostgreSQL remains denied; R2–R5 retain their exits. Older dated
-checkpoints below qualify their recorded source and scope only.
+**Current execution checkpoint (2026-10-19, commit `e8a86d4ad`):** PG3 is
+working on **R1 accounting/recovery**. The frozen common regression passes all
+**447 native cases**, 0 failures/errors/skips, in **1671.671 s**. This includes
+the previous three failing workflows and the received-observation and original
+ACK/repair-history additions. Migration 71 also has 109 passing migration cases;
+the affected transport/intake/compatibility regression passes 180 cases. These
+selectors overlap and are not additive. Remaining R1 work is coupled outer/core
+coordinator and valuation/repaired-origin recovery, complete provider-source
+consumption at releases, and qualification of those workflows. See the
+[fixed exit checklist](#fixed-pg3-exit-checklist-2026-10-17) and
+[latest qualification](#pg3-original-ack-and-completed-repair-provenance-2026-10-19).
+R1–R5 remain open; configured PostgreSQL remains denied. Older dated checkpoints
+below qualify their recorded source and scope only.
 
 **PG3 signed account/policy source checkpoint (2026-10-16, base `994c374e1`):** `PgQuoteAccountSource` binds signed UID collection and order requests to the same pinned credential/endpoint, reads exact imported PostgreSQL age limits, and rechecks identity/freshness immediately before HTTP. Bounded TTL/single-flight UID collection avoids an account read per quote. Migration `000015` detects inconsistent PREPARE receipts at current-state/readback/COMMIT boundaries and preserves existing snapshot ACLs on upgrade. See [account-source qualification](#pg3-signed-account-and-policy-source-qualification-2026-10-16). **PG3 remains open** for complete runner/planner/reference/book/fee provenance and controller/service/recorder/product composition; configured PostgreSQL remains denied.
 
@@ -714,7 +715,7 @@ qualification/revision recorded in each increment below.
 - [x] Declared completed original unsent aborts and pre-SWAP SPOT NAV histories during core funding recovery; exact native provenance and historical monetary cut, retained highwater/receipts, File parity, cold corruption refusal and actual 67→68 upgrade.
 - [ ] Interrupted lifecycle (including abort/cancel), terminal/inventory-settlement and other required NAV histories. The completed standalone prefixes above do not cover pending side effects or joint portfolio valuation.
 - [x] Declared coupled outer SPOT/SWAP/funding crash profiles, including USDT/LIFE SPOT fees and interrupted File terminal/inventory side effects with independent original native completions; exact File money/budget parity and original-ID cold replay. See migration-69 qualification below.
-- [x] Declared original PREPARING receipts and partial unsent abort/cancel bookkeeping coupled with outer SWAP/funding recovery: 40 native cases and 85 affected File cases pass. The common 219-case gate still has three failures; this profile completion does not qualify the whole R1 workflow. See the original prepared-receipt/lifecycle increment below.
+- [x] Declared original PREPARING receipts and partial unsent abort/cancel bookkeeping coupled with outer SWAP/funding recovery: 40 native cases and 85 affected File cases pass. The later frozen `e8a86d4ad` common gate passes all 447 cases, including the three earlier failures; remaining R1 families and source consumption still require qualification. See the original prepared-receipt/lifecycle increment below.
 - [x] Declared original ACK interruptions and ACK-bearing core funding, with exact native ACK completion proofs; completed original File repair cohorts, including multiple interrupted superseding attempts. The 60 native cases below qualify these profiles; broader current-source recovery/source acceptance remains open.
 - [ ] Remaining outer SPOT and hedge/carry coordinator histories, including original product checkpoints and the remaining side-effect/valuation/repaired-origin families required by supported File modes.
 - [ ] Complete authenticated order/trade/bill/runner scope and original collateral/liability source consumption at every required terminal/shared-release route.
@@ -3608,6 +3609,13 @@ not reached; its prior source-expiry result is not discharged by these passes.
 The current-source received-observation fix and another common qualification
 remain required. No freshness/SQL/transaction/monetary limit changed.
 
+The final migration bundle passes **107 actual PostgreSQL cases** in 114.25 s
+(`/tmp/life-r1-repair-view-migrations/integration.xml`), zero failures/errors/
+skips. This includes all seven new 69→70 upgrade/repeat/atomic-mismatch profiles,
+including an altered intervening pre-write program. Existing public OIDs/ACLs,
+table identities and empty monetary state are retained; the helper is denied
+to PUBLIC/runtime/reporting. The later common migration-71 qualification is recorded below; these migration-70 counts remain historical.
+
 ### PG3 original ACK and completed repair provenance (2026-10-19)
 
 Base `82b708bd6`. Read-only source views explain original ACKING interruptions
@@ -3670,8 +3678,13 @@ received-cut/uncertain-COMMIT cases. Counts from preceding revisions overlap and
 are not additive. The affected transport/intake/old-import regression also passes
 all **180 cases**, **461.20 s**, 0 failures/errors/skips
 (`/tmp/life-r1-m71-received-and-compat-regression`), including the original
-62→71 File-only diagnostic ACK upgrade. A new common frozen-source qualification
-remains pending. `legacy_imports`, `joint_recovery` and `spot_recovery_paths`
+62→71 File-only diagnostic ACK upgrade. The subsequent **frozen `e8a86d4ad`
+common regression passes 447 cases**, 0 failures/errors/skips, **1671.671 s**
+(`/tmp/life-r1-m71-common-e8a86d4ad/integration.xml`). Its 447 cases include the
+60 additions and all 387 cases from the earlier gate, including the previous
+carry, capital-reservation and pending-inventory failures. This resolves those
+recorded workflows on this revision; it does not qualify future modifications
+or close the remaining R1 families/source-consumption and R2–R5 exits. `legacy_imports`, `joint_recovery` and `spot_recovery_paths`
 include the new relevant profiles in their focused selectors.
 
 Migration 71 preserves existing OIDs/ACLs/tables, rolls back on unknown
@@ -3683,10 +3696,55 @@ R1 still retains the required core/coordinator/valuation/repaired-origin
 families, full authenticated source consumption at releases and its common
 current-source exit. R2–R5 and configured PostgreSQL selection remain open.
 
-The final migration bundle passes **107 actual PostgreSQL cases** in 114.25 s
-(`/tmp/life-r1-repair-view-migrations/integration.xml`), zero failures/errors/
-skips. This includes all seven new 69→70 upgrade/repeat/atomic-mismatch profiles,
-including an altered intervening pre-write program. Existing public OIDs/ACLs,
-table identities and empty monetary state are retained; the helper is denied
-to PUBLIC/runtime/reporting. The common native regression is still pending and
-the previous three failures are not declared resolved by the focused rerun.
+### PG3 completed outer cash parents before later funding (2026-10-19)
+
+Base `e8a86d4ad`. A previous APPLIED File outer cash command is retained audit
+history when a later outer command is interrupted. Its exact command, original
+writer/cut/fingerprint, before-image hashes and completed children are checked.
+This declared profile requires the same original File writer; another writer
+needs its own qualified history. Each earlier wallet is recomputed from the
+independent opening and original economic leaves, never adopted as an opening
+seed. Cuts, cumulative event/trade/transfer coverage and first-publisher IDs
+must agree. SWAP cash, realized PNL, signed fee and session are compared as full
+events; matching net cash alone is insufficient. Completed SWAP gross costs
+remain explained even before the later core command has applied.
+
+No-history sources retain their existing basis shape. New history retains
+compact original-row digests; the full signed capsule remains immutable. The
+native original preparation/ARM/ACK/economic-prefix proofs still apply. Import
+publishes neutral pending evidence; signed repair books original monetary leaves
+once, retaining HALT and all shared claims. This increment grants no terminal,
+release, activation or configured-service authority and changes no SQL/time/
+monetary threshold.
+
+TDD and development qualification:
+
+- The old parser rejects an actual second outer interruption after a completed
+  SWAP cash parent: one native Red at
+  `/tmp/life-r1-completed-parent-native-red`,
+  `PG_LEGACY_APPLYING_PROFILE_UNSUPPORTED`.
+- The initial native selector returns **6 passed / 2 failed** in 37.11 s
+  (`/tmp/life-r1-completed-parent-native-green`). Both failures occur before
+  retirement/import, during independent original native fill setup: the carry
+  readiness digest expires between explicit-cut capture and application.
+  The fixture now waits for that original response to expire before capturing
+  its halted late-accounting cut. No source is renewed, rejected call retried,
+  deadline widened or production cut check relaxed.
+- The affected native regression then passes **133 cases**, 0 failures/errors/
+  skips, **583.677 s** (`/tmp/life-r1-completed-parent-final-native`). This covers
+  the original eight completed-parent crash/native-prefix cases and the old
+  outer recovery, coupled ACK and completed File repair families.
+- A subsequent pure-parser Red demonstrates that a rehashed historical writer
+  substitution must also be rejected. The same-writer check resolves it; the
+  nine File history cases pass (`/tmp/life-r1-completed-parent-writer-green.log`).
+  The preceding 133-case result predates this final restrictive writer check.
+
+**Final File qualification:** all 92 affected File/source cases pass, 0 failures/
+errors/skips, 17.47 s (`/tmp/life-r1-completed-parent-final-file.xml`), including
+the final writer refusal. Changed-file hooks and whitespace checks pass.
+
+The final economic matrix adds positive PNL and fee-rebate/negative-PNL cases,
+four original crash boundaries, with and without an independently booked native
+SWAP prefix. Qualification of that expanded matrix on the committed source is
+pending. Earlier passes are not relabelled as qualification of these additions.
+R1 and R2–R5 remain open for their fixed exits; configured PostgreSQL stays denied.

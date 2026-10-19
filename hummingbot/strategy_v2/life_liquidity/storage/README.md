@@ -3598,3 +3598,18 @@ remain separate. Readback never grants a new request, restores activation or
 releases a hold. Provider authentication, complete account/runner/collateral
 scope and configured PostgreSQL service assembly still require their fixed
 PG3 exits.
+
+### Completed outer cash parents before a later interruption
+
+An original APPLIED File joint cash command can precede a later outer
+interruption. Replay every historical before-wallet from the independent opening
+basis and exact original SPOT trades, fees, transfers and SWAP/funding events.
+Preserve cumulative event coverage, chronological cuts, the qualified original
+File writer and first-publisher IDs. Another writer requires its own proof.
+An earlier wallet is never a new opening seed. Original prepared/ACK/terminal/
+settlement children need their exact completed receipts; native prefix checks
+remain independent. Compact row digests retain provenance without copying each
+historical capsule into the native basis. Import and signed monetary recovery
+retain HALT and shared claims; neither command grants a release or activation.
+Other coordinator/product/NAV and repaired-origin histories retain their fixed
+R1 qualification requirements.
