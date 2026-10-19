@@ -2,18 +2,17 @@
 
 Created: 2026-10-11
 
-**Current execution checkpoint (2026-10-19, commit `e8a86d4ad`):** PG3 is
-working on **R1 accounting/recovery**. The frozen common regression passes all
-**447 native cases**, 0 failures/errors/skips, in **1671.671 s**. This includes
-the previous three failing workflows and the received-observation and original
-ACK/repair-history additions. Migration 71 also has 109 passing migration cases;
-the affected transport/intake/compatibility regression passes 180 cases. These
-selectors overlap and are not additive. Remaining R1 work is coupled outer/core
-coordinator and valuation/repaired-origin recovery, complete provider-source
-consumption at releases, and qualification of those workflows. See the
-[fixed exit checklist](#fixed-pg3-exit-checklist-2026-10-17) and
-[latest qualification](#pg3-original-ack-and-completed-repair-provenance-2026-10-19).
-R1–R5 remain open; configured PostgreSQL remains denied. Older dated checkpoints
+**Current execution checkpoint (2026-10-19):** PG3 remains on **R1 accounting/
+recovery**. Frozen `b4fdab333` passes all **149 affected native cases**, 0 failures/
+errors/skips, **666.541 s**, including 24 completed outer-parent crash/economic
+cases; 92 affected File/source cases pass. The earlier frozen `e8a86d4ad`
+common gate passed all 447 native cases. These results qualify their respective
+source revisions, overlap, and are not additive. The 447-case selector has not
+been rerun on `b4fdab333`. Remaining R1 work is coordinator/product/valuation/
+repaired-origin recovery, full provider-source consumption at releases, and
+qualification of those workflows. See the [fixed exit checklist](#fixed-pg3-exit-checklist-2026-10-17)
+and [latest qualification](#pg3-completed-outer-cash-parents-before-later-funding-2026-10-19).
+R1–R5 remain open; configured PostgreSQL stays denied. Older dated checkpoints
 below qualify their recorded source and scope only.
 
 **PG3 signed account/policy source checkpoint (2026-10-16, base `994c374e1`):** `PgQuoteAccountSource` binds signed UID collection and order requests to the same pinned credential/endpoint, reads exact imported PostgreSQL age limits, and rechecks identity/freshness immediately before HTTP. Bounded TTL/single-flight UID collection avoids an account read per quote. Migration `000015` detects inconsistent PREPARE receipts at current-state/readback/COMMIT boundaries and preserves existing snapshot ACLs on upgrade. See [account-source qualification](#pg3-signed-account-and-policy-source-qualification-2026-10-16). **PG3 remains open** for complete runner/planner/reference/book/fee provenance and controller/service/recorder/product composition; configured PostgreSQL remains denied.
@@ -717,6 +716,7 @@ qualification/revision recorded in each increment below.
 - [x] Declared coupled outer SPOT/SWAP/funding crash profiles, including USDT/LIFE SPOT fees and interrupted File terminal/inventory side effects with independent original native completions; exact File money/budget parity and original-ID cold replay. See migration-69 qualification below.
 - [x] Declared original PREPARING receipts and partial unsent abort/cancel bookkeeping coupled with outer SWAP/funding recovery: 40 native cases and 85 affected File cases pass. The later frozen `e8a86d4ad` common gate passes all 447 cases, including the three earlier failures; remaining R1 families and source consumption still require qualification. See the original prepared-receipt/lifecycle increment below.
 - [x] Declared original ACK interruptions and ACK-bearing core funding, with exact native ACK completion proofs; completed original File repair cohorts, including multiple interrupted superseding attempts. The 60 native cases below qualify these profiles; broader current-source recovery/source acceptance remains open.
+- [x] Declared earlier completed outer SWAP cash parents before later funding interruptions, preserving exact opening, original writer/economic leaves, gross cost and first-publisher history. Frozen `b4fdab333` passes 149 affected native cases, including the 24-case new economic/crash matrix.
 - [ ] Remaining outer SPOT and hedge/carry coordinator histories, including original product checkpoints and the remaining side-effect/valuation/repaired-origin families required by supported File modes.
 - [ ] Complete authenticated order/trade/bill/runner scope and original collateral/liability source consumption at every required terminal/shared-release route.
 
@@ -3743,8 +3743,14 @@ TDD and development qualification:
 errors/skips, 17.47 s (`/tmp/life-r1-completed-parent-final-file.xml`), including
 the final writer refusal. Changed-file hooks and whitespace checks pass.
 
-The final economic matrix adds positive PNL and fee-rebate/negative-PNL cases,
-four original crash boundaries, with and without an independently booked native
-SWAP prefix. Qualification of that expanded matrix on the committed source is
-pending. Earlier passes are not relabelled as qualification of these additions.
+**Committed-source qualification:** the frozen, unchanged `b4fdab333` passes
+**149 affected native cases**, 0 failures/errors/skips, **666.541 s**
+(`/tmp/life-r1-completed-parent-frozen-b4fdab333/integration.xml`). This includes
+all 24 final completed-parent cases: positive PNL, negative PNL with a fee rebate,
+four original crash boundaries, and both original native-prefix states. The
+other 125 cases cover affected original outer recovery, coupled ACK and completed
+File repair routes. This replaces the intermediate 133-case selector for this
+increment; counts overlap and are not additive. The earlier 447-case common
+qualification remains specific to `e8a86d4ad`, not this new revision. SQL remains
+at the separately qualified migration 71; no migration was changed or added.
 R1 and R2–R5 remain open for their fixed exits; configured PostgreSQL stays denied.

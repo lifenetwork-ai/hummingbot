@@ -1,6 +1,15 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
-**Current PG3 R1 checkpoint (2026-10-19, commit `e8a86d4ad`):**
+**Current PG3 R1 checkpoint (2026-10-19, commit `b4fdab333`):** completed
+original outer cash parents compose with later funding interruptions. Frozen
+qualification passes **149 affected native cases**, including 24 PNL/fee/crash/
+native-prefix cases, and 92 affected File/source cases pass. These overlap earlier
+results. The prior 447-case common gate qualifies `e8a86d4ad`; it has not been
+rerun on `b4fdab333`. **R1 and PG3 remain open** for remaining coordinator/product/
+valuation/repaired-origin histories, complete provider evidence consumption at
+releases and the fixed R2–R5 exits. See [scope and qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-completed-outer-cash-parents-before-later-funding-2026-10-19).
+
+**Earlier PG3 R1 checkpoint (2026-10-19, commit `e8a86d4ad`):**
 original ACK interruptions and ACK-bearing core funding retain exact native ACK
 provenance; completed File repair cohorts retain original children and costs.
 Received observations own their cut and can reread it once after a definite
