@@ -145,7 +145,7 @@ def main():
             selector /= 'test_postgres_quote_account_source.py'
         selectors = [str(selector)]
         if args.suite == 'r3_risk':
-            selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in ('risk', 'control', 'successor_control')]
+            selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in ('risk', 'risk_markout', 'markout', 'control', 'successor_control')]
         if args.suite == 'r3_control':
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in ('control', 'successor_control')]
         if args.suite == 'carry':

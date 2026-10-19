@@ -722,7 +722,7 @@ failing integration result visible until the same current-source workflow passes
 - [ ] **R3 — control/risk/session:** signed pending repair and successor reconciliation/activation; persistent native markout/probe/stress/inventory/EXIT gates. Exit replay: restart and late observations retain HALT, budgets and approvals; each enabled risk mode reaches its native financial gate.
   - [x] R3.1: Signed native DRAIN/REVOKE/RECOVER and separate new-generation ACTIVATE; retain the original observation writer, permanent approvals/grant consumption, HALT and financial history across cancellation/unknown COMMIT. Migration 76 and the control port are qualified by the 44-case native control/successor gate, physical COMMIT/process/backend/cancellation and corruption cases, and the audited upgrades recorded below. No PG4 lease/credential exclusion is inferred.
   - [x] R3.2: Native successor reconciliation/observation from the expired original session, complete quiescent facts and a fixed imported duration; preserve clock/expiry latches and require a separate signed ACTIVATE.
-  - [ ] R3.3: Durable markout/probe/stress/inventory/EXIT decisions, original spending and mode-specific permission at native prepare/arm/COMMIT gates; reads, late facts and restart cannot restore permission or refund budgets.
+  - [ ] R3.3: Durable markout/probe/stress/inventory/EXIT decisions, original spending and mode-specific permission at native prepare/arm/COMMIT gates; reads, late facts and restart cannot restore permission or refund budgets. Native safety/recovery probes and markout/bootstrap are qualified below; reservation-derived stress/rolling capacity and inventory/EXIT spending remain open.
   - [ ] R3.4: One frozen coupled native control/session/risk regression with File economic parity, cold readback/corruption/role refusals and process/backend/cancellation failures. Configured source/runner installation remains R4.
 - [ ] **R4 — configured assembly:** install planner/reference/book/fee, complete runner/account scope, SPOT/SWAP final request guards, ingress/collectors and recorder/SDK history in the actual controller/service. Exit replay: start the configured PostgreSQL service with fake exchange; both products complete the selected workflow; a missing route fails startup without File fallback. PostgreSQL selection remains rejected until this passes.
 - [ ] **R5 — current-source acceptance:** all supported File/native decisions and units agree; whole-runner restart/corruption/role tests and process/backend faults pass at capture, send, ACK, settlement, release and signed repair. Resolve the observed SQL statement timeout, then run the complete affected workflow on one frozen source revision. PG0 trust/anchor requirements remain explicit; neither local tests nor a database receipt prove exactly-once exchange delivery.
@@ -4165,3 +4165,44 @@ Final control/risk migration upgrade selector: **16 passed**, zero failures/
 errors/skips, **23.41 s**, `/tmp/life-r3-control-risk-upgrades-final`. It covers
 migrations 76–78 on the final source, including scoped risk enablement and unchanged
 prior financial OIDs/ACLs. Changed-file formatting/import/security hooks pass.
+
+
+### PG3 R3 native markout and bounded bootstrap (2026-10-19)
+
+Migration 79 adds an empty explicit markout bootstrap policy and a mandatory
+markout check in the original deferred financial COMMIT guard. Accounted fill,
+side, size bucket and original independent horizon values come from existing
+verified native facts. No caller cohort/ready flag or diagnostic receipt grants
+permission. Exact total-versus-threshold arithmetic decides adverse cohorts;
+diagnostic mean division is not used to admit a quote.
+
+Bootstrap is available only for insufficient samples with an explicit imported
+policy, a matching insufficient side/size cohort, a per-quote cap and a gross
+campaign cap. Only one native unresolved order is allowed. Its own prepare/ARM
+retains the original hold; terminal completion, cohort window exclusion and
+fresh reads never refund gross filled volume. Missing/pending/adverse horizons
+cannot use the bootstrap route. Ordinary shared/SWAP reservations cannot use a
+SPOT bootstrap exception. The base risk/source/epoch/HALT gates remain mandatory.
+
+The physical-COMMIT replay proves that a ready cohort permits preparation, while
+expiry during the actual COMMIT wait rejects that same candidate atomically.
+Other tests cover sequential probes, policy/side/size denials, gross actual filled
+volume after terminal orders, bounded-history refusal, original fact/attribution/
+receipt corruption, private helper ACLs and parity with the existing markout
+cohort evaluator. No account, threshold, capital or activation is seeded.
+
+Frozen focused current-source gate: **147 passed**, zero failures/errors/skips,
+one existing Pydantic warning, **335.71 s**
+(`/tmp/life-r3-markout-focused-final`). This selector includes signed native
+control/session, safety and both existing/new markout workflows. It extends the
+earlier safety-only gate; overlapping counts are not summed. Audited migrations
+76–79 pass **21 cases**, zero failures/errors/skips, **30.01 s**
+(`/tmp/life-r3-markout-upgrades-quoted-final`); unexpected predecessor body,
+security, volatility or search path rolls back the entire upgrade. Changed-file
+formatting/import/security hooks pass.
+
+**R3.3/R3.4 remain open:** stress/rolling capacity, inventory/EXIT modes and
+independent EXIT spending, then coupled mode acceptance. Authenticated configured
+source/runner installation remains R4; whole-product acceptance remains R5.
+Explicit retained-history count/byte limits fail closed; no scalability,
+archival, deployment durability or demo/live qualification is inferred.

@@ -16,15 +16,17 @@ is in progress. **PG3 and R2–R5 remain open; configured PostgreSQL remains rej
 [PostgreSQL plan](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-native-r1-closure-2026-10-19).
 Clean stopped File cutover remains PG6; active File checkpoint migration is not selected.
 
-**R3 control/session and native safety checkpoint (2026-10-19):** signed logical
-control, separate fresh-generation activation and fixed-deadline successors are
-implemented. Native safety derives drawdown/margin from accounted NAV/portfolio,
-keeps HALT permanent, bounds sequential recovery probes and rechecks permission
-epochs at financial COMMIT. The focused control/risk selector passes **78 cases**;
-the audited 76–78 upgrade selector passes **16 cases**. Cold readback grants no
-permission, and late fill/fee/ACK truth remains accountable after HALT. **R3 stays
-open** for native markout/bootstrap, stress/rolling capacity, inventory/EXIT and
-coupled acceptance. See [scope and qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-r3-native-safety-and-permission-epochs-2026-10-19).
+**R3 control/session, safety and markout checkpoint (2026-10-19):** signed
+logical control, separate fresh-generation activation and fixed-deadline
+successors are implemented. Native safety derives drawdown/margin from accounted
+NAV/portfolio, keeps HALT permanent and rechecks permission epochs at financial
+COMMIT. Native markout derives cohorts from original accounted fills/horizon
+facts; bootstrap requires an explicit sequential per-quote/gross campaign cap.
+Missing, pending, adverse or expired cohorts cannot use an earlier ready read as
+permission. The frozen focused selector passes **147 cases**; audited 76–79
+upgrades pass **21 cases**. **R3 stays open** for stress/rolling capacity,
+inventory/EXIT and coupled acceptance. See
+[scope and qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-r3-native-markout-and-bounded-bootstrap-2026-10-19).
 
 **Earlier PG3 R1 checkpoint (2026-10-19):** original ACKed zero-fill SWAP
 orders retain their independently admitted preparation/ARM/ACK and claims during

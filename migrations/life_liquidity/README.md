@@ -1118,5 +1118,25 @@ no old-schema or File fallback in the production runtime.
 
 The runtime observer GUC binds the adapter lifetime; it is not authentication
 against a caller controlling its database credential, or a PG4 physical sender
-fence. Markout/stress and inventory/EXIT gates remain R3 work. Configured PostgreSQL
+fence. Stress and inventory/EXIT gates remain R3 work. Native markout is described
+below. Configured PostgreSQL
 selection, source assembly, scaling and deployment/demo/live gates remain open.
+
+
+## 000079: native markout permission and capped bootstrap
+
+`000079_native_markout_gate.sql` creates an empty immutable bootstrap policy and
+adds a markout check to the existing native risk COMMIT guard. It consumes verified
+accounted fills and original independent horizon facts, with explicit bounded
+reads. Only insufficient samples can opt into sequential SPOT bootstrap under
+per-quote and gross campaign caps. Pending/missing/adverse cohorts cannot use that
+exception; other products cannot borrow it. Terminal completion and cohort window
+expiry never refund gross actual filled volume. Financial COMMIT recomputes the
+current cohort instead of trusting an earlier diagnostic ready read.
+
+The exact audited predecessor body, security, search path and volatility must
+match. The upgrade preserves existing function OIDs/ACLs and financial checks;
+new helpers remain private, and scoped diagnostics need explicit provisioning.
+No account, live threshold, capital or activation is seeded. Framework migration
+history makes repeated startup/up calls a no-op. Stress/rolling capacity,
+inventory/EXIT, configured assembly and deployment/demo/live gates remain open.

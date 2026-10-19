@@ -3701,7 +3701,8 @@ The initial frozen control/successor gate passes **44 cases**; the two audited
 upgrade families pass **10 cases**. Coverage includes original filled economics,
 physical COMMIT deadlines, backend termination, actual process exit, caller
 cancellation, immutable history corruption, role denial and capacity rejection.
-Native risk/probe/stress/inventory/EXIT and coupled R3 acceptance remain open.
+The later safety/markout increment below extends this gate. Stress/inventory/EXIT
+and coupled R3 acceptance remain open.
 
 ## Native safety and original permission epochs
 
@@ -3722,11 +3723,32 @@ python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_postgres \
   --suite r3_risk --fail-fast --output /tmp/UNIQUE_RUN_NAME
 ```
 
-The current focused selector passes **78 cases**, zero failures/errors/skips.
+The safety-only revision passed **78 cases**, zero failures/errors/skips.
 It covers signed control/session plus native safety, physical process/backend/
 cancellation failures, File SafetyGate boundaries, explicit role grants, real
 portfolio claim/prepare/arm and gross probe capacity. This closes the safety
-primitive only. R3 remains open for native markout/bootstrap, stress/rolling
-capacity, inventory/EXIT and coupled acceptance. R4 configured assembly remains
+primitive only. The markout increment below extends it. R3 remains open for
+stress/rolling capacity, inventory/EXIT and coupled acceptance. R4 configured assembly remains
 required. Risk history retains explicit count/byte bounds and fails closed on
 exhaustion; no archival/performance or live defaults are inferred.
+
+
+## Native markout and explicit bounded bootstrap
+
+`PgRiskRepository.markout()` is a scoped diagnostic read with
+`trading_permission=False`. Native financial COMMIT independently rechecks the
+original accounted fills and independent horizon facts. Pending/missing/adverse
+cohorts deny risk increases. Insufficient samples allow a SPOT probe only with an
+explicit immutable bootstrap policy, a matching insufficient side/size cohort,
+a per-quote cap, gross campaign capacity and no other unresolved order. Its own
+ARM preserves its hold. Terminal orders and window exclusion never refund gross
+filled volume. Base safety, source ages, HALT and captured epochs still apply.
+
+`run_postgres --suite r3_risk` now includes existing/native markout cases alongside
+control/session/safety. The frozen expanded gate passes **147 cases**, zero
+failures/errors/skips, one existing Pydantic warning. The audited 76–79 upgrade
+selector passes **21 cases**. A cohort expiring during physical COMMIT rolls back
+the candidate and preserves money/budgets. Stress/rolling capacity, inventory/EXIT,
+coupled R3 mode acceptance and R4 configured installation remain open. Retained
+history has explicit fail-closed count/byte bounds; this is not a scalability or
+live-account qualification.

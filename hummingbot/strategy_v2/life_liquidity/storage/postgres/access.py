@@ -91,6 +91,8 @@ async def provision_access(connection, *, principal, account_id, write):
         if await connection.fetchval("SELECT to_regprocedure('life_financial.risk_frame(uuid)') IS NOT NULL"):
             await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.risk_frame(uuid) TO "{principal}"')
             await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.risk_enabled(uuid) TO "{principal}"')
+        if await connection.fetchval("SELECT to_regprocedure('life_financial.risk_markout_frame(uuid)') IS NOT NULL"):
+            await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.risk_markout_frame(uuid) TO "{principal}"')
         await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.spot_read_ack_ingress(uuid,life_financial.identity) TO "{principal}"')
         await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.spot_capital_read(uuid,text) TO "{principal}"')
         await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.spot_action_read(uuid) TO "{principal}"')

@@ -77,6 +77,24 @@ class PgRiskRepository:
                 raise sql_error(e) from None
         return self._receipt(await self.runtime._admit(read, safety=True))
 
+    async def markout(self):
+        import asyncpg
+        self._original()
+
+        async def read(c):
+            try:
+                return await c.fetchval('SELECT life_financial.risk_markout_frame($1)', self.runtime.config.account_id)
+            except asyncpg.RaiseError as e:
+                raise sql_error(e) from None
+        value = await self.runtime._admit(read, safety=True)
+        self._original()
+        if (type(value) is not dict or value.get('trading_permission') is not False
+                or value.get('reason_code') not in ('MARKOUT_NOT_CONFIGURED', 'MARKOUT_READY', 'MARKOUT_ADVERSE',
+                                                    'MARKOUT_INSUFFICIENT_SAMPLES', 'MARKOUT_OBSERVATION_MISSING', 'MARKOUT_HORIZON_PENDING')
+                or type(value.get('summaries')) is not list):
+            raise StorageUnavailable('PG_MARKOUT_FRAME_INVALID')
+        return value
+
     async def observe(self, command, *, cut, owner):
         self._original()
         if type(command) is not ObserveNativeRisk:
