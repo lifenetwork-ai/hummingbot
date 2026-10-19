@@ -95,6 +95,17 @@ class PgSpotEventApplication:
                 or self.reader.source._connector is not self.connector):
             raise StorageError('PG_EVENT_APPLICATION_CONTEXT_CHANGED')
 
+    def runner_sources(self):
+        """Synchronous startup qualification, never a restored send grant."""
+        self._context()
+        if (self._closed or not self._started or self._failed or self._callbacks
+                or self._task is None or not self._task.done() or not self.runtime.healthy
+                or not self.account_source._uid_fresh()
+                or tuple(self._registered) != self.TAGS
+                or any(self.connector.get_listeners(tag).count(self._forwarder) != 1 for tag in self.TAGS)):
+            raise StorageError('PG_EVENT_RUNNER_STARTUP_UNQUALIFIED')
+        return ((self.connector, self.source),)
+
     def capture(self, tag, connector, event):
         if self._closed:
             return

@@ -3919,3 +3919,26 @@ ingress and SDK history for both products, and shared account request quotas wit
 the actual SDK throttlers. Per-process endpoint limits alone do not prove that
 composition. R5 retains current-source whole-service/fault acceptance; configured
 PostgreSQL selection remains rejected.
+
+## Explicit PostgreSQL observation runner startup
+
+`StrategyV2Base` can start an explicit PostgreSQL **observation-only SPOT**
+assembly after `PgSpotEventApplication.install` has completed signed financial
+history collection and native SDK dedup qualification. `PgRecorderApplication`
+checks the original event application, exact connector set, credentials, live
+listeners, completed collection, fresh UID and absence of pending callbacks.
+Missing/replaced/stopped sources fail before runner tasks are created. One
+reporting application cannot bootstrap a second runner.
+
+This path uses the real V2 runner and orchestrator with PostgreSQL reporting;
+it does not call the legacy File/ORM recorder. Startup leaves `ready_to_trade`
+false. The bound PostgreSQL reporter rejects create dispatch, and direct
+orchestrator creation also refuses known and foreign controller IDs. Reporting
+readiness cannot fall through to generic `strategy.buy/sell` as a send grant.
+Existing standalone recorder mechanism fixtures retain their explicit assembly.
+
+`run_postgres --suite runner_startup` selects startup, native reporting/event,
+position, configuration and outbox regressions. This explicit SPOT profile does
+not install the configured LIFE controller/service, a final trading route or
+SWAP event/history assembly. Configured PostgreSQL selection and the remaining
+R2.3/R4/R5 gates stay open. No migration, activation or live default is added.

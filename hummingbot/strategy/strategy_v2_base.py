@@ -268,6 +268,9 @@ class StrategyV2Base(StrategyPyBase):
         prepared_provider = None
         prepared_markets = {}
         if repository_reporting is not None:
+            from hummingbot.strategy_v2.life_liquidity.storage.postgres.recorder_application import (
+                PgRecorderApplication,
+            )
             from hummingbot.strategy_v2.life_liquidity.storage.recorder_application import FileRecorderApplication
             if (type(repository_reporting) is not dict or not repository_reporting or config is not None
                     or type(dispatch_max_pending) is not int or dispatch_max_pending <= 0
@@ -276,19 +279,28 @@ class StrategyV2Base(StrategyPyBase):
                 raise ValueError('REPOSITORY_RUNNER_STARTUP_INVALID')
             prepared_controllers = {}
             for key, app in repository_reporting.items():
-                if (not isinstance(app, FileRecorderApplication) or not app.ready or app._event_application is None
-                        or key != app.runtime.controller.config.id
-                        or app.runtime._recorder_application is not app
-                        or any(connectors.get(source.market) is not actual for actual, source in app._event_application.sources)):
+                if isinstance(app, FileRecorderApplication):
+                    if (not app.ready or app._event_application is None
+                            or app.runtime._recorder_application is not app):
+                        raise ValueError('REPOSITORY_RUNNER_STARTUP_INVALID')
+                    controller, sources = app.runtime.controller, app._event_application.sources
+                elif type(app) is PgRecorderApplication:
+                    try:
+                        controller, sources = app.runner_startup(connectors)
+                    except Exception:
+                        raise ValueError('REPOSITORY_RUNNER_STARTUP_INVALID') from None
+                else:
                     raise ValueError('REPOSITORY_RUNNER_STARTUP_INVALID')
-                controller = app.runtime.controller
+                if (key != controller.config.id
+                        or any(connectors.get(source.market) is not actual for actual, source in sources)):
+                    raise ValueError('REPOSITORY_RUNNER_STARTUP_INVALID')
                 if (not isinstance(controller.actions_queue, asyncio.Queue) or controller.actions_queue.qsize()
                         or prepared_queue is not None and controller.actions_queue is not prepared_queue
                         or prepared_provider is not None and controller.market_data_provider is not prepared_provider):
                     raise ValueError('REPOSITORY_RUNNER_STARTUP_INVALID')
                 prepared_queue = controller.actions_queue
                 prepared_provider = controller.market_data_provider
-                for _, source in app._event_application.sources:
+                for _, source in sources:
                     prepared_markets.setdefault(source.market, set()).add('LIFE-USDT')
                 prepared_controllers[key] = controller
             repository_reporting = dict(repository_reporting)

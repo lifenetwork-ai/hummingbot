@@ -62,6 +62,7 @@ class PgRecorderApplication(ReportingQueue):
         self._closed, self._busy, self._healthy = False, False, False
         self._startup_infos, self._startup_positions = (), ()
         self._event_application = None
+        self._runner_context = None
 
     @classmethod
     async def install(cls, financial, **kwargs):
@@ -87,6 +88,28 @@ class PgRecorderApplication(ReportingQueue):
             return self.ready and not self._revoked and self._local_ready() is True
         except Exception:
             return False
+
+    def runner_startup(self, connectors):
+        """Qualify the installed original SPOT event/history route before V2."""
+        from hummingbot.strategy_v2.life_liquidity.storage.postgres.event_application import PgSpotEventApplication
+        events = self._event_application
+        if (self._runner_context is not None or not self._admission_ready() or type(events) is not PgSpotEventApplication
+                or events.reporting is not self or self.controller.config.strategy.perpetual.enabled
+                or type(connectors) is not dict):
+            raise StorageError('PG_RECORDER_RUNNER_STARTUP_UNQUALIFIED')
+        sources = events.runner_sources()
+        if (set(connectors) != {source.market for _, source in sources}
+                or any(connectors[source.market] is not connector for connector, source in sources)):
+            raise StorageError('PG_RECORDER_RUNNER_SOURCE_MISMATCH')
+        self._runner_context = (self.controller, events, sources)
+        return self.controller, sources
+
+    def assert_executor_creation(self, action):
+        # Actual V2 startup here qualifies reporting/history only. Until the
+        # complete native final trading assembly exists, even a direct
+        # orchestrator call must not reach generic strategy.buy/sell.
+        if self._runner_context is not None:
+            raise ValueError('PG_RUNNER_TRADING_ASSEMBLY_REQUIRED')
 
     async def recover(self):
         """Repair immutable original reporting only. Never construct a sender."""
@@ -133,6 +156,8 @@ class PgRecorderApplication(ReportingQueue):
             self._healthy = True
 
     async def before_dispatch(self, action):
+        if self._runner_context is not None:
+            return False  # Observation-only startup does not admit new risk.
         if not self._admission_ready() or action.controller_id != self.controller.config.id:
             return False
         self._busy = True

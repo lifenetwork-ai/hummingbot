@@ -38,6 +38,10 @@ Current changes and retained failed runs are in the
 [signed source composition](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-r2-signed-hedge-source-composition-2026-10-19).
 **PG3, R2, R4 and R5 remain open; configured PostgreSQL remains rejected** in the
 [PostgreSQL plan](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-native-r1-closure-2026-10-19).
+An explicit observation-only SPOT PostgreSQL profile can now start the actual V2
+runner with signed event/history qualification and no File/ORM recorder fallback.
+It grants no executor creation. **191 native and 110 File/core cases pass**; see
+[R4 observation startup](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-r4-postgresql-observation-runner-startup-2026-10-20).
 Clean stopped File cutover remains PG6; active File checkpoint migration is not selected.
 
 **Earlier R3 control/session, safety and markout checkpoint (2026-10-19):** signed

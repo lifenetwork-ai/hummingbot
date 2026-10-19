@@ -642,6 +642,14 @@ class ExecutorOrchestrator:
         """
         controller_id = action.controller_id
         executor_config = action.executor_config
+        reporting = self.__dict__.get('_repository_reporting')
+        if reporting is not None:
+            if controller_id not in reporting:
+                raise ValueError('RECORDER_RUNNER_SCOPE_MISMATCH')
+            app = reporting[controller_id]
+            admission = getattr(type(app), 'assert_executor_creation', None)
+            if callable(admission):
+                admission(app, action)
 
         # For now, we replace the controller ID in the executor config with the actual controller object to mantain
         # compa

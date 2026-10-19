@@ -736,6 +736,8 @@ failing integration result visible until the same current-source workflow passes
   - [x] R3.3: Durable markout/probe/stress/inventory/EXIT decisions, original spending and mode-specific permission at native prepare/arm/COMMIT gates; reads, late facts and restart cannot restore permission or refund budgets. Native safety/recovery probes, markout/bootstrap, reservation-derived stress/rolling capacity and original inventory/EXIT spending are qualified by the frozen 382-case closure gate below.
   - [x] R3.4: One frozen coupled native control/session/risk regression with File economic parity, cold readback/corruption/role refusals and process/backend/cancellation failures. The frozen 382-case native gate, 56 File mode tests and 38 audited upgrade cases pass; see the R3 closure qualification below. Configured source/runner installation remains R4.
 - [ ] **R4 — configured assembly:** install planner/reference/book/fee, complete runner/account scope, SPOT/SWAP final request guards, ingress/collectors and recorder/SDK history in the actual controller/service. Exit replay: start the configured PostgreSQL service with fake exchange; both products complete the selected workflow; a missing route fails startup without File fallback. PostgreSQL selection remains rejected until this passes.
+  - [x] Observation-only SPOT startup through the actual `StrategyV2Base`/orchestrator with signed native event/history and PostgreSQL reporting, no File/ORM fallback, and no executor-creation grant. The frozen 191-case native and 110-case File/core gates pass; see [observation runner qualification](#pg3-r4-postgresql-observation-runner-startup-2026-10-20).
+  - [ ] Actual configured LIFE controller/service, all enabled final trading routes, complete shared-account/SDK scope and both-product financial ingress/history. The observation profile does not discharge these requirements.
 - [ ] **R5 — current-source acceptance:** all supported File/native decisions and units agree; whole-runner restart/corruption/role tests and process/backend faults pass at capture, send, ACK, settlement, release and signed repair. Resolve the observed SQL statement timeout, then run the complete affected workflow on one frozen source revision. PG0 trust/anchor requirements remain explicit; neither local tests nor a database receipt prove exactly-once exchange delivery.
 
 **Execution order:** R1 → R3 → R2/R4 → R5. Existing standalone gates remain
@@ -4556,3 +4558,53 @@ qualified with the actual SDK throttlers; per-process endpoint limits are not
 that proof. R5 retains whole-service current-source/fault/restart/role acceptance.
 Configured PostgreSQL remains rejected; no File fallback or live/deployment
 eligibility is introduced.
+
+## PG3 R4 PostgreSQL observation runner startup (2026-10-20)
+
+The actual V2 constructor previously accepted only `FileRecorderApplication`.
+It now accepts the exact native PostgreSQL reporter after its original signed
+SPOT event/history application has completed collection and SDK dedup
+qualification. Startup checks the original connector set, credentials, installed
+listeners, completed task, fresh UID and no pending callbacks. Missing history,
+removed listeners, changed credentials/connectors, extra unqualified connectors
+or stopped sources are refused before runner tasks exist. A reporting application
+cannot bootstrap a second runner. The existing File branch retains its original
+startup checks.
+
+This native profile is **observation-only**. It uses a fixture controller with
+the actual `StrategyV2Base`, actual orchestrator and SDK/auth/HTTP path; it does
+not construct the still-unimplemented configured PostgreSQL LIFE controller.
+The reporter denies create dispatch after V2 binding, and direct orchestrator
+creation is also denied. Unknown reporting controller IDs cannot fall through
+to generic executor creation. Startup leaves `ready_to_trade` false, creates no
+order/activation/financial hold and never calls the legacy File/ORM recorder.
+The standalone recorder mechanism fixtures retain their existing explicit
+assembly; they do not supply configured-service trading authority.
+
+**TDD:** `/tmp/life-r4-runner-startup-red2` reproduced refusal of the actual
+native V2 constructor. `/tmp/life-r4-runner-observation-red` exposed create
+dispatch acceptance after reporting-only startup; this is now independently
+blocked before the executor constructor. The seven startup cases include actual
+constructor/orchestrator execution, refusal of direct known/foreign creation,
+duplicate startup and missing/replaced/stopped source cases. An earlier test
+collection import failure is diagnostic only, not acceptance.
+
+**Frozen qualification:** `run_postgres --suite runner_startup --fail-fast`
+passes **191 cases**, zero failures/errors/skips, **594.07 s**,
+`/tmp/life-r4-runner-qualified` (six existing Pydantic deprecation warnings).
+It includes startup, native recorder/event application, events, positions,
+configuration and outbox regressions. The actual Strategy V2/orchestrator and
+File service runner/startup/headless regression passes **110 cases**, zero
+failures/errors/skips, **35.90 s**, `/tmp/life-r4-file-runner.log` and XML,
+with 28 existing dependency warnings. All **741 source/test/SQL hashes** and
+inventory remain unchanged against `/tmp/life-r4-runner-frozen.json`. Hooks and
+diff checks pass. No SQL migration, configured `.env`/database, real exchange,
+deployment or repository evidence file is introduced. No source, SQL or monetary
+threshold changes. The earlier R2 375-case gate qualifies its recorded revision;
+these affected-runner gates do not replace R5 whole-service acceptance.
+
+**R4 and PG3 remain open:** complete the actual configured controller/service,
+planner/reference/book/fee provenance, final QUOTE/INVENTORY/EXIT and SWAP routes,
+shared SDK quotas, ordinary financial ingress and authenticated history for both
+products, then the R5 full current-source/fault/restart/role gate. Reporting
+startup is not a configured trading backend or a new send capability.
