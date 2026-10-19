@@ -2,7 +2,17 @@
 
 Created: 2026-10-11
 
-**Current execution checkpoint (2026-10-19, base `e6e089c5f` plus this delivery):**
+**Current execution checkpoint (2026-10-19, base `7a42c6c49` plus this delivery):**
+R1 retains an original ACKed, zero-fill SWAP through interrupted funding recovery,
+with independent native preparation/ARM/ACK and historical fill exclusion.
+Migration 72 passes **113 migration cases**; **53 File/source cases** and the
+**12 new native workflows** pass. The broader native run exposed a quote-source
+pending-state omission, fixed in `5b26082f2`; its exact workflow and cold
+observation-only recovery now pass. Full qualification and the recorded
+intermediate failures are [below](#pg3-original-unfilled-swap-during-outer-funding-recovery-2026-10-19).
+**R1–R5 and PG3 remain open; configured PostgreSQL stays denied.**
+
+**Earlier execution checkpoint (2026-10-19, commit `7a42c6c49`):**
 R1 additionally retains completed original File SPOT repair batches through a
 later completed SWAP cash parent and funding interruption. The affected selector
 passes **58 native cases**, including 16 new repaired-origin workflows, and all
@@ -714,7 +724,7 @@ qualification/revision recorded in each increment below.
 - [x] Completed funding-only core commands and original APPLIED native joint parents for the declared recovery profiles; original basis, exact leaves, gross budgets and cold restart remain verified.
 - [x] Declared completed core SPOT-fill/approved-transfer commands, with or without funding; exact child receipts, chronological economic replay and File/native cold parity.
 - [x] Declared completed ACK-bearing core commands and original signed repaired native SPOT/SWAP batch parents; exact receipts, original cut, File parity and cold restart.
-- [ ] Prepared-receipt/terminal/settlement core command families and remaining repaired-origin histories required by the supported File recovery modes.
+- [ ] Remaining prepared-receipt/terminal/settlement core commands **inside their original bound outer coordinator**, plus required repaired-origin histories. Core-only admission of these side effects remains forbidden; see the source-routing constraint below.
 - [x] Declared original PREPARED-only SPOT holds during core funding recovery, with independent native unsent provenance, actual File parity, cold restart and a real 61→62 upgrade.
 - [x] Declared earlier filled/ACKed other-order history omitted by the pending command, with original receipts, zero-money ACK proof, File parity and actual 62→63 upgrades.
 - [x] Declared original cancel-request/retry prefixes with independent native originals, unchanged retry history/holds and cold recovery.
@@ -727,8 +737,20 @@ qualification/revision recorded in each increment below.
 - [x] Declared original ACK interruptions and ACK-bearing core funding, with exact native ACK completion proofs; completed original File repair cohorts, including multiple interrupted superseding attempts. The 60 native cases below qualify these profiles; broader current-source recovery/source acceptance remains open.
 - [x] Declared earlier completed outer SWAP cash parents before later funding interruptions, preserving exact opening, original writer/economic leaves, gross cost and first-publisher history. Frozen `b4fdab333` passes 149 affected native cases, including the 24-case new economic/crash matrix.
 - [x] Declared completed original SPOT repair → completed outer SWAP cash parent → later funding crash histories, with USDT/LIFE fees and independent native-prefix states; 16 new native workflows, exact File money/gross-budget parity, retained HALT/claims and two cold opens.
+- [x] Declared original ACKed, zero-fill SWAP during outer funding interruption; independent native preparation/ARM/ACK, historical booked/pending-fill refusal, original claims and cold File parity. See the migration-72 qualification below.
 - [ ] Remaining outer SPOT and hedge/carry coordinator histories, including original product checkpoints and the remaining side-effect/valuation/repaired-origin families required by supported File modes.
 - [ ] Complete authenticated order/trade/bill/runner scope and original collateral/liability source consumption at every required terminal/shared-release route.
+
+**Source-routing constraint:** a `JointCashSpot` payload containing prepared
+receipts or terminal/settlement side effects is not authority to start that work.
+The File writer requires the original bound outer recovery authority. Once bound,
+source capture requires that coordinator and its complete ancillary journals,
+even if core cash has finished. Keep the core-only parser's refusals; do not
+implement a standalone bypass to satisfy an ambiguous checklist label. Qualification
+passes **10 File routing/authority cases** (9.57 s, `/tmp/life-r1-source-routing.xml`):
+all seven outer crash stages refuse missing coordinator capture without changing
+cut, native bytes or claims; the existing prepared/terminal/settlement authority
+refusals also pass. Supported coupled histories still need the remaining proofs.
 
 **Remaining R1 execution sequence:** finish the coupled workflows below rather
 than treating another standalone prefix helper as R1 closure. This groups the
@@ -3806,3 +3828,57 @@ repository evidence file was used. R1 retains its remaining coordinator/product/
 valuation histories and complete authenticated provider/runner/collateral-source
 consumption at release routes. The fixed R2–R5 exits remain open; configured
 PostgreSQL remains denied.
+
+### PG3 original unfilled SWAP during outer funding recovery (2026-10-19)
+
+Base `7a42c6c49`. A live original SWAP with no trades can now remain in the
+retired outer funding source. Its basis carries an explicit zero-fill marker;
+migration 72 resolves the unique independently admitted native preparation by
+intent and verifies original ARM/ACK history. Missing/different native ACKs,
+malformed markers and booked or pending native fills at the original cut deny
+import. Later real native fills preserve the old historical proof and invalidate
+that zero-fill proof at the new cut; read-only historical proof does not renew
+an approval or authorize ignoring received facts.
+
+The declared actual File workflow is one ACKed unfilled SWAP plus funding,
+interrupted before cash, during monetary publication or before outer completion.
+It retains the independent original opening and claim, has no fabricated trade,
+and requires neutral import → signed original-fact repair → two cold opens.
+Funding debits/credits, exact File money/gross budgets, original native receipts,
+HALT and unchanged retired source bytes are checked. No table/index, monetary
+policy, source TTL, SQL/transaction limit, backend selection or live permission
+changes. The existing unique intent and fill indexes serve the native proof.
+
+TDD: the File parser first refused the profile; after that extension the native
+import still refused `PG_LEGACY_APPLYING_ORIGINAL_SWAP_BASIS_REQUIRED`. Migration
+72 supplies the missing independent proof. **113 actual migration cases pass**,
+0 failures/errors/skips, 120.06 s (`/tmp/life-r1-unfilled-swap-migrations`). This
+includes actual 71→72 upgrade, unchanged OIDs/ACLs/security/tables, no financial
+bootstrap, repeat-start no-op and atomic rejection of an unknown predecessor
+body/search-path/security. **43 affected File/source/migration-file cases pass**,
+0 failures/errors/skips, 8.55 s (`/tmp/life-r1-unfilled-swap-file-final.xml`).
+The broader compatibility run records **301 passed / 1 failed**, 0 errors/skips,
+1141.66 s (`/tmp/life-r1-unfilled-swap-compat/integration.xml`). All **12 new SWAP
+cases pass** within that result. The sole failure is the existing pending-finance
+quote-source test: the policy reader checked integrity (`unverified`) but omitted
+`financial_recovery_required`, so valid retained pending facts did not stop
+factory creation. This was not a SQL timeout or a demonstrated order-send bypass.
+The same compact SQL read now checks both flags before returning quote admission
+policy. Recovery reads retain their separate observation-only identity path.
+The exact failed workflow and its source/factory regressions now pass **75 native
+cases**, 0 failures/errors/skips, 161.68 s
+(`/tmp/life-r1-pending-quote-factory-green/integration.xml`). The affected collector/recorder/collateral and queued-action selector then
+records **141 passed / 1 failed**, 0 errors/skips, 310.80 s
+(`/tmp/life-r1-pending-quote-compat/integration.xml`). The queued operational
+backlog remains eligible for policy reads. The failing cold observer fixture
+was still creating a quote source while delivery was pending. It now uses the
+existing observation-only factory and the exact cold-recovery workflow passes,
+10.31 s (`/tmp/life-r1-cold-observation-reader-green/integration.xml`), preserving
+original accounting/delivery values and one original send. Production denial is
+retained; no financial guard or deadline is relaxed. The two source selectors
+have one overlapping test ID. Both original failing results remain recorded;
+each failed workflow has a passing post-fix replay. A fresh 302-case combined
+run and full R1/R5 acceptance are not claimed. Changed-file hooks pass. The focused
+`legacy_imports`/`joint_recovery` selectors include the new native module.
+R1 and R2–R5 remain open for their fixed exits. No configured DB, `.env`, exchange,
+deployment or new repository evidence file is used.

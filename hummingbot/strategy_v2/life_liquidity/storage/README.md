@@ -3618,3 +3618,25 @@ The outer parser also verifies completed original File SPOT recovery batches
 using the same original-child/supersedes proof as core recovery. A later SWAP
 trade or funding observation cannot re-date that SPOT fill, adopt its partial
 wallet, stand for a missing native prefix or release its retained claims.
+
+## Original unfilled SWAP during outer funding recovery (2026-10-19)
+
+Migration 72 extends the retired outer source proof to a live original SWAP
+with no trades. Its unique native preparation, ARM, exact exchange ACK and shared
+claim must already exist independently. No synthetic fill or preparation ID is
+created. Booked and pending native fills at the original cut reject the zero-fill
+proof; a later genuine fill does not rewrite earlier historical evidence.
+Signed recovery applies the original funding exactly once and retains HALT and
+claims. The declared workflow covers four outer/core monetary crash boundaries,
+funding debit/credit, cold restart and unchanged original receipts/source bytes.
+It does not close other original product/coordinator histories, complete provider
+source consumption, or the fixed PG3 R1–R5 exits. Configured PostgreSQL selection
+remains rejected. See the current qualification in the implementation plan.
+
+Quote admission policy reads also require `financial_recovery_required=false`
+at the same primary cut as the integrity/policy checks (`5b26082f2`). A valid
+retained pending fact is not corruption; it still blocks creating a quote source.
+Observation-only identity supports cold delivery recovery without restoring that
+source's quote capability. An operational action backlog alone is not financial
+pending and remains eligible for policy reads. The original regression results
+and exact passing repairs are recorded in the implementation plan.

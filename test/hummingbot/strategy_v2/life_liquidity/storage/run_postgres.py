@@ -147,10 +147,10 @@ def main():
         if args.suite == 'carry':
             selectors.append(str(selector.with_name('test_postgres_carry_proof_reuse.py')))
         if args.suite == 'legacy_imports':
-            selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in ('legacy_applying', 'legacy_core_cashflows', 'legacy_spot', 'legacy_joint', 'coupled_ack', 'file_recovery_history', 'completed_outer_history', 'outer_recovery_history', 'received_observations')]
+            selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in ('legacy_applying', 'legacy_core_cashflows', 'legacy_spot', 'legacy_joint', 'coupled_ack', 'file_recovery_history', 'completed_outer_history', 'outer_recovery_history', 'unfilled_swap', 'received_observations')]
         if args.suite == 'joint_recovery':
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in (
-                'collateral', 'collateral_source', 'joint_batch', 'joint_repair', 'swap_fills', 'swap_accounting', 'funding', 'funding_repair', 'funding_cohort', 'swap_repair', 'spot_repair', 'cashflow_repair', 'terminal_repair', 'legacy_applying', 'legacy_core_cashflows', 'legacy_spot', 'legacy_joint', 'coupled_ack', 'file_recovery_history', 'completed_outer_history', 'outer_recovery_history', 'received_observations', 'portfolio', 'swap_terminal', 'shared_release', 'late_capital')]
+                'collateral', 'collateral_source', 'joint_batch', 'joint_repair', 'swap_fills', 'swap_accounting', 'funding', 'funding_repair', 'funding_cohort', 'swap_repair', 'spot_repair', 'cashflow_repair', 'terminal_repair', 'legacy_applying', 'legacy_core_cashflows', 'legacy_spot', 'legacy_joint', 'coupled_ack', 'file_recovery_history', 'completed_outer_history', 'outer_recovery_history', 'unfilled_swap', 'received_observations', 'portfolio', 'swap_terminal', 'shared_release', 'late_capital')]
         if args.suite == 'spot_recovery_paths':
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in (
                 'spot_observations', 'received_observations', 'lifecycle', 'observation_context', 'inventory_settlement', 'financial_ingress', 'financial_commands')]

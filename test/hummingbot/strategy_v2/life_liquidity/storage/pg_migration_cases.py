@@ -2256,3 +2256,45 @@ async def test_required_original_ack_upgrade_is_private_atomic_and_preserves_old
     for table in ('accounts', 'operations', 'financial_events', 'legacy_applying_imports'):
         assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
     assert (await migrate(c, directory, action='up'))['applied'] == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('unexpected_shape', ['none', 'body', 'search_path', 'security'])
+async def test_unfilled_swap_prefix_upgrade_preserves_original_oids_acl_tables_and_refuses_unknown_program(db, unexpected_shape):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 72:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    signature = 'life_financial.legacy_joint_basis_valid(uuid,jsonb,bigint)'
+    if unexpected_shape == 'body':
+        definition = await c.fetchval('SELECT pg_get_functiondef(to_regprocedure($1))', signature)
+        assert 'RETURN false;END IF;' in definition
+        await c.execute(definition.replace('RETURN false;END IF;', 'RETURN true;END IF;', 1))
+    elif unexpected_shape == 'search_path':
+        await c.execute('ALTER FUNCTION ' + signature + ' SET search_path=pg_catalog,public')
+    elif unexpected_shape == 'security':
+        await c.execute('ALTER FUNCTION ' + signature + ' SECURITY INVOKER')
+    query = '''SELECT p.oid,p.oid::regprocedure::text AS signature,p.proacl,p.prosrc,p.provolatile::text AS provolatile,p.prosecdef,p.proconfig,p.proowner
+        FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='life_financial' ORDER BY p.oid'''
+    before = {r['signature']: dict(r) for r in await c.fetch(query)}
+    tables = await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace='life_financial'::regnamespace ORDER BY oid")
+    path = DEFAULT_DIRECTORY / '000072_unfilled_swap_prefix.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    if unexpected_shape != 'none':
+        with pytest.raises(asyncpg.RaiseError, match='LIFE_UNFILLED_SWAP_PREFIX_MIGRATION_MISMATCH'):
+            await migrate(c, directory, action='up')
+        assert {r['signature']: dict(r) for r in await c.fetch(query)} == before
+        assert (await versions(c))[-1]['version'] == 71
+        return
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    after = {r['signature']: dict(r) for r in await c.fetch(query)}
+    assert set(after) == set(before)
+    for key, original in before.items():
+        assert after[key] == (original if key != signature else {**original, 'prosrc': after[key]['prosrc']})
+    for role in ('public', 'life_runtime_test', 'life_reporter_test'):
+        assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", role, signature)
+    assert tables == await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace='life_financial'::regnamespace ORDER BY oid")
+    for table in ('accounts', 'operations', 'financial_events', 'legacy_applying_imports'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+    assert (await migrate(c, directory, action='up'))['applied'] == []

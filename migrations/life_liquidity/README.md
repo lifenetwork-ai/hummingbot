@@ -1034,3 +1034,13 @@ account, policy, balance, activation or configured PostgreSQL sender.
   No table, monetary write, source renewal, grant or public OID/ACL changes.
   Unexpected predecessor code rolls back atomically; checksum-verified repeat
   startup remains a no-op.
+
+- `000072_unfilled_swap_prefix.sql`: retired outer funding recovery may retain
+  an original ACKed SWAP with zero fills. The private basis proof resolves its
+  unique independently admitted native preparation by intent, verifies the
+  original ARM/ACK and refuses booked or pending fills at the historical cut.
+  The File source supplies no new preparation, trade, ACK or release. Upgrade
+  requires the complete audited predecessor function body and security settings;
+  it preserves function identity/ACLs and creates no tables or financial facts.
+  Repeated startup is a migration-runner no-op. All 113 migration cases pass,
+  including unknown-body/search-path/security refusal and actual 71→72 upgrade.

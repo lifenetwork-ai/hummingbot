@@ -67,6 +67,19 @@ def joint_profile(source, command):
     for order in bundle['orders']:
         claim = order['claim']
         if not order['trades']:
+            if claim['product'] == 'SWAP':
+                # Only the original independent native ACK may explain this
+                # zero-fill order. SQL resolves its unique original preparation
+                # by intent, checks its full history and refuses any native fill
+                # at the original cut. This view creates neither ID nor ACK.
+                exchange_id = order['exchange_order_id']
+                if (order['state'] != 'live' or type(exchange_id) is not str
+                        or not exchange_id.isascii() or not exchange_id.isdigit()
+                        or not 1 <= len(exchange_id) <= 64 or exchange_id[0] == '0'
+                        or claim['wire_id'] not in source.facts.accepted_wire_ids):
+                    raise StorageError('PG_LEGACY_APPLYING_FACTS_CHANGED')
+                claims.append(dict(claim=claim, exchange_order_id=exchange_id, unfilled=True))
+                continue
             # An original unarmed SPOT receipt has a principal hold but no
             # economic leaf. Its independent native PREPARED proof is checked
             # at the import cut; it never becomes an implied ARM or refund.

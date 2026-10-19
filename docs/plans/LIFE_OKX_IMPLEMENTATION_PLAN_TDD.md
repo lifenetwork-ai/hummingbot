@@ -1,6 +1,14 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
-**Current PG3 R1 checkpoint (2026-10-19, base `e6e089c5f` plus this delivery):**
+**Current PG3 R1 checkpoint (2026-10-19):** original ACKed zero-fill SWAP
+orders retain their independently admitted preparation/ARM/ACK and claims during
+funding recovery. Migration 72 passes 113 migration cases; 53 File/source cases
+and 12 new native workflows pass. An integration-discovered quote-source pending
+check is fixed in `5b26082f2`; its failed workflow and observation-only cold
+recovery now pass. See [qualification and resolved regressions](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-original-unfilled-swap-during-outer-funding-recovery-2026-10-19).
+**PG3 remains open** for the fixed R1–R5 exits; configured PostgreSQL stays denied.
+
+**Earlier PG3 R1 checkpoint (2026-10-19, commit `7a42c6c49`):**
 completed original File SPOT repair batches now compose with a later completed
 outer SWAP cash parent and funding interruption. **58 affected native cases**
 (including 16 new repaired-origin workflows) and **13 File/source cases** pass.

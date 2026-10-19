@@ -27,7 +27,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.legacy_applying impo
 from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancialRecoveryFacts
 
 
-async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('-.001'), funding=None, cashflow=None, cashflow_written=False, book_native_swap=False, book_native_funding=False, file_result=None, book_native_parent=False, spot_side=None, spot_fee_currency='USDT', spot_terminal_stage=None, spot_settlement_stage=None, native_terminal=True, native_settlement=True, spot_unsent=False, native_abort=True, spot_cancel=None, native_cancel=True, spot_ack=None, native_ack=True, prior_outer=False, prior_file_repair=False, native_prior_file_repair=True):
+async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('-.001'), funding=None, cashflow=None, cashflow_written=False, book_native_swap=False, book_native_funding=False, file_result=None, book_native_parent=False, spot_side=None, spot_fee_currency='USDT', spot_terminal_stage=None, spot_settlement_stage=None, native_terminal=True, native_settlement=True, spot_unsent=False, native_abort=True, spot_cancel=None, native_cancel=True, spot_ack=None, native_ack=True, prior_outer=False, prior_file_repair=False, native_prior_file_repair=True, swap_filled=True, native_swap_ack=True, native_swap_ack_id='987654321'):
     from test.hummingbot.strategy_v2.life_liquidity import test_session
     from test.hummingbot.strategy_v2.life_liquidity.storage import test_legacy_joint_applying as file_fixture
     from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_carry import setup as carry_setup
@@ -52,7 +52,10 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
     admin = database[0]
     now = await admin.fetchval('SELECT clock_timestamp()')
     original_report = file_fixture.report
-    pnl = D('.25') * (D('1') - entry)
+    if not swap_filled and (spot_side is not None or prior_outer or cashflow is not None or book_native_swap or book_native_funding or book_native_parent):
+        raise AssertionError('unfilled SWAP fixture declares one original ACKed order and funding only')
+    fee = fee if swap_filled else D('0')
+    pnl = D('.25') * (D('1') - entry) if swap_filled else D('0')
     final_cash = D('10') + pnl + fee + (funding or D('0'))
     final_base = D('10')
     if spot_side is not None and not spot_unsent:
@@ -71,7 +74,7 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
         final_cash += amount if currency == 'USDT' else D('0')
         final_base += amount if currency == 'LIFE' else D('0')
     approval_at = int(now.timestamp() * 1000)
-    final_collateral = final_cash + min(D('0'), D('.75') * (D('1') - entry))
+    final_collateral = final_cash + min(D('0'), (D('.75') if swap_filled else D('1')) * (D('1') - entry))
     if prior_outer and (funding is None or cashflow is not None or spot_side is not None and not prior_file_repair or book_native_parent):
         raise AssertionError('completed outer fixture declares an original SWAP prefix and a later funding bill')
     if prior_file_repair and (not prior_outer or spot_side is None or any((spot_unsent, spot_terminal_stage, spot_settlement_stage, spot_cancel, spot_ack))):
@@ -88,6 +91,8 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
         else:
             result = original_report(values, box, claim)
             result = replace(result, exchange_order_id='987654321', trades=(replace(result.trades[0], realized_pnl_quote=pnl, signed_fee=fee),))
+            if not swap_filled:
+                result = replace(result, state='live', trades=())
         stamp = int(values[6].wall.timestamp() * 1000)
         orders = (result,)
         if spot_side is not None:
@@ -113,11 +118,13 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
                 for f in extra.fills)),)
         file_sequence = max(values[8]['snapshot'].sequence, prepared_target.get('file_source_sequence', 1) + 1)
         prior = prepared_target.get('reporting_prior', False)
-        box['value'] = replace(box['value'], snapshot_sequence=file_sequence, orders=orders, pending_wire_ids=() if spot_side is None or spot_unsent or spot_terminal_stage is not None or spot_settlement_stage is not None else ('spotwire',), observed_at_ms=stamp,
+        box['value'] = replace(box['value'], snapshot_sequence=file_sequence, orders=orders, pending_wire_ids=((claim.wire_id,) if not swap_filled else ()) + (() if spot_side is None or spot_unsent or spot_terminal_stage is not None or spot_settlement_stage is not None else ('spotwire',)), observed_at_ms=stamp,
                                payments=() if funding is None or prior else (RecoveryPayment('777', funding, stamp),))
-        values[7]['value'] = replace(values[7]['value'], snapshot_sequence=file_sequence, observed_at_ms=stamp)
+        values[7]['value'] = replace(values[7]['value'], snapshot_sequence=file_sequence, observed_at_ms=stamp,
+                                     **({} if swap_filled else {'net_contracts': D('4')}))
         values[8]['snapshot'] = replace(values[8]['snapshot'], sequence=file_sequence, observed_at_ms=stamp, spot_cash_quote=final_cash - (funding if prior else D('0')), spot_life_base=final_base, collateral_quote=final_collateral - (funding if prior else D('0')),
-                                        pending=() if spot_side is None or spot_unsent or spot_terminal_stage is not None or spot_settlement_stage is not None else (prepared_target['spot'][1],))
+                                        long_base=D('.75') if swap_filled else D('1'),
+                                        pending=((claim,) if not swap_filled else ()) + (() if spot_side is None or spot_unsent or spot_terminal_stage is not None or spot_settlement_stage is not None else (prepared_target['spot'][1],)))
         return result
 
     prepared_target = {}
@@ -216,7 +223,8 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
                 terms_age_ms=failed_at.timestamp() * 1000 - observed.terms.observed_at_ms,
                 max_age_ms=1000)))
             raise
-        await swap.acknowledge(prepared.operation_id, exchange_order_id='987654321', owner=owner)
+        if native_swap_ack:
+            await swap.acknowledge(prepared.operation_id, exchange_order_id=native_swap_ack_id, owner=owner)
         if spot_side is not None:
             from test.hummingbot.strategy_v2.life_liquidity.storage.test_spot_financial_contracts import order
 
@@ -540,9 +548,11 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
     binding = store.binding
     at = recovery.clock_ms()
     trade_at = prepared_target.get('original_trade_at', at)
-    trade = SwapFillObservation('trade-1', D('.25'), D('1'), 'USDT', fee, trade_at, D('1'), trade_at, trade_at, 'independent_market', pnl, None)
-    fill = FillSwap('original-fill', prepared.operation_id, claim.intent_id, claim.wire_id, 'LIFE-USDT', claim.side,
-                    claim.session_id, claim.epoch, '987654321', D('.25'), (trade,), values[6].wall)
+    fill = None
+    if swap_filled:
+        trade = SwapFillObservation('trade-1', D('.25'), D('1'), 'USDT', fee, trade_at, D('1'), trade_at, trade_at, 'independent_market', pnl, None)
+        fill = FillSwap('original-fill', prepared.operation_id, claim.intent_id, claim.wire_id, 'LIFE-USDT', claim.side,
+                        claim.session_id, claim.epoch, '987654321', D('.25'), (trade,), values[6].wall)
     if book_native_swap and not book_native_parent:
         # Received fills remain accountable under HALT. Pin that explicit
         # stopped state before capturing the cut; a live source TTL crossing
@@ -562,7 +572,7 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
         assert (await PgSwapFillRepository(swap).apply_fills(original_fill, cut=native_cut, owner=owner)).state == 'APPLIED'
     fresh_now = await admin.fetchval('SELECT clock_timestamp()')
     values[6].wall = fresh_now
-    facts = SpotFinancialRecoveryFacts(binding, fresh_now, final_base, final_cash, D('0'), D('0'), ('trade-1',) + (() if spot_side is None or spot_unsent else ('spottrade1',)) + (() if spot_settlement_stage is None else ('spottrade2',)),
+    facts = SpotFinancialRecoveryFacts(binding, fresh_now, final_base, final_cash, D('0'), D('0'), (('trade-1',) if swap_filled else ()) + (() if spot_side is None or spot_unsent else ('spottrade1',)) + (() if spot_settlement_stage is None else ('spottrade2',)),
                                        () if cashflow is None else ('101',), (claim.wire_id,) + (() if spot_side is None or spot_unsent else ('spotwire',)) + (() if spot_settlement_stage is None else ('extraspotwire',)), (), True, True, True)
     drain = OwnerTransition('outer-drain', OwnerMode.DRAINING, file_owner)
     cut = (await store.snapshot(binding)).cut
@@ -590,7 +600,8 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
     b = carry_feed[0]
     stamp = int(fresh_now.timestamp() * 1000)
     snapshot = replace(b.account.snapshot, sequence=b.account.snapshot.sequence + 1, observed_at_ms=stamp, spot_cash_quote=final_cash, spot_life_base=final_base,
-                       long_base=D('.75'), collateral_quote=final_collateral)
+                       long_base=D('.75') if swap_filled else D('1'), collateral_quote=final_collateral,
+                       pending=() if swap_filled else (claim,))
     b = replace(b, account=replace(b.account, snapshot=snapshot, included_funding_bill_ids=() if funding is None else ('777',)), mark=replace(b.mark, sequence=b.mark.sequence + 1, observed_at_ms=stamp),
                 index=replace(b.index, sequence=b.index.sequence + 1, observed_at_ms=stamp), funding=replace(b.funding, sequence=b.funding.sequence + 1, observed_at_ms=stamp, coverage_through_ms=stamp),
                 terms=replace(b.terms, sequence=b.terms.sequence + 1, observed_at_ms=stamp))
@@ -608,7 +619,7 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
         assert (await PgFundingRepository(swap).apply_funding(ApplyFunding('native-prior-funding', b),
                                                               cut=(await financial.observation_cut(cfg.binding)).cut, owner=owner)).state == 'APPLIED'
     batch = PgJointBatchRepository(swap)
-    cmd = ImportLegacyApplying(source.content_digest, ApplyJointBatch('outer-pending', () if spot_side is None or spot_unsent else (prepared_target['spot_fill'], *prepared_target.get('extra_spot_fills', ())), (fill,), flows, ApplyFunding('outer-funding', b)))
+    cmd = ImportLegacyApplying(source.content_digest, ApplyJointBatch('outer-pending', () if spot_side is None or spot_unsent else (prepared_target['spot_fill'], *prepared_target.get('extra_spot_fills', ())), () if fill is None else (fill,), flows, ApplyFunding('outer-funding', b)))
     await admin.execute('UPDATE life_financial.accounts SET halted=true WHERE account_id=$1', cfg.account_id)
     # This is a halted import, not source-readiness renewal. Capture its signed
     # diagnostic cut after the original pre-fill carry source has expired. Do
