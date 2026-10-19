@@ -4,10 +4,12 @@ Created: 2026-10-11
 
 **Current execution checkpoint (2026-10-19):** PG3 is working on **R1 accounting/
 recovery**. Migration 69 adds declared coupled outer SPOT/SWAP/funding recovery and original
-terminal/inventory side-effect profiles. It does not close R1. Remaining R1 work is grouped into coupled
+terminal/inventory side-effect profiles. The subsequent original prepared-receipt/
+lifecycle increment has 40 native and 85 File passes, but the common 219-case
+gate has 3 failures; R1 is not closed. Remaining R1 work is grouped into coupled
 outer/core pending recovery, complete provider-source consumption at releases,
 and current-source qualification. See the [fixed exit checklist](#fixed-pg3-exit-checklist-2026-10-17)
-and [latest scope/qualification](#pg3-original-unsent-abort-and-nav-history-2026-10-19).
+and [latest scope/qualification](#pg3-original-prepared-receipt-and-coupled-lifecycle-recovery-2026-10-19).
 Configured PostgreSQL remains denied; R2–R5 retain their exits. Older dated
 checkpoints below qualify their recorded source and scope only.
 
@@ -710,6 +712,7 @@ qualification/revision recorded in each increment below.
 - [x] Declared completed original unsent aborts and pre-SWAP SPOT NAV histories during core funding recovery; exact native provenance and historical monetary cut, retained highwater/receipts, File parity, cold corruption refusal and actual 67→68 upgrade.
 - [ ] Interrupted lifecycle (including abort/cancel), terminal/inventory-settlement and other required NAV histories. The completed standalone prefixes above do not cover pending side effects or joint portfolio valuation.
 - [x] Declared coupled outer SPOT/SWAP/funding crash profiles, including USDT/LIFE SPOT fees and interrupted File terminal/inventory side effects with independent original native completions; exact File money/budget parity and original-ID cold replay. See migration-69 qualification below.
+- [x] Declared original PREPARING receipts and partial unsent abort/cancel bookkeeping coupled with outer SWAP/funding recovery: 40 native cases and 85 affected File cases pass. The common 219-case gate still has three failures; this profile completion does not qualify the whole R1 workflow. See the original prepared-receipt/lifecycle increment below.
 - [ ] Remaining outer SPOT and hedge/carry coordinator histories, including original product checkpoints and the remaining side-effect/valuation/repaired-origin families required by supported File modes.
 - [ ] Complete authenticated order/trade/bill/runner scope and original collateral/liability source consumption at every required terminal/shared-release route.
 
@@ -3468,3 +3471,92 @@ origin/joint-valuation histories, hedge/carry product checkpoints and complete
 authenticated provider/runner/collateral consumption retain the R1 exit. R1 and
 R2–R5 remain open; configured PostgreSQL remains denied. No `.env`, configured
 account, external exchange, deployment or new evidence file is used.
+
+### PG3 original prepared receipt and coupled lifecycle recovery (2026-10-19)
+
+Base `5770cd693` plus this delivery; SQL remains at migration 69. Original
+unsent SPOT orders can participate in an outer SWAP/funding recovery without
+inventing an ARM, fill or monetary adjustment. A lost PREPARING completion must
+retain the exact original namespace/request/writer/time, principal/subsidy and
+WAL. An APPLIED core retains the original prepared-receipt batch reference.
+Existing native preparation/unsent provenance at the import cut is mandatory.
+
+Read-only lifecycle admission explains the original partial abort/cancel
+images. An outer abort must match an independently completed original native
+abort. File cancel/retry recovery completes the original bookkeeping before
+retiring an eligible outer financial capsule. No cancel request becomes an
+exchange cancellation or terminal proof. Original receipts and retry counts
+survive import, monetary repair and cold restart without an additional send,
+principal refund, subsidy refund or shared-claim retirement.
+
+The Red `/tmp/life-r1-coupled-lifecycle-red2` reproduces rejection of the valid
+original unsent/prepared source with `PG_LEGACY_APPLYING_PROFILE_UNSUPPORTED`.
+The first diagnostic run only exposed a fixture passing final account values
+before the initial File reconciliation; it is not the feature Red. A later
+positive case correctly refused abort after monetary repair while the original
+account/carry response had expired (`financial_recovery_required=false`,
+`recovery_required=true`). The workflow now explicitly asserts that refusal,
+collects a new synthetic cohort at the post-accounting cut, then requests the
+separate guarded original-unsent abort. No deadline or old receipt is renewed.
+
+**Whole-workflow qualification remains incomplete:** intermediate full selectors
+passed 6 cases then rejected a source expired at COMMIT (1076.579 ms against
+the unchanged 1000-ms source limit), and passed 99 cases then rejected an old
+fixture's stale original SWAP ARM source. The source-expiry case passes alone;
+that is not a replacement for the common selector. Failure-only original ARM
+timing records capture/account/mark/index/funding/terms ages without refreshing
+or retrying the failed request. The whole affected workflow must pass on one
+frozen source before this increment is committed as qualified. The separate
+R5/PG8/O.8 timing/scalability gates remain open.
+
+The subsequent common selector stopped at **112 passed / 1 failed** in 534.81 s
+(`/tmp/life-r1-coupled-lifecycle-final-regression2`), during original native SWAP
+ACK setup, before File import or monetary repair. SQL rejected `PG_SWAP_CUT_STALE`.
+The snapshot digest includes time-dependent carry readiness: expiration between
+the primary cut statement and ACK statement changes the digest without changing
+the ledger version. A deterministic expiry-boundary test reproduces this exact
+rejection (`/tmp/life-r1-swap-ack-cut-red`, 1 failed).
+
+`PgSwapRepository.acknowledge` now permits one new ledger cut only after the
+definite SQL `PG_SWAP_CUT_STALE` rollback. The original ACK operation/order identity
+is retained; source data is not recaptured, carry readiness is not renewed, and
+no send, ARM, budget write or release is performed by this retry. An uncertain
+COMMIT, changed owner, invalid accounting or another rejection is not retried.
+The boundary test passes with the original carry source unchanged, one ACK,
+unchanged balances/budgets/claims and recovery still required
+(`/tmp/life-r1-swap-ack-cut-green`, 1 passed in 9.88 s). This focused Green does
+not replace the pending common recovery/SWAP regression or close R1/R5.
+
+The full frozen-source recovery/SWAP selector subsequently completed with
+**216 passed / 3 failed**, zero errors/skips, in 1006.75 s
+(`/tmp/life-r1-coupled-lifecycle-ack-final/integration.xml`). Its module results
+are 40/0 coupled lifecycle, 70/1 original outer recovery, 55/2 mixed/pending
+outer recovery, 50/0 original SWAP and 1/0 deterministic ACK expiry. These are
+parts of the 219 selected cases, not additional coverage. The ACK fix is
+committed separately as `0a145bc81`; the 50 SWAP cases include actual process/
+backend loss before and after COMMIT. The affected File selector passes
+**85 cases**, 22.05 s, zero failures/errors/skips
+(`/tmp/life-r1-coupled-lifecycle-final-file.xml`). SQL remains at migration 69;
+the earlier 100 migration passes qualify the unchanged SQL separately.
+
+The three failures remain visible and are not replaced by isolated reruns:
+
+- Original SWAP/funding-prefix fixture setup: `CARRY_PRICE_OR_ACCOUNT_UNQUALIFIED`;
+  the carry transaction took 939.794 ms, including 296.857 ms connection
+  validation and 521.750 ms SQL execution, against its 1000-ms source limit.
+  This fails before File retirement/import.
+- Pending-terminal fixture setup: `PG_CAPITAL_CUT_STALE` during original SPOT
+  claim reservation, before File retirement/import. New-risk reservation keeps
+  its cut check; the received-ACK-only retry does not apply here.
+- Pending-inventory monetary repair: `PG_JOINT_BATCH_SOURCE_EXPIRED_AT_COMMIT`,
+  primary elapsed 1028.629 ms and monotonic elapsed 1028.710 ms against the
+  unchanged 1000-ms original carry source limit. This is observed pipeline
+  latency, not evidence of a host/VM wall-clock jump.
+
+The declared prepared/lifecycle profile is implemented; the common workflow
+has **not** passed and is not described as qualified by this checkpoint.
+R1 remains open for the remaining core/coordinator/repaired-origin/valuation
+families, complete authenticated provider/runner/collateral source consumption
+at releases, and a passing common R1 regression. R2–R5, configured PostgreSQL
+selection and demo/live eligibility remain open. No `.env`, configured DB,
+exchange account, deployment or new repository evidence file is used.

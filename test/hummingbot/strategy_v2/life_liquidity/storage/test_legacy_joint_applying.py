@@ -16,7 +16,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.legacy_applying import Retire
 
 async def interrupted(tmp_path, monkeypatch, stage, *, before_report=None):
     repo, store, recovery, values, bundle, owner = await fixture(tmp_path, operator_keys=KEYS)
-    assert await repo.reconcile(store.binding, owner)
+    assert await repo.reconcile(store.binding, owner), recovery.reason_code
     claim = await store._call(send_close, values)
     if before_report is not None:
         restored = await before_report(repo, store, recovery, values, claim, owner)
@@ -31,6 +31,10 @@ async def interrupted(tmp_path, monkeypatch, stage, *, before_report=None):
         'cash_done': (recovery, '_apply'),
         'wal_after': (values[5], 'mark_terminal'),
         'shared_after': (values[1], 'settle'),
+        **{f'abort_{part}_{when}': target for part, target in {
+            'wal': (store._wal, 'abort_before_send'), 'principal': (store._ledger, 'abort_unsent'),
+            'subsidy': (store._subsidy, 'release_unsent'), 'receipt': (store, '_publish_lifecycle')}.items()
+           for when in ('before', 'after')},
     }[stage]
     original = getattr(target, name)
     fired = False
@@ -39,8 +43,10 @@ async def interrupted(tmp_path, monkeypatch, stage, *, before_report=None):
         nonlocal fired
         if stage == 'receipt' and not args[0].startswith('joint-done:'):
             return original(*args, **kwargs)
+        if stage.startswith('abort_receipt_') and not args[0].startswith('lifecycle-done:'):
+            return original(*args, **kwargs)
         fired = True
-        if stage in ('wallet_after', 'loss_after', 'wal_after', 'shared_after'):
+        if stage in ('wallet_after', 'loss_after', 'wal_after', 'shared_after') or stage.startswith('abort_') and stage.endswith('_after'):
             original(*args, **kwargs)
         raise OSError('synthetic original outer saga interruption')
 

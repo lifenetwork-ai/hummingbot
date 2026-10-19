@@ -1,6 +1,15 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
-**Current PG3 R1 coupled-recovery checkpoint (2026-10-19, base `122c6a6b9`):**
+**Current PG3 R1 prepared/lifecycle checkpoint (2026-10-19, base `5770cd693`):**
+original PREPARING receipts and interrupted abort/cancel bookkeeping compose
+with outer SWAP/funding recovery without another send or repeated refund.
+The received-SWAP-ACK expiry fix is committed as `0a145bc81`. The new 40 native
+cases, 85 affected File cases and all 51 SWAP/ACK cases pass, but the common
+219-case selector has **216 passes and 3 failures** in source eligibility/cut
+and COMMIT timing. These counts overlap. **R1 is not closed and the common
+workflow is not qualified.** See [scope, failures and remaining work](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-original-prepared-receipt-and-coupled-lifecycle-recovery-2026-10-19).
+
+**Earlier PG3 R1 coupled-recovery checkpoint (2026-10-19, base `122c6a6b9`):**
 migration 69 admits original mixed SPOT/SWAP/funding recovery, including LIFE/
 USDT SPOT fees and interrupted terminal/inventory side effects with independent
 native original completions. Import and monetary repair retain all shared

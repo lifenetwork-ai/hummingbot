@@ -3514,7 +3514,30 @@ recovery required. An expired readiness response cannot be used as a fresh
 release grant. IMPORT and signed monetary repair preserve original receipts,
 HALT, shared claims, gross execution loss and actual settled subsidy.
 
-Remaining PREPARING/ABORTING/CANCELING families, original coordinator product
-histories, required joint valuation/repaired-origin histories and authenticated
-provider/runner evidence consumption at every required release retain their
-fixed R1 exit requirements. Configured PostgreSQL remains denied.
+### Original prepared receipts and lifecycle interruptions
+
+The outer source parser also admits an original unsent SPOT order with a lost
+PREPARING receipt. Its original request, writer, namespace, preparation time,
+complete principal/subsidy holds and PREPARED WAL must agree. A complete core
+receipt must retain its original `prepared_receipt_batch` identity. Independent
+native PREPARED provenance at the import cut remains mandatory; a prior ARM or
+observation cannot be relabelled as unsent.
+
+Read-only lifecycle views explain original interrupted abort/cancel writes;
+existing original-prefix proofs still verify their final state independently.
+An outer File abort requires its independently recorded original native abort.
+Cancel bookkeeping completes through the original File recovery route before
+the eligible outer financial capsule is retired. A request or retry record
+never becomes an exchange terminal observation. Retry counts, original operation
+IDs and gross budgets remain unchanged through monetary repair and cold replay.
+
+An imported PREPARING receipt retains native monetary holds after accounting.
+Abort is a separate guarded command. Expired carry/account readiness still
+blocks it; an explicit new source collection is required before release.
+Readback and a repaired cash balance do not renew that source or reset HALT.
+Shared claims remain held throughout these paths.
+
+Original coordinator product histories, required remaining core/joint
+valuation/repaired-origin histories and authenticated provider/runner evidence
+consumption at every required release retain their fixed R1 exit requirements.
+Configured PostgreSQL remains denied.

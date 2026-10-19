@@ -64,7 +64,19 @@ def joint_profile(source, command):
     for order in bundle['orders']:
         claim = order['claim']
         if not order['trades']:
-            raise StorageError('PG_LEGACY_APPLYING_PROFILE_UNSUPPORTED')
+            # An original unarmed SPOT receipt has a principal hold but no
+            # economic leaf. Its independent native PREPARED proof is checked
+            # at the import cut; it never becomes an implied ARM or refund.
+            prepared = [r['command'] for r in resources['commands'].values() if r['command']['intent_id'] == claim['intent_id']]
+            if (claim['product'] != 'SPOT' or order['state'] != 'unsent' or order['exchange_order_id'] is not None
+                    or len(prepared) != 1):
+                raise StorageError('PG_LEGACY_APPLYING_PROFILE_UNSUPPORTED')
+            p = prepared[0]
+            if ((p['client_order_id'], p['session_id'], p['epoch'], p['side'], D(p['quantity_base']), D(p['limit_price_usdt']))
+                    != (claim['wire_id'], claim['session_id'], claim['epoch'], claim['side'], D(claim['quantity_base']), D(claim['price_usdt']))):
+                raise StorageError('PG_LEGACY_APPLYING_FACTS_CHANGED')
+            claims.append(dict(claim=claim, prepare_operation_id=p['operation_id'], exchange_order_id=None))
+            continue
         fill = supplied[claim['intent_id']]
         if ((fill.intent_id, fill.client_order_id, fill.side, fill.session_id, fill.epoch, fill.exchange_order_id, fill.market)
                 != (claim['intent_id'], claim['wire_id'], claim['side'], claim['session_id'], claim['epoch'], order['exchange_order_id'], 'LIFE-USDT')
@@ -111,7 +123,7 @@ def joint_profile(source, command):
         old = JointCashSpot.from_json(row['command'])
         from hummingbot.strategy_v2.life_liquidity.storage.postgres.legacy_funding_history import _completed_acks
         _completed_acks(old, resources, row['owner'])
-        if ({v.bill_id: v for v in old.spot_cashflows} != flows or old.spot_prepared_receipts
+        if ({v.bill_id: v for v in old.spot_cashflows} != flows
                 or {event.event_id: event.signed_amount_usdt for event in old.events} != original_events
                 or (old.account_base_life, old.account_quote_usdt) != (source.facts.account_base_life, source.facts.account_quote_usdt)):
             raise StorageError('PG_LEGACY_APPLYING_FACTS_CHANGED')
@@ -140,6 +152,18 @@ def joint_profile(source, command):
     spot_ids = {t['trade_id'] for order in bundle['orders'] if order['claim']['product'] == 'SPOT' for t in order['trades']}
     from hummingbot.strategy_v2.life_liquidity.storage.postgres.legacy_pending_basis import pending_view
     records = json.loads(dict(source.journal_images)['wal'])['records']
+    from hummingbot.strategy_v2.life_liquidity.storage.financial import PrepareSpot
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.legacy_prepared_basis import prepared_view
+    preparations = (tuple(PrepareSpot.from_json(r['command']) for r in resources['commands'].values() if r['state'] == 'PREPARING')
+                    if row is None else old.spot_prepared_receipts)
+    resources, _ = prepared_view(
+        resources, current_wallet, current_subsidy, records, preparations,
+        envelope['state']['ownership']['token'], source.cut.checkpoint.binding.json(),
+        source.facts.observed_at if row is None else old.observed_at,
+        batch_id=None if row is None else old.operation_id,
+        applied=row is not None and row['state'] == 'APPLIED')
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.legacy_pending_lifecycle import lifecycle_view
+    resources, current_wallet, current_subsidy, records, _ = lifecycle_view(resources, current_wallet, current_subsidy, records)
     resources, current_wallet, current_subsidy, records, pending = pending_view(
         resources, current_wallet, current_subsidy, records,
         terminal_ids=tuple(resources.get('terminal_operations', {})) if row is None else old.spot_terminal_operations,
