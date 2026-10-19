@@ -62,6 +62,7 @@ class PgQuoteRunnerJournal:
         self.controller_id, self.runner_facts, self.local_ready, self.clock = controller_id, runner_facts, local_ready, clock
         self.max_actions, self.config_version = max_actions, config_version
         self._entries, self._revoked = {}, False
+        self._transport = None
         self._lock = asyncio.Lock()
 
     def _ready(self):
@@ -178,6 +179,8 @@ class PgQuoteRunnerJournal:
                 entry.revoked = True
                 raise
             entry.accepted = not result.replayed and self.local_runner_create_preflight(action)
+            if self._transport is not None:
+                self._transport.dispatch_finished(action)
             return entry.accepted
 
     def on_runner_create_action_rejected(self, action):
@@ -186,6 +189,8 @@ class PgQuoteRunnerJournal:
         key = getattr(getattr(action, 'executor_config', None), 'id', None)
         if key in self._entries:
             self._entries[key].revoked = True
+            if self._transport is not None:
+                self._transport.dispatch_finished(action)
         return False
 
     def on_runner_create_action_uncertain(self, action):
@@ -263,11 +268,14 @@ class PgQuoteRunnerJournal:
             command = TransitionQuoteAction(self._operation(entry, 'close'), entry.row, record.state, state, facts)
             return await self.repository.transition_quote_action(command, cut=cut, owner=self.owner)
 
-    @staticmethod
-    def submit_executor_spot_order(config, **kwargs):
+    def submit_executor_spot_order(self, config, **kwargs):
         # OrderExecutor otherwise falls back to strategy.buy/sell. Even a live
         # connector accidentally supplied to this offline assembly must not send.
+        if self._transport is not None:
+            return self._transport.submit(config, **kwargs)
         raise StorageError('PG_RUNNER_TRANSPORT_ASSEMBLY_REQUIRED')
 
     def revoke(self):
         self._revoked = True
+        if self._transport is not None:
+            self._transport.stop()

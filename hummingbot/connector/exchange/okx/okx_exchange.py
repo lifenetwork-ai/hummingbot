@@ -112,7 +112,7 @@ class OkxExchange(ExchangePyBase):
     def submit_protected_order(self, *, order_id: str, trading_pair: str, amount: Decimal,
                                trade_type: TradeType, order_type: OrderType, price: Decimal,
                                pre_send_check, on_ack=None, async_pre_send_check=None, async_on_ack=None,
-                               request_send_guard=None) -> str:
+                               request_send_guard=None, on_submission_done=None) -> str:
         """Schedule an order with an externally persisted ID and final-send check.
 
         The caller must commit the ID/reservation/epoch to its WAL before this
@@ -122,19 +122,24 @@ class OkxExchange(ExchangePyBase):
                 or (on_ack is None) == (async_on_ack is None)
                 or on_ack is not None and not callable(on_ack)
                 or async_on_ack is not None and not callable(async_on_ack)
+                or on_submission_done is not None and not callable(on_submission_done)
                 or async_pre_send_check is not None and not callable(async_pre_send_check)
                 or request_send_guard is not None and not all(callable(getattr(request_send_guard, key, None))
                                                               for key in ('authorize', 'check'))
                 or order_type != OrderType.LIMIT_MAKER
                 or trading_pair not in self._protected_trading_pairs):
             raise ValueError("protected OKX order requires ID, callbacks, and post-only type")
-        safe_ensure_future(self._create_order(
+        task = safe_ensure_future(self._create_order(
             trade_type=trade_type, order_id=order_id, trading_pair=trading_pair,
             amount=amount, order_type=order_type, price=price,
             pre_send_check=pre_send_check, on_ack=on_ack,
             **({"async_pre_send_check": async_pre_send_check} if async_pre_send_check is not None else {}),
             **({"async_on_ack": async_on_ack} if async_on_ack is not None else {}),
             **({"request_send_guard": request_send_guard} if request_send_guard is not None else {})))
+        if on_submission_done is not None:
+            # A caller timing out is not proof this SDK task/late ACK finished.
+            # Observation only: this callback grants no retry or send authority.
+            task.add_done_callback(on_submission_done)
         return order_id
 
     def _is_request_exception_related_to_time_synchronizer(self, request_exception: Exception):

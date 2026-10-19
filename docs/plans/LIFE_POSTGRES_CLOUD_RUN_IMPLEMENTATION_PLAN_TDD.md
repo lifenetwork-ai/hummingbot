@@ -737,6 +737,7 @@ failing integration result visible until the same current-source workflow passes
   - [x] R3.4: One frozen coupled native control/session/risk regression with File economic parity, cold readback/corruption/role refusals and process/backend/cancellation failures. The frozen 382-case native gate, 56 File mode tests and 38 audited upgrade cases pass; see the R3 closure qualification below. Configured source/runner installation remains R4.
 - [ ] **R4 — configured assembly:** install planner/reference/book/fee, complete runner/account scope, SPOT/SWAP final request guards, ingress/collectors and recorder/SDK history in the actual controller/service. Exit replay: start the configured PostgreSQL service with fake exchange; both products complete the selected workflow; a missing route fails startup without File fallback. PostgreSQL selection remains rejected until this passes.
   - [x] Observation-only SPOT startup through the actual `StrategyV2Base`/orchestrator with signed native event/history and PostgreSQL reporting, no File/ORM fallback, and no executor-creation grant. The frozen 191-case native and 110-case File/core gates pass; see [observation runner qualification](#pg3-r4-postgresql-observation-runner-startup-2026-10-20).
+  - [x] Explicit native quote journal → actual `OrderExecutor` → protected SPOT SDK → durable ACK, with original awaited dispatch acceptance, no retry/cold-readback send grant, and physical SDK shutdown tracking for both SPOT and hedge SWAP. The frozen 405-case native and 99-case File/SDK gates pass; see [executor application qualification](#pg3-r4-native-quote-executor-application-2026-10-20). Synthetic admission callbacks in this profile do not qualify the configured planner/reference/book/fee source or complete runner/account topology.
   - [ ] Actual configured LIFE controller/service, all enabled final trading routes, complete shared-account/SDK scope and both-product financial ingress/history. The observation profile does not discharge these requirements.
 - [ ] **R5 — current-source acceptance:** all supported File/native decisions and units agree; whole-runner restart/corruption/role tests and process/backend faults pass at capture, send, ACK, settlement, release and signed repair. Resolve the observed SQL statement timeout, then run the complete affected workflow on one frozen source revision. PG0 trust/anchor requirements remain explicit; neither local tests nor a database receipt prove exactly-once exchange delivery.
 
@@ -4608,3 +4609,59 @@ planner/reference/book/fee provenance, final QUOTE/INVENTORY/EXIT and SWAP route
 shared SDK quotas, ordinary financial ingress and authenticated history for both
 products, then the R5 full current-source/fault/restart/role gate. Reporting
 startup is not a configured trading backend or a new send capability.
+
+## PG3 R4 native quote executor application (2026-10-20)
+
+`PgSpotQuoteApplication` explicitly binds a fresh native runner journal and
+signed quote account source before claim publication. The actual `OrderExecutor`
+receives its original deterministic wire ID immediately; a bounded task waits
+for the original SQL dispatch acceptance before collecting preparation facts,
+publishing native holds and scheduling the protected SDK request. The existing
+post-authentication ARM/UID/HMAC/freshness gates remain authoritative. Final SDK
+tracking must match the exact captured side, pair, quantity and price.
+
+Lost dispatch/prepare/ARM/ACK replies, context replacement, SDK quantization,
+missing tracking, executor retry and cold replay cannot issue another request
+or release holds. The old unbound-journal send denial remains. This explicit
+application neither installs a configured backend nor supplies authenticated
+market/planner provenance by naming a callback.
+
+The new timeout replay exposed a physical-work ownership bug: an application
+waiter could finish while the SDK still owned an outstanding POST/late ACK.
+Both OKX SDKs now offer an optional task-completion observer. The native quote
+and hedge applications retain and join that physical work after caller
+cancellation or application expiry. An exhausted shutdown budget reports
+readback required; it does not claim quiescence or cancel late accounting.
+Close applications before closing their native repositories.
+
+Qualification on one frozen source inventory:
+
+- `run_postgres --suite quote_composition --fail-fast` in
+  `/tmp/life-r4-quote-composition-qualified`: **405 passed**, zero
+  failures/errors/skips, **1030.91 s**. Includes actual OrderExecutor dispatch,
+  quote journal/preparation/ARM/signed source/HTTP/ACK, hedge/SWAP and observation
+  runner startup. Existing six Pydantic deprecation warnings remain.
+- Affected File protected SPOT/SWAP, protected executor and core OrderExecutor
+  regressions in `/tmp/life-r4-quote-file.log` and `.xml`: **99 passed**, zero
+  failures/errors/skips, **4.14 s**, six existing warnings.
+- All **2,414 source/test/SQL files** in
+  `/tmp/life-r4-quote-composition-frozen.json` remained byte-for-byte unchanged
+  through qualification. No SQL, monetary, age or transaction limit changed.
+- TDD failures remain in `/tmp/life-r4-spot-app-red`,
+  `/tmp/life-r4-spot-app-timeout-red` and
+  `/tmp/life-r4-hedge-physical-red`. The timeout red returned successful close
+  with a live SDK request. The intermediate
+  `/tmp/life-r4-spot-app-green2` retained the request correctly but its second
+  50-ms close also expired during real late-ACK persistence; the test now waits
+  for original SDK completion before asserting successful repeated close.
+  Shutdown limits were not enlarged. The final frozen workflow above passes.
+
+**R2.3/R4/R5 and PG3 remain open.** Remaining work is the existing fixed scope:
+configured planner/reference/book/fee sources and complete runner/account scope;
+actual shared SDK quotas; ordinary financial ingress/history for both products;
+mandatory controller/service installation with all selected final trading
+routes; then whole-service economic/fault/restart/corruption/role acceptance.
+The new fixtures use explicit synthetic admission/preparation callbacks and
+fake HTTP. They do not discharge those source/service requirements. Configured
+PostgreSQL stays rejected; no live defaults, activation, migration or additional
+evidence file is introduced.

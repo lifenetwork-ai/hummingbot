@@ -42,6 +42,12 @@ An explicit observation-only SPOT PostgreSQL profile can now start the actual V2
 runner with signed event/history qualification and no File/ORM recorder fallback.
 It grants no executor creation. **191 native and 110 File/core cases pass**; see
 [R4 observation startup](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-r4-postgresql-observation-runner-startup-2026-10-20).
+An explicit native quote application now connects actual `OrderExecutor`
+dispatch to protected SPOT prepare/ARM/SDK/ACK, with physical SDK shutdown
+tracking for both SPOT and hedge SWAP. **405 native and 99 File/SDK cases pass**
+on a frozen 2,414-file inventory. Synthetic source callbacks in this gate do not
+qualify the remaining configured source/service assembly; see
+[R4 executor application](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-r4-native-quote-executor-application-2026-10-20).
 Clean stopped File cutover remains PG6; active File checkpoint migration is not selected.
 
 **Earlier R3 control/session, safety and markout checkpoint (2026-10-19):** signed

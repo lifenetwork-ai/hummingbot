@@ -46,6 +46,8 @@ class PgHedgeApplication:
         app._runtime, app._binding, app._owner = repository.runtime, repository.binding, repository.owner
         app._cycle_timeout_ms = cycle_timeout_ms
         app._busy = app._stopped = app._paused = False
+        app._idle, app._physical = asyncio.Event(), set()
+        app._idle.set()
         app._native_source = app._bound_native_source = None
         app._sdk_child = None
         app._checking_sdk_scope = False
@@ -136,6 +138,7 @@ class PgHedgeApplication:
         if self._native_source is None:
             raise StorageError('PG_HEDGE_APPLICATION_NATIVE_SOURCE_REQUIRED')
         self._busy = True
+        self._idle.clear()
         try:
             async with asyncio.timeout(self._cycle_timeout_ms / 1000):
                 if self._pause() is not True:
@@ -150,6 +153,7 @@ class PgHedgeApplication:
             raise
         finally:
             self._busy = False
+            self._idle.set()
 
     async def execute(self, operation_id):
         identifier(operation_id)
@@ -157,6 +161,7 @@ class PgHedgeApplication:
         if self._busy:
             raise StorageError('PG_HEDGE_APPLICATION_BACKPRESSURE')
         self._busy = True
+        self._idle.clear()
         try:
             async with asyncio.timeout(self._cycle_timeout_ms / 1000):
                 # Existing records are diagnostic, including PREPARED children
@@ -195,6 +200,19 @@ class PgHedgeApplication:
             raise
         finally:
             self._busy = False
+            self._idle.set()
+
+    async def close(self, *, shutdown_timeout_ms):
+        if type(shutdown_timeout_ms) is not int or not 0 < shutdown_timeout_ms <= 60000:
+            raise StorageError('PG_HEDGE_SHUTDOWN_BUDGET_INVALID')
+        self.stop()
+        try:
+            async with asyncio.timeout(shutdown_timeout_ms / 1000):
+                await self._idle.wait()
+                if self._physical:
+                    await asyncio.shield(asyncio.gather(*self._physical))
+        except TimeoutError:
+            raise StorageError('PG_HEDGE_SHUTDOWN_READBACK_REQUIRED') from None
 
     async def _send(self, child):
         config = child.config()
@@ -205,7 +223,17 @@ class PgHedgeApplication:
         guard = self.source.guard(child.operation_id)
         completed = asyncio.get_running_loop().create_future()
         completed.add_done_callback(lambda future: None if future.cancelled() else future.exception())
+        physical = asyncio.get_running_loop().create_future()
+        self._physical.add(physical)
+        sdk_started = False
         acknowledged_id = None
+
+        def sdk_done(task):
+            if not physical.done():
+                physical.set_result(None)
+            self._physical.discard(physical)
+            if not completed.done():
+                completed.set_exception(StorageError('PG_HEDGE_SDK_SUBMISSION_UNKNOWN'))
 
         async def acknowledge(exchange_order_id):
             nonlocal acknowledged_id
@@ -231,7 +259,9 @@ class PgHedgeApplication:
             self._require_ready()
             wire = self.connector.submit_protected_order(order_id=child.client_order_id, trading_pair=config.trading_pair,
                                                          amount=config.amount, trade_type=config.side, order_type=OrderType.LIMIT_MAKER, price=config.price,
-                                                         position_action=config.position_action, request_send_guard=guard, async_on_ack=acknowledge)
+                                                         position_action=config.position_action, request_send_guard=guard, async_on_ack=acknowledge,
+                                                         on_submission_done=sdk_done)
+            sdk_started = True
             # The scheduled SDK task must have installed its original tracking
             # entry by the time its final request guard executes. An empty or
             # replaced cache is unknown scope, not permission to submit.
@@ -246,6 +276,9 @@ class PgHedgeApplication:
             self._checking_sdk_scope = False
             self.connector.remove_listener(event, on_created)
             self.connector.remove_listener(MarketEvent.OrderFailure, on_failure)
+            if not sdk_started:
+                physical.set_result(None)
+                self._physical.discard(physical)
 
     async def record_fills(self, plan_operation_id, command):
         self._original(observation=True)

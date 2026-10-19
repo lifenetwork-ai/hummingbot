@@ -81,6 +81,41 @@ async def application(database, *, carry_options=None, target='0'):
 
 
 @pytest.mark.asyncio
+async def test_cancelled_hedge_waiter_retains_owned_sdk_until_original_late_ack(database):
+    t = await application(database)
+    entered, release = asyncio.Event(), asyncio.Event()
+    original = t.session.request
+
+    async def held(**kwargs):
+        if kwargs['method'] == 'POST':
+            entered.set()
+            await release.wait()
+        return await original(**kwargs)
+    t.session.request = held
+    pending = asyncio.create_task(t.app.execute('plan1'))
+    try:
+        await asyncio.wait_for(entered.wait(), 5)
+        pending.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await pending
+        with pytest.raises(StorageError, match='PG_HEDGE_SHUTDOWN_READBACK_REQUIRED'):
+            await t.app.close(shutdown_timeout_ms=50)
+        assert await database[0].fetchval('SELECT state FROM life_financial.send_attempts') == 'SEND_UNKNOWN'
+        release.set()
+        await t.app.close(shutdown_timeout_ms=3000)
+        assert await database[0].fetchval('SELECT state FROM life_financial.send_attempts') == 'ACKED'
+        assert (await t.app.execute('plan1')).replayed
+        assert len([r for r in t.session.sent if r['method'] == 'POST']) == 1
+    finally:
+        release.set()
+        if not pending.done():
+            await pending
+        if hasattr(t.app, 'close'):
+            await t.app.close(shutdown_timeout_ms=3000)
+        await t.financial.close()
+
+
+@pytest.mark.asyncio
 async def test_hedge_application_cancels_collects_prepares_and_sends_original_child_once(database):
     t = await application(database)
     try:

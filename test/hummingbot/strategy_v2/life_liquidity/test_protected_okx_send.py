@@ -164,6 +164,41 @@ async def test_protected_submit_preserves_preallocated_wire_id():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('product', ['spot', 'swap'])
+async def test_submission_completion_callback_waits_for_the_owned_sdk_task(product):
+    from hummingbot.connector.derivative.okx_perpetual.okx_perpetual_derivative import OkxPerpetualDerivative
+    from hummingbot.core.data_type.common import PositionAction
+    connector = (OkxExchange('key', 'secret', 'passphrase', trading_pairs=[], trading_required=False) if product == 'spot'
+                 else OkxPerpetualDerivative(okx_perpetual_api_key='key', okx_perpetual_secret_key='secret',
+                                             okx_perpetual_passphrase='passphrase', trading_pairs=[], trading_required=False))
+    connector.enable_protected_trading_pair('LIFE-USDT')
+    entered, release, done = asyncio.Event(), asyncio.Event(), asyncio.Event()
+    observed = []
+
+    async def physical(**kwargs):
+        entered.set()
+        await release.wait()
+    connector._create_order = physical
+
+    def finished(task):
+        observed.append(task)
+        done.set()
+    try:
+        assert connector.submit_protected_order(order_id='wire', trading_pair='LIFE-USDT', amount=Decimal('1'),
+                                                trade_type=TradeType.BUY, order_type=OrderType.LIMIT_MAKER, price=Decimal('1'),
+                                                pre_send_check=lambda _: None, on_ack=lambda _: None, on_submission_done=finished,
+                                                **({'position_action': PositionAction.OPEN} if product == 'swap' else {})) == 'wire'
+        await asyncio.wait_for(entered.wait(), 1)
+        assert not observed
+        release.set()
+        await asyncio.wait_for(done.wait(), 1)
+        assert len(observed) == 1 and observed[0].done() and observed[0].exception() is None
+    finally:
+        release.set()
+        await asyncio.wait_for(done.wait(), 1)
+
+
+@pytest.mark.asyncio
 async def test_gateway_to_okx_create_order_uses_wal_id_and_post_only(tmp_path):
     sent = []
 

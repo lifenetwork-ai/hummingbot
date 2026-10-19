@@ -82,13 +82,15 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
     def submit_protected_order(self, *, order_id: str, trading_pair: str, amount: Decimal,
                                trade_type: TradeType, order_type: OrderType, price: Decimal,
                                position_action: PositionAction, pre_send_check=None, on_ack=None,
-                               async_pre_send_check=None, async_on_ack=None, request_send_guard=None) -> str:
+                               async_pre_send_check=None, async_on_ack=None, request_send_guard=None,
+                               on_submission_done=None) -> str:
         """Schedule an opt-in WAL-owned post-only SWAP order, without a retry fallback."""
         guarded = request_send_guard is not None
         if (not order_id or not (guarded or callable(pre_send_check)) or (on_ack is None) == (async_on_ack is None)
                 or on_ack is not None and not callable(on_ack)
                 or async_on_ack is not None and (not callable(async_on_ack) or not (guarded or callable(async_pre_send_check)))
                 or async_pre_send_check is not None and not callable(async_pre_send_check)
+                or on_submission_done is not None and not callable(on_submission_done)
                 or guarded and (on_ack is not None or async_pre_send_check is not None
                                 or not callable(getattr(request_send_guard, 'authorize', None))
                                 or not callable(getattr(request_send_guard, 'check', None)))
@@ -96,7 +98,7 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
                 or order_type != OrderType.LIMIT_MAKER
                 or position_action not in (PositionAction.OPEN, PositionAction.CLOSE)):
             raise ValueError("protected SWAP order requires ID, callbacks and post-only semantics")
-        safe_ensure_future(self._create_order(
+        task = safe_ensure_future(self._create_order(
             trade_type=trade_type, order_id=order_id, trading_pair=trading_pair,
             amount=amount, price=price, order_type=order_type, position_action=position_action,
             pre_send_check=pre_send_check,
@@ -104,6 +106,8 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
             **({'async_on_ack': async_on_ack} if async_on_ack is not None else {}),
             **({'async_pre_send_check': async_pre_send_check} if async_pre_send_check is not None else {}),
             **({'request_send_guard': request_send_guard} if guarded else {})))
+        if on_submission_done is not None:
+            task.add_done_callback(on_submission_done)
         return order_id
 
     @property

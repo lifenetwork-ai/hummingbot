@@ -3942,3 +3942,53 @@ position, configuration and outbox regressions. This explicit SPOT profile does
 not install the configured LIFE controller/service, a final trading route or
 SWAP event/history assembly. Configured PostgreSQL selection and the remaining
 R2.3/R4/R5 gates stay open. No migration, activation or live default is added.
+
+## Explicit native quote executor application
+
+`postgres.spot_application.PgSpotQuoteApplication` connects an explicitly
+assembled `PgQuoteRunnerJournal` and `PgQuoteAccountSource` to the actual
+`OrderExecutor` and OKX SDK. Construct it before publishing any journal claims;
+an existing claim, a second transport binding, an unhealthy runtime or an
+unprotected SDK pair prevents installation. Capacity and operation/shutdown
+budgets are explicit constructor inputs, not live defaults.
+
+The executor immediately receives its deterministic, 32-character wire ID. Its
+bounded application task waits for the original awaited dispatch acceptance
+before invoking `preparation_source(action, wire_id)`. That callback must return
+an original `PrepareQuoteAction`; it authenticates no facts by its type alone.
+Native SQL independently checks the captured action, economics, budgets and
+owner before publishing holds. The actual signed request then passes the native
+one-use ARM, HMAC/UID/age checks and a final exact SDK tracking check. SDK
+quantization or executor/configuration changes cannot silently change the
+approved amount or price. The ordinary `strategy.buy/sell` path is never used.
+
+Each local action can start submission once. A denied/lost dispatch, prepare,
+ARM or ACK response revokes the application and preserves the original native
+claim/holds for reconciliation. Neither executor retry nor cold SQL readback
+reconstructs local send permission. Unbound journals retain
+`PG_RUNNER_TRANSPORT_ASSEMBLY_REQUIRED`.
+
+`drain()` shields owned work from cancellation of a waiting caller. `stop()`
+immediately revokes new HTTP permission while the original consumed request can
+still persist its late ACK. `close()` joins both logical application tasks and
+physical SDK tasks. An application timeout is not SDK completion: if HTTP/ACK
+is still running when the shutdown budget expires, close raises
+`PG_SPOT_SHUTDOWN_READBACK_REQUIRED`; storage must remain available for late
+truth and explicit recovery. `PgHedgeApplication.close(shutdown_timeout_ms=...)`
+provides the equivalent busy-cycle/physical-SDK join for the SWAP route.
+
+Both OKX SDKs accept an optional synchronous `on_submission_done(task)` callback
+on `submit_protected_order`. It observes actual SDK task completion, including
+early failure, and grants no retry or financial permission. This lets a service
+distinguish an expired waiter from completed physical work before closing its
+repositories.
+
+`run_postgres --suite quote_composition` combines actual executor application,
+runner journal, captured preparation, ARM, signed UID/transport, ACK ingress,
+hedge/SWAP and observation-runner regressions. Its application fixtures use
+explicit synthetic admission/preparation callbacks and fake HTTP. They do not
+qualify the configured planner/reference/book/fee source, a full shared-account
+runner topology or actual shared SDK request quotas. Both-product ordinary
+financial ingress/history and mandatory configured service installation remain
+R4; whole-service acceptance remains R5. Configured PostgreSQL selection stays
+rejected. This increment adds no schema, bootstrap or activation path.
