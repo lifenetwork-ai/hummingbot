@@ -3863,3 +3863,59 @@ The optional `request_send_guard` on OKX `cancel_by_client_id` reaches the actua
 REST connection; guarded ACKs must echo the original client ID. Unguarded calls
 retain their existing API. The coupled disposable qualification selector is
 `run_postgres --suite r2_integration`. All tests use synthetic money and fake HTTP.
+
+## Signed native hedge observations
+
+`postgres/hedge_source.py` supplies the typed capital/carry/market capture used by
+`PgHedgeApplication.bind_sources(source)`. It requires the application's exact
+SWAP source and the cancellation application's exact signed joint collector.
+Replacement, raw callback substitution or a changed credential/configuration
+revokes the original context. `observe_sources(operation_id)` can initialize
+observations from an already provisioned native account with no prior capital
+or carry samples. It pauses makers and creates no plan, activation or HTTP order.
+
+The source reads fixed signed REST routes for the linear contract, contract-unit
+book, mark/index, funding schedule, margin tiers, fee group and leverage on every
+required position side. Native account/trade/bill reconciliation and both SDKs
+must be quiescent. Provider update timestamps remain unchanged; the account
+sample time records an actual fresh private read. Public prices are collected
+after the longer account-history comparison. Both original proof age and each
+owned epoch/cut transition are checked; cached diagnostics restore no authority.
+The eight market routes use one bounded diagnostic transaction. Each page still
+passes the original account, route, sequence, identity and byte checks. All pages
+commit before semantic parsing; a conflicting tail rolls back the complete
+batch. A partial HTTP failure retains already received pages, and an unknown
+commit returns no source data. Individual financial-history reads keep their
+existing before-parse capture behavior.
+
+Collateral is the lower of the signed account collateral and its value at the
+captured mark, rounded down. Unconfirmed positive UPL and new public-mark gains
+cannot finance a sibling. Paid funding is reconciled once; forecasts and advertised rebates
+never credit the wallet. The bill coverage must include the carry anchor. Fixed
+native margin tiers must conservatively cover the returned contract tiers.
+At an exact tier boundary the higher margin requirement applies. Published
+Decimal values use the canonical native representation for exact cold readback.
+
+`collect(operation_id)` uses a native diagnostic preflight to construct one
+bounded child; SQL independently recomputes its geometry and cost. Permanent
+stage IDs do not change with the process owner. Interrupted/repeated observation
+or preflight IDs require explicit reconciliation, never re-observation or send.
+The action capture time is separate from the original market timestamps. Final
+SWAP ARM refreshes the actual SDK's signed UID and checks both SDK scopes again,
+allowing only the original prepared child through the final request fence.
+Stop revokes new submissions; original fills, terminal facts, settlement and
+diagnostic root lookup remain admissible through the original repository context.
+New terminal truth without a current financial source stays pending with claims
+held. Missing SDK tracking is unknown scope, not permission to send.
+
+The zero default `available_edge_quote` grants no costly hedge allowance. Any
+positive value is an explicit economic input, still bounded by the native child
+and cumulative hedge policies. No live threshold is inferred from test values.
+Provider fee-group semantics follow the [OKX API documentation](https://www.okx.com/docs-v5/en/).
+
+This is an explicit native application assembly, not configured backend
+installation. R4 still requires the actual controller/runner, complete financial
+ingress and SDK history for both products, and shared account request quotas with
+the actual SDK throttlers. Per-process endpoint limits alone do not prove that
+composition. R5 retains current-source whole-service/fault acceptance; configured
+PostgreSQL selection remains rejected.

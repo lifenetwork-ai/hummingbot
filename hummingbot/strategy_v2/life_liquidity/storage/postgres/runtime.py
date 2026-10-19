@@ -375,6 +375,7 @@ class PgRuntime:
                 'SELECT life_financial.swap_mark_ack($1,$2)',
                 'SELECT life_financial.spot_capture_financial_ingress($1,$2)',
                 'SELECT life_financial.spot_capture_provider_page($1,$2)',
+                'SELECT life_financial.spot_capture_provider_pages($1,$2)',
                 'SELECT life_financial.spot_mark_financial_ingress($1,$2,$3)',
                 'SELECT life_financial.spot_mark_ack_ingress($1,$2)')):
             raise StorageError('PG_UNTRUSTED_INGRESS_QUERY_DENIED')

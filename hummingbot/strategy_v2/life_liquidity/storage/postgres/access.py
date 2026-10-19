@@ -16,6 +16,7 @@ MUTATING_ENTRYPOINTS = (
     'life_financial.spot_capture_ack_ingress(uuid,jsonb)',
     'life_financial.spot_capture_financial_ingress(uuid,jsonb)',
     'life_financial.spot_capture_provider_page(uuid,jsonb)',
+    'life_financial.spot_capture_provider_pages(uuid,jsonb)',
     'life_financial.shared_capital_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
     'life_financial.carry_check(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
     'life_financial.hedge_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,text,jsonb)',

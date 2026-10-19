@@ -119,4 +119,11 @@ RATE_LIMITS = [
     RateLimit(limit_id=OKX_TRADE_FEE_PATH, limit=5, time_interval=2),
     RateLimit(limit_id=OKX_TRADE_FILLS_PATH, limit=60, time_interval=2),
     RateLimit(limit_id=OKX_TRADE_FILLS_HISTORY_PATH, limit=10, time_interval=2),
+    # Fixed LIFE account/hedge observation routes also use this SDK. Unknown
+    # limit IDs are otherwise unthrottled. These conservative per-process caps
+    # do not coordinate quotas with a second SDK/process using the same UID.
+    *[RateLimit(limit_id=path, limit=5, time_interval=2) for path in (
+        '/api/v5/account/positions', '/api/v5/account/leverage-info',
+        '/api/v5/public/mark-price', '/api/v5/market/index-tickers',
+        '/api/v5/public/funding-rate', '/api/v5/public/position-tiers')],
 ]

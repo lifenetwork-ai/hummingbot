@@ -20,8 +20,8 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.hedge import (
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.swap import PgSwapRepository
 
 
-async def setup(database, *, target='0', max_plans=128, max_targets=64, max_bytes=1048576, **changes):
-    values = await carry_setup(database, max_age_ms=5000, refresh_initial_facts=True)
+async def setup(database, *, target='0', max_plans=128, max_targets=64, max_bytes=1048576, carry_options=None, **changes):
+    values = await carry_setup(database, max_age_ms=5000, refresh_initial_facts=True, **(carry_options or {}))
     financial, cfg, owner, cp, feed, capital, carry_policy, carry_feed, carry = values
     sp = dict(controller_id='main', tick_size_usdt='0.01', min_size_contracts='0.1', max_quote_levels=8, max_capture_age_ms=5000)
     await database[0].execute('INSERT INTO life_financial.swap_policies VALUES($1,$2,$3::jsonb,$4)', cfg.account_id, cfg.binding.policy_hash, json.dumps(sp), fingerprint(sp))

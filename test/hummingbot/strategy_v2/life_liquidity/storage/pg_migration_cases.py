@@ -2766,3 +2766,119 @@ async def test_native_execution_children_upgrade_is_audited_atomic_and_private(d
     for table in ('execution_market_facts', 'execution_children', 'execution_exit_settlements', 'execution_policies', 'risk_events', 'accounts', 'operations', 'activation_grants', 'grant_consumptions', 'financial_events'):
         assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
     assert (await migrate(c, directory, action='up'))['applied'] == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('unexpected_shape', ['none', 'body', 'security', 'search_path', 'volatility'])
+async def test_hedge_provider_upgrade_preserves_original_function_and_refuses_drift(db, unexpected_shape):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 83:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    target = 'life_financial.spot_provider_route(text,jsonb)'
+    if unexpected_shape == 'body':
+        definition = await c.fetchval('SELECT pg_get_functiondef(to_regprocedure($1))', target)
+        await c.execute(definition.replace('BEGIN', 'BEGIN\n-- unexpected', 1))
+    elif unexpected_shape == 'security':
+        await c.execute('ALTER FUNCTION ' + target + ' SECURITY DEFINER')
+    elif unexpected_shape == 'search_path':
+        await c.execute('ALTER FUNCTION ' + target + ' SET search_path=pg_catalog,public')
+    elif unexpected_shape == 'volatility':
+        await c.execute('ALTER FUNCTION ' + target + ' STABLE')
+    query = '''SELECT p.oid,p.oid::regprocedure::text AS signature,p.proacl,p.prosrc,p.provolatile::text AS provolatile,p.prosecdef,p.proconfig,p.proowner
+        FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='life_financial' ORDER BY p.oid'''
+    before = {r['signature']: dict(r) for r in await c.fetch(query)}
+    tables = await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace='life_financial'::regnamespace ORDER BY oid")
+    path = DEFAULT_DIRECTORY / '000083_hedge_provider_routes.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    if unexpected_shape != 'none':
+        with pytest.raises(asyncpg.RaiseError, match='LIFE_HEDGE_ROUTE_MIGRATION_MISMATCH'):
+            await migrate(c, directory, action='up')
+        assert {r['signature']: dict(r) for r in await c.fetch(query)} == before
+        assert (await versions(c))[-1]['version'] == 82
+    else:
+        assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+        after = {r['signature']: dict(r) for r in await c.fetch(query)}
+        assert set(after) == set(before)
+        for signature, original in before.items():
+            assert after[signature] == (original if signature != target else {**original, 'prosrc': after[signature]['prosrc']})
+        assert (await migrate(c, directory, action='up'))['applied'] == []
+    assert tables == await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace='life_financial'::regnamespace ORDER BY oid")
+    for table in ('accounts', 'operations', 'send_attempts', 'shared_capital_observations', 'carry_checks', 'hedge_plans', 'activation_grants'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+
+
+@pytest.mark.asyncio
+async def test_provider_batch_upgrade_preserves_all_original_functions_and_denies_implicit_grants(db):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 84:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    query = '''SELECT p.oid,p.oid::regprocedure::text AS signature,p.proacl,p.prosrc,p.provolatile::text AS provolatile,p.prosecdef,p.proconfig,p.proowner
+        FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='life_financial' ORDER BY p.oid'''
+    before = {r['signature']: dict(r) for r in await c.fetch(query)}
+    tables = await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace='life_financial'::regnamespace ORDER BY oid")
+    path = DEFAULT_DIRECTORY / '000084_provider_page_batch.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    after = {r['signature']: dict(r) for r in await c.fetch(query)}
+    target = 'life_financial.spot_capture_provider_pages(uuid,jsonb)'
+    assert set(after) - set(before) == {target}
+    assert {k: after[k] for k in before} == before
+    assert after[target]['prosecdef'] is False and after[target]['proconfig'] == ['search_path=pg_catalog']
+    for role in ('public', 'life_runtime_test', 'life_reporter_test'):
+        assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", role, target)
+    assert tables == await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace='life_financial'::regnamespace ORDER BY oid")
+    for table in ('accounts', 'operations', 'send_attempts', 'shared_capital_observations', 'carry_checks', 'hedge_plans', 'activation_grants'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+    assert (await migrate(c, directory, action='up'))['applied'] == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('unexpected_shape', ['none', 'portfolio_body', 'snapshot_body', 'security', 'search_path', 'volatility'])
+async def test_portfolio_reuse_upgrade_is_audited_private_and_preserves_commit_verifiers(db, unexpected_shape):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 85:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    original = 'life_financial.portfolio_verified(uuid)'
+    wrapper = 'life_financial.spot_body_before_swap_terminal(uuid)'
+    if unexpected_shape.endswith('_body'):
+        target = original if unexpected_shape == 'portfolio_body' else wrapper
+        definition = await c.fetchval('SELECT pg_get_functiondef(to_regprocedure($1))', target)
+        await c.execute(definition.replace('BEGIN', 'BEGIN\n-- unexpected drift', 1))
+    elif unexpected_shape == 'security':
+        await c.execute('ALTER FUNCTION ' + original + ' SECURITY INVOKER')
+    elif unexpected_shape == 'search_path':
+        await c.execute('ALTER FUNCTION ' + original + ' SET search_path=pg_catalog,public')
+    elif unexpected_shape == 'volatility':
+        await c.execute('ALTER FUNCTION ' + original + ' VOLATILE')
+    query = '''SELECT p.oid,p.oid::regprocedure::text AS signature,p.proacl,p.prosrc,p.provolatile::text AS provolatile,p.prosecdef,p.proconfig,p.proowner
+        FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='life_financial' ORDER BY p.oid'''
+    before = {r['signature']: dict(r) for r in await c.fetch(query)}
+    tables = await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace='life_financial'::regnamespace ORDER BY oid")
+    path = DEFAULT_DIRECTORY / '000085_snapshot_portfolio_proof_reuse.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    if unexpected_shape != 'none':
+        with pytest.raises(asyncpg.RaiseError, match='LIFE_PORTFOLIO_REUSE_MIGRATION_MISMATCH'):
+            await migrate(c, directory, action='up')
+        assert {r['signature']: dict(r) for r in await c.fetch(query)} == before
+        assert (await versions(c))[-1]['version'] == 84
+    else:
+        assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+        after = {r['signature']: dict(r) for r in await c.fetch(query)}
+        helper = 'life_financial.portfolio_after_carry_verification(uuid,boolean)'
+        assert set(after) - set(before) == {helper}
+        for signature, value in before.items():
+            assert after[signature] == (value if signature != wrapper else {**value, 'prosrc': after[signature]['prosrc']})
+        assert after[helper]['prosecdef'] is True and after[helper]['provolatile'] == 's'
+        assert after[helper]['proconfig'] == ['search_path=pg_catalog']
+        for role in ('public', 'life_runtime_test', 'life_reporter_test'):
+            assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", role, helper)
+        assert (await migrate(c, directory, action='up'))['applied'] == []
+    assert tables == await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace='life_financial'::regnamespace ORDER BY oid")
+    for table in ('accounts', 'operations', 'send_attempts', 'shared_capital_observations', 'carry_checks', 'hedge_plans', 'activation_grants'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0

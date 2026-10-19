@@ -63,6 +63,30 @@ class PgProviderJournal:
             self.runtime._healthy = False
             raise
 
+    async def capture_many(self, bodies):
+        if (not self.runtime.config.write or type(bodies) is not tuple or not 0 < len(bodies) <= 8):
+            raise StorageError('PG_PROVIDER_BATCH_BOUND')
+        try:
+            wire = json.dumps(bodies, ensure_ascii=False, allow_nan=False)
+            if len(wire.encode('utf-8')) > 16777216:
+                raise StorageError('PG_PROVIDER_BATCH_BOUND')
+            values = json.loads(wire)
+        except (TypeError, ValueError):
+            raise StorageError('PG_PROVIDER_JOURNAL_CAPTURE_INVALID') from None
+
+        def parse(value):
+            if (value.get('kind') != 'PROVIDER_DECODED_PAGES' or value.get('trading_permission') is not False
+                    or type(value.get('pages')) is not list or len(value['pages']) != len(values)):
+                raise StorageUnavailable('PG_PROVIDER_JOURNAL_RECEIPT_INVALID')
+            return tuple(self._receipt(v) for v in value['pages'])
+        try:
+            return await self.runtime._transaction('SELECT life_financial.spot_capture_provider_pages($1,$2)',
+                                                   (self.runtime.config.account_id, values), None, parse,
+                                                   observation=True, untrusted_ingress=True)
+        except BaseException:
+            self.runtime._healthy = False
+            raise
+
     async def read_collection(self, collection_id, *, max_rows, max_bytes):
         import asyncpg
         identifier(collection_id)

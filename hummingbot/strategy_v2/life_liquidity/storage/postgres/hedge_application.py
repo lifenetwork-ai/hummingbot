@@ -46,13 +46,29 @@ class PgHedgeApplication:
         app._runtime, app._binding, app._owner = repository.runtime, repository.binding, repository.owner
         app._cycle_timeout_ms = cycle_timeout_ms
         app._busy = app._stopped = app._paused = False
+        app._native_source = app._bound_native_source = None
+        app._sdk_child = None
+        app._checking_sdk_scope = False
         app.source = await PgSwapAccountSource.create(PgSwapBoundary(repository.swap), connector=connector,
                                                       clock=clock, local_fence=app._ready, max_uid_age_ms=max_uid_age_ms, max_auth_age_ms=max_auth_age_ms,
                                                       max_clock_skew_ms=max_clock_skew_ms, collection_timeout_ms=collection_timeout_ms, max_pending=1)
         app._context = (repository, connector, app.source, repository.swap, repository.financial, maker_cancellation)
         return app
 
-    def _original(self):
+    def bind_sources(self, source):
+        """Install the exact signed source and cancellation collection once."""
+        from hummingbot.strategy_v2.life_liquidity.storage.postgres.hedge_source import PgHedgeSource
+        self._original()
+        if (type(source) is not PgHedgeSource or self._native_source is not None
+                or self._stopped or self._busy or self._paused or source.swap_source is not self.source
+                or source.collector.swap is not self.repository.swap
+                or self._maker_cancellation is None or self._maker_cancellation.collector is not source.collector):
+            raise StorageError('PG_HEDGE_APPLICATION_SOURCE_BINDING_INVALID')
+        source.assert_binding()
+        self._native_source = self._bound_native_source = source
+        self._collect = source.collect
+
+    def _original(self, *, observation=False):
         repository, connector, source, swap, financial, cancellation = self._context
         repository._original()
         if (self.repository is not repository or self.connector is not connector or self.source is not source
@@ -62,6 +78,24 @@ class PgHedgeApplication:
                 or self._maker_cancellation is not cancellation):
             self.stop()
             raise StorageError('PG_HEDGE_APPLICATION_CONTEXT_CHANGED')
+        if self._native_source is not self._bound_native_source:
+            self.stop()
+            raise StorageError('PG_HEDGE_APPLICATION_CONTEXT_CHANGED')
+        # Late bookkeeping depends on the original repository/child context,
+        # not on a still-live market/send source. Stop must revoke HTTP while
+        # preserving fills, terminal truth and exact original settlement.
+        if self._native_source is not None and not observation:
+            try:
+                self._native_source.assert_binding()
+                if self._checking_sdk_scope:
+                    self._native_source.assert_sdk_scope(self._sdk_child)
+            except BaseException:
+                self.stop()
+                raise
+            if (self._collect != self._native_source.collect or self._native_source.swap_source is not self.source
+                    or self._native_source.collector is not cancellation.collector):
+                self.stop()
+                raise StorageError('PG_HEDGE_APPLICATION_CONTEXT_CHANGED')
 
     def _ready(self):
         if self._stopped or not self._paused or not self._runtime.healthy:
@@ -87,13 +121,39 @@ class PgHedgeApplication:
         self._runtime._ingress_epoch += 1
         if hasattr(self, 'source'):
             self.source.revoke()
+        if self._bound_native_source is not None:
+            self._bound_native_source.stop()
         cancellation = self._context[-1]
         if cancellation is not None:
             cancellation.stop()
 
-    async def execute(self, operation_id):
+    async def observe_sources(self, operation_id):
+        """Initial/late signed observations only; no plan, activation or send."""
         identifier(operation_id)
         self._original()
+        if self._busy:
+            raise StorageError('PG_HEDGE_APPLICATION_BACKPRESSURE')
+        if self._native_source is None:
+            raise StorageError('PG_HEDGE_APPLICATION_NATIVE_SOURCE_REQUIRED')
+        self._busy = True
+        try:
+            async with asyncio.timeout(self._cycle_timeout_ms / 1000):
+                if self._pause() is not True:
+                    raise StorageError('PG_HEDGE_MAKER_PAUSE_REQUIRED')
+                self._paused = True
+                self._require_ready()
+                result = await self._native_source.refresh(operation_id)
+                self._require_ready()
+                return result
+        except BaseException:
+            self.stop()
+            raise
+        finally:
+            self._busy = False
+
+    async def execute(self, operation_id):
+        identifier(operation_id)
+        self._original(observation=True)
         if self._busy:
             raise StorageError('PG_HEDGE_APPLICATION_BACKPRESSURE')
         self._busy = True
@@ -104,6 +164,7 @@ class PgHedgeApplication:
                 previous = await self.repository.lookup(operation_id, self._binding)
                 if previous is not None:
                     return previous
+                self._original()
                 if self._stopped or self._pause() is not True:
                     raise StorageError('PG_HEDGE_MAKER_PAUSE_REQUIRED')
                 self._paused = True
@@ -140,6 +201,7 @@ class PgHedgeApplication:
         if (self.connector.get_leverage(config.trading_pair) != config.leverage
                 or child.client_order_id in self.connector._order_tracker.active_orders):
             raise StorageError('PG_HEDGE_SDK_CONTEXT_INVALID')
+        self._sdk_child = child
         guard = self.source.guard(child.operation_id)
         completed = asyncio.get_running_loop().create_future()
         completed.add_done_callback(lambda future: None if future.cancelled() else future.exception())
@@ -170,6 +232,10 @@ class PgHedgeApplication:
             wire = self.connector.submit_protected_order(order_id=child.client_order_id, trading_pair=config.trading_pair,
                                                          amount=config.amount, trade_type=config.side, order_type=OrderType.LIMIT_MAKER, price=config.price,
                                                          position_action=config.position_action, request_send_guard=guard, async_on_ack=acknowledge)
+            # The scheduled SDK task must have installed its original tracking
+            # entry by the time its final request guard executes. An empty or
+            # replaced cache is unknown scope, not permission to submit.
+            self._checking_sdk_scope = True
             if wire != child.client_order_id:
                 raise StorageError('PG_HEDGE_SDK_WIRE_CHANGED')
             # The SDK owns its scheduled RPC. Caller stop/timeout cannot cancel
@@ -177,11 +243,12 @@ class PgHedgeApplication:
             # HTTP if stop happens before its one-shot post-auth check.
             await asyncio.shield(completed)
         finally:
+            self._checking_sdk_scope = False
             self.connector.remove_listener(event, on_created)
             self.connector.remove_listener(MarketEvent.OrderFailure, on_failure)
 
     async def record_fills(self, plan_operation_id, command):
-        self._original()
+        self._original(observation=True)
         if type(command) is not FillSwap:
             raise StorageError('PG_HEDGE_FILL_COMMAND_INVALID')
         root = await self.repository.lookup(plan_operation_id, self._binding)
@@ -195,7 +262,7 @@ class PgHedgeApplication:
         return await repository.apply_fills(command, cut=cut, owner=self._owner)
 
     async def record_terminal(self, plan_operation_id, command):
-        self._original()
+        self._original(observation=True)
         if type(command) is not ConfirmSwapTerminal:
             raise StorageError('PG_HEDGE_TERMINAL_COMMAND_INVALID')
         root = await self.repository.lookup(plan_operation_id, self._binding)
@@ -221,7 +288,7 @@ class PgHedgeApplication:
         return repository._receipt({**previous['receipt'], 'replayed': True})
 
     async def settle(self, command):
-        self._original()
+        self._original(observation=True)
         if type(command) is not SettleHedge:
             raise StorageError('PG_HEDGE_SETTLEMENT_INVALID')
         previous = await self._replayed(self.repository, 'HEDGE_SETTLE', command)

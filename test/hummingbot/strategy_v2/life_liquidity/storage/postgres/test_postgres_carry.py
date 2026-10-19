@@ -26,12 +26,13 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.carry import PgCarry
 from hummingbot.strategy_v2.life_liquidity.storage.products import ReserveCapital
 
 
-async def setup(database, *, max_age_ms=1000, spot_options=None, capital_changes=None, refresh_initial_facts=False, observed=None, **changes):
+async def setup(database, *, max_age_ms=1000, spot_options=None, capital_changes=None, refresh_initial_facts=False, observed=None, anchor_opening=False, **changes):
     financial, cfg, owner, capital_policy, account_feed, capital = await shared_setup(database,
                                                                                       configured=shared_policy(max_age_ms=max_age_ms, **(capital_changes or {})), spot_options=spot_options, observed=observed)
     account_feed[0] = replace(account_feed[0], position_mode=capital_policy.position_mode, leverage=capital_policy.leverage)
     at = account_feed[0].observed_at_ms
-    policy = replace(CarryPolicy('12345', 'LIFE-USDT-SWAP', at - 10000, max_age_ms, 500,
+    policy = replace(CarryPolicy('12345', 'LIFE-USDT-SWAP',
+                                 int(owner.valid_from.timestamp() * 1000) - 1000 if anchor_opening else at - 10000, max_age_ms, 500,
                                  4 * 3600000, 16 * 3600000, D('.002'), D('10'), D('100')), **changes)
     body = _json(asdict(policy))
     await database[0].execute('INSERT INTO life_financial.carry_policies VALUES($1,$2,$3::jsonb,$4,64)',

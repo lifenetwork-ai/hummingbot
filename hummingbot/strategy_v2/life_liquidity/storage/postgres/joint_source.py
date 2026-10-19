@@ -62,14 +62,18 @@ class JointOrderEvidence:
 @dataclass(frozen=True)
 class JointSourceReport:
     cut: FinancialCut
+    config_version: int
+    risk_epoch: int
     observed_at: datetime
     coverage_from_ms: int
     collection_id: str
     source_hash: str
     account: AccountCollateral
+    account_observed_at: datetime  # Start of the last fresh private account sample.
     orders: tuple[JointOrderEvidence, ...]
     product_trade_ids: tuple[tuple[str, str], ...]
     cashflow_ids: tuple[str, ...]
+    funding_payments: tuple[tuple[str, int, D], ...]
     runner_executor_ids: tuple[str, ...]
     trading_permission: bool = field(default=False, init=False)
 
@@ -318,9 +322,10 @@ class PgJointAccountReconciler(PgCollateralReconciler):
                     started = utc(self.reader.source.journal.clock())
                     async with self.reader.collection():
                         first_runner = await self._runner(scope)
-                        rounds, accounts = [], []
+                        rounds, accounts, account_times = [], [], []
                         for _ in range(2):
                             orders, payload = await self._round(scope, original['capital_policy'])
+                            account_times.append(utc(self.reader.source.journal.clock()))
                             account, collateral = await self._sample(original['capital_policy'])
                             rounds.append({**payload, 'collateral': collateral})
                             accounts.append(account)
@@ -336,10 +341,12 @@ class PgJointAccountReconciler(PgCollateralReconciler):
                                                     tuple(sorted(t for t, f in scope[v['product'] + '_FILL'].items() if f['intent_id'] == k)),
                                                     json.dumps([f['fill'] for _, f in sorted(scope[v['product'] + '_FILL'].items()) if f['intent_id'] == k], sort_keys=True))
                                  for k, v in sorted(scope['ORDER'].items()))
-                    report = JointSourceReport(view.cut, started, scope['ANCHOR']['anchor']['opened_at_ms'],
-                                               self.reader.collection_id, fingerprint(rounds), accounts[0], rows,
+                    report = JointSourceReport(view.cut, view.session.config_version, original['snapshot']['account']['risk_epoch'],
+                                               started, scope['ANCHOR']['anchor']['opened_at_ms'],
+                                               self.reader.collection_id, fingerprint(rounds), accounts[1], account_times[1], rows,
                                                tuple(sorted((p, key) for p in ('SPOT', 'SWAP') for key in scope[p + '_FILL'])),
-                                               tuple(sorted(scope['TRANSFER'])), first_runner)
+                                               tuple(sorted(scope['TRANSFER'])),
+                                               tuple((k, v['at_ms'], D(v['signed_amount'])) for k, v in sorted(scope['FUNDING'].items())), first_runner)
                     self._report, self._epoch = report, expected_epoch
                     return report
             except BaseException as error:
@@ -356,4 +363,11 @@ class PgJointAccountReconciler(PgCollateralReconciler):
                 or self.runtime._ingress_epoch != epoch or self.reader._active or not self.reader.source._uid_fresh()
                 or not 0 <= (now - report.observed_at).total_seconds() * 1000 <= self.max_age_ms):
             self.runtime._healthy = False
-            raise StorageError('PG_JOINT_SOURCE_REPORT_REVOKED')
+            error = StorageError('PG_JOINT_SOURCE_REPORT_REVOKED')
+            error.add_note(str(dict(same_report=report is self._report,
+                                    same_collection=self.reader.collection_id == getattr(report, 'collection_id', None),
+                                    same_epoch=self.runtime._ingress_epoch == epoch, reader_active=self.reader._active,
+                                    uid_fresh=self.reader.source._uid_fresh(),
+                                    age_ms=(now - report.observed_at).total_seconds() * 1000
+                                    if type(report) is JointSourceReport and report is self._report else None)))
+            raise error

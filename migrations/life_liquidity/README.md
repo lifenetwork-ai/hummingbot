@@ -1192,3 +1192,46 @@ capital, approval, default mode or live threshold is seeded. The migration ledge
 makes repeated enabled startup/up calls a no-op. All **38 audited 75→82 profiles**
 pass with the final source. Native R3 is closed; configured source/service/runner
 installation, PG4 fencing, scaling, clean cutover and deployment/live gates remain.
+
+## 000083: fixed hedge observation routes
+
+`000083_hedge_provider_routes.sql` extends only the original diagnostic route
+grammar: fixed LIFE SWAP metadata, book, mark/index, funding schedule, position
+tiers, account fee group and signed leverage information. Extra parameters,
+foreign instruments and arbitrary URLs remain refused in both Python and SQL.
+Diagnostics grant no financial, terminal or HTTP submission authority.
+
+The original immutable function body/security/path/volatility is audited before
+replacement. Its OID, ACL and callers survive; no table, account, policy, grant,
+capital or live threshold is created. Repeated enabled migration startup/up is
+a ledger no-op. Configured PostgreSQL service installation retains the PG3 R4 gate.
+
+## 000084: bounded provider diagnostic batch
+
+`000084_provider_page_batch.sql` adds an invoker wrapper for at most eight pages
+and 16 MiB of encoded input. It calls the original account-scoped page function
+in order within one transaction. Original identity, route, sequence, individual
+and cumulative byte limits remain mandatory. A bad tail rolls back every new
+page; exact replay retains the original page receipts. This reduces commits for
+the fixed hedge market capture while keeping the source age limits unchanged.
+
+The entry point has no implicit PUBLIC/runtime/reporting grant. The privileged
+provisioning stage must update the scoped runtime profile; existing roles lacking
+the new entry point fail runtime validation. No table, account, policy, money,
+approval or send permission is created. Repeated enabled startup/up is a ledger
+no-op. This is diagnostic ingestion, not a batch of financial commands.
+
+## 000085: portfolio snapshot carry proof reuse
+
+`000085_snapshot_portfolio_proof_reuse.sql` removes a repeated carry-integrity
+proof from the portfolio layer of one STABLE snapshot. The caller has just built
+the original carry verdict in the same snapshot; an owner-only helper consumes
+that verdict. The independently callable `portfolio_verified`, mutation paths
+and COMMIT verifiers are unchanged. No result survives across calls/commands and
+no stored receipt, GUC or process cache supplies the verdict.
+
+Both predecessor function bodies, security modes, volatility and search paths
+are audited before modification. The original wrapper retains its OID and ACL;
+the helper has no PUBLIC/runtime/reporting/default-role grant. No table, policy,
+funds, activation or source/SQL timeout changes are introduced. The migration
+ledger makes repeated enabled startup/up a no-op.

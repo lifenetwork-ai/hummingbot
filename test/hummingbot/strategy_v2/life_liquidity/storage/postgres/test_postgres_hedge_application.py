@@ -21,8 +21,8 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.hedge import PlanHed
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.hedge_application import PgHedgeApplication
 
 
-async def application(database):
-    values, repo, market, policy = await setup(database)
+async def application(database, *, carry_options=None, target='0'):
+    values, repo, market, policy = await setup(database, carry_options=carry_options, target=target)
     financial, cfg, owner = values[:3]
     await database[0].execute('INSERT INTO life_financial.swap_boundary_policies VALUES($1,$2,1000,64,1048576)', cfg.account_id, cfg.binding.policy_hash)
     connector = OkxPerpetualDerivative(okx_perpetual_api_key='synthetic-key', okx_perpetual_secret_key='synthetic-secret',

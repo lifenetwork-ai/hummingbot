@@ -107,6 +107,26 @@ class PgSwapAccountSource:
         return (0 <= wall <= self.max_uid_age_ms and 0 <= elapsed <= self.max_uid_age_ms
                 and abs(wall - elapsed) <= self.max_clock_skew_ms)
 
+    async def refresh_uid(self, *, force=False):
+        """Qualify this exact SDK account before a native market capture."""
+        if type(force) is not bool or not self._ready():
+            raise StorageError('PG_SWAP_SOURCE_CHANGED')
+        async with asyncio.timeout(self.collection_timeout_ms / 1000):
+            async with self._uid_lock:
+                if force or not self._uid_fresh():
+                    guard = _UidRequestGuard(self)
+                    before, started = utc(self.clock()), time.monotonic()
+                    uid = await self._connector.get_account_uid(request_send_guard=guard)
+                    after, elapsed = utc(self.clock()), time.monotonic() - started
+                    if (not guard.consumed or after < before
+                            or abs((after - before).total_seconds() - elapsed) * 1000 > self.max_clock_skew_ms):
+                        raise StorageError('PG_SWAP_UID_TRANSPORT_UNQUALIFIED')
+                    self._request(guard.sent, RESTMethod.GET, self._uid_url)
+                    if uid != self._binding.account_uid:
+                        self._revoked = True
+                        raise StorageError('PG_SWAP_UID_MISMATCH')
+                    self._uid_at, self._uid_monotonic = after, time.monotonic()
+
     async def capture(self, request):
         self._request(request, RESTMethod.POST, self._order_url)
         if self._pending >= self.max_pending:
@@ -114,20 +134,10 @@ class PgSwapAccountSource:
         self._pending += 1
         try:
             async with asyncio.timeout(self.collection_timeout_ms / 1000):
-                async with self._uid_lock:
-                    if not self._uid_fresh():
-                        guard = _UidRequestGuard(self)
-                        before, started = utc(self.clock()), time.monotonic()
-                        uid = await self._connector.get_account_uid(request_send_guard=guard)
-                        after, elapsed = utc(self.clock()), time.monotonic() - started
-                        if (not guard.consumed or after < before
-                                or abs((after - before).total_seconds() - elapsed) * 1000 > self.max_clock_skew_ms):
-                            raise StorageError('PG_SWAP_UID_TRANSPORT_UNQUALIFIED')
-                        self._request(guard.sent, RESTMethod.GET, self._uid_url)
-                        if uid != self._binding.account_uid:
-                            self._revoked = True
-                            raise StorageError('PG_SWAP_UID_MISMATCH')
-                        self._uid_at, self._uid_monotonic = after, time.monotonic()
+                # Planning may have consumed most of a prior identity window.
+                # Obtain a new signed identity for this physical send attempt;
+                # account, market and action timestamps are never renewed.
+                await self.refresh_uid(force=True)
                 if await self.boundary.policy(self._binding) != self._policy or not self.check(request):
                     raise StorageError('PG_SWAP_SOURCE_CHANGED')
         finally:

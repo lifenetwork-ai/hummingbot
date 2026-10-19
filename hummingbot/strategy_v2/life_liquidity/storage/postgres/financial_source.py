@@ -120,6 +120,20 @@ class PgSpotAccountReader:
     def _route(cls, path, params):
         if type(params) is not dict or any(type(key) is not str or type(value) is not str for key, value in params.items()):
             raise StorageError('PG_FINANCIAL_SOURCE_ROUTE_INVALID')
+        market = {
+            '/api/v5/public/instruments': {'instType': 'SWAP', 'instId': 'LIFE-USDT-SWAP'},
+            '/api/v5/market/books': {'instId': 'LIFE-USDT-SWAP', 'sz': '64'},
+            '/api/v5/public/mark-price': {'instType': 'SWAP', 'instId': 'LIFE-USDT-SWAP'},
+            '/api/v5/market/index-tickers': {'instId': 'LIFE-USDT'},
+            '/api/v5/public/funding-rate': {'instId': 'LIFE-USDT-SWAP'},
+            '/api/v5/public/position-tiers': {'instType': 'SWAP', 'tdMode': 'cross', 'instFamily': 'LIFE-USDT'},
+            '/api/v5/account/trade-fee': {'instType': 'SWAP', 'instFamily': 'LIFE-USDT'},
+            '/api/v5/account/leverage-info': {'instId': 'LIFE-USDT-SWAP', 'mgnMode': 'cross'},
+        }.get(path)
+        if market is not None:
+            if params != market:
+                raise StorageError('PG_FINANCIAL_SOURCE_ROUTE_INVALID')
+            return
         if path in (C.OKX_ORDERS_PENDING_PATH, C.OKX_ORDERS_ALGO_PENDING_PATH) and 'instType' not in params:
             if path == C.OKX_ORDERS_ALGO_PENDING_PATH and params == {'limit': '100', 'ordType': 'chase'}:
                 return
@@ -183,6 +197,44 @@ class PgSpotAccountReader:
             self._read_active = False
 
     async def _read_one(self, path, params):
+        result, page = await self._fetch_one(path, params)
+        await self._journal.capture(page)
+        self._validate_response(result)
+        return result
+
+    async def read_batch(self, routes):
+        """At most eight fixed reads; one durable commit precedes all parsing.
+
+        This batches diagnostic persistence, never account/financial commands.
+        Partial transport failure retains already received pages. No data is
+        returned after an ambiguous commit, cancellation or malformed response.
+        """
+        if (type(routes) is not tuple or not 0 < len(routes) <= 8 or self._read_active):
+            raise StorageError('PG_FINANCIAL_SOURCE_READ_BACKPRESSURE')
+        for path, params in routes:
+            self._route(path, params)
+        if self._reads + len(routes) > self.max_reads:
+            raise StorageError('PG_FINANCIAL_SOURCE_READ_BOUND')
+        self._read_active = True
+        received, pages = [], []
+        try:
+            try:
+                for path, params in routes:
+                    result, page = await self._fetch_one(path, params)
+                    received.append(result)
+                    pages.append(page)
+            except BaseException:
+                if pages:
+                    await self._journal.capture_many(tuple(pages))
+                raise
+            await self._journal.capture_many(tuple(pages))
+            for result in received:
+                self._validate_response(result)
+            return tuple(received)
+        finally:
+            self._read_active = False
+
+    async def _fetch_one(self, path, params):
         self._original()
         self._route(path, params)
         if self._reads >= self.max_reads:
@@ -206,15 +258,16 @@ class PgSpotAccountReader:
         # Retain received parseable diagnostics before any semantic/context
         # rejection. This is decoded JSON, not raw HTTP bytes or authenticated
         # financial facts. Unknown commit never returns data to the parser.
-        await self._journal.capture({'binding': self.binding.json(), 'owner': self.owner.json(),
+        return json.loads(encoded), {'binding': self.binding.json(), 'owner': self.owner.json(),
                                      'collection_id': collection_id, 'sequence': sequence,
-                                     'path': path, 'params': dict(guard.params), 'response_json': encoded})
+                                     'path': path, 'params': dict(guard.params), 'response_json': encoded}
+
+    def _validate_response(self, result):
         self._original()
         if not self.source._uid_fresh():
             raise StorageError('PG_FINANCIAL_SOURCE_TRANSPORT_UNQUALIFIED')
         if type(result) is not dict or result.get('code') != '0' or type(result.get('data')) is not list:
             raise StorageError('PG_FINANCIAL_SOURCE_RESPONSE_INVALID')
-        return result
 
     @staticmethod
     def _page(params, after):

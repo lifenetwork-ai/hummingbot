@@ -20,6 +20,10 @@ passes **736 cases**, zero failures/errors/skips, 2090.22 s, with unchanged
 source/test/migration hashes. **R1 is closed for the selected native scope.**
 See [closure qualification](#pg3-native-r1-closure-2026-10-19).
 **Native R3 is also closed:** the frozen control/session/risk/mode gate passes **382 cases**, with **56 File mode cases** and **38 audited migration cases**. See [R3 closure](#pg3-native-r3-closure-2026-10-19).
+**Native hedge source capture is qualified:** the expanded frozen R2 regression
+passes **375 cases**, zero failures/errors/skips; **12 audited upgrade cases** pass.
+Signed capture, existing-maker cancellation, actual SDK final scope, late truth
+and the source/ARM optimizations are recorded in [source composition](#pg3-r2-signed-hedge-source-composition-2026-10-19).
 **PG3 stays open and configured PostgreSQL stays rejected until R2, R4 and R5 are qualified.**
 
 **Earlier execution checkpoint (2026-10-19, base `7a42c6c49` plus that delivery):**
@@ -723,6 +727,8 @@ failing integration result visible until the same current-source workflow passes
   - [x] R2.1: Native hedge plan/child → protected SDK-tracked SWAP → durable ACK/fills/settlement, including original-ID replay, partial fill, stop, unknown response and gross retry-cost retention. Qualified with the current frozen 223-case coupled gate below; configured source/runner installation remains required.
   - [x] R2.2: Authenticated maker cancellation kernel and typed hedge port: original native cancel intent/attempt, one-shot signed HTTP request, fresh provider closure, independent SDK/runner quiescence and source-consuming native terminal accounting. Unknown COMMIT/replay cannot issue another HTTP request or retire shared claims. The current frozen 223-case gate and 42 File gateway cases pass; qualification below.
   - [ ] R2.3: Qualify capital/carry/market capture and complete configured composition with actual runner/account/SDK scope. The R4 fake-exchange service replay and R5 whole-product acceptance remain required; no R2 closure is inferred from these kernel profiles.
+    - [x] Native capture has a typed `PgHedgeSource` binding: complete signed account/trade/bill proof, actual instrument/fee-group/contract-tier/leverage checks, conservative collateral, original timestamps and permanent operation IDs. Fresh native observation startup, existing-maker cancellation and protected SDK composition pass the 375-case frozen regression below.
+    - [ ] Configured runner/account topology, actual shared SDK request quotas and mandatory service installation; these remain part of R4/R5 acceptance.
 
 - [x] **R3 — control/risk/session:** signed pending repair and successor reconciliation/activation; persistent native markout/probe/stress/inventory/EXIT gates. Exit replay: restart and late observations retain HALT, budgets and approvals; each enabled risk mode reaches its native financial gate.
   - [x] R3.1: Signed native DRAIN/REVOKE/RECOVER and separate new-generation ACTIVATE; retain the original observation writer, permanent approvals/grant consumption, HALT and financial history across cancellation/unknown COMMIT. Migration 76 and the control port are qualified by the 44-case native control/successor gate, physical COMMIT/process/backend/cancellation and corruption cases, and the audited upgrades recorded below. No PG4 lease/credential exclusion is inferred.
@@ -4465,3 +4471,88 @@ configured source/controller/runner/SDK-history installation for both products.
 R5 still requires its whole-service/fault/role/current-source acceptance exit.
 This increment does not enable configured PostgreSQL, deployment, demo or live
 trading, and does not claim physical credential fencing or PG8 scalability.
+
+## PG3 R2 signed hedge source composition (2026-10-19)
+
+`PgHedgeSource` binds the original signed joint collector, native capital/carry
+repositories, typed maker cancellation and actual protected SWAP SDK source.
+An explicitly provisioned fresh native account can initialize observations
+without synthetic prior capital/carry samples. Fixed signed routes qualify the
+linear contract, contract-unit depth, mark/index, funding schedule, account fee
+group, margin tiers and leverage on each required position side. Canonical
+Decimal publication preserves exact cold readback. At a shared contract-tier
+boundary the higher margin applies. Collateral cannot include unconfirmed UPL
+or gains that exist only in a newer public mark; funding forecasts and advertised
+rebates never credit cash. Bill coverage must include the original carry anchor.
+
+The original full account-proof timestamp remains unchanged. The last actual
+private sample has its own capture time; market updates keep provider timestamps.
+Only the source's own capital/carry/preflight writes may advance its epoch/cut.
+Original native config/risk scalars remove a repeated full history read after
+preflight; SQL independently recomputes child admission. Stage IDs are independent
+of process ownership. Interrupted capture, preflight, preparation or unknown
+response cannot recollect or submit again under the original identity.
+
+Final HTTP checks both actual SDK caches and allows only the original prepared
+SWAP child. Foreign orders, a missing tracking entry or a premature/replaced
+exchange ID deny submission. Stop revokes HTTP while original fill/terminal/
+settlement bookkeeping and diagnostic root readback remain available. New terminal
+truth without a current financial cut remains pending with the original claim
+held. The existing-maker replay confirms native cancellation intent/attempt
+before the cancel POST, independent SDK/provider terminal closure, and only then
+signed hedge capture and one protected SWAP POST.
+
+Migration 83 audits and extends the original route grammar. Migration 84 batches
+up to eight original diagnostic pages into one durable transaction before any
+semantic parsing; individual route/identity/sequence/byte checks remain. Bad tails
+roll back all new pages; partial HTTP failure retains already received pages;
+unknown COMMIT returns no source data. Migration 85 reuses the original carry
+verdict only inside the same STABLE portfolio snapshot. Its helper is owner-only;
+independent portfolio verification and mutation/COMMIT guards remain unchanged.
+These migrations seed no account, money, policy, approval or activation.
+
+**Development failures retained:** `/tmp/life-r2-source-qualified-current` stopped
+with 9 passes/1 failure when the original account proof reached 1002.507 ms;
+`/tmp/life-hedge-source-read-trim` stopped with 1 pass/1 failure at 1065.574 ms.
+These exposed insufficient margin for per-page commits and repeated native
+reads. After batching, `/tmp/life-r2-source-batch-qualified` stopped with
+235 passes/1 failure (702.03 s): physical ARM took 953.31 ms and final SDK
+submission was refused. No failure is counted as acceptance or removed by a
+freshness/SQL/transaction/monetary limit increase.
+
+Diagnostic function profiles of the same retry workflow recorded 313 carry
+verifications/1925 carry-check verifications before migration 85, versus
+226/1383 afterward. Cumulative `spot_state` time varied from 6.85–7.17 s before
+to 5.73 s after in these local samples. These are diagnostic observations,
+not a latency percentile, scale gate or deployed-service benchmark. The six
+snapshot parity profiles pass with no-policy, pending, qualified, denied,
+expired and corrupt-receipt states; runtime/reporting cannot invoke the helper.
+The 12 focused migration upgrade/drift/ACL/idempotency profiles pass (22.65 s,
+`/tmp/life-r2-source-upgrades`).
+
+**Final frozen qualification (completed 2026-10-20 local time):**
+`run_postgres --suite r2_integration --fail-fast` passes **375 cases**, zero
+failures/errors/skips, in **1100.70 s**, with six existing Pydantic deprecation
+warnings. Logs/JUnit are under `/tmp/life-r2-source-final-qualified`; the 738
+source/test/SQL hashes and inventory remain unchanged against
+`/tmp/life-hedge-source-frozen-qualified.json`. The coupled selector includes
+signed hedge capture and SDK scope, provider batch/source/history, source-consuming
+terminal/shared release, original carry and portfolio proof parity, portfolio,
+maker cancellation, joint source/lifecycle and hedge/final-SWAP transport cases.
+Earlier focused/profile passes overlap this gate and are not added to its count.
+The actual 82→83, 83→84 and 84→85 upgrade/drift/ACL/idempotency gate separately
+passes all **12 cases**, zero failures/errors/skips. Hooks and diff checks pass.
+Tests use the pinned disposable local PostgreSQL 16.15 ARM image (2 CPU/1 GiB),
+synthetic inputs and fake HTTP through the actual SDK/auth/request-guard path.
+No `.env`, configured database, exchange account, deployment or repository
+evidence file is used. No source, SQL, transaction or monetary limit is widened.
+
+**Remaining PG3 exit:** R2's configured runner/account topology and R4's actual
+service/controller/planner/reference/book/fee installation, final SPOT/SWAP
+routes, complete ordinary financial ingress and recorder/authenticated SDK history
+for both products. The service must install the final route for every enabled
+QUOTE/INVENTORY/EXIT mode or refuse startup. Shared account request quotas must be
+qualified with the actual SDK throttlers; per-process endpoint limits are not
+that proof. R5 retains whole-service current-source/fault/restart/role acceptance.
+Configured PostgreSQL remains rejected; no File fallback or live/deployment
+eligibility is introduced.
