@@ -49,6 +49,102 @@ def sdk_pair(share=Decimal('100')):
 
 
 @pytest.mark.asyncio
+async def test_collection_waits_before_observations_without_erasing_used_capacity():
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.shared_sdk_quota import PgSharedSdkQuota
+    spot, swap, session = sdk_pair()
+    quota = PgSharedSdkQuota.install(spot=spot, swap=swap)
+    await swap.get_account_uid()
+    before = time.monotonic()
+    async with asyncio.timeout(3), quota.collection():
+        assert time.monotonic() - before >= 2
+        assert len(session.sent) == 1
+        assert len(quota._shared._task_logs) == 1  # No synthetic refunds/reset.
+        assert await spot.get_account_uid() == await swap.get_account_uid() == '12345'
+    assert len(session.sent) == 3
+
+
+@pytest.mark.asyncio
+async def test_waiting_for_sdk_websocket_login_does_not_occupy_the_rest_collection_window():
+    from hummingbot.connector.exchange.okx.okx_constants import WS_LOGIN_LIMIT_ID
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.shared_sdk_quota import PgSharedSdkQuota
+    spot, swap, session = sdk_pair()
+    quota = PgSharedSdkQuota.install(spot=spot, swap=swap)
+    async with spot._throttler.execute_task(WS_LOGIN_LIMIT_ID):
+        pass
+
+    async def next_login():
+        async with spot._throttler.execute_task(WS_LOGIN_LIMIT_ID):
+            pytest.fail('WebSocket login rate was not retained')
+    waiting = asyncio.create_task(next_login())
+    try:
+        await asyncio.sleep(.03)
+        assert not waiting.done()
+        assert await asyncio.wait_for(swap.get_account_uid(), .5) == '12345'
+        assert len(session.sent) == len(quota._shared._task_logs) == 1
+        assert not waiting.done()
+    finally:
+        waiting.cancel()
+        await asyncio.gather(waiting, return_exceptions=True)
+
+
+@pytest.mark.asyncio
+async def test_collection_excludes_other_sdk_tasks_and_revokes_escaped_lease():
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.shared_sdk_quota import PgSharedSdkQuota
+    spot, swap, session = sdk_pair()
+    quota = PgSharedSdkQuota.install(spot=spot, swap=swap)
+    external, escaped = asyncio.Event(), asyncio.Event()
+
+    async def later(event, sdk):
+        await event.wait()
+        return await sdk.get_account_uid()
+    other = asyncio.create_task(later(external, swap))  # Captures no collection.
+    try:
+        async with quota.collection():
+            child = asyncio.create_task(later(escaped, spot))
+            inherited = asyncio.create_task(spot.get_account_uid())
+            external.set()
+            await asyncio.sleep(.03)
+            assert not other.done() and not inherited.done() and not session.sent
+            assert await spot.get_account_uid() == '12345'
+        escaped.set()
+        with pytest.raises(StorageError, match='PG_SHARED_QUOTA_COLLECTION_CLOSED'):
+            await child
+        assert await asyncio.wait_for(other, 1) == '12345'
+        assert await asyncio.wait_for(inherited, 1) == '12345'
+        assert len(session.sent) == 3
+    finally:
+        external.set()
+        escaped.set()
+        await asyncio.gather(other, child, inherited, return_exceptions=True)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('fault', ['cancel', 'drift'])
+async def test_interrupted_collection_keeps_logs_and_does_not_start_observations(fault):
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.shared_sdk_quota import PgSharedSdkQuota
+    spot, swap, session = sdk_pair()
+    quota = PgSharedSdkQuota.install(spot=spot, swap=swap)
+    await spot.get_account_uid()
+
+    async def collect():
+        async with quota.collection():
+            pytest.fail('source facts started with an occupied quota window')
+    pending = asyncio.create_task(collect())
+    await asyncio.sleep(.03)
+    if fault == 'cancel':
+        pending.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await pending
+        assert await swap.get_account_uid() == '12345'
+        assert len(session.sent) == len(quota._shared._task_logs) == 2
+    else:
+        swap.okx_perpetual_api_key = 'changed'
+        with pytest.raises(StorageError, match='PG_SHARED_QUOTA_CONTEXT_CHANGED'):
+            await asyncio.wait_for(pending, 1)
+        assert len(session.sent) == len(quota._shared._task_logs) == 1
+
+
+@pytest.mark.asyncio
 async def test_spot_and_swap_share_five_uid_requests_instead_of_two_independent_budgets():
     from hummingbot.strategy_v2.life_liquidity.storage.postgres.shared_sdk_quota import PgSharedSdkQuota
     spot, swap, session = sdk_pair()

@@ -7,6 +7,7 @@ operation recreates this process-local capture. This class grants no HTTP send.
 """
 import asyncio
 import json
+from contextlib import AsyncExitStack
 from dataclasses import dataclass, field
 from decimal import ROUND_FLOOR, Decimal as D, localcontext
 
@@ -24,7 +25,6 @@ from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError
 from hummingbot.strategy_v2.life_liquidity.storage.financial import decimal, signed_decimal
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.carry import PgCarryRepository
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.collateral_source import _amount
-from hummingbot.strategy_v2.life_liquidity.storage.postgres.financial_source import PgSpotAccountReader
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.hedge import HedgeChild, PgHedgeRepository, PlanHedge
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.joint_source import PgJointAccountReconciler
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.swap_transport import PgSwapAccountSource
@@ -65,11 +65,9 @@ class PgHedgeSource:
         self.runtime, self.financial, self.owner = collector.runtime, collector.financial, collector.swap.owner
         self.binding, self.reader = collector.binding, collector.reader
         self.swap_source = swap_source
-        self.market_reader = PgSpotAccountReader(self.reader.source, max_reads=8, max_bytes=self.reader.max_bytes,
-                                                 timeout_ms=self.reader.timeout_ms)
         self.max_levels, self.timeout_ms, self.available_edge_quote = max_levels, timeout_ms, available_edge_quote
         self._context = (collector, carry, self.capital, self.reader, self.runtime, self.financial, self.owner,
-                         self.binding, max_levels, timeout_ms, available_edge_quote, swap_source, self.market_reader)
+                         self.binding, max_levels, timeout_ms, available_edge_quote, swap_source)
         self._busy = self._stopped = False
         self._capture = None
         self._qualified = None
@@ -81,13 +79,13 @@ class PgHedgeSource:
         """Synchronous owning-context check, without recursing into its sender."""
         if self._context != (self.collector, self.carry, self.capital, self.reader, self.runtime, self.financial,
                              self.owner, self.binding, self.max_levels, self.timeout_ms, self.available_edge_quote,
-                             self.swap_source, self.market_reader):
+                             self.swap_source):
             raise StorageError('PG_HEDGE_SOURCE_CONTEXT_CHANGED')
         self.collector._original()
         self.carry._original()
         self.reader.source._credentials()
-        if self.market_reader.source is not self.reader.source:
-            raise StorageError('PG_HEDGE_SOURCE_CONTEXT_CHANGED')
+        if self.reader.source._quota is not self.swap_source._quota:
+            raise StorageError('PG_HEDGE_SOURCE_SDK_CONTEXT_CHANGED')
         if (self.capital.observation != self._capital_observe or self.carry.observation != self._carry_observe
                 or self._stopped):
             raise StorageError('PG_HEDGE_SOURCE_STOPPED')
@@ -241,7 +239,8 @@ class PgHedgeSource:
         self._original()
         self.collector.check_report(report, epoch=epoch)
         if (report.runner_executor_ids or self.reader.source._connector._order_tracker.active_orders
-                or self.swap_source._connector._order_tracker.active_orders or not self.swap_source._uid_fresh()):
+                or self.swap_source._connector._order_tracker.active_orders
+                or self.reader.source._quota is None and not self.swap_source._uid_fresh()):
             raise StorageError('PG_HEDGE_SOURCE_RUNNER_NOT_QUIESCENT')
         for row in report.orders:
             native, exchange = json.loads(row.native_json), None if row.exchange_json is None else json.loads(row.exchange_json)
@@ -264,7 +263,7 @@ class PgHedgeSource:
         self._check(report, epoch + 2, market)
         return bundle
 
-    async def refresh(self, operation_id):
+    async def refresh(self, operation_id, *, source_report=None):
         identifier(operation_id)
         if self._busy or self._planning and self._plan_task is not asyncio.current_task():
             raise StorageError('PG_HEDGE_SOURCE_BACKPRESSURE')
@@ -272,7 +271,11 @@ class PgHedgeSource:
         cap_id, carry_id = ('hedge-source-' + k + ':' + fingerprint([operation_id]) for k in ('capital', 'carry'))
         try:
             self._original()
-            async with asyncio.timeout(self.timeout_ms / 1000):
+            async with asyncio.timeout(self.timeout_ms / 1000), AsyncExitStack() as stack:
+                quota = self.reader.source._quota
+                if quota is not None and source_report is None:
+                    await stack.enter_async_context(quota.collection())
+                    self._original()
                 if (self.reader.source._connector._order_tracker.active_orders
                         or self.swap_source._connector._order_tracker.active_orders):
                     raise StorageError('PG_HEDGE_SOURCE_RUNNER_NOT_QUIESCENT')
@@ -291,20 +294,23 @@ class PgHedgeSource:
                         sequences.extend(carry['bundle'][k]['sequence'] for k in ('mark', 'index', 'funding', 'terms'))
                     sequences.extend(row['progress']['market']['sequence'] for row in hedge['plans'])
                     sequence = 1 + max(sequences)
-                    report = await self.collector.collect()
+                    report = (await self.collector.collect(include_hedge_market=True)
+                              if source_report is None else source_report)
                     epoch = self.collector._epoch
                     self.collector.check_report(report, epoch=epoch)
-                    # Capture the fast-moving public prices after the longer
-                    # account-wide history comparison. A separate reader keeps
-                    # the original signed account collection identity intact.
-                    # Only this owned read collection may advance its epoch.
-                    received = self._now()
-                    async with self.market_reader.collection():
-                        data = [value['data'] for value in await self.market_reader.read_batch(ROUTES)]
-                    self.collector.check_report(report, epoch=epoch + 1)
-                    epoch += 1
+                    if report.market_json is None or report.market_observed_at is None:
+                        raise StorageError('PG_HEDGE_SOURCE_MARKET_HANDOFF_REQUIRED')
+                    received = int(report.market_observed_at.timestamp() * 1000)
+                    data = json.loads(report.market_json)
                     market, mark, index, rate, settlement, following, funding_at, terms = self._market(data, cap['policy'], carry['policy'], sequence, received)
-                    await self.swap_source.refresh_uid(force=True)
+                    if quota is None:
+                        # Unpooled SDKs may carry different keys for the same
+                        # UID and must each prove that identity. An installed
+                        # pool pins the exact same key/auth/endpoint in both
+                        # SDKs; the signed collection already proves its UID.
+                        # Do not copy/renew the SWAP send identity here: its
+                        # original final HTTP guard still forces a fresh UID.
+                        await self.swap_source.refresh_uid(force=True)
                     self._check(report, epoch, market)
                     if report.coverage_from_ms > carry['policy']['anchor_ms']:
                         raise StorageError('PG_HEDGE_SOURCE_FUNDING_COVERAGE_GAP')
@@ -351,7 +357,7 @@ class PgHedgeSource:
         finally:
             self._capture, self._busy = None, False
 
-    async def collect(self, operation_id):
+    async def collect(self, operation_id, *, source_report=None):
         """Build one child from the native decision, with permanent identities.
 
         A diagnostic preflight is persisted first; SQL recomputes the decision
@@ -372,7 +378,7 @@ class PgHedgeSource:
             preflight = 'hedge-source-plan:' + fingerprint([operation_id])
             if await repository.lookup(preflight, self.binding) is not None:
                 raise StorageError('PG_HEDGE_SOURCE_ORIGINAL_OPERATION_REQUIRES_RECONCILIATION')
-            result = await self.refresh(operation_id)
+            result = await self.refresh(operation_id, source_report=source_report)
             report, epoch, cut, market, leverage, controller_id = self._qualified
             self._check(report, epoch, market)
             if not result.capital.decision.allowed or not result.carry.decision.allowed:

@@ -5,8 +5,11 @@ lowest count, longest interval and largest weight of both profiles. This is
 conservative coordination within one process, never account/source authority,
 cross-process exclusion or a claim about a live exchange's current quota.
 """
+import asyncio
 import math
+import time
 from contextlib import asynccontextmanager
+from contextvars import ContextVar
 from decimal import Decimal
 
 from hummingbot.connector.derivative.okx_perpetual import okx_perpetual_constants as SWAP
@@ -16,17 +19,20 @@ from hummingbot.core.api_throttler.async_throttler import AsyncThrottler
 from hummingbot.core.api_throttler.data_types import RateLimit
 from hummingbot.core.network_iterator import NetworkStatus
 from hummingbot.core.web_assistant.web_assistants_factory import WebAssistantsFactory
-from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError, fingerprint
+from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError
 
 
 def _shape(throttler):
     def row(r):
-        return (r.limit_id, str(r.limit), str(r.time_interval), str(r.weight),
-                [(v.limit_id, str(v.weight)) for v in r.linked_limits])
-    return fingerprint(dict(rows=[row(r) for r in throttler._rate_limits],
-                            mapping=[(key, row(value)) for key, value in sorted(throttler._id_to_limit_map.items())],
-                            share=str(throttler.limits_pct), margin=str(throttler._safety_margin_pct),
-                            retry=str(throttler._retry_interval), lock=id(throttler._lock), logs=id(throttler._task_logs)))
+        return (r.limit_id, r.limit, r.time_interval, r.weight,
+                tuple((v.limit_id, v.weight) for v in r.linked_limits))
+    # This is an in-process equality pin, never a stored/authenticated digest.
+    # Freeze scalar values rather than JSON-encoding/hashing every SDK profile
+    # at each nested request check. Keep all original field/map/identity checks.
+    return (tuple(row(r) for r in throttler._rate_limits),
+            tuple((key, row(value)) for key, value in sorted(throttler._id_to_limit_map.items())),
+            throttler.limits_pct, throttler._safety_margin_pct, throttler._retry_interval,
+            id(throttler._lock), id(throttler._task_logs))
 
 
 def _route(limit_id):
@@ -80,13 +86,19 @@ class _QuotaView:
     @asynccontextmanager
     async def _slot(self, limit_id):
         owner = self._owner
-        owner.assert_binding()
-        async with self._base_execute(limit_id):
+        route = _route(limit_id)
+        if route is None:
+            # A 15-second WS-login wait must not occupy the REST collection
+            # mutex. WS retains its original SDK budget and context checks.
             owner.assert_binding()
-            route = _route(limit_id)
-            if route is None:
-                yield  # Existing SDK WebSocket limits retain their own scope.
-            else:
+            async with self._base_execute(limit_id):
+                owner.assert_binding()
+                yield
+            return
+        async with owner._access():
+            owner.assert_binding()
+            async with self._base_execute(limit_id):
+                owner.assert_binding()
                 async with owner._shared.execute_task(route):
                     # Credentials/factory/profile changes during either quota
                     # wait revoke both SDKs before REST auth or HTTP is entered.
@@ -180,6 +192,10 @@ class PgSharedSdkQuota:
                 raise ValueError
             quota = cls()
             quota._records, quota._revoked = tuple(records), False
+            quota._collection_lock = asyncio.Lock()
+            quota._lease = ContextVar('life_sdk_quota_lease', default=None)
+            quota._active_lease = None
+            quota._lease_task = None
             quota._shared = AsyncThrottler([RateLimit(path, limit, interval, weight)
                                            for path, (limit, interval, weight) in sorted(groups.items())])
             quota._shared_shape = _shape(quota._shared)
@@ -197,6 +213,55 @@ class PgSharedSdkQuota:
             base.add_rate_limits = view._add_hook
             base.set_rate_limits = view._set_hook
         return quota
+
+    @asynccontextmanager
+    async def _access(self):
+        self.assert_binding()
+        inherited = self._lease.get()
+        if inherited is not None:
+            if inherited is not self._active_lease:
+                raise StorageError('PG_SHARED_QUOTA_COLLECTION_CLOSED')
+            if self._lease_task is asyncio.current_task():
+                yield
+                return
+        async with self._collection_lock:
+            self.assert_binding()
+            lease = object()
+            token = self._lease.set(lease)
+            self._active_lease = lease
+            self._lease_task = asyncio.current_task()
+            try:
+                yield
+            finally:
+                self._active_lease = None
+                self._lease_task = None
+                self._lease.reset(token)
+
+    @asynccontextmanager
+    async def collection(self):
+        """Wait for a quiet REST window before taking any fresh source facts.
+
+        No log is deleted, no capacity is reserved/refunded and original SDK
+        limits still gate every HTTP call. The caller owns the bounded deadline.
+        Other SDK tasks wait outside this short collection; nested SDK clock
+        reads retain their original limits and share this process-local lease.
+        A collection too large for its limits must still expire/fail closed.
+        """
+        async with self._access():
+            while True:
+                self.assert_binding()
+                now = Decimal(str(time.time()))
+                throttlers = (self._shared, *(row[2] for row in self._records))
+                pending = any(
+                    log.rate_limit is not None and _route(log.rate_limit.limit_id) is not None
+                    and now - Decimal(str(log.timestamp)) <= Decimal(str(
+                        log.rate_limit.time_interval * (1 + throttler._safety_margin_pct)))
+                    for throttler in throttlers for log in throttler._task_logs)
+                if not pending:
+                    break
+                await asyncio.sleep(.01)
+            self.assert_binding()
+            yield
 
     def assert_binding(self):
         try:

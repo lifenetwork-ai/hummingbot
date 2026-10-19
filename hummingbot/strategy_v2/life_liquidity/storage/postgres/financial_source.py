@@ -6,7 +6,7 @@ limit collection work/accepted decoded JSON; they are not an HTTP streaming cap.
 import asyncio
 import json
 import time
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from uuid import uuid4
 
 from hummingbot.connector.exchange.okx import okx_constants as C
@@ -66,6 +66,7 @@ class PgSpotAccountReader:
         self._active, self._reads, self._bytes = False, 0, 0
         self._journal, self.collection_id = PgProviderJournal(self.repository), None
         self._read_active = False
+        self.started_at = None
         self._context = (source, source.journal, self.repository, self.runtime, self.binding, self.owner, self._journal)
 
     def _original(self):
@@ -90,13 +91,18 @@ class PgSpotAccountReader:
         runtime._observation_inflight += 1
         try:
             before, started = utc(self.source.journal.clock()), time.monotonic()
-            async with asyncio.timeout(self.timeout_ms / 1000):
+            async with asyncio.timeout(self.timeout_ms / 1000), AsyncExitStack() as stack:
+                if self.source._quota is not None:
+                    await stack.enter_async_context(self.source._quota.collection())
                 self._original()
                 if type(self.source) is PgObservationAccountSource:
                     await self.source.validate_observation_identity()
                     self._original()
                 await self.source._uid(force=True)
                 self._original()
+                # Quota waiting before this boundary contains no account or
+                # market observation. Never date an already received page here.
+                self.started_at = utc(self.source.journal.clock())
                 yield self
                 self._original()
                 await self.source._uid(force=True)

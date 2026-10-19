@@ -41,9 +41,11 @@ async def test_exact_provider_tier_boundary_uses_the_higher_margin(database):
         await t.financial.close()
 
 
-async def sources(database, *, coverage_gap=False, clean=False, fresh=False, target='0'):
-    t = (await clean_account(database, fresh=fresh, target=target) if clean else await joint(database, carry_options=None if coverage_gap else
-                                                                                             dict(anchor_opening=True)))
+async def sources(database, *, coverage_gap=False, clean=False, fresh=False, target='0', shared_quota=False):
+    if clean:
+        t = await clean_account(database, fresh=fresh, target=target, shared_quota=shared_quota)
+    else:
+        t = await joint(database, carry_options=None if coverage_gap else dict(anchor_opening=True))
     t.at = int(datetime.now(timezone.utc).timestamp() * 1000)
     t.public = {
         'instruments': [dict(instType='SWAP', instId='LIFE-USDT-SWAP', instFamily='LIFE-USDT',
@@ -115,7 +117,7 @@ async def sources(database, *, coverage_gap=False, clean=False, fresh=False, tar
     return t
 
 
-async def clean_account(database, *, fresh=False, target='0'):
+async def clean_account(database, *, fresh=False, target='0', shared_quota=False):
     import json
     from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_collateral_source import bodies
     from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_hedge_application import application
@@ -134,11 +136,15 @@ async def clean_account(database, *, fresh=False, target='0'):
         PgObservationAccountSource,
     )
     from hummingbot.strategy_v2.life_liquidity.storage.postgres.runner_journal import PgQuoteRunnerJournal
-    t = (await fresh_account(database) if fresh else await application(database, carry_options=dict(anchor_opening=True), target=target))
+    t = (await fresh_account(database, shared_quota=shared_quota) if fresh else await application(
+        database, carry_options=dict(anchor_opening=True), target=target, shared_quota=shared_quota))
     t.swap_connector, t.throttler = t.connector, t.throttle
-    t.connector = OkxExchange('synthetic-key', 'synthetic-secret', 'synthetic-pass', trading_pairs=[], trading_required=False)
-    assistant = RESTAssistant(RESTConnection(t.session), t.throttler, auth=t.connector.authenticator)
-    t.connector._web_assistants_factory = SimpleNamespace(get_rest_assistant=AsyncMock(return_value=assistant))
+    if shared_quota:
+        t.connector = t.other_sdk
+    else:
+        t.connector = OkxExchange('synthetic-key', 'synthetic-secret', 'synthetic-pass', trading_pairs=[], trading_required=False)
+        assistant = RESTAssistant(RESTConnection(t.session), t.throttler, auth=t.connector.authenticator)
+        t.connector._web_assistants_factory = SimpleNamespace(get_rest_assistant=AsyncMock(return_value=assistant))
     t.connector.exchange_symbol_associated_to_pair = AsyncMock(return_value='LIFE-USDT')
     t.connector._api_request_url = AsyncMock(side_effect=lambda path_url, **_: 'https://www.okx.com' + path_url)
     t.requests = []
@@ -184,7 +190,7 @@ async def clean_account(database, *, fresh=False, target='0'):
     return t
 
 
-async def fresh_account(database):
+async def fresh_account(database, *, shared_quota=False):
     import json
     from dataclasses import asdict
     from datetime import timedelta
@@ -222,7 +228,8 @@ async def fresh_account(database):
     await database[0].execute('INSERT INTO life_financial.swap_boundary_policies VALUES($1,$2,1000,64,1048576)', cfg.account_id, cfg.binding.policy_hash)
     repo = PgHedgeRepository(PgSwapRepository(capital))
     connector = OkxPerpetualDerivative(okx_perpetual_api_key='synthetic-key', okx_perpetual_secret_key='synthetic-secret',
-                                       okx_perpetual_passphrase='synthetic-pass', trading_pairs=[], trading_required=False)
+                                       okx_perpetual_passphrase='synthetic-pass',
+                                       trading_pairs=['LIFE-USDT'] if shared_quota else [], trading_required=False)
     connector._contract_sizes['LIFE-USDT'] = D('.25')
     connector._perpetual_trading.set_position_mode(PositionMode.HEDGE)
     connector._perpetual_trading.set_leverage('LIFE-USDT', 2)
@@ -231,12 +238,45 @@ async def fresh_account(database):
     throttle.release.set()
     connector._web_assistants_factory = SimpleNamespace(get_rest_assistant=AsyncMock(return_value=
                                                                                      RESTAssistant(RESTConnection(session), throttle, auth=connector.authenticator)))
+    if shared_quota:
+        from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_shared_sdk_quota import (
+            fake_http,
+            sdk_pair,
+        )
+
+        from hummingbot.strategy_v2.life_liquidity.storage.postgres.shared_sdk_quota import PgSharedSdkQuota
+        other_sdk, _, _ = sdk_pair()
+        for sdk in (connector, other_sdk):
+            fake_http(sdk, session)
+        quota = PgSharedSdkQuota.install(spot=other_sdk, swap=connector)
     paused, ready = [False], [True]
 
     def pause():
         paused[0] = True
         return True
     return SimpleNamespace(**locals())
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('preload', [0, 4])
+async def test_full_signed_hedge_source_fits_actual_shared_sdk_budget_without_renewing_source_age(database, preload):
+    t = await sources(database, clean=True, fresh=True, shared_quota=True)
+    try:
+        for _ in range(preload):
+            assert await t.swap_connector.get_account_uid() == '12345'
+        before = len(t.requests)
+        result = await t.app.observe_sources('shared-cold')
+        assert result.capital.decision.allowed and result.carry.decision.allowed
+        assert not [r for r in t.requests if r['method'] == 'POST']
+        configs = [r for r in t.requests[before:] if r['url'].endswith('/account/config')]
+        assert len(configs) <= 5
+        report = t.source.collector._report
+        age = (datetime.now(timezone.utc) - report.observed_at).total_seconds() * 1000
+        assert 0 <= age <= 1000
+        assert t.source.reader.collection_id == report.collection_id
+        t.quota.assert_binding()
+    finally:
+        await t.financial.close()
 
 
 @pytest.mark.asyncio
@@ -249,6 +289,27 @@ async def test_fresh_native_policy_starts_from_signed_sources_without_synthetic_
         assert result.capital.decision.allowed and result.carry.decision.allowed
         assert (await t.values[5].frame(t.cfg.binding))['snapshot']['sequence'] == 1
         assert (await t.financial.balance(t.cfg.binding)).total_quote_usdt == 10
+        assert not t.session.sent
+    finally:
+        await t.financial.close()
+
+
+@pytest.mark.asyncio
+async def test_joint_source_quota_wait_has_its_own_bound_before_any_provider_observation(database):
+    import asyncio
+
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.financial_source import PgSpotAccountReader
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.joint_source import PgJointAccountReconciler
+    t = await sources(database, clean=True, fresh=True, shared_quota=True)
+    reader = PgSpotAccountReader(t.joint.reader.source, max_reads=128, max_bytes=4194304, timeout_ms=50)
+    collector = PgJointAccountReconciler(reader, t.repo.swap, max_pages=2, max_age_ms=1000)
+    try:
+        assert await t.swap_connector.get_account_uid() == '12345'
+        before = len(t.requests)
+        with pytest.raises(StorageError, match='PG_JOINT_SOURCE_INVALID'):
+            await asyncio.wait_for(collector.collect(), .5)
+        assert reader.collection_id is None and len(t.requests) == before
+        assert not t.financial._runtime.healthy
         assert not t.session.sent
     finally:
         await t.financial.close()
@@ -393,9 +454,13 @@ async def test_typed_unknown_sdk_response_keeps_original_replay_diagnostic_witho
 
 
 @pytest.mark.asyncio
-async def test_native_signed_source_composes_cancellation_plan_and_actual_sdk_send(database):
-    t = await sources(database, clean=True)
+@pytest.mark.parametrize('shared_quota,preload', [(False, 0), (True, 0), (True, 4)])
+async def test_native_signed_source_composes_cancellation_plan_and_actual_sdk_send(database, shared_quota, preload):
+    t = await sources(database, clean=True, shared_quota=shared_quota)
     try:
+        for _ in range(preload):
+            assert await t.swap_connector.get_account_uid() == '12345'
+        before = len(t.requests)
         result = await t.app.execute('qualified-hedge')
         assert result.child_state == 'PREPARED'
         assert len(t.session.sent) == 1
@@ -403,8 +468,42 @@ async def test_native_signed_source_composes_cancellation_plan_and_actual_sdk_se
         assert t.swap_connector._order_tracker.active_orders[claim.wire_id].exchange_order_id == '123456'
         assert await database[0].fetchval('SELECT state FROM life_financial.send_attempts') == 'ACKED'
         assert t.source._qualified[3].available_edge_quote == 1
+        if shared_quota:
+            assert len([r for r in t.requests[before:] if r['url'].endswith('/account/config')]) == 5
         assert (await t.app.execute('qualified-hedge')).replayed
         assert len(t.session.sent) == 1
+    finally:
+        await t.financial.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('fault', ['stale', 'ingress', 'sdk'])
+async def test_cancellation_source_handoff_cannot_outlive_its_original_freshness_or_scope(database, monkeypatch, fault):
+    import asyncio
+
+    from hummingbot.core.data_type.common import OrderType, TradeType
+    t = await sources(database, clean=True, shared_quota=True)
+    refresh = t.source.refresh
+    captured = []
+
+    async def interrupted(operation_id, *, source_report=None):
+        assert source_report is t.joint._report and source_report.market_json is not None
+        captured.append(source_report)
+        if fault == 'stale':
+            await asyncio.sleep(1.01)
+        elif fault == 'ingress':
+            t.financial._runtime._ingress_epoch += 1
+        else:
+            t.connector.start_tracking_order('foreign', '999', 'LIFE-USDT', TradeType.BUY, D('1'), D('1'), OrderType.LIMIT_MAKER)
+        return await refresh(operation_id, source_report=source_report)
+    monkeypatch.setattr(t.source, 'refresh', interrupted)
+    try:
+        with pytest.raises(StorageError):
+            await t.app.execute('invalid-handoff')
+        assert len(captured) == 1 and not t.session.sent
+        assert not t.financial._runtime.healthy
+        assert not await t.values[5].claims(t.cfg.binding)
+        assert not await database[0].fetchval('SELECT count(*) FROM life_financial.send_attempts')
     finally:
         await t.financial.close()
 

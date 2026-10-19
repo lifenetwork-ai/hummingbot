@@ -1,5 +1,6 @@
 """Opt-in disposable PostgreSQL only; never consume the repository .env."""
 import os
+from collections import deque
 from uuid import uuid4
 
 import pytest
@@ -16,6 +17,9 @@ def pytest_runtest_makereport(item, call):
         samples = [repr(sample) for store in getattr(item, '_pg_diagnostic_runtimes', ()) for sample in store.diagnostics]
         if samples:
             report.sections.append(('PostgreSQL bounded physical diagnostics', '\n'.join(samples)))
+        codes = getattr(item, '_pg_reason_codes', ())
+        if codes:
+            report.sections.append(('PostgreSQL normalized reason codes', '\n'.join(codes)))
 
 
 @pytest_asyncio.fixture
@@ -33,6 +37,18 @@ async def database(request, monkeypatch, tmp_path):
         original(store, config)
         request.node._pg_diagnostic_runtimes.append(store)
     monkeypatch.setattr(PgRuntime, '__init__', tracked)
+    # SDK failure hints intentionally carry no raw driver exception. Preserve
+    # only the already sanitized application codes for failed-test triage;
+    # never retain driver messages, SQL, parameters or credential data.
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres import runtime
+    original_error = runtime.sql_error
+    request.node._pg_reason_codes = deque(maxlen=64)
+
+    def normalized(error):
+        result = original_error(error)
+        request.node._pg_reason_codes.append(str(result)[:128])
+        return result
+    monkeypatch.setattr(runtime, 'sql_error', normalized)
     assert dsn.startswith('postgresql://postgres@127.0.0.1:') and dsn.endswith('/life_pg2_test')
     admin = await asyncpg.connect(dsn)
     name = 'life_pg2_' + uuid4().hex

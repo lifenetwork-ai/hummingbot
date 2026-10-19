@@ -6,6 +6,7 @@ Runner topology remains an owning-application contract, checked through the
 original runner journal, not inferred from account or SQL completeness.
 """
 import asyncio
+from contextlib import AsyncExitStack
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal as D, localcontext
@@ -75,6 +76,8 @@ class JointSourceReport:
     cashflow_ids: tuple[str, ...]
     funding_payments: tuple[tuple[str, int, D], ...]
     runner_executor_ids: tuple[str, ...]
+    market_json: str | None = None
+    market_observed_at: datetime | None = None
     trading_permission: bool = field(default=False, init=False)
 
 
@@ -291,8 +294,10 @@ class PgJointAccountReconciler(PgCollateralReconciler):
         if seen != set(expected):
             raise StorageError('PG_JOINT_SOURCE_PENDING_SCOPE')
         payloads['pending'] = pending
-        for kind in self.reader.SWAP_ALGO_TYPES:
-            if (await self.reader.get_all_pending_algo_orders_page(kind))['data']:
+        algo_routes = tuple(('/api/v5/trade/orders-algo-pending', {'ordType': kind, 'limit': '100'})
+                            for kind in self.reader.SWAP_ALGO_TYPES)
+        for page in await self.reader.read_batch(algo_routes):
+            if page['data']:
                 raise StorageError('PG_JOINT_SOURCE_ALGO_UNOWNED')
         return orders, payloads
 
@@ -304,51 +309,69 @@ class PgJointAccountReconciler(PgCollateralReconciler):
             raise StorageError('PG_JOINT_SOURCE_RUNNER_SCOPE')
         return tuple(sorted(facts.executor_ids))
 
-    async def collect(self):
+    async def collect(self, *, include_hedge_market=False):
         import json
+        if type(include_hedge_market) is not bool:
+            raise StorageError('PG_JOINT_SOURCE_CONFIG_INVALID')
         if self._lock.locked():
             raise StorageError('PG_JOINT_SOURCE_BACKPRESSURE')
         async with self._lock:
             self._report = None
-            # This reader's collection invalidates once before its first await.
-            # Any other ingress during native/provider reads must revoke the
-            # entire collection, even before its SQL capture changes the cut.
-            expected_epoch = self.runtime._ingress_epoch + 1
             try:
-                with localcontext() as precision:
-                    precision.prec = 160
-                    original, view = await self._native()
-                    scope = await self._scope()
-                    started = utc(self.reader.source.journal.clock())
-                    async with self.reader.collection():
-                        first_runner = await self._runner(scope)
-                        rounds, accounts, account_times = [], [], []
-                        for _ in range(2):
-                            orders, payload = await self._round(scope, original['capital_policy'])
-                            account_times.append(utc(self.reader.source.journal.clock()))
-                            account, collateral = await self._sample(original['capital_policy'])
-                            rounds.append({**payload, 'collateral': collateral})
-                            accounts.append(account)
-                        if first_runner != await self._runner(scope) or rounds[0] != rounds[1] or accounts[0] != accounts[1]:
-                            raise StorageError('PG_JOINT_SOURCE_CHANGED')
-                    current, after = await self._native()
-                    self._match(original, view, current, after, accounts[0])
-                    if scope != await self._scope():
-                        raise StorageError('PG_JOINT_SOURCE_NATIVE_CHANGED')
-                    if self.runtime._ingress_epoch != expected_epoch:
-                        raise StorageError('PG_JOINT_SOURCE_INGRESS_CHANGED')
-                    rows = tuple(JointOrderEvidence(json.dumps(v, sort_keys=True), None if orders[k] is None else json.dumps(orders[k], sort_keys=True),
-                                                    tuple(sorted(t for t, f in scope[v['product'] + '_FILL'].items() if f['intent_id'] == k)),
-                                                    json.dumps([f['fill'] for _, f in sorted(scope[v['product'] + '_FILL'].items()) if f['intent_id'] == k], sort_keys=True))
-                                 for k, v in sorted(scope['ORDER'].items()))
-                    report = JointSourceReport(view.cut, view.session.config_version, original['snapshot']['account']['risk_epoch'],
-                                               started, scope['ANCHOR']['anchor']['opened_at_ms'],
-                                               self.reader.collection_id, fingerprint(rounds), accounts[1], account_times[1], rows,
-                                               tuple(sorted((p, key) for p in ('SPOT', 'SWAP') for key in scope[p + '_FILL'])),
-                                               tuple(sorted(scope['TRANSFER'])),
-                                               tuple((k, v['at_ms'], D(v['signed_amount'])) for k, v in sorted(scope['FUNDING'].items())), first_runner)
-                    self._report, self._epoch = report, expected_epoch
-                    return report
+                self._original()
+                self.reader.source._credentials()
+                async with asyncio.timeout(self.reader.timeout_ms / 1000), AsyncExitStack() as stack:
+                    if self.reader.source._quota is not None:
+                        await stack.enter_async_context(self.reader.source._quota.collection())
+                    # No native/provider proof has started before this quota
+                    # wait. Pin the epoch before the first native read; any
+                    # later ingress invalidates the complete collection.
+                    expected_epoch = self.runtime._ingress_epoch + 1
+                    with localcontext() as precision:
+                        precision.prec = 160
+                        original, view = await self._native()
+                        scope = await self._scope()
+                        async with self.reader.collection():
+                            started = self.reader.started_at
+                            market_json, market_at = None, None
+                            first_runner = await self._runner(scope)
+                            rounds, accounts, account_times = [], [], []
+                            for _ in range(2):
+                                orders, payload = await self._round(scope, original['capital_policy'])
+                                account_times.append(utc(self.reader.source.journal.clock()))
+                                account, collateral = await self._sample(original['capital_policy'])
+                                rounds.append({**payload, 'collateral': collateral})
+                                accounts.append(account)
+                            if first_runner != await self._runner(scope) or rounds[0] != rounds[1] or accounts[0] != accounts[1]:
+                                raise StorageError('PG_JOINT_SOURCE_CHANGED')
+                            if include_hedge_market:
+                                # One authenticated collection owns account and
+                                # market reads, including its original UID brackets.
+                                # A second collection wastes the shared UID budget
+                                # and invalidates the first collection's source age.
+                                from hummingbot.strategy_v2.life_liquidity.storage.postgres.hedge_source import ROUTES
+                                market_at = utc(self.reader.source.journal.clock())
+                                values = await self.reader.read_batch(ROUTES)
+                                market_json = json.dumps([v['data'] for v in values], sort_keys=True)
+                        current, after = await self._native()
+                        self._match(original, view, current, after, accounts[0])
+                        if scope != await self._scope():
+                            raise StorageError('PG_JOINT_SOURCE_NATIVE_CHANGED')
+                        if self.runtime._ingress_epoch != expected_epoch:
+                            raise StorageError('PG_JOINT_SOURCE_INGRESS_CHANGED')
+                        rows = tuple(JointOrderEvidence(json.dumps(v, sort_keys=True), None if orders[k] is None else json.dumps(orders[k], sort_keys=True),
+                                                        tuple(sorted(t for t, f in scope[v['product'] + '_FILL'].items() if f['intent_id'] == k)),
+                                                        json.dumps([f['fill'] for _, f in sorted(scope[v['product'] + '_FILL'].items()) if f['intent_id'] == k], sort_keys=True))
+                                     for k, v in sorted(scope['ORDER'].items()))
+                        report = JointSourceReport(view.cut, view.session.config_version, original['snapshot']['account']['risk_epoch'],
+                                                   started, scope['ANCHOR']['anchor']['opened_at_ms'],
+                                                   self.reader.collection_id, fingerprint([rounds, market_json]), accounts[1], account_times[1], rows,
+                                                   tuple(sorted((p, key) for p in ('SPOT', 'SWAP') for key in scope[p + '_FILL'])),
+                                                   tuple(sorted(scope['TRANSFER'])),
+                                                   tuple((k, v['at_ms'], D(v['signed_amount'])) for k, v in sorted(scope['FUNDING'].items())), first_runner,
+                                                   market_json, market_at)
+                        self._report, self._epoch = report, expected_epoch
+                        return report
             except BaseException as error:
                 self.runtime._healthy = False
                 if isinstance(error, (StorageError, asyncio.CancelledError)):

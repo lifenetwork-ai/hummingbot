@@ -3987,8 +3987,8 @@ repositories.
 runner journal, captured preparation, ARM, signed UID/transport, ACK ingress,
 hedge/SWAP and observation-runner regressions. Its application fixtures use
 explicit synthetic admission/preparation callbacks and fake HTTP. They do not
-qualify the configured planner/reference/book/fee source, a full shared-account
-runner topology or actual shared SDK request quotas. Both-product ordinary
+qualify the configured planner/reference/book/fee source or a full shared-account
+runner topology. Explicit shared SDK quota profiles are qualified separately below. Both-product ordinary
 financial ingress/history and mandatory configured service installation remain
 R4; whole-service acceptance remains R5. Configured PostgreSQL selection stays
 rejected. This increment adds no schema, bootstrap or activation path.
@@ -4027,6 +4027,40 @@ This coordinates the two owned SDKs inside one process; it authenticates no
 account, market source or financial fact and grants no request permission by
 itself. The UID and native financial gates still apply. The limits derive from
 the repository's existing SDK profiles, not a newly certified live exchange
-quota. Other processes/API keys are not coordinated here. Complete configured
-source collection still needs scheduling against this real shared budget and
-the unchanged freshness limits before the R2.3/R4 service gate can close.
+quota. Other processes/API keys are not coordinated here.
+
+### Bounded joint-source collection and maker handoff
+
+`collection()` waits for the two SDKs' existing REST windows to drain before
+capturing native/provider facts. It preserves all quota logs and original SDK
+limits. The current task owns the short collection window; unrelated SDK tasks
+wait, and an inherited child task cannot bypass that exclusion. Nested SDK clock
+requests still use the original limiter. SDK WebSocket login/subscription waits
+use their separate budgets and cannot occupy this REST window. The owning
+reader/reconciler/application deadlines bound queueing as well as collection.
+
+`PgJointAccountReconciler` captures account and optional fixed hedge-market reads
+inside one signed collection, retaining both original UID brackets. Account
+configuration/balance/positions and pending-algo diagnostics use bounded batches;
+parsing follows their confirmed diagnostic commit. Quota waiting precedes native
+cut capture. Source age begins after the initial UID proof and before any account
+or market page; an already received provider timestamp is never renewed.
+
+After maker cancellation proves quiescence without further terminal writes,
+`PgMakerCancellation` can hand that operation's original complete report to the
+typed `PgHedgeSource` once. The report keeps its collection ID, epoch, financial
+cut and timestamps. Expiry, new ingress, an intervening native write or a foreign
+SDK order prevents financial application. Cancel/release writes invalidate the
+handoff and require a new collection. Market reads are deferred while known
+SPOT makers still require cancellation or retirement.
+
+For an installed pool, both SDKs have the exact same credential/auth/endpoint
+binding; the signed collection's UID authenticates source capture for that
+binding. No SWAP send-identity cache is copied or renewed. Its final HTTP guard
+still forces its own fresh signed UID before native ARM and exact-byte send.
+Unpooled SDKs retain their separate identity checks. The one-second source and
+final-request limits, monetary budgets and SQL timeouts are unchanged.
+
+These explicit kernels do not install the configured PostgreSQL service.
+Complete controller/planner/reference/book/fee composition, both-product ordinary
+financial ingress/history and whole-service R4/R5 acceptance remain required.

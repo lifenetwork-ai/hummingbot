@@ -74,6 +74,7 @@ class PgMakerCancellation:
         self._paused, self.max_cancels = paused, max_cancels
         self.retry_interval_ms, self.timeout_ms = retry_interval_ms, timeout_ms
         self._busy = self._stopped = False
+        self._hedge_handoff = None
         self._context = (collector, self.financial, self.runtime, self.owner, self.binding, self.connector, self.release)
 
     def _ready(self):
@@ -155,19 +156,49 @@ class PgMakerCancellation:
         if receipt.replayed:
             raise StorageError('PG_MAKER_CANCEL_RECONCILE_BEFORE_RETRY')
 
-    async def cancel_makers(self, operation_id):
+    def take_hedge_report(self, operation_id):
+        """Consume the same operation's fresh, quiescent source handoff once.
+
+        No refresh or authority is minted here. Native financial commands must
+        still consume the exact captured cut; any intervening write/ingress,
+        expiry, foreign SDK order or changed collector invalidates the handoff.
+        """
+        self._ready()
+        handoff = self._hedge_handoff
+        self._hedge_handoff = None
+        if handoff is None:
+            return None
+        original_id, report, epoch = handoff
+        if self._busy or operation_id != original_id:
+            raise StorageError('PG_MAKER_CANCEL_SOURCE_HANDOFF_INVALID')
+        self.collector.check_report(report, epoch=epoch)
+        return report
+
+    async def cancel_makers(self, operation_id, *, include_hedge_market=False):
         identifier(operation_id)
         self._ready()
+        if type(include_hedge_market) is not bool:
+            raise StorageError('PG_MAKER_CANCEL_SOURCE_HANDOFF_INVALID')
         if self._busy:
             raise StorageError('PG_MAKER_CANCEL_BACKPRESSURE')
         self._busy = True
+        self._hedge_handoff = None
         requested = set()
         try:
             async with asyncio.timeout(self.timeout_ms / 1000):
                 # At most max_cancels physical attempts. A still-live order
                 # requires a later explicit reconciliation, never an HTTP loop.
                 for _ in range(self.max_cancels + 1):
-                    report = await self.collector.collect()
+                    market = False
+                    if include_hedge_market:
+                        # This native read is only a work-selection hint. Never
+                        # fetch a price batch before expected cancel/release
+                        # writes. The complete signed collection below still
+                        # authenticates scope and owns the only reusable cut.
+                        scope = await self.collector._scope()
+                        market = all(v['state'] in ('TERMINAL', 'ABORTED_BEFORE_SEND')
+                                     for v in scope['ORDER'].values() if v['product'] == 'SPOT')
+                    report = await self.collector.collect(include_hedge_market=market)
                     orders = self._orders(report)
                     if any(native['state'] == 'PREPARED' for native, _ in orders):
                         raise StorageError('PG_MAKER_CANCEL_UNSENT_RECONCILIATION_REQUIRED')
@@ -176,13 +207,17 @@ class PgMakerCancellation:
                     if not live:
                         if report.runner_executor_ids or self.connector._order_tracker.active_orders:
                             raise StorageError('PG_MAKER_CANCEL_SDK_NOT_QUIESCENT')
+                        changed = False
                         for native, exchange in orders:
                             if native['state'] not in ('TERMINAL', 'ABORTED_BEFORE_SEND'):
+                                changed = True
                                 self._ready()
                                 receipt = await self.release.confirm_terminal(self._id(operation_id, native, 'terminal'), native['intent_id'])
                                 if receipt.state != 'TERMINAL':
                                     raise StorageError('PG_MAKER_CANCEL_TERMINAL_UNQUALIFIED')
                         self._ready()
+                        if include_hedge_market and not changed and report.market_json is not None:
+                            self._hedge_handoff = (operation_id, report, self.collector._epoch)
                         return True
                     candidate = next((native for native, _ in live if native['wire_id'] not in requested), None)
                     if candidate is None:

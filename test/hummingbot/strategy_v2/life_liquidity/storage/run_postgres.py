@@ -148,7 +148,8 @@ def main():
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in (
                 'spot_application', 'runner_journal', 'action_preparation', 'action_reconciliation', 'action_abandonment',
                 'quote_arm', 'quote_transport', 'quote_account_source', 'ack_ingress',
-                'hedge_application', 'hedge', 'swap_transport', 'runner_startup', 'hedge_source', 'financial_source')]
+                'hedge_application', 'hedge', 'swap_transport', 'runner_startup', 'hedge_source', 'financial_source',
+                'collateral_source', 'joint_source', 'maker_cancellation', 'provider_batch')]
             selectors.append(str(selector / 'test_shared_sdk_quota.py'))
         if args.suite == 'runner_startup':
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in (

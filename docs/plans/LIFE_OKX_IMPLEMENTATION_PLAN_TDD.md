@@ -1,5 +1,15 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**Latest PostgreSQL source progress (2026-10-20):** 193 focused frozen-source
+cases pass for actual pooled SDK source scheduling, bounded collection,
+quiescent maker-to-hedge proof handoff, stale/ingress/foreign refusals, collateral,
+cancellation and diagnostic batching; 45 affected SPOT/SWAP application cases
+also pass on that frozen source. No timestamps, monetary budgets or timeouts
+are relaxed. Configured controller/service and both-product ordinary financial
+ingress/history remain R4; whole-service acceptance and the observed loaded
+latency remain R5. **PG3 is still open.** See
+[source scheduling](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-r2r4-bounded-source-scheduling-2026-10-20).
+
 **Current PostgreSQL delivery scope (2026-10-19, user decision):** fresh
 PostgreSQL start, followed by File cutover only after stopping and fully
 reconciling the old bot. Active File hedge/carry/coordinator checkpoint migration

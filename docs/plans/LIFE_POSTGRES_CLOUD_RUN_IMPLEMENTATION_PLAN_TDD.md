@@ -26,6 +26,15 @@ Signed capture, existing-maker cancellation, actual SDK final scope, late truth
 and the source/ARM optimizations are recorded in [source composition](#pg3-r2-signed-hedge-source-composition-2026-10-19).
 **PG3 stays open and configured PostgreSQL stays rejected until R2, R4 and R5 are qualified.**
 
+**Latest source/quota qualification (2026-10-20):** the focused frozen-source
+regression passes **193 cases**, zero failures/errors/skips, **565.32 s**.
+It covers full signed account/hedge capture under the actual pooled SDK quotas,
+bounded queueing, original maker-to-hedge proof handoff, stale/foreign/ingress
+refusal, collateral reconciliation, cancellation and diagnostic batching. The
+final SDK application regression passes **45 cases**, **136.86 s**, separately. This closes the declared
+source scheduling profile only; configured service installation and R5 stay open.
+See [source scheduling](#pg3-r2r4-bounded-source-scheduling-2026-10-20).
+
 **Earlier execution checkpoint (2026-10-19, base `7a42c6c49` plus that delivery):**
 R1 retains an original ACKed, zero-fill SWAP through interrupted funding recovery,
 with independent native preparation/ARM/ACK and historical fill exclusion.
@@ -729,7 +738,8 @@ failing integration result visible until the same current-source workflow passes
   - [ ] R2.3: Qualify capital/carry/market capture and complete configured composition with actual runner/account/SDK scope. The R4 fake-exchange service replay and R5 whole-product acceptance remain required; no R2 closure is inferred from these kernel profiles.
     - [x] Native capture has a typed `PgHedgeSource` binding: complete signed account/trade/bill proof, actual instrument/fee-group/contract-tier/leverage checks, conservative collateral, original timestamps and permanent operation IDs. Fresh native observation startup, existing-maker cancellation and protected SDK composition pass the 375-case frozen regression below.
     - [x] Shared in-process SDK REST quota kernel, including original SDK time-synchronizer HTTP, and original quota-context pinning in both final SPOT/SWAP guards. The frozen 484-case affected gate below passes. This does not qualify full source-collection scheduling or the configured service.
-    - [ ] Complete configured runner/account topology, source collection scheduled against the actual shared SDK budget and mandatory service installation; these remain part of R4/R5 acceptance.
+    - [x] Explicit complete source scheduling profile: preserve actual pooled SDK limits; wait before native/provider capture; collect account and hedge market in one signed collection; consume the same operation's original quiescent cancellation report without renewing its timestamps. Fresh startup, prior SDK quota use, real signed SDK send, timeout and stale/ingress/foreign-scope refusals pass in the 193-case focused gate below. This does not install the configured service or prove all loaded/live account histories meet the one-second window.
+    - [ ] Install the qualified source profile in the complete configured runner/account topology and mandatory service; qualify the whole selected workflow under R4/R5.
 
 - [x] **R3 — control/risk/session:** signed pending repair and successor reconciliation/activation; persistent native markout/probe/stress/inventory/EXIT gates. Exit replay: restart and late observations retain HALT, budgets and approvals; each enabled risk mode reaches its native financial gate.
   - [x] R3.1: Signed native DRAIN/REVOKE/RECOVER and separate new-generation ACTIVATE; retain the original observation writer, permanent approvals/grant consumption, HALT and financial history across cancellation/unknown COMMIT. Migration 76 and the control port are qualified by the 44-case native control/successor gate, physical COMMIT/process/backend/cancellation and corruption cases, and the audited upgrades recorded below. No PG4 lease/credential exclusion is inferred.
@@ -4723,3 +4733,59 @@ These are the existing fixed workstreams. This limiter coordinates only the
 two owned SDKs within one process and derives from repository SDK limits; it
 does not certify live exchange quotas or coordinate other API keys/processes.
 Configured PostgreSQL remains rejected. No evidence file or migration is added.
+
+## PG3 R2/R4 bounded source scheduling (2026-10-20)
+
+The actual shared SDK budget exposed failures hidden by unlimited test throttlers:
+separate account/market collections consumed repeated UID requests, source age
+reached **2218 ms** against the unchanged **1000 ms** limit, and the extra UID
+before final SWAP capture could exhaust its one-second deadline. Quota queueing
+inside an already captured native cut could also invalidate that cut.
+
+The explicit native source path now waits within its existing bounded deadline
+before native/provider capture. Account and optional hedge market reads use one
+signed collection with original UID brackets. Account and pending-algo diagnostics
+are persisted in bounded batches before parsing. Quota logs and SDK limits are
+retained. Unrelated REST tasks wait outside the collection; inherited child tasks
+cannot bypass exclusion. A WebSocket login wait retains its own SDK limit without
+occupying the REST collection window.
+
+A quiescent cancellation result can hand its complete original report to the
+same hedge operation once. Cut, epoch, collection ID and timestamps stay original;
+new ingress, stale facts, foreign SDK scope or subsequent financial writes deny
+use. No SWAP identity cache is copied: its final HTTP guard still forces a new
+signed UID and native ARM. Identical pooled credentials/auth/endpoint permit
+removing only the redundant earlier SWAP UID read. Unpooled identity checks stay.
+
+**Frozen affected source gate:** **193 passed**, zero failures/errors/skips,
+**565.32 s**, six existing Pydantic warnings. Command: `run_postgres --suite
+quote_composition --fail-fast` with `PYTEST_ADDOPTS` selecting `shared_sdk_quota`,
+`postgres_hedge_source`, `postgres_maker_cancellation`, `postgres_joint_source`,
+`postgres_collateral_source`, `postgres_financial_source`, `postgres_provider_batch`.
+Log/XML: `/tmp/life-pg3-source-budget-resumed`; source manifest:
+`/tmp/life-pg3-source-budget-observable-frozen.json` (**2416 files**).
+
+**Affected application gate:** **45 passed**, zero failures/errors/skips,
+**136.86 s**, six existing warnings. Same frozen source; `quote_composition`
+selected `postgres_hedge_application` and `postgres_spot_application`.
+Log/XML: `/tmp/life-pg3-source-budget-applications`. Actual OrderExecutor/SPOT and
+hedge/SWAP submissions retain native financial gates, durable ACK and physical
+shutdown behavior. These two focused gates are disjoint selections of the
+602-case expanded selector; the full selector is not claimed as passing.
+
+Retain the original failures in `/tmp/life-pg3-source-budget-red`,
+`/tmp/life-pg3-source-budget-sdk-traced`, and
+`/tmp/life-pg3-source-budget-maker-warm-red`. Interrupted regression invocations
+`source-budget-qualified`, `source-budget-final-qualified` and
+`source-budget-observable-qualified` are not passing gates. The last stopped
+at **18 passed / 1 failed** in an existing SPOT cold-readback case: an approximately
+680 ms claim consumed most of the one-second lifetime before ARM rejection.
+Six disposable JIT-on/off diagnostic trials did not reproduce that latency or
+justify a JIT configuration change. The temporary probe was removed; failed-test
+reports now retain bounded normalized SQL reason codes. This source gate does
+not resolve or discharge the loaded-latency/R5 reliability requirement.
+
+No SQL migrations, monetary limits, freshness/SQL deadlines, configured database,
+exchange account, deployment or new repository evidence file are used. R2.3's
+configured topology, R4's full controller/service and both-product ordinary
+financial ingress/history, and R5 whole-service acceptance remain open.

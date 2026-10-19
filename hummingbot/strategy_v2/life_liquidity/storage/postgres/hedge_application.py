@@ -175,11 +175,16 @@ class PgHedgeApplication:
                 self._paused = True
                 self._require_ready()
                 canceled = (await self._cancel() if self._maker_cancellation is None
-                            else await self._maker_cancellation.cancel_makers(operation_id))
+                            else await self._maker_cancellation.cancel_makers(
+                                operation_id, include_hedge_market=self._native_source is not None))
                 if canceled is not True:
                     raise StorageError('PG_HEDGE_CANCELLATION_UNQUALIFIED')
                 self._require_ready()
-                command = await self._collect(operation_id)
+                if self._native_source is None:
+                    command = await self._collect(operation_id)
+                else:
+                    report = self._maker_cancellation.take_hedge_report(operation_id)
+                    command = await self._collect(operation_id, source_report=report)
                 self._require_ready()
                 if type(command) is not PlanHedge or command.operation_id != operation_id:
                     raise StorageError('PG_HEDGE_SOURCE_COMMAND_MISMATCH')
