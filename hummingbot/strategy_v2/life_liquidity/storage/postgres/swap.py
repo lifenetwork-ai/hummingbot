@@ -96,9 +96,19 @@ class PgSwapRepository:
             if old['owner'] != owner.json() or old['command']['exchange_order_id'] != exchange_order_id:
                 raise StorageError('PG_OPERATION_CONFLICT')
             return self._receipt({**previous['receipt'], 'replayed': True})
-        value = await self.financial.observation_cut(self.binding)
-        return await self._command('SWAP_ACK', dict(operation_id=key, prepare_operation_id=operation_id, exchange_order_id=exchange_order_id),
-                                   ProductCut(value.cut.checkpoint, value.cut.components), owner)
+        body = dict(operation_id=key, prepare_operation_id=operation_id, exchange_order_id=exchange_order_id)
+        # Carry readiness can expire between the primary cut and this write,
+        # changing its digest without a ledger write. A definite SQL cut
+        # rejection rolled back before COMMIT: allow one fresh *ledger* cut
+        # for the same received ACK. Never recapture market data, send again,
+        # or retry an uncertain COMMIT/ownership/accounting rejection.
+        for attempt in range(2):
+            value = await self.financial.observation_cut(self.binding)
+            try:
+                return await self._command('SWAP_ACK', body, ProductCut(value.cut.checkpoint, value.cut.components), owner)
+            except StorageError as error:
+                if str(error) != 'PG_SWAP_CUT_STALE' or attempt:
+                    raise
 
     async def authorize_boundary(self, operation_id, *, wire_payload, owner):
         # This returns diagnostic SQL state, never a reusable HTTP send grant.
