@@ -27,7 +27,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.legacy_applying impo
 from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancialRecoveryFacts
 
 
-async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('-.001'), funding=None, cashflow=None, cashflow_written=False, book_native_swap=False, book_native_funding=False, file_result=None, book_native_parent=False, spot_side=None, spot_fee_currency='USDT', spot_terminal_stage=None, spot_settlement_stage=None, native_terminal=True, native_settlement=True, spot_unsent=False, native_abort=True, spot_cancel=None, native_cancel=True, spot_ack=None, native_ack=True, prior_outer=False):
+async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('-.001'), funding=None, cashflow=None, cashflow_written=False, book_native_swap=False, book_native_funding=False, file_result=None, book_native_parent=False, spot_side=None, spot_fee_currency='USDT', spot_terminal_stage=None, spot_settlement_stage=None, native_terminal=True, native_settlement=True, spot_unsent=False, native_abort=True, spot_cancel=None, native_cancel=True, spot_ack=None, native_ack=True, prior_outer=False, prior_file_repair=False, native_prior_file_repair=True):
     from test.hummingbot.strategy_v2.life_liquidity import test_session
     from test.hummingbot.strategy_v2.life_liquidity.storage import test_legacy_joint_applying as file_fixture
     from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_carry import setup as carry_setup
@@ -72,8 +72,10 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
         final_base += amount if currency == 'LIFE' else D('0')
     approval_at = int(now.timestamp() * 1000)
     final_collateral = final_cash + min(D('0'), D('.75') * (D('1') - entry))
-    if prior_outer and (funding is None or cashflow is not None or spot_side is not None or book_native_parent):
-        raise AssertionError('completed outer fixture declares one original SWAP prefix and a later funding bill')
+    if prior_outer and (funding is None or cashflow is not None or spot_side is not None and not prior_file_repair or book_native_parent):
+        raise AssertionError('completed outer fixture declares an original SWAP prefix and a later funding bill')
+    if prior_file_repair and (not prior_outer or spot_side is None or any((spot_unsent, spot_terminal_stage, spot_settlement_stage, spot_cancel, spot_ack))):
+        raise AssertionError('repaired outer fixture declares an original filled SPOT order before SWAP/funding')
 
     def clock_init(self):
         self.wall, self.mono = now, 100.0
@@ -285,11 +287,31 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
         values[6].wall = captured_now
         values[8]['snapshot'] = replace(values[8]['snapshot'], observed_at_ms=int(captured_now.timestamp() * 1000))
         values[7]['value'] = replace(values[7]['value'], observed_at_ms=int(captured_now.timestamp() * 1000))
+        if prior_file_repair:
+            from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_outer_recovery_history import (
+                repair_original_spot,
+            )
+            joint, store, recovery, values, repaired_fill = await repair_original_spot(
+                database, tmp_path, monkeypatch, joint, store, recovery, values, file_owner, financial, owner,
+                prepared_target['spot'][0], currency=spot_fee_currency, book_native=native_prior_file_repair)
+            prepared_target['spot_fill'] = repaired_fill
+            # This is the first observation of the NEW SWAP trade, after the
+            # original SPOT repair. Never re-date that original SPOT leaf.
+            captured_now = await admin.fetchval('SELECT clock_timestamp()')
+            captured_now = captured_now.replace(microsecond=captured_now.microsecond // 1000 * 1000)
+            values[6].wall = captured_now
+            values[8]['snapshot'] = replace(values[8]['snapshot'], observed_at_ms=int(captured_now.timestamp() * 1000))
+            values[7]['value'] = replace(values[7]['value'], observed_at_ms=int(captured_now.timestamp() * 1000))
         if prior_outer:
             from test.hummingbot.strategy_v2.life_liquidity.storage.test_joint_cash_repository import reopen
             prepared_target['reporting_prior'] = True
             original = numeric_report(values, prepared_target['file_bundle'], claim)
-            assert await joint.reconcile(binding, file_owner), recovery.reason_code
+            options = {} if spot_side is None else dict(
+                spot_fills=(prepared_target['spot_fill'],),
+                spot_facts=SpotFinancialRecoveryFacts(
+                    binding, captured_now, final_base, final_cash - funding, D('0'), D('0'),
+                    ('spottrade1',), (), ('spotwire',), (), True, True, True))
+            assert await joint.reconcile(binding, file_owner, **options), recovery.reason_code
             prepared_target.update(prior_order=original, original_trade_at=original.trades[0].at_ms,
                                    file_source_sequence=values[8]['snapshot'].sequence)
             joint, store, recovery, values = await reopen(tmp_path, store, recovery, values, file_owner)
@@ -478,13 +500,13 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
                 if spot_unsent and 'spot' in prepared_target:
                     facts = SpotFinancialRecoveryFacts(binding, repo.store._clock(), final_base, final_cash, D('0'), D('0'),
                                                        (), () if cashflow is None else ('101',), (), (), True, True, True)
-                    kwargs = dict(spot_facts=facts, **kwargs)
+                    kwargs = {'spot_facts': facts, **kwargs}
                 elif 'spot_fill' in prepared_target:
                     old = prepared_target['spot_fill']
                     facts = SpotFinancialRecoveryFacts(binding, repo.store._clock(), final_base, final_cash, D('0'), D('0'),
                                                        ('spottrade1',) + (() if spot_settlement_stage is None else ('spottrade2',)), () if cashflow is None else ('101',),
                                                        ('spotwire',) + (() if spot_settlement_stage is None else ('extraspotwire',)), (), True, True, True)
-                    kwargs = dict(spot_fills=(old, *prepared_target.get('extra_spot_fills', ())), spot_facts=facts, **kwargs)
+                    kwargs = {'spot_fills': (old, *prepared_target.get('extra_spot_fills', ())), 'spot_facts': facts, **kwargs}
                 return await reconcile(repo, binding, owner, **kwargs)
             patches.setattr(FileJointRepository, 'reconcile', spot_reconcile)
         joint, store, recovery, values, file_owner = await file_fixture.interrupted(tmp_path, patches, stage, before_report=before_report)

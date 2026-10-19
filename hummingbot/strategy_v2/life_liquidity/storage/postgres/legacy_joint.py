@@ -20,7 +20,7 @@ def joint_profile(source, command):
     basis = envelope['policy']['legacy_spot']['accounting_policy']
     bundle, anchor = state['bundle'], state['anchor']
     if (state['opening_cashflows'] or state['opening_joint'] or state['runner_fills'] or state['excluded'] or state['rearms']
-            or any(resources.get(k) for k in ('recovery_batches', 'product_operations'))
+            or resources.get('product_operations')
             or any(resources['joint_repository_policy']['products'].values())
             or any(order['claim']['product'] not in ('SPOT', 'SWAP') for order in bundle['orders'])):
         raise StorageError('PG_LEGACY_APPLYING_PROFILE_UNSUPPORTED')
@@ -28,6 +28,10 @@ def joint_profile(source, command):
             or anchor['pending']
             or int(datetime.fromisoformat(basis['opened_at']).timestamp() * 1000) != anchor['observed_at_ms']):
         raise StorageError('PG_LEGACY_APPLYING_ORIGINAL_BASIS_REQUIRED')
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.legacy_recovery_history import (
+        completed_recovery_history,
+    )
+    recovered = completed_recovery_history(resources, source.facts)
     expected_cash = D(basis['opening_quote_usdt'])
     expected_base = D(basis['opening_base_life'])
     # Retain original historical valuation even before core cash begins.
@@ -195,7 +199,7 @@ def joint_profile(source, command):
             raise StorageError('PG_LEGACY_APPLYING_ORIGINAL_BASIS_REQUIRED')
     if (D(wallet['life_balance']) != before_base or D(wallet['usdt_balance']) != before_cash):
         raise StorageError('PG_LEGACY_APPLYING_ORIGINAL_BASIS_REQUIRED')
-    return {**basis, **spot, **pending, **history, **({'spot_required_ack_ids': sorted(pending_acks)} if pending_acks else {}),
+    return {**basis, **spot, **pending, **history, **recovered, **({'spot_required_ack_ids': sorted(pending_acks)} if pending_acks else {}),
             'swap_opening': dict(opening_long_base=anchor['long_base'], opening_short_base=anchor['short_base'],
                                  opening_long_entry=policy['opening_long_entry'], opening_short_entry=policy['opening_short_entry']),
             'claims': sorted(claims, key=lambda row: row['claim']['intent_id'])}

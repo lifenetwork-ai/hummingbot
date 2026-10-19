@@ -3613,3 +3613,8 @@ historical capsule into the native basis. Import and signed monetary recovery
 retain HALT and shared claims; neither command grants a release or activation.
 Other coordinator/product/NAV and repaired-origin histories retain their fixed
 R1 qualification requirements.
+
+The outer parser also verifies completed original File SPOT recovery batches
+using the same original-child/supersedes proof as core recovery. A later SWAP
+trade or funding observation cannot re-date that SPOT fill, adopt its partial
+wallet, stand for a missing native prefix or release its retained claims.

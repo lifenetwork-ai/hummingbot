@@ -2,7 +2,16 @@
 
 Created: 2026-10-11
 
-**Current execution checkpoint (2026-10-19):** PG3 remains on **R1 accounting/
+**Current execution checkpoint (2026-10-19, base `e6e089c5f` plus this delivery):**
+R1 additionally retains completed original File SPOT repair batches through a
+later completed SWAP cash parent and funding interruption. The affected selector
+passes **58 native cases**, including 16 new repaired-origin workflows, and all
+13 affected File/source cases pass. SQL remains at migration 71. See the
+[latest qualification](#pg3-completed-original-spot-repairs-in-outer-recovery-2026-10-19).
+These results overlap earlier selectors and do not replace the remaining R1 or
+R2–R5 exits. **PG3 remains open; configured PostgreSQL stays denied.**
+
+**Earlier execution checkpoint (2026-10-19):** PG3 remains on **R1 accounting/
 recovery**. Frozen `b4fdab333` passes all **149 affected native cases**, 0 failures/
 errors/skips, **666.541 s**, including 24 completed outer-parent crash/economic
 cases; 92 affected File/source cases pass. The earlier frozen `e8a86d4ad`
@@ -717,6 +726,7 @@ qualification/revision recorded in each increment below.
 - [x] Declared original PREPARING receipts and partial unsent abort/cancel bookkeeping coupled with outer SWAP/funding recovery: 40 native cases and 85 affected File cases pass. The later frozen `e8a86d4ad` common gate passes all 447 cases, including the three earlier failures; remaining R1 families and source consumption still require qualification. See the original prepared-receipt/lifecycle increment below.
 - [x] Declared original ACK interruptions and ACK-bearing core funding, with exact native ACK completion proofs; completed original File repair cohorts, including multiple interrupted superseding attempts. The 60 native cases below qualify these profiles; broader current-source recovery/source acceptance remains open.
 - [x] Declared earlier completed outer SWAP cash parents before later funding interruptions, preserving exact opening, original writer/economic leaves, gross cost and first-publisher history. Frozen `b4fdab333` passes 149 affected native cases, including the 24-case new economic/crash matrix.
+- [x] Declared completed original SPOT repair → completed outer SWAP cash parent → later funding crash histories, with USDT/LIFE fees and independent native-prefix states; 16 new native workflows, exact File money/gross-budget parity, retained HALT/claims and two cold opens.
 - [ ] Remaining outer SPOT and hedge/carry coordinator histories, including original product checkpoints and the remaining side-effect/valuation/repaired-origin families required by supported File modes.
 - [ ] Complete authenticated order/trade/bill/runner scope and original collateral/liability source consumption at every required terminal/shared-release route.
 
@@ -3754,3 +3764,45 @@ increment; counts overlap and are not additive. The earlier 447-case common
 qualification remains specific to `e8a86d4ad`, not this new revision. SQL remains
 at the separately qualified migration 71; no migration was changed or added.
 R1 and R2–R5 remain open for their fixed exits; configured PostgreSQL stays denied.
+
+### PG3 completed original SPOT repairs in outer recovery (2026-10-19)
+
+Base `b4fdab333`. Outer recovery now uses the same completed original File
+recovery-batch proof as core recovery, rather than refusing every nonempty
+recovery history. The original children, writers, fingerprints, complete fact
+scope, zero liabilities and supersedes graph remain mandatory. This audit
+context neither substitutes for an independent native preparation/ARM/economic
+prefix nor creates money or release authority. Empty histories preserve their
+existing basis shape; no SQL or time/monetary policy changes.
+
+The actual history is SPOT fill receipt loss → cold File repair → signed
+RECOVERY_ONLY observation transition → first new SWAP trade and completed outer
+cash parent → later new funding observation → interrupted outer accounting.
+Original SPOT/SWAP trade, fee, bill and observation timestamps are preserved.
+The native workflow tests USDT/LIFE SPOT fees, four monetary crash boundaries,
+with and without the independently booked original native SPOT fill. It requires
+neutral pending import, signed monetary repair, two cold opens, exact File money/
+gross-budget parity, unchanged native original receipts, retained HALT/claims
+and an unchanged retired File source.
+
+Development evidence is separate from qualification: the first File prototype
+was correctly rejected for a trade newer than its fake response; the corrected
+new response reaches the old unsupported-history rejection, then passes with the
+shared proof. The first native Red stopped at a duplicate test-fixture keyword;
+after fixing the fixture merge, `/tmp/life-r1-outer-repair-native-red2` reaches the
+intended `PG_LEGACY_APPLYING_PROFILE_UNSUPPORTED` at import (one failed, 8.11 s).
+**Final qualification:** the affected selector passes **58 native cases**,
+0 failures/errors/skips, **290.24 s**
+(`/tmp/life-r1-outer-repair-native-green/integration.xml`). Its 16 new outer
+repaired-origin cases, 24 completed-parent economic cases and 18 core File-repair
+cases are parts of that total, not additional counts. All **13 affected File/
+source cases pass**, 7.13 s (`/tmp/life-r1-outer-repair-file-final.xml`), including
+unchanged source bytes/balances and the independent original opening. Changed-file
+hooks pass. The earlier frozen 149-case result remains specific to `b4fdab333`;
+a whole-current-source R1/R5 acceptance run is not claimed. The focused
+`legacy_imports`/`joint_recovery` selectors include the new native module.
+No `.env`, configured account/database, exchange request, deployment or new
+repository evidence file was used. R1 retains its remaining coordinator/product/
+valuation histories and complete authenticated provider/runner/collateral-source
+consumption at release routes. The fixed R2–R5 exits remain open; configured
+PostgreSQL remains denied.

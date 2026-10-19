@@ -1,6 +1,15 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
-**Current PG3 R1 checkpoint (2026-10-19, commit `b4fdab333`):** completed
+**Current PG3 R1 checkpoint (2026-10-19, base `e6e089c5f` plus this delivery):**
+completed original File SPOT repair batches now compose with a later completed
+outer SWAP cash parent and funding interruption. **58 affected native cases**
+(including 16 new repaired-origin workflows) and **13 File/source cases** pass.
+SQL remains at migration 71. Prior 149/447-case results qualify their recorded
+revisions and overlap these selectors. **PG3 remains open** for the remaining
+R1 histories/provider-source consumption and fixed R2–R5 exits. See
+[scope and qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-completed-original-spot-repairs-in-outer-recovery-2026-10-19).
+
+**Earlier PG3 R1 checkpoint (2026-10-19, commit `b4fdab333`):** completed
 original outer cash parents compose with later funding interruptions. Frozen
 qualification passes **149 affected native cases**, including 24 PNL/fee/crash/
 native-prefix cases, and 92 affected File/source cases pass. These overlap earlier
