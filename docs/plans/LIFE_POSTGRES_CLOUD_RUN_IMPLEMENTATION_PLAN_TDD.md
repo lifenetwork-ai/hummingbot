@@ -720,6 +720,10 @@ failing integration result visible until the same current-source workflow passes
 
 - [x] **R1 — accounting/recovery (selected fresh-PostgreSQL scope):** complete authenticated collateral/zero-liability and order/trade/bill comparison; signed resolution of native SPOT fill/cashflow, SWAP fill, funding and terminal pending facts; source-consuming explicit SPOT/SWAP terminal/shared release. Exit replay: original observations/IDs survive crash, exact cash/positions/gross budgets agree with the qualified File economic model, and unresolved/foreign/stale facts prevent release. The frozen `run_postgres --suite r1_accounting --fail-fast` gate passes **736 cases**, zero failures/errors/skips; see the closure qualification below. The dedicated mode-2, non-borrowing USDT model is the selected model. Active File `APPLYING` hedge/carry/coordinator migration is outside this delivery by the explicit 2026-10-19 decision; clean stopped cutover remains PG6. Native pending recovery is not excluded. Actual configured runner topology and mandatory application installation remain R4; raw repository DTOs/SQL receipts are bookkeeping, not authenticated source authority.
 - [ ] **R2 — hedge composition:** qualified source → cancel existing makers → native hedge plan/child → guarded final SWAP request → durable ACK/fills → settlement. Exit replay: partial fills, stop during await and retry exhaustion retain the original cost/claims; unknown proceeds never finance a sibling.
+  - [x] R2.1: Native hedge plan/child → protected SDK-tracked SWAP → durable ACK/fills/settlement, including original-ID replay, partial fill, stop, unknown response and gross retry-cost retention. Qualified with the current frozen 223-case coupled gate below; configured source/runner installation remains required.
+  - [x] R2.2: Authenticated maker cancellation kernel and typed hedge port: original native cancel intent/attempt, one-shot signed HTTP request, fresh provider closure, independent SDK/runner quiescence and source-consuming native terminal accounting. Unknown COMMIT/replay cannot issue another HTTP request or retire shared claims. The current frozen 223-case gate and 42 File gateway cases pass; qualification below.
+  - [ ] R2.3: Qualify capital/carry/market capture and complete configured composition with actual runner/account/SDK scope. The R4 fake-exchange service replay and R5 whole-product acceptance remain required; no R2 closure is inferred from these kernel profiles.
+
 - [x] **R3 — control/risk/session:** signed pending repair and successor reconciliation/activation; persistent native markout/probe/stress/inventory/EXIT gates. Exit replay: restart and late observations retain HALT, budgets and approvals; each enabled risk mode reaches its native financial gate.
   - [x] R3.1: Signed native DRAIN/REVOKE/RECOVER and separate new-generation ACTIVATE; retain the original observation writer, permanent approvals/grant consumption, HALT and financial history across cancellation/unknown COMMIT. Migration 76 and the control port are qualified by the 44-case native control/successor gate, physical COMMIT/process/backend/cancellation and corruption cases, and the audited upgrades recorded below. No PG4 lease/credential exclusion is inferred.
   - [x] R3.2: Native successor reconciliation/observation from the expired original session, complete quiescent facts and a fixed imported duration; preserve clock/expiry latches and require a separate signed ACTIVATE.
@@ -4401,3 +4405,63 @@ assembly must install the existing authenticated collection/terminal/release
 applications and mandatory SDK history for both products. R4, R5 and full PG3
 remain open; configured PostgreSQL remains rejected. No live/deployment,
 physical fencing or performance eligibility is inferred.
+
+
+### PG3 R2 authenticated maker cancellation (2026-10-19)
+
+`PgMakerCancellation` now implements the native cancellation port and is wired
+into `PgHedgeApplication.create(maker_cancellation=...)`. It requires the same
+original SWAP/financial repository and owner. An application cannot supply both
+this typed port and the earlier standalone cancellation callback, or omit both.
+The configured PostgreSQL backend remains rejected.
+
+The port first collects the existing signed account-wide joint report: exact
+UID, dedicated account/positions/zero liabilities, anchored bills, both products'
+orders and fills, pending/algo orders and declared runner scope. It also inspects
+actual SPOT SDK objects; unknown SDK orders or changed geometry prevent work.
+A durable REQUEST_CANCEL and RECORD_CANCEL_ATTEMPT precede each physical cancel.
+An ambiguous committed attempt cannot be replayed into another HTTP request.
+The native retry interval and a bounded number of cancellations remain explicit.
+
+The OKX client-ID cancel helper now accepts an optional final request guard. The
+native port verifies the actual signed post-auth/throttle method, endpoint,
+instrument and original client ID, current source epoch/age and SDK scope. It
+rechecks the original owner and captured account version on the primary before
+submission; a separate writer changing the primary cut is refused even without
+a shared process ingress counter. SDK response scope must echo the original
+client ID. Existing unguarded callers keep their previous behaviour.
+
+An ACK (including 51400/51401) never certifies terminal state. The port collects
+a fresh signed report after cancellation, requires provider closure and actual
+SDK/runner quiescence, then calls `PgJointReleaseApplication.confirm_terminal`.
+Partial fills/fees must already match native accounting and account-wide bills;
+unbooked or foreign observations stop the workflow. Terminal accounting does
+not retire the original shared claim or refund a gross loss/subsidy budget.
+If the SDK still tracks the order, later independent SDK closure and fresh
+provider proof can finish the original terminal operation without another POST.
+This reduction/observation path remains usable after HALT and never clears it.
+
+The coupled disposable selector is `run_postgres --suite r2_integration`;
+`--suite maker_cancellation` selects cancellation, authenticated joint source
+and lifecycle regressions alone. No SQL migration or evidence file is added:
+existing native lifecycle/cancel/terminal tables retain original identities.
+No native timeout, freshness, monetary or risk threshold is increased.
+
+**Qualification:** the frozen `run_postgres --suite r2_integration --fail-fast`
+invocation passes **223 cases**, zero failures/errors/skips, in 712.26 s, with six
+existing Pydantic deprecation warnings. The 695 source/test/SQL file hashes remain
+unchanged throughout the run. Logs and JUnit are under
+`/tmp/life-r2-cancellation-qualified`; the hash manifest is
+`/tmp/life-maker-cancel-frozen.json`. These cases include the 17 new cancellation
+profiles, existing authenticated joint/lifecycle regressions and the hedge/SDK/
+final-SWAP transport regressions. They are one coupled run, not a sum of earlier
+focused passes. Existing File gateway tests additionally pass **42 cases**
+(1.76 s, `/tmp/life-maker-cancel-file-gateway.log`). Hooks and staged diff checks
+pass. All inputs are synthetic and HTTP is fake. No configured database,
+`.env`, real exchange account, deployment or repository evidence file is used.
+
+**R2 and R4 remain open** for qualified capital/carry/market capture and complete
+configured source/controller/runner/SDK-history installation for both products.
+R5 still requires its whole-service/fault/role/current-source acceptance exit.
+This increment does not enable configured PostgreSQL, deployment, demo or live
+trading, and does not claim physical credential fencing or PG8 scalability.

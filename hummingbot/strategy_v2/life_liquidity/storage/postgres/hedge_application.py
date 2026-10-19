@@ -13,6 +13,7 @@ from hummingbot.core.event.event_forwarder import EventForwarder
 from hummingbot.core.event.events import MarketEvent
 from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError, identifier
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.hedge import PgHedgeRepository, PlanHedge, SettleHedge
+from hummingbot.strategy_v2.life_liquidity.storage.postgres.maker_cancellation import PgMakerCancellation
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.swap_fills import FillSwap, PgSwapFillRepository
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.swap_send import PgSwapBoundary
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.swap_terminal import (
@@ -24,33 +25,41 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.swap_transport impor
 
 class PgHedgeApplication:
     @classmethod
-    async def create(cls, repository, *, connector, pause_makers, cancel_makers, collect, local_fence,
+    async def create(cls, repository, *, connector, pause_makers, collect, local_fence,
                      clock, max_uid_age_ms, max_auth_age_ms, max_clock_skew_ms, collection_timeout_ms,
-                     cycle_timeout_ms):
+                     cycle_timeout_ms, cancel_makers=None, maker_cancellation=None):
         if (type(repository) is not PgHedgeRepository
-                or any(not callable(v) for v in (pause_makers, cancel_makers, collect, local_fence))
+                or any(not callable(v) for v in (pause_makers, collect, local_fence))
+                or (cancel_makers is None) == (maker_cancellation is None)
+                or cancel_makers is not None and not callable(cancel_makers)
+                or maker_cancellation is not None and (type(maker_cancellation) is not PgMakerCancellation
+                                                       or maker_cancellation.collector.swap is not repository.swap
+                                                       or maker_cancellation.financial is not repository.financial
+                                                       or maker_cancellation.owner != repository.owner)
                 or type(cycle_timeout_ms) is not int or not 0 < cycle_timeout_ms <= 60000):
             raise StorageError('PG_HEDGE_APPLICATION_CONFIG_INVALID')
         repository._original()
         app = cls()
         app.repository, app.connector = repository, connector
         app._pause, app._cancel, app._collect, app._fence = pause_makers, cancel_makers, collect, local_fence
+        app._maker_cancellation = maker_cancellation
         app._runtime, app._binding, app._owner = repository.runtime, repository.binding, repository.owner
         app._cycle_timeout_ms = cycle_timeout_ms
         app._busy = app._stopped = app._paused = False
         app.source = await PgSwapAccountSource.create(PgSwapBoundary(repository.swap), connector=connector,
                                                       clock=clock, local_fence=app._ready, max_uid_age_ms=max_uid_age_ms, max_auth_age_ms=max_auth_age_ms,
                                                       max_clock_skew_ms=max_clock_skew_ms, collection_timeout_ms=collection_timeout_ms, max_pending=1)
-        app._context = (repository, connector, app.source, repository.swap, repository.financial)
+        app._context = (repository, connector, app.source, repository.swap, repository.financial, maker_cancellation)
         return app
 
     def _original(self):
-        repository, connector, source, swap, financial = self._context
+        repository, connector, source, swap, financial, cancellation = self._context
         repository._original()
         if (self.repository is not repository or self.connector is not connector or self.source is not source
                 or repository.swap is not swap or repository.financial is not financial
                 or repository.runtime is not self._runtime or repository.binding != self._binding
-                or repository.owner != self._owner or source.boundary.swap is not swap):
+                or repository.owner != self._owner or source.boundary.swap is not swap
+                or self._maker_cancellation is not cancellation):
             self.stop()
             raise StorageError('PG_HEDGE_APPLICATION_CONTEXT_CHANGED')
 
@@ -78,6 +87,9 @@ class PgHedgeApplication:
         self._runtime._ingress_epoch += 1
         if hasattr(self, 'source'):
             self.source.revoke()
+        cancellation = self._context[-1]
+        if cancellation is not None:
+            cancellation.stop()
 
     async def execute(self, operation_id):
         identifier(operation_id)
@@ -96,7 +108,9 @@ class PgHedgeApplication:
                     raise StorageError('PG_HEDGE_MAKER_PAUSE_REQUIRED')
                 self._paused = True
                 self._require_ready()
-                if await self._cancel() is not True:
+                canceled = (await self._cancel() if self._maker_cancellation is None
+                            else await self._maker_cancellation.cancel_makers(operation_id))
+                if canceled is not True:
                     raise StorageError('PG_HEDGE_CANCELLATION_UNQUALIFIED')
                 self._require_ready()
                 command = await self._collect(operation_id)

@@ -19,10 +19,15 @@ be consumed by QUOTE. See [R3 closure](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PL
 **Native R2 composition progress:** hedge now connects maker pause/cancel/recapture
 ports to native planning, SDK-tracked protected SWAP submission, durable ACK,
 partial fills and settlement. Original-ID replay never submits again; stop and
-uncertainty retain claims and cumulative costs. Authenticating and installing the
-source/cancellation ports and complete configured runner scope remain required.
-The frozen coupled gate passes **118 cases**, with zero failures/errors/skips.
-See [R2 composition](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-r2-native-hedge-sdk-composition-2026-10-19).
+uncertainty retain claims and cumulative costs. Authenticated maker cancellation is now wired through a typed port: durable
+cancel intent/attempt precedes a guarded signed request, and fresh account plus
+independent SDK quiescence are required before native terminal accounting.
+Capital/carry/market capture and complete configured service/runner installation
+remain required.
+The current frozen coupled gate passes **223 cases**, with zero failures/errors/skips;
+42 File gateway cases also pass.
+See [R2 composition](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-r2-native-hedge-sdk-composition-2026-10-19)
+and [authenticated cancellation](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-r2-authenticated-maker-cancellation-2026-10-19).
 **PG3, R2, R4 and R5 remain open; configured PostgreSQL remains rejected** in the
 [PostgreSQL plan](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-native-r1-closure-2026-10-19).
 Clean stopped File cutover remains PG6; active File checkpoint migration is not selected.

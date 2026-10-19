@@ -306,7 +306,7 @@ class OkxExchange(ExchangePyBase):
 
         return final_result
 
-    async def cancel_by_client_id(self, trading_pair: str, client_order_id: str) -> bool:
+    async def cancel_by_client_id(self, trading_pair: str, client_order_id: str, *, request_send_guard=None) -> bool:
         """Request cancellation even when the in-memory order tracker was lost.
 
         A successful response is a request ACK. Callers must fetch order status
@@ -316,7 +316,8 @@ class OkxExchange(ExchangePyBase):
             path_url=CONSTANTS.OKX_ORDER_CANCEL_PATH,
             data={"clOrdId": client_order_id,
                   "instId": await self.exchange_symbol_associated_to_pair(trading_pair)},
-            is_auth_required=True)
+            is_auth_required=True,
+            **({'request_send_guard': request_send_guard} if request_send_guard is not None else {}))
         if response.get("code") != "0":
             raise IOError(f"Error cancelling order {client_order_id}: {response.get('msg', 'API error')}")
         try:
@@ -326,6 +327,8 @@ class OkxExchange(ExchangePyBase):
             raise IOError(f"Error cancelling order {client_order_id}: malformed response")
         if code not in ("0", "51400", "51401"):
             raise IOError(f"Error cancelling order {client_order_id}: {result.get('sMsg', code)}")
+        if request_send_guard is not None and result.get('clOrdId') != client_order_id:
+            raise IOError('CANCEL_ACK_SCOPE_INVALID')
         return True
 
     async def cancel_by_exchange_order_id(self, trading_pair: str,

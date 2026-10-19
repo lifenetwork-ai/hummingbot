@@ -3839,3 +3839,27 @@ The configured PostgreSQL controller remains rejected pending R2/R4/R5 exits.
 
 The disposable coupled selector is `run_postgres --suite hedge_composition`.
 It uses synthetic money, fake HTTP, real SDK tracking and native PostgreSQL.
+
+
+## Authenticated native maker cancellation
+
+`postgres/maker_cancellation.py` implements the typed `maker_cancellation` port
+accepted by `PgHedgeApplication.create`. The same original collector, owner,
+financial and SWAP repositories are required. The standalone callback and typed
+port are mutually exclusive. Capital/carry/market capture and complete configured
+service installation remain separately required; PostgreSQL selection is blocked.
+
+`PgMakerCancellation(collector, paused=..., max_cancels=...,
+retry_interval_ms=..., timeout_ms=...)` uses the existing signed joint collector
+and authenticated terminal application. `cancel_makers(operation_id)` requires
+paused SPOT proposals, records native cancellation intent/attempt first, and uses
+an exact one-shot signed cancel request. Native attempt replay grants no HTTP
+retry. The final fence checks source age/epoch, actual SDK scope and the primary
+owner/version. No cancellation ACK certifies closure: fresh provider evidence,
+booked trades/bills and independent SDK/runner quiescence are required before
+terminal accounting. Shared claims and gross budget costs remain retained.
+
+The optional `request_send_guard` on OKX `cancel_by_client_id` reaches the actual
+REST connection; guarded ACKs must echo the original client ID. Unguarded calls
+retain their existing API. The coupled disposable qualification selector is
+`run_postgres --suite r2_integration`. All tests use synthetic money and fake HTTP.
