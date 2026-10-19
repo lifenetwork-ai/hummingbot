@@ -715,6 +715,7 @@ qualification/revision recorded in each increment below.
 - [ ] Interrupted lifecycle (including abort/cancel), terminal/inventory-settlement and other required NAV histories. The completed standalone prefixes above do not cover pending side effects or joint portfolio valuation.
 - [x] Declared coupled outer SPOT/SWAP/funding crash profiles, including USDT/LIFE SPOT fees and interrupted File terminal/inventory side effects with independent original native completions; exact File money/budget parity and original-ID cold replay. See migration-69 qualification below.
 - [x] Declared original PREPARING receipts and partial unsent abort/cancel bookkeeping coupled with outer SWAP/funding recovery: 40 native cases and 85 affected File cases pass. The common 219-case gate still has three failures; this profile completion does not qualify the whole R1 workflow. See the original prepared-receipt/lifecycle increment below.
+- [x] Declared original ACK interruptions and ACK-bearing core funding, with exact native ACK completion proofs; completed original File repair cohorts, including multiple interrupted superseding attempts. The 60 native cases below qualify these profiles; broader current-source recovery/source acceptance remains open.
 - [ ] Remaining outer SPOT and hedge/carry coordinator histories, including original product checkpoints and the remaining side-effect/valuation/repaired-origin families required by supported File modes.
 - [ ] Complete authenticated order/trade/bill/runner scope and original collateral/liability source consumption at every required terminal/shared-release route.
 
@@ -3592,6 +3593,95 @@ command/proof, a deleted stage and a financial version write before reuse. All
 refusals preserve original pending facts, money, budgets, HALT and claims.
 This initial selector precedes the final predecessor-hash checks; migration and
 common frozen-source qualification remain pending. R1 and R2–R5 stay open.
+
+**Frozen-source follow-up:** commit `82b708bd6` completed the common native
+selector with **386 passed / 1 failed**, 0 errors/skips, **1420.446 s**
+(`/tmp/life-r1-m70-common-82b708bd6`). All 387 cases ran on that detached,
+unchanged source revision. The failure is the original
+`receipt-wallet_after-BUY` inventory-cycle profile, but this invocation failed
+earlier, while recording its independent original native SPOT fill:
+`PG_SPOT_CUT_CONFLICT` from `spot_observe`, before File retirement/import or
+signed monetary repair. This is not a statement-timeout or repair-COMMIT
+exception. The preceding direct-funding carry and terminal/reservation failing
+profiles passed in this invocation. The inventory profile's monetary repair was
+not reached; its prior source-expiry result is not discharged by these passes.
+The current-source received-observation fix and another common qualification
+remain required. No freshness/SQL/transaction/monetary limit changed.
+
+### PG3 original ACK and completed repair provenance (2026-10-19)
+
+Base `82b708bd6`. Read-only source views explain original ACKING interruptions
+without publishing ACKs or changing the retired File capsule. Original writer,
+preparation, wire/slot, observation time, exchange identity, WAL and fill scope
+must agree. Newly explained completions and newly supported ACK-bearing core
+funding require exact original native ACK operations/receipts/events at the
+original import cut. Migration 71 adds that private indexed proof to native
+accounting and cold verification; admission also checks it before publishing an
+import. Missing original ACK provenance leaves cut, money, budgets and claims
+unchanged. Existing complete File-only diagnostic ACKs keep their earlier
+contract: no native ACK is inferred and the native attempt remains SEND_UNKNOWN.
+
+Core funding also retains already completed original File repair history.
+Original children, owners, fingerprints, fact scopes and liabilities remain
+verified. Several interrupted superseding attempts may be completed by one
+final successful batch. The original graph must be acyclic and the successor
+must cover every predecessor fill/fee/cashflow/ACK. Graph checking is linear in
+the explicit nodes/links; compact wrapper digests avoid duplicating their full
+facts in the native basis. Existing native economic prefix proofs still decide
+money, holds and gross cost. A real signed File RECOVERY_ONLY transition is
+required before the next core command on a cold repaired writer; completion of
+an accounting batch does not create observation or activation permission.
+
+`PgSpotRepository.apply_received` owns its primary cut for original typed
+ACK/FILL/CASHFLOW observations. A definite SQL cut rejection permits one ledger
+cut reread only at the same account version, preserving the original command,
+owner, identity, values and source times. The second SQL command still runs all
+native financial/ownership checks. Explicit caller-cut APIs remain strict.
+Version/owner/accounting failures, cancellation and uncertain COMMIT are not
+retried. Durable financial intake and received quote ACK application use that
+path. There is no source recollection or exchange request retry.
+
+TDD/development results, kept separate from final qualification:
+
+- The three-case native Red invocation
+  `/tmp/life-r1-context-and-received-native-red` exposed the original pending
+  ACK refusal and the real received-ACK cut-expiry rejection. Its initial
+  completed-repair fixture stopped at the correct cold observation gate.
+  After adding the required signed observation-only transition, the separate
+  `/tmp/life-r1-original-repair-profile-red` reached and demonstrated the old
+  unsupported-history refusal.
+- The intermediate 51-case native build returned **45 passed / 6 failed**
+  (`/tmp/life-r1-original-context-and-received-green`). Four failures exposed
+  missing native completion requirements for newly explained ACKs; migration 71
+  closes those requirements. Two expectations were corrected to preserve the
+  existing complete File-only diagnostic contract and the original
+  EXPECTED_VERSION_CONFLICT without retry. Neither correction widens permission.
+- Actual File histories exercised future ACK refusal, preserved predecessor
+  economic leaves and a cohort with two interrupted superseding attempts.
+  These proof-development failures were resolved before enabling those profiles.
+
+Current focused qualification: **60 native cases pass**, **284.91 s**, 0 failures/
+errors/skips (`/tmp/life-r1-m71-context-and-received-native`); **57 File/source
+cases pass**, **13.12 s** (`/tmp/life-r1-m71-context-file-final.log`); **109 actual
+migration cases pass**, **107.54 s**, 0 failures/errors/skips
+(`/tmp/life-r1-original-ack-m71-migrations`). The native selector includes 36 ACK
+cohort/proof/compatibility cases, 18 completed File repair histories and six
+received-cut/uncertain-COMMIT cases. Counts from preceding revisions overlap and
+are not additive. The affected transport/intake/old-import regression also passes
+all **180 cases**, **461.20 s**, 0 failures/errors/skips
+(`/tmp/life-r1-m71-received-and-compat-regression`), including the original
+62→71 File-only diagnostic ACK upgrade. A new common frozen-source qualification
+remains pending. `legacy_imports`, `joint_recovery` and `spot_recovery_paths`
+include the new relevant profiles in their focused selectors.
+
+Migration 71 preserves existing OIDs/ACLs/tables, rolls back on unknown
+predecessor shape, denies runtime/reporting/PUBLIC execution of the helper, and
+is a checksum-protected no-op on repeated startup. No `.env`, configured account,
+exchange order, deployment or new repository evidence file is used. SQL,
+transaction, source-age, source-approval and monetary limits remain unchanged.
+R1 still retains the required core/coordinator/valuation/repaired-origin
+families, full authenticated source consumption at releases and its common
+current-source exit. R2–R5 and configured PostgreSQL selection remain open.
 
 The final migration bundle passes **107 actual PostgreSQL cases** in 114.25 s
 (`/tmp/life-r1-repair-view-migrations/integration.xml`), zero failures/errors/

@@ -86,13 +86,22 @@ def funding_profile(source, command):
     envelope = json.loads(source.checkpoint_bytes)
     resources = envelope['state']['resources']
     if (source.ancillary_images or len(source.core_pending_operation_ids) != 1
-            or any(resources.get(k) for k in ('recovery_batches', 'product_operations'))
+            or resources.get('product_operations')
             or command.batch.swap_fills):
         raise StorageError('PG_LEGACY_APPLYING_PROFILE_UNSUPPORTED')
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.legacy_recovery_history import (
+        completed_recovery_history,
+    )
+    recovered = completed_recovery_history(resources, source.facts)
     row = source.original_operations[source.core_pending_operation_ids[0]]
     old = JointCashSpot.from_json(row['command'])
-    if old.spot_acks or old.spot_prepared_receipts or old.spot_terminal_operations or old.spot_settlement_operations:
+    if old.spot_prepared_receipts or old.spot_terminal_operations or old.spot_settlement_operations:
         raise StorageError('PG_LEGACY_APPLYING_PROFILE_UNSUPPORTED')
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.legacy_funding_history import _completed_acks
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.legacy_pending_ack import ack_view
+    records = json.loads(dict(source.journal_images)['wal'])['records']
+    resources, records, pending_acks = ack_view(resources, records, old.spot_acks, observed_at=source.facts.observed_at)
+    _completed_acks(old, resources, row['owner'])
     original = {}
     for event in old.events:
         _, at, kind, bill = event.event_id.split(':')
@@ -149,7 +158,8 @@ def funding_profile(source, command):
     loss = json.loads(bytes.fromhex(row['before_native']['loss']))
     subsidy = json.loads(bytes.fromhex(row['before_native']['subsidy']))
     from hummingbot.strategy_v2.life_liquidity.storage.postgres.legacy_spot_basis import spot_basis
-    spot, spot_base, spot_cash, prefix_base, prefix_cash = spot_basis(source, old, command.batch, resources, before, loss, subsidy)
+    spot, spot_base, spot_cash, prefix_base, prefix_cash = spot_basis(source, old, command.batch, resources, before, loss, subsidy,
+                                                                      records_override=records)
     before_base, before_cash = Decimal(policy['opening_base_life']) + prefix_base, Decimal(policy['opening_quote_usdt']) + prefix_cash
     for key, event in before['account_events'].items():
         if key.startswith('FEE:'):  # Exact prefix membership/value was checked by spot_basis.
@@ -173,7 +183,8 @@ def funding_profile(source, command):
             or old.account_base_life != expected_base + spot_base
             or old.account_quote_usdt != expected_cash + spot_cash + sum((amount for _, amount in original.values()), Decimal(0))):
         raise StorageError('PG_LEGACY_APPLYING_ORIGINAL_BASIS_REQUIRED')
-    return {**policy, **spot}
+    required_acks = sorted(set(pending_acks) | {ack.operation_id for ack in old.spot_acks})
+    return {**policy, **spot, **recovered, **({'spot_required_ack_ids': required_acks} if required_acks else {})}
 
 
 class PgLegacyApplyingImporter:
@@ -341,6 +352,10 @@ class PgLegacyApplyingImporter:
                     if 'spot_preparations' in policy and not await c.fetchval('SELECT life_financial.legacy_spot_basis_valid($1,$2::jsonb,$3)',
                                                                               cfg.account_id, json.dumps(policy), cut.checkpoint.revision):
                         raise StorageError('PG_LEGACY_APPLYING_ORIGINAL_SPOT_BASIS_REQUIRED')
+                    if policy.get('spot_required_ack_ids') and not await c.fetchval(
+                            'SELECT life_financial.legacy_required_ack_prefix_valid($1,$2::jsonb,$3)',
+                            cfg.account_id, json.dumps(policy), cut.checkpoint.revision):
+                        raise StorageError('PG_LEGACY_APPLYING_ORIGINAL_ACK_BASIS_REQUIRED')
                     if 'swap_opening' in policy and not await c.fetchval('SELECT life_financial.legacy_joint_basis_valid($1,$2::jsonb,$3)',
                                                                          cfg.account_id, json.dumps(policy), cut.checkpoint.revision):
                         raise StorageError('PG_LEGACY_APPLYING_ORIGINAL_SWAP_BASIS_REQUIRED')

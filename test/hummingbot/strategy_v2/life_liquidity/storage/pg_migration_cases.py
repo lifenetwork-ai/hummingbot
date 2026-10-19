@@ -2211,3 +2211,48 @@ async def test_prewrite_repair_view_upgrade_is_private_atomic_and_preserves_publ
     for table in ('accounts', 'operations', 'financial_events', 'legacy_applying_imports'):
         assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
     assert (await migrate(c, directory, action='up'))['applied'] == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('unexpected_shape', [False, True])
+async def test_required_original_ack_upgrade_is_private_atomic_and_preserves_old_diagnostics(db, unexpected_shape):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 71:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    signature = 'life_financial.legacy_ack_prefix_valid(uuid,jsonb,jsonb,bigint)'
+    if unexpected_shape:
+        definition = await c.fetchval('SELECT pg_get_functiondef(to_regprocedure($1))', signature)
+        needle = 'FOR o IN SELECT * FROM life_financial.operations'
+        assert definition.count(needle) == 1
+        await c.execute(definition.replace(needle, 'FOR o IN  SELECT * FROM life_financial.operations'))
+    query = '''SELECT p.oid,p.oid::regprocedure::text AS signature,p.proacl,p.prosrc,p.provolatile::text AS provolatile,p.prosecdef,p.proconfig,p.proowner
+        FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='life_financial' ORDER BY p.oid'''
+    before = {r['signature']: dict(r) for r in await c.fetch(query)}
+    tables = await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace='life_financial'::regnamespace ORDER BY oid")
+    path = DEFAULT_DIRECTORY / '000071_required_ack_completion.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    helper = 'life_financial.legacy_required_ack_prefix_valid(uuid,jsonb,bigint)'
+    if unexpected_shape:
+        with pytest.raises(asyncpg.RaiseError, match='LIFE_REQUIRED_ACK_PREFIX_MIGRATION_MISMATCH'):
+            await migrate(c, directory, action='up')
+        assert {r['signature']: dict(r) for r in await c.fetch(query)} == before
+        assert (await versions(c))[-1]['version'] == 70
+        return
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    after = {r['signature']: dict(r) for r in await c.fetch(query)}
+    assert set(after) - set(before) == {helper}
+    for key, original in before.items():
+        assert after[key] == (original if key != signature else {**original, 'prosrc': after[key]['prosrc']})
+    assert after[helper]['provolatile'] == 's' and after[helper]['prosecdef'] and after[helper]['proconfig'] == ['search_path=pg_catalog']
+    for role in ('public', 'life_runtime_test', 'life_reporter_test'):
+        assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", role, helper)
+    assert await c.fetchval('SELECT life_financial.legacy_required_ack_prefix_valid(gen_random_uuid(),$1::jsonb,0)', '{}')
+    for basis in ('{"spot_required_ack_ids":["missing"]}', '{"spot_required_ack_ids":["x","x"]}',
+                  '{"spot_required_ack_ids":null}', '{"spot_required_ack_ids":[1]}'):
+        assert not await c.fetchval('SELECT life_financial.legacy_required_ack_prefix_valid(gen_random_uuid(),$1::jsonb,0)', basis)
+    assert tables == await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace='life_financial'::regnamespace ORDER BY oid")
+    for table in ('accounts', 'operations', 'financial_events', 'legacy_applying_imports'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+    assert (await migrate(c, directory, action='up'))['applied'] == []

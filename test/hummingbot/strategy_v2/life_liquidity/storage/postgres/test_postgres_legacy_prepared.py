@@ -96,7 +96,7 @@ async def test_actual_61_unsent_preparation_upgrades_without_new_arm_or_hold_cha
     try:
         before = await financial.snapshot(cfg.binding)
         await financial.close()
-        assert (await migrate(database[0], action='up'))['applied'] == ['000062_legacy_unsent_spot.sql', '000063_legacy_spot_ack_prefix.sql', '000064_legacy_repaired_parent_prefix.sql', '000065_legacy_cancel_prefix.sql', '000066_legacy_terminal_prefix.sql', '000067_legacy_settlement_prefix.sql', '000068_legacy_abort_nav_history.sql', '000069_legacy_joint_spot_claims.sql', '000070_repair_view_reuse.sql']
+        assert (await migrate(database[0], action='up'))['applied'] == ['000062_legacy_unsent_spot.sql', '000063_legacy_spot_ack_prefix.sql', '000064_legacy_repaired_parent_prefix.sql', '000065_legacy_cancel_prefix.sql', '000066_legacy_terminal_prefix.sql', '000067_legacy_settlement_prefix.sql', '000068_legacy_abort_nav_history.sql', '000069_legacy_joint_spot_claims.sql', '000070_repair_view_reuse.sql', '000071_required_ack_completion.sql']
         cold, capital, batch, importer = await restore(cfg, owner, database[0])
         upgraded = await cold.snapshot(cfg.binding)
         assert (upgraded.balance, upgraded.budget, upgraded.cut) == (before.balance, before.budget, before.cut)

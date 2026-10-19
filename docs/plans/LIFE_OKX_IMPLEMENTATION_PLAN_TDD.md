@@ -1,6 +1,18 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
-**Current PG3 R1 latency checkpoint (2026-10-19, base `c82396dfa`):**
+**Current PG3 R1 checkpoint (2026-10-19, base `82b708bd6`):**
+original ACK interruptions and ACK-bearing core funding retain exact native ACK
+provenance; completed File repair cohorts retain original children and costs.
+Received observations own their cut and can reread it once after a definite
+same-version cut rejection, without renewing source facts. The new 60 native,
+57 File and 109 migration cases pass; the affected transport/intake/compatibility
+regression also passes all 180 cases. A new common frozen-source gate remains pending.
+The earlier frozen `82b708bd6` selector completed **386 passed / 1 failed**;
+its inventory-cycle case failed upstream at original native fill capture with
+`PG_SPOT_CUT_CONFLICT`. Its earlier repair-COMMIT timing is not discharged by
+that invocation. **R1 and PG3 remain open.** See [fixed scope](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#fixed-pg3-exit-checklist-2026-10-17).
+
+**Earlier PG3 R1 latency checkpoint (2026-10-19, base `c82396dfa`):**
 migration 70 reuses the exact private pre-write repair view and snapshot proof
 flags; all post-write/COMMIT checks and deadlines remain. Initial qualification
 passes the three previously failing cases plus nine helper/context cases;

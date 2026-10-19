@@ -3558,3 +3558,43 @@ by their complete locked snapshot. Readback/replay keeps the original independen
 proof. The current cut comparison and every original freshness/ownership guard
 remain. These changes reduce repeated SQL work; they neither authenticate a
 provider nor install the configured PostgreSQL service.
+
+### Original ACK completion and completed File repair history
+
+A read-only view can explain an original File ACKING interruption only when
+the original writer, preparation, wire/slot, observation time, WAL and exchange
+identity agree. The signed capsule is never changed. Migration 71 binds each
+newly explained completion to its exact independently committed native ACK
+command, receipt and zero-money event at the original import cut. Admission,
+monetary accounting and cold proof recheck that requirement. Missing provenance
+cannot publish an import or a native ACK. Previously supported complete File-only
+diagnostic ACKs retain their original contract: an upgrade keeps the native
+attempt `SEND_UNKNOWN` unless its native ACK independently exists.
+
+Core funding recovery can retain completed original File recovery batches.
+Every original child command, writer, receipt/fingerprint and complete historical
+fact scope is checked. The final successful batch may complete several interrupted
+attempts; original supersedes links must remain acyclic and retain all predecessor
+fills, fees, cashflows and ACKs. Graph checking visits each explicit node/link
+once. Compact wrapper digests avoid duplicating their complete facts in the
+native basis; the signed original capsule remains retained. Existing economic
+prefix checks still determine money, holds and gross costs. This audit history
+cannot supply a missing native preparation, ARM, terminal or release proof.
+
+### Received observations across changing primary cuts
+
+`PgSpotRepository.apply_received` owns the primary cut for a typed original
+ACK/FILL/CASHFLOW observation. A definite SQL cut rejection permits one new
+primary ledger cut only when the account version is unchanged. The same original
+command, identity, owner and values are resubmitted to the native observation
+guard. No provider response, observation time, reference value or deadline is
+renewed. A real version conflict, ownership/accounting rejection, cancellation
+or uncertain COMMIT is not retried. The APIs accepting an explicit caller cut
+retain their strict cut checks, including a fabricated same-version digest.
+
+Durable financial intake and received quote ACK application use that observation
+path. Capture/delivery, monetary application and all independent native proofs
+remain separate. Readback never grants a new request, restores activation or
+releases a hold. Provider authentication, complete account/runner/collateral
+scope and configured PostgreSQL service assembly still require their fixed
+PG3 exits.

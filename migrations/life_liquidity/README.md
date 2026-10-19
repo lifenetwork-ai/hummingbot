@@ -1023,3 +1023,14 @@ account, policy, balance, activation or configured PostgreSQL sender.
   new send permission, session cache or deadline increase. Unexpected predecessor
   code rolls back the entire migration. Repeated checksum-verified startup is a
   no-op.
+
+- `000071_required_ack_completion.sql`: newly explained interrupted ACKs and
+  newly supported ACK-bearing core commands require their exact original native
+  ACK operation, command, receipt and zero-money event at the original import
+  cut. The same private proof runs during accounting and cold verification.
+  Existing File-only diagnostic ACKs are not promoted to native ACKs by upgrade;
+  their original bodies and `SEND_UNKNOWN` state remain binding. Required IDs
+  are unique, indexed native lookups; the File projection is decoded once.
+  No table, monetary write, source renewal, grant or public OID/ACL changes.
+  Unexpected predecessor code rolls back atomically; checksum-verified repeat
+  startup remains a no-op.

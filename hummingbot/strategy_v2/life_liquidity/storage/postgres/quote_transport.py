@@ -138,10 +138,9 @@ class PgQuoteRequestGuard:
         try:
             received = await self._ingress.capture(self._preparation.prepare, exchange_order_id,
                                                    owner=self._owner, request_sha256=self._request_sha256)
-            observed = await self._repository.observation_cut(self._binding)
             # Capture is not accounting permission: the original observation
             # transaction independently verifies ownership/cut/money state.
-            receipt = await self._repository.acknowledge(received.command, cut=observed.cut, owner=self._owner)
+            receipt = await self._repository.apply_received(received.command, owner=self._owner)
             await self._ingress.mark_applied(received, owner=self._owner)
             return receipt
         except BaseException:

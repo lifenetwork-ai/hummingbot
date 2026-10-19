@@ -323,6 +323,32 @@ class PgSpotRepository:
             raise StorageError('PG_OBSERVATION_COMMAND_INVALID')
         return await self._observe(command, cut, owner, 'SPOT_FILL')
 
+    async def apply_received(self, command, *, owner):
+        """Record original received truth using this adapter's own primary cut.
+
+        This is never an order admission or a replacement for a caller's
+        explicitly supplied cut. Preserve all original values and timestamps.
+        """
+        methods = {AckSpot: self.acknowledge, FillSpot: self.apply_fills, CashflowSpot: self.apply_cashflow}
+        method = methods.get(type(command))
+        if method is None:
+            raise StorageError('PG_OBSERVATION_COMMAND_INVALID')
+        cut = (await self.observation_cut(self.binding)).cut
+        try:
+            return await method(command, cut=cut, owner=owner)
+        except StorageError as error:
+            # This fixed SQL guard rejects before a monetary write/COMMIT.
+            # Readiness expiry can change a digest without a monetary version
+            # change. Only our own primary cut may be replaced, once, for the
+            # exact same received observation. An explicit caller cut is never
+            # upgraded. Neither provider values nor their age are renewed.
+            if str(error) != 'PG_SPOT_CUT_CONFLICT':
+                raise
+            refreshed = (await self.observation_cut(self.binding)).cut
+            if refreshed.checkpoint.revision != cut.checkpoint.revision:
+                raise
+        return await method(command, cut=refreshed, owner=owner)
+
     async def _capital_command(self, command, cut, owner, kind):
         version, digest = self._cut(cut, owner)
         cfg = self._runtime.config

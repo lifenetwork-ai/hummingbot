@@ -119,8 +119,13 @@ def joint_profile(source, command):
     # APPLIED. Its original pre-images are authoritative in both latter cases;
     # current wallet/claim images are never used as the opening target basis.
     row = source.original_operations.get(source.pending_operation_ids[0])
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.legacy_pending_ack import ack_view
+    records = json.loads(dict(source.journal_images)['wal'])['records']
+    old = None if row is None else JointCashSpot.from_json(row['command'])
+    acknowledgements = (tuple(LegacySpotStore._ack_from_json(r['command']) for r in resources.get('acknowledgements', {}).values()
+                              if r['state'] == 'ACKING') if old is None else old.spot_acks)
+    resources, records, pending_acks = ack_view(resources, records, acknowledgements, observed_at=source.facts.observed_at)
     if row is not None:
-        old = JointCashSpot.from_json(row['command'])
         from hummingbot.strategy_v2.life_liquidity.storage.postgres.legacy_funding_history import _completed_acks
         _completed_acks(old, resources, row['owner'])
         if ({v.bill_id: v for v in old.spot_cashflows} != flows
@@ -150,9 +155,8 @@ def joint_profile(source, command):
                                                                  day=datetime.fromtimestamp(trade['at_ms'] / 1000, timezone.utc).date().isoformat(),
                                                                  loss_quote=str(max(D('0'), -D(trade['signed_fee'])) + max(D('0'), -D(trade['realized_pnl_quote']))))
     spot_ids = {t['trade_id'] for order in bundle['orders'] if order['claim']['product'] == 'SPOT' for t in order['trades']}
-    from hummingbot.strategy_v2.life_liquidity.storage.postgres.legacy_pending_basis import pending_view
-    records = json.loads(dict(source.journal_images)['wal'])['records']
     from hummingbot.strategy_v2.life_liquidity.storage.financial import PrepareSpot
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.legacy_pending_basis import pending_view
     from hummingbot.strategy_v2.life_liquidity.storage.postgres.legacy_prepared_basis import prepared_view
     preparations = (tuple(PrepareSpot.from_json(r['command']) for r in resources['commands'].values() if r['state'] == 'PREPARING')
                     if row is None else old.spot_prepared_receipts)
@@ -185,6 +189,7 @@ def joint_profile(source, command):
             raise StorageError('PG_LEGACY_APPLYING_ORIGINAL_BASIS_REQUIRED')
     if (D(wallet['life_balance']) != before_base or D(wallet['usdt_balance']) != before_cash):
         raise StorageError('PG_LEGACY_APPLYING_ORIGINAL_BASIS_REQUIRED')
-    return {**basis, **spot, **pending, 'swap_opening': dict(opening_long_base=anchor['long_base'], opening_short_base=anchor['short_base'],
-                                                             opening_long_entry=policy['opening_long_entry'], opening_short_entry=policy['opening_short_entry']),
+    return {**basis, **spot, **pending, **({'spot_required_ack_ids': sorted(pending_acks)} if pending_acks else {}),
+            'swap_opening': dict(opening_long_base=anchor['long_base'], opening_short_base=anchor['short_base'],
+                                 opening_long_entry=policy['opening_long_entry'], opening_short_entry=policy['opening_short_entry']),
             'claims': sorted(claims, key=lambda row: row['claim']['intent_id'])}

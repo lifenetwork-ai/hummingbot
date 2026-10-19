@@ -30,7 +30,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancial
 KEYS = OperatorKeys({'operator': b'i' * 32}, {'operator': frozenset(('IMPORT', 'RECOVER', 'DRAIN'))})
 
 
-async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashflow=None, spot_fill=None, file_result=None, retained_cashflows_only=False, spot_prefix=False, book_native_prefix=False, spot_open_only=False, book_native_cashflow=False, book_native_funding=False, prior_funding=(), prior_after_accounting=False, book_native_parent=False, book_native_accounting_parent=False, spot_prepared_only=False, native_arm_prepared_only=False, prior_embedded_spot=False, prior_spot_order=False, file_ack_only=False, prior_core_ack=False, prior_cancel=False, prior_terminal=False, native_terminal=True, before_joint=None, spot_aborted_only=False, native_abort=True, nav_prices=(), native_nav=True):
+async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashflow=None, spot_fill=None, file_result=None, retained_cashflows_only=False, spot_prefix=False, book_native_prefix=False, spot_open_only=False, book_native_cashflow=False, book_native_funding=False, prior_funding=(), prior_after_accounting=False, book_native_parent=False, book_native_accounting_parent=False, spot_prepared_only=False, native_arm_prepared_only=False, prior_embedded_spot=False, prior_spot_order=False, file_ack_only=False, prior_core_ack=False, prior_cancel=False, prior_terminal=False, native_terminal=True, before_joint=None, spot_aborted_only=False, native_abort=True, nav_prices=(), native_nav=True, core_ack=False, native_core_ack=True):
     from test.hummingbot.strategy_v2.life_liquidity.storage import test_spot_financial_contracts as file_fixture
     from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_funding import setup as funding_setup
 
@@ -193,13 +193,13 @@ async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashfl
                            intent_id='previous-intent', client_order_id='previouswire', exchange_order_id='99887766')
             prior = replace(prior, fills=(replace(prior.fills[0], trade_id='previous-trade', signed_fee=D('-.001'), independent_price_usdt=D('1')),))
             if prior_terminal != 'zero':
-                assert (await financial.apply_fills(prior, cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)).state == 'APPLIED'
+                assert (await financial.apply_received(prior, owner=owner)).state == 'APPLIED'
                 assert (await store.apply_fills(prior, cut=(await store.snapshot(binding)).cut, owner=file_owner)).state == 'APPLIED'
             prior_ack = ack(file_owner, now, operation_id='previous-ack', prepare_operation_id='previous-prepare',
                             intent_id='previous-intent', client_order_id='previouswire', exchange_order_id='99887766')
             delayed_ack = bool(prior_cancel and prior_cancel.endswith('_before_ack'))
             if not delayed_ack:
-                await financial.acknowledge(prior_ack, cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)
+                await financial.apply_received(prior_ack, owner=owner)
                 await store.acknowledge(prior_ack, cut=(await store.snapshot(binding)).cut, owner=file_owner)
             if prior_cancel:
                 from hummingbot.strategy_v2.life_liquidity.storage.spot_lifecycle import SpotLifecycleCommand
@@ -218,7 +218,7 @@ async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashfl
                         await financial.apply_lifecycle(retry, cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)
                         await store.apply_lifecycle(retry, cut=(await store.snapshot(binding)).cut, owner=file_owner)
             if delayed_ack:
-                await financial.acknowledge(prior_ack, cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)
+                await financial.apply_received(prior_ack, owner=owner)
                 await store.acknowledge(prior_ack, cut=(await store.snapshot(binding)).cut, owner=file_owner)
             if prior_terminal:
                 from hummingbot.strategy_v2.life_liquidity.storage.terminal import SpotTerminalFacts, TerminalSpot
@@ -275,7 +275,7 @@ async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashfl
                 first = replace(f, operation_id='file-prefix', cumulative_base_life=D('.5'), fills=(prefix,))
                 await store.apply_fills(first, cut=(await store.snapshot(binding)).cut, owner=file_owner)
                 if book_native_prefix and not book_native_accounting_parent:
-                    assert (await financial.apply_fills(first, cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)).state == 'APPLIED'
+                    assert (await financial.apply_received(first, owner=owner)).state == 'APPLIED'
                 f = replace(f, fills=(prefix, replace(f.fills[0], quantity_base_life=D('.5'), signed_fee=D('-.019'))))
             fills = (f,)
             base += (D('1') if side == 'BUY' else D('-1')) + (D('-.02') if fee_currency == 'LIFE' else D('0'))
@@ -326,13 +326,37 @@ async def setup(database, tmp_path, monkeypatch, stage='wallet_after', *, cashfl
         await admin.execute('UPDATE life_financial.accounts SET halted=true WHERE account_id=$1', cfg.account_id)
         assert (await PgJointBatchRepository(funding.swap).apply(parent,
                                                                  cut=(await financial.observation_cut(cfg.binding)).cut, owner=owner)).state == 'APPLIED'
+    core_acks = ()
+    if core_ack:
+        if spot_fill is None or spot_prepared_only:
+            raise AssertionError('core ACK fixture requires an originally armed SPOT order')
+        core_acks = (ack(file_owner, now, side=side),)
+        await store.acknowledge(core_acks[0], cut=(await store.snapshot(binding)).cut, owner=file_owner)
+        if native_core_ack:
+            await financial.apply_received(core_acks[0], owner=owner)
     paid = payment.bundle.funding.payments[-1]
     joint = JointCashSpot('file-joint', binding, 'c' * 64, now,
                           (*prior_events, JointCashEvent(f'JOINT:{paid.settled_at_ms}:FUNDING:{paid.bill_id}', paid.signed_payment_quote)),
                           base, quote, True, True, 'okx_joint_reconciled',
-                          spot_cashflows=() if retained_cashflows_only else flows, spot_fills=fills)
+                          spot_cashflows=() if retained_cashflows_only else flows, spot_fills=fills, spot_acks=core_acks)
     if before_joint is not None:
-        await before_joint(store, financial, owner, file_owner, joint)
+        resumed = await before_joint(store, financial, owner, file_owner, joint)
+        if resumed is not None:
+            # The hook completed original SPOT recovery before the first
+            # observation of this synthetic funding bill. Nothing about an
+            # already recorded bill/receipt or account history is re-dated.
+            if prior_funding or book_native_funding or book_native_accounting_parent:
+                raise AssertionError('a recorded funding history cannot be replaced by a new fixture response')
+            store, now = resumed
+            clock[0] = now
+            stamp = int(now.timestamp() * 1000)
+            b = payment.bundle
+            paid = replace(paid, settled_at_ms=stamp)
+            payment = replace(payment, bundle=replace(b, account=replace(b.account, snapshot=replace(b.account.snapshot, observed_at_ms=stamp)),
+                                                      mark=replace(b.mark, observed_at_ms=stamp), index=replace(b.index, observed_at_ms=stamp),
+                                                      terms=replace(b.terms, observed_at_ms=stamp),
+                                                      funding=replace(b.funding, observed_at_ms=stamp, coverage_through_ms=stamp, payments=(paid,))))
+            joint = replace(joint, observed_at=now, events=(JointCashEvent(f'JOINT:{stamp}:FUNDING:{paid.bill_id}', paid.signed_payment_quote),))
     target, method = ((store._ledger, 'apply_joint_snapshot') if stage.startswith('wallet')
                       else (store._loss, 'record') if stage == 'loss_after'
                       else (store._subsidy, 'record_fill_floor') if stage == 'floor_after' else (store, '_publish_joint_cash'))

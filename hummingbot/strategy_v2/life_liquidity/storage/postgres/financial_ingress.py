@@ -129,9 +129,7 @@ class PgFinancialIngress:
                     return result
                 pending = await self.pending(self.financial.binding, max_rows=max_rows, max_bytes=max_bytes)
                 self._original_values(received, pending)
-                cut = (await self.financial.observation_cut(self.financial.binding)).cut
-                apply = self.financial.apply_fills if type(command) is FillSpot else self.financial.apply_cashflow
-                result = await apply(received.command, cut=cut, owner=received.owner)
+                result = await self.financial.apply_received(received.command, owner=received.owner)
                 if result.state == 'APPLIED':
                     await self.mark_applied(received, financial_operation_id=received.command.operation_id, owner=received.owner)
                 else:

@@ -27,7 +27,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.legacy_applying impo
 from hummingbot.strategy_v2.life_liquidity.storage.recovery import SpotFinancialRecoveryFacts
 
 
-async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('-.001'), funding=None, cashflow=None, cashflow_written=False, book_native_swap=False, book_native_funding=False, file_result=None, book_native_parent=False, spot_side=None, spot_fee_currency='USDT', spot_terminal_stage=None, spot_settlement_stage=None, native_terminal=True, native_settlement=True, spot_unsent=False, native_abort=True, spot_cancel=None, native_cancel=True):
+async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('-.001'), funding=None, cashflow=None, cashflow_written=False, book_native_swap=False, book_native_funding=False, file_result=None, book_native_parent=False, spot_side=None, spot_fee_currency='USDT', spot_terminal_stage=None, spot_settlement_stage=None, native_terminal=True, native_settlement=True, spot_unsent=False, native_abort=True, spot_cancel=None, native_cancel=True, spot_ack=None, native_ack=True):
     from test.hummingbot.strategy_v2.life_liquidity import test_session
     from test.hummingbot.strategy_v2.life_liquidity.storage import test_legacy_joint_applying as file_fixture
     from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_carry import setup as carry_setup
@@ -249,7 +249,7 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
                 now = now.replace(microsecond=now.microsecond // 1000 * 1000)
                 ack = AckSpot('original-spot-ack', spot.operation_id, spot.intent_id, spot.client_order_id,
                               spot.market, spot.side, spot.session_id, spot.epoch, '123456789', now)
-                await financial.acknowledge(ack, cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)
+                await financial.apply_received(ack, owner=owner)
                 await store.acknowledge(replace(ack, observed_at=values[6].wall), cut=(await store.snapshot(binding)).cut, owner=file_owner)
                 extra = replace(spot, operation_id='extra-spot-prepare', intent_id='extraspot', client_order_id='extraspotwire',
                                 side='SELL' if spot_side == 'BUY' else 'BUY', quote_level=1)
@@ -266,7 +266,7 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
                 ack_now = ack_now.replace(microsecond=ack_now.microsecond // 1000 * 1000)
                 ack_extra = AckSpot('extra-spot-ack', extra.operation_id, extra.intent_id, extra.client_order_id,
                                     extra.market, extra.side, extra.session_id, extra.epoch, '123456790', ack_now)
-                await financial.acknowledge(ack_extra, cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)
+                await financial.apply_received(ack_extra, owner=owner)
                 await store.acknowledge(replace(ack_extra, observed_at=values[6].wall),
                                         cut=(await store.snapshot(binding)).cut, owner=file_owner)
                 prepared_target['extra_spot'] = extra, extra_claim
@@ -277,6 +277,29 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
         values[6].wall = captured_now
         values[8]['snapshot'] = replace(values[8]['snapshot'], observed_at_ms=int(captured_now.timestamp() * 1000))
         values[7]['value'] = replace(values[7]['value'], observed_at_ms=int(captured_now.timestamp() * 1000))
+        if spot_ack is not None:
+            from test.hummingbot.strategy_v2.life_liquidity.storage.test_joint_cash_repository import reopen
+
+            from hummingbot.strategy_v2.life_liquidity.storage.financial import AckSpot
+            part, written = spot_ack
+            ack = AckSpot('original-spot-ack', spot.operation_id, spot.intent_id, spot.client_order_id,
+                          spot.market, spot.side, spot.session_id, spot.epoch, '123456789', captured_now)
+            if native_ack:
+                await financial.apply_received(ack, owner=owner)
+            target, method = (store._wal, 'acknowledge') if part == 'wal' else (store, '_publish_ack')
+            original = getattr(target, method)
+
+            def interrupt_ack(*args, **kwargs):
+                if part == 'receipt' and not args[0].startswith('ack-done:'):
+                    return original(*args, **kwargs)
+                if written:
+                    original(*args, **kwargs)
+                raise OSError('synthetic original ACK interruption')
+            with monkeypatch.context() as patch:
+                patch.setattr(target, method, interrupt_ack)
+                with pytest.raises(CommitUnknown):
+                    await store.acknowledge(ack, cut=(await store.snapshot(binding)).cut, owner=file_owner)
+            return await reopen(tmp_path, store, recovery, values, file_owner)
         if spot_cancel is not None:
             from test.hummingbot.strategy_v2.life_liquidity.storage.test_joint_cash_repository import reopen
 
@@ -324,7 +347,7 @@ async def setup(database, tmp_path, monkeypatch, stage, *, entry=D('1'), fee=D('
                 fill = FillSpot('original-spot-fill' if n == 0 else 'extra-spot-fill', prepared_spot.operation_id,
                                 prepared_spot.intent_id, prepared_spot.client_order_id, prepared_spot.market, prepared_spot.side,
                                 prepared_spot.session_id, prepared_spot.epoch, exchange, D('1'), (leaf,), captured_now)
-                assert (await financial.apply_fills(fill, cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)).state == 'APPLIED'
+                assert (await financial.apply_received(fill, owner=owner)).state == 'APPLIED'
                 assert (await store.apply_fills(fill, cut=(await store.snapshot(binding)).cut, owner=file_owner)).state == 'APPLIED'
                 observed_trades.append(trade_id)
                 view = await financial.snapshot(cfg.binding)
