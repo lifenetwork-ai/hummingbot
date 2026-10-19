@@ -75,8 +75,10 @@ class PgHedgeSource:
         self._plan_task = None
         self.capital.observation, self.carry.observation = self._capital_observe, self._carry_observe
 
-    def assert_binding(self):
+    def assert_binding(self, *, observation=False):
         """Synchronous owning-context check, without recursing into its sender."""
+        if type(observation) is not bool:
+            raise StorageError('PG_HEDGE_SOURCE_CONTEXT_CHANGED')
         if self._context != (self.collector, self.carry, self.capital, self.reader, self.runtime, self.financial,
                              self.owner, self.binding, self.max_levels, self.timeout_ms, self.available_edge_quote,
                              self.swap_source):
@@ -87,7 +89,7 @@ class PgHedgeSource:
         if self.reader.source._quota is not self.swap_source._quota:
             raise StorageError('PG_HEDGE_SOURCE_SDK_CONTEXT_CHANGED')
         if (self.capital.observation != self._capital_observe or self.carry.observation != self._carry_observe
-                or self._stopped):
+                or self._stopped and not observation):
             raise StorageError('PG_HEDGE_SOURCE_STOPPED')
 
     def _original(self):

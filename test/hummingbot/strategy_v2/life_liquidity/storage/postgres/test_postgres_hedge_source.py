@@ -41,11 +41,13 @@ async def test_exact_provider_tier_boundary_uses_the_higher_margin(database):
         await t.financial.close()
 
 
-async def sources(database, *, coverage_gap=False, clean=False, fresh=False, target='0', shared_quota=False):
+async def sources(database, *, coverage_gap=False, clean=False, fresh=False, target='0', shared_quota=False,
+                  apply_batch=True, spot_fee=None):
     if clean:
         t = await clean_account(database, fresh=fresh, target=target, shared_quota=shared_quota)
     else:
-        t = await joint(database, carry_options=None if coverage_gap else dict(anchor_opening=True))
+        t = await joint(database, carry_options=None if coverage_gap else dict(anchor_opening=True),
+                        apply_batch=apply_batch, spot_fee=spot_fee)
     t.at = int(datetime.now(timezone.utc).timestamp() * 1000)
     t.public = {
         'instruments': [dict(instType='SWAP', instId='LIFE-USDT-SWAP', instFamily='LIFE-USDT',

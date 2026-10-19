@@ -4064,3 +4064,37 @@ final-request limits, monetary budgets and SQL timeouts are unchanged.
 These explicit kernels do not install the configured PostgreSQL service.
 Complete controller/planner/reference/book/fee composition, both-product ordinary
 financial ingress/history and whole-service R4/R5 acceptance remain required.
+
+
+## Signed ordinary SPOT/SWAP financial intake
+
+`PgJointFinancialObserver` connects the typed `PgHedgeSource` private reader to
+`PgJointBatchRepository`. It collects complete anchored bills, product-scoped
+fills, owned order details, two identical account samples and unchanged runner
+facts under the original signed UID brackets. New facts extend a comparison
+scope only when their original native wire/order and approved transfer match.
+The original native cut and ingress epoch must still agree after collection.
+
+New cumulative SPOT/SWAP fills, approved LIFE/USDT transfers and paid funding
+enter one account-atomic native batch. An inconsistent final account retains the
+original pending batch and HALT without partial monetary credit. Replaying its
+operation ID reads the original receipt without network recollection; a fresh ID
+cannot bypass pending recovery. Losing the COMMIT reply or cancelling its waiter
+does not refund a claim or authorize another submission. Original monetary facts
+and independent values survive a cold database-runtime reopen.
+
+Historical independent fill and LIFE-transfer price providers are explicit
+owning-service inputs. The observer pins their callback identities and validates
+their typed observations; a source label does not authenticate those prices.
+Installing qualified historical providers remains part of the complete service.
+A no-op verifies the signed private account without new market reads. New funding
+sequences advance against the original paid-funding history as well as allocation
+and carry frames, without refreshing those frames or paying old bills twice.
+
+Stopped execution sources still admit late original accounting through the
+observation-only context check. Planning, allocation refresh and sends remain
+stopped. This API neither releases shared claims nor restores SDK history,
+reactivates a session or grants exchange HTTP. `run_postgres --suite joint_intake`
+combines its tests with the affected batch, funding, hedge and joint-source
+profiles. Mandatory both-product listener/history installation and actual
+controller/service assembly remain R4; whole-service acceptance remains R5.

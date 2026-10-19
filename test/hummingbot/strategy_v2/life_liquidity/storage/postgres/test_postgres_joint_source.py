@@ -13,7 +13,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.financial_source imp
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.joint_source import PgJointAccountReconciler
 
 
-async def joint(database, *, spot_fee=None, carry_options=None):
+async def joint(database, *, spot_fee=None, carry_options=None, apply_batch=True):
     async def before_apply(values, command):
         from dataclasses import replace
         from decimal import Decimal as D
@@ -50,7 +50,8 @@ async def joint(database, *, spot_fee=None, carry_options=None):
                     index=replace(b.index, observed_at_ms=at), funding=replace(b.funding, observed_at_ms=at, coverage_through_ms=at),
                     terms=replace(b.terms, observed_at_ms=at))
         return replace(command, spot_fills=(trade,), cashflows=(transfer,), funding=replace(command.funding, bundle=b))
-    t = await reconciler(database, before_apply=None if spot_fee is None else before_apply, carry_options=carry_options)
+    t = await reconciler(database, before_apply=None if spot_fee is None else before_apply, carry_options=carry_options,
+                         apply_batch=apply_batch)
     t.reader = PgSpotAccountReader(t.account, max_reads=128, max_bytes=4194304, timeout_ms=4000)
     t.journal.runner_facts = lambda: None
 

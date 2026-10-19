@@ -1,5 +1,14 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**Latest PostgreSQL financial intake progress (2026-10-20):** the frozen
+152-case `joint_intake` gate passes with zero failures/errors/skips. Signed new
+SPOT/SWAP fills, approved LIFE/USDT transfers and paid funding enter one native
+atomic batch; original IDs/money/claims survive replay, stop, lost COMMIT reply,
+cancellation and cold database-runtime reopen. Independent historical pricing,
+mandatory SDK listeners/history and the actual configured controller/service
+remain R4; whole-service acceptance remains R5. **PG3 is still open.** See
+[joint intake](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-r4-signed-ordinary-joint-financial-intake-2026-10-20).
+
 **Latest PostgreSQL source progress (2026-10-20):** 193 focused frozen-source
 cases pass for actual pooled SDK source scheduling, bounded collection,
 quiescent maker-to-hedge proof handoff, stale/ingress/foreign refusals, collateral,

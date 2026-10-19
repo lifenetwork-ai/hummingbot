@@ -26,6 +26,14 @@ Signed capture, existing-maker cancellation, actual SDK final scope, late truth
 and the source/ARM optimizations are recorded in [source composition](#pg3-r2-signed-hedge-source-composition-2026-10-19).
 **PG3 stays open and configured PostgreSQL stays rejected until R2, R4 and R5 are qualified.**
 
+**Latest ordinary financial intake qualification (2026-10-20):** the frozen
+`joint_intake` gate passes **152 cases**, zero failures/errors/skips, **562.32 s**.
+Previously unbooked SPOT/SWAP fills, approved LIFE/USDT transfers and paid funding
+now enter one native atomic batch through the signed source. Replay, stopped
+late facts, unknown COMMIT, caller cancellation and cold database-runtime
+readback preserve original money/IDs/claims. This explicit API is not mandatory
+configured service installation. See [joint intake](#pg3-r4-signed-ordinary-joint-financial-intake-2026-10-20).
+
 **Latest source/quota qualification (2026-10-20):** the focused frozen-source
 regression passes **193 cases**, zero failures/errors/skips, **565.32 s**.
 It covers full signed account/hedge capture under the actual pooled SDK quotas,
@@ -749,6 +757,7 @@ failing integration result visible until the same current-source workflow passes
 - [ ] **R4 — configured assembly:** install planner/reference/book/fee, complete runner/account scope, SPOT/SWAP final request guards, ingress/collectors and recorder/SDK history in the actual controller/service. Exit replay: start the configured PostgreSQL service with fake exchange; both products complete the selected workflow; a missing route fails startup without File fallback. PostgreSQL selection remains rejected until this passes.
   - [x] Observation-only SPOT startup through the actual `StrategyV2Base`/orchestrator with signed native event/history and PostgreSQL reporting, no File/ORM fallback, and no executor-creation grant. The frozen 191-case native and 110-case File/core gates pass; see [observation runner qualification](#pg3-r4-postgresql-observation-runner-startup-2026-10-20).
   - [x] Explicit native quote journal → actual `OrderExecutor` → protected SPOT SDK → durable ACK, with original awaited dispatch acceptance, no retry/cold-readback send grant, and physical SDK shutdown tracking for both SPOT and hedge SWAP. The frozen 405-case native and 99-case File/SDK gates pass; see [executor application qualification](#pg3-r4-native-quote-executor-application-2026-10-20). Synthetic admission callbacks in this profile do not qualify the configured planner/reference/book/fee source or complete runner/account topology.
+  - [x] Explicit signed ordinary joint financial intake: new SPOT/SWAP fills, approved LIFE/USDT flows and paid funding enter one original native atomic batch. The frozen 152-case gate below passes, including retained pending/HALT, replay, successive funding, unknown COMMIT, cancellation and cold database-runtime reopen. Historical independent-price callbacks remain owning-service inputs; mandatory both-product listeners/history and configured installation are still required.
   - [ ] Actual configured LIFE controller/service, all enabled final trading routes, complete shared-account/SDK scope and both-product financial ingress/history. The observation profile does not discharge these requirements.
 - [ ] **R5 — current-source acceptance:** all supported File/native decisions and units agree; whole-runner restart/corruption/role tests and process/backend faults pass at capture, send, ACK, settlement, release and signed repair. Resolve the observed SQL statement timeout, then run the complete affected workflow on one frozen source revision. PG0 trust/anchor requirements remain explicit; neither local tests nor a database receipt prove exactly-once exchange delivery.
 
@@ -4789,3 +4798,53 @@ No SQL migrations, monetary limits, freshness/SQL deadlines, configured database
 exchange account, deployment or new repository evidence file are used. R2.3's
 configured topology, R4's full controller/service and both-product ordinary
 financial ingress/history, and R5 whole-service acceptance remain open.
+
+
+## PG3 R4: signed ordinary joint financial intake (2026-10-20)
+
+`PgJointFinancialObserver` collects previously unbooked SPOT/SWAP fills,
+approved LIFE/USDT transfers and paid funding from the pinned signed private
+reader. Complete anchored history, owned original wires/order details, two
+stable account samples, runner facts, financial cut and ingress epoch must
+agree. One native `ApplyJointBatch` retains the original complete command and
+accounts all selected facts atomically. Inconsistent account economics preserve
+pending/HALT without partial credit; another operation ID cannot bypass repair.
+Original receipt replay does not recollect HTTP or choose new historical prices.
+
+This is ordinary financial intake, separate from the reconciler that compares
+already booked facts. New paid-funding sequences advance against original APPLIED
+funding streams as well as the last capital/carry frames. Development reproduced
+`CARRY_STREAM_REPLAY_OR_MUTATION` on a second funding payment because allocation
+capacity intentionally remained at its original sequence. The fix advances the
+new observation stream without refreshing capacity or paying old bills twice.
+No-op private comparison omits unnecessary public-market reads. Observation-only
+context validation permits late truth after execution stop; planning/refresh/send
+remain stopped.
+
+Historical independent fill and LIFE-transfer prices remain explicit
+owning-service inputs. Callback identity and typed values are checked; labels
+alone authenticate no independent feed. No shared claim is released, SDK history
+restored, allocation refreshed, session activated or HTTP order granted here.
+Mandatory service installation, qualified historical providers, both-product
+SDK listener/history recovery and the actual configured controller/planner/
+reference/book/fee workflow remain R4. R5 and configured PostgreSQL eligibility
+remain open. This increment adds no SQL migration or repository evidence file.
+
+**Frozen affected gate:** `run_postgres --suite joint_intake --fail-fast` passes
+**152 cases**, zero failures/errors/skips, **562.32 s**, six existing Pydantic
+warnings. The 23 new observer cases are included in 152. Logs/JUnit are under
+`/tmp/life-pg3-joint-intake-qualified`; the unchanged **2418-file** source/test/SQL
+manifest is `/tmp/life-pg3-joint-intake-frozen.json`. Qualification uses disposable
+local PostgreSQL 16.15, synthetic credentials/provider HTTP and preverified
+synthetic transfer approvals. No `.env`, configured account/database, real
+exchange HTTP, deployment or new evidence file is used. SQL/transaction/source
+freshness and monetary limits remain unchanged.
+
+Retained development failures include the expected missing observer, immutable
+approval-deletion refusal in an incorrect test fixture, stale synthetic market
+packets, the actual successive-funding sequence defect described above, and a
+misplaced final test block causing a Python collection error. Fixture/test errors
+were corrected, the funding stream bug was fixed, and all selected workflows
+pass together on the frozen source. Cold runtime coverage does not claim a
+physical-process or actual controller/service restart. This gate does not waive
+the earlier loaded-latency failures or close R2.3, R4, R5 or PG3.

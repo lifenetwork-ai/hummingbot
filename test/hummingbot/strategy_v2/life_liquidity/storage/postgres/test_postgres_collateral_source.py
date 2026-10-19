@@ -163,7 +163,7 @@ async def test_account_wide_source_routes_are_signed_unfiltered_and_durable_befo
         await t.close()
 
 
-async def reconciler(database, *, before_apply=None, carry_options=None):
+async def reconciler(database, *, before_apply=None, carry_options=None, apply_batch=True):
     from datetime import datetime, timezone
     from test.hummingbot.core.web_assistant.connections.test_request_guard import Session, Throttler
     from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_joint_batch import setup
@@ -182,8 +182,9 @@ async def reconciler(database, *, before_apply=None, carry_options=None):
     financial, cfg, owner = values[:3]
     if before_apply is not None:
         command = await before_apply(values, command)
-    applied = await batch.apply(command, cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)
-    assert applied.state == 'APPLIED', await database[0].fetchval('SELECT reason FROM life_financial.joint_financial_batches')
+    if apply_batch:
+        applied = await batch.apply(command, cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)
+        assert applied.state == 'APPLIED', await database[0].fetchval('SELECT reason FROM life_financial.joint_financial_batches')
     await database[0].execute("UPDATE life_financial.accounts SET halted=true,mode='RECOVERY_ONLY' WHERE account_id=$1", cfg.account_id)
     connector = OkxExchange('synthetic-key', 'synthetic-secret', 'synthetic-pass', trading_pairs=[], trading_required=False)
     session, throttler = Session(), Throttler()
