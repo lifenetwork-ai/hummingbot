@@ -48,6 +48,11 @@ tracking for both SPOT and hedge SWAP. **405 native and 99 File/SDK cases pass**
 on a frozen 2,414-file inventory. Synthetic source callbacks in this gate do not
 qualify the remaining configured source/service assembly; see
 [R4 executor application](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-r4-native-quote-executor-application-2026-10-20).
+Shared SDK REST quotas now include cached clock HTTP and final SPOT/SWAP quota
+context checks. The expanded current-source gate passes **484 cases**, zero
+failures/errors/skips, on an unchanged 2,416-file inventory. Full source
+collection scheduling and configured service/R5 acceptance remain required;
+see [shared SDK quota](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-r2r4-shared-sdk-rest-quota-2026-10-20).
 Clean stopped File cutover remains PG6; active File checkpoint migration is not selected.
 
 **Earlier R3 control/session, safety and markout checkpoint (2026-10-19):** signed

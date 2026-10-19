@@ -19,6 +19,7 @@ from hummingbot.core.web_assistant.connections.data_types import RESTMethod
 from hummingbot.core.web_assistant.connections.request_guard import RESTRequestSnapshot
 from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError, identifier, utc
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.quote_account_source import _UidRequestGuard
+from hummingbot.strategy_v2.life_liquidity.storage.postgres.shared_sdk_quota import PgSharedSdkQuota
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.swap_ack import PgSwapAckIngress
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.swap_send import ArmSwapRequest, PgSwapBoundary
 
@@ -45,6 +46,7 @@ class PgSwapAccountSource:
         self.collection_timeout_ms, self.max_pending = collection_timeout_ms, max_pending
         self._uid_at = self._uid_monotonic = self._policy = None
         self._pending, self._revoked, self._uid_lock = 0, False, asyncio.Lock()
+        self._quota = PgSharedSdkQuota.for_connector(connector)
 
     @classmethod
     async def create(cls, boundary, **kwargs):
@@ -60,6 +62,12 @@ class PgSwapAccountSource:
 
     def _ready(self):
         self.boundary._original()
+        try:
+            if PgSharedSdkQuota.for_connector(self._connector) is not self._quota:
+                self._revoked = True
+        except StorageError:
+            self._revoked = True
+            raise
         if (self.boundary.runtime is not self._runtime or self.boundary.binding != self._binding
                 or self.boundary.owner != self._owner or self._connector.domain != self._domain
                 or self._credentials_values() != self._values):

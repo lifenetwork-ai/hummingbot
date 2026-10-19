@@ -24,6 +24,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.quote_transport impo
     QuoteSendAgeLimits,
 )
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.runner_journal import PgQuoteRunnerJournal
+from hummingbot.strategy_v2.life_liquidity.storage.postgres.shared_sdk_quota import PgSharedSdkQuota
 
 
 class _UidRequestGuard:
@@ -74,6 +75,7 @@ class PgQuoteAccountSource:
         self._policy, self._uid_at, self._uid_monotonic = None, None, None
         self._revoked, self._pending = False, 0
         self._uid_lock = asyncio.Lock()
+        self._quota = PgSharedSdkQuota.for_connector(connector)
         self._credentials()
 
     @classmethod
@@ -104,6 +106,12 @@ class PgQuoteAccountSource:
 
     def _credentials(self):
         c, a = self._connector, self._auth
+        try:
+            if PgSharedSdkQuota.for_connector(c) is not self._quota:
+                raise StorageError('PG_ACCOUNT_QUOTA_CONTEXT_CHANGED')
+        except StorageError:
+            self._revoked = True
+            raise
         if (self._revoked or c._auth is not a or c.domain != self._domain
                 or (c.okx_api_key, c.okx_secret_key, c.okx_passphrase) != self._values
                 or (a.api_key, a.secret_key, a.passphrase) != self._values):

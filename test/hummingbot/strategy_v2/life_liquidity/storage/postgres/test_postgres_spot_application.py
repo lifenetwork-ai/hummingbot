@@ -25,10 +25,11 @@ from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.quote_account_source import PgQuoteAccountSource
 
 
-async def application(database, *, operation_timeout_ms=5000, shutdown_timeout_ms=1000):
+async def application(database, *, operation_timeout_ms=5000, shutdown_timeout_ms=1000, shared_quota=False):
     from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot_application import PgSpotQuoteApplication
     repo, cfg, owner, row, journal, create, runner, dispatch, active, ready = await assembled(database)
-    connector = OkxExchange('synthetic-key', 'synthetic-secret', 'synthetic-pass', trading_pairs=[], trading_required=False)
+    connector = OkxExchange('synthetic-key', 'synthetic-secret', 'synthetic-pass',
+                            trading_pairs=['LIFE-USDT'] if shared_quota else [], trading_required=False)
     connector.enable_protected_trading_pair('LIFE-USDT')
     connector._trading_rules['LIFE-USDT'] = TradingRule('LIFE-USDT', min_order_size=D('.01'),
                                                         min_price_increment=D('.01'), min_base_amount_increment=D('.01'))
@@ -58,6 +59,18 @@ async def application(database, *, operation_timeout_ms=5000, shutdown_timeout_m
         response.json = body
         return response
     session.request = send
+    quota = other_sdk = None
+    if shared_quota:
+        from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_shared_sdk_quota import (
+            fake_http,
+            sdk_pair,
+        )
+
+        from hummingbot.strategy_v2.life_liquidity.storage.postgres.shared_sdk_quota import PgSharedSdkQuota
+        _, other_sdk, _ = sdk_pair()
+        for sdk in (connector, other_sdk):
+            fake_http(sdk, session)
+        quota = PgSharedSdkQuota.install(spot=connector, swap=other_sdk)
 
     async def facts():
         return (await command(database, cfg, owner, row)).admission
@@ -357,5 +370,33 @@ async def test_replacing_original_application_context_revokes_before_http(databa
             await t.app.drain()
         assert not t.session.sent
         assert await database[0].fetchval('SELECT count(*) FROM life_financial.send_attempts') == 0
+    finally:
+        await t.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('changed_after_arm', [False, True])
+async def test_native_quote_final_guard_pins_both_owned_sdk_quota_contexts(database, monkeypatch, changed_after_arm):
+    t = await application(database, shared_quota=True)
+    original = t.repo.arm_quote_action
+
+    async def armed(*args, **kwargs):
+        receipt = await original(*args, **kwargs)
+        t.other_sdk._web_assistants_factory = object()
+        return receipt
+    if changed_after_arm:
+        monkeypatch.setattr(t.repo, 'arm_quote_action', armed)
+    try:
+        await t.start()
+        if changed_after_arm:
+            with pytest.raises(StorageError, match='PG_SPOT_SUBMISSION_UNKNOWN'):
+                await t.app.drain()
+        else:
+            await t.app.drain()
+        posts = [r for r in t.session.sent if r['method'] == 'POST']
+        assert len(posts) == (0 if changed_after_arm else 1)
+        assert await database[0].fetchval('SELECT state FROM life_financial.send_attempts') == (
+            'SEND_UNKNOWN' if changed_after_arm else 'ACKED')
+        assert await database[0].fetchval("SELECT reserved FROM life_financial.balances WHERE asset='USDT'") > 0
     finally:
         await t.close()

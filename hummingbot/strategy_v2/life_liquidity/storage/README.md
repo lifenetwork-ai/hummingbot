@@ -3992,3 +3992,41 @@ runner topology or actual shared SDK request quotas. Both-product ordinary
 financial ingress/history and mandatory configured service installation remain
 R4; whole-service acceptance remains R5. Configured PostgreSQL selection stays
 rejected. This increment adds no schema, bootstrap or activation path.
+
+## Shared SDK REST quota and final source context
+
+`PgSharedSdkQuota.install(spot=spot_sdk, swap=swap_sdk)` is an explicit cold
+bootstrap step before constructing native account sources. It accepts the two
+exact LIFE SDK types, one credential tuple and endpoint, the fixed LIFE pair,
+unused original throttlers and original SDK factories. Active network/order
+work, a cached data-source factory pointing elsewhere, prior request capacity
+or a partial/second installation is refused before either SDK is changed.
+
+The original SDK throttler objects keep their identity. Guarded instance
+methods retain each original SDK limiter and add one shared `AsyncThrottler`
+REST path budget, including cached SDK time-provider/assistant references.
+Replacing factory pointers alone would leave auxiliary clock HTTP outside the
+shared budget. The guards and their original contexts are pinned for the SDK
+lifetime. SPOT path IDs and SWAP
+method/pair IDs map to that common path. Its count is the lowest existing SDK
+count, interval the longest and request weight the largest. Existing lower SDK
+share percentages remain effective. Repeating normal LIFE startup registration
+does not recreate capacity; unknown routes, new pairs or profile replacement
+are refused. Existing WebSocket limits retain their original SDK scopes.
+
+Each wait checks both SDKs' original auth/credentials, factory/data-source
+references, pair and quota structures again before yielding to HTTP. Native
+SPOT and SWAP account sources pin the installed quota owner when created and
+check it again at their existing final request guards. Altering the other SDK
+after native ARM therefore denies HTTP while preserving `SEND_UNKNOWN` and the
+original holds/claims. Installing/removing quota after source creation does not
+silently adopt a different context. Late original ACK accounting remains
+separate from new-send permission.
+
+This coordinates the two owned SDKs inside one process; it authenticates no
+account, market source or financial fact and grants no request permission by
+itself. The UID and native financial gates still apply. The limits derive from
+the repository's existing SDK profiles, not a newly certified live exchange
+quota. Other processes/API keys are not coordinated here. Complete configured
+source collection still needs scheduling against this real shared budget and
+the unchanged freshness limits before the R2.3/R4 service gate can close.

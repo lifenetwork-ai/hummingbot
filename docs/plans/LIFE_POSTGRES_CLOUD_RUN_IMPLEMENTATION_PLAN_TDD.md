@@ -728,7 +728,8 @@ failing integration result visible until the same current-source workflow passes
   - [x] R2.2: Authenticated maker cancellation kernel and typed hedge port: original native cancel intent/attempt, one-shot signed HTTP request, fresh provider closure, independent SDK/runner quiescence and source-consuming native terminal accounting. Unknown COMMIT/replay cannot issue another HTTP request or retire shared claims. The current frozen 223-case gate and 42 File gateway cases pass; qualification below.
   - [ ] R2.3: Qualify capital/carry/market capture and complete configured composition with actual runner/account/SDK scope. The R4 fake-exchange service replay and R5 whole-product acceptance remain required; no R2 closure is inferred from these kernel profiles.
     - [x] Native capture has a typed `PgHedgeSource` binding: complete signed account/trade/bill proof, actual instrument/fee-group/contract-tier/leverage checks, conservative collateral, original timestamps and permanent operation IDs. Fresh native observation startup, existing-maker cancellation and protected SDK composition pass the 375-case frozen regression below.
-    - [ ] Configured runner/account topology, actual shared SDK request quotas and mandatory service installation; these remain part of R4/R5 acceptance.
+    - [x] Shared in-process SDK REST quota kernel, including original SDK time-synchronizer HTTP, and original quota-context pinning in both final SPOT/SWAP guards. The frozen 484-case affected gate below passes. This does not qualify full source-collection scheduling or the configured service.
+    - [ ] Complete configured runner/account topology, source collection scheduled against the actual shared SDK budget and mandatory service installation; these remain part of R4/R5 acceptance.
 
 - [x] **R3 — control/risk/session:** signed pending repair and successor reconciliation/activation; persistent native markout/probe/stress/inventory/EXIT gates. Exit replay: restart and late observations retain HALT, budgets and approvals; each enabled risk mode reaches its native financial gate.
   - [x] R3.1: Signed native DRAIN/REVOKE/RECOVER and separate new-generation ACTIVATE; retain the original observation writer, permanent approvals/grant consumption, HALT and financial history across cancellation/unknown COMMIT. Migration 76 and the control port are qualified by the 44-case native control/successor gate, physical COMMIT/process/backend/cancellation and corruption cases, and the audited upgrades recorded below. No PG4 lease/credential exclusion is inferred.
@@ -4665,3 +4666,60 @@ The new fixtures use explicit synthetic admission/preparation callbacks and
 fake HTTP. They do not discharge those source/service requirements. Configured
 PostgreSQL stays rejected; no live defaults, activation, migration or additional
 evidence file is introduced.
+
+## PG3 R2/R4 shared SDK REST quota (2026-10-20)
+
+`PgSharedSdkQuota` installs explicitly on two cold, exact LIFE SDKs with the
+same credential tuple and endpoint. It preserves both original limiters and
+adds one shared REST-path budget using the lowest existing SDK count, longest
+interval and largest request weight. Lower configured SDK share percentages
+remain effective; repeated normal LIFE startup cannot recreate capacity.
+Unknown routes, new pairs and profile replacement are refused. Existing
+WebSocket limits retain their original SDK scope.
+
+Original throttler objects retain their identity, with guarded instance
+methods. This covers cached assistants and the SDK time-provider closure that
+constructs another HTTP factory for clock synchronization. The new clock test
+first demonstrated that replacing factory throttler pointers alone left that
+real SDK auxiliary request outside the shared budget; the corrected path counts
+it. Auth, credentials, factories, known data-source references, pair, limiter
+structure and installed guards remain pinned across awaits.
+
+Native SPOT and SWAP account sources capture that quota owner at construction
+and verify it again through their existing final request guards. Changing the
+other SDK's factory after native ARM now denies HTTP with original
+`SEND_UNKNOWN` and holds/claims retained. This is independent of late original
+ACK accounting, which remains admissible. Quota installation itself grants no
+UID, market-source, owner, financial or trading authority.
+
+Current-source qualification:
+
+- `run_postgres --suite quote_composition --fail-fast`, expanded to cover
+  signed hedge/financial sources and actual shared SDK limiter cases, in
+  `/tmp/life-r4-sdk-quota-hooks-qualified`: **484 passed**, zero
+  failures/errors/skips, **1221.17 s**. Six existing Pydantic deprecation
+  warnings remain. Actual SDK/auth/REST and `AsyncThrottler` are used with fake
+  HTTP; native cases use a disposable local PostgreSQL instance.
+- All **2,416 source/test/SQL files** in
+  `/tmp/life-r4-sdk-quota-hooks-frozen.json` stayed unchanged through the gate.
+  No SQL, monetary, freshness or transaction threshold was relaxed.
+- The native post-ARM context red in `/tmp/life-r4-quota-final-red` previously
+  allowed HTTP after changing the other SDK's factory. The clock bypass red is
+  retained in `/tmp/life-r4-sdk-quota-clock-red.log`. Both workflows pass in the
+  final gate. `/tmp/life-r4-sdk-quota-qualified` and
+  `/tmp/life-r4-sdk-quota-final-qualified` were deliberately interrupted during
+  preparation/fixing and are not successful qualifications.
+- The earlier 405-case native and 99-case File/SDK gates belong to commit
+  `5d34b56e0`; this expanded current-source gate supersedes the affected native
+  slice, not the R5 whole-service acceptance contract.
+
+**R2.3/R4/R5 and PG3 remain open.** Full authenticated source collection must
+still schedule against these real shared budgets and unchanged freshness
+limits. Planner/reference/book/fee provenance, complete runner/account scope,
+ordinary both-product financial ingress/history and mandatory configured
+controller/service installation with every selected final route remain R4;
+whole-service economic/fault/restart/corruption/role acceptance remains R5.
+These are the existing fixed workstreams. This limiter coordinates only the
+two owned SDKs within one process and derives from repository SDK limits; it
+does not certify live exchange quotas or coordinate other API keys/processes.
+Configured PostgreSQL remains rejected. No evidence file or migration is added.

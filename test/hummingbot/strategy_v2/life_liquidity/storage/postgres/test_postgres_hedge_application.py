@@ -21,12 +21,13 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.hedge import PlanHed
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.hedge_application import PgHedgeApplication
 
 
-async def application(database, *, carry_options=None, target='0'):
+async def application(database, *, carry_options=None, target='0', shared_quota=False):
     values, repo, market, policy = await setup(database, carry_options=carry_options, target=target)
     financial, cfg, owner = values[:3]
     await database[0].execute('INSERT INTO life_financial.swap_boundary_policies VALUES($1,$2,1000,64,1048576)', cfg.account_id, cfg.binding.policy_hash)
     connector = OkxPerpetualDerivative(okx_perpetual_api_key='synthetic-key', okx_perpetual_secret_key='synthetic-secret',
-                                       okx_perpetual_passphrase='synthetic-pass', trading_pairs=[], trading_required=False)
+                                       okx_perpetual_passphrase='synthetic-pass',
+                                       trading_pairs=['LIFE-USDT'] if shared_quota else [], trading_required=False)
     connector.enable_protected_trading_pair('LIFE-USDT')
     connector._contract_sizes['LIFE-USDT'] = D('.25')
     connector._perpetual_trading.set_position_mode(PositionMode.HEDGE)
@@ -52,6 +53,18 @@ async def application(database, *, carry_options=None, target='0'):
         response.json = body
         return response
     session.request = send
+    quota = other_sdk = None
+    if shared_quota:
+        from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_shared_sdk_quota import (
+            fake_http,
+            sdk_pair,
+        )
+
+        from hummingbot.strategy_v2.life_liquidity.storage.postgres.shared_sdk_quota import PgSharedSdkQuota
+        other_sdk, _, _ = sdk_pair()
+        for sdk in (connector, other_sdk):
+            fake_http(sdk, session)
+        quota = PgSharedSdkQuota.install(spot=other_sdk, swap=connector)
 
     def pause():
         paused[0] = True
@@ -78,6 +91,33 @@ async def application(database, *, carry_options=None, target='0'):
         max_uid_age_ms=1000, max_auth_age_ms=1000, max_clock_skew_ms=250,
         collection_timeout_ms=1000, cycle_timeout_ms=5000)
     return SimpleNamespace(**locals())
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('changed_after_arm', [False, True])
+async def test_native_hedge_final_guard_pins_both_owned_sdk_quota_contexts(database, monkeypatch, changed_after_arm):
+    t = await application(database, shared_quota=True)
+    original = t.app.source.boundary.arm
+
+    async def armed(*args, **kwargs):
+        result = await original(*args, **kwargs)
+        t.other_sdk._web_assistants_factory = object()
+        return result
+    if changed_after_arm:
+        monkeypatch.setattr(t.app.source.boundary, 'arm', armed)
+    try:
+        if changed_after_arm:
+            with pytest.raises(StorageError, match='PG_HEDGE_SDK_SUBMISSION_UNKNOWN'):
+                await t.app.execute('plan1')
+        else:
+            await t.app.execute('plan1')
+        assert len([r for r in t.session.sent if r['method'] == 'POST']) == (0 if changed_after_arm else 1)
+        assert await database[0].fetchval('SELECT state FROM life_financial.send_attempts') == (
+            'SEND_UNKNOWN' if changed_after_arm else 'ACKED')
+        assert len(await t.values[5].claims(t.cfg.binding)) == 1
+    finally:
+        await t.app.close(shutdown_timeout_ms=3000)
+        await t.financial.close()
 
 
 @pytest.mark.asyncio
