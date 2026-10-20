@@ -1277,3 +1277,17 @@ ACLs, domains, tables and existing financial rows remain unchanged; no funds,
 policy or activation are created. Existing valid scale-18 requirements produce
 the same result. The original migration ledger handles repeated startup/up;
 predecessor drift rolls back the whole migration.
+
+## 000089: reuse the release command's own snapshot proof
+
+`000089_release_snapshot_proof_reuse.sql` removes a second portfolio verification
+between the command's complete `spot_state` check and its first financial write.
+It reads the verified portfolio flag from that exact local snapshot, after the
+original account lock and cut/recovery checks. A missing or false flag refuses
+release. Source freshness is still checked at the original time, and all deferred
+COMMIT proofs and source deadlines remain independent and unchanged.
+
+The exact predecessor SHA, security, search path and volatility must match.
+Existing OID/ACLs, tables, financial history, limits and roles are retained; no
+new helper or grant is installed. Repeated startup/up is a ledger no-op. Drift
+aborts atomically before version 89 is recorded.

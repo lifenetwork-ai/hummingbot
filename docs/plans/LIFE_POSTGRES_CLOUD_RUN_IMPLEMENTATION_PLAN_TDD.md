@@ -11,7 +11,31 @@ This is a user-approved scope change, not a claim that the omitted histories wor
 Native PostgreSQL crash/pending recovery remains mandatory in R1. The concrete
 clean-cutover gates belong to [PG6](#pg6--import-backups-restoration-and-rollback).
 
-The current increment adds signed complete account comparison and an explicit
+**Current PG3 checkpoint (2026-10-20):** migration 89 removes one repeated
+portfolio proof in claim release. The frozen `release_source` regression passes
+**163 cases**, zero failures/errors/skips, **492.10 s**; five audited 88→89
+upgrade/drift cases pass (**8.91 s**). The previously failing release-cancellation
+branch is included. This qualifies the release change; the earlier 626-case
+producer regression remains recorded as **625 pass / 1 fail**, and was not rerun
+as part of this narrower gate. See [release proof reuse](#pg3-claim-release-proof-reuse-2026-10-20).
+
+**Fixed remaining PG3 exit — implementation and qualification:**
+
+- [ ] Install the native configured LIFE controller/headless service and actual
+  V2 trading assembly, including ordinary SPOT/SWAP financial listeners/history
+  and every enabled final route. Current startup still explicitly rejects PG.
+- [ ] Support continuous standing-maker replenishment with complete own-order,
+  account and runner scope, capital/carry accounting and shared-SDK scheduling.
+  The qualified first-quote profile currently requires quiescence.
+- [ ] Pass R5 whole-product current-source parity, restart, corruption, role,
+  process/backend fault and loaded-latency acceptance on a frozen revision.
+  One fewer proof invocation does not establish a tail-latency guarantee.
+
+These are the existing R2.3/R4/R5 requirements. **PG3 remains open.** PG1's
+selected offline File scope remains closed; PG2 release/deployment gates retain
+their separate pending status below.
+
+The earlier R1 increment added signed complete account comparison and an explicit
 source-consuming SPOT/SWAP terminal/shared-release application. Migration 73–75
 qualification passes **124 cases**; the joint-source gate passes **205 cases**;
 product-scoped duplicate trade recovery passes **12 cases**. These earlier selectors
@@ -5445,3 +5469,43 @@ four before/after-COMMIT terminal/release cases then pass (**21.16 s**,
 2435-file manifest unchanged across that focused run. This verifies those
 branches; it neither substitutes for the full RED gate nor eliminates the
 observed latency tails. R2.3, configured R4, R5 and PG3 remain open.
+
+## PG3 claim-release proof reuse (2026-10-20)
+
+The release command previously ran `portfolio_verified` after its complete
+`spot_state` snapshot had already computed that verdict. Migration
+`000089_release_snapshot_proof_reuse.sql` consumes the verified flag from this
+exact local snapshot, before the first financial write and after the original
+account lock, cut and recovery checks. Missing/false verification still refuses
+release. Original source-current checks, signed source fences, deferred COMMIT
+proofs, deadlines, budget/claim arithmetic and replay semantics are unchanged.
+There is no cross-command cache, new helper, grant or financial seed.
+
+TDD first reproduced the redundant old function body. Five behavior comparisons
+then execute the optimized and independently reconstructed original commands
+against the same native cut, roll back each comparison, and compare receipts
+or refusal codes. Qualified release invokes the carry proof exactly once fewer;
+portfolio corruption, carry corruption, expired source and wrong terminal retain
+the original refusals. Real deferred constraints run before successful comparison
+rollback. This is an invocation-count result, not a measured latency percentage.
+
+The migration checks the exact predecessor SHA, security, search path and
+volatility, preserving OID/ACLs and every other function/table. All five actual
+88→89 migration cases pass: valid upgrade/repeat up and four atomic drift
+refusals, **8.91 s**. Prior applied scripts are unchanged.
+
+The frozen `run_postgres --suite release_source` gate passes **163 cases**, zero
+failures/errors/skips, six existing Pydantic warnings, **492.10 s**. It includes
+release/terminal/portfolio/carry, native corruption and identity/capacity checks,
+process/backend COMMIT loss, signed joint-source fences, cancellation, original
+database source deadlines and collateral reconciliation. The formerly failing
+`[True-release]` cancellation branch passes within this gate. All **2452** frozen
+Python/Cython/SQL file hashes remain unchanged throughout qualification.
+
+All accounts, funds and HTTP responses are synthetic. The real PostgreSQL 16
+process is disposable local Docker with the unchanged two-CPU/1-GiB limit.
+Logs/manifests are under `/tmp/life-pg3-release-reuse-*`; no repository evidence
+file, real account, deployment or exchange request is introduced. The earlier
+626-case producer gate remains a historical RED run, not relabeled by this
+narrower regression. Actual configured service, continuous-maker composition and
+whole-product R5 still gate PG3 closure.

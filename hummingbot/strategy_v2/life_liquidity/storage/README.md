@@ -4356,3 +4356,20 @@ its injection. After a diagnostic-only test change, all four cancellation
 branches pass separately (21.16 s); the full availability gate remains RED.
 Production/SQL hashes remain unchanged between these runs. Complete scope,
 frozen manifests and prior failed runs are recorded in the PG plan.
+
+## Native claim-release snapshot reuse (migration 89)
+
+The release command reuses its own complete snapshot's verified portfolio flag
+before the first financial write. The original account lock, cut, recovery and
+source-current checks still apply; missing/false verification refuses release.
+Deferred COMMIT proofs and signed source deadlines remain independent. No proof
+survives into another command, and no new runtime helper or privilege is added.
+
+`run_postgres --suite release_source` covers the affected release, terminal,
+portfolio/carry, signed joint-source and collateral paths. The frozen gate passes
+**163 cases** (492.10 s); all five audited 88→89 upgrade/drift cases also pass.
+Comparison with the original command counts exactly one fewer carry-proof
+invocation for qualified release and preserves corruption/staleness refusals.
+This is not a tail-latency bound or complete configured-service qualification.
+The earlier 625/1 producer run remains recorded above; PG3 stays open for actual
+native service installation, continuous standing makers and whole-product R5.

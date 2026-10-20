@@ -1,6 +1,15 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
-**Latest PG audit/producer progress (2026-10-20):** the stale PG1 configuration
+**Latest PG3 release progress (2026-10-20):** migration 89 reuses the release
+command's own fully verified portfolio snapshot before its first financial write.
+Source-age and independent COMMIT checks are unchanged. The frozen affected
+release/source gate passes **163 cases** (492.10 s), including the previously
+failing release-cancellation branch; five upgrade/drift cases also pass.
+The earlier 626-case producer gate was not rerun or relabeled. **PG3 remains
+open** for the configured native service, continuous standing makers and R5
+whole-product qualification. See [current fixed exit and release qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-claim-release-proof-reuse-2026-10-20).
+
+**Earlier PG audit/producer progress (2026-10-20):** the stale PG1 configuration
 transition checkbox is corrected; 131 focused file/contract audit cases pass.
 The PG2 foundation passes 45 cases after migration 88; ten upgrade/drift cases
 pass. A native imported quote/cost producer now reaches the actual executor/SDK
