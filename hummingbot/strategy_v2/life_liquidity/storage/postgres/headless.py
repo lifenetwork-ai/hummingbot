@@ -40,6 +40,7 @@ class PgServiceConfig(BaseModel):
     owner: OwnerToken
     sources: tuple[EventSource, ...]
     limits: PgServiceLimits
+    native_trading: bool = False
 
     @classmethod
     async def read_yaml(cls, path):
@@ -114,7 +115,7 @@ async def launch(*, config_path, factory_spec, stop, tick_seconds, startup_timeo
                 config.controller, runtime_config=runtime_config, owner=config.owner, sources=config.sources,
                 limits=config.limits, connectors=inputs.connectors, market_data_provider=inputs.market_data_provider,
                 clock=inputs.clock, independent_fill_value=inputs.independent_fill_value,
-                independent_cashflow_value=inputs.independent_cashflow_value)
+                independent_cashflow_value=inputs.independent_cashflow_value, native_trading=config.native_trading)
             host = PgServiceHost(service, inputs, tick_seconds=tick_seconds, shutdown_timeout_s=shutdown_timeout_s,
                                  source_stack=source_stack)
         if on_started is not None:

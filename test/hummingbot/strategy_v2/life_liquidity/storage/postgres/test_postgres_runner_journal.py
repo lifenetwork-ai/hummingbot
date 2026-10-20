@@ -45,6 +45,29 @@ async def assembled(database, **seed_options):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('fault', ['copied', 'task', 'operation', 'ingress'])
+async def test_publication_preflight_cut_is_original_one_use_and_task_bound(database, fault):
+    repo, cfg, _, _, app, create, _, dispatch, _, _ = await assembled(database)
+    try:
+        before = await repo.balance(cfg.binding)
+        ticket = await app.preflight_publication('new-claim')
+        if fault == 'ingress':
+            repo._runtime._ingress_epoch += 1
+        operation = 'other' if fault == 'operation' else 'new-claim'
+        token = object() if fault == 'copied' else ticket
+        with pytest.raises(StorageError, match='PREFLIGHT_ORIGIN_REQUIRED'):
+            work = app.publish(operation, (create,), _publication=token)
+            await (asyncio.create_task(work) if fault == 'task' else work)
+        with pytest.raises(StorageError, match='PREFLIGHT_ORIGIN_REQUIRED'):
+            await app.publish('new-claim', (create,), _publication=ticket)
+        assert not await repo.quote_actions(cfg.binding)
+        assert not app._entries and await repo.balance(cfg.binding) == before
+    finally:
+        await dispatch.close()
+        await repo.close()
+
+
+@pytest.mark.asyncio
 async def test_publication_and_acceptance_need_verified_cuts_without_materializing_wallet_budget_views(database, monkeypatch):
     repo, cfg, owner, row, app, create, runner, dispatch, active, _ = await assembled(database)
 

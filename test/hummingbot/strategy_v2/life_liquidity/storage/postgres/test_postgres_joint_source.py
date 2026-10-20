@@ -438,7 +438,7 @@ async def test_ingress_arriving_during_joint_collection_cannot_be_adopted_as_the
     try:
         before = await t.financial.snapshot(t.cfg.binding)
         claims = await t.values[5].claims(t.cfg.binding)
-        target = '_sample' if boundary == 'provider_round' else '_scope'
+        target = '_round' if boundary == 'provider_round' else '_scope'
         original = getattr(t.joint, target)
         calls = 0
 

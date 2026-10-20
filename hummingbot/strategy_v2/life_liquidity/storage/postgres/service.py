@@ -1,18 +1,23 @@
 """Explicit native offline service assembly; no File/ORM or owner bootstrap.
 
-This installation is deliberately observation-only until its trading lifecycle
-is qualified. It constructs the actual configured controller, V2 runner and
-both authenticated SDK event/history routes over one native account runtime.
+Observation is the default. The explicit imported native trading profile binds
+quote requests to the actual controller/V2 runner and both authenticated SDK
+event/history routes. Neither profile grants real-account trading eligibility.
 """
 import asyncio
 import inspect
+import json
 import math
 from dataclasses import dataclass
+from decimal import Decimal as D
+
+from pydantic import BaseModel, ConfigDict
 
 from hummingbot.strategy.strategy_v2_base import StrategyV2Base
 from hummingbot.strategy_v2.controllers.controller_base import ControllerBase
+from hummingbot.strategy_v2.life_liquidity.reference import ReferenceEngine, ReferencePolicy
 from hummingbot.strategy_v2.life_liquidity.storage.actions import RunnerActionFacts
-from hummingbot.strategy_v2.life_liquidity.storage.contracts import OwnerToken, StorageError, utc
+from hummingbot.strategy_v2.life_liquidity.storage.contracts import OwnerToken, StorageError, fingerprint, utc
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.carry import PgCarryRepository
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.financial_source import PgSpotAccountReader
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.hedge import PgHedgeRepository
@@ -30,6 +35,48 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot import PgSpotRe
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.swap import PgSwapRepository
 from hummingbot.strategy_v2.life_liquidity.storage.recorder_events import EventSource
 from hummingbot.strategy_v2.models.base import RunnableStatus
+from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction
+
+
+class PgNativeTradingConfig(BaseModel):
+    """Explicit imported offline model. No inferred financial thresholds."""
+    model_config = ConfigDict(extra='forbid', frozen=True, strict=True)
+    reference_policy: ReferencePolicy
+    life_anchor_usdt: D
+    model_version: str
+    max_observation_skew_ms: int
+    max_depth_distance_bps: D
+    available_edge_quote_usdt: D
+    quote_schedule_timeout_ms: int
+
+
+class _NativeQuoteDispatch:
+    """Original configured service/action/dispatcher task, never a SQL receipt."""
+
+    def __init__(self, service):
+        self.service = service
+        self._staged = None
+
+    def owns(self, action):
+        s = self.service
+        s._original()
+        pending = s.runner._async_action_dispatcher._pending.get((action.controller_id, action.executor_config.id))
+        return (s._trading_ready() and s._quote_action is not None
+                and s.journal._capture(action) == s.journal._capture(s._quote_action)
+                and pending is not None and pending[0] is asyncio.current_task()
+                and s.reporting._trading_admission is self
+                and s.quote_application.source is s.quote_source
+                and s.journal.local_runner_create_preflight(action))
+
+    def stage(self, action):
+        if not self.owns(action):
+            raise StorageError('PG_SERVICE_DISPATCH_ORIGIN_REQUIRED')
+        self._staged = asyncio.current_task(), fingerprint({'action_json': action.model_dump_json()})
+
+    def consume(self, action):
+        staged, self._staged = self._staged, None
+        if (not self.owns(action) or staged != (asyncio.current_task(), fingerprint({'action_json': action.model_dump_json()}))):
+            raise StorageError('PG_SERVICE_DISPATCH_ORIGIN_REQUIRED')
 
 
 @dataclass(frozen=True)
@@ -66,7 +113,7 @@ class PgServiceLimits:
 
 
 class PgServiceController(ControllerBase):
-    """Native controller identity and complete runner scope; no generic sender."""
+    """Native controller identity, exact runner ownership and protected dispatch."""
     async_dispatch_enabled = True
 
     def __init__(self, service, config, provider):
@@ -88,9 +135,15 @@ class PgServiceController(ControllerBase):
                 raise StorageError('PG_SERVICE_RUNNER_SCOPE_CHANGED')
             executors = orchestrator.active_executors[self.config.id]
             ids = tuple(sorted(v.config.id for v in executors))
-            if len(ids) != len(set(ids)) or ids:
+            if (len(ids) != len(set(ids)) or any(
+                    self.service._owned_executors.get(v.config.id) is not v
+                    or v.config.id not in self.service.journal._entries
+                    or self.service.journal._capture(CreateExecutorAction(
+                        controller_id=self.config.id, executor_config=v.config)) != self.service.journal._entries[v.config.id].row
+                    for v in executors)):
                 # This selected startup profile is observation-only. A direct
                 # generic executor injection must not become complete scope.
+                self.service.revoke()
                 raise StorageError('PG_SERVICE_UNQUALIFIED_EXECUTOR')
         return RunnerActionFacts(self.config.storage_binding, utc(self.service.clock()), self.config.id, ids, True)
 
@@ -111,27 +164,56 @@ class PgServiceController(ControllerBase):
 
     async def update_processed_data(self):
         self.service._original()
-        self.processed_data = dict(trading_enabled=False, reason_code='PG_SERVICE_TRADING_NOT_QUALIFIED')
+        enabled = self.service._trading_ready()
+        self.processed_data = dict(trading_enabled=enabled,
+                                   reason_code='PG_SERVICE_OFFLINE_NATIVE' if enabled else 'PG_SERVICE_TRADING_NOT_QUALIFIED')
 
     def determine_executor_actions(self):
         return []
 
     def local_runner_create_preflight(self, action):
-        return False
+        return self.service.native_trading and self.service.journal.local_runner_create_preflight(action)
 
     def local_runner_create_fence(self, action):
-        return False
+        return self.service.native_trading and self.service.journal.local_runner_create_fence(action)
 
     async def async_authorize_runner_create_action(self, action):
-        return False
+        # The owning cycle just committed this exact permanent claim. Creation
+        # is still a local, protected executor: native DISPATCHED, PREPARE and
+        # ARM must all commit before its SDK can send. Re-reading the reporting
+        # projection here adds no financial authority and spends quote age.
+        admission = self.service.reporting._trading_admission
+        return admission is not None and admission.owns(action)
+
+    async def async_before_runner_dispatch(self, action):
+        return self.service.native_trading and await self.service.reporting.before_dispatch(action)
+
+    async def async_on_runner_create_action_dispatched(self, action):
+        from hummingbot.strategy_v2.executors.order_executor.order_executor import OrderExecutor
+        if not self.service.reporting._trading_admission.owns(action):
+            raise StorageError('PG_SERVICE_DISPATCH_ORIGIN_REQUIRED')
+        executors = self._runner_orchestrator.active_executors[self.config.id]
+        matches = [v for v in executors if v.config.id == action.executor_config.id]
+        if len(matches) != 1 or type(matches[0]) is not OrderExecutor or matches[0].config != action.executor_config:
+            raise StorageError('PG_SERVICE_UNQUALIFIED_EXECUTOR')
+        self.service._owned_executors[action.executor_config.id] = matches[0]
+        return await self.service.journal.async_on_runner_create_action_dispatched(action)
+
+    def on_runner_create_action_uncertain(self, action):
+        self.service.journal.on_runner_create_action_uncertain(action)
+        self.service.revoke()
 
     def on_runner_create_action_rejected(self, action):
         self.service.journal.on_runner_create_action_rejected(action)
 
     def submit_executor_spot_order(self, *args, **kwargs):
-        raise StorageError('PG_SERVICE_TRADING_NOT_QUALIFIED')
+        if not self.service.native_trading:
+            raise StorageError('PG_SERVICE_TRADING_NOT_QUALIFIED')
+        return self.service.journal.submit_executor_spot_order(*args, **kwargs)
 
     def to_format_status(self):
+        if self.service._trading_ready():
+            return ['PostgreSQL offline native trading: serialized quote requests enabled']
         return ['PostgreSQL observation service: trading disabled']
 
 
@@ -174,7 +256,7 @@ class PgLiquidityService:
 
     @classmethod
     async def open(cls, config, *, runtime_config, owner, connectors, market_data_provider,
-                   sources, limits, clock, independent_fill_value, independent_cashflow_value):
+                   sources, limits, clock, independent_fill_value, independent_cashflow_value, native_trading=False):
         from controllers.generic.life_liquidity import LifeLiquidityConfig
         if (type(config) is not LifeLiquidityConfig or config.storage_backend != 'postgres'
                 or type(runtime_config) is not PgConfig or config.storage_binding != runtime_config.binding
@@ -188,8 +270,13 @@ class PgLiquidityService:
                 or any(type(s) is not EventSource or s.controller_id != config.id for s in sources)
                 or tuple(s.market for s in sources) != ('okx', 'okx_perpetual')
                 or any(not callable(v) for v in (clock, independent_fill_value, independent_cashflow_value))
-                or inspect.iscoroutinefunction(clock)):
+                or inspect.iscoroutinefunction(clock) or type(native_trading) is not bool):
             raise StorageError('PG_SERVICE_ASSEMBLY_INVALID')
+        if native_trading:
+            from hummingbot.strategy_v2.life_liquidity.storage.postgres.shared_sdk_quota import PgSharedSdkQuota
+            quota = PgSharedSdkQuota.for_connector(connectors['okx'])
+            if quota is None or PgSharedSdkQuota.for_connector(connectors['okx_perpetual']) is not quota:
+                raise StorageError('PG_SERVICE_SHARED_QUOTA_REQUIRED')
         service = cls()
         service.config = type(config).model_validate_json(config.model_dump_json())
         service._config_json = service.config.model_dump_json()
@@ -199,10 +286,15 @@ class PgLiquidityService:
         service._opening, service._revoked, service._paused = True, False, False
         service.runtime = service.financial = service.reporting = service.events = service.runner = service.hedge = None
         service._close_task = None
+        service.native_trading, service._native_trading = native_trading, native_trading
+        service.quote_application = service.quote_source = service.producer = None
+        service._quote_task = service._quote_action = None
+        service._owned_executors = {}
         service.controller = PgServiceController(service, service.config, market_data_provider)
         try:
             service.runtime = await PgRuntime.open(runtime_config)
             service.financial = PgSpotRepository(service.runtime)
+            native_model = await service._read_trading_config() if native_trading else None
             capital = PgSharedCapitalRepository(service.financial, owner=owner, observation=service._missing_capture,
                                                 max_rows=limits.max_rows, max_bytes=limits.max_bytes)
             carry = PgCarryRepository(capital, observation=service._missing_capture,
@@ -228,7 +320,8 @@ class PgLiquidityService:
                 maker_cancellation=cancellation, collect=service._missing_capture,
                 local_fence=service._trading_ready, clock=clock, cycle_timeout_ms=limits.cycle_timeout_ms, **identity)
             service.source = PgHedgeSource(service.collector, carry=carry, swap_source=service.hedge.source,
-                                           max_levels=limits.max_levels, timeout_ms=limits.cycle_timeout_ms)
+                                           max_levels=limits.max_levels, timeout_ms=limits.cycle_timeout_ms,
+                                           available_edge_quote=D('0') if native_model is None else native_model.available_edge_quote_usdt)
             service.hedge.bind_sources(service.source)
             observer = PgJointFinancialObserver(service.source, independent_fill_value=independent_fill_value,
                                                 independent_cashflow_value=independent_cashflow_value)
@@ -240,6 +333,8 @@ class PgLiquidityService:
                 max_rows=limits.max_rows, max_read_bytes=limits.max_bytes)
             service.events = await service.reporting.install_joint_events(observer)
             service.runner = PgServiceRunner(service)
+            if native_trading:
+                await service._install_quotes(native_model, identity)
             service._opening = False
             service._original()
             return service
@@ -254,7 +349,7 @@ class PgLiquidityService:
     def _original(self):
         if (self.config.model_dump_json() != self._config_json or tuple(self.connectors.items()) != self._connectors
                 or self.controller.service is not self or self.controller.config is not self.config
-                or self.clock is not self._clock or self.limits is not self._limits
+                or self.clock is not self._clock or self.limits is not self._limits or self.native_trading is not self._native_trading
                 or self.controller.market_data_provider is not self._provider
                 or self._provider.connectors != self.connectors):
             self.revoke()
@@ -263,11 +358,96 @@ class PgLiquidityService:
     def _local_ready(self):
         return not self._revoked and not self.config.manual_kill_switch
 
-    @staticmethod
-    def _trading_ready():
+    def _trading_ready(self):
         # Signed observation/reporting readiness is never a trading grant.
         # The configured final-route assembly has a separate acceptance exit.
-        return False
+        return self.native_trading and self._local_ready()
+
+    async def _read_trading_config(self):
+        async def read(c):
+            return await c.fetchval('''SELECT CASE WHEN octet_length(body::text)<=65536 THEN body->'native_trading' END
+                FROM life_financial.configurations WHERE account_id=$1 AND config_hash=$2 AND policy_hash=$3''',
+                                    self.runtime.config.account_id, self.config.storage_binding.config_hash,
+                                    self.config.storage_binding.policy_hash)
+        body = await self.runtime._admit(read, safety=True)
+        try:
+            model = PgNativeTradingConfig.model_validate_json(json.dumps(body))
+            if (not model.available_edge_quote_usdt.is_finite() or not 0 <= model.available_edge_quote_usdt < D('1e38')
+                    or not 0 < model.quote_schedule_timeout_ms <= 60000):
+                raise ValueError()
+            return model
+        except (ValueError, TypeError):
+            raise StorageError('PG_SERVICE_TRADING_CONFIG_INVALID') from None
+
+    async def _install_quotes(self, model, identity):
+        from hummingbot.strategy_v2.life_liquidity.storage.postgres.quote_account_source import PgQuoteAccountSource
+        from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot_application import PgSpotQuoteApplication
+        from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot_market import PgSpotMarketSource
+        from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot_producer import PgSpotQuoteProducer
+        engine = ReferenceEngine(model.reference_policy, life_anchor_usdt=model.life_anchor_usdt,
+                                 model_version=model.model_version, life_source_id='okx:LIFE-USDT', source_anchors_usdt={})
+        self.market = await PgSpotMarketSource.create(
+            self.source, reference_engine=engine, max_observation_skew_ms=model.max_observation_skew_ms,
+            max_depth_distance_bps=model.max_depth_distance_bps, max_levels=self.limits.max_levels,
+            timeout_ms=self.limits.cycle_timeout_ms)
+        self.quote_source = await PgQuoteAccountSource.create(
+            self.journal, connector=self.connectors['okx'], market_source=self.market,
+            max_pending=self.limits.max_pending, **identity)
+        self.producer = await PgSpotQuoteProducer.create(self.quote_source)
+        self.quote_application = PgSpotQuoteApplication(
+            self.quote_source, preparation_source=self.producer.prepare, max_pending=self.limits.max_pending,
+            operation_timeout_ms=self.limits.cycle_timeout_ms, shutdown_timeout_ms=self.limits.shutdown_timeout_ms)
+        self.producer.bind(self.quote_application)
+        self._trading_model = model
+        self.reporting.install_trading_admission(_NativeQuoteDispatch(self))
+
+    async def quote(self, intent_id, side, level):
+        """One serialized configured quote through the actual V2 dispatcher."""
+        self._original()
+        if not self._trading_ready() or self.quote_application is None:
+            raise StorageError('PG_SERVICE_TRADING_NOT_QUALIFIED')
+        if self._quote_task is not None:
+            raise StorageError('PG_SERVICE_QUOTE_BACKPRESSURE')
+        self._quote_task = asyncio.current_task()
+        try:
+            async with asyncio.timeout(self._trading_model.quote_schedule_timeout_ms / 1000):
+                await self.events.drain()
+                await self.reporting.drain()
+                if await self._read_trading_config() != self._trading_model:
+                    raise StorageError('PG_SERVICE_TRADING_CONFIG_CHANGED')
+                intent = await self.producer.propose(intent_id, side, level)
+                allocated = await self.hedge.allocate_spot('service-allocate:' + fingerprint([intent_id]), intent)
+                if not allocated.capital.decision.allowed or allocated.carry is None or not allocated.carry.decision.allowed:
+                    raise StorageError('PG_SERVICE_CAPITAL_OR_CARRY_DENIED')
+                publication_id = 'service-publish:' + fingerprint([intent_id])
+                publication = await self.journal.preflight_publication(publication_id)
+                action = await self.quote_source.capture_intent_ready(intent)
+                self._quote_action = action.model_copy(deep=True)
+                await self.journal.publish(publication_id, (action,), _publication=publication)
+                self.runner._async_action_dispatcher.submit([action])
+                await self.runner._async_action_dispatcher.drain()
+                if not self.journal._entry(action).accepted:
+                    raise StorageError('PG_SERVICE_DISPATCH_REJECTED')
+                # The real executor's control loop submits; no manual place call.
+                executors = self.runner.executor_orchestrator.active_executors[self.config.id]
+                executor = next(v for v in executors if v.config.id == intent_id)
+                while executor._order is None and executor.is_active:
+                    await asyncio.sleep(.001)
+                if executor._order is None:
+                    raise StorageError('PG_SERVICE_EXECUTOR_NOT_SUBMITTED')
+                await self.quote_application.drain()
+                await self.events.drain()
+                await self.reporting.flush_deferred()
+                await self.reporting.drain()
+                return action.model_copy(deep=True)
+        except BaseException as error:
+            if self._quote_action is not None:
+                error.add_note('original_quote_age_ms=' + str(round(
+                    (utc(self.clock()).timestamp() - self._quote_action.executor_config.timestamp) * 1000, 3)))
+            self.revoke()
+            raise
+        finally:
+            self._quote_task = self._quote_action = None
 
     def _pause(self):
         self._paused = True
@@ -286,6 +466,12 @@ class PgLiquidityService:
             for component in (self.events, self.hedge):
                 if component is not None:
                     component.stop()
+            if self.quote_application is not None:
+                self.quote_application.stop()
+            if self.runner is not None:
+                self.runner._is_stop_triggered = True
+                for executor in self._owned_executors.values():
+                    executor.stop()
             journal = getattr(self, 'journal', None)
             if journal is not None:
                 journal.revoke()
@@ -298,22 +484,56 @@ class PgLiquidityService:
             await asyncio.shield(self._close_task)
 
     async def _close(self):
-        try:
-            if self.runner is not None:
-                self.runner._is_stop_triggered = True
-                listener = self.runner.listen_to_executor_actions_task
-                listener.cancel()
-                await asyncio.gather(listener, return_exceptions=True)
-                await self.runner._async_action_dispatcher.close()
-                self.controller.stop()
+        failures = []
+
+        async def join(work):
             try:
-                if self.hedge is not None:
-                    await self.hedge.close(shutdown_timeout_ms=self.limits.shutdown_timeout_ms)
-            finally:
-                if self.reporting is not None:
-                    await self.reporting.close()
-        finally:
-            if self.financial is not None:
-                await self.financial.close()
-            elif self.runtime is not None:
-                await self.runtime.close()
+                await work
+            except BaseException as error:
+                failures.append(error)
+
+        async def runner_close():
+            if self._quote_task is not None:
+                await asyncio.shield(asyncio.gather(self._quote_task, return_exceptions=True))
+            if self.runner is None:
+                return
+            self.runner._is_stop_triggered = True
+            listener = self.runner.listen_to_executor_actions_task
+            listener.cancel()
+            await asyncio.gather(listener, return_exceptions=True)
+            await self.runner._async_action_dispatcher.close()
+            executors = tuple(self._owned_executors.values())
+            for executor in executors:
+                executor.stop()
+            tasks = tuple(v._control_loop_task for v in executors if getattr(v, '_control_loop_task', None) is not None)
+            if tasks:
+                await asyncio.shield(asyncio.gather(*tasks, return_exceptions=True))
+            for executor in executors:
+                self.reporting.enqueue(executor.executor_info)
+            self.controller.stop()
+
+        # Caller deadlines remain bounded in close(). This one owned physical
+        # cleanup retains SDK/DB resources until late original ACK/report work
+        # actually ends, even if a component returns its own timeout/error.
+        await join(runner_close())
+        if self.quote_application is not None:
+            await join(self.quote_application.close())
+            tasks = (*self.quote_application._pending.values(), *self.quote_application._physical.values())
+            if tasks:
+                await join(asyncio.shield(asyncio.gather(*tasks, return_exceptions=True)))
+        if self.hedge is not None:
+            await join(self.hedge.close(shutdown_timeout_ms=self.limits.shutdown_timeout_ms))
+            await join(self.hedge._idle.wait())
+            if self.hedge._physical:
+                await join(asyncio.shield(asyncio.gather(*self.hedge._physical, return_exceptions=True)))
+        if self.reporting is not None:
+            await join(self.reporting.close())
+            event_task = None if self.events is None else self.events._task
+            if event_task is not None:
+                await join(asyncio.shield(asyncio.gather(event_task, return_exceptions=True)))
+        if self.financial is not None:
+            await join(self.financial.close())
+        elif self.runtime is not None:
+            await join(self.runtime.close())
+        if failures:
+            raise failures[0]

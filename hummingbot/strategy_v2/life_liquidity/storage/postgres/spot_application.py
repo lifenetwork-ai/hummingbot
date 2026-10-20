@@ -40,6 +40,7 @@ class PgSpotQuoteApplication:
         self._guards = {}
         self._preparing = {}
         self._stopped, self._failed = False, False
+        self._failure = None
         journal._transport = self
 
     @property
@@ -98,6 +99,8 @@ class PgSpotQuoteApplication:
             self._pending.pop(entry.row.intent_id, None)
             self._waiting.pop(entry.row.intent_id, None)
             if result.cancelled() or result.exception() is not None:
+                if not result.cancelled() and self._failure is None:
+                    self._failure = result.exception()
                 self._failed = True
                 self.stop()
         task.add_done_callback(done)
@@ -240,7 +243,7 @@ class PgSpotQuoteApplication:
             if any(isinstance(result, BaseException) for result in results):
                 self._failed = True
         if self._failed:
-            raise StorageError('PG_SPOT_SUBMISSION_UNKNOWN')
+            raise StorageError('PG_SPOT_SUBMISSION_UNKNOWN') from self._failure
 
     def stop(self):
         if self._stopped:

@@ -558,11 +558,13 @@ async def test_fixed_account_first_pages_share_one_diagnostic_commit_before_any_
         else:
             await t.market_source.collect()
         expected = ('/api/v5/account/bills-archive', '/api/v5/trade/fills-history',
-                    '/api/v5/trade/fills-history', '/api/v5/trade/orders-pending')
+                    '/api/v5/trade/fills-history', '/api/v5/trade/orders-pending',
+                    '/api/v5/account/balance', '/api/v5/account/positions')
         assert batches.count(expected) == (1 if malformed else 2)
         pages = await t.reader._journal.read_collection(t.reader.collection_id, max_rows=128, max_bytes=4194304)
         assert pages[0].body['path'] == '/api/v5/account/config'
-        assert tuple(p.body['path'] for p in pages[1:5]) == expected
+        assert tuple(p.body['path'] for p in pages[1:7]) == expected
+        assert all(len(batch) <= 8 for batch in batches)
         assert not [r for r in t.requests if r['method'] != 'GET']
     finally:
         await t.financial.close()
@@ -618,7 +620,7 @@ async def test_initial_account_batch_cannot_publish_after_ambiguous_commit_or_pa
         assert t.market_source._capture is None and t.joint._report is None
         assert not t.reader._active and not t.market_source._busy and not t.financial._runtime.healthy
         pages = await t.reader._journal.read_collection(t.reader.collection_id, max_rows=128, max_bytes=4194304)
-        assert len(pages) == (5 if fault == 'commit_reply' else 2)  # Also retain the original opening config.
+        assert len(pages) == (7 if fault == 'commit_reply' else 2)  # Opening config plus all six received pages.
         assert not [r for r in t.requests if r['method'] != 'GET']
     finally:
         await t.financial.close()

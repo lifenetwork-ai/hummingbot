@@ -47,7 +47,7 @@ class RunnableBase(ABC):
         if self._status == RunnableStatus.NOT_STARTED:
             self.terminated.clear()
             self._status = RunnableStatus.RUNNING
-            safe_ensure_future(self.control_loop())
+            self._control_loop_task = safe_ensure_future(self.control_loop())
 
     def stop(self):
         """

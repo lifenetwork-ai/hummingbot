@@ -11,14 +11,18 @@ This is a user-approved scope change, not a claim that the omitted histories wor
 Native PostgreSQL crash/pending recovery remains mandatory in R1. The concrete
 clean-cutover gates belong to [PG6](#pg6--import-backups-restoration-and-rollback).
 
-**Latest configured-service progress (2026-10-20):** a separate native offline
-observation entrypoint now constructs the actual controller/V2 runner, signed
-SPOT/SWAP financial listeners/history and PostgreSQL reporting. The native gate
-passes **95 cases**; the subsequently frozen shared-host/launcher/runtime-config
-gate passes **41 cases**. Trading remains disabled, including direct hedge calls.
-A shared-host shutdown ownership defect found during the PG1 audit is fixed:
-factory clients remain owned until the service's original physical close ends.
-See [configured observation service](#pg3-r4-configured-native-observation-service-2026-10-20).
+**Latest configured-service progress (2026-10-20):** the separate native offline
+service now supports explicit serialized SPOT quote requests through the actual
+V2 dispatcher, `OrderExecutor`, signed preparation/final request and durable ACK.
+Observation remains the default; native trading requires an explicit imported
+model and the same installed SDK quota on both products. This is a first-quote
+API, not an autonomous market maker. The earlier observer gate passed 95 cases
+and shared-host gate 41. The first expanded quote gate is **695 pass / 5 fail**;
+the focused failure recheck passes 9 cases and token/replay/quota recheck 8.
+A new frozen current-source core gate passes **117 cases** (18.06 s). The next
+707-case affected gate stops on its first failure: **101 pass / 1 fail**
+(432.83 s), with original quote age 1085.815 ms at ARM. See
+[configured quote requests](#pg3-r4-configured-native-quote-requests-2026-10-20).
 **R2.3/R4/R5 and PG3 remain open.**
 
 **Current PG3 checkpoint (2026-10-20):** migration 89 removes one repeated
@@ -32,9 +36,10 @@ as part of this narrower gate. See [release proof reuse](#pg3-claim-release-proo
 **Fixed remaining PG3 exit — implementation and qualification:**
 
 - [ ] Install the native configured LIFE trading service and actual V2 trading
-  assembly, including every enabled final route. A separate configured offline
-  observation service now constructs the native controller/V2 runner and both
-  ordinary SPOT/SWAP financial listeners/history; trading remains disabled.
+  assembly, including every enabled final route. The separate configured offline
+  service constructs the native controller/V2 runner, both ordinary SPOT/SWAP
+  financial listeners/history and an explicit first-SPOT-quote request path;
+  continuous maker and all selected final trading routes remain unfinished.
 - [ ] Support continuous standing-maker replenishment with complete own-order,
   account and runner scope, capital/carry accounting and shared-SDK scheduling.
   The qualified first-quote profile currently requires quiescence.
@@ -863,6 +868,7 @@ failing integration result visible until the same current-source workflow passes
   - [x] Implement the explicit native SPOT post-dispatch preparation and final market handoff: permanent business intent before capital/carry preallocation, new one-use runner capture afterwards, exact preparing executor scope, original pending SDK object/task, fresh signed final facts, original verified cuts and post-ARM synchronous refusal. The earlier frozen 346-case regression is **344 pass / 2 fail**; two ACK/state fault injections were blocked by quote expiry during setup. The later 492-case current-source pooled regression below passes these covered workflows. Whole-product availability in R5 remains required. See [SPOT handoff qualification](#pg3-r4-native-spot-preparation-and-final-send-composition-2026-10-20).
   - [ ] Install the qualified native quote producer with actual capital/carry and economic-cost sources, and qualify complete shared-SDK cycle scheduling before quote capture. Paused, quiescent SPOT preallocation uses the original account/market source. The explicit first-quote pooled composition now waits before new capture and retains original phase/task/SDK guards; qualification is recorded below. Configured quote/cost production, standing-maker replenishment, competing/background/historical workloads and service installation remain required.
     - Imported-model implementation: `PgSpotQuoteProducer` derives tick/lot-rounded levels from the original signed SPOT reference and calculates independent-exit economics, fee buffers, modeled carry/inventory cost and subsidy. An original post-dispatch source capture brackets the immutable imported model; its hash must match. The producer is bound to the actual SPOT application, replacing numeric preparation callbacks in its explicit executor/SDK profile. Whole-service installation, live model calibration and continuous-maker acceptance are not inferred from this slice; see the producer/audit checkpoint below.
+  - Configured first-quote implementation: the explicit offline native profile now binds the imported producer, original signed capital/carry/market sources, actual controller/V2 dispatcher and actual executor control loop to protected SPOT SDK/ACK. Exact dispatcher task and original executor instances are required. Diagnostic reports are retained outside the financial send window; native financial barriers are unchanged. Qualification is recorded below. This does not discharge continuous makers, every selected mode/final route or R5.
   - [ ] Actual configured LIFE controller/service, all enabled final trading routes, complete shared-account/SDK scope and both-product financial ingress/history. The observation profile does not discharge these requirements.
 - [ ] **R5 — current-source acceptance:** all supported File/native decisions and units agree; whole-runner restart/corruption/role tests and process/backend faults pass at capture, send, ACK, settlement, release and signed repair. Resolve the observed SQL statement timeout and source-age tails, then run the complete affected workflow on one frozen source revision. The migration-88 producer/prepare/ARM regression is **625 pass / 1 fail**: source expiry prevents the release-COMMIT injection. The four cancellation branches pass separately after a diagnostic-only test change; the broad gate remains RED. PG0 trust/anchor requirements remain explicit; neither local tests nor a database receipt prove exactly-once exchange delivery.
 
@@ -5575,3 +5581,108 @@ trading routes in the configured service, qualify continuous standing-maker
 replacement with complete account/runner scope, then pass the fixed R5
 whole-product parity/fault/restart/corruption/role and loaded-latency gate.
 The generic LIFE/File launcher still rejects PostgreSQL trading selection.
+
+## PG3 R4 configured native quote requests (2026-10-20)
+
+Base: `9aa801659`. A strict `native_trading: true` setting on the separate native
+process profile now installs the imported producer and actual protected SPOT
+application. This remains restricted to `OFFLINE_SIMULATION`; observation is the
+default. Startup requires the complete explicit native reference/model and
+scheduling policy from the immutable imported account configuration. It neither
+seeds capital nor grants risk activation or real-account eligibility.
+
+The owning `service.quote` request serializes proposal, signed capital/carry
+preallocation, a new V2 capture, durable claim, actual dispatcher/orchestrator,
+actual `OrderExecutor` control loop, independent signed preparation/final market,
+native ARM, protected SDK wire and durable ACK. No manual `place_open_order`
+call, numeric admission callback, fake runner or File/ORM fallback is used in
+this configured replay. Exact service/action/dispatcher-task origin and original
+owned executor instances are required; config equality alone is insufficient.
+A direct orchestrator invocation or replayed intent cannot issue another send.
+
+Integration reproduced quote expiry after the original reporting round trips.
+The configured native claim already durably retains the exact executor bytes;
+diagnostic INITIAL/RUNNING reports are now bounded and retained during that
+original financial window, then published in order after event/history intake
+and at close. SQL DISPATCHED, PREPARE, ARM, independent source and physical COMMIT
+checks remain mandatory. Actual termination is also reported before pool close.
+The generic standalone reporting route retains its original awaited behavior.
+
+A one-use, owning-task publication preflight reads its optimistic native cut
+before capturing a **new** action. It cannot publish after intervening ingress,
+change operation, move tasks, refresh a timestamp/cut, or authorize HTTP. The
+subsequent native claim independently verifies the same original cut at COMMIT.
+Configured executor authorization uses this just-published exact local claim;
+DISPATCHED must still commit before the protected SDK may prepare/send. A native
+mode/origin change after publication denies the financial path and retains the
+claim; an invalidated reporting actor remains an explicit repair condition.
+
+The source also batches the four financial first pages followed by balance and
+positions in one six-request diagnostic transaction per comparison round. Every
+signed GET and both full comparison rounds remain; per-order history and cursor
+continuations are still mandatory. Each sample's conservative time precedes the
+original batch, so this cannot re-date a response. The existing eight-request
+batch cap, read/page/byte bounds, one-second source/capture gates, per-phase
+budgets and gross monetary holds are unchanged. An experimental oversized batch
+was rejected by the existing cap and was removed.
+
+The new aggregate scheduling timeout is an explicit imported operational budget
+for pre-capture quota waits and the complete request. It does not extend any
+already captured action or financial-source deadline. No live threshold/default
+is introduced. Earlier development runs include source/capture expiry, including
+one original quote age of 1056 ms; those are not successful qualifications.
+
+Shutdown revokes synchronously, stops and joins original executor control-loop
+tasks, retains physical SDK/late ACK work, publishes original reports and closes
+the database last. A component error/timeout cannot skip later cleanup or close
+the DB underneath a pending original ACK. Caller cancellation leaves the one
+owned physical close task intact. Late ACK, stop/cancel, replay, direct runner
+bypass and publication-token substitution cases are included in qualification.
+
+The native profile now requires the same original installed shared SDK quota on
+both products. Existing-operation reads for capital/carry run before a new
+signed source collection and are consumed once by the original task and
+repository. Financial SQL still checks the same original cut, identity and
+request; a concurrent native replay is refused rather than adopted as a new
+grant. Historical deduplication reads similarly precede a new signed collection,
+retaining both original cuts and the original ingress epoch throughout.
+
+**Qualification so far:** the first frozen core/host/CLI/dispatcher/executor gate
+passes **117 cases**, zero failures/errors/skips, **17.98 s**. Its coupled native
+`spot_market_send` gate finishes **695 pass / 5 fail**, **2238.17 s**. Three failures
+are original source-age expiries (1033.155, 1148.144 and 1101.348 ms); the other
+two are outdated assertions/hooks after the six-request batch change. That
+complete gate remains **RED**. After moving redundant operation/history reads
+before genuine collection and updating the batch assertions/hooks, the focused
+failure recheck passes **9 cases**, **691 deselected**, **38.05 s**. An additional
+original-token/task/replay/shared-quota recheck passes **8 cases**, **699
+deselected**, **24.40 s**. These overlapping scoped checks do not replace a new
+complete current-source gate. No one-second freshness gate or SQL deadline is
+relaxed. The earlier seven-case service run (89.04 s), separate late-ACK case
+(16.71 s) and four publication-origin cases (11.41 s) are development checks and
+are not summed into a whole-product count.
+
+The subsequent frozen core rerun passes **117 cases** (18.06 s). The expanded
+707-case native gate uses fail-fast and stops at **101 pass / 1 fail** (432.83 s):
+the standalone produced SELL/liquidity-service quote reaches ARM at original age
+1085.815 ms and is refused before HTTP. Source hashes remain unchanged throughout
+that run. The configured service tests at the start of this same gate pass, but
+the complete affected gate remains **RED**; unexecuted cases are not qualified.
+An experiment moved the standalone producer/send fixture's publication lookup
+and cut before capture using the same production preflight as the configured
+service. That focused run also fails: **3 pass / 1 fail**, **689 deselected**,
+**20.27 s**, with original quote age 1327.311 ms and expired original preparation
+facts. The fixture-only experiment is removed. It does not resolve the remaining
+latency tail. Diagnostics show a 238.547 ms prepare transaction followed by a
+248.269 ms native collateral read, a 97.458 ms read and a 50.814 ms read; even
+runtime validation/release phases slow together. Those measurements establish
+where time was spent, not a unique CPU/scheduler/database root cause. A single
+successful narrower run cannot qualify loaded-tail reliability. The final
+committed source matches the frozen 117-case core and 101-pass/1-fail gate;
+all 2459 source/test/migration hashes are checked again before commit.
+
+**PG3 remains open:** this request API does not provide the continuous maker
+scheduler, complete cancellation/claim retirement/replenishment, every selected
+mode/final route, or R5 whole-product parity, physical-process recovery and loaded
+latency qualification. The generic LIFE/File launcher still rejects PostgreSQL
+trading selection. No schema migration, real account or deployment was used.

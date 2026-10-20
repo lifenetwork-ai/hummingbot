@@ -42,9 +42,9 @@ async def test_exact_provider_tier_boundary_uses_the_higher_margin(database):
 
 
 async def sources(database, *, coverage_gap=False, clean=False, fresh=False, target='0', shared_quota=False,
-                  apply_batch=True, spot_fee=None, spot_options=None, spot_prepare=None, configuration_body=None):
+                  apply_batch=True, spot_fee=None, spot_options=None, spot_prepare=None, configuration_body=None, stream_market=False):
     if clean:
-        t = await clean_account(database, fresh=fresh, target=target, shared_quota=shared_quota, configuration_body=configuration_body)
+        t = await clean_account(database, fresh=fresh, target=target, shared_quota=shared_quota, configuration_body=configuration_body, spot_options=spot_options)
     else:
         t = await joint(database, carry_options=None if coverage_gap else dict(anchor_opening=True),
                         apply_batch=apply_batch, spot_fee=spot_fee, spot_options=spot_options, spot_prepare=spot_prepare)
@@ -83,7 +83,12 @@ async def sources(database, *, coverage_gap=False, clean=False, fresh=False, tar
                         for row in rows:
                             if 'ts' in row:
                                 row['ts'] = str(t.public_received_at)
-            return dict(code='0', data=deepcopy(t.public[tail]))
+            rows = deepcopy(t.public[tail])
+            if stream_market:
+                for row in rows:
+                    if 'ts' in row:
+                        row['ts'] = str(int(datetime.now(timezone.utc).timestamp() * 1000))
+            return dict(code='0', data=rows)
         response.json = body
         return response
     t.session.request = http
@@ -119,7 +124,7 @@ async def sources(database, *, coverage_gap=False, clean=False, fresh=False, tar
     return t
 
 
-async def clean_account(database, *, fresh=False, target='0', shared_quota=False, configuration_body=None):
+async def clean_account(database, *, fresh=False, target='0', shared_quota=False, configuration_body=None, spot_options=None):
     import json
     from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_collateral_source import bodies
     from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_hedge_application import application
@@ -138,7 +143,7 @@ async def clean_account(database, *, fresh=False, target='0', shared_quota=False
         PgObservationAccountSource,
     )
     from hummingbot.strategy_v2.life_liquidity.storage.postgres.runner_journal import PgQuoteRunnerJournal
-    t = (await fresh_account(database, shared_quota=shared_quota, configuration_body=configuration_body) if fresh else await application(
+    t = (await fresh_account(database, shared_quota=shared_quota, configuration_body=configuration_body, spot_options=spot_options) if fresh else await application(
         database, carry_options=dict(anchor_opening=True), target=target, shared_quota=shared_quota))
     t.swap_connector, t.throttler = t.connector, t.throttle
     if shared_quota:
@@ -192,7 +197,7 @@ async def clean_account(database, *, fresh=False, target='0', shared_quota=False
     return t
 
 
-async def fresh_account(database, *, shared_quota=False, configuration_body=None):
+async def fresh_account(database, *, shared_quota=False, configuration_body=None, spot_options=None):
     import json
     from dataclasses import asdict
     from datetime import timedelta
@@ -213,7 +218,7 @@ async def fresh_account(database, *, shared_quota=False, configuration_body=None
     from hummingbot.strategy_v2.life_liquidity.storage.postgres.carry import PgCarryRepository
     from hummingbot.strategy_v2.life_liquidity.storage.postgres.hedge import PgHedgeRepository
     from hummingbot.strategy_v2.life_liquidity.storage.postgres.swap import PgSwapRepository
-    base = await setup(database, configured=capital_policy(max_age_ms=5000), spot_options=dict(configuration_body=configuration_body))
+    base = await setup(database, configured=capital_policy(max_age_ms=5000), spot_options=dict(configuration_body=configuration_body, **(spot_options or {})))
     financial, cfg, owner, cp, feed, capital = base
     opened = owner.valid_from - timedelta(seconds=1)
     carry_policy = CarryPolicy('12345', 'LIFE-USDT-SWAP', int(opened.timestamp() * 1000), 5000, 500,

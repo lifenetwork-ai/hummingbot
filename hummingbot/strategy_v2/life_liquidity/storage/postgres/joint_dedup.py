@@ -110,11 +110,22 @@ class PgJointDedupRecovery:
                 self._original()
                 with localcontext() as precision:
                     precision.prec = 160
+                    original_epoch = self.runtime._ingress_epoch
+                    original_rows = []
+                    for repository in self.events:
+                        rows, cut = await repository._read(self.binding, False, with_cut=True)
+                        original_rows.append((rows, cut))
+                    # History reads grant no source authority. Finish them
+                    # before a NEW authenticated collection, while retaining
+                    # both original cuts and the operation's original epoch.
+                    if self.runtime._ingress_epoch != original_epoch:
+                        raise StorageError('PG_JOINT_DEDUP_INGRESS_CHANGED')
                     report = await self.collector.collect()
                     epoch = self.collector._epoch
+                    if epoch != original_epoch + 1:
+                        raise StorageError('PG_JOINT_DEDUP_INGRESS_CHANGED')
                     histories = []
-                    for repository, product in zip(self.events, ('SPOT', 'SWAP')):
-                        rows, cut = await repository._read(self.binding, False, with_cut=True)
+                    for repository, product, (rows, cut) in zip(self.events, ('SPOT', 'SWAP'), original_rows):
                         if cut != report.cut:
                             raise StorageError('PG_JOINT_DEDUP_CUT_CHANGED')
                         histories.append(self._history(rows, repository.source, report, product))

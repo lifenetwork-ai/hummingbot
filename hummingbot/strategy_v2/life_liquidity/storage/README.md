@@ -4434,3 +4434,54 @@ service-close timeout until the original physical close task finishes. The
 subsequently frozen File/native host, CLI and runtime-config gate passes **41
 cases** (17.57 s). Both gates have zero failures/errors/skips. They qualify their
 respective affected routes; full configured trading and R5 remain open.
+
+## Configured offline native quote requests
+
+The separate native process configuration accepts `native_trading: true` only
+inside the already required `OFFLINE_SIMULATION` namespace. Omitted/false keeps
+the observation profile above. Enabled startup additionally requires an imported
+`native_trading` object alongside `spot_quote_producer` in the immutable account
+configuration. Its required fields are `reference_policy` (every `ReferencePolicy`
+field), `life_anchor_usdt`, `model_version`, `max_observation_skew_ms`,
+`max_depth_distance_bps`, `available_edge_quote_usdt`, and
+`quote_schedule_timeout_ms`. Missing, extra or invalid fields refuse startup.
+No account, balance, risk activation, migration or live calibration is inferred.
+The native market adapter independently qualifies the signed LIFE book, fees,
+account scope, own-depth subtraction and executable unwind facts.
+
+`await service.quote(permanent_intent_id, TradeType.BUY, level)` (or SELL) runs
+the imported producer, signed capital/carry preallocation and new runner capture,
+then dispatches through the actual V2 orchestrator and `OrderExecutor` control
+loop to protected SDK preparation, ARM and durable ACK. The ID is never reusable.
+The owning service admits one quote request at a time; competing requests fail
+with backpressure. The scheduling budget bounds pre-capture quota waits and the
+aggregate request, independently of unchanged per-phase timeouts and the native
+one-second quote/fact policies. This API is not an automatic maker scheduler.
+
+Actual configured dispatch uses an exact owning service/action/dispatcher-task
+capability; equal action bytes, native receipts and direct orchestrator calls
+cannot mint it. Complete runner facts additionally require the original owned
+executor instances. Report-only readiness still grants no trading authority.
+The actual hedge application/source are installed in this opt-in profile, but
+standing-maker cancellation/replenishment and selected whole-service hedge/control
+workflows retain the PG3 R2/R4/R5 qualification requirements.
+
+Native quote claims durably retain the original executor configuration before
+local executor creation. The diagnostic INITIAL/RUNNING projections are bounded
+and retained in memory during that original prepare/send window, then published
+in order after the signed event/history phase. They are also flushed at close;
+a failed/unknown projection remains a repair condition. This removes reporting
+round trips from the one-second financial window without skipping native claim,
+DISPATCHED, PREPARE, ARM, UID, source-age or physical COMMIT checks. A canceled
+waiter never releases the original monetary holds or grants another send.
+Original executor control-loop task handles are retained and joined at shutdown.
+
+The default LIFE/File launcher and real-account trading eligibility are unchanged.
+This configured first-quote path does not close PG3 or establish loaded-tail
+availability, continuous makers, physical-process recovery or live eligibility.
+
+Native trading also requires one original installed shared SDK REST quota across
+both products. One-use operation lookup preflights and history reads finish
+before a genuinely new signed collection; they retain original task, repository,
+cut and ingress identity. They grant no send permission and cannot restore a
+concurrent replay as a fresh financial grant.

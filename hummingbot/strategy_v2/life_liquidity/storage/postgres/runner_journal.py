@@ -63,6 +63,7 @@ class PgQuoteRunnerJournal:
         self.max_actions, self.config_version = max_actions, config_version
         self._entries, self._revoked = {}, False
         self._transport = None
+        self._publication = None
         self._lock = asyncio.Lock()
 
     def _ready(self):
@@ -111,7 +112,25 @@ class PgQuoteRunnerJournal:
             raise StorageError('RUNNER_SCOPE_UNQUALIFIED')
         return facts
 
-    async def publish(self, operation_id, actions):
+    async def preflight_publication(self, operation_id):
+        """Read a one-use optimistic cut before capturing a NEW V2 action.
+
+        This is neither a financial claim nor dispatch/send permission. The
+        native claim still verifies this exact cut, owner and mode at COMMIT.
+        An intervening writer must conflict; no timestamp/cut is refreshed.
+        """
+        identifier(operation_id)
+        async with self._lock:
+            if not self._ready() or self._publication is not None:
+                raise StorageError('RUNNER_PUBLICATION_PREFLIGHT_UNAVAILABLE')
+            if await self.repository.lookup_quote_action(operation_id, self.binding) is not None:
+                raise StorageError('RUNNER_CLAIM_REPLAY_REQUIRES_RECOVERY')
+            cut = (await self.repository.observation_cut(self.binding)).cut
+            self._publication = (object(), asyncio.current_task(), operation_id, cut,
+                                 self.repository._runtime._ingress_epoch)
+            return self._publication[0]
+
+    async def publish(self, operation_id, actions, *, _publication=None):
         if type(actions) is not tuple or not actions or len(actions) > 64:
             raise StorageError('RUNNER_PUBLICATION_INVALID')
         rows = tuple(self._capture(action) for action in actions)
@@ -125,11 +144,18 @@ class PgQuoteRunnerJournal:
                 raise StorageError('RUNNER_IDENTITY_ALREADY_REGISTERED')
             # Freeze original owner/cut/bytes through the physical commit. An
             # ambiguous reply retains SQL claims but registers no local authority.
-            if await self.repository.lookup_quote_action(operation_id, self.binding) is not None:
-                raise StorageError('RUNNER_CLAIM_REPLAY_REQUIRES_RECOVERY')
-            # The command needs the verified primary cut, not a materialized
-            # wallet/budget projection. SQL keeps the same spot_state audit.
-            cut = (await self.repository.observation_cut(self.binding)).cut
+            if _publication is None:
+                if await self.repository.lookup_quote_action(operation_id, self.binding) is not None:
+                    raise StorageError('RUNNER_CLAIM_REPLAY_REQUIRES_RECOVERY')
+                # The command needs the verified primary cut, not a wallet
+                # projection. SQL keeps the same independent spot_state audit.
+                cut = (await self.repository.observation_cut(self.binding)).cut
+            else:
+                original, self._publication = self._publication, None
+                if (original is None or original[0] is not _publication or original[1] is not asyncio.current_task()
+                        or original[2] != operation_id or original[4] != self.repository._runtime._ingress_epoch):
+                    raise StorageError('RUNNER_PUBLICATION_PREFLIGHT_ORIGIN_REQUIRED')
+                cut = original[3]
             if not self._ready():
                 raise StorageError('RUNNER_LOCAL_REVOKED')
             result = await self.repository.claim_quote_actions(command, cut=cut, owner=self.owner)

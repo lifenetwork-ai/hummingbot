@@ -88,14 +88,21 @@ class PgSharedCapitalRepository:
             precision.prec = 160
             return tuple(CapitalClaim(**{**c, 'quantity_base': Decimal(c['quantity_base']), 'price_usdt': Decimal(c['price_usdt'])}) for c in value['claims'])
 
-    async def _command(self, operation_id, claim, cut, owner):
+    async def _command(self, operation_id, claim, cut, owner, *, _preflight=None):
         identifier(operation_id)
         self._original()
         if type(cut) is not ProductCut or owner != self.owner or type(owner) is not OwnerToken:
             raise StorageError('PG_CAPITAL_COMMAND_CONTEXT_INVALID')
         version, digest = self.financial._cut(FinancialCut(cut.checkpoint, cut.components), owner)
         captured = None if claim is None else _json(asdict(claim))
-        existing = await self._operation(operation_id, self.binding)
+        if _preflight is None:
+            existing = await self._operation(operation_id, self.binding)
+        else:
+            from hummingbot.strategy_v2.life_liquidity.storage.postgres.operation_preflight import (
+                consume_operation_read,
+            )
+            consume_operation_read(self, operation_id, _preflight)
+            existing = None
         if existing is not None:
             request = existing['command']
             if (request['owner'] != owner.json() or request['binding'] != self.binding.json()
@@ -131,10 +138,10 @@ class PgSharedCapitalRepository:
                 self.runtime._healthy = False
             raise
 
-    async def reserve(self, command, cut, owner):
+    async def reserve(self, command, cut, owner, *, _preflight=None):
         if type(command) is not ReserveCapital or type(command.claim) is not CapitalClaim:
             raise StorageError('PG_CAPITAL_COMMAND_INVALID')
-        return await self._command(command.operation_id, command.claim, cut, owner)
+        return await self._command(command.operation_id, command.claim, cut, owner, _preflight=_preflight)
 
     async def check_capital(self, binding):
         result = await self._command('capital-check:' + uuid4().hex, None, await self.cut(binding), self.owner)

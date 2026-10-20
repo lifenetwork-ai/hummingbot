@@ -292,17 +292,24 @@ class PgJointAccountReconciler(PgCollateralReconciler):
                 if fees.get((product, trade, ccy), D('0')) != fee or changes.get((product, trade, ccy), D('0')) != principal + fee:
                     raise StorageError('PG_JOINT_SOURCE_BILL_CONFLICT')
 
-    async def _round(self, scope, policy, *, check_algos=True):
+    async def _round(self, scope, policy, *, check_algos=True, sample_account=False):
         anchor = scope['ANCHOR']['anchor']['bill_id']
         # The four fixed first pages still cross the same signed SDK guard and
         # quota individually. Persist them together before ANY parsing; retain
         # every received page even on a malformed response or unknown COMMIT.
         # Cursor continuations and per-order reads remain fully bounded below.
-        initial = await self.reader.read_batch((
+        routes = (
             ('/api/v5/account/bills-archive', {'limit': '100'}),
             ('/api/v5/trade/fills-history', {'instType': 'SPOT', 'limit': '100'}),
             ('/api/v5/trade/fills-history', {'instType': 'SWAP', 'limit': '100'}),
-            ('/api/v5/trade/orders-pending', {'limit': '100'})))
+            ('/api/v5/trade/orders-pending', {'limit': '100'}))
+        if sample_account:
+            # All four financial first pages precede this later account sample,
+            # with the same individual signed reads and one durable batch before
+            # parsing. Continuations/per-order histories are still mandatory.
+            routes += (('/api/v5/account/balance', {}), ('/api/v5/account/positions', {}))
+        sample_at, sample_monotonic = utc(self.reader.source.journal.clock()), time.monotonic()
+        initial = await self.reader.read_batch(routes)
         helper = SpotAccountBillReader(self.reader, anchor_bill_id=anchor, max_pages=self.max_pages, max_fill_pages=self.max_pages)
         bills = await helper.bills_since_anchor(first_page=initial[0])
         if len(bills) > self.swap.capital.max_rows:
@@ -355,6 +362,9 @@ class PgJointAccountReconciler(PgCollateralReconciler):
         payloads['pending'] = pending
         if check_algos:
             await self._algos()
+        if sample_account:
+            account, collateral = self._parse_sample(self.reader.account_configuration(), initial[4], initial[5], policy)
+            return orders, {**payloads, 'collateral': collateral}, account, sample_at, sample_monotonic
         return orders, payloads
 
     async def _algos(self):
@@ -414,11 +424,10 @@ class PgJointAccountReconciler(PgCollateralReconciler):
                             first_runner = await self._runner(scope, preparing_quote)
                             rounds, accounts, account_times = [], [], []
                             for _ in range(2):
-                                orders, payload = await self._round(scope, original['capital_policy'], check_algos=False)
-                                account_times.append(utc(self.reader.source.journal.clock()))
-                                account_monotonic = time.monotonic()
-                                account, collateral = await self._sample(original['capital_policy'], account_brackets=True)
-                                rounds.append({**payload, 'collateral': collateral})
+                                orders, payload, account, account_at, account_monotonic = await self._round(
+                                    scope, original['capital_policy'], check_algos=False, sample_account=True)
+                                account_times.append(account_at)
+                                rounds.append(payload)
                                 accounts.append(account)
                             if first_runner != await self._runner(scope, preparing_quote):
                                 raise StorageError('PG_JOINT_SOURCE_CHANGED')

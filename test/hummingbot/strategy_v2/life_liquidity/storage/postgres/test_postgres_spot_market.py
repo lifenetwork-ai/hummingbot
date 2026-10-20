@@ -14,8 +14,8 @@ from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot_market import PgSpotMarketSource
 
 
-async def market(database, *, spot_fee=None, shared_quota=False, clean=False, objective='profit_mm', configuration_body=None, stream_market=False):
-    t = await sources(database, spot_fee=spot_fee, clean=clean or shared_quota, fresh=clean or shared_quota, shared_quota=shared_quota, configuration_body=configuration_body)
+async def market(database, *, spot_fee=None, shared_quota=False, clean=False, objective='profit_mm', configuration_body=None, stream_market=False, spot_options=None):
+    t = await sources(database, spot_fee=spot_fee, clean=clean or shared_quota, fresh=clean or shared_quota, shared_quota=shared_quota, configuration_body=configuration_body, spot_options=spot_options, stream_market=stream_market)
     t.reader = t.source.reader
     await database[0].execute("INSERT INTO life_financial.spot_action_policies VALUES($1,$2,'main',8,65536,1000)", t.cfg.account_id, t.cfg.binding.policy_hash)
     await database[0].execute("INSERT INTO life_financial.spot_quote_admission_policies VALUES($1,$2,$3,0,0,.01,.01,.01,1000,1000,1000,1000)", t.cfg.account_id, t.cfg.binding.policy_hash, objective)

@@ -1,14 +1,17 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
-**Latest configured PostgreSQL progress (2026-10-20):** a separate native offline
-observation service now assembles the actual controller/V2 runner, both SPOT/SWAP
-financial listeners/history and native reporting. Its integration gate passes
-**95 cases**; the subsequent shared-host/CLI/runtime-config gate passes **41
-cases**. A shared-host shutdown ownership defect is corrected so factory clients
-outlive the service's original physical cleanup. Trading remains disabled,
-including direct hedge calls. **PG3 stays open** for configured trading routes,
-continuous maker replacement and R5 whole-product acceptance. See
-[service qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-r4-configured-native-observation-service-2026-10-20).
+**Latest configured PostgreSQL progress (2026-10-20):** the separate native
+offline service now connects explicit SPOT quote requests to the actual V2
+runner/`OrderExecutor`, signed source, native ARM and durable SDK ACK. Observation
+remains the default; explicit trading needs the imported model and a shared
+SDK quota. The first expanded native gate is **695 pass / 5 fail**; focused
+failure and token/replay/quota rechecks pass **9** and **8** cases respectively.
+The new frozen core gate passes **117 cases** (18.06 s). The 707-case native
+regression stops at **101 pass / 1 fail** (432.83 s): an original standalone quote
+expires at ARM (1085.815 ms), before HTTP. The complete gate remains RED. **PG3 stays open** for continuous
+maker cancellation/retirement/replenishment, every selected configured final
+route and R5 whole-product acceptance. See
+[configured quote qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-r4-configured-native-quote-requests-2026-10-20).
 
 **Latest PG3 release progress (2026-10-20):** migration 89 reuses the release
 command's own fully verified portfolio snapshot before its first financial write.

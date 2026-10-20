@@ -85,7 +85,7 @@ class PgCarryRepository:
         result = await self._read(operation_id, binding)
         return None if result is None else self._receipt({**result['receipt'], 'replayed': True})
 
-    async def observe(self, operation_id, *, cut, owner, prospective=None):
+    async def observe(self, operation_id, *, cut, owner, prospective=None, _preflight=None):
         identifier(operation_id)
         self._original()
         if (len(operation_id) > 96 or type(cut) is not ProductCut or owner != self.owner
@@ -95,7 +95,14 @@ class PgCarryRepository:
         candidate = None if prospective is None else _json(asdict(prospective))
         # An unknown COMMIT is resolved through the original operation, never
         # through another feed read or a refreshed deadline.
-        previous = await self._read(operation_id, self.binding)
+        if _preflight is None:
+            previous = await self._read(operation_id, self.binding)
+        else:
+            from hummingbot.strategy_v2.life_liquidity.storage.postgres.operation_preflight import (
+                consume_operation_read,
+            )
+            consume_operation_read(self, operation_id, _preflight)
+            previous = None
         if previous is not None:
             old = previous['command']
             if (old['binding'] != self.binding.json() or old['owner'] != owner.json() or old['version'] != version

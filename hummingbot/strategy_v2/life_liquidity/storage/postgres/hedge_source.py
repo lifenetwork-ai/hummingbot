@@ -27,6 +27,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.carry import PgCarry
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.collateral_source import _amount
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.hedge import HedgeChild, PgHedgeRepository, PlanHedge
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.joint_source import PgJointAccountReconciler
+from hummingbot.strategy_v2.life_liquidity.storage.postgres.operation_preflight import preflight_new_operation
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.swap_transport import PgSwapAccountSource
 from hummingbot.strategy_v2.life_liquidity.storage.products import ProductCut
 from hummingbot.strategy_v2.life_liquidity.storage.swap import PrepareSwap
@@ -294,8 +295,9 @@ class PgHedgeSource:
                 if (self.reader.source._connector._order_tracker.active_orders
                         or self.swap_source._connector._order_tracker.active_orders):
                     raise StorageError('PG_HEDGE_SOURCE_RUNNER_NOT_QUIESCENT')
-                if (await self.capital.lookup(cap_id, self.binding) is not None
-                        or await self.carry.lookup(carry_id, self.binding) is not None):
+                cap_preflight = await preflight_new_operation(self.capital, cap_id)
+                carry_preflight = await preflight_new_operation(self.carry, carry_id)
+                if cap_preflight is None or carry_preflight is None:
                     raise StorageError('PG_HEDGE_SOURCE_ORIGINAL_OPERATION_REQUIRES_RECONCILIATION')
                 with localcontext() as precision:
                     precision.prec = 160
@@ -351,13 +353,19 @@ class PgHedgeSource:
                     # The native capital command consumes this exact original
                     # cut. Do not replace it with an extra fresh snapshot read.
                     self._capture = ('capital', report, epoch, snapshot, bundle, market)
-                    capital = await self.capital._command(cap_id, None, ProductCut(report.cut.checkpoint, report.cut.components), self.owner)
+                    capital = await self.capital._command(cap_id, None, ProductCut(report.cut.checkpoint, report.cut.components), self.owner,
+                                                          _preflight=cap_preflight)
+                    if capital.replayed:
+                        raise StorageError('PG_HEDGE_SOURCE_ORIGINAL_OPERATION_REQUIRES_RECONCILIATION')
                     self._check(report, epoch + 1, market)
                     current = (await self.financial.observation_cut(self.binding)).cut
                     if current.checkpoint.revision != report.cut.checkpoint.revision + 1:
                         raise StorageError('PG_HEDGE_SOURCE_NATIVE_CHANGED')
                     self._capture = ('carry', report, epoch, snapshot, bundle, market)
-                    carried = await self.carry.observe(carry_id, cut=ProductCut(current.checkpoint, current.components), owner=self.owner)
+                    carried = await self.carry.observe(carry_id, cut=ProductCut(current.checkpoint, current.components), owner=self.owner,
+                                                       _preflight=carry_preflight)
+                    if carried.replayed:
+                        raise StorageError('PG_HEDGE_SOURCE_ORIGINAL_OPERATION_REQUIRES_RECONCILIATION')
                     self._check(report, epoch + 2, market)
                     current = (await self.financial.observation_cut(self.binding)).cut
                     if current.checkpoint.revision != report.cut.checkpoint.revision + 2:
@@ -405,8 +413,9 @@ class PgHedgeSource:
         try:
             self._original()
             async with asyncio.timeout(self.timeout_ms / 1000):
-                if (await self.capital.lookup(capital_id, self.binding) is not None
-                        or await self.carry.lookup(carry_id, self.binding) is not None):
+                cap_preflight = await preflight_new_operation(self.capital, capital_id)
+                carry_preflight = await preflight_new_operation(self.carry, carry_id)
+                if cap_preflight is None or carry_preflight is None:
                     raise StorageError('PG_HEDGE_SOURCE_ORIGINAL_OPERATION_REQUIRES_RECONCILIATION')
                 observed = await self.refresh('spot-source:' + key)
                 report, epoch, cut, market, _, _ = self._qualified
@@ -424,7 +433,7 @@ class PgHedgeSource:
                                      intent.quantity_base, intent.price_usdt, 1)
                 self._capture = ('capital', report, epoch, snapshot, bundle, market)
                 reserved = await self.capital.reserve(ReserveCapital(capital_id, claim),
-                                                      ProductCut(cut.checkpoint, cut.components), self.owner)
+                                                      ProductCut(cut.checkpoint, cut.components), self.owner, _preflight=cap_preflight)
                 self._check(report, epoch + 1, market)
                 if reserved.replayed:
                     raise StorageError('PG_HEDGE_SOURCE_ORIGINAL_OPERATION_REQUIRES_RECONCILIATION')
@@ -435,7 +444,8 @@ class PgHedgeSource:
                 if current.checkpoint.revision != cut.checkpoint.revision + 1:
                     raise StorageError('PG_HEDGE_SOURCE_NATIVE_CHANGED')
                 self._capture = ('carry', report, epoch, snapshot, bundle, market)
-                carried = await self.carry.observe(carry_id, cut=ProductCut(current.checkpoint, current.components), owner=self.owner)
+                carried = await self.carry.observe(carry_id, cut=ProductCut(current.checkpoint, current.components), owner=self.owner,
+                                                   _preflight=carry_preflight)
                 self._check(report, epoch + 2, market)
                 if carried.replayed:
                     raise StorageError('PG_HEDGE_SOURCE_ORIGINAL_OPERATION_REQUIRES_RECONCILIATION')

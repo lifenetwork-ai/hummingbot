@@ -27,6 +27,10 @@ from hummingbot.strategy_v2.models.executors_info import ExecutorInfo
 
 
 class PgRecorderApplication(ReportingQueue):
+    @property
+    def ready(self):
+        return super().ready and self._deferred_initial is None and not self._deferred_reports
+
     def __init__(self, financial, *, controller, owner, sources, revoke, local_ready, max_pending,
                  max_callbacks, shutdown_timeout_s, max_rows, max_read_bytes):
         from controllers.generic.life_liquidity import LifeLiquidityConfig
@@ -63,6 +67,9 @@ class PgRecorderApplication(ReportingQueue):
         self._startup_infos, self._startup_positions = (), ()
         self._event_application = None
         self._runner_context = None
+        self._trading_admission = None
+        self._deferred_initial = None
+        self._deferred_reports = {}
 
     @classmethod
     async def install(cls, financial, **kwargs):
@@ -113,7 +120,17 @@ class PgRecorderApplication(ReportingQueue):
         # complete native final trading assembly exists, even a direct
         # orchestrator call must not reach generic strategy.buy/sell.
         if self._runner_context is not None:
-            raise ValueError('PG_RUNNER_TRADING_ASSEMBLY_REQUIRED')
+            if self._trading_admission is None:
+                raise ValueError('PG_RUNNER_TRADING_ASSEMBLY_REQUIRED')
+            self._trading_admission.consume(action)
+
+    def install_trading_admission(self, admission):
+        from hummingbot.strategy_v2.life_liquidity.storage.postgres.service import _NativeQuoteDispatch
+        if (type(admission) is not _NativeQuoteDispatch or self._trading_admission is not None
+                or self._runner_context is None or admission.service.reporting is not self
+                or admission.service.controller is not self.controller or not self._admission_ready()):
+            raise StorageError('PG_RECORDER_TRADING_INSTALL_INVALID')
+        self._trading_admission = admission
 
     async def recover(self):
         """Repair immutable original reporting only. Never construct a sender."""
@@ -161,7 +178,8 @@ class PgRecorderApplication(ReportingQueue):
 
     async def before_dispatch(self, action):
         if self._runner_context is not None:
-            return False  # Observation-only startup does not admit new risk.
+            if self._trading_admission is None or not self._trading_admission.owns(action):
+                return False
         if not self._admission_ready() or action.controller_id != self.controller.config.id:
             return False
         self._busy = True
@@ -174,7 +192,16 @@ class PgRecorderApplication(ReportingQueue):
                                     filled_amount_quote=Decimal('0'), is_active=False, is_trading=False,
                                     custom_info={'recovery_account_uid': self.binding.account_uid, 'recovery_order_ids': []})
                 command = ExecutorProjection.from_info('initial:' + fingerprint({'config_json': config.model_dump_json()}), self.binding, info)
-                await self.repository.project(command, owner=self.owner)
+                if self._trading_admission is not None:
+                    # The native quote claim already durably holds the exact
+                    # captured executor bytes. Diagnostic projections must not
+                    # spend that action's one-second prepare/send window.
+                    if self._deferred_initial is not None:
+                        raise StorageError('PG_RECORDER_DEFERRED_INITIAL_PENDING')
+                    self._deferred_initial = command
+                    self._trading_admission.stage(action)
+                else:
+                    await self.repository.project(command, owner=self.owner)
                 return not self._closed and not self._revoked and self._local_ready() is True
         except BaseException:
             self.invalidate()
@@ -184,6 +211,53 @@ class PgRecorderApplication(ReportingQueue):
 
     def fresh_stored_infos(self):
         raise StorageError('PG_RECORDER_ASYNC_READ_REQUIRED')
+
+    def enqueue(self, info, *, on_committed=None):
+        if self._deferred_initial is None:
+            return super().enqueue(info, on_committed=on_committed)
+        captured = ExecutorProjection.from_info('capture', self.binding, info)
+        initial = ExecutorInfo.model_validate_json(self._deferred_initial.payload_json)
+        if captured.executor_id != initial.id or info.config != initial.config:
+            self.invalidate()
+            raise StorageError('PG_RECORDER_DEFERRED_SCOPE_CHANGED')
+        key = fingerprint({'payload': captured.payload_json})
+        if key not in self._deferred_reports:
+            if self._closed or not self._healthy or len(self._deferred_reports) >= self.max_pending:
+                self.invalidate()
+                raise StorageError('PG_RECORDER_DEFERRED_BACKPRESSURE')
+            future = asyncio.get_running_loop().create_future()
+            future.add_done_callback(lambda f: None if f.cancelled() else f.exception())
+            self._deferred_reports[key] = captured, [], future
+        callbacks = self._deferred_reports[key][1]
+        if on_committed is not None:
+            if len(callbacks) >= self.max_callbacks:
+                self.invalidate()
+                raise StorageError('PG_RECORDER_CALLBACK_BACKPRESSURE')
+            callbacks.append(on_committed)
+        return self._deferred_reports[key][2]
+
+    async def flush_deferred(self):
+        """After the original send/history phase, publish all retained reports."""
+        if self._deferred_initial is None:
+            return
+        try:
+            async with self._mutex:
+                await self.repository.project(self._deferred_initial, owner=self.owner)
+            count = 0
+            while self._deferred_reports:
+                count += 1
+                if count > self.max_pending:
+                    raise StorageError('PG_RECORDER_DEFERRED_BACKPRESSURE')
+                key = next(iter(self._deferred_reports))
+                captured, callbacks, future = self._deferred_reports[key]
+                receipt = await self._update(captured, callbacks)
+                if not future.done():
+                    future.set_result(receipt)
+                self._deferred_reports.pop(key)
+            self._deferred_initial = None
+        except BaseException:
+            self.invalidate()
+            raise
 
     async def stored_infos(self):
         rows = await self.repository.read(self.binding)
@@ -291,4 +365,7 @@ class PgRecorderApplication(ReportingQueue):
             if self._event_application is not None:
                 await self._event_application.close()
         finally:
-            await super().close()
+            try:
+                await self.flush_deferred()
+            finally:
+                await super().close()
