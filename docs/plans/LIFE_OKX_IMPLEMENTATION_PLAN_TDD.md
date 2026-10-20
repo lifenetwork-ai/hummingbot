@@ -1,5 +1,11 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**Current PG3 optimization (2026-10-21):** migrations 93–94 reuse fresh proofs
+within one deferred COMMIT check and one primary snapshot. Focused corruption
+and populated upgrade comparisons pass; the final multi-generation
+replay still expires at 1229.879 ms. Full configured/current-source qualification
+remains required. See [fresh proof reuse and exact results](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-fresh-commit-and-financial-snapshot-proof-reuse-2026-10-21).
+
 **Standing-maker increment (2026-10-21):** the separate offline native service
 implements exact standing-order sibling allocation, bounded imported maker
 generations, joined soft stop, asynchronous native ticks and one NAV basis per

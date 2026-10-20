@@ -4559,3 +4559,23 @@ Continuous multi-generation acceptance is still RED at the unchanged 1000 ms
 capture limit after retained history accumulates. This increment does not close
 PG3; the PostgreSQL plan records exact gates and retained failures. The generic
 LIFE/File launcher and live/demo admission remain gated.
+
+### Fresh COMMIT and financial snapshot proof reuse
+
+Migrations 93–94 reduce repeated verification without saving a permission or
+verdict between commands. Four deferred account-version guards share one fresh
+post-write STABLE checker. The primary snapshot reuses only positive financial
+proofs established earlier in that same read; invalid/NULL states retain full
+independent checks. Every new primary read and COMMIT verifies its own state.
+Current-source/clock checks, standalone verifiers, money and public cut bytes
+remain unchanged. Both new helpers and the COMMIT wrapper are owner-only.
+
+Use `storage.run_postgres --suite commit_proofs` and `--suite snapshot_proofs`
+for the post-write corruption and populated snapshot parity regressions. The
+PostgreSQL plan records configured maker-cycle qualification separately; these
+focused checks alone do not close PG3 or enable demo/live trading.
+
+The final configured two-generation replay still expires at 1229.879 ms against
+the unchanged 1000 ms capture policy. Fewer proof calls have not qualified
+end-to-end latency. R2.3/R4/R5 and PG3 remain open; exact gates and retained
+failures are in the PostgreSQL plan.

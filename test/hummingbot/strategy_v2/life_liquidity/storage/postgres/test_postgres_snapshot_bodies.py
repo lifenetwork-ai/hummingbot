@@ -83,6 +83,10 @@ async def test_actual_upgrade_keeps_every_old_layer_body_digest_flags_and_scope(
             financial, cfg, owner, _, _, capital, policy, feed, repo = await carry_setup(database, refresh_initial_facts=True)
             if state not in ('pending', 'corrupt_balance'):
                 assert (await repo.check_carry(cfg.binding)).allowed
+                if state == 'qualified':
+                    # Prove genuine readiness at seed; the subsequent real
+                    # migrations are allowed to consume the original lifetime.
+                    assert await c.fetchval('SELECT life_financial.carry_current_ready($1)', cfg.account_id)
         await financial.close()
     if state == 'expired':
         await asyncio.sleep(1.05)
@@ -115,11 +119,15 @@ async def test_actual_upgrade_keeps_every_old_layer_body_digest_flags_and_scope(
     await c.execute('INSERT INTO life_financial.access_bindings VALUES(current_user,$1,false)', cfg.account_id)
     assert (await migrate(c, action='up'))['applied'] == ['000055_snapshot_body_pipeline.sql', '000056_legacy_spot_basis.sql',
                                                           '000057_collateral_source_context.sql', '000058_legacy_spot_prefix.sql',
-                                                          '000059_legacy_cashflow_prefix.sql', '000060_legacy_derivative_prefix.sql', '000061_legacy_parent_prefix.sql', '000062_legacy_unsent_spot.sql', '000063_legacy_spot_ack_prefix.sql', '000064_legacy_repaired_parent_prefix.sql', '000065_legacy_cancel_prefix.sql', '000066_legacy_terminal_prefix.sql', '000067_legacy_settlement_prefix.sql', '000068_legacy_abort_nav_history.sql', '000069_legacy_joint_spot_claims.sql', '000070_repair_view_reuse.sql', '000071_required_ack_completion.sql', '000072_unfilled_swap_prefix.sql', '000073_joint_provider_routes.sql', '000074_joint_source_deadline.sql', '000075_joint_trade_id_sets.sql', '000076_signed_native_control.sql', '000077_reconciled_session_successors.sql', '000078_native_safety.sql', '000079_native_markout_gate.sql', '000080_native_stress.sql', '000081_native_execution_modes.sql', '000082_native_execution_children.sql', '000083_hedge_provider_routes.sql', '000084_provider_page_batch.sql', '000085_snapshot_portfolio_proof_reuse.sql', '000086_joint_recorder_events.sql', '000087_spot_market_routes.sql', '000088_quote_subsidy_quantum.sql', '000089_release_snapshot_proof_reuse.sql', '000090_native_query_plans.sql', '000091_persistent_state_cut.sql', '000092_snapshot_shared_proof_reuse.sql']
+                                                          '000059_legacy_cashflow_prefix.sql', '000060_legacy_derivative_prefix.sql', '000061_legacy_parent_prefix.sql', '000062_legacy_unsent_spot.sql', '000063_legacy_spot_ack_prefix.sql', '000064_legacy_repaired_parent_prefix.sql', '000065_legacy_cancel_prefix.sql', '000066_legacy_terminal_prefix.sql', '000067_legacy_settlement_prefix.sql', '000068_legacy_abort_nav_history.sql', '000069_legacy_joint_spot_claims.sql', '000070_repair_view_reuse.sql', '000071_required_ack_completion.sql', '000072_unfilled_swap_prefix.sql', '000073_joint_provider_routes.sql', '000074_joint_source_deadline.sql', '000075_joint_trade_id_sets.sql', '000076_signed_native_control.sql', '000077_reconciled_session_successors.sql', '000078_native_safety.sql', '000079_native_markout_gate.sql', '000080_native_stress.sql', '000081_native_execution_modes.sql', '000082_native_execution_children.sql', '000083_hedge_provider_routes.sql', '000084_provider_page_batch.sql', '000085_snapshot_portfolio_proof_reuse.sql', '000086_joint_recorder_events.sql', '000087_spot_market_routes.sql', '000088_quote_subsidy_quantum.sql', '000089_release_snapshot_proof_reuse.sql', '000090_native_query_plans.sql', '000091_persistent_state_cut.sql', '000092_snapshot_shared_proof_reuse.sql', '000093_commit_proof_group.sql', '000094_snapshot_financial_proof_reuse.sql']
     # New entrypoints require explicit migration-owner provisioning. Applying
     # SQL alone cannot silently extend the old runtime role's grants.
     await access_module.provision_access(c, principal='life_pg2_runtime', account_id=cfg.account_id, write=True)
     await access_module.provision_access(c, principal='life_pg2_reporter', account_id=cfg.account_id, write=False)
+    # Both independently executed implementations must observe the same side
+    # of the real expiry boundary. Do not assume migrations leave a fresh feed
+    # or compare one ready evaluation with a later expired evaluation.
+    await asyncio.sleep(1.05)
     cold = await PgRuntime.open(cfg)
     try:
         async def compare_public(connection):
@@ -138,7 +146,7 @@ async def test_actual_upgrade_keeps_every_old_layer_body_digest_flags_and_scope(
             assert await c.fetchval('SELECT count(*) FROM life_financial.operations') == count
             assert (await cold._admit(compare_public, safety=True))['current'] == public['current']
         if state == 'qualified':
-            assert public['current']['carry']['ready'] is True
+            assert public['current']['carry']['ready'] is False
         # The exhaustive layer comparisons use aged sources in both arms to
         # avoid comparing evaluations on opposite sides of a live deadline.
         # No clock is frozen or source lifetime widened.

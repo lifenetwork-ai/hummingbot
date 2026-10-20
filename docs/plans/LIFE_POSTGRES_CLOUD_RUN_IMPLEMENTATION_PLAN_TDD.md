@@ -2,6 +2,14 @@
 
 Created: 2026-10-11
 
+**Current optimization (2026-10-21):** migrations 93–94 remove repeated
+proofs within a fresh deferred COMMIT check and a single primary snapshot.
+Post-write corruption and populated predecessor snapshot/digest comparisons
+pass their focused gates. The final two-generation replay remains RED
+at 1229.879 ms. Current-source configured qualification is recorded below;
+R2.3/R4/R5 and PG3 remain open until their full fixed exits pass. See
+[fresh proof reuse](#pg3-fresh-commit-and-financial-snapshot-proof-reuse-2026-10-21).
+
 **Standing-maker increment (2026-10-21, qualification in progress):** the explicit
 offline service can retain a fully matched original SPOT bid while financing
 an ask. A bounded imported maker schedule is implemented, with original target
@@ -5968,3 +5976,120 @@ The multi-generation fixture explicitly selects a synthetic 300-second owner,
 360-second session and 60000 ms aggregate scheduling limit at initial seed. It
 does not extend any captured owner/feed, widen a source/SQL/phase limit or install
 these test values as live defaults.
+
+## PG3 fresh COMMIT and financial snapshot proof reuse (2026-10-21)
+
+### Fixed scope and implementation
+
+- [x] Measure repeated proofs in the actual COMMIT path. Carry ran two or three
+  times and shared capital twice for the same post-write account state. The
+  diagnostic `SET CONSTRAINTS ALL IMMEDIATE` probe is development-only and is
+  not a qualification result.
+- [x] Replace four account-version constraint triggers with one deferred wrapper
+  and owner-only STABLE checker (migration 93). Preserve the exact version-change
+  condition, every original predicate, independent current-source checks and real
+  clock. Reuse only fresh proofs computed in that one invocation. No pre-write,
+  persistent, session or caller-supplied verdict is admitted.
+- [x] Audit predecessor source/security metadata and original trigger context.
+  Preserve standalone verifier/trigger-function bodies, OIDs, ownership and ACLs;
+  revoke every non-owner privilege on new helpers, including default grants.
+- [x] Reduce duplicated actions/SWAP/accounting/funding/capital verification in
+  the same STABLE primary body (migration 94). A strictly false aggregate
+  `unverified` flag proves its earlier predicates succeeded. Invalid/NULL states
+  retain independent full checks. Current-source predicates and COMMIT still
+  verify separately; public fields and persistent cut bytes are unchanged.
+- [x] Test damage after a native release command, before deferred checking:
+  carry, shared capital, NAV and release history must deny and roll back money.
+- [x] Compare actual populated v93 predecessor code with upgraded complete
+  snapshots/digests, including capital, SWAP fee and operation-receipt damage.
+- [ ] Qualify configured multi-generation tails and the complete fixed R2.3/R4/R5
+  acceptance scope on unchanged current source. Earlier RED gates remain open.
+
+### TDD and development results
+
+The original proof-count test fails before migration 93: carry/shared proofs run
+more than once at COMMIT. The completed post-write regression passes **5 cases**
+(18.47 s), including all four owner-injected corruptions and rollback. Migration
+93's initial seven upgrade/ACL/atomic-drift/repeated-startup cases pass (13.17 s).
+
+The migration-93 uninstrumented configured two-generation replay still fails
+before another SDK send at **1054.239 ms** (78.80 s). The earlier frozen result
+was 1233.454 ms, and the disposable folding prototype reached 1086.488 ms.
+These are separate single-run observations, not a percentile comparison or a
+qualified tail improvement. All retain the original 1000 ms limit.
+
+The snapshot proof-count baseline fails with actions/SWAP/capital twice, funding
+four times and SWAP accounting five times per full primary read. Migration 94
+removes the redundant body-level checks. Its positive repeat-read test confirms
+that each subsequent read builds fresh proofs; nested current-source checks are
+retained independently. The full focused snapshot gate passes **5 cases**
+(22.65 s), including byte-equivalent complete cuts/negative flags after real
+populated upgrades. A test harness initially assumed a nested `body` field and
+is corrected to the actual flat public snapshot; that KeyError is not counted
+as a successful RED proof. The later duplicate-call failure is the genuine RED.
+
+### Current-source qualification
+
+The frozen combined upgrade gate passes **27 cases**, 244 deselected (48.73 s).
+It covers hostile default grants, preserved original function bodies/OIDs/ACLs,
+atomic body/security/search-path/volatility/trigger drift refusal and repeated
+startup. The frozen configured maker gate reports **8 pass / 1 fail**, 740
+deselected (371.51 s), with no skips/errors: one full bid/ask generation,
+standing makers, replacement, four standing-SDK refusal cases and native-money
+corruption between releases pass. Two generations still fail at original quote
+age **1089.076 ms**, before another HTTP send. All **1815 pinned source hashes**
+remain unchanged through both gates. This is still a RED configured gate.
+
+A separate timing-only development replay fails the same third quote (78.83 s).
+Its phase times are approximately 165 ms claim publication, 192 ms dispatch,
+222 ms preparation source, 161 ms prepare, 225 ms final source and 66 ms ARM.
+The four original before/after native source-context reads take roughly 55–61 ms
+each after the first generation's history. The real source brackets and COMMIT
+checks cannot simply be removed. Further work must reduce or combine verified
+reads without accepting pre-write proofs at COMMIT, refreshing a captured price
+or weakening same-version corruption detection. These are R2.3/R4/R5 work.
+
+The broader frozen release/carry/NAV/source regression reports **157 pass /
+6 fail** (526.32 s), with the same 1815 hashes unchanged. All six failures are
+the old portfolio oracle looking for migration 85's two-argument helper; the
+actual body has used a later helper since migration 92. The corrected oracle
+replaces the exact complete current expression with the original independent
+portfolio verifier. Its **6-case** recheck passes (23.10 s); original proof-count,
+digest, denied/expired/corrupt and privilege assertions remain.
+
+Review additionally finds a real early-evaluation defect in the initial
+migration-94 candidate: a capital argument can be evaluated before the original
+portfolio helper rejects failed carry. A deliberate second-capital-call fault
+reproduces the error (4.49 s). The final implementation selects the entire
+original helper for invalid/NULL bodies, retaining its early-return and
+short-circuit semantics; only a positive same-read proof uses the new helper.
+The expanded snapshot gate passes **6 cases** (28.60 s), including this genuine
+RED-to-GREEN regression. No migration containing the defect was committed.
+
+The first complete historical-layer recheck reports **9 pass / 1 fail**
+(50.02 s): the two independent `ready` evaluations straddle the real source
+expiry, while all 43 other fields agree. The test now proves genuine readiness
+at seed, permits real migrations to consume the original lifetime and compares
+both implementations after actual expiry. It neither freezes/re-dates a clock
+nor extends a feed or limit. The complete **10-case** module then passes
+(61.67 s), including full layer bodies/flags and original replay/cut checks.
+These scoped rechecks are not summed into a new broad current-source result;
+the preceding RED gates remain recorded.
+The first combined migration selector mistakenly
+passed an unquoted OR expression to pytest and ran zero cases; it is rerun with
+an explicit quoted expression. No result from that invocation is counted.
+No new repository evidence artifact is created. Source/fact/capture/statement/
+transaction/idle/cancellation limits, economic budgets and the pinned 2-CPU/
+1-GiB PostgreSQL resources remain unchanged. No new runtime or backend grant is
+installed. PG3 closure is not inferred from these focused optimizations.
+
+**Final source qualification after the fallback correction:** all 27 combined
+migration audit cases pass again (49.75 s). The final uninstrumented configured
+two-generation case still fails before HTTP, at original quote age
+**1229.879 ms** (79.22 s), with `PG_QUOTE_CAPTURE_MISMATCH`. All **1815 pinned
+source hashes** remain unchanged through these final gates. No source/fact/
+capture/SQL/phase threshold, resource limit or economic budget was increased.
+The different single-run ages do not demonstrate a reliable end-to-end latency
+improvement. The verified result is less duplicate proof work with preserved
+financial decisions; it is not performance qualification or PG3 closure.
+Changed-file hooks pass. R2.3/R4/R5 and PG3 remain open.

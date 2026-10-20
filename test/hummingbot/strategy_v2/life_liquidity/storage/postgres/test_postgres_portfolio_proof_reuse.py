@@ -33,7 +33,9 @@ async def test_portfolio_snapshot_keeps_original_digest_with_one_fewer_carry_pro
             await c.execute("UPDATE life_financial.operations SET receipt=receipt||'{\"checked_at_ms\":1}'::jsonb WHERE account_id=$1 AND command->>'kind'='CARRY_CHECK'", cfg.account_id)
             await c.execute('ALTER TABLE life_financial.operations ENABLE TRIGGER USER')
         definition = await c.fetchval("SELECT pg_get_functiondef('life_financial.spot_body_before_swap_terminal(uuid)'::regprocedure)")
-        call = "life_financial.portfolio_after_carry_verification(p_account,(b#>>'{carry,verified}')::boolean)"
+        call = ("CASE WHEN b->'unverified' IS NOT DISTINCT FROM 'false'::jsonb THEN "
+                "life_financial.portfolio_after_financial_verification(p_account,(b#>>'{carry,verified}')::boolean,(b#>>'{shared_capital,verified}')::boolean,true) "
+                "ELSE life_financial.portfolio_after_snapshot_verification(p_account,(b#>>'{carry,verified}')::boolean,(b#>>'{shared_capital,verified}')::boolean) END")
         assert definition.count(call) == 1
         prior = definition.replace('life_financial.spot_body_before_swap_terminal(', 'life_financial.test_prior_portfolio_body(')
         await c.execute(prior.replace(call, 'life_financial.portfolio_verified(p_account)'))

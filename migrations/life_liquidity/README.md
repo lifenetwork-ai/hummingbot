@@ -1331,3 +1331,28 @@ money/history rewrite or policy default. Exact predecessor bodies and security
 metadata must match, including the shared verifier whose final release check
 justifies reuse. Drift rolls back the complete migration. Repeated startup/up
 uses the existing ledger and performs no further DDL.
+
+## 000093–000094: fresh proof reuse at COMMIT and within primary reads
+
+`000093_commit_proof_group.sql` replaces four account-version constraint triggers
+with one deferred trigger, preserving their original version-change condition.
+The new owner-only STABLE checker builds fresh post-write carry/shared/NAV/release
+proofs once per invocation. All original predicates and real-clock current-source
+checks remain. Original standalone trigger functions and verifier bodies, OIDs,
+owners and grants are unchanged. No pre-write or persistent verdict is reused.
+
+`000094_snapshot_financial_proof_reuse.sql` uses a strictly false `unverified`
+flag from the same primary read to avoid repeated successful actions, SWAP,
+accounting, funding and capital checks in later body layers. Invalid or NULL
+flags still invoke the full independent verifier. Portfolio fallback preserves
+the complete original helper and its short-circuit order. A private portfolio helper
+accepts only the verdicts established inside that read. Nested current-source
+checks, financial writes and deferred COMMIT remain independent. Public snapshot
+fields, negative flags and persistent cut bytes are preserved.
+
+Both migrations audit exact predecessor bodies/security metadata; 93 also
+checks the original trigger definitions. Unexpected drift refuses the upgrade
+atomically. New helpers revoke every non-owner grant, including grants inherited
+from deployment default privileges. Startup/up is repeatable through the existing
+migration ledger. These changes introduce no table, history rewrite, financial
+policy default or runtime permission. They do not by themselves qualify PG3.
