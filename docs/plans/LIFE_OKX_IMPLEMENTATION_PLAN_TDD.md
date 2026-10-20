@@ -1,5 +1,15 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**Latest configured PostgreSQL progress (2026-10-20):** a separate native offline
+observation service now assembles the actual controller/V2 runner, both SPOT/SWAP
+financial listeners/history and native reporting. Its integration gate passes
+**95 cases**; the subsequent shared-host/CLI/runtime-config gate passes **41
+cases**. A shared-host shutdown ownership defect is corrected so factory clients
+outlive the service's original physical cleanup. Trading remains disabled,
+including direct hedge calls. **PG3 stays open** for configured trading routes,
+continuous maker replacement and R5 whole-product acceptance. See
+[service qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-r4-configured-native-observation-service-2026-10-20).
+
 **Latest PG3 release progress (2026-10-20):** migration 89 reuses the release
 command's own fully verified portfolio snapshot before its first financial write.
 Source-age and independent COMMIT checks are unchanged. The frozen affected

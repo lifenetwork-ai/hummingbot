@@ -11,6 +11,16 @@ This is a user-approved scope change, not a claim that the omitted histories wor
 Native PostgreSQL crash/pending recovery remains mandatory in R1. The concrete
 clean-cutover gates belong to [PG6](#pg6--import-backups-restoration-and-rollback).
 
+**Latest configured-service progress (2026-10-20):** a separate native offline
+observation entrypoint now constructs the actual controller/V2 runner, signed
+SPOT/SWAP financial listeners/history and PostgreSQL reporting. The native gate
+passes **95 cases**; the subsequently frozen shared-host/launcher/runtime-config
+gate passes **41 cases**. Trading remains disabled, including direct hedge calls.
+A shared-host shutdown ownership defect found during the PG1 audit is fixed:
+factory clients remain owned until the service's original physical close ends.
+See [configured observation service](#pg3-r4-configured-native-observation-service-2026-10-20).
+**R2.3/R4/R5 and PG3 remain open.**
+
 **Current PG3 checkpoint (2026-10-20):** migration 89 removes one repeated
 portfolio proof in claim release. The frozen `release_source` regression passes
 **163 cases**, zero failures/errors/skips, **492.10 s**; five audited 88→89
@@ -21,9 +31,10 @@ as part of this narrower gate. See [release proof reuse](#pg3-claim-release-proo
 
 **Fixed remaining PG3 exit — implementation and qualification:**
 
-- [ ] Install the native configured LIFE controller/headless service and actual
-  V2 trading assembly, including ordinary SPOT/SWAP financial listeners/history
-  and every enabled final route. Current startup still explicitly rejects PG.
+- [ ] Install the native configured LIFE trading service and actual V2 trading
+  assembly, including every enabled final route. A separate configured offline
+  observation service now constructs the native controller/V2 runner and both
+  ordinary SPOT/SWAP financial listeners/history; trading remains disabled.
 - [ ] Support continuous standing-maker replenishment with complete own-order,
   account and runner scope, capital/carry accounting and shared-SDK scheduling.
   The qualified first-quote profile currently requires quiescence.
@@ -68,10 +79,12 @@ After migration 88, the same 45-case foundation passes again in **87.09 s**;
 these are overlapping runs, not 90 distinct cases. All **10** migration-88
 OID/ACL/table-preservation, repeat-startup and predecessor-drift cases pass
 (17.03 s). Previously applied scripts remain unchanged.
-PG3 still needs actual configured service installation; backend selection is
-currently explicitly rejected in the LIFE controller and the headless launcher
-still installs only the File service. These are implementation gaps in R4,
-not deployment tests that can be silently deferred to PG9.
+PG3 still needs actual configured trading-service installation. Generic backend
+selection is explicitly rejected in the LIFE controller and the original File
+launcher. The separate native offline observation entrypoint described below
+constructs a controller/V2 runner with both financial event/history routes; it
+does not install a quote/hedge trading grant. Those trading gaps remain R4
+implementation requirements, not deployment tests deferred to PG9.
 
 **Latest pooled SPOT progress (2026-10-20):** original preallocation now waits
 for shared quota before a new capture; only that capture's original owning
@@ -841,6 +854,7 @@ failing integration result visible until the same current-source workflow passes
   - [x] R3.3: Durable markout/probe/stress/inventory/EXIT decisions, original spending and mode-specific permission at native prepare/arm/COMMIT gates; reads, late facts and restart cannot restore permission or refund budgets. Native safety/recovery probes, markout/bootstrap, reservation-derived stress/rolling capacity and original inventory/EXIT spending are qualified by the frozen 382-case closure gate below.
   - [x] R3.4: One frozen coupled native control/session/risk regression with File economic parity, cold readback/corruption/role refusals and process/backend/cancellation failures. The frozen 382-case native gate, 56 File mode tests and 38 audited upgrade cases pass; see the R3 closure qualification below. Configured source/runner installation remains R4.
 - [ ] **R4 — configured assembly:** install planner/reference/book/fee, complete runner/account scope, SPOT/SWAP final request guards, ingress/collectors and recorder/SDK history in the actual controller/service. Exit replay: start the configured PostgreSQL service with fake exchange; both products complete the selected workflow; a missing route fails startup without File fallback. PostgreSQL selection remains rejected until this passes.
+  - [x] Configured native offline observation service and process entrypoint: actual controller/V2 runner, both ordinary SPOT/SWAP financial listeners/history, cold reopen, migration-before-factory startup and joined shutdown. Native integration passes 95 cases; shared File/native host, CLI and runtime-config qualification passes 41 cases. Direct hedge trading remains refused. This completes the observation assembly only; see [service qualification](#pg3-r4-configured-native-observation-service-2026-10-20).
   - [x] Observation-only SPOT startup through the actual `StrategyV2Base`/orchestrator with signed native event/history and PostgreSQL reporting, no File/ORM fallback, and no executor-creation grant. The frozen 191-case native and 110-case File/core gates pass; see [observation runner qualification](#pg3-r4-postgresql-observation-runner-startup-2026-10-20).
   - [x] Explicit native quote journal → actual `OrderExecutor` → protected SPOT SDK → durable ACK, with original awaited dispatch acceptance, no retry/cold-readback send grant, and physical SDK shutdown tracking for both SPOT and hedge SWAP. The frozen 405-case native and 99-case File/SDK gates pass; see [executor application qualification](#pg3-r4-native-quote-executor-application-2026-10-20). Synthetic admission callbacks in this profile do not qualify the configured planner/reference/book/fee source or complete runner/account topology.
   - [x] Explicit signed ordinary joint financial intake: new SPOT/SWAP fills, approved LIFE/USDT flows and paid funding enter one original native atomic batch. The frozen 152-case gate below passes, including retained pending/HALT, replay, successive funding, unknown COMMIT, cancellation and cold database-runtime reopen. Historical independent-price callbacks remain owning-service inputs; mandatory both-product listeners/history and configured installation are still required.
@@ -5509,3 +5523,55 @@ file, real account, deployment or exchange request is introduced. The earlier
 626-case producer gate remains a historical RED run, not relabeled by this
 narrower regression. Actual configured service, continuous-maker composition and
 whole-product R5 still gate PG3 closure.
+
+## PG3 R4 configured native observation service (2026-10-20)
+
+`postgres.service.PgLiquidityService.open` constructs a native `ControllerBase`,
+the actual `StrategyV2Base` runner/orchestrator, signed joint account reader,
+both SDK financial listeners/history and PostgreSQL reporting. The selected
+profile requires both products, `OFFLINE_SIMULATION`, an existing imported
+account/controller/source configuration and an existing owner. It never seeds
+capital, grants activation or opens File financial storage/legacy ORM reporting.
+All operational limits are explicit; no financial/live defaults are introduced.
+
+`postgres.headless` provides a bounded strict YAML/JSON configuration reader and
+a trusted source-factory process entrypoint. Existing `LIFE_PG_*` environment
+settings configure the native pools. Enabled automatic migration finishes before
+factory import or connector construction. Configuration, namespace and connector
+mismatches fail startup. The schema through migration 89 already supplies the
+required tables; no new migration is needed.
+
+Observation readiness is separate from trading permission. The controller emits
+no orders, executor admission stays guarded, and the hedge application receives
+an always-false trading fence. A direct public hedge call is tested to refuse
+before cancellation, planning or wire submission. This service does not install
+the standalone quote producer/application or enable a selected trading mode.
+Unsupported reload revokes admission instead of replacing the imported model.
+
+Service close owns one shielded physical cleanup task. Caller cancellation and
+startup failure preserve ownership of listener, dispatcher, database and network
+cleanup. Review found a shared File/native host defect: a service-close timeout
+could release factory clients while the original physical close still ran. A
+red regression reproduced that ordering. The host now joins that original close
+before releasing clients; its outer shutdown deadline and original error remain.
+This is a corrected PG1 host audit finding, not an unresolved migration gap.
+
+Qualification uses disposable local PostgreSQL 16 ARM with 2 CPU / 1 GiB:
+
+- The frozen `run_postgres --suite service` gate passes **95 cases**, zero
+  failures/errors/skips, **443.94 s**. It includes actual V2/Clock startup,
+  complete dual financial history/event intake, exact money across cold reopen,
+  direct hedge refusal, source/context mutation and canceled startup/close.
+- After that gate, only the shared host and its host tests changed for the
+  shutdown ownership correction. The subsequently frozen shared File/native
+  host, CLI and runtime-config gate passes **41 cases**, zero failures/errors/
+  skips, **17.57 s**. CLI errors redact source/driver exception payloads.
+- These are scoped qualifications on the described revisions, not one combined
+  whole-product gate. No freshness/deadline, monetary budget or failure criterion
+  is relaxed. The earlier producer/release results retain their recorded scope.
+
+**PG3 remains open:** install the native quote/hedge and other selected final
+trading routes in the configured service, qualify continuous standing-maker
+replacement with complete account/runner scope, then pass the fixed R5
+whole-product parity/fault/restart/corruption/role and loaded-latency gate.
+The generic LIFE/File launcher still rejects PostgreSQL trading selection.

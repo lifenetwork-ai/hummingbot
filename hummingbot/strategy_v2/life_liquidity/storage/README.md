@@ -4373,3 +4373,64 @@ invocation for qualified release and preserves corruption/staleness refusals.
 This is not a tail-latency bound or complete configured-service qualification.
 The earlier 625/1 producer run remains recorded above; PG3 stays open for actual
 native service installation, continuous standing makers and whole-product R5.
+
+## Configured native observation service
+
+`postgres.service.PgLiquidityService.open` builds a native `ControllerBase`,
+actual `StrategyV2Base` runner, PostgreSQL reporting, authenticated account
+reader and both SPOT/SWAP financial callback/history routes. It owns one native
+runtime and does not open a File financial worker or legacy ORM recorder.
+The selected profile requires both products and `OFFLINE_SIMULATION`.
+
+Startup consumes an existing imported account, owner and immutable controller /
+recorder-source configuration. It never seeds money, approves a transition,
+activates risk or reconstructs SDK order tracking from reporting. Both complete
+native/signed financial history routes must qualify before constructing V2.
+Operational limits are required explicitly in `PgServiceLimits`; there are no
+implicit financial/live thresholds.
+
+This profile is **observation-only**: controller actions are empty, executor
+creation remains guarded, and the hedge adapter receives a separate always-false
+trading fence. Reporting readiness cannot authorize a direct hedge plan/send.
+The standalone native quote producer/executor kernels are not installed by this
+profile. Complete trading assembly, standing-maker cycles and R5 remain open.
+
+### Native process entrypoint
+
+```sh
+python -m hummingbot.strategy_v2.life_liquidity.storage.postgres.headless \
+  --config /absolute/path/native-observer.yml \
+  --source-factory trusted_local_module:build \
+  --env-file /absolute/path/.env \
+  --tick-seconds 1 --startup-timeout 30 --shutdown-timeout 10
+```
+
+The times above are process-operation examples, not trading policy defaults.
+`PgServiceConfig` requires `account_id`, `database_lineage`, the full `controller`
+(`storage_backend: postgres`), existing `owner`, ordered `sources` for `okx` and
+`okx_perpetual`, and every `limits` field. The bounded YAML reader also accepts
+JSON, rejects extra fields, and makes no implicit account/owner.
+
+The existing `LIFE_PG_*` settings supply the primary runtime pools/TLS/timeouts.
+`LIFE_AUTO_MIGRATE=true` awaits the numbered/checksummed migrations before any
+source-factory import or connector construction, using the separate migration
+identity. Disabled migration requires the existing complete schema; there is no
+File fallback. No additional schema/table is needed for this assembly.
+
+The trusted factory returns `PgHeadlessInputs`: both joined-lifecycle headless
+OKX SDKs, their matching `MarketDataProvider`, UTC clock and independent original
+historical fill/cashflow valuation callbacks. It may be an async context manager;
+the host closes the native service before releasing factory-owned clients.
+SIGINT/SIGTERM request host shutdown; the host revokes admission before awaiting
+cleanup, joins owned persistence/listener work, closes pools and awaits connector
+network shutdown. Canceling a close caller retains
+the one owned cleanup task. Unsupported native config reload revokes admission.
+The generic LIFE/File launcher still rejects PostgreSQL trading selection.
+
+The native `run_postgres --suite service` gate passes **95 cases** (443.94 s),
+including actual V2/Clock lifecycle, both financial routes, cold reopen and direct
+hedge refusal. A later shared-host correction retains factory clients after a
+service-close timeout until the original physical close task finishes. The
+subsequently frozen File/native host, CLI and runtime-config gate passes **41
+cases** (17.57 s). Both gates have zero failures/errors/skips. They qualify their
+respective affected routes; full configured trading and R5 remain open.

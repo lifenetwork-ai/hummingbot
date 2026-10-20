@@ -110,7 +110,17 @@ class FileServiceHost:
 
     async def _close_service_and_sources(self):
         try:
-            await self.service.close()
+            try:
+                await self.service.close()
+            except BaseException:
+                # A service can return its bounded shutdown error while its
+                # original close task still owns physical persistence/ACKs.
+                # The host's outer deadline remains bounded; this shielded
+                # cleanup retains factory clients until that owned task ends.
+                owned = getattr(self.service, '_close_task', None)
+                if isinstance(owned, asyncio.Task) and not owned.done():
+                    await asyncio.shield(owned)
+                raise
         finally:
             if self._source_stack is not None:
                 # Retain factory-owned clients until worker/ACK/reporting cleanup
