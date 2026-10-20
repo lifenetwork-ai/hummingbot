@@ -25,8 +25,8 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot_application imp
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot_intent import PgSpotQuoteIntent
 
 
-async def application(database, *, maker=D('.0005'), side='BUY', objective='profit_mm', price=None, subsidy=D('0')):
-    t = await market(database, clean=True, objective=objective)
+async def application(database, *, maker=D('.0005'), side='BUY', objective='profit_mm', price=None, subsidy=D('0'), shared_quota=False):
+    t = await market(database, clean=True, objective=objective, shared_quota=shared_quota)
     price = price if price is not None else D('.97') if side == 'BUY' else D('1.03')
     # Synthetic SPOT fee schedule: both possible fee currencies fit the
     # existing .001 shared fee allocation. SWAP terms/budgets are unchanged.
@@ -65,7 +65,8 @@ async def application(database, *, maker=D('.0005'), side='BUY', objective='prof
                 result = await original_authorize(request)
             except BaseException as error:
                 error.add_note(str(final_checks))
-                final_checks.append('authorize:' + type(error).__name__ + ':' + str(error))
+                final_checks.append(dict(stage='authorize', error=type(error).__name__ + ':' + str(error),
+                                         age_ms=(journal.clock().timestamp() - guard._action.executor_config.timestamp) * 1000))
                 raise
             if result is not True:
                 final_checks.append('authorize:denied')
@@ -108,9 +109,16 @@ async def application(database, *, maker=D('.0005'), side='BUY', objective='prof
 
     async def start():
         nonlocal create
-        allocated = await t.app.allocate_spot('quote-allocation', intent)
+        try:
+            allocated = await t.app.allocate_spot('quote-allocation', intent)
+        except BaseException as error:
+            report = t.joint._report
+            error.add_note(str(dict(stage='allocation', report_age_ms=None if report is None else
+                                    (journal.clock() - report.observed_at).total_seconds() * 1000,
+                                    healthy=t.financial._runtime._healthy, observation_inflight=t.financial._runtime._observation_inflight)))
+            raise
         assert allocated.capital.decision.allowed and allocated.carry.decision.allowed
-        create = source.capture_intent(intent)
+        create = await source.capture_intent_ready(intent)
         created.append(create)
         await journal.publish('quote-claim', (create,))
         active.add('quote1')
@@ -161,8 +169,160 @@ async def test_original_pending_sdk_order_can_collect_signed_final_market_then_a
 
 
 @pytest.mark.asyncio
-async def test_signed_liquidity_service_quote_keeps_exact_original_subsidy_at_prepare_and_arm(database):
-    x = await application(database, objective='liquidity_service', price=D('1'), subsidy=D('.01248'))
+@pytest.mark.parametrize('side', ['BUY', 'SELL'])
+@pytest.mark.parametrize('preload', [0, 4])
+async def test_pooled_spot_cycle_reaches_original_ack_without_renewing_capture_or_source_budgets(database, side, preload):
+    x = await application(database, shared_quota=True, side=side)
+    try:
+        for _ in range(preload):
+            assert await x.t.swap_connector.get_account_uid() == '12345'
+        await x.start()
+        try:
+            await x.app._pending['quote1']
+        except BaseException as error:
+            error.add_note(str(x.final_checks))
+            raise
+        await x.app.drain()
+        assert (await x.t.financial.attempt('quote1', x.t.cfg.binding)).state.value == 'ACKED'
+        assert len([r for r in x.t.requests if r['method'] == 'POST']) == 1
+        assert x.final_checks[-1]['result'] is True and 0 <= x.final_checks[-1]['age_ms'] <= 1000
+        captured_at = x.created[0].executor_config.timestamp
+        after_capture = [r for r in x.t.requests if r['url'].endswith('/account/config')
+                         and datetime.fromisoformat(r['headers']['OK-ACCESS-TIMESTAMP'].replace('Z', '+00:00')).timestamp() >= captured_at]
+        assert len(after_capture) == 5
+        snapshot = (await x.t.source.capital.frame(x.t.cfg.binding))['snapshot']
+        assert captured_at * 1000 - snapshot['observed_at_ms'] >= 2000  # Original money feed was not renewed.
+        x.t.quota.assert_binding()
+        with pytest.raises(StorageError, match='ALREADY_USED'):
+            await x.source.capture_intent_ready(x.intent)
+    finally:
+        await x.close()
+
+
+@pytest.mark.asyncio
+async def test_competing_uid_capacity_after_capture_refuses_http_and_retains_original_prepared_holds(database):
+    x = await application(database, shared_quota=True)
+    original, injected = x.source.guard, []
+
+    def guard(**kwargs):
+        value = original(**kwargs)
+        authorize = value.authorize
+
+        async def squeezed(request):
+            assert await x.t.swap_connector.get_account_uid() == '12345'
+            injected.append(True)
+            return await authorize(request)
+        value.authorize = squeezed
+        return value
+    x.source.guard = guard
+    try:
+        await x.start()
+        captured = x.created[0].executor_config.timestamp
+        with pytest.raises(StorageError):
+            await x.app._pending['quote1']
+        assert injected == [True]
+        assert not [r for r in x.t.requests if r['method'] == 'POST']
+        assert (await x.t.financial.attempt('quote1', x.t.cfg.binding)).state.value == 'PREPARED'
+        assert len(await x.t.source.capital.claims(x.t.cfg.binding)) == 1
+        assert x.created[0].executor_config.timestamp == captured
+        assert not x.t.financial._runtime.healthy
+    finally:
+        await x.close()
+
+
+@pytest.mark.asyncio
+async def test_pooled_pending_observation_exception_never_admits_a_financial_send_during_collection(database, monkeypatch):
+    x = await application(database, shared_quota=True)
+    reader = x.t.reader
+    original, reached = reader._capture_configuration, []
+
+    async def capture(proof):
+        guard = x.t.market_source._pending_quote
+        if guard is not None:
+            action = x.created[0]
+            with pytest.raises(StorageError, match='APPLICATION_STOPPED'):
+                x.app._sdk_check(action, x.wire, {'clOrdId': x.wire})
+            with pytest.raises(StorageError, match='PENDING_ORIGIN_REQUIRED'):
+                guard.pending_order(armed=True, observation=True)
+            assert guard.pending_order(observation=True).client_order_id == x.wire
+
+            async def foreign():
+                with pytest.raises(StorageError, match='QUOTA_PHASE_INVALID'):
+                    async with x.t.quota.collection(continuation=x.t.market_source):
+                        pytest.fail('A foreign task borrowed the original quote cycle')
+            await asyncio.create_task(foreign())
+            reached.append(True)
+        return await original(proof)
+    monkeypatch.setattr(reader, '_capture_configuration', capture)
+    try:
+        await x.start()
+        try:
+            await x.app._pending['quote1']
+        except BaseException as error:
+            error.add_note(str(x.final_checks))
+            error.add_note('observation injections: ' + str(reached))
+            raise
+        assert reached == [True, True]
+        assert len([r for r in x.t.requests if r['method'] == 'POST']) == 1
+    finally:
+        await x.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('fault', ['stop', 'cancel'])
+async def test_waiting_for_quota_never_creates_an_action_after_stop_or_cancellation(database, fault):
+    x = await application(database, shared_quota=True)
+    task = None
+    try:
+        with pytest.raises(StorageError, match='QUOTA_CAPTURE_REQUIRED'):
+            x.source.capture_intent(x.intent)
+        assert await x.t.swap_connector.get_account_uid() == '12345'
+        task = asyncio.create_task(x.source.capture_intent_ready(x.intent))
+        await asyncio.sleep(.03)
+        assert not task.done() and not x.source._intents
+        if fault == 'stop':
+            x.source.revoke()
+        else:
+            task.cancel()
+        with pytest.raises(asyncio.CancelledError if fault == 'cancel' else StorageError):
+            await asyncio.wait_for(task, 3)
+        assert not x.source._intents and not x.source._scheduled and x.source._capture_ready_task is None
+        assert not x.t.quota._collection_lock.locked()
+        assert not [r for r in x.t.requests if r['method'] == 'POST']
+    finally:
+        if task is not None and not task.done():
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+        await x.close()
+
+
+@pytest.mark.asyncio
+async def test_scheduled_capture_expiry_cannot_be_renewed_during_original_preparation(database, monkeypatch):
+    x = await application(database, shared_quota=True)
+    original = x.t.market_source.collect
+
+    async def delayed(**kwargs):
+        if kwargs.get('preparing_quote') is not None:
+            await asyncio.sleep(1.01)
+        return await original(**kwargs)
+    monkeypatch.setattr(x.t.market_source, 'collect', delayed)
+    try:
+        await x.start()
+        captured = x.created[0].executor_config.timestamp
+        with pytest.raises(StorageError, match='QUOTA_CAPTURE_EXPIRED'):
+            await x.app._pending['quote1']
+        assert x.created[0].executor_config.timestamp == captured
+        assert await x.t.financial.attempt('quote1', x.t.cfg.binding) is None
+        assert len(await x.t.source.capital.claims(x.t.cfg.binding)) == 1
+        assert not [r for r in x.t.requests if r['method'] == 'POST']
+    finally:
+        await x.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('shared_quota', [False, True])
+async def test_signed_liquidity_service_quote_keeps_exact_original_subsidy_at_prepare_and_arm(database, shared_quota):
+    x = await application(database, objective='liquidity_service', price=D('1'), subsidy=D('.01248'), shared_quota=shared_quota)
     try:
         await x.start()
         await x.app._pending['quote1']
@@ -384,7 +544,8 @@ async def test_fixed_account_first_pages_share_one_diagnostic_commit_before_any_
                     '/api/v5/trade/fills-history', '/api/v5/trade/orders-pending')
         assert batches.count(expected) == (1 if malformed else 2)
         pages = await t.reader._journal.read_collection(t.reader.collection_id, max_rows=128, max_bytes=4194304)
-        assert tuple(p.body['path'] for p in pages[:4]) == expected
+        assert pages[0].body['path'] == '/api/v5/account/config'
+        assert tuple(p.body['path'] for p in pages[1:5]) == expected
         assert not [r for r in t.requests if r['method'] != 'GET']
     finally:
         await t.financial.close()
@@ -440,7 +601,7 @@ async def test_initial_account_batch_cannot_publish_after_ambiguous_commit_or_pa
         assert t.market_source._capture is None and t.joint._report is None
         assert not t.reader._active and not t.market_source._busy and not t.financial._runtime.healthy
         pages = await t.reader._journal.read_collection(t.reader.collection_id, max_rows=128, max_bytes=4194304)
-        assert len(pages) == (4 if fault == 'commit_reply' else 1)
+        assert len(pages) == (5 if fault == 'commit_reply' else 2)  # Also retain the original opening config.
         assert not [r for r in t.requests if r['method'] != 'GET']
     finally:
         await t.financial.close()

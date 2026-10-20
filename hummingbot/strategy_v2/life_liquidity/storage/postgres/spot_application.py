@@ -103,8 +103,16 @@ class PgSpotQuoteApplication:
         task.add_done_callback(done)
         return wire
 
-    def _sdk_check(self, action, wire, body):
-        self._ready(action)
+    def _sdk_check(self, action, wire, body, *, observation_guard=None):
+        if observation_guard is None:
+            self._ready(action)
+        else:
+            self._original()
+            market = self.source._market_source
+            if (self._stopped or not self.journal.local_runner_create_fence(action) or market is None
+                    or self._guards.get(action.executor_config.id) is not observation_guard
+                    or not market.owns_pending_observation(observation_guard)):
+                raise StorageError('PG_SPOT_SDK_OBSERVATION_ORIGIN_REQUIRED')
         cfg = action.executor_config
         tracked = self.connector._order_tracker.active_orders.get(wire)
         if (tracked is None or tracked.client_order_id != wire or tracked.exchange_order_id is not None

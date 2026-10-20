@@ -149,8 +149,9 @@ def main():
                 'spot_allocation', 'spot_market_send', 'hedge_source', 'hedge_application', 'capital', 'carry')]
         if args.suite == 'spot_market_send':
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in (
-                'spot_allocation', 'spot_market_send', 'spot_market', 'spot_application', 'quote_transport', 'quote_account_source',
-                'runner_journal', 'joint_source', 'hedge_source', 'joint_observer', 'financial_source', 'provider_batch')]
+                'account_brackets', 'spot_allocation', 'spot_market_send', 'spot_market', 'spot_application', 'quote_transport', 'quote_account_source',
+                'runner_journal', 'joint_source', 'hedge_source', 'hedge_application', 'joint_observer', 'financial_source', 'provider_batch',
+                'collateral_source', 'joint_history', 'joint_events')]
             selectors.extend(str(selector / name) for name in ('test_shared_sdk_quota.py', 'test_spot_intent.py'))
         if args.suite == 'spot_market':
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in (

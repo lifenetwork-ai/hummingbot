@@ -85,6 +85,7 @@ class JointSourceReport:
     spot_market_monotonic: float | None = None
     account_observed_monotonic: float | None = None
     quote_policy: QuoteAdmissionPolicy | None = None
+    primary_observed_at: datetime | None = None
     trading_permission: bool = field(default=False, init=False)
 
 
@@ -285,7 +286,7 @@ class PgJointAccountReconciler(PgCollateralReconciler):
                 if fees.get((product, trade, ccy), D('0')) != fee or changes.get((product, trade, ccy), D('0')) != principal + fee:
                     raise StorageError('PG_JOINT_SOURCE_BILL_CONFLICT')
 
-    async def _round(self, scope, policy):
+    async def _round(self, scope, policy, *, check_algos=True):
         anchor = scope['ANCHOR']['anchor']['bill_id']
         # The four fixed first pages still cross the same signed SDK guard and
         # quota individually. Persist them together before ANY parsing; retain
@@ -346,12 +347,16 @@ class PgJointAccountReconciler(PgCollateralReconciler):
         if seen != set(expected):
             raise StorageError('PG_JOINT_SOURCE_PENDING_SCOPE')
         payloads['pending'] = pending
+        if check_algos:
+            await self._algos()
+        return orders, payloads
+
+    async def _algos(self):
         algo_routes = tuple(('/api/v5/trade/orders-algo-pending', {'ordType': kind, 'limit': '100'})
                             for kind in self.reader.SWAP_ALGO_TYPES)
         for page in await self.reader.read_batch(algo_routes):
             if page['data']:
                 raise StorageError('PG_JOINT_SOURCE_ALGO_UNOWNED')
-        return orders, payloads
 
     async def _runner(self, scope, preparing_quote=None):
         facts = await self.reader.source.journal._facts()
@@ -372,7 +377,7 @@ class PgJointAccountReconciler(PgCollateralReconciler):
             raise StorageError('PG_JOINT_SOURCE_RUNNER_SCOPE')
         return tuple(sorted(facts.executor_ids))
 
-    async def collect(self, *, include_hedge_market=False, include_spot_market=False, preparing_quote=None):
+    async def collect(self, *, include_hedge_market=False, include_spot_market=False, preparing_quote=None, quota_continuation=None):
         import json
         if type(include_hedge_market) is not bool or type(include_spot_market) is not bool:
             raise StorageError('PG_JOINT_SOURCE_CONFIG_INVALID')
@@ -385,7 +390,9 @@ class PgJointAccountReconciler(PgCollateralReconciler):
                 self.reader.source._credentials()
                 async with asyncio.timeout(self.reader.timeout_ms / 1000), AsyncExitStack() as stack:
                     if self.reader.source._quota is not None:
-                        await stack.enter_async_context(self.reader.source._quota.collection())
+                        await stack.enter_async_context(self.reader.source._quota.collection(continuation=quota_continuation))
+                    elif quota_continuation is not None:
+                        raise StorageError('PG_SHARED_QUOTA_CONTINUATION_INVALID')
                     # No native/provider proof has started before this quota
                     # wait. Pin the epoch before the first native read; any
                     # later ingress invalidates the complete collection.
@@ -394,20 +401,20 @@ class PgJointAccountReconciler(PgCollateralReconciler):
                         precision.prec = 160
                         original, view = await self._collection_native(include_spot_market)
                         scope = await self._scope(spot_policy=include_spot_market)
-                        async with self.reader.collection():
+                        async with self.reader.collection(account_brackets=True, quota_continuation=quota_continuation):
                             started = self.reader.started_at
                             market_json, market_at = None, None
                             spot_json, spot_at, spot_monotonic, account_monotonic = None, None, None, None
                             first_runner = await self._runner(scope, preparing_quote)
                             rounds, accounts, account_times = [], [], []
                             for _ in range(2):
-                                orders, payload = await self._round(scope, original['capital_policy'])
+                                orders, payload = await self._round(scope, original['capital_policy'], check_algos=False)
                                 account_times.append(utc(self.reader.source.journal.clock()))
                                 account_monotonic = time.monotonic()
-                                account, collateral = await self._sample(original['capital_policy'])
+                                account, collateral = await self._sample(original['capital_policy'], account_brackets=True)
                                 rounds.append({**payload, 'collateral': collateral})
                                 accounts.append(account)
-                            if first_runner != await self._runner(scope, preparing_quote) or rounds[0] != rounds[1] or accounts[0] != accounts[1]:
+                            if first_runner != await self._runner(scope, preparing_quote):
                                 raise StorageError('PG_JOINT_SOURCE_CHANGED')
                             if include_hedge_market:
                                 # One authenticated collection owns account and
@@ -425,6 +432,18 @@ class PgJointAccountReconciler(PgCollateralReconciler):
                                 spot_at, spot_monotonic = utc(self.reader.source.journal.clock()), time.monotonic()
                                 values = await self.reader.read_batch(SPOT_ROUTES)
                                 spot_json = json.dumps([v['data'] for v in values], sort_keys=True)
+                            # One complete, later sweep covers all seven algo
+                            # types after both independent financial rounds.
+                            # Never cache an empty response or omit a product.
+                            await self._algos()
+                        # Both original signed UID brackets also cover model
+                        # agreement. In particular, never discard a closing
+                        # account-mode change after the last financial sample.
+                        payload = rounds[1]['collateral']
+                        accounts[1], rounds[1]['collateral'] = self._parse_sample(
+                            self.reader.account_configuration(closing=True), payload['balance'], payload['positions'], original['capital_policy'])
+                        if rounds[0] != rounds[1] or accounts[0] != accounts[1]:
+                            raise StorageError('PG_JOINT_SOURCE_CHANGED')
                         current, after = await self._collection_native(include_spot_market)
                         self._match(original, view, current, after, accounts[0])
                         if scope != await self._scope(spot_policy=include_spot_market):
@@ -447,7 +466,8 @@ class PgJointAccountReconciler(PgCollateralReconciler):
                                                    tuple(sorted(scope['TRANSFER'])),
                                                    tuple((k, v['at_ms'], D(v['signed_amount'])) for k, v in sorted(scope['FUNDING'].items())), first_runner,
                                                    market_json, market_at, spot_json, spot_at, spot_monotonic,
-                                                   account_monotonic if include_spot_market else None, policy)
+                                                   account_monotonic if include_spot_market else None, policy,
+                                                   utc(datetime.fromisoformat(current['snapshot']['observed_at'])) if include_spot_market else None)
                         self._report, self._epoch = report, expected_epoch
                         return report
             except BaseException as error:

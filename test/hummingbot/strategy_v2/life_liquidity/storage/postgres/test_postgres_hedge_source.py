@@ -471,7 +471,7 @@ async def test_native_signed_source_composes_cancellation_plan_and_actual_sdk_se
         assert await database[0].fetchval('SELECT state FROM life_financial.send_attempts') == 'ACKED'
         assert t.source._qualified[3].available_edge_quote == 1
         if shared_quota:
-            assert len([r for r in t.requests[before:] if r['url'].endswith('/account/config')]) == 5
+            assert len([r for r in t.requests[before:] if r['url'].endswith('/account/config')]) == 3
         assert (await t.app.execute('qualified-hedge')).replayed
         assert len(t.session.sent) == 1
     finally:

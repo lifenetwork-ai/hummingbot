@@ -4165,7 +4165,10 @@ Replacing the market binding cannot fall back to a callback.
 
 `PgSpotQuoteIntent` fixes the owner, permanent intent/wire identity, side, level,
 quantity and price **before** capital/carry preallocation. After that preflight,
-`capture_intent()` creates a new V2 action once. Retries and changed action bytes
+`await capture_intent_ready()` waits for the original shared quota to be quiet,
+then creates a new V2 action once. Unpooled SDKs may also use the synchronous
+`capture_intent()`; that shortcut is refused for a pooled SDK. No old capital,
+feed or executor timestamp is renewed by the wait. Retries and changed action bytes
 cannot acquire a renewed timestamp. This method creates a DTO, not a reservation
 or trading permission; native allocation/admission remain mandatory.
 
@@ -4209,7 +4212,7 @@ passed through a replacement repository. Provider stamps and sequences stay
 unchanged. Only the known own writes may advance the report epoch/cut.
 
 This preflight creates neither a V2 capture nor an order. Require both capital
-and carry decisions to allow before calling `capture_intent()`. Denial,
+and carry decisions to allow before calling `capture_intent_ready()`. Denial,
 interruption or unknown COMMIT never refunds an allocated claim or authorizes
 a retry. Reusing the operation, including with different intent terms, requires
 reconciliation. Existing makers on either SDK are refused; this API does not
@@ -4223,7 +4226,7 @@ does not qualify a configured planner, production cost calibration, complete
 shared-SDK cycle scheduling or the controller/service. PostgreSQL backend
 selection remains rejected until configured R2.3/R4 and whole-service R5 pass.
 
-The frozen `spot_allocation` gate passes **196 cases**, zero failures/errors/skips:
+The earlier `spot_allocation` gate (`b0dc3313a`) passes **196 cases**, zero failures/errors/skips:
 18 allocation, 25 SPOT send, 44 hedge source, 19 hedge application, 36 capital and
 54 carry cases. BUY/SELL preallocation includes actual shared SDK quota; the
 coupled SPOT send cases remain unpooled. This does not establish whole-cycle
@@ -4231,5 +4234,52 @@ pooled scheduling or loaded-tail availability.
 
 Earlier frozen handoff regression: **344 pass / 2 fail** (346 cases). Two setup
 quotes expire at prepare COMMIT before their ACK/state fault injection; both
-refusal branches pass separately on unchanged source. This does not make the
-complete regression green or establish loaded-tail availability. Keep R5 open.
+refusal branches pass separately on unchanged source. The later 492-case
+current-source gate below passes the covered workflows; whole-product and
+loaded-tail availability in R5 remain required.
+
+## Pooled SPOT cycle and account-model brackets
+
+A scheduled quote can continue preparation and final collection without another
+quiet-window wait after its capture. This exception requires the original
+`PgSpotMarketSource`, original captured row, journal/application, current owning
+preparation or final-guard task, and still-live capture. Foreign/copy contexts
+cannot use it. Every physical GET/POST still acquires the unchanged original
+SDK and shared route limits. No log is deleted and no capacity is refunded or
+reserved. Unexpected competing traffic can still exhaust the budget; the old
+capture then expires and its native holds survive without a POST or retry grant.
+
+Each joint reconciliation now uses the two authenticated UID configuration
+responses as its opening/closing account-model observations. Both responses are
+journaled before model parsing, with original wall/monotonic times and identity
+seals. They replace two middle configuration requests; there are two independent
+financial/balance/position/history rounds as before. Closing `autoLoan`, account
+level or position-mode changes prevent publication. Ordinary joint monetary
+intake uses the same opening/closing model comparison before its atomic batch.
+Cold diagnostic rows, copied proof objects and prior collection tokens are not
+authenticated configuration observations.
+
+The risk collector checks all seven unfiltered algo-order types once, after
+both complete financial rounds and market reads, immediately before its closing
+UID/model bracket. It never caches an empty algo result or omits a type/product.
+The two post-capture collections therefore make fourteen algo GETs and, in the
+explicit first-quote profile, five configuration GETs including the separate
+SPOT final account-source UID check. Actual route limits still enforce all
+pagination, per-order work, background traffic and lower SDK share settings.
+
+During this original pending SDK order's financial observation, a narrowly
+scoped read may inspect its object even while observation-inflight blocks new
+risk. The default SDK send check still refuses that state. This read exception
+cannot arm an order, submit HTTP or be borrowed by a foreign task.
+
+Admission time is bounded by the earlier original local receipt and original
+primary snapshot time. A tolerated local clock lead therefore cannot create a
+future SQL admission fact. Provider/capture timestamps are unchanged and no age
+limit is widened; the conservative bound can only reduce remaining freshness.
+
+The frozen affected gate passes **492 cases**, zero failures/errors/skips,
+**1465.04 s**, with all **2431** Python/Cython/SQL hashes unchanged. Complete
+qualification and prior failed runs are recorded in the PG plan. This is
+an explicit, quiescent first-quote composition; configured price/cost production,
+standing-maker replenishment, historical workloads and controller/service
+installation retain their R2.3/R4/R5 exits.

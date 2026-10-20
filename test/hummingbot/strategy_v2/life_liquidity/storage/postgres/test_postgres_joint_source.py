@@ -138,7 +138,8 @@ async def test_original_swap_fee_and_funding_require_full_signed_scope_without_c
         assert await t.values[5].claims(t.cfg.binding) == claims
         assert all(row['method'] == 'GET' and row['data'] is None for row in t.requests)
         assert len([r for r in t.requests if r['url'].endswith('/orders-pending')]) == 2
-        assert len([r for r in t.requests if r['url'].endswith('/orders-algo-pending')]) == 14
+        algos = [r for r in t.requests if r['url'].endswith('/orders-algo-pending')]
+        assert len(algos) == 7 and {r['params']['ordType'] for r in algos} == set(t.reader.SWAP_ALGO_TYPES)
         assert not t.session.sent
     finally:
         await t.financial.close()

@@ -64,6 +64,17 @@ async def test_collection_waits_before_observations_without_erasing_used_capacit
 
 
 @pytest.mark.asyncio
+async def test_arbitrary_continuation_cannot_skip_the_quiet_window_or_acquire_http_capacity():
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.shared_sdk_quota import PgSharedSdkQuota
+    spot, swap, session = sdk_pair()
+    quota = PgSharedSdkQuota.install(spot=spot, swap=swap)
+    with pytest.raises(StorageError, match='CONTINUATION_INVALID'):
+        async with quota.collection(continuation=SimpleNamespace(assert_quota_cycle=lambda _: None)):
+            pytest.fail('Unqualified continuation was admitted')
+    assert not session.sent and not quota._shared._task_logs
+
+
+@pytest.mark.asyncio
 async def test_waiting_for_sdk_websocket_login_does_not_occupy_the_rest_collection_window():
     from hummingbot.connector.exchange.okx.okx_constants import WS_LOGIN_LIMIT_ID
     from hummingbot.strategy_v2.life_liquidity.storage.postgres.shared_sdk_quota import PgSharedSdkQuota

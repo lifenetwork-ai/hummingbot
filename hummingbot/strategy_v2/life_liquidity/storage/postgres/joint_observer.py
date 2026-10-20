@@ -200,7 +200,7 @@ class PgJointFinancialObserver:
                         cap = await self.source.capital.frame(self.binding)
                         carry = await self.source.carry.frame(self.binding)
                         scope = deepcopy(original_scope)
-                        async with self.reader.collection():
+                        async with self.reader.collection(account_brackets=True):
                             started = self.reader.started_at
                             runner = await self.collector._runner(scope)
                             helper = SpotAccountBillReader(self.reader, anchor_bill_id=context.policy.anchor_bill_id,
@@ -216,7 +216,7 @@ class PgJointFinancialObserver:
                             for _ in range(2):
                                 _, payload = await self.collector._round(scope, original['capital_policy'])
                                 stamps.append(int(utc(self.reader.source.journal.clock()).timestamp() * 1000))
-                                account, raw = await self.collector._sample(original['capital_policy'])
+                                account, raw = await self.collector._sample(original['capital_policy'], account_brackets=True)
                                 rounds.append((payload, raw))
                                 accounts.append(account)
                             if (rounds[0] != rounds[1] or accounts[0] != accounts[1]
@@ -229,6 +229,12 @@ class PgJointFinancialObserver:
                             # comparison and original cut checks. It needs no
                             # new public prices/terms or monetary source bundle.
                             data = [v['data'] for v in await self.reader.read_batch(ROUTES)] if changed else None
+                        payload, raw = rounds[1]
+                        accounts[1], closing_raw = self.collector._parse_sample(
+                            self.reader.account_configuration(closing=True), raw['balance'], raw['positions'], original['capital_policy'])
+                        rounds[1] = payload, closing_raw
+                        if rounds[0] != rounds[1] or accounts[0] != accounts[1]:
+                            raise StorageError('PG_JOINT_OBSERVER_SOURCE_CHANGED')
                         now = utc(self.reader.source.journal.clock())
                         self._original()
                         current, after = await self.collector._native()

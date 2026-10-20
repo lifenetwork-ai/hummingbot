@@ -172,9 +172,17 @@ class PgCollateralReconciler:
             ctx.prec = 160
             return value, self.financial._snapshot(value['snapshot'], self.binding)
 
-    async def _sample(self, policy):
-        config, balance, positions = await self.reader.read_batch((
-            ('/api/v5/account/config', {}), ('/api/v5/account/balance', {}), ('/api/v5/account/positions', {})))
+    async def _sample(self, policy, *, account_brackets=False):
+        if account_brackets:
+            config = self.reader.account_configuration()
+            balance, positions = await self.reader.read_batch((
+                ('/api/v5/account/balance', {}), ('/api/v5/account/positions', {})))
+        else:
+            config, balance, positions = await self.reader.read_batch((
+                ('/api/v5/account/config', {}), ('/api/v5/account/balance', {}), ('/api/v5/account/positions', {})))
+        return self._parse_sample(config, balance, positions, policy)
+
+    def _parse_sample(self, config, balance, positions, policy):
         if len(config['data']) != 1 or len(balance['data']) != 1:
             raise StorageError('PG_COLLATERAL_RESPONSE_INVALID')
         sample = parse_account(config['data'][0], balance['data'][0], positions['data'],

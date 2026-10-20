@@ -68,12 +68,13 @@ class PgQuoteRequestGuard:
         self._market_capture = None
         self._pending_sdk_order = None
 
-    def pending_order(self, native=None, *, armed=False):
+    def pending_order(self, native=None, *, armed=False, observation=False):
         """Original unsent SDK order only; SQL readback cannot mint this link."""
         from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot_application import PgSpotQuoteApplication
         app = self._journal._transport
         cfg, prep = self._action.executor_config, self._preparation.prepare
-        if (type(app) is not PgSpotQuoteApplication or app._guards.get(cfg.id) is not self
+        if (type(observation) is not bool or observation and armed
+                or type(app) is not PgSpotQuoteApplication or app._guards.get(cfg.id) is not self
                 or asyncio.current_task() is not self._authorization_task or not self._started or self._consumed
                 or app._pending.get(cfg.id) is None or app._pending[cfg.id].done()
                 or app._physical.get(cfg.id) is None or app._physical[cfg.id].done()):
@@ -83,7 +84,8 @@ class PgQuoteRequestGuard:
         if (entry.prepared is not self._preparation or not entry.accepted or entry.revoked
                 or entry.arm_started is not armed or not self._journal.local_runner_create_fence(self._action)):
             raise StorageError('PG_REQUEST_PENDING_ORIGIN_REQUIRED')
-        app._sdk_check(self._action, prep.client_order_id, {'clOrdId': prep.client_order_id})
+        app._sdk_check(self._action, prep.client_order_id, {'clOrdId': prep.client_order_id},
+                       observation_guard=self if observation else None)
         order = app.connector._order_tracker.active_orders[prep.client_order_id]
         if self._pending_sdk_order is None and not armed:
             self._pending_sdk_order = order

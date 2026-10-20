@@ -82,6 +82,32 @@ class PgSpotMarketSource:
                 and self._collection_task is asyncio.current_task() and self.runtime._observation_inflight == 1
                 and self.runtime._healthy and not self.runtime._closing)
 
+    def assert_quota_cycle(self, quota):
+        """Original scheduled quote phase only; real per-request quotas remain."""
+        self._original()
+        if (not self._busy or self._collection_task is not asyncio.current_task()
+                or quota is not self.reader.source._quota):
+            raise StorageError('PG_SPOT_MARKET_QUOTA_PHASE_INVALID')
+        if self._preparing_quote is not None:
+            app = self._preparing_quote
+            action = app.preparing_action()
+            source = app.source
+        elif self._pending_quote is not None:
+            guard = self._pending_quote
+            guard.pending_order(observation=self.reader._active)
+            action, source = guard._action, guard._account_source
+        else:
+            raise StorageError('PG_SPOT_MARKET_QUOTA_PHASE_INVALID')
+        if source._market_source is not self or source.journal is not self.reader.source.journal:
+            raise StorageError('PG_SPOT_MARKET_QUOTA_PHASE_INVALID')
+        source.assert_scheduled_capture(action, quota)
+
+    def owns_pending_observation(self, guard):
+        self._original()
+        return (self._busy and self._pending_quote is guard and self.reader._active
+                and self._collection_task is asyncio.current_task() and self.runtime._observation_inflight == 1
+                and self.runtime._healthy and not self.runtime._closing)
+
     @classmethod
     async def create(cls, hedge_source, **kwargs):
         self = cls(hedge_source, **kwargs)
@@ -281,7 +307,9 @@ class PgSpotMarketSource:
         try:
             async with asyncio.timeout(self.timeout_ms / 1000):
                 self._original()
-                report = await self.collector.collect(include_spot_market=True, preparing_quote=preparing_quote)
+                continuation = self if self.reader.source._quota is not None and (preparing_quote is not None or pending_quote is not None) else None
+                report = await self.collector.collect(include_spot_market=True, preparing_quote=preparing_quote,
+                                                      quota_continuation=continuation)
                 received, epoch = self._now(), self.collector._epoch
                 if report.quote_policy != self._policy:
                     raise StorageError('PG_SPOT_MARKET_POLICY_CHANGED')
@@ -379,7 +407,15 @@ class PgSpotMarketSource:
                 exit_value = (value / quantity).quantize(D('1e-28'), rounding=ROUND_FLOOR if side == 'BUY' else ROUND_CEILING)
                 book_at = datetime.fromtimestamp(capture.book.exchange_timestamp_ms / 1000, timezone.utc)
                 fee_at = datetime.fromtimestamp(capture.fees.exchange_timestamp_ms / 1000, timezone.utc)
-                return QuoteAdmissionFacts(self.binding, capture.received_at, book_at, book_at, fee_at,
+                primary_at = capture.report.primary_observed_at
+                if type(primary_at) is not datetime:
+                    raise StorageError('PG_SPOT_MARKET_PRIMARY_CLOCK_REQUIRED')
+                # Both clocks are already bracketed by the owning collector.
+                # Use their conservative lower bound. A tolerated SDK lead
+                # must never become a future financial fact at the primary;
+                # provider/capture timestamps and age limits are not renewed.
+                observed_at = min(capture.received_at, utc(primary_at))
+                return QuoteAdmissionFacts(self.binding, observed_at, book_at, book_at, fee_at,
                                            capture.reference.price_usdt, decimal(exit_value, positive=True),
                                            capture.book.bid, capture.book.ask, capture.fees.conservative_cost_rate('maker'),
                                            capture.fees.conservative_cost_rate('taker'), D('0'), carry, inventory, True, 'independent_market')

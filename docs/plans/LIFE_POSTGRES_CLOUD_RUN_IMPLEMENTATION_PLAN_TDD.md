@@ -26,6 +26,17 @@ Signed capture, existing-maker cancellation, actual SDK final scope, late truth
 and the source/ARM optimizations are recorded in [source composition](#pg3-r2-signed-hedge-source-composition-2026-10-19).
 **PG3 stays open and configured PostgreSQL stays rejected until R2, R4 and R5 are qualified.**
 
+**Latest pooled SPOT progress (2026-10-20):** original preallocation now waits
+for shared quota before a new capture; only that capture's original owning
+preparation/final tasks can continue its collections without waiting for a
+second quiet window. All SDK/shared route limits remain unchanged. Joint UID
+brackets also check the complete opening/closing account model, fixing a
+closing-model change that the old UID-only parser ignored. The frozen affected
+gate passes **492 cases**, zero failures/errors/skips, with unchanged source
+hashes. This qualifies the explicit first-quote profile; configured R2.3/R4 and
+whole-product R5 remain open. See
+[pooled-cycle qualification](#pg3-r2r4-pooled-quote-cycle-and-account-model-brackets-2026-10-20).
+
 **Latest native SPOT capital progress (2026-10-20):** paused, quiescent
 preallocation now uses the original signed account/market source for native
 capital reserve and a subsequent carry check. The actual SPOT executor/send
@@ -788,8 +799,8 @@ failing integration result visible until the same current-source workflow passes
   - [x] Explicit signed ordinary joint financial intake: new SPOT/SWAP fills, approved LIFE/USDT flows and paid funding enter one original native atomic batch. The frozen 152-case gate below passes, including retained pending/HALT, replay, successive funding, unknown COMMIT, cancellation and cold database-runtime reopen. Historical independent-price callbacks remain owning-service inputs; mandatory both-product listeners/history and configured installation are still required.
   - [x] Explicit dual SDK callback/history assembly: bounded original listeners on both SDKs, signed joint monetary intake, native/report-qualified IDs with atomic rollback of both caches, and actual V2 observation startup without File/ORM fallback. The frozen 266-case affected gate below passes with five audited migration cases and 29 contracts. Cold DB-runtime/listener reinstall and late in-flight funding retain HALT, money and claims; this is not a physical-process or configured trading-service qualification.
   - [x] Native SPOT market provenance implementation and new contract cases: signed metadata/book/account-fee capture joined to the original complete account report, independent own-depth subtraction and size-specific unwind facts. All 49 new cases and five audited upgrades pass. The broader 298-case run is **294 pass / 4 fail**, with one faulty expired-retry expectation subsequently corrected and its two physical-backend cases passing; three timing workflows remain open below. This does not install a planner, prepare a new shared claim or qualify a final pending SDK submission.
-  - [x] Implement the explicit native SPOT post-dispatch preparation and final market handoff: permanent business intent before capital/carry preallocation, new one-use runner capture afterwards, exact preparing executor scope, original pending SDK object/task, fresh signed final facts, original verified cuts and post-ARM synchronous refusal. The frozen 346-case regression is **344 pass / 2 fail**; two ACK/state fault injections are blocked by quote expiry during setup, and both pass separately on unchanged source. This checks implementation/branch behavior, not the full availability gate; the complete regression remains RED in R5. See [SPOT handoff qualification](#pg3-r4-native-spot-preparation-and-final-send-composition-2026-10-20).
-  - [ ] Install the qualified native quote producer with actual capital/carry and economic-cost sources, and qualify complete shared-SDK cycle scheduling before quote capture. Paused, quiescent SPOT preallocation now uses the original signed account/market source and native capital/carry callbacks; quote prices/costs and configured planning remain explicit inputs. The current allocation/send qualification is recorded below. This does not discharge complete cycle scheduling, standing-maker replenishment or service installation.
+  - [x] Implement the explicit native SPOT post-dispatch preparation and final market handoff: permanent business intent before capital/carry preallocation, new one-use runner capture afterwards, exact preparing executor scope, original pending SDK object/task, fresh signed final facts, original verified cuts and post-ARM synchronous refusal. The earlier frozen 346-case regression is **344 pass / 2 fail**; two ACK/state fault injections were blocked by quote expiry during setup. The later 492-case current-source pooled regression below passes these covered workflows. Whole-product availability in R5 remains required. See [SPOT handoff qualification](#pg3-r4-native-spot-preparation-and-final-send-composition-2026-10-20).
+  - [ ] Install the qualified native quote producer with actual capital/carry and economic-cost sources, and qualify complete shared-SDK cycle scheduling before quote capture. Paused, quiescent SPOT preallocation uses the original account/market source. The explicit first-quote pooled composition now waits before new capture and retains original phase/task/SDK guards; qualification is recorded below. Configured quote/cost production, standing-maker replenishment, competing/background/historical workloads and service installation remain required.
   - [ ] Actual configured LIFE controller/service, all enabled final trading routes, complete shared-account/SDK scope and both-product financial ingress/history. The observation profile does not discharge these requirements.
 - [ ] **R5 — current-source acceptance:** all supported File/native decisions and units agree; whole-runner restart/corruption/role tests and process/backend faults pass at capture, send, ACK, settlement, release and signed repair. Resolve the observed SQL statement timeout, then run the complete affected workflow on one frozen source revision. PG0 trust/anchor requirements remain explicit; neither local tests nor a database receipt prove exactly-once exchange delivery.
 
@@ -5202,3 +5213,95 @@ unpooled SDKs and all pass after replacing synthetic capital/carry callbacks.
 This does **not** qualify an entire pooled quote cycle or erase the earlier
 broader **344 pass / 2 fail** gate and retained loaded-tail failures. R2.3, R4,
 R5 and PG3 remain open until their complete current-source exits pass.
+
+## PG3 R2/R4: pooled quote cycle and account-model brackets (2026-10-20)
+
+`await PgQuoteAccountSource.capture_intent_ready(intent)` waits for the original
+shared SDK quota before making a **new**, one-use executor capture. The
+synchronous shortcut is refused for pooled SDKs. Stop/cancellation while waiting
+creates no action. Capital/carry retain their original observations and imported
+age limits; this wait never refreshes money feeds or an old executor timestamp.
+
+Only the original captured row, original native market source and owning
+preparation or final-SDK task may continue that scheduled quote's collections.
+Nested private reads retain every original SDK/shared route limit and context
+check. A foreign/copied source or arbitrary callback cannot bypass the initial
+quiet window. No quota logs are deleted and no capacity is reserved/refunded.
+Unexpected traffic still consumes real capacity: if it blocks the cycle, the
+original capture expires, no HTTP order is sent and its native holds survive.
+
+Each complete joint capture now consumes two authenticated configuration GETs,
+at the opening and closing UID brackets, instead of requesting configuration
+twice again between them. Their original wall/monotonic observations and
+process-local identity seals are retained; decoded diagnostics are persisted
+before account-model parsing. Copied proof objects, old collection tokens,
+missing pages, byte/read limits and ambiguous COMMITs cannot publish a report.
+The opening config page is now the first diagnostic row, so a lost first
+financial-page batch retains that config plus the received financial pages.
+Cold SQL readback still grants no feed/source authority.
+
+This fixes an actual omission: the previous closing request checked only UID
+and discarded a changed account level, position mode or `autoLoan` flag. The
+joint risk collector **and ordinary monetary intake** now reparse the last
+financial sample with the closing configuration and compare both complete
+account models before publication. The two independently fetched money,
+position, bills, fill and pending-order rounds remain intact.
+
+The risk collector performs one complete sweep of all seven unfiltered algo
+types **after** both financial rounds and market reads, before its closing UID.
+It checks every type/product, without cached emptiness. Two post-capture
+collections therefore use fourteen algo GETs; the explicit quiescent SPOT
+profile uses five configuration GETs, including its separate final source UID.
+Both remain within the original shared route limits in that bounded profile.
+Extra history pages, known orders and background traffic retain their original
+throttles and can still fail the unchanged age bounds.
+
+A pending SDK order can be inspected during its original financial observation
+even while observation-inflight blocks new risk. The exception requires that
+same original guard/task/SDK object. The normal financial SDK send check still
+refuses observation-inflight; read permission cannot arm, send or cross tasks.
+
+SPOT admission uses the earlier of its original local receipt and the primary's
+original signed-collection snapshot time. The collector already checks their
+clock envelope. This prevents a tolerated local clock lead from becoming a
+future financial fact at PostgreSQL, whose admission gate permits no future
+timestamp. Book, fee, reference and capture times remain unchanged; taking this
+lower bound can only shorten the remaining age allowance. A dedicated real
+PostgreSQL test exercises a 50 ms local lead within the existing 100 ms skew
+limit and checks the resulting admission against the actual primary clock.
+
+The expanded `run_postgres --suite spot_market_send` regression includes account
+brackets, allocation, actual SPOT execution, market/transport/journal, hedge
+application/source, observer/intake, collateral, provider batching, both-product
+SDK events/history and shared quota. Qualification logs/manifests stay under
+`/tmp`. No migration, live default, deadline or economic budget changes.
+
+Configured price/cost production, standing-maker replenishment, actual
+controller/service installation and complete current-source R5 remain required.
+This explicit first-quote profile does not close PG3 or enable backend selection.
+
+**Qualification (base `b0dc3313a`):** the frozen expanded gate passes **492
+cases**, **0 failures / 0 errors / 0 skips**, six existing Pydantic warnings,
+**1465.04 s** (`/tmp/life-pg3-pooled-cycle-v3-qualified`). All **2431**
+Python/Cython/SQL hashes are unchanged before and after the run. The disposable
+PostgreSQL container is removed. Both sides, original pooled SDK limits with
+prior quota use, exact subsidy holds, competing traffic, stop/cancellation,
+expired-capture refusal, account-model changes, signed history and late monetary
+truth are included. Previously blocked injection cases reach their intended
+refusal, and the original SWAP send/ACK cases also pass.
+
+Earlier results remain part of this qualification history. The first expanded
+run was interrupted after **55 pass / 6 fail** (208.19 s), not a full gate: two
+SPOT ARM workflows expired, one pooled source context failed before allocation,
+and three diagnostic-prefix assertions still expected the old unjournaled UID.
+Physical ARM transactions took 85.52 and 159.51 ms; neither was a statement
+timeout. The next frozen run completed **487 pass / 4 fail** (1507.61 s): three
+assertions expected the old config/algo request counts, and one admission failed
+before its ingress injection. The latter reason also covers future timestamps;
+that old sample does not establish which age branch fired. The independently
+reproduced primary/local-clock incompatibility is fixed by the conservative
+time bound above. Counts now assert every required algo type, and the ingress
+test still requires its exact intended reason rather than accepting an earlier
+setup failure. The final gate includes all these cases; no timeout, freshness
+limit or economic budget was widened. This is one qualified bounded profile,
+not a claim that all loaded histories meet the same deadline.

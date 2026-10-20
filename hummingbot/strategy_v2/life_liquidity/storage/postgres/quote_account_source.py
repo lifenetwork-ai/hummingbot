@@ -8,7 +8,9 @@ import asyncio
 import base64
 import hashlib
 import hmac
+import json
 import time
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import localcontext
 from urllib.parse import urlencode, urlsplit
@@ -53,6 +55,14 @@ class _UidRequestGuard:
         return True
 
 
+@dataclass(frozen=True)
+class _UidConfiguration:
+    source: object
+    body_json: str
+    observed_at: datetime
+    started_monotonic: float
+
+
 class PgQuoteAccountSource:
     def __init__(self, journal, *, connector, admission_source=None, market_source=None, max_uid_age_ms, max_auth_age_ms,
                  max_clock_skew_ms, max_pending, collection_timeout_ms):
@@ -69,6 +79,9 @@ class PgQuoteAccountSource:
         self._bound_market_source = market_source
         self._intents = {}
         self._bound_intents = self._intents
+        self._scheduled = {}
+        self._bound_scheduled = self._scheduled
+        self._capture_ready_task = None
         if market_source is not None:
             from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot_market import PgSpotMarketSource
             if (type(market_source) is not PgSpotMarketSource or market_source.repository is not journal.repository
@@ -90,6 +103,7 @@ class PgQuoteAccountSource:
         self._policy, self._uid_at, self._uid_monotonic = None, None, None
         self._revoked, self._pending = False, 0
         self._uid_lock = asyncio.Lock()
+        self._configuration_proof = None
         self._quota = PgSharedSdkQuota.for_connector(connector)
         self._credentials()
 
@@ -129,6 +143,8 @@ class PgQuoteAccountSource:
         from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot_intent import PgSpotQuoteIntent
         from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction
         self._credentials()
+        if self._quota is not None and self._capture_ready_task is not asyncio.current_task():
+            raise StorageError('PG_ACCOUNT_QUOTA_CAPTURE_REQUIRED')
         if (self._market_source is None or self._policy is None or type(intent) is not PgSpotQuoteIntent
                 or intent.owner != self.journal.owner or intent.controller_id != self.journal.controller_id
                 or intent.config_version != self.journal.config_version or not self.journal._ready()
@@ -149,7 +165,40 @@ class PgQuoteAccountSource:
                                   price=intent.price_usdt, level_id=str(intent.level), execution_strategy=ExecutionStrategy.LIMIT_MAKER)
         action = CreateExecutorAction(controller_id=intent.controller_id, executor_config=cfg)
         self._intents[intent.intent_id] = intent, self.journal._capture(action)
+        if self._quota is not None:
+            self._scheduled[intent.intent_id] = self._intents[intent.intent_id][1]
         return action
+
+    async def capture_intent_ready(self, intent):
+        """Wait before a NEW capture, never renew capital, feeds or an action."""
+        from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot_intent import PgSpotQuoteIntent
+        self._credentials()
+        if self._market_source is None:
+            raise StorageError('PG_ACCOUNT_MARKET_INTENT_MISMATCH')
+        if type(intent) is not PgSpotQuoteIntent or intent.intent_id in self._intents:
+            raise StorageError('PG_ACCOUNT_MARKET_INTENT_ALREADY_USED_OR_INVALID')
+        if self._capture_ready_task is not None:
+            raise StorageError('PG_ACCOUNT_SOURCE_BACKPRESSURE')
+        if self._quota is None:
+            return self.capture_intent(intent)
+        self._capture_ready_task = asyncio.current_task()
+        try:
+            async with asyncio.timeout(self._market_source.timeout_ms / 1000), self._quota.collection():
+                return self.capture_intent(intent)
+        finally:
+            self._capture_ready_task = None
+
+    def assert_scheduled_capture(self, action, quota):
+        self._credentials()
+        row = self.journal._capture(action)
+        original = self._intents.get(row.intent_id)
+        if (quota is None or quota is not self._quota or original is None
+                or self._scheduled.get(row.intent_id) is not original[1] or original[1] != row
+                or not self.journal.local_runner_create_fence(action)):
+            raise StorageError('PG_ACCOUNT_QUOTA_CAPTURE_REQUIRED')
+        age = utc(self.journal.clock()).timestamp() - action.executor_config.timestamp
+        if not 0 <= age * 1000 <= self._policy.max_capture_age_ms:
+            raise StorageError('PG_ACCOUNT_QUOTA_CAPTURE_EXPIRED')
 
     def wire_for_action(self, action):
         self._credentials()
@@ -161,7 +210,8 @@ class PgQuoteAccountSource:
 
     def _credentials(self):
         c, a = self._connector, self._auth
-        if self._market_source is not self._bound_market_source or self._intents is not self._bound_intents:
+        if (self._market_source is not self._bound_market_source or self._intents is not self._bound_intents
+                or self._scheduled is not self._bound_scheduled):
             self._revoked = True
             raise StorageError('PG_ACCOUNT_MARKET_SOURCE_CHANGED')
         try:
@@ -223,14 +273,21 @@ class PgQuoteAccountSource:
         return (0 <= age <= self.max_uid_age_ms and 0 <= elapsed <= self.max_uid_age_ms
                 and abs(age - elapsed) <= self.max_clock_skew_ms)
 
-    async def _uid(self, *, force=False):
+    async def _uid(self, *, force=False, configuration=False):
+        if type(configuration) is not bool or configuration and force is not True:
+            raise StorageError('PG_ACCOUNT_UID_CONFIGURATION_INVALID')
         async with self._uid_lock:
             self._credentials()
             if not force and self._uid_fresh():
                 return
             guard = _UidRequestGuard(self)
             before, started = utc(self.journal.clock()), time.monotonic()
-            uid = await self._connector.get_account_uid(request_send_guard=guard)
+            self._configuration_proof = None
+            if configuration:
+                response = await self._connector._api_get(path_url=CONSTANTS.OKX_ACCOUNT_CONFIG_PATH,
+                                                          is_auth_required=True, request_send_guard=guard)
+            else:
+                uid = await self._connector.get_account_uid(request_send_guard=guard)
             if not guard.consumed:
                 raise StorageError('PG_ACCOUNT_UID_TRANSPORT_UNQUALIFIED')
             self._credentials()
@@ -238,10 +295,27 @@ class PgQuoteAccountSource:
             after, elapsed = utc(self.journal.clock()), time.monotonic() - started
             if after < before or abs((after - before).total_seconds() - elapsed) * 1000 > self.max_clock_skew_ms:
                 raise StorageError('PG_ACCOUNT_CLOCK_UNQUALIFIED')
+            if configuration:
+                if (type(response) is not dict or response.get('code') != '0' or type(response.get('data')) is not list
+                        or len(response['data']) != 1 or type(response['data'][0]) is not dict):
+                    raise StorageError('PG_ACCOUNT_UID_RESPONSE_INVALID')
+                uid = response['data'][0].get('uid')
+                if type(uid) is not str or not uid.isascii() or not uid.isdecimal():
+                    raise StorageError('PG_ACCOUNT_UID_RESPONSE_INVALID')
             if uid != self.journal.binding.account_uid:
                 self._revoked = True
                 raise StorageError('PG_ACCOUNT_UID_MISMATCH')
             self._uid_at, self._uid_monotonic = utc(self.journal.clock()), time.monotonic()
+            if configuration:
+                try:
+                    wire = json.dumps(response, ensure_ascii=False, allow_nan=False, separators=(',', ':'))
+                except (TypeError, ValueError):
+                    raise StorageError('PG_ACCOUNT_UID_RESPONSE_INVALID') from None
+                if len(wire.encode('utf-8')) > 65536:
+                    raise StorageError('PG_ACCOUNT_UID_RESPONSE_BOUND')
+                proof = _UidConfiguration(self, wire, before, started)
+                self._configuration_proof = proof
+                return proof
 
     async def capture(self, request, *, guard=None):
         self._request(request, RESTMethod.POST, self.endpoint_url)

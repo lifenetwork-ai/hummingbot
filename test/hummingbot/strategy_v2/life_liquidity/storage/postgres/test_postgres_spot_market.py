@@ -79,6 +79,24 @@ async def test_signed_market_capture_retains_prices_fees_and_account_without_mon
 
 
 @pytest.mark.asyncio
+async def test_sdk_clock_lead_cannot_stamp_admission_after_its_original_primary_observation(database, monkeypatch):
+    from datetime import timedelta
+    t = await market(database)
+    clock = t.reader.source.journal.clock
+    monkeypatch.setattr(t.reader.source.journal, 'clock', lambda: clock() + timedelta(milliseconds=50))
+    try:
+        capture = await t.market_source.collect()
+        facts = t.market_source.admission(capture, side='BUY', quantity_base=D('1'), carry_cost_usdt=D('0'), inventory_risk_usdt=D('0'))
+        assert facts.observed_at <= await database[0].fetchval('SELECT clock_timestamp()')
+        assert facts.observed_at <= capture.report.primary_observed_at
+        assert facts.observed_at <= capture.received_at
+        assert capture.received_at > capture.report.primary_observed_at
+        assert capture.book.exchange_timestamp_ms == t.spot_at
+    finally:
+        await t.financial.close()
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize('rounding_ms', [D('.5'), D('101')])
 async def test_native_policy_json_stamp_obeys_configured_clock_skew_including_millisecond_rounding(database, monkeypatch, rounding_ms):
     from datetime import timedelta
@@ -142,7 +160,7 @@ async def test_unwind_uses_opposite_executable_depth_with_adverse_rounding_and_o
         assert (facts.carry_cost_usdt, facts.inventory_risk_usdt) == (D('.1'), D('.2'))
         assert facts.reference_price_usdt == 1
         assert facts.maker_fee_rate == D('.001') and facts.exit_fee_rate == D('.002')
-        assert facts.observed_at == capture.received_at
+        assert facts.observed_at == min(capture.received_at, capture.report.primary_observed_at)
         assert int(facts.reference_at.timestamp() * 1000) == int(facts.exit_value_at.timestamp() * 1000) == t.spot_at
         repeated = t.market_source.admission(capture, side=side, quantity_base=D('6'),
                                              carry_cost_usdt=D('.1'), inventory_risk_usdt=D('.2'))

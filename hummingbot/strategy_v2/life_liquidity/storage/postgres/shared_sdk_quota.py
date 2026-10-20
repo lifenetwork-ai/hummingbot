@@ -238,7 +238,7 @@ class PgSharedSdkQuota:
                 self._lease.reset(token)
 
     @asynccontextmanager
-    async def collection(self):
+    async def collection(self, *, continuation=None):
         """Wait for a quiet REST window before taking any fresh source facts.
 
         No log is deleted, no capacity is reserved/refunded and original SDK
@@ -247,7 +247,16 @@ class PgSharedSdkQuota:
         reads retain their original limits and share this process-local lease.
         A collection too large for its limits must still expire/fail closed.
         """
+        if continuation is not None:
+            from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot_market import PgSpotMarketSource
+            if type(continuation) is not PgSpotMarketSource:
+                raise StorageError('PG_SHARED_QUOTA_CONTINUATION_INVALID')
+            continuation.assert_quota_cycle(self)
         async with self._access():
+            if continuation is not None:
+                continuation.assert_quota_cycle(self)
+                yield
+                return
             while True:
                 self.assert_binding()
                 now = Decimal(str(time.time()))
