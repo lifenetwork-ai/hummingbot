@@ -17,6 +17,22 @@ def intent(t, *, side='BUY', quantity='1'):
 
 
 @pytest.mark.asyncio
+async def test_allocation_uses_one_original_reserve_and_one_complete_carry_check(database):
+    t = await market(database, clean=True)
+    try:
+        result = await t.app.allocate_spot('single-source-allocation', intent(t))
+        assert result.capital.decision.allowed and result.carry.decision.allowed
+        rows = await database[0].fetch('''SELECT command->>'kind' AS kind,command#>>'{command,kind}' AS action
+            FROM life_financial.operations WHERE account_id=$1
+            AND command->>'kind' IN ('SHARED_CAPITAL','CARRY_CHECK') ORDER BY committed_version''', t.cfg.account_id)
+        assert [(r['kind'], r['action']) for r in rows] == [('SHARED_CAPITAL', 'RESERVE'), ('CARRY_CHECK', None)]
+        assert len(await t.source.capital.claims(t.cfg.binding)) == 1
+        assert not [r for r in t.requests if r['method'] == 'POST']
+    finally:
+        await t.financial.close()
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize('side', ['BUY', 'SELL'])
 @pytest.mark.parametrize('shared_quota', [False, True])
 async def test_signed_allocation_keeps_original_sources_and_precedes_action_capture(database, side, shared_quota):
@@ -206,7 +222,9 @@ async def test_allocation_cannot_renew_an_expired_signed_observation(database, m
             await t.app.allocate_spot('stale', intent(t))
         assert len(stamps) == 1
         frame = await t.source.capital.frame(t.cfg.binding)
-        assert frame['snapshot']['observed_at_ms'] == stamps[0]
+        # The failed RESERVE is the first financial effect in this path; its
+        # expired original source cannot publish even an observation snapshot.
+        assert frame['snapshot'] is None
         assert not await t.source.capital.claims(t.cfg.binding)
         assert not t.reader.source.journal._entries and not [r for r in t.requests if r['method'] != 'GET']
     finally:

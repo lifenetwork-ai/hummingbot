@@ -191,12 +191,16 @@ class PgJointFinancialObserver:
                         if self.reader.source._quota is not None:
                             await stack.enter_async_context(self.reader.source._quota.collection())
                         epoch = self.runtime._ingress_epoch + 1
-                        original, view = await self.collector._native()
-                        original_scope = await self.collector._scope()
+                        original, view, original_scope = await self.collector._collection_context(False)
                         context = await self.context.observation_context(self.binding)
                         frame = await self.batch.frame(self.binding)
                         if context.cut != view.cut or context.pending or any(v['state'] != 'APPLIED' for v in frame['batches']):
-                            raise StorageError('PG_JOINT_OBSERVER_RECOVERY_REQUIRED')
+                            error = StorageError('PG_JOINT_OBSERVER_RECOVERY_REQUIRED')
+                            error.add_note('revisions=' + str((view.cut.checkpoint.revision, context.cut.checkpoint.revision))
+                                           + ', cut_changed=' + str(context.cut != view.cut)
+                                           + ', pending=' + str(context.pending)
+                                           + ', pending_batch=' + str(any(v['state'] != 'APPLIED' for v in frame['batches'])))
+                            raise error
                         cap = await self.source.capital.frame(self.binding)
                         carry = await self.source.carry.frame(self.binding)
                         scope = deepcopy(original_scope)
@@ -237,11 +241,22 @@ class PgJointFinancialObserver:
                             raise StorageError('PG_JOINT_OBSERVER_SOURCE_CHANGED')
                         now = utc(self.reader.source.journal.clock())
                         self._original()
-                        current, after = await self.collector._native()
+                        current, after, current_scope = await self.collector._collection_context(False)
                         if (view.cut != after.cut or original['positions'] != current['positions']
-                                or original_scope != await self.collector._scope() or self.runtime._ingress_epoch != epoch
+                                or original_scope != current_scope or self.runtime._ingress_epoch != epoch
                                 or not 0 <= (now - started).total_seconds() * 1000 <= self.collector.max_age_ms):
-                            raise StorageError('PG_JOINT_OBSERVER_SOURCE_CHANGED')
+                            error = StorageError('PG_JOINT_OBSERVER_SOURCE_CHANGED')
+                            error.add_note('cut_changed=' + str(view.cut != after.cut)
+                                           + ', revisions=' + str((view.cut.checkpoint.revision, after.cut.checkpoint.revision))
+                                           + ', changed_sections=' + ','.join(sorted(
+                                               k for k in original['snapshot'].keys() | current['snapshot'].keys()
+                                               if k not in ('digest', 'observed_at')
+                                               and original['snapshot'].get(k) != current['snapshot'].get(k)))
+                                           + ', positions_changed=' + str(original['positions'] != current['positions'])
+                                           + ', scope_changed=' + str(original_scope != current_scope)
+                                           + ', ingress_changed=' + str(self.runtime._ingress_epoch != epoch)
+                                           + ', source_age_ms=' + str(round((now - started).total_seconds() * 1000, 3)))
+                            raise error
                         spot, swap, flows = self._commands(original_scope, scope, context, now)
                         new_funding = set(scope['FUNDING']) - set(original_scope['FUNDING'])
                         if not (spot or swap or flows or new_funding):

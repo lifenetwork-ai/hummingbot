@@ -4485,3 +4485,35 @@ both products. One-use operation lookup preflights and history reads finish
 before a genuinely new signed collection; they retain original task, repository,
 cut and ingress identity. They grant no send permission and cannot restore a
 concurrent replay as a fresh financial grant.
+
+### Native maker-cycle work (2026-10-21, not yet qualified)
+
+The separate offline service accepts `await service.cancel_makers((intent_id,))`
+for explicit original makers. It serializes against quote/cancel work before its
+first primary await, joins original executor/SDK events, confirms signed native
+terminal state, refreshes capital/carry/NAV, retires the shared claim, reconciles
+and archives the original runner action. A cancellation ACK or stopped executor
+never refunds money or grants repeat HTTP. Completed old-target replay is a
+historical reply; interrupted target operations require reconciliation.
+
+This is still development code. One instrumented full replacement replay now
+passes after snapshot-local shared proof reuse, and the uninstrumented affected
+regression also passes its configured-cycle cases; earlier capture-expiry failures
+remain recorded and loaded-tail acceptance is open. Continuous scheduling and complete PG3
+acceptance are unfinished. No production/backend-selection eligibility follows.
+
+Migrations 90–91 retain the native verification queries while allowing backend
+query-plan reuse, and give the public state cut an explicit persistent v2 hash.
+Time-dependent carry readiness and its redundant recovery summary remain in the
+returned snapshot but no longer change its persisted-data digest. All durable
+inputs, verification/pending flags and money are hashed. Expired carry still
+denies native prepare/ARM/COMMIT, and the private repair-view rehash uses the same
+cut protocol. Stop old runtimes during the cut-format upgrade; read new current
+cuts without rewriting original operation/replay arguments. Details and retained
+development failures are in the PostgreSQL implementation plan.
+
+Migration 92 reuses the shared/carry verdicts only inside the same STABLE primary
+snapshot and through an owner-only helper. Shared capital with a head already
+verifies release history; no-head early returns retain the independent release
+check. Standalone verifiers, write commands and deferred COMMIT checks remain
+complete. No cached verdict or new runtime grant is installed.

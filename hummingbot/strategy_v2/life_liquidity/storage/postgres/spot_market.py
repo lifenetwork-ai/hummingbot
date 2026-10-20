@@ -198,6 +198,8 @@ class PgSpotMarketSource:
         for evidence in report.orders:
             native = json.loads(evidence.native_json)
             order = None if evidence.exchange_json is None else json.loads(evidence.exchange_json)
+            if native.get('retired_spot') is True and native['product'] == 'SPOT' and native['state'] == 'TERMINAL' and order is None:
+                continue  # No remaining public depth; SDK scope below must agree.
             if native['state'] == 'ABORTED_BEFORE_SEND' and order is None:
                 continue
             if pending is not None and native['wire_id'] == pending.client_order_id:

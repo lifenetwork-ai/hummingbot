@@ -14,6 +14,9 @@ class JointSourceFence:
         if type(collector) is not PgJointAccountReconciler or type(report) is not JointSourceReport or report is not collector._report:
             raise StorageError('PG_JOINT_SOURCE_REPORT_REVOKED')
         collector.check_report(report, epoch=collector._epoch)
+        if any(json.loads(v.native_json)['intent_id'] == intent_id and json.loads(v.native_json).get('retired_spot') is True
+               for v in report.orders):
+            raise StorageError('PG_JOINT_SOURCE_HISTORY_ONLY')
         if report.runner_executor_ids:
             raise StorageError('PG_JOINT_SOURCE_RUNNER_NOT_QUIESCENT')
         self.collector, self.report = collector, report

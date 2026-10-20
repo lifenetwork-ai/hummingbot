@@ -27,8 +27,10 @@ _SCOPE_QUERY = r"""WITH candidates AS MATERIALIZED (
         'intent_id',t.intent_id,'prepare_operation_id',t.operation_id,'wire_id',t.wire_id,'product',t.product,
         'side',t.side,'quantity',t.quantity::text,'price',t.price::text,'state',t.state,
         'exchange_order_id',t.exchange_order_id,'session_id',t.session_id,'epoch',t.epoch,
-        'position_action',d.permit->>'position_action') AS body
+        'position_action',d.permit->>'position_action',
+        'retired_spot',t.product='SPOT' AND r.account_id IS NOT NULL) AS body
     FROM life_financial.send_attempts t LEFT JOIN life_financial.swap_preparations d USING(account_id,intent_id)
+    LEFT JOIN life_financial.shared_claim_releases r USING(account_id,intent_id)
     WHERE t.account_id=$1
     UNION ALL
     SELECT 'SPOT_FILL',trade_id::text,jsonb_build_object('intent_id',intent_id,'exchange_order_id',exchange_order_id,'fill',observation)
@@ -99,30 +101,37 @@ class PgJointAccountReconciler(PgCollateralReconciler):
         self.max_pages, self.max_age_ms = max_pages, max_age_ms
         self._lock, self._report = asyncio.Lock(), None
 
+    @staticmethod
+    def _scope_sql(spot_policy):
+        query = _SCOPE_QUERY
+        if spot_policy:
+            # Exact decimal strings, in the same primary scope read. The
+            # surrounding native before/after cut already includes this
+            # policy; no extra full spot_state pass is needed here.
+            query = '''SELECT s.*,(SELECT jsonb_build_object(
+                'policy_hash',p.policy_hash,'objective',p.objective,
+                'min_net_edge_bps',p.min_net_edge_bps::text,'uncertainty_bps',p.uncertainty_bps::text,
+                'tick_size',p.tick_size::text,'lot_size',p.lot_size::text,'min_size',p.min_size::text,
+                'max_fact_age_ms',p.max_fact_age_ms,'max_reference_age_ms',p.max_reference_age_ms,
+                'max_fee_age_ms',p.max_fee_age_ms,'max_capture_age_ms',p.max_capture_age_ms)
+                FROM life_financial.spot_quote_admission_policies p WHERE p.account_id=$1) AS quote_policy,
+                (SELECT CASE WHEN octet_length(c.body::text)<=65536 THEN c.body->'spot_quote_producer' END
+                    FROM life_financial.configurations c JOIN life_financial.accounts a
+                    ON a.account_id=c.account_id AND a.config_hash=c.config_hash AND a.policy_hash=c.policy_hash
+                    WHERE a.account_id=$1) AS quote_producer
+                FROM (''' + query + ') s'
+        return query
+
     async def _scope(self, *, spot_policy=False):
         self._original()
 
         async def read(c):
-            query = _SCOPE_QUERY
-            if spot_policy:
-                # Exact decimal strings, in the same primary scope read. The
-                # surrounding native before/after cut already includes this
-                # policy; no extra full spot_state pass is needed here.
-                query = '''SELECT s.*,(SELECT jsonb_build_object(
-                    'policy_hash',p.policy_hash,'objective',p.objective,
-                    'min_net_edge_bps',p.min_net_edge_bps::text,'uncertainty_bps',p.uncertainty_bps::text,
-                    'tick_size',p.tick_size::text,'lot_size',p.lot_size::text,'min_size',p.min_size::text,
-                    'max_fact_age_ms',p.max_fact_age_ms,'max_reference_age_ms',p.max_reference_age_ms,
-                    'max_fee_age_ms',p.max_fee_age_ms,'max_capture_age_ms',p.max_capture_age_ms)
-                    FROM life_financial.spot_quote_admission_policies p WHERE p.account_id=$1) AS quote_policy,
-                    (SELECT CASE WHEN octet_length(c.body::text)<=65536 THEN c.body->'spot_quote_producer' END
-                        FROM life_financial.configurations c JOIN life_financial.accounts a
-                        ON a.account_id=c.account_id AND a.config_hash=c.config_hash AND a.policy_hash=c.policy_hash
-                        WHERE a.account_id=$1) AS quote_producer
-                    FROM (''' + query + ') s'
-            return await c.fetchrow(query, self.runtime.config.account_id,
+            return await c.fetchrow(self._scope_sql(spot_policy), self.runtime.config.account_id,
                                     self.swap.capital.max_rows, self.swap.capital.max_bytes)
         value = await self.runtime._admit(read, safety=True)
+        return self._decode_scope(value, spot_policy)
+
+    def _decode_scope(self, value, spot_policy):
         self._original()
         if value['rows'] is None:
             raise StorageError('PG_JOINT_SOURCE_NATIVE_BOUND')
@@ -131,6 +140,11 @@ class PgJointAccountReconciler(PgCollateralReconciler):
             if row['id'] in result[row['kind']]:
                 raise StorageError('PG_JOINT_SOURCE_NATIVE_CONFLICT')
             result[row['kind']][row['id']] = row['body']
+        if any(
+                v.get('retired_spot') is True
+                and (v['product'] != 'SPOT' or v['state'] != 'TERMINAL' or v['exchange_order_id'] is None)
+                for v in result['ORDER'].values()):
+            raise StorageError('PG_JOINT_SOURCE_RETIREMENT_INVALID')
         anchor = result['ANCHOR'].get('anchor')
         if (anchor is None or type(anchor.get('bill_id')) is not str or not anchor['bill_id'].isascii()
                 or not anchor['bill_id'].isdecimal() or not 0 < int(anchor['bill_id']) or len(anchor['bill_id']) > 96):
@@ -143,12 +157,24 @@ class PgJointAccountReconciler(PgCollateralReconciler):
             result['QUOTE_PRODUCER'] = value['quote_producer']
         return result
 
-    async def _collection_native(self, spot_policy):
-        if not spot_policy:
-            return await self._native()
+    async def _collection_context(self, spot_policy):
         clock = self.reader.source.journal.clock
         before, started = utc(clock()), time.monotonic()
-        original, view = await self._native()
+        self._original()
+        import asyncpg
+
+        from hummingbot.strategy_v2.life_liquidity.storage.postgres.runtime import sql_error
+
+        async def read(c):
+            try:
+                return await c.fetchrow('SELECT life_financial.collateral_reconciliation_context($1::uuid,$2::integer,$3::integer) AS native,s.* FROM ('
+                                        + self._scope_sql(spot_policy) + ') s', self.runtime.config.account_id,
+                                        self.swap.capital.max_rows, self.swap.capital.max_bytes)
+            except asyncpg.RaiseError as error:
+                raise sql_error(error) from None
+        value = await self.runtime._admit(read, safety=True, operation='joint_source_context')
+        original, view = self._decode_native(value['native'])
+        scope = self._decode_scope(value, spot_policy)
         if spot_policy:
             after, elapsed = utc(clock()), time.monotonic() - started
             skew_ms = self.reader.source.max_clock_skew_ms
@@ -158,7 +184,7 @@ class PgJointAccountReconciler(PgCollateralReconciler):
                     or not before - skew <= datetime.fromisoformat(snapshot['observed_at']) <= after + skew
                     or snapshot['unverified'] or snapshot['financial_recovery_required']):
                 raise StorageError('PG_JOINT_SOURCE_QUOTE_NATIVE_UNQUALIFIED')
-        return original, view
+        return original, view, scope
 
     async def _pages(self, read, key, *, anchor=None, first_page=None):
         cursor, previous, result = None, None, []
@@ -323,14 +349,36 @@ class PgJointAccountReconciler(PgCollateralReconciler):
                 raise StorageError('PG_JOINT_SOURCE_TRADE_SCOPE')
             payloads['fills'][product] = rows
         for intent, native in scope['ORDER'].items():
+            if native.get('retired_spot') is True:
+                # The complete before/after native snapshots verify the original
+                # terminal and permanent shared retirement. Both signed global
+                # trade/bill rounds, current pending orders and actual balances
+                # still cover it. Retain its original terms/fills for history;
+                # do not fetch or invent a NEW per-order closure proof.
+                orders[intent] = None
+                payloads['orders'][intent] = 'RETIRED_SPOT_HISTORY'
+                continue
             if native['state'] in ('PREPARED', 'ABORTED_BEFORE_SEND'):
                 if native['exchange_order_id'] is not None or any(v['intent_id'] == intent for p in ('SPOT', 'SWAP') for v in scope[p + '_FILL'].values()):
                     raise StorageError('PG_JOINT_SOURCE_UNSENT_CONFLICT')
                 orders[intent] = None
                 continue
             product, wire = native['product'], native['wire_id']
-            read = self.reader.get_order_by_client_id('LIFE-USDT', wire) if product == 'SPOT' else self.reader.get_swap_order_by_client_id(wire)
-            data = (await read)['data']
+            first_history = None
+            if native['exchange_order_id'] is not None:
+                # The immutable native ID selects a bounded first history page.
+                # Both requests keep their original signed guards and quotas;
+                # one durable provider batch precedes parsing either response.
+                # The returned order must still match that exact native ID.
+                instrument = 'LIFE-USDT' if product == 'SPOT' else 'LIFE-USDT-SWAP'
+                status, first_history = await self.reader.read_batch((
+                    ('/api/v5/trade/order', {'instId': instrument, 'clOrdId': wire}),
+                    ('/api/v5/trade/fills-history', {
+                        'instType': product, 'instId': instrument, 'ordId': native['exchange_order_id'], 'limit': '100'})))
+                data = status['data']
+            else:
+                read = self.reader.get_order_by_client_id('LIFE-USDT', wire) if product == 'SPOT' else self.reader.get_swap_order_by_client_id(wire)
+                data = (await read)['data']
             if len(data) != 1:
                 raise StorageError('PG_JOINT_SOURCE_ORDER_SCOPE')
             row = data[0]
@@ -339,7 +387,7 @@ class PgJointAccountReconciler(PgCollateralReconciler):
             async def history(after, order_id=row['ordId'], kind=product):
                 return await (self.reader.get_spot_fill_history_page('LIFE-USDT', order_id, after) if kind == 'SPOT'
                               else self.reader.get_swap_fill_history_page(order_id, after))
-            rows = await self._pages(history, 'billId')
+            rows = await self._pages(history, 'billId', first_page=first_history)
             if self._fills(rows, product, scope, policy) != {key for key, v in scope[product + '_FILL'].items() if v['intent_id'] == intent}:
                 raise StorageError('PG_JOINT_SOURCE_ORDER_TRADE_SCOPE')
             orders[intent] = row
@@ -415,8 +463,7 @@ class PgJointAccountReconciler(PgCollateralReconciler):
                     expected_epoch = self.runtime._ingress_epoch + 1
                     with localcontext() as precision:
                         precision.prec = 160
-                        original, view = await self._collection_native(include_spot_market)
-                        scope = await self._scope(spot_policy=include_spot_market)
+                        original, view, scope = await self._collection_context(include_spot_market)
                         async with self.reader.collection(account_brackets=True, quota_continuation=quota_continuation):
                             started = self.reader.started_at
                             market_json, market_at = None, None
@@ -459,9 +506,9 @@ class PgJointAccountReconciler(PgCollateralReconciler):
                             self.reader.account_configuration(closing=True), payload['balance'], payload['positions'], original['capital_policy'])
                         if rounds[0] != rounds[1] or accounts[0] != accounts[1]:
                             raise StorageError('PG_JOINT_SOURCE_CHANGED')
-                        current, after = await self._collection_native(include_spot_market)
+                        current, after, after_scope = await self._collection_context(include_spot_market)
                         self._match(original, view, current, after, accounts[0])
-                        if scope != await self._scope(spot_policy=include_spot_market):
+                        if scope != after_scope:
                             raise StorageError('PG_JOINT_SOURCE_NATIVE_CHANGED')
                         if self.runtime._ingress_epoch != expected_epoch:
                             raise StorageError('PG_JOINT_SOURCE_INGRESS_CHANGED')

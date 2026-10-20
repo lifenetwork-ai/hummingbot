@@ -70,6 +70,46 @@ async def test_signed_cancel_reconciles_partial_maker_before_terminal_and_preser
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('closed', [True, False])
+async def test_yielded_cancel_ack_grants_no_terminal_release_or_repeat_http(database, closed):
+    t = await makers(database)
+    t.complete_cancel = closed
+    try:
+        before = await t.financial.snapshot(t.cfg.binding)
+        claims = await t.values[5].claims(t.cfg.binding)
+        assert await t.cancellation.cancel_makers('yielded-cancel', yield_after_request=True) is False
+        assert len(t.cancel_requests) == 1
+        assert (await t.financial.attempt('intent1', t.cfg.binding)).state.value == 'ACKED'
+        assert await t.values[5].claims(t.cfg.binding) == claims
+        assert (await t.financial.snapshot(t.cfg.binding)).balance == before.balance
+        if closed:
+            assert await t.cancellation.cancel_makers('yielded-cancel', yield_after_request=True) is True
+            assert (await t.financial.attempt('intent1', t.cfg.binding)).state.value == 'TERMINAL'
+        else:
+            with pytest.raises(StorageError, match='RECONCILE_BEFORE_RETRY'):
+                await t.cancellation.cancel_makers('yielded-cancel', yield_after_request=True)
+            assert (await t.financial.attempt('intent1', t.cfg.binding)).state.value == 'ACKED'
+        assert len(t.cancel_requests) == 1
+        assert await t.values[5].claims(t.cfg.binding) == claims
+    finally:
+        await t.financial.close()
+
+
+@pytest.mark.asyncio
+async def test_explicit_cancel_targets_cannot_expand_to_another_native_maker(database):
+    t = await makers(database)
+    try:
+        before = await t.financial.snapshot(t.cfg.binding)
+        with pytest.raises(StorageError, match='PG_MAKER_CANCEL_TARGET_SCOPE'):
+            await t.cancellation.cancel_makers('wrong-target', target_intents=('other-maker',), yield_after_request=True)
+        assert not t.cancel_requests
+        assert (await t.financial.snapshot(t.cfg.binding)).balance == before.balance
+        assert (await t.financial.attempt('intent1', t.cfg.binding)).state.value == 'ACKED'
+    finally:
+        await t.financial.close()
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize('ack', ['0', '51400', '51401'])
 async def test_cancel_ack_without_closed_order_retains_holds_and_cannot_replay_http(database, ack):
     t = await makers(database)

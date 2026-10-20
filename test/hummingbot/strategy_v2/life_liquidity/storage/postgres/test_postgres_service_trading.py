@@ -2,7 +2,7 @@
 import asyncio
 import json
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal as D
 from test.hummingbot.core.web_assistant.connections.test_request_guard import Response
 from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_service import limits
@@ -30,7 +30,7 @@ def trading_policy():
                 max_depth_distance_bps='500', available_edge_quote_usdt='1', quote_schedule_timeout_ms=30000)
 
 
-async def configured(database, *, model_change=None, shared_quota=True, **options):
+async def configured(database, *, model_change=None, shared_quota=True, maker_cycle=False, **options):
     template = LifeLiquidityConfig(id='main', storage_backend='postgres')
     template.strategy = type(template.strategy).model_validate(dict(
         template.strategy.model_dump(mode='json'),
@@ -43,8 +43,13 @@ async def configured(database, *, model_change=None, shared_quota=True, **option
             model_change(model)
         return dict(controller=template.model_copy(update={'storage_binding': binding, 'recovery_account_uid': binding.account_uid}).model_dump(mode='json'),
                     recorder_sources=[asdict(s) for s in registered], spot_quote_producer=policy(), native_trading=model)
+    spot_options = dict(config_hash=fingerprint(template.strategy.model_dump(mode='json')), safety_size=2)
+    if maker_cycle:
+        # A multi-generation workflow has one explicitly longer synthetic lease
+        # at initial seed, not an extension of any captured owner or feed fact.
+        spot_options.update(owner_duration=timedelta(seconds=120), session_duration=timedelta(seconds=180))
     t = await market(database, clean=True, shared_quota=shared_quota, stream_market=True, configuration_body=configuration,
-                     spot_options=dict(config_hash=fingerprint(template.strategy.model_dump(mode='json')), safety_size=2))
+                     spot_options=spot_options)
     config = template.model_copy(update={'storage_binding': t.cfg.binding, 'recovery_account_uid': t.cfg.binding.account_uid})
     connectors = dict(okx=t.connector, okx_perpetual=t.swap_connector)
     # Two possible fee currencies must jointly fit the imported .001 hold.
@@ -58,22 +63,40 @@ async def configured(database, *, model_change=None, shared_quota=True, **option
     t.connector.order_book_tracker._order_books['LIFE-USDT'] = book
     await database[0].execute('INSERT INTO life_financial.spot_fill_policies VALUES($1,$2,1000,4096)',
                               t.cfg.account_id, t.cfg.binding.policy_hash)
+    if maker_cycle:
+        # Explicit synthetic imported policy; service startup creates no policy.
+        await database[0].execute('INSERT INTO life_financial.portfolio_policies VALUES($1,$2,1,1000,5000,64,1048576)',
+                                  t.cfg.account_id, t.cfg.binding.policy_hash)
+        await database[0].execute('INSERT INTO life_financial.shared_release_policies VALUES($1,$2,64,1048576)',
+                                  t.cfg.account_id, t.cfg.binding.policy_hash)
     http, orders = t.session.request, []
+    t.service_orders = orders
 
     async def exchange(**kwargs):
         for sdk in connectors.values():
             sdk._set_current_timestamp(datetime.now(timezone.utc).timestamp())
         tail = kwargs['url'].rsplit('/', 1)[1]
-        if kwargs['method'] == 'POST':
+        if kwargs['method'] == 'POST' and tail == 'order':
             body = json.loads(kwargs['data'])
-            orders.append(dict(instType='SPOT', instId='LIFE-USDT', clOrdId=body['clOrdId'], ordId='123456',
+            orders.append(dict(instType='SPOT', instId='LIFE-USDT', clOrdId=body['clOrdId'], ordId=str(123456 + len(orders)),
                                state='live', side=body['side'], sz=body['sz'], px=body['px'], accFillSz='0', tdMode='cash', ordType='post_only'))
+            t.requests.append(kwargs)
+            response = Response()
+
+            async def ack():
+                return dict(code='0', data=[dict(sCode='0', ordId=orders[-1]['ordId'], clOrdId=body['clOrdId'])])
+            response.json = ack
+            return response
         elif tail in ('order', 'orders-pending'):
             t.requests.append(kwargs)
             response = Response()
 
             async def data():
-                return dict(code='0', data=orders)
+                params = kwargs.get('params') or {}
+                rows = [o for o in orders if o['state'] in ('live', 'partially_filled')] if tail == 'orders-pending' else orders
+                if params.get('clOrdId'):
+                    rows = [o for o in rows if o['clOrdId'] == params['clOrdId']]
+                return dict(code='0', data=rows)
             response.json = data
             return response
         return await http(**kwargs)

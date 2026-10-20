@@ -1291,3 +1291,43 @@ The exact predecessor SHA, security, search path and volatility must match.
 Existing OID/ACLs, tables, financial history, limits and roles are retained; no
 new helper or grant is installed. Repeated startup/up is a ledger no-op. Drift
 aborts atomically before version 89 is recorded.
+
+## 000090–000091: query plans and persistent state cuts
+
+`000090_native_query_plans.sql` keeps the exact lifecycle, action and accounting
+verification queries, changing their implementation from SQL to PL/pgSQL so a
+backend can retain the query plan. Every invocation still reads and verifies its
+current MVCC snapshot; no verdict, account balance or permission is cached.
+Function OIDs, ACLs, owners, STABLE semantics and independent COMMIT guards remain.
+The migration refuses unexpected predecessor bodies or security metadata.
+
+`000091_persistent_state_cut.sql` fixes a cut that previously changed at the same
+account version when carry data expired. The public digest now has the explicit
+`life-persistent-cut-v2:` domain and hashes the full verified body except the
+computed `carry.ready` flag and redundant top-level `recovery_required` summary.
+All persisted carry/head inputs, money, verification and pending flags remain
+hashed. The returned snapshot still includes both live flags. Original native
+prepare/ARM/COMMIT freshness checks are unchanged and independently deny expired
+carry; a stable cut cannot extend a feed lifetime or grant trading permission.
+
+This is a cut-format upgrade. A new runtime must load the complete pinned
+migration bundle and read a fresh cut. In-flight captures from the old runtime
+are not reusable after migration. Original operation command bytes, historical
+cuts and exact replay arguments are retained; no historical cut is rewritten.
+The selected File cutover still requires stopped, reconciled state.
+
+## 000092: shared proofs within one primary snapshot
+
+`000092_snapshot_shared_proof_reuse.sql` uses the carry/shared proofs already
+built inside the same STABLE snapshot when checking portfolio history. The new
+helper is owner-only, including when deployment default privileges grant other
+roles access. The later release layer can reuse a true shared verdict with an
+existing shared head; no-head/no-model early returns retain independent release
+verification. All returned fields and persistent cut bytes stay the same.
+
+No standalone verifier, financial command, trigger or COMMIT proof is changed.
+There is no stored or cross-statement verdict, clock extension, new permission,
+money/history rewrite or policy default. Exact predecessor bodies and security
+metadata must match, including the shared verifier whose final release check
+justifies reuse. Drift rolls back the complete migration. Repeated startup/up
+uses the existing ledger and performs no further DDL.

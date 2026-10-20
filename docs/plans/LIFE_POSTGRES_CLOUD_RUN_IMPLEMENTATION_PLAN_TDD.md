@@ -11,6 +11,18 @@ This is a user-approved scope change, not a claim that the omitted histories wor
 Native PostgreSQL crash/pending recovery remains mandatory in R1. The concrete
 clean-cutover gates belong to [PG6](#pg6--import-backups-restoration-and-rollback).
 
+**Work in progress (2026-10-21):** explicit-target maker cancellation now joins
+original executor/SDK events, signed terminal evidence, refreshed capital/carry,
+NAV, shared-claim retirement and final runner archival. Migration 92 removes
+repeated shared proofs within one STABLE snapshot. The first instrumented full
+maker-cycle replay now **passes** (53.11 s); replacement reaches ARM at about
+946.5 ms, versus 1050.5 ms in the preceding instrumented failure. This is a
+development comparison, not loaded-tail qualification. The uninstrumented scoped
+regression also passes its complete configured maker-cycle cases. The earlier four-case
+**3 pass / 1 fail** run (127.60 s, final send at 1009.718 ms) remains recorded.
+No complete current-source gate or PG3 closure is claimed. See
+[the current maker-cycle work](#pg3-maker-cycle-work-and-persistent-cut-diagnosis-2026-10-21).
+
 **Latest configured-service progress (2026-10-20):** the separate native offline
 service now supports explicit serialized SPOT quote requests through the actual
 V2 dispatcher, `OrderExecutor`, signed preparation/final request and durable ACK.
@@ -5686,3 +5698,148 @@ scheduler, complete cancellation/claim retirement/replenishment, every selected
 mode/final route, or R5 whole-product parity, physical-process recovery and loaded
 latency qualification. The generic LIFE/File launcher still rejects PostgreSQL
 trading selection. No schema migration, real account or deployment was used.
+
+
+## PG3 maker-cycle work and persistent-cut diagnosis (2026-10-21)
+
+This increment remains under development. `PgLiquidityService.cancel_makers`
+accepts an explicit immutable tuple of original maker intent IDs. It reserves the
+cycle slot before its first primary await; concurrent quote/cancel work refuses.
+A content-addressed operation binds owner/account/targets. Replaying completed
+old targets cannot select replacement makers; incomplete operations require
+reconciliation. The lower cancellation kernel independently refuses nonterminal
+makers outside that exact target set. A yielded cancel ACK grants no terminal,
+release or repeat-HTTP permission. The owning service joins the real SDK listener
+and original executor tasks outside the kernel's unchanged per-phase deadline,
+then obtains new signed evidence. Money/shared claims retire only through the
+existing native terminal, capital/carry, NAV and shared-release commands.
+
+Stopped original executors remain validated as owned objects until their final
+report is archived. Their stopped state alone grants no absence or release
+proof. Repeated cleanup preserves their original close timestamp. Final close
+reports only current, unarchived executors and retains unknown work/holds.
+
+### Concrete source and query changes
+
+- Spot preallocation uses one genuine signed report for native RESERVE plus a
+  full carry check. RESERVE already records/checks the source and all existing
+  and prospective exposure; the redundant preceding OBSERVE/carry pair is
+  removed. A denied/unknown carry never grants an action or refunds a claim.
+- Native financial context and bounded order/fill scope are read in one primary
+  MVCC statement per collection bracket. Every original comparison remains.
+- Fully verified, shared-retired SPOT orders remain explicit historical entries.
+  Complete signed global bills/trades, pending orders, account samples and both
+  UID brackets still cover them. Their per-order historical status is not fetched
+  again or represented as a fresh terminal proof. Late/missing trades, reappearing
+  pending wires and corrupted retirement provenance still refuse collection.
+- Known native order IDs allow status and first history pages to share a durable
+  provider batch. Each HTTP request retains its signed guard/quota; pagination,
+  response identity and complete account-wide coverage remain mandatory.
+- Runtime admission combines the existing primary/security/risk/stress/execution
+  role checks in one MVCC read. Results are not cached across admissions.
+
+A disposable function profile identifies `spot_lifecycle_verified` as the largest
+SQL self-time consumer: 2025.744 ms across 461 calls. Keeping its exact query in
+PL/pgSQL reduces observed self time to 255.571 ms across 473 calls in a subsequent
+profile. This diagnostic comparison does not establish whole-service latency.
+Migration 90 applies query-plan retention to the exact lifecycle/action/accounting
+queries, preserving OIDs, ACLs, STABLE snapshot semantics and every independent
+caller/COMMIT proof. A temporary canonical-result cache and a JIT-off experiment
+did not resolve the full replay and are not shipped.
+
+### Same-version cut instability
+
+After an actual first-order ACK, an observer failed even though both account
+revisions were 11 and native money/order scope was unchanged. Only `carry.ready`
+and the derived `recovery_required` summary changed as the old carry input aged.
+Those time-dependent flags were hashed into the state cut, so a read-only clock
+advance could invalidate an otherwise unchanged financial snapshot.
+
+Migration 91 introduces the domain-separated persistent-cut v2 hash. It retains
+all persisted inputs, money, pending and verification flags, excluding only
+computed `carry.ready` and the redundant top-level recovery summary from the hash.
+The returned flags and native admission/COMMIT freshness checks remain unchanged.
+The private transaction-local repair-view rehash uses the same protocol. Existing
+operation bytes/cuts remain immutable; migration requires stopping old runtimes
+and reading fresh current cuts, never adopting old captures as new authority.
+
+TDD reproduced the carry-expiry cut change, then verified stable cut plus denied
+new risk after expiry. The extended case also verifies that a privileged money
+rewrite at the same version still changes the cut and requires recovery. Earlier
+three focused carry/late-ACK checks pass (9.30 s), and the extended diagnostic case
+passes (3.83 s). Migration audits for the three query-plan changes pass 15 cases;
+the expanded snapshot/repair-helper upgrade audit passes 10 cases (16.67 s),
+including body/security/search-path/volatility drift and atomic/idempotent upgrade.
+These development results overlap and are not a frozen whole-product count.
+The current-source foundation recheck passes **46 cases**, zero failures/errors/
+skips (95.51 s), including the one-primary-admission and uncached privilege-change
+regression. Actual repair/carry/service-wide parity still requires the complete
+affected gate; these focused successes do not clear its retained RED status.
+
+### Retained failures and remaining exit
+
+A targeted guard/source run passes 9 cases but fails its maker-cycle case (62.40 s).
+The later four-case service run passes all three one-sided/absent closure refusal
+cases but still fails replacement (127.60 s): the original action is 1009.718 ms
+old at final send and no replacement HTTP is admitted. An ARM COMMIT may already
+have happened, so its native identity/holds remain unresolved and cannot retry.
+Secondary failure reporting then encounters an absent original provider order;
+that failure-path composition also needs qualification, not exception suppression.
+
+Broader qualification of the positive cycle, cold target replay, continuous replenishment, all
+selected trading routes and fixed R5 whole-product/restart/fault/corruption/role/
+loaded-tail gates remain open. No freshness/source/SQL limit, economic budget,
+resource ceiling or real-account eligibility is widened. No evidence file,
+external account, deployment or push is created by these development runs.
+
+### Snapshot-local shared proof reuse (2026-10-21)
+
+A differential function profile of one real post-retirement snapshot found two
+`shared_capital_verified` and three `shared_release_verified` evaluations. These
+are separate from the independent write/COMMIT checks. A new regression first
+fails on the duplicate count, then passes with migration 92: one capital proof
+and one release proof per populated snapshot. The standalone portfolio verifier
+still builds its own complete proof, and a subsequent privileged release-history
+corruption is detected without changing financial balances or account version.
+
+`000092_snapshot_shared_proof_reuse.sql` adds an owner-only portfolio helper
+which consumes carry/shared verdicts already produced by that exact STABLE
+snapshot call. It does not store or cache them. The later release layer reuses
+a true shared verdict only with an existing shared head, because the original
+shared verifier's no-head/no-model early return does not prove release history.
+Those cases retain a separate release verification. Exact predecessor hashes,
+STABLE/security/search-path checks and atomic migration refusal preserve the
+dependency. Standalone verifiers, financial mutations and COMMIT guards remain
+unchanged; no runtime or reporting role may supply the intermediate booleans.
+
+The same instrumented configured replay passes first quote, actual SDK cancel,
+signed closure, capital/carry/NAV refresh, claim retirement, real runner archival,
+replacement and old-target replay. First ARM completes around 680.2 ms;
+replacement around 946.5 ms (previous instrumented replacement failed at
+1050.5 ms). This roughly 10% single-run improvement is not a tail guarantee.
+The preceding failure is retained; resources, clocks, capture validity and all
+economic limits are unchanged. PG3 remains open.
+
+**Scoped qualification:** 20 predecessor/ACL/OID/atomic-drift/repeated-startup
+migration cases pass (35.09 s). The frozen uninstrumented affected run reports
+**187 pass / 9 fail** (718.39 s), zero errors/skips: all nine failures occur while
+seeding the deliberately old v54 schema, before snapshot comparison, because the
+current fixture tries to grant v84's not-yet-existing provider-batch entrypoint.
+The 187 successes include carry, real signed repair, source/retirement guards,
+allocation, cancellation, the actual configured replacement/old-target replay,
+one-sided closure refusals and primary admission checks. All 2615 pinned source
+hashes remain unchanged through that run.
+
+Only the historical snapshot test is then corrected: it asserts the exact one
+missing v84 signature and provisions the actual v54 profile for old-state setup.
+After the real upgrade, the migration owner explicitly provisions the complete
+current profile, including the new entrypoints. Production provisioning and
+admission have no missing-function fallback. The full snapshot module recheck
+passes **10 cases** (48.72 s), including all nine earlier failures, old partial
+fills, recovered/pending legacy histories, bad balances/carry and every retained
+layer. The preceding affected run separately verifies unchanged public cut bytes
+for the populated v91→92 upgrade. The snapshot module's
+source remains unchanged during execution; production source is identical to
+the preceding 187-success run. Counts overlap and are not summed as a new
+whole-product result. The earlier broad RED gates remain recorded; these scoped
+checks do not close R2.3/R4/R5 or PG3.

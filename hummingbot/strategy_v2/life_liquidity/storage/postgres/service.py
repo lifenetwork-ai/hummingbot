@@ -17,7 +17,13 @@ from hummingbot.strategy.strategy_v2_base import StrategyV2Base
 from hummingbot.strategy_v2.controllers.controller_base import ControllerBase
 from hummingbot.strategy_v2.life_liquidity.reference import ReferenceEngine, ReferencePolicy
 from hummingbot.strategy_v2.life_liquidity.storage.actions import RunnerActionFacts
-from hummingbot.strategy_v2.life_liquidity.storage.contracts import OwnerToken, StorageError, fingerprint, utc
+from hummingbot.strategy_v2.life_liquidity.storage.contracts import (
+    OwnerToken,
+    StorageError,
+    fingerprint,
+    identifier,
+    utc,
+)
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.carry import PgCarryRepository
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.financial_source import PgSpotAccountReader
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.hedge import PgHedgeRepository
@@ -134,8 +140,8 @@ class PgServiceController(ControllerBase):
                     or set(orchestrator.active_executors) != {self.config.id}):
                 raise StorageError('PG_SERVICE_RUNNER_SCOPE_CHANGED')
             executors = orchestrator.active_executors[self.config.id]
-            ids = tuple(sorted(v.config.id for v in executors))
-            if (len(ids) != len(set(ids)) or any(
+            all_ids = tuple(v.config.id for v in executors)
+            if (len(all_ids) != len(set(all_ids)) or any(
                     self.service._owned_executors.get(v.config.id) is not v
                     or v.config.id not in self.service.journal._entries
                     or self.service.journal._capture(CreateExecutorAction(
@@ -145,6 +151,10 @@ class PgServiceController(ControllerBase):
                 # generic executor injection must not become complete scope.
                 self.service.revoke()
                 raise StorageError('PG_SERVICE_UNQUALIFIED_EXECUTOR')
+            # Stopped original executors remain reportable until their final
+            # projection commits; they cannot create/retry a wire. SDK scope
+            # and signed terminal evidence are checked independently.
+            ids = tuple(sorted(v.config.id for v in executors if v.is_active))
         return RunnerActionFacts(self.config.storage_binding, utc(self.service.clock()), self.config.id, ids, True)
 
     def initialize_candles(self):
@@ -290,6 +300,7 @@ class PgLiquidityService:
         service.quote_application = service.quote_source = service.producer = None
         service._quote_task = service._quote_action = None
         service._owned_executors = {}
+        service._maker_operations = {}
         service.controller = PgServiceController(service, service.config, market_data_provider)
         try:
             service.runtime = await PgRuntime.open(runtime_config)
@@ -315,6 +326,7 @@ class PgLiquidityService:
             cancellation = PgMakerCancellation(service.collector, paused=lambda: service._paused,
                                                max_cancels=limits.max_cancels, retry_interval_ms=limits.cancel_retry_ms,
                                                timeout_ms=limits.cycle_timeout_ms)
+            service.cancellation = cancellation
             service.hedge = await PgHedgeApplication.create(
                 PgHedgeRepository(swap), connector=service.connectors['okx_perpetual'], pause_makers=service._pause,
                 maker_cancellation=cancellation, collect=service._missing_capture,
@@ -451,7 +463,136 @@ class PgLiquidityService:
 
     def _pause(self):
         self._paused = True
+        for executor in self._owned_executors.values():
+            if executor.status is not RunnableStatus.TERMINATED:
+                executor.stop()
         return True
+
+    async def _join_maker_events(self):
+        if self.events is not None:
+            await self.events.drain()
+        if self.reporting is not None:
+            await self.reporting.flush_deferred()
+            await self.reporting.drain()
+
+    async def _retired_maker_history(self, intent_ids):
+        """Original native retirement readback only; never select new targets."""
+        async def read(c):
+            return await c.fetchrow('''SELECT life_financial.spot_state($1) AS snapshot,
+                (SELECT jsonb_agg(jsonb_build_object('intent_id',t.intent_id,'state',t.state,
+                    'retired',r.account_id IS NOT NULL,'action_state',q.state))
+                 FROM life_financial.send_attempts t
+                 LEFT JOIN life_financial.shared_claim_releases r USING(account_id,intent_id)
+                 LEFT JOIN life_financial.quote_actions q ON q.account_id=t.account_id AND q.action_id=t.intent_id
+                 WHERE t.account_id=$1 AND t.product='SPOT' AND t.intent_id=ANY($2::text[])) AS intents''',
+                                    self.runtime.config.account_id, list(intent_ids))
+        value = await self.runtime._admit(read, safety=True)
+        self.financial._snapshot(value['snapshot'], self.config.storage_binding)
+        if value['snapshot']['unverified']:
+            raise StorageError('PG_SERVICE_MAKER_HISTORY_UNVERIFIED')
+        rows = value['intents'] or []
+        return (len(rows) == len(intent_ids) and {r['intent_id'] for r in rows} == set(intent_ids)
+                and all(r['state'] == 'TERMINAL' and r['retired'] is True and r['action_state'] == 'RECONCILED' for r in rows))
+
+    async def cancel_makers(self, intent_ids):
+        """Retire only this operation's original makers after signed closure.
+
+        Completed local replay returns its original identity set and cannot
+        cancel replacement makers. An interrupted operation requires native
+        reconciliation; it never retries a cancellation or refunds a claim.
+        """
+        from hummingbot.strategy_v2.life_liquidity.storage.postgres.portfolio import (
+            MeasurePortfolio,
+            PgPortfolioRepository,
+        )
+        from hummingbot.strategy_v2.models.executor_actions import StoreExecutorAction
+        self._original()
+        if (type(intent_ids) is not tuple or not 1 <= len(intent_ids) <= self.limits.max_cancels
+                or any(type(v) is not str for v in intent_ids)
+                or len(set(intent_ids)) != len(intent_ids)):
+            raise StorageError('PG_SERVICE_MAKER_TARGET_SCOPE')
+        for intent_id in intent_ids:
+            identifier(intent_id)
+        targets = tuple(sorted(intent_ids))
+        # Content-address the immutable target set. A caller cannot reuse a
+        # human operation name after restart to target replacement makers.
+        operation_id = 'service-maker:' + fingerprint([self.config.storage_binding.json(), self.journal.owner.json(), list(targets)])
+        if operation_id in self._maker_operations:
+            completed = self._maker_operations[operation_id]
+            if completed is None:
+                raise StorageError('PG_SERVICE_MAKER_RECONCILIATION_REQUIRED')
+            return completed
+        if not self._trading_ready() or self.quote_application is None:
+            raise StorageError('PG_SERVICE_TRADING_NOT_QUALIFIED')
+        if self._quote_task is not None or self.hedge._busy:
+            raise StorageError('PG_SERVICE_QUOTE_BACKPRESSURE')
+        # Reserve the cycle slot before the first primary read. Concurrent
+        # quote/cancel calls cannot pass admission while this lookup awaits.
+        self._quote_task = asyncio.current_task()
+        started = False
+        try:
+            if await self._retired_maker_history(targets):
+                return targets  # Coherent cold historical reply, not a cancel grant.
+            current = self.runner.executor_orchestrator.active_executors[self.config.id]
+            if tuple(sorted(v.config.id for v in current)) != targets:
+                raise StorageError('PG_SERVICE_MAKER_TARGET_SCOPE')
+            if len(self._maker_operations) >= self.limits.max_actions:
+                raise StorageError('PG_SERVICE_MAKER_OPERATION_BOUND')
+            self._maker_operations[operation_id] = None
+            started = True
+            async with asyncio.timeout(self._trading_model.quote_schedule_timeout_ms / 1000):
+                await self.controller.runner_facts()  # Validate all original objects before stopping them.
+                executors = tuple(self.runner.executor_orchestrator.active_executors[self.config.id])
+                self._pause()
+                tasks = tuple(v._control_loop_task for v in executors if getattr(v, '_control_loop_task', None) is not None)
+                if tasks:
+                    await asyncio.shield(asyncio.gather(*tasks))
+                await self.quote_application.drain()
+                await self._join_maker_events()
+                closed = False
+                for _ in range(self.limits.max_cancels + 1):
+                    closed = await self.cancellation.cancel_makers(operation_id, yield_after_request=True, target_intents=targets)
+                    await self._join_maker_events()
+                    if closed is True:
+                        break
+                if closed is not True:
+                    raise StorageError('PG_SERVICE_MAKER_CLOSURE_REQUIRED')
+                # Cancellation ACKs, stopped executors and empty SDK state do
+                # not release shared capacity. Refresh the original signed
+                # capital/carry source, measure native NAV, then obtain a NEW
+                # complete source proof for each terminal-claim retirement.
+                for executor in executors:
+                    intent_id = executor.config.id
+
+                    async def terminal(c):
+                        return await c.fetchval('''SELECT operation_id FROM life_financial.spot_terminal_facts
+                            WHERE account_id=$1 AND intent_id=$2''', self.runtime.config.account_id, intent_id)
+                    terminal_id = await self.runtime._admit(terminal, safety=True)
+                    if terminal_id is None:
+                        raise StorageError('PG_SERVICE_MAKER_TERMINAL_REQUIRED')
+                    key = fingerprint([operation_id, intent_id])
+                    await self.hedge.observe_sources('service-retire-source:' + key)
+                    portfolio = PgPortfolioRepository(self.collector.swap)
+                    await portfolio.measure(MeasurePortfolio('service-retire-nav:' + key),
+                                            cut=(await self.financial.observation_cut(self.config.storage_binding)).cut,
+                                            owner=self.journal.owner)
+                    await self.cancellation.release.retire_claim('service-retire:' + key, intent_id, terminal_id)
+                    action = CreateExecutorAction(controller_id=self.config.id, executor_config=executor.config.model_copy(deep=True))
+                    await self.journal.reconcile(action)
+                    self.runner.executor_orchestrator.store_executor(StoreExecutorAction(
+                        controller_id=self.config.id, executor_id=intent_id))
+                    await self.runner.executor_orchestrator.drain_repository_reporting()
+                if self.runner.executor_orchestrator.active_executors[self.config.id]:
+                    raise StorageError('PG_SERVICE_MAKER_REPORT_PENDING')
+                result = tuple(v.config.id for v in executors)
+                self._maker_operations[operation_id] = result
+                return result
+        except BaseException:
+            if started:
+                self.revoke()
+            raise
+        finally:
+            self._quote_task = None
 
     async def reload_yaml(self, *args, **kwargs):
         self.revoke()
@@ -471,7 +612,8 @@ class PgLiquidityService:
             if self.runner is not None:
                 self.runner._is_stop_triggered = True
                 for executor in self._owned_executors.values():
-                    executor.stop()
+                    if executor.status is not RunnableStatus.TERMINATED:
+                        executor.stop()
             journal = getattr(self, 'journal', None)
             if journal is not None:
                 journal.revoke()
@@ -504,11 +646,13 @@ class PgLiquidityService:
             await self.runner._async_action_dispatcher.close()
             executors = tuple(self._owned_executors.values())
             for executor in executors:
-                executor.stop()
+                if executor.status is not RunnableStatus.TERMINATED:
+                    executor.stop()
             tasks = tuple(v._control_loop_task for v in executors if getattr(v, '_control_loop_task', None) is not None)
             if tasks:
                 await asyncio.shield(asyncio.gather(*tasks, return_exceptions=True))
-            for executor in executors:
+            current = tuple(self.runner.executor_orchestrator.active_executors[self.config.id])
+            for executor in current:
                 self.reporting.enqueue(executor.executor_info)
             self.controller.stop()
 

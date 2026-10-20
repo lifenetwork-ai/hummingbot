@@ -1,5 +1,22 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**PG3 work in progress (2026-10-21):** explicit-target maker cancellation,
+signed closure, capital/carry refresh, claim retirement and runner archival are
+implemented for the separate offline service. After snapshot-local shared proof
+reuse (migration 92), one instrumented full replacement replay passes (53.11 s),
+with ARM completing around 946.5 ms; the preceding instrumented failure reached
+1050.5 ms. The earlier four-case **3 pass / 1 fail** run is retained. This single
+development success does not qualify loaded tails or the whole product.
+The uninstrumented affected run has 187 successes and nine obsolete-v54-fixture
+failures; after the test-only role-profile correction, the complete 10-case
+snapshot recheck passes. Twenty migration audit cases also pass. Production
+source is unchanged between those two regression runs; counts are not summed.
+A same-version digest change caused by carry expiry is reproduced and
+fixed separately; expired carry still denies new risk. New query-plan and
+persistent-cut migrations are being qualified. **PG3 is open; no live/demo
+eligibility or full regression completion is claimed.** See
+[current work and retained failures](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-maker-cycle-work-and-persistent-cut-diagnosis-2026-10-21).
+
 **Latest configured PostgreSQL progress (2026-10-20):** the separate native
 offline service now connects explicit SPOT quote requests to the actual V2
 runner/`OrderExecutor`, signed source, native ARM and durable SDK ACK. Observation

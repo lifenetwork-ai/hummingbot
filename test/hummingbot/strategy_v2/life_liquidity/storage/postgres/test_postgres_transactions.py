@@ -12,6 +12,35 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.runtime import Alloc
 
 
 @pytest.mark.asyncio
+async def test_admission_has_one_primary_view_and_rechecks_privilege_changes(database):
+    store, config, owner = await backend(database)
+    statements = []
+
+    class CountedConnection:
+        def __init__(self, connection):
+            self.connection = connection
+
+        async def fetchrow(self, query, *args):
+            statements.append(query)
+            return await self.connection.fetchrow(query, *args)
+
+    async def validate(connection):
+        await store._validate_connection(CountedConnection(connection))
+
+    try:
+        await store._admit(validate, safety=True)
+        assert len(statements) == 1
+        # The earlier successful result is never an authority/privilege cache.
+        await database[0].execute('GRANT UPDATE ON life_financial.accounts TO life_pg2_runtime')
+        with pytest.raises(StorageError, match='PRIVILEGES_UNSAFE'):
+            await store._admit(validate, safety=True)
+        assert await database[0].fetchval('SELECT count(*) FROM life_financial.operations') == 0
+        assert await database[0].fetchval('SELECT sum(reserved) FROM life_financial.balances') == 0
+    finally:
+        await store.close()
+
+
+@pytest.mark.asyncio
 async def test_concurrent_allocators_cannot_double_spend_and_exact_replay_retains_identity(database):
     store, config, owner = await backend(database)
     try:

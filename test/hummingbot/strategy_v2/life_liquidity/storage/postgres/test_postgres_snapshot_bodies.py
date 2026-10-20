@@ -11,7 +11,7 @@ from uuid import uuid4
 import asyncpg
 import pytest
 
-from hummingbot.strategy_v2.life_liquidity.storage.postgres import runtime as runtime_module
+from hummingbot.strategy_v2.life_liquidity.storage.postgres import access as access_module, runtime as runtime_module
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.migrations import migrate
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.runtime import PgRuntime
 
@@ -40,8 +40,18 @@ async def test_actual_upgrade_keeps_every_old_layer_body_digest_flags_and_scope(
     c = database[0]
     load = runtime_module.load_migrations
     old_fill = None
+    # This test deliberately boots the real v54 schema. Version 84's batch
+    # entrypoint must not be provisioned or expected in that predecessor's
+    # role profile. Assert the exact known difference; production admission
+    # and provisioning retain their complete current-bundle requirements.
+    batch = 'life_financial.spot_capture_provider_pages(uuid,jsonb)'
+    missing = await c.fetch('SELECT signature FROM unnest($1::text[]) signature WHERE to_regprocedure(signature) IS NULL', list(access_module.MUTATING_ENTRYPOINTS))
+    assert [r['signature'] for r in missing] == [batch]
+    previous_profile = tuple(v for v in access_module.MUTATING_ENTRYPOINTS if v != batch)
     with monkeypatch.context() as patch:
         patch.setattr(runtime_module, 'load_migrations', lambda path: tuple(m for m in load(path) if m.version <= 54))
+        patch.setattr(access_module, 'MUTATING_ENTRYPOINTS', previous_profile)
+        patch.setattr(runtime_module, 'MUTATING_ENTRYPOINTS', previous_profile)
         if state.startswith('legacy_'):
             from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_legacy_joint import (
                 apply_recovery,
@@ -105,13 +115,20 @@ async def test_actual_upgrade_keeps_every_old_layer_body_digest_flags_and_scope(
     await c.execute('INSERT INTO life_financial.access_bindings VALUES(current_user,$1,false)', cfg.account_id)
     assert (await migrate(c, action='up'))['applied'] == ['000055_snapshot_body_pipeline.sql', '000056_legacy_spot_basis.sql',
                                                           '000057_collateral_source_context.sql', '000058_legacy_spot_prefix.sql',
-                                                          '000059_legacy_cashflow_prefix.sql', '000060_legacy_derivative_prefix.sql', '000061_legacy_parent_prefix.sql', '000062_legacy_unsent_spot.sql', '000063_legacy_spot_ack_prefix.sql', '000064_legacy_repaired_parent_prefix.sql', '000065_legacy_cancel_prefix.sql', '000066_legacy_terminal_prefix.sql', '000067_legacy_settlement_prefix.sql', '000068_legacy_abort_nav_history.sql', '000069_legacy_joint_spot_claims.sql', '000070_repair_view_reuse.sql', '000071_required_ack_completion.sql', '000072_unfilled_swap_prefix.sql', '000073_joint_provider_routes.sql', '000074_joint_source_deadline.sql', '000075_joint_trade_id_sets.sql', '000076_signed_native_control.sql', '000077_reconciled_session_successors.sql', '000078_native_safety.sql', '000079_native_markout_gate.sql', '000080_native_stress.sql', '000081_native_execution_modes.sql', '000082_native_execution_children.sql']
+                                                          '000059_legacy_cashflow_prefix.sql', '000060_legacy_derivative_prefix.sql', '000061_legacy_parent_prefix.sql', '000062_legacy_unsent_spot.sql', '000063_legacy_spot_ack_prefix.sql', '000064_legacy_repaired_parent_prefix.sql', '000065_legacy_cancel_prefix.sql', '000066_legacy_terminal_prefix.sql', '000067_legacy_settlement_prefix.sql', '000068_legacy_abort_nav_history.sql', '000069_legacy_joint_spot_claims.sql', '000070_repair_view_reuse.sql', '000071_required_ack_completion.sql', '000072_unfilled_swap_prefix.sql', '000073_joint_provider_routes.sql', '000074_joint_source_deadline.sql', '000075_joint_trade_id_sets.sql', '000076_signed_native_control.sql', '000077_reconciled_session_successors.sql', '000078_native_safety.sql', '000079_native_markout_gate.sql', '000080_native_stress.sql', '000081_native_execution_modes.sql', '000082_native_execution_children.sql', '000083_hedge_provider_routes.sql', '000084_provider_page_batch.sql', '000085_snapshot_portfolio_proof_reuse.sql', '000086_joint_recorder_events.sql', '000087_spot_market_routes.sql', '000088_quote_subsidy_quantum.sql', '000089_release_snapshot_proof_reuse.sql', '000090_native_query_plans.sql', '000091_persistent_state_cut.sql', '000092_snapshot_shared_proof_reuse.sql']
+    # New entrypoints require explicit migration-owner provisioning. Applying
+    # SQL alone cannot silently extend the old runtime role's grants.
+    await access_module.provision_access(c, principal='life_pg2_runtime', account_id=cfg.account_id, write=True)
+    await access_module.provision_access(c, principal='life_pg2_reporter', account_id=cfg.account_id, write=False)
     cold = await PgRuntime.open(cfg)
     try:
         async def compare_public(connection):
             return await connection.fetchrow("SELECT life_financial.spot_state($1)-'observed_at' AS current, snapshot_reference.spot_state($1)-'observed_at' AS previous", cfg.account_id)
         public = await cold._admit(compare_public, safety=True)
-        assert public['current'] == public['previous']
+        # Migration 91 changes only the public cut protocol, retaining the
+        # complete old financial body and live readiness flags.
+        assert {k: v for k, v in public['current'].items() if k != 'digest'} == {k: v for k, v in public['previous'].items() if k != 'digest'}
+        assert public['current']['digest'] != public['previous']['digest']
         if old_fill is not None:
             from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot import PgSpotRepository
             count = await c.fetchval('SELECT count(*) FROM life_financial.operations')
@@ -132,7 +149,11 @@ async def test_actual_upgrade_keeps_every_old_layer_body_digest_flags_and_scope(
                 (snapshot_reference.{name}($1)-'observed_at')::text AS previous,
                 life_financial.{name.replace('spot_state', 'spot_body')}($1)::text AS body''', cfg.account_id)
             row = {k: json.loads(v) for k, v in raw.items()}
-            assert row['current'] == row['previous'], (state, name)
+            if name == 'spot_state':
+                assert {k: v for k, v in row['current'].items() if k != 'digest'} == {k: v for k, v in row['previous'].items() if k != 'digest'}, (state, name)
+                assert row['current']['digest'] != row['previous']['digest']
+            else:
+                assert row['current'] == row['previous'], (state, name)
             assert row['body'] == {k: v for k, v in row['current'].items() if k != 'digest'}
         assert not cold.diagnostics[-1].commit_attempted
         # A caller without an account mapping is still rejected at the base

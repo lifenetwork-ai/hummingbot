@@ -191,9 +191,11 @@ class PgRuntime:
 
     async def _validate_connection(self, c):
         cfg = self.config
-        # A single statement supplies one primary MVCC view. Every admission
-        # rechecks it; successful prior checks are never a privilege cache.
-        row = await c.fetchrow('''WITH history AS MATERIALIZED (
+        # Keep every admission check in one primary MVCC statement. Only the
+        # SQL shape depends on the pinned bundle; no role/proof result is cached.
+        versions = {m.version for m in self._bundle}
+        args = [cfg.account_id, cfg.write, len(self._bundle) + 1, list(MUTATING_ENTRYPOINTS)]
+        query = '''WITH history AS MATERIALIZED (
             SELECT version,name,checksum FROM life_migrations.schema_migrations ORDER BY version LIMIT $3)
             SELECT current_user AS principal,pg_catalog.pg_is_in_recovery() AS replica,
             pg_catalog.current_setting('server_version_num')::pg_catalog.int4 OPERATOR(pg_catalog./) 10000 AS major,
@@ -210,35 +212,44 @@ class PgRuntime:
             life_financial.can_access($1,$2) AS access,
             (SELECT rolsuper OR rolbypassrls OR rolcreaterole OR rolcreatedb OR rolreplication
                 FROM pg_catalog.pg_roles WHERE rolname OPERATOR(pg_catalog.=) current_user) AS unsafe,
-            EXISTS(SELECT 1 FROM pg_catalog.pg_tables WHERE schemaname OPERATOR(pg_catalog.=) 'life_financial'
-                AND pg_catalog.has_table_privilege(current_user,pg_catalog.quote_ident(schemaname) OPERATOR(pg_catalog.||) '.' OPERATOR(pg_catalog.||) pg_catalog.quote_ident(tablename),'INSERT,UPDATE,DELETE,TRUNCATE')) AS direct,
+            EXISTS(SELECT 1 FROM pg_catalog.pg_class t JOIN pg_catalog.pg_namespace n
+                ON n.oid OPERATOR(pg_catalog.=) t.relnamespace
+                WHERE n.nspname OPERATOR(pg_catalog.=) 'life_financial' AND t.relkind IN ('r','p')
+                AND pg_catalog.has_table_privilege(current_user,t.oid,'INSERT,UPDATE,DELETE,TRUNCATE')) AS direct,
             pg_catalog.has_schema_privilege(current_user,'life_financial','CREATE') OR pg_catalog.has_database_privilege(current_user,pg_catalog.current_database(),'CREATE') AS schema_create,
             (SELECT pg_catalog.bool_and(pg_catalog.to_regprocedure(signature) IS NOT NULL
                 AND pg_catalog.has_function_privilege(current_user,pg_catalog.to_regprocedure(signature),'EXECUTE') OPERATOR(pg_catalog.=) $2)
-            FROM pg_catalog.unnest($4::pg_catalog.text[]) AS signatures(signature)) AS profile''', cfg.account_id, cfg.write, len(self._bundle) + 1, list(MUTATING_ENTRYPOINTS))
-        # A migrated account without an imported risk service retains its old
-        # privilege profile. Once enabled, risk command/read grants are mandatory
-        # on every admission. No production schema/version fallback is allowed.
-        if any(m.version == 78 for m in self._bundle):
-            risk = await c.fetchrow('''SELECT life_financial.risk_enabled($1) AS enabled,
-                has_function_privilege(current_user,$2,'EXECUTE') AS mutate,
-                has_function_privilege(current_user,'life_financial.risk_frame(uuid)','EXECUTE') AS read''',
-                                    cfg.account_id, NATIVE_RISK_ENTRYPOINT)
+            FROM pg_catalog.unnest($4::pg_catalog.text[]) AS signatures(signature)) AS profile'''
+        if 78 in versions:
+            args.append(NATIVE_RISK_ENTRYPOINT)
+            query += """,jsonb_build_object('enabled',life_financial.risk_enabled($1),
+                'mutate',has_function_privilege(current_user,$5,'EXECUTE'),
+                'read',has_function_privilege(current_user,'life_financial.risk_frame(uuid)','EXECUTE')) AS risk_profile"""
+        if 80 in versions:
+            args.append(NATIVE_STRESS_ENTRYPOINT)
+            query += """,jsonb_build_object('enabled',life_financial.risk_stress_enabled($1),
+                'mutate',has_function_privilege(current_user,$6,'EXECUTE'),
+                'read',has_function_privilege(current_user,'life_financial.risk_stress_frame(uuid)','EXECUTE')) AS stress_profile"""
+        if 82 in versions:
+            args.extend((NATIVE_EXECUTION_ENTRYPOINT, NATIVE_EXIT_ENTRYPOINT))
+            query += """,jsonb_build_object('enabled',life_financial.execution_enabled($1),
+                'mutate',has_function_privilege(current_user,$7,'EXECUTE'),
+                'read',has_function_privilege(current_user,'life_financial.execution_market_frame(uuid)','EXECUTE')
+                    AND has_function_privilege(current_user,'life_financial.execution_quote_budget_frame(uuid)','EXECUTE'),
+                'settle',has_function_privilege(current_user,$8,'EXECUTE')) AS execution_profile"""
+        row = await c.fetchrow(query, *args)
+        if 78 in versions:
+            risk = row['risk_profile']
             if (risk['enabled'] and (risk['mutate'] is not cfg.write or risk['read'] is not True)
                     or not cfg.write and risk['mutate']):
                 raise StorageUnavailable('PG_RISK_ROLE_PROFILE_INVALID')
-        if any(m.version == 80 for m in self._bundle):
-            stress = await c.fetchrow('''SELECT life_financial.risk_stress_enabled($1) AS enabled,
-                has_function_privilege(current_user,$2,'EXECUTE') AS mutate,
-                has_function_privilege(current_user,'life_financial.risk_stress_frame(uuid)','EXECUTE') AS read''', cfg.account_id, NATIVE_STRESS_ENTRYPOINT)
+        if 80 in versions:
+            stress = row['stress_profile']
             if (stress['enabled'] and (stress['mutate'] is not cfg.write or stress['read'] is not True)
                     or not cfg.write and stress['mutate']):
                 raise StorageUnavailable('PG_STRESS_ROLE_PROFILE_INVALID')
-        if any(m.version == 82 for m in self._bundle):
-            execution = await c.fetchrow('''SELECT life_financial.execution_enabled($1) AS enabled,
-                has_function_privilege(current_user,$2,'EXECUTE') AS mutate,
-                has_function_privilege(current_user,'life_financial.execution_market_frame(uuid)','EXECUTE') AND has_function_privilege(current_user,'life_financial.execution_quote_budget_frame(uuid)','EXECUTE') AS read,
-                has_function_privilege(current_user,$3,'EXECUTE') AS settle''', cfg.account_id, NATIVE_EXECUTION_ENTRYPOINT, NATIVE_EXIT_ENTRYPOINT)
+        if 82 in versions:
+            execution = row['execution_profile']
             if (execution['enabled'] and (execution['mutate'] is not cfg.write or execution['settle'] is not cfg.write or execution['read'] is not True)
                     or not cfg.write and (execution['mutate'] or execution['settle'])):
                 raise StorageUnavailable('PG_EXECUTION_ROLE_PROFILE_INVALID')

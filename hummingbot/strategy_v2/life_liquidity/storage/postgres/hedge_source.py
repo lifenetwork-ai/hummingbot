@@ -60,6 +60,16 @@ class SpotAllocationReceipt:
     trading_permission: bool = field(default=False, init=False)
 
 
+@dataclass(frozen=True)
+class _SpotAllocation:
+    source_operation: str
+    intent: object
+    capital_operation: str
+    carry_operation: str
+    capital_read: object
+    carry_read: object
+
+
 class PgHedgeSource:
     def __init__(self, collector, *, carry, swap_source, max_levels, timeout_ms, available_edge_quote=D('0')):
         if (type(collector) is not PgJointAccountReconciler or type(carry) is not PgCarryRepository
@@ -84,6 +94,7 @@ class PgHedgeSource:
         self._plan_task = None
         self._allocating = False
         self._allocation_basis = None
+        self._allocation_request = None
         self.capital.observation, self.carry.observation = self._capital_observe, self._carry_observe
 
     def assert_binding(self, *, observation=False):
@@ -258,6 +269,8 @@ class PgHedgeSource:
             raise StorageError('PG_HEDGE_SOURCE_RUNNER_NOT_QUIESCENT')
         for row in report.orders:
             native, exchange = json.loads(row.native_json), None if row.exchange_json is None else json.loads(row.exchange_json)
+            if native.get('retired_spot') is True and native['product'] == 'SPOT' and native['state'] == 'TERMINAL' and exchange is None:
+                continue  # Verified permanent history, not a new terminal grant.
             if exchange is None or exchange['state'] not in ('filled', 'canceled') or native['state'] == 'PREPARED':
                 raise StorageError('PG_HEDGE_SOURCE_ORDERS_NOT_RECONCILED')
         if not 0 <= self._now() - market.observed_at_ms <= self.collector.max_age_ms:
@@ -279,7 +292,7 @@ class PgHedgeSource:
         self._check(report, epoch + 2, market)
         return bundle
 
-    async def refresh(self, operation_id, *, source_report=None):
+    async def refresh(self, operation_id, *, source_report=None, _allocation=None):
         identifier(operation_id)
         if self._busy or self._planning and self._plan_task is not asyncio.current_task():
             raise StorageError('PG_HEDGE_SOURCE_BACKPRESSURE')
@@ -287,6 +300,12 @@ class PgHedgeSource:
         cap_id, carry_id = ('hedge-source-' + k + ':' + fingerprint([operation_id]) for k in ('capital', 'carry'))
         try:
             self._original()
+            if _allocation is not None:
+                self._allocation_task()
+                if (type(_allocation) is not _SpotAllocation or _allocation is not self._allocation_request
+                        or _allocation.source_operation != operation_id or not self._allocating or source_report is not None):
+                    raise StorageError('PG_SPOT_ALLOCATION_ORIGINAL_TASK_REQUIRED')
+                cap_id, carry_id = _allocation.capital_operation, _allocation.carry_operation
             async with asyncio.timeout(self.timeout_ms / 1000), AsyncExitStack() as stack:
                 quota = self.reader.source._quota
                 if quota is not None and source_report is None:
@@ -295,8 +314,10 @@ class PgHedgeSource:
                 if (self.reader.source._connector._order_tracker.active_orders
                         or self.swap_source._connector._order_tracker.active_orders):
                     raise StorageError('PG_HEDGE_SOURCE_RUNNER_NOT_QUIESCENT')
-                cap_preflight = await preflight_new_operation(self.capital, cap_id)
-                carry_preflight = await preflight_new_operation(self.carry, carry_id)
+                cap_preflight = (await preflight_new_operation(self.capital, cap_id)
+                                 if _allocation is None else _allocation.capital_read)
+                carry_preflight = (await preflight_new_operation(self.carry, carry_id)
+                                   if _allocation is None else _allocation.carry_read)
                 if cap_preflight is None or carry_preflight is None:
                     raise StorageError('PG_HEDGE_SOURCE_ORIGINAL_OPERATION_REQUIRES_RECONCILIATION')
                 with localcontext() as precision:
@@ -353,11 +374,30 @@ class PgHedgeSource:
                     # The native capital command consumes this exact original
                     # cut. Do not replace it with an extra fresh snapshot read.
                     self._capture = ('capital', report, epoch, snapshot, bundle, market)
-                    capital = await self.capital._command(cap_id, None, ProductCut(report.cut.checkpoint, report.cut.components), self.owner,
-                                                          _preflight=cap_preflight)
+                    if _allocation is None:
+                        capital = await self.capital._command(cap_id, None, ProductCut(report.cut.checkpoint, report.cut.components), self.owner,
+                                                              _preflight=cap_preflight)
+                    else:
+                        from hummingbot.strategy_v2.life_liquidity.shared_capital import CapitalClaim
+                        from hummingbot.strategy_v2.life_liquidity.storage.products import ReserveCapital
+                        intent = _allocation.intent
+                        if intent.config_version != report.config_version:
+                            raise StorageError('PG_SPOT_ALLOCATION_INTENT_INVALID')
+                        claim = CapitalClaim(intent.intent_id, intent.wire_id, self.binding.account_uid,
+                                             str(self.owner.session_id), self.owner.epoch, intent.config_version,
+                                             report.risk_epoch, 'SPOT', intent.side.name, 'OPEN',
+                                             intent.quantity_base, intent.price_usdt, 1)
+                        # RESERVE already records and fully verifies this NEW
+                        # signed snapshot and every existing/prospective claim.
+                        # A separate OBSERVE/carry pair adds no missing check.
+                        capital = await self.capital.reserve(ReserveCapital(cap_id, claim),
+                                                             ProductCut(report.cut.checkpoint, report.cut.components), self.owner,
+                                                             _preflight=cap_preflight)
                     if capital.replayed:
                         raise StorageError('PG_HEDGE_SOURCE_ORIGINAL_OPERATION_REQUIRES_RECONCILIATION')
                     self._check(report, epoch + 1, market)
+                    if _allocation is not None and not capital.decision.allowed:
+                        return HedgeSourceReceipt(capital, None, market)
                     current = (await self.financial.observation_cut(self.binding)).cut
                     if current.checkpoint.revision != report.cut.checkpoint.revision + 1:
                         raise StorageError('PG_HEDGE_SOURCE_NATIVE_CHANGED')
@@ -371,9 +411,6 @@ class PgHedgeSource:
                     if current.checkpoint.revision != report.cut.checkpoint.revision + 2:
                         raise StorageError('PG_HEDGE_SOURCE_NATIVE_CHANGED')
                     self._qualified = (report, epoch + 2, current, market, cp['leverage'], swap_policy['controller_id'])
-                    if self._allocating:
-                        self._allocation_task()
-                        self._allocation_basis = (snapshot, bundle)
                     return HedgeSourceReceipt(capital, carried, market)
         except BaseException as error:
             self.stop()
@@ -394,9 +431,7 @@ class PgHedgeSource:
         its NEW runner capture. Native denials and unknown COMMITs retain claims;
         this method never prepares an exchange order or grants HTTP permission.
         """
-        from hummingbot.strategy_v2.life_liquidity.shared_capital import CapitalClaim
         from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot_intent import PgSpotQuoteIntent
-        from hummingbot.strategy_v2.life_liquidity.storage.products import ReserveCapital
         identifier(operation_id)
         if (type(intent) is not PgSpotQuoteIntent or intent.owner != self.owner
                 or intent.controller_id != self.reader.source.journal.controller_id
@@ -417,48 +452,16 @@ class PgHedgeSource:
                 carry_preflight = await preflight_new_operation(self.carry, carry_id)
                 if cap_preflight is None or carry_preflight is None:
                     raise StorageError('PG_HEDGE_SOURCE_ORIGINAL_OPERATION_REQUIRES_RECONCILIATION')
-                observed = await self.refresh('spot-source:' + key)
-                report, epoch, cut, market, _, _ = self._qualified
-                self._check(report, epoch, market)
-                if (intent.controller_id != self.reader.source.journal.controller_id
-                        or intent.config_version != report.config_version):
-                    raise StorageError('PG_SPOT_ALLOCATION_INTENT_INVALID')
-                if not observed.capital.decision.allowed or not observed.carry.decision.allowed:
-                    return SpotAllocationReceipt(observed, observed.capital, None)
-                snapshot, bundle = self._allocation_basis
-                self._allocation_basis = None
-                claim = CapitalClaim(intent.intent_id, intent.wire_id, self.binding.account_uid,
-                                     str(self.owner.session_id), self.owner.epoch, intent.config_version,
-                                     report.risk_epoch, 'SPOT', intent.side.name, 'OPEN',
-                                     intent.quantity_base, intent.price_usdt, 1)
-                self._capture = ('capital', report, epoch, snapshot, bundle, market)
-                reserved = await self.capital.reserve(ReserveCapital(capital_id, claim),
-                                                      ProductCut(cut.checkpoint, cut.components), self.owner, _preflight=cap_preflight)
-                self._check(report, epoch + 1, market)
-                if reserved.replayed:
-                    raise StorageError('PG_HEDGE_SOURCE_ORIGINAL_OPERATION_REQUIRES_RECONCILIATION')
-                if not reserved.decision.allowed:
-                    return SpotAllocationReceipt(observed, reserved, None)
-                current = (await self.financial.observation_cut(self.binding)).cut
-                self._check(report, epoch + 1, market)
-                if current.checkpoint.revision != cut.checkpoint.revision + 1:
-                    raise StorageError('PG_HEDGE_SOURCE_NATIVE_CHANGED')
-                self._capture = ('carry', report, epoch, snapshot, bundle, market)
-                carried = await self.carry.observe(carry_id, cut=ProductCut(current.checkpoint, current.components), owner=self.owner,
-                                                   _preflight=carry_preflight)
-                self._check(report, epoch + 2, market)
-                if carried.replayed:
-                    raise StorageError('PG_HEDGE_SOURCE_ORIGINAL_OPERATION_REQUIRES_RECONCILIATION')
-                current = (await self.financial.observation_cut(self.binding)).cut
-                self._check(report, epoch + 2, market)
-                if current.checkpoint.revision != cut.checkpoint.revision + 2:
-                    raise StorageError('PG_HEDGE_SOURCE_NATIVE_CHANGED')
-                return SpotAllocationReceipt(observed, reserved, carried)
+                request = _SpotAllocation('spot-source:' + key, intent, capital_id, carry_id, cap_preflight, carry_preflight)
+                self._allocation_request = request
+                observed = await self.refresh(request.source_operation, _allocation=request)
+                return SpotAllocationReceipt(observed, observed.capital, observed.carry)
         except BaseException:
             self.stop()
             raise
         finally:
             self._capture, self._qualified, self._allocation_basis = None, None, None
+            self._allocation_request = None
             self._planning, self._allocating, self._plan_task = False, False, None
 
     async def collect(self, operation_id, *, source_report=None):

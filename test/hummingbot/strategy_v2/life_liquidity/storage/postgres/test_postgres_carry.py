@@ -1,4 +1,5 @@
 """Synthetic independent carry streams on disposable PostgreSQL, never live feeds."""
+import asyncio
 import json
 from dataclasses import asdict, replace
 from decimal import Decimal as D, localcontext
@@ -62,6 +63,37 @@ async def setup(database, *, max_age_ms=1000, spot_options=None, capital_changes
                                    capital_policy.tiers, True, 'okx_account_terms'))]
     repo = PgCarryRepository(capital, observation=lambda: feed[0], max_rows=64, max_bytes=1048576)
     return financial, cfg, owner, capital_policy, account_feed, capital, policy, feed, repo
+
+
+@pytest.mark.asyncio
+async def test_persistent_cut_survives_carry_expiry_without_preserving_admission(database):
+    financial, cfg, owner, _, _, _, _, _, repo = await setup(database, refresh_initial_facts=True)
+    try:
+        assert (await repo.check_carry(cfg.binding)).allowed
+        before = await financial.snapshot(cfg.binding)
+        assert not before.recovery_required
+        await asyncio.sleep(1.05)
+        after = await financial.snapshot(cfg.binding)
+        assert after.recovery_required
+        assert after.cut == before.cut  # Time is not a persisted financial write.
+        assert after.balance == before.balance and after.budget == before.budget
+        # The runtime has no direct helper grant. Inspect through the existing
+        # owner-only proof here, then exercise normal new-risk denial below.
+        assert await database[0].fetchval('SELECT life_financial.carry_current_ready($1)', cfg.account_id) is False
+        from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_financial_commands import order
+        with pytest.raises(StorageError):
+            await financial.prepare(order(owner), cut=before.cut, owner=owner)
+        assert await database[0].fetchval('SELECT count(*) FROM life_financial.send_attempts') == 0
+        # Excluding derived time flags must not hide a durable money rewrite,
+        # even if a privileged writer illegally keeps the account version.
+        await database[0].execute('ALTER TABLE life_financial.balances DISABLE TRIGGER USER')
+        await database[0].execute("UPDATE life_financial.balances SET total=11 WHERE account_id=$1 AND asset='USDT'", cfg.account_id)
+        await database[0].execute('ALTER TABLE life_financial.balances ENABLE TRIGGER USER')
+        corrupt = await financial.snapshot(cfg.binding)
+        assert corrupt.cut.checkpoint.revision == before.cut.checkpoint.revision
+        assert corrupt.cut != before.cut and corrupt.recovery_required
+    finally:
+        await financial.close()
 
 
 @pytest.mark.asyncio

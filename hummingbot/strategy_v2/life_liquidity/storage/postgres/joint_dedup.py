@@ -80,10 +80,13 @@ class PgJointDedupRecovery:
             if original is None:
                 raise StorageError('PG_JOINT_DEDUP_ORIGIN_UNQUALIFIED')
             native, exchange, fills = original
+            retired = (product == 'SPOT' and native.get('retired_spot') is True
+                       and native['state'] == 'TERMINAL' and exchange is None)
             position = ('NIL', 'OPEN') if product == 'SPOT' else (native['position_action'],)
             leverage = D('1') if product == 'SPOT' else D(exchange['lever']) if exchange is not None else None
-            if (exchange is None or native['state'] not in ('ACKED', 'TERMINAL')
-                    or native['exchange_order_id'] != body['exchange_id'] or exchange['ordId'] != body['exchange_id']
+            if (exchange is None and not retired or native['state'] not in ('ACKED', 'TERMINAL')
+                    or native['exchange_order_id'] != body['exchange_id']
+                    or not retired and exchange['ordId'] != body['exchange_id']
                     or body['pair'] != 'LIFE-USDT' or body['side'] != native['side']
                     or body['order_type'] != 'LIMIT_MAKER' or body['position'] not in position
                     or body['leverage'] != leverage):

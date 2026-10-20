@@ -174,16 +174,31 @@ class PgMakerCancellation:
         self.collector.check_report(report, epoch=epoch)
         return report
 
-    async def cancel_makers(self, operation_id, *, include_hedge_market=False):
+    async def cancel_makers(self, operation_id, *, include_hedge_market=False, yield_after_request=False, target_intents=None):
+        """Return True only after signed closure; False means one request ACK.
+
+        A configured coordinator may yield after one guarded request to join its
+        original listeners outside this phase's unchanged deadline. It must call
+        again for a NEW signed terminal proof. An unresolved repeated attempt
+        remains forbidden, including when the previous call returned False.
+        """
         identifier(operation_id)
         self._ready()
-        if type(include_hedge_market) is not bool:
+        if target_intents is not None:
+            if (type(target_intents) is not tuple or not 1 <= len(target_intents) <= self.max_cancels
+                    or any(type(v) is not str for v in target_intents)
+                    or len(set(target_intents)) != len(target_intents)):
+                raise StorageError('PG_MAKER_CANCEL_TARGET_SCOPE')
+            for intent_id in target_intents:
+                identifier(intent_id)
+        if type(include_hedge_market) is not bool or type(yield_after_request) is not bool:
             raise StorageError('PG_MAKER_CANCEL_SOURCE_HANDOFF_INVALID')
         if self._busy:
             raise StorageError('PG_MAKER_CANCEL_BACKPRESSURE')
         self._busy = True
         self._hedge_handoff = None
         requested = set()
+        stage = 'collect'
         try:
             async with asyncio.timeout(self.timeout_ms / 1000):
                 # At most max_cancels physical attempts. A still-live order
@@ -198,8 +213,13 @@ class PgMakerCancellation:
                         scope = await self.collector._scope()
                         market = all(v['state'] in ('TERMINAL', 'ABORTED_BEFORE_SEND')
                                      for v in scope['ORDER'].values() if v['product'] == 'SPOT')
+                    stage = 'collect'
                     report = await self.collector.collect(include_hedge_market=market)
                     orders = self._orders(report)
+                    if target_intents is not None and any(
+                            native['state'] not in ('TERMINAL', 'ABORTED_BEFORE_SEND')
+                            and native['intent_id'] not in target_intents for native, _ in orders):
+                        raise StorageError('PG_MAKER_CANCEL_TARGET_SCOPE')
                     if any(native['state'] == 'PREPARED' for native, _ in orders):
                         raise StorageError('PG_MAKER_CANCEL_UNSENT_RECONCILIATION_REQUIRED')
                     live = [(native, exchange) for native, exchange in orders
@@ -212,6 +232,7 @@ class PgMakerCancellation:
                             if native['state'] not in ('TERMINAL', 'ABORTED_BEFORE_SEND'):
                                 changed = True
                                 self._ready()
+                                stage = 'terminal'
                                 receipt = await self.release.confirm_terminal(self._id(operation_id, native, 'terminal'), native['intent_id'])
                                 if receipt.state != 'TERMINAL':
                                     raise StorageError('PG_MAKER_CANCEL_TERMINAL_UNQUALIFIED')
@@ -224,8 +245,10 @@ class PgMakerCancellation:
                         raise StorageError('PG_MAKER_CANCEL_PENDING')
                     if len(requested) >= self.max_cancels:
                         raise StorageError('PG_MAKER_CANCEL_LIMIT')
+                    stage = 'attempt'
                     await self._attempt(operation_id, candidate)
                     # Lifecycle publication invalidates the old cut/report.
+                    stage = 'collect_after_attempt'
                     report = await self.collector.collect()
                     orders = self._orders(report)
                     current = next(((native, exchange) for native, exchange in orders
@@ -236,13 +259,18 @@ class PgMakerCancellation:
                     if current[1] is None or current[1]['state'] not in ('live', 'partially_filled'):
                         continue
                     guard = _CancelGuard(self, report, candidate)
+                    stage = 'transport'
                     if await self.connector.cancel_by_client_id('LIFE-USDT', candidate['wire_id'], request_send_guard=guard) is not True or not guard.consumed:
                         raise StorageError('PG_MAKER_CANCEL_TRANSPORT_UNQUALIFIED')
+                    if yield_after_request:
+                        return False
                 raise StorageError('PG_MAKER_CANCEL_LIMIT')
         except BaseException as error:
             self.stop()
             if isinstance(error, (StorageError, asyncio.CancelledError)):
                 raise
-            raise StorageError('PG_MAKER_CANCEL_UNAVAILABLE') from None
+            failure = StorageError('PG_MAKER_CANCEL_UNAVAILABLE')
+            failure.add_note('stage=' + stage + ', failure_kind=' + type(error).__name__)
+            raise failure from None
         finally:
             self._busy = False

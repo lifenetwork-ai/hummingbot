@@ -3058,3 +3058,142 @@ async def test_release_reuse_upgrade_preserves_oids_acls_and_refuses_predecessor
     assert tables == await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace='life_financial'::regnamespace ORDER BY oid")
     for table in ('accounts', 'operations', 'send_attempts', 'shared_capital_observations', 'carry_checks', 'hedge_plans', 'activation_grants'):
         assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('target_name', ['spot_lifecycle_verified', 'spot_actions_verified', 'spot_accounting_verified_before_repair'])
+@pytest.mark.parametrize('drift', ['none', 'body', 'security', 'search_path', 'volatility'])
+async def test_lifecycle_plan_upgrade_preserves_oids_acls_and_refuses_predecessor_drift(db, target_name, drift):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 90:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    targets = tuple('life_financial.' + name + '(uuid)' for name in ('spot_lifecycle_verified', 'spot_actions_verified', 'spot_accounting_verified_before_repair'))
+    target = 'life_financial.' + target_name + '(uuid)'
+    if drift == 'body':
+        definition = await c.fetchval('SELECT pg_get_functiondef(to_regprocedure($1))', target)
+        await c.execute(definition.replace('SELECT', 'SELECT\n-- unexpected source drift\n', 1))
+    elif drift == 'security':
+        await c.execute('ALTER FUNCTION ' + target + ' SECURITY INVOKER')
+    elif drift == 'search_path':
+        await c.execute('ALTER FUNCTION ' + target + ' SET search_path=pg_catalog,public')
+    elif drift == 'volatility':
+        await c.execute('ALTER FUNCTION ' + target + ' VOLATILE')
+    query = '''SELECT p.oid,p.oid::regprocedure::text AS signature,p.proacl,p.prosrc,p.provolatile::text AS provolatile,p.prosecdef,p.proconfig,p.proowner
+        FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='life_financial' ORDER BY p.oid'''
+    before = {r['signature']: dict(r) for r in await c.fetch(query)}
+    tables = await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace='life_financial'::regnamespace ORDER BY oid")
+    path = DEFAULT_DIRECTORY / '000090_native_query_plans.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    if drift != 'none':
+        with pytest.raises(asyncpg.RaiseError, match='LIFE_LIFECYCLE_PLAN_MIGRATION_MISMATCH'):
+            await migrate(c, directory, action='up')
+        assert {r['signature']: dict(r) for r in await c.fetch(query)} == before
+        assert (await versions(c))[-1]['version'] == 89
+    else:
+        assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+        after = {r['signature']: dict(r) for r in await c.fetch(query)}
+        assert set(after) == set(before)
+        for signature, value in before.items():
+            assert after[signature] == (value if signature not in targets else {**value, 'prosrc': after[signature]['prosrc']})
+        for role in ('public', 'life_runtime_test', 'life_reporter_test'):
+            assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", role, target)
+        assert await c.fetchval('SELECT l.lanname FROM pg_proc p JOIN pg_language l ON l.oid=p.prolang WHERE p.oid=to_regprocedure($1)', target) == 'plpgsql'
+        assert (await migrate(c, directory, action='up'))['applied'] == []
+    assert tables == await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace='life_financial'::regnamespace ORDER BY oid")
+    for table in ('accounts', 'operations', 'send_attempts', 'shared_capital_observations', 'carry_checks', 'hedge_plans', 'activation_grants'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('target_name', ['snapshot', 'repair_view'])
+@pytest.mark.parametrize('drift', ['none', 'body', 'security', 'search_path', 'volatility'])
+async def test_persistent_cut_upgrade_preserves_oids_acls_and_refuses_predecessor_drift(db, target_name, drift):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 91:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    targets = ('life_financial.spot_state(uuid)', 'life_financial.joint_batch_from_repair_view(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb,jsonb)')
+    target = targets[0 if target_name == 'snapshot' else 1]
+    if drift == 'body':
+        definition = await c.fetchval('SELECT pg_get_functiondef(to_regprocedure($1))', target)
+        await c.execute(definition.replace('BEGIN', 'BEGIN\n-- unexpected source drift', 1))
+    elif drift == 'security':
+        await c.execute('ALTER FUNCTION ' + target + ' SECURITY INVOKER')
+    elif drift == 'search_path':
+        await c.execute('ALTER FUNCTION ' + target + ' SET search_path=pg_catalog,public')
+    elif drift == 'volatility':
+        await c.execute('ALTER FUNCTION ' + target + (' VOLATILE' if target_name == 'snapshot' else ' STABLE'))
+    query = '''SELECT p.oid,p.oid::regprocedure::text AS signature,p.proacl,p.prosrc,p.provolatile::text AS provolatile,p.prosecdef,p.proconfig,p.proowner
+        FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='life_financial' ORDER BY p.oid'''
+    before = {r['signature']: dict(r) for r in await c.fetch(query)}
+    tables = await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace='life_financial'::regnamespace ORDER BY oid")
+    path = DEFAULT_DIRECTORY / '000091_persistent_state_cut.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    if drift != 'none':
+        with pytest.raises(asyncpg.RaiseError, match='LIFE_PERSISTENT_CUT_MIGRATION_MISMATCH'):
+            await migrate(c, directory, action='up')
+        assert {r['signature']: dict(r) for r in await c.fetch(query)} == before
+        assert (await versions(c))[-1]['version'] == 90
+    else:
+        assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+        after = {r['signature']: dict(r) for r in await c.fetch(query)}
+        assert set(after) == set(before)
+        for signature, value in before.items():
+            assert after[signature] == (value if signature not in targets else {**value, 'prosrc': after[signature]['prosrc']})
+        assert not await c.fetchval("SELECT has_function_privilege('public',$1,'EXECUTE')", target)
+        assert (await migrate(c, directory, action='up'))['applied'] == []
+    assert tables == await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace='life_financial'::regnamespace ORDER BY oid")
+    for table in ('accounts', 'operations', 'send_attempts', 'shared_capital_observations', 'carry_checks', 'hedge_plans', 'activation_grants'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('target_name', ['portfolio_after_carry_verification', 'spot_body_before_swap_terminal', 'spot_body_before_joint_batch', 'shared_capital_verified'])
+@pytest.mark.parametrize('drift', ['none', 'body', 'security', 'search_path', 'volatility'])
+async def test_snapshot_shared_reuse_upgrade_is_private_atomic_and_preserves_independent_verifiers(db, target_name, drift):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 92:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    target = 'life_financial.' + target_name + ('(uuid,boolean)' if target_name == 'portfolio_after_carry_verification' else '(uuid)')
+    changed = {'life_financial.spot_body_before_swap_terminal(uuid)', 'life_financial.spot_body_before_joint_batch(uuid)'}
+    private = 'life_financial.portfolio_after_snapshot_verification(uuid,boolean,boolean)'
+    if drift == 'body':
+        definition = await c.fetchval('SELECT pg_get_functiondef(to_regprocedure($1))', target)
+        await c.execute(definition.replace('BEGIN', 'BEGIN\n-- unexpected source drift', 1))
+    elif drift == 'security':
+        await c.execute('ALTER FUNCTION ' + target + ' SECURITY INVOKER')
+    elif drift == 'search_path':
+        await c.execute('ALTER FUNCTION ' + target + ' SET search_path=pg_catalog,public')
+    elif drift == 'volatility':
+        await c.execute('ALTER FUNCTION ' + target + ' VOLATILE')
+    query = '''SELECT p.oid,p.oid::regprocedure::text AS signature,p.proacl,p.prosrc,p.provolatile::text AS provolatile,p.prosecdef,p.proconfig,p.proowner
+        FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='life_financial' ORDER BY p.oid'''
+    before = {r['signature']: dict(r) for r in await c.fetch(query)}
+    tables = await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace='life_financial'::regnamespace ORDER BY oid")
+    path = DEFAULT_DIRECTORY / '000092_snapshot_shared_proof_reuse.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    if drift != 'none':
+        with pytest.raises(asyncpg.RaiseError, match='LIFE_SNAPSHOT_SHARED_REUSE_MIGRATION_MISMATCH'):
+            await migrate(c, directory, action='up')
+        assert {r['signature']: dict(r) for r in await c.fetch(query)} == before
+        assert (await versions(c))[-1]['version'] == 91
+    else:
+        assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+        after = {r['signature']: dict(r) for r in await c.fetch(query)}
+        assert set(after) == set(before) | {private}
+        for signature, value in before.items():
+            assert after[signature] == (value if signature not in changed else {**value, 'prosrc': after[signature]['prosrc']})
+        for role in ('public', 'life_runtime_test', 'life_reporter_test'):
+            assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", role, private)
+        assert (await migrate(c, directory, action='up'))['applied'] == []
+    for signature in ('life_financial.portfolio_verified(uuid)', 'life_financial.shared_release_verified(uuid)', 'life_financial.shared_capital_verified(uuid)', 'life_financial.shared_release_commit_guard()', 'life_financial.portfolio_commit_guard()'):
+        current = dict(await c.fetchrow(query.replace("ORDER BY p.oid", "AND p.oid=to_regprocedure($1)"), signature))
+        assert current == before[signature]
+    assert tables == await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace='life_financial'::regnamespace ORDER BY oid")
+    for table in ('accounts', 'operations', 'send_attempts', 'shared_capital_observations', 'carry_checks', 'hedge_plans', 'activation_grants'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0

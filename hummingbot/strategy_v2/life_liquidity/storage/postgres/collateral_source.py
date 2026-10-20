@@ -165,6 +165,9 @@ class PgCollateralReconciler:
         self._original()
         value = await self.swap.capital._read('SELECT life_financial.collateral_reconciliation_context($1,$2,$3)',
                                               (self.runtime.config.account_id, self.swap.capital.max_rows, self.swap.capital.max_bytes))
+        return self._decode_native(value)
+
+    def _decode_native(self, value):
         self._original()
         if any(value['snapshot']['account'][key] != field for key, field in self.binding.json().items()):
             raise StorageError('PG_COLLATERAL_CONTEXT_CHANGED')

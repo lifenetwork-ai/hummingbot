@@ -7,7 +7,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.contracts import OwnerToken, 
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.access import provision_access
 
 
-async def seed(database, *, session_duration=timedelta(seconds=60), config_hash=None, configuration_body=None,
+async def seed(database, *, session_duration=timedelta(seconds=60), owner_duration=timedelta(seconds=30), config_hash=None, configuration_body=None,
                original_session_id=None, opening_base_life=None):
     c, dsn, _ = database
     account, lineage, session = uuid4(), uuid4(), uuid4()
@@ -16,7 +16,8 @@ async def seed(database, *, session_duration=timedelta(seconds=60), config_hash=
         session = original_session_id
     db_lineage = UUID(str(await c.fetchval('SELECT lineage FROM life_storage.storage_metadata')))
     now = await c.fetchval('SELECT clock_timestamp()')
-    owner = OwnerToken(uuid4(), uuid4(), 1, session, now - timedelta(seconds=1), now + min(timedelta(seconds=30), session_duration))
+    assert type(owner_duration) is timedelta and owner_duration.total_seconds() > 0
+    owner = OwnerToken(uuid4(), uuid4(), 1, session, now - timedelta(seconds=1), now + min(owner_duration, session_duration))
     binding = StateBinding('OFFLINE_SIMULATION', 'okx', '12345', 'usdt', lineage, 1, 'a' * 64, 'b' * 64 if config_hash is None else config_hash)
     async with c.transaction():
         await c.execute('''INSERT INTO life_financial.accounts(account_id,database_lineage,environment,exchange,account_uid,risk_pool,
@@ -39,10 +40,10 @@ async def seed(database, *, session_duration=timedelta(seconds=60), config_hash=
     return account, db_lineage, binding, owner, dsn.replace('postgres@', 'life_pg2_runtime@')
 
 
-async def backend(database, *, session_duration=timedelta(seconds=60), config_hash=None, configuration_body=None,
+async def backend(database, *, session_duration=timedelta(seconds=60), owner_duration=timedelta(seconds=30), config_hash=None, configuration_body=None,
                   original_session_id=None, opening_base_life=None, **changes):
     from hummingbot.strategy_v2.life_liquidity.storage.postgres.runtime import PgConfig, PgRuntime
-    account, db_lineage, binding, owner, dsn = await seed(database, session_duration=session_duration, config_hash=config_hash,
+    account, db_lineage, binding, owner, dsn = await seed(database, session_duration=session_duration, owner_duration=owner_duration, config_hash=config_hash,
                                                           configuration_body=configuration_body, original_session_id=original_session_id, opening_base_life=opening_base_life)
     from dataclasses import replace
 
