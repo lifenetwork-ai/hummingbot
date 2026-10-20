@@ -6,7 +6,11 @@ from test.hummingbot.strategy_v2.life_liquidity.test_order_gateway import NOW, F
 
 import pytest
 
-from hummingbot.strategy_v2.life_liquidity.account_bills import CashflowApprovals, SpotBillReconciler
+from hummingbot.strategy_v2.life_liquidity.account_bills import (
+    CashflowApprovals,
+    SpotAccountBillReader,
+    SpotBillReconciler,
+)
 from hummingbot.strategy_v2.life_liquidity.order_gateway import (
     OkxSpotOrderGateway,
     SpotAccountReconciler,
@@ -16,6 +20,28 @@ from hummingbot.strategy_v2.life_liquidity.risk import ReservationLedger, RiskLi
 from hummingbot.strategy_v2.life_liquidity.state import IntentWAL
 
 LIMITS = RiskLimits(Decimal("0"), Decimal("30"), Decimal("30"), Decimal("30"))
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('fault', ['none', 'duplicate', 'missing_anchor', 'page_bound'])
+async def test_prefetched_bill_page_retains_cursor_anchor_order_and_total_page_bound(fault):
+    from types import SimpleNamespace
+    calls = []
+    first = dict(code='0', data=[dict(billId=str(value)) for value in range(201, 101, -1)])
+
+    async def next_page(after):
+        calls.append(after)
+        return dict(code='0', data=[dict(billId=str(value)) for value in (
+            [102, 100] if fault == 'duplicate' else [99] if fault == 'missing_anchor' else [101, 100])])
+    reader = SpotAccountBillReader(SimpleNamespace(get_account_bills_page=next_page), anchor_bill_id='100',
+                                   max_pages=1 if fault == 'page_bound' else 2, max_fill_pages=2)
+    if fault == 'none':
+        rows = await reader.bills_since_anchor(first_page=first)
+        assert [row['billId'] for row in rows] == [str(v) for v in range(201, 100, -1)]
+    else:
+        with pytest.raises(ValueError):
+            await reader.bills_since_anchor(first_page=first)
+    assert calls == ([] if fault == 'page_bound' else ['102'])
 
 
 def seeded(tmp_path, *, fee=None):

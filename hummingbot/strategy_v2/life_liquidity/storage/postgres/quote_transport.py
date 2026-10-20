@@ -4,10 +4,13 @@ Facts, runner membership, authenticated UID and external write exclusion still
 need qualified application sources. This adapter is not installed by backend
 selection and cannot turn historical SQL readback into a new send capability.
 """
+import asyncio
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from decimal import Decimal as D
 from urllib.parse import urlsplit
 
+from hummingbot.core.data_type.in_flight_order import OrderState
 from hummingbot.core.web_assistant.connections.data_types import RESTMethod
 from hummingbot.core.web_assistant.connections.request_guard import RESTRequestSnapshot
 from hummingbot.strategy_v2.life_liquidity.storage.action_preparation import PrepareQuoteAction, QuoteAdmissionFacts
@@ -34,7 +37,7 @@ class QuoteSendAgeLimits:
 class PgQuoteRequestGuard:
     def __init__(self, journal, *, action, preparation, admission_source, endpoint_url, age_limits, account_source=None):
         if (type(journal) is not PgQuoteRunnerJournal or type(action) is not CreateExecutorAction
-                or type(preparation) is not PrepareQuoteAction or not callable(admission_source)
+                or type(preparation) is not PrepareQuoteAction
                 or type(endpoint_url) is not str or type(age_limits) is not QuoteSendAgeLimits):
             raise StorageError('PG_REQUEST_GUARD_CONFIG_INVALID')
         endpoint = urlsplit(endpoint_url)
@@ -54,11 +57,48 @@ class PgQuoteRequestGuard:
                     or account_source.age_limits != age_limits or account_source.endpoint_url != endpoint_url):
                 raise StorageError('PG_REQUEST_ACCOUNT_SOURCE_MISMATCH')
         self._account_source = account_source
+        if not callable(admission_source) and (account_source is None or account_source._market_source is None):
+            raise StorageError('PG_REQUEST_GUARD_CONFIG_INVALID')
         self._started = self._checked = self._consumed = self._ack_started = False
         self._authorized_request = None
         self._request_sha256 = None
         self._ingress = PgAckIngress(self._repository)
         self._captured_ingress_epoch = None
+        self._authorization_task = None
+        self._market_capture = None
+        self._pending_sdk_order = None
+
+    def pending_order(self, native=None, *, armed=False):
+        """Original unsent SDK order only; SQL readback cannot mint this link."""
+        from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot_application import PgSpotQuoteApplication
+        app = self._journal._transport
+        cfg, prep = self._action.executor_config, self._preparation.prepare
+        if (type(app) is not PgSpotQuoteApplication or app._guards.get(cfg.id) is not self
+                or asyncio.current_task() is not self._authorization_task or not self._started or self._consumed
+                or app._pending.get(cfg.id) is None or app._pending[cfg.id].done()
+                or app._physical.get(cfg.id) is None or app._physical[cfg.id].done()):
+            raise StorageError('PG_REQUEST_PENDING_ORIGIN_REQUIRED')
+        app._original()
+        entry = self._journal._entry(self._action)
+        if (entry.prepared is not self._preparation or not entry.accepted or entry.revoked
+                or entry.arm_started is not armed or not self._journal.local_runner_create_fence(self._action)):
+            raise StorageError('PG_REQUEST_PENDING_ORIGIN_REQUIRED')
+        app._sdk_check(self._action, prep.client_order_id, {'clOrdId': prep.client_order_id})
+        order = app.connector._order_tracker.active_orders[prep.client_order_id]
+        if self._pending_sdk_order is None and not armed:
+            self._pending_sdk_order = order
+        if order is not self._pending_sdk_order:
+            raise StorageError('PG_REQUEST_PENDING_ORIGIN_REQUIRED')
+        if order.executed_amount_base != 0 or order.current_state is not OrderState.PENDING_CREATE:
+            raise StorageError('PG_REQUEST_PENDING_ORIGIN_REQUIRED')
+        if native is not None and (
+                native['product'] != 'SPOT' or native['state'] != 'PREPARED' or native['exchange_order_id'] is not None
+                or (native['intent_id'], native['prepare_operation_id'], native['wire_id'], native['side'],
+                    native['session_id'], native['epoch']) != (cfg.id, prep.operation_id, prep.client_order_id,
+                                                               cfg.side.name, prep.session_id, prep.epoch)
+                or D(native['quantity']) != cfg.amount or D(native['price']) != cfg.price):
+            raise StorageError('PG_REQUEST_PENDING_ORIGIN_REQUIRED')
+        return order
 
     def _context_ready(self):
         return (self._journal.repository is self._repository and self._repository._runtime is self._runtime
@@ -82,16 +122,24 @@ class PgQuoteRequestGuard:
         # No retry even after a source/DB failure or caller cancellation. Once
         # physical arm may have committed, only exact recovery/readback is safe.
         self._started = True
+        self._authorization_task = asyncio.current_task()
         ingress_epoch = self._runtime._ingress_epoch
         self._scope(request)
         if not self._context_ready() or not self._journal.local_runner_create_fence(self._action):
             return False
         facts = (await self._admission_source() if self._account_source is None
-                 else await self._account_source.capture(request))
+                 else await self._account_source.capture(request, guard=self))
+        if self._account_source is not None and self._account_source._market_source is not None:
+            # Exactly one original authenticated collection may advance this
+            # guard's epoch. Arbitrary callback awaits never get this allowance.
+            if self._market_capture is None or self._runtime._ingress_epoch != ingress_epoch + 1:
+                return False
+            ingress_epoch += 1
         if type(facts) is not QuoteAdmissionFacts:
             raise StorageError('PG_REQUEST_SOURCE_INVALID')
         command = ArmQuoteAction(self._preparation.prepare.operation_id, self._preparation.action, facts, request.data)
-        result = await self._journal.arm_quote_action(self._action, command)
+        source_cut = None if self._market_capture is None else self._market_capture.report.cut
+        result = await self._journal.arm_quote_action(self._action, command, _source_cut=source_cut)
         if (type(result) is not QuoteArmReceipt or result.replayed
                 or result.binding != self._journal.binding or result.operation_id != command.prepare_operation_id
                 or result.intent_id != command.action.intent_id or result.wire_sha256 != command.wire_sha256
@@ -124,6 +172,11 @@ class PgQuoteRequestGuard:
                 or not self._journal.local_runner_create_fence(self._action) or not self._fresh()
                 or self._account_source is not None and not self._account_source.check(request)):
             return False
+        if self._market_capture is not None:
+            source = self._account_source._market_source
+            source._original()
+            source.collector.check_report(self._market_capture.report, epoch=self._captured_ingress_epoch)
+            source._sdk_scope(self._market_capture.report, pending_quote=self, armed=True)
         # No awaits from consumption to the first HTTP request await. Transport
         # failures remain SEND_UNKNOWN and never restore this local capability.
         self._consumed = True

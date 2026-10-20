@@ -32,10 +32,13 @@ class PgSpotQuoteApplication:
         self._prepare = preparation_source
         self._context = (source, journal, self.connector, self.repository, self.runtime, journal.binding,
                          journal.owner, preparation_source, source._admission_source,
-                         journal.runner_facts, journal.local_ready, journal.clock, journal.controller_id, journal.config_version)
+                         journal.runner_facts, journal.local_ready, journal.clock, journal.controller_id, journal.config_version,
+                         source._market_source)
         self.max_pending, self.operation_timeout_ms, self.shutdown_timeout_ms = max_pending, operation_timeout_ms, shutdown_timeout_ms
         self._started, self._pending, self._waiting = set(), {}, {}
         self._physical = {}
+        self._guards = {}
+        self._preparing = {}
         self._stopped, self._failed = False, False
         journal._transport = self
 
@@ -44,7 +47,7 @@ class PgSpotQuoteApplication:
         return len(self._pending)
 
     def _original(self):
-        source, journal, connector, repository, runtime, binding, owner, prepare, admission, facts, ready, clock, controller, version = self._context
+        source, journal, connector, repository, runtime, binding, owner, prepare, admission, facts, ready, clock, controller, version, market = self._context
         if (self.source is not source or self.journal is not journal or self.connector is not connector
                 or self.repository is not repository or self.runtime is not runtime
                 or source.journal is not journal or source._connector is not connector
@@ -52,7 +55,7 @@ class PgSpotQuoteApplication:
                 or journal.binding != binding or journal.owner != owner or journal._transport is not self
                 or self._prepare is not prepare or source._admission_source is not admission
                 or journal.runner_facts is not facts or journal.local_ready is not ready or journal.clock is not clock
-                or journal.controller_id != controller or journal.config_version != version):
+                or journal.controller_id != controller or journal.config_version != version or source._market_source is not market):
             self.stop()
             raise StorageError('PG_SPOT_APPLICATION_CONTEXT_CHANGED')
         source._credentials()
@@ -78,7 +81,8 @@ class PgSpotQuoteApplication:
                 or price != action.executor_config.price or entry.prepare_started
                 or self.pending_count >= self.max_pending):
             raise StorageError('PG_SPOT_SUBMISSION_SCOPE_OR_CAPACITY')
-        wire = 'L' + fingerprint(entry.row.json())[:31]
+        wire = (self.source.wire_for_action(action) if self.source._market_source is not None
+                else 'L' + fingerprint(entry.row.json())[:31])
         if wire in self.connector._order_tracker.all_orders:
             raise StorageError('PG_SPOT_SDK_WIRE_ALREADY_PRESENT')
         # Permanent process-local identity consumption precedes the first await.
@@ -109,6 +113,22 @@ class PgSpotQuoteApplication:
                 or tracked.price != cfg.price or body.get('clOrdId') != wire):
             raise StorageError('PG_SPOT_SDK_SCOPE_CHANGED')
 
+    def preparing_action(self):
+        """The original accepted runner, during its owned preparation await."""
+        task = asyncio.current_task()
+        action = self._preparing.get(task)
+        if action is None or self._pending.get(action.executor_config.id) is not task:
+            raise StorageError('PG_SPOT_PREPARING_ORIGIN_REQUIRED')
+        self._original()
+        market = self.source._market_source
+        if (self._stopped or not self.journal.local_runner_create_fence(action)
+                or not self.runtime.healthy and (market is None or not market.owns_preparation_observation(self))):
+            raise StorageError('PG_SPOT_PREPARING_ORIGIN_REQUIRED')
+        entry = self.journal._entry(action)
+        if not entry.accepted or entry.prepare_started or entry.prepared is not None:
+            raise StorageError('PG_SPOT_PREPARING_ORIGIN_REQUIRED')
+        return action.model_copy(deep=True)
+
     async def _run(self, action, wire, accepted):
         sdk_started = False
         try:
@@ -118,18 +138,28 @@ class PgSpotQuoteApplication:
                 entry = self.journal._entry(action)
                 if not entry.accepted:
                     raise StorageError('RUNNER_ACCEPTANCE_REQUIRED')
-                preparation = await self._prepare(action.model_copy(deep=True), wire)
+                self._preparing[asyncio.current_task()] = action
+                try:
+                    preparation = await self._prepare(action.model_copy(deep=True), wire)
+                finally:
+                    self._preparing.pop(asyncio.current_task(), None)
                 self._ready(action)
                 if (type(preparation) is not PrepareQuoteAction or preparation.action != entry.row
                         or preparation.prepare.client_order_id != wire):
                     raise StorageError('PG_SPOT_PREPARATION_SCOPE_CHANGED')
-                receipt = await self.journal.prepare_quote_action(action, preparation)
+                market = self.source._market_source
+                source_cut = None if market is None else market.take_preparation_cut(self, preparation)
+                source_epoch = self.runtime._ingress_epoch
+                receipt = await self.journal.prepare_quote_action(action, preparation, _source_cut=source_cut)
                 self._ready(action)
+                if market is not None and self.runtime._ingress_epoch != source_epoch:
+                    raise StorageError('PG_SPOT_PREPARATION_SOURCE_CHANGED')
                 if receipt.replayed or receipt.state != 'PREPARED':
                     raise StorageError('PG_SPOT_PREPARATION_RECOVERY_REQUIRED')
                 if wire in self.connector._order_tracker.all_orders:
                     raise StorageError('PG_SPOT_SDK_WIRE_ALREADY_PRESENT')
                 guard = self.source.guard(action=action, preparation=preparation)
+                self._guards[action.executor_config.id] = guard
                 cfg = action.executor_config
                 completed = asyncio.get_running_loop().create_future()
                 completed.add_done_callback(lambda f: None if f.cancelled() else f.exception())
@@ -141,6 +171,7 @@ class PgSpotQuoteApplication:
                     if not physical.done():
                         physical.set_result(None)
                     self._physical.pop(action.executor_config.id, None)
+                    self._guards.pop(action.executor_config.id, None)
                     if not completed.done():
                         completed.set_exception(StorageError('PG_SPOT_SDK_SUBMISSION_UNKNOWN'))
 
@@ -182,6 +213,7 @@ class PgSpotQuoteApplication:
                     if not sdk_started:
                         physical.set_result(None)
                         self._physical.pop(action.executor_config.id, None)
+                        self._guards.pop(action.executor_config.id, None)
         except BaseException:
             self._failed = True
             self.stop()

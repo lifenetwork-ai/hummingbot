@@ -16,9 +16,13 @@ from hummingbot.strategy_v2.life_liquidity.fees import FeeRateSnapshot
 from hummingbot.strategy_v2.life_liquidity.market_data import InstrumentRules, MarketSnapshot
 from hummingbot.strategy_v2.life_liquidity.own_depth import OwnBookOrder, separate_own_depth
 from hummingbot.strategy_v2.life_liquidity.reference import ReferenceDecision, ReferenceEngine
-from hummingbot.strategy_v2.life_liquidity.storage.action_preparation import QuoteAdmissionFacts, QuotePolicySnapshot
+from hummingbot.strategy_v2.life_liquidity.storage.action_preparation import (
+    PrepareQuoteAction,
+    QuoteAdmissionFacts,
+    QuotePolicySnapshot,
+)
 from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError, fingerprint, utc
-from hummingbot.strategy_v2.life_liquidity.storage.financial import decimal
+from hummingbot.strategy_v2.life_liquidity.storage.financial import PrepareSpot, decimal
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.collateral_source import _amount
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.hedge_source import PgHedgeSource
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.joint_source import JointSourceReport
@@ -67,6 +71,16 @@ class PgSpotMarketSource:
         self._busy = self._stopped = False
         self._policy, self._capture, self._epoch = None, None, None
         self._bound_policy = None
+        self._pending_quote = None
+        self._preparing_quote, self._collection_task = None, None
+        self._prepared_quote = None
+
+    def owns_preparation_observation(self, application):
+        """An observation may inspect its runner; it cannot admit a write."""
+        self._original()
+        return (self._busy and self._preparing_quote is application and self.reader._active
+                and self._collection_task is asyncio.current_task() and self.runtime._observation_inflight == 1
+                and self.runtime._healthy and not self.runtime._closing)
 
     @classmethod
     async def create(cls, hedge_source, **kwargs):
@@ -129,6 +143,7 @@ class PgSpotMarketSource:
 
     def stop(self):
         self._stopped, self._capture = True, None
+        self._prepared_quote = None
         self._context[5]._healthy = False
 
     @staticmethod
@@ -137,15 +152,34 @@ class PgSpotMarketSource:
             raise StorageError('PG_SPOT_MARKET_RESPONSE_SCOPE')
         return value[0]
 
-    def _sdk_scope(self, report):
+    def _sdk_scope(self, report, *, pending_quote=None, armed=False):
         """Exact original active SDK orders, not a complete runner topology proof."""
         expected = {'SPOT': {}, 'SWAP': {}}
         own = []
+        pending = None
+        if pending_quote is not None:
+            from hummingbot.strategy_v2.life_liquidity.storage.postgres.quote_transport import PgQuoteRequestGuard
+            if (type(pending_quote) is not PgQuoteRequestGuard
+                    or pending_quote._repository is not self.repository
+                    or pending_quote._journal is not self.reader.source.journal
+                    or pending_quote._account_source is None
+                    or pending_quote._account_source._market_source is not self):
+                raise StorageError('PG_SPOT_MARKET_PENDING_CONTEXT')
+            pending = pending_quote.pending_order(armed=armed)
+            if pending_quote._action.executor_config.id not in report.runner_executor_ids:
+                raise StorageError('PG_SPOT_MARKET_PENDING_RUNNER_MISSING')
+        pending_seen = False
         for evidence in report.orders:
             native = json.loads(evidence.native_json)
             order = None if evidence.exchange_json is None else json.loads(evidence.exchange_json)
             if native['state'] == 'ABORTED_BEFORE_SEND' and order is None:
                 continue
+            if pending is not None and native['wire_id'] == pending.client_order_id:
+                if order is not None or evidence.trade_ids or json.loads(evidence.fills_json):
+                    raise StorageError('PG_SPOT_MARKET_PENDING_CONTEXT')
+                pending_quote.pending_order(native, armed=armed)
+                pending_seen = True
+                continue  # This unsent order cannot contribute public depth.
             if order is None or native['state'] in ('PREPARED', 'SEND_UNKNOWN'):
                 raise StorageError('PG_SPOT_MARKET_ORDER_UNRESOLVED')
             if order['state'] not in ('live', 'partially_filled'):
@@ -156,9 +190,12 @@ class PgSpotMarketSource:
                                         _amount(order['px']), _amount(order['sz']) - _amount(order['accFillSz']), 'OPEN'))
         for product, sdk in (('SPOT', self.reader.source._connector), ('SWAP', self.source.swap_source._connector)):
             active = sdk._order_tracker.active_orders
-            if set(active) != set(expected[product]):
+            pending_ids = {pending.client_order_id} if pending is not None and product == 'SPOT' else set()
+            if set(active) != set(expected[product]) | pending_ids:
                 raise StorageError('PG_SPOT_MARKET_SDK_SCOPE')
             for wire, order in active.items():
+                if wire in pending_ids:
+                    continue
                 fact, native = expected[product][wire]
                 scale = D('1') if product == 'SPOT' else sdk._contract_sizes.get('LIFE-USDT')
                 if (scale is None or order.client_order_id != wire or order.exchange_order_id != fact['ordId']
@@ -169,6 +206,8 @@ class PgSpotMarketSource:
                         or product == 'SWAP' and (order.leverage != int(fact['lever'])
                                                   or order.position.name != native['position_action'])):
                     raise StorageError('PG_SPOT_MARKET_SDK_SCOPE')
+        if pending is not None and not pending_seen:
+            raise StorageError('PG_SPOT_MARKET_PENDING_CONTEXT')
         return tuple(own)
 
     def _rules_match(self, rules):
@@ -213,7 +252,7 @@ class PgSpotMarketSource:
                 or max(book.exchange_timestamp_ms, fees.exchange_timestamp_ms) - min(
                     book.exchange_timestamp_ms, fees.exchange_timestamp_ms) > self.max_skew_ms):
             raise StorageError('PG_SPOT_MARKET_STALE')
-        own = self._sdk_scope(report)
+        own = self._sdk_scope(report, pending_quote=self._pending_quote)
         decision = separate_own_depth(book=book, own_orders=own, order_scope_complete=True,
                                       orders_observed_monotonic=report.account_observed_monotonic,
                                       max_observation_skew_ms=self.max_skew_ms, max_book_age_ms=p.max_fact_age_ms,
@@ -230,23 +269,25 @@ class PgSpotMarketSource:
         asks = tuple((price, levels['SELL'][price]) for price, _ in book.ask_depth if levels['SELL'][price] > 0)
         return SpotMarketCapture(report, received, book, rules, fees, reference, bids[:self.max_levels], asks[:self.max_levels])
 
-    async def collect(self):
+    async def collect(self, *, pending_quote=None, preparing_quote=None):
+        if pending_quote is not None and preparing_quote is not None:
+            raise StorageError('PG_SPOT_MARKET_PHASE_INVALID')
         if self._busy:
             raise StorageError('PG_SPOT_MARKET_BACKPRESSURE')
         self._busy, self._capture = True, None
+        self._prepared_quote = None
+        self._pending_quote = pending_quote
+        self._preparing_quote, self._collection_task = preparing_quote, asyncio.current_task()
         try:
             async with asyncio.timeout(self.timeout_ms / 1000):
                 self._original()
-                if (await self._policy_snapshot()).policy != self._policy:
-                    raise StorageError('PG_SPOT_MARKET_POLICY_CHANGED')
-                report = await self.collector.collect(include_spot_market=True)
+                report = await self.collector.collect(include_spot_market=True, preparing_quote=preparing_quote)
                 received, epoch = self._now(), self.collector._epoch
+                if report.quote_policy != self._policy:
+                    raise StorageError('PG_SPOT_MARKET_POLICY_CHANGED')
                 with localcontext() as precision:
                     precision.prec = 160
                     capture = self._parse(report, received)
-                current = await self._policy_snapshot()
-                if current.policy != self._policy or current.cut != report.cut:
-                    raise StorageError('PG_SPOT_MARKET_NATIVE_CHANGED')
                 self._original()
                 self.collector.check_report(report, epoch=epoch)
                 self._capture, self._epoch = capture, epoch
@@ -258,12 +299,58 @@ class PgSpotMarketSource:
             raise StorageError('PG_SPOT_MARKET_INVALID') from None
         finally:
             self._busy = False
+            self._preparing_quote, self._collection_task = None, None
 
-    def admission(self, capture, *, side, quantity_base, carry_cost_usdt, inventory_risk_usdt):
+    async def prepare(self, application, wire, *, subsidy_quote_usdt, fee_buffer_quote_usdt,
+                      fee_buffer_base_life, carry_cost_usdt, inventory_risk_usdt):
+        """Read after original dispatch; build a DTO, never reserve/arm/send."""
+        from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot_application import PgSpotQuoteApplication
+        if (type(application) is not PgSpotQuoteApplication or application.source._market_source is not self
+                or application.repository is not self.repository or application.journal is not self.reader.source.journal):
+            raise StorageError('PG_SPOT_MARKET_PREPARING_CONTEXT')
+        action = application.preparing_action()
+        row = application.journal._entry(action).row
+        if wire != application.source.wire_for_action(action):
+            raise StorageError('PG_SPOT_MARKET_PREPARING_CONTEXT')
+        # Validate explicit economic inputs before any provider work.
+        subsidy, quote_fee, base_fee, carry, inventory = (
+            decimal(v) for v in (subsidy_quote_usdt, fee_buffer_quote_usdt, fee_buffer_base_life,
+                                 carry_cost_usdt, inventory_risk_usdt))
+        capture = await self.collect(preparing_quote=application)
+        if application.preparing_action() != action:
+            raise StorageError('PG_SPOT_MARKET_PREPARING_CONTEXT')
+        cfg = action.executor_config
+        facts = self.admission(capture, side=cfg.side.name, quantity_base=cfg.amount,
+                               carry_cost_usdt=carry, inventory_risk_usdt=inventory)
+        prepare = PrepareSpot('quote-prepare:' + fingerprint(row.json()), cfg.id, wire, cfg.trading_pair, cfg.side.name,
+                              cfg.amount, cfg.price, facts.reference_price_usdt, subsidy, row.session_id,
+                              row.epoch, row.config_version, row.level, quote_fee, base_fee, capture.report.risk_epoch)
+        command = PrepareQuoteAction(row, prepare, facts)
+        self._prepared_quote = application, asyncio.current_task(), command, capture, self._epoch
+        return command
+
+    def take_preparation_cut(self, application, command):
+        """Consume the owning source's original cut; SQL still verifies it."""
+        self._original()
+        sealed = self._prepared_quote
+        if sealed is None:
+            raise StorageError('PG_SPOT_MARKET_PREPARATION_ORIGIN_REQUIRED')
+        app, task, original, capture, epoch = sealed
+        if (application is not app or asyncio.current_task() is not task or command is not original
+                or app.source._market_source is not self or app._pending.get(command.action.intent_id) is not task
+                or app._stopped or capture is not self._capture or epoch != self._epoch):
+            raise StorageError('PG_SPOT_MARKET_PREPARATION_ORIGIN_REQUIRED')
+        app._original()
+        self.collector.check_report(capture.report, epoch=epoch)
+        self._prepared_quote = None
+        return capture.report.cut
+
+    def admission(self, capture, *, side, quantity_base, carry_cost_usdt, inventory_risk_usdt, pending_quote=None):
         """Size-aware independent unwind; monetary admission remains native SQL."""
         try:
             self._original()
-            if capture is not self._capture or type(capture) is not SpotMarketCapture or side not in ('BUY', 'SELL'):
+            if (capture is not self._capture or type(capture) is not SpotMarketCapture or side not in ('BUY', 'SELL')
+                    or pending_quote is not self._pending_quote):
                 raise StorageError('PG_SPOT_MARKET_CAPTURE_CHANGED')
             self.collector.check_report(capture.report, epoch=self._epoch)
             self._rules_match(capture.rules)
@@ -273,7 +360,7 @@ class PgSpotMarketSource:
                     or not 0 <= now - capture.book.exchange_timestamp_ms <= min(p.max_reference_age_ms, self.engine.policy.max_age_ms)
                     or not capture.fees.is_fresh(exchange_now_ms=now, max_age_ms=p.max_fee_age_ms)):
                 raise StorageError('PG_SPOT_MARKET_STALE')
-            self._sdk_scope(capture.report)
+            self._sdk_scope(capture.report, pending_quote=pending_quote)
             with localcontext() as precision:
                 precision.prec = 160
                 quantity = decimal(quantity_base, positive=True)

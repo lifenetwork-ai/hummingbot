@@ -56,12 +56,13 @@ class CashflowApprovals:
             raise ValueError("CASHFLOW_APPROVAL_INVALID") from exc
 
 
-async def _read_bills_since_anchor(connector, anchor_bill_id, max_pages) -> list[dict]:
+async def _read_bills_since_anchor(connector, anchor_bill_id, max_pages, *, first_page=None) -> list[dict]:
     rows = []
     cursor = None
     previous_id = None
-    for _ in range(max_pages):
-        response = await connector.get_account_bills_page(after=cursor)
+    for page_number in range(max_pages):
+        response = (first_page if page_number == 0 and first_page is not None
+                    else await connector.get_account_bills_page(after=cursor))
         if (not isinstance(response, dict) or response.get("code") != "0"
                 or not isinstance(response.get("data"), list)
                 or len(response["data"]) > 100):
@@ -129,8 +130,8 @@ class SpotAccountBillReader:
         self.connector, self.anchor = connector, anchor_bill_id
         self.max_pages, self.max_fill_pages = max_pages, max_fill_pages
 
-    async def bills_since_anchor(self):
-        return await _read_bills_since_anchor(self.connector, self.anchor, self.max_pages)
+    async def bills_since_anchor(self, *, first_page=None):
+        return await _read_bills_since_anchor(self.connector, self.anchor, self.max_pages, first_page=first_page)
 
     async def spot_fills_since_anchor(self):
         return await _read_spot_fills_since_anchor(self.connector, self.anchor, self.max_fill_pages)

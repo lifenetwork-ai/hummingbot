@@ -9,10 +9,11 @@ import asyncio
 import time
 from contextlib import AsyncExitStack
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal as D, localcontext
 
 from hummingbot.strategy_v2.life_liquidity.account_bills import SpotAccountBillReader
+from hummingbot.strategy_v2.life_liquidity.storage.action_preparation import QuoteAdmissionPolicy
 from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError, fingerprint, utc
 from hummingbot.strategy_v2.life_liquidity.storage.financial import FinancialCut
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.collateral_source import (
@@ -83,6 +84,7 @@ class JointSourceReport:
     spot_market_observed_at: datetime | None = None
     spot_market_monotonic: float | None = None
     account_observed_monotonic: float | None = None
+    quote_policy: QuoteAdmissionPolicy | None = None
     trading_permission: bool = field(default=False, init=False)
 
 
@@ -95,11 +97,24 @@ class PgJointAccountReconciler(PgCollateralReconciler):
         self.max_pages, self.max_age_ms = max_pages, max_age_ms
         self._lock, self._report = asyncio.Lock(), None
 
-    async def _scope(self):
+    async def _scope(self, *, spot_policy=False):
         self._original()
 
         async def read(c):
-            return await c.fetchrow(_SCOPE_QUERY, self.runtime.config.account_id,
+            query = _SCOPE_QUERY
+            if spot_policy:
+                # Exact decimal strings, in the same primary scope read. The
+                # surrounding native before/after cut already includes this
+                # policy; no extra full spot_state pass is needed here.
+                query = '''SELECT s.*,(SELECT jsonb_build_object(
+                    'policy_hash',p.policy_hash,'objective',p.objective,
+                    'min_net_edge_bps',p.min_net_edge_bps::text,'uncertainty_bps',p.uncertainty_bps::text,
+                    'tick_size',p.tick_size::text,'lot_size',p.lot_size::text,'min_size',p.min_size::text,
+                    'max_fact_age_ms',p.max_fact_age_ms,'max_reference_age_ms',p.max_reference_age_ms,
+                    'max_fee_age_ms',p.max_fee_age_ms,'max_capture_age_ms',p.max_capture_age_ms)
+                    FROM life_financial.spot_quote_admission_policies p WHERE p.account_id=$1) AS quote_policy
+                    FROM (''' + query + ') s'
+            return await c.fetchrow(query, self.runtime.config.account_id,
                                     self.swap.capital.max_rows, self.swap.capital.max_bytes)
         value = await self.runtime._admit(read, safety=True)
         self._original()
@@ -114,12 +129,35 @@ class PgJointAccountReconciler(PgCollateralReconciler):
         if (anchor is None or type(anchor.get('bill_id')) is not str or not anchor['bill_id'].isascii()
                 or not anchor['bill_id'].isdecimal() or not 0 < int(anchor['bill_id']) or len(anchor['bill_id']) > 96):
             raise StorageError('PG_JOINT_SOURCE_ANCHOR_REQUIRED')
+        if spot_policy:
+            p = value['quote_policy']
+            if type(p) is not dict or p['policy_hash'] != self.binding.policy_hash:
+                raise StorageError('PG_JOINT_SOURCE_QUOTE_POLICY_REQUIRED')
+            result['QUOTE_POLICY'] = p
         return result
 
-    async def _pages(self, read, key, *, anchor=None):
+    async def _collection_native(self, spot_policy):
+        if not spot_policy:
+            return await self._native()
+        clock = self.reader.source.journal.clock
+        before, started = utc(clock()), time.monotonic()
+        original, view = await self._native()
+        if spot_policy:
+            after, elapsed = utc(clock()), time.monotonic() - started
+            skew_ms = self.reader.source.max_clock_skew_ms
+            skew = timedelta(milliseconds=skew_ms)
+            snapshot = original['snapshot']
+            if (after < before or abs((after - before).total_seconds() - elapsed) * 1000 > skew_ms
+                    or not before - skew <= datetime.fromisoformat(snapshot['observed_at']) <= after + skew
+                    or snapshot['unverified'] or snapshot['financial_recovery_required']):
+                raise StorageError('PG_JOINT_SOURCE_QUOTE_NATIVE_UNQUALIFIED')
+        return original, view
+
+    async def _pages(self, read, key, *, anchor=None, first_page=None):
         cursor, previous, result = None, None, []
-        for _ in range(self.max_pages):
-            rows = (await read(after=cursor))['data']
+        for page_number in range(self.max_pages):
+            response = (first_page if page_number == 0 and first_page is not None else await read(after=cursor))
+            rows = response['data']
             if len(rows) > 100:
                 raise StorageError('PG_JOINT_SOURCE_PAGE_INVALID')
             for row in rows:
@@ -249,15 +287,24 @@ class PgJointAccountReconciler(PgCollateralReconciler):
 
     async def _round(self, scope, policy):
         anchor = scope['ANCHOR']['anchor']['bill_id']
+        # The four fixed first pages still cross the same signed SDK guard and
+        # quota individually. Persist them together before ANY parsing; retain
+        # every received page even on a malformed response or unknown COMMIT.
+        # Cursor continuations and per-order reads remain fully bounded below.
+        initial = await self.reader.read_batch((
+            ('/api/v5/account/bills-archive', {'limit': '100'}),
+            ('/api/v5/trade/fills-history', {'instType': 'SPOT', 'limit': '100'}),
+            ('/api/v5/trade/fills-history', {'instType': 'SWAP', 'limit': '100'}),
+            ('/api/v5/trade/orders-pending', {'limit': '100'})))
         helper = SpotAccountBillReader(self.reader, anchor_bill_id=anchor, max_pages=self.max_pages, max_fill_pages=self.max_pages)
-        bills = await helper.bills_since_anchor()
+        bills = await helper.bills_since_anchor(first_page=initial[0])
         if len(bills) > self.swap.capital.max_rows:
             raise StorageError('PG_JOINT_SOURCE_ROW_BOUND')
         self._bills(bills, scope)
         orders, payloads = {}, {'bills': bills, 'fills': {}, 'orders': {}, 'pending': {}}
-        for product in ('SPOT', 'SWAP'):
+        for offset, product in enumerate(('SPOT', 'SWAP'), 1):
             read = self.reader.get_all_spot_fill_history_page if product == 'SPOT' else self.reader.get_all_swap_fill_history_page
-            rows = await self._pages(read, 'billId', anchor=anchor)
+            rows = await self._pages(read, 'billId', anchor=anchor, first_page=initial[offset])
             if self._fills(rows, product, scope, policy) != set(scope[product + '_FILL']):
                 raise StorageError('PG_JOINT_SOURCE_TRADE_SCOPE')
             payloads['fills'][product] = rows
@@ -283,7 +330,7 @@ class PgJointAccountReconciler(PgCollateralReconciler):
                 raise StorageError('PG_JOINT_SOURCE_ORDER_TRADE_SCOPE')
             orders[intent] = row
             payloads['orders'][intent] = (row, rows)
-        pending = await self._pages(self.reader.get_all_open_orders_page, 'ordId')
+        pending = await self._pages(self.reader.get_all_open_orders_page, 'ordId', first_page=initial[3])
         expected = {scope['ORDER'][intent]['wire_id']: (scope['ORDER'][intent], row)
                     for intent, row in orders.items() if row is not None and row['state'] in ('live', 'partially_filled')}
         seen = set()
@@ -306,15 +353,26 @@ class PgJointAccountReconciler(PgCollateralReconciler):
                 raise StorageError('PG_JOINT_SOURCE_ALGO_UNOWNED')
         return orders, payloads
 
-    async def _runner(self, scope):
+    async def _runner(self, scope, preparing_quote=None):
         facts = await self.reader.source.journal._facts()
         now = utc(self.reader.source.journal.clock())
+        allowed = set(scope['ORDER'])
+        if preparing_quote is not None:
+            from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot_application import PgSpotQuoteApplication
+            if (type(preparing_quote) is not PgSpotQuoteApplication or preparing_quote.journal is not self.reader.source.journal
+                    or preparing_quote.repository is not self.financial or preparing_quote.runtime is not self.runtime):
+                raise StorageError('PG_JOINT_SOURCE_PREPARING_CONTEXT')
+            action = preparing_quote.preparing_action()
+            intent = action.executor_config.id
+            if intent in allowed or intent not in facts.executor_ids:
+                raise StorageError('PG_JOINT_SOURCE_PREPARING_CONTEXT')
+            allowed.add(intent)
         if (not 0 <= (now - facts.observed_at).total_seconds() * 1000 <= self.max_age_ms
-                or not set(facts.executor_ids) <= scope['ORDER'].keys()):
+                or not set(facts.executor_ids) <= allowed):
             raise StorageError('PG_JOINT_SOURCE_RUNNER_SCOPE')
         return tuple(sorted(facts.executor_ids))
 
-    async def collect(self, *, include_hedge_market=False, include_spot_market=False):
+    async def collect(self, *, include_hedge_market=False, include_spot_market=False, preparing_quote=None):
         import json
         if type(include_hedge_market) is not bool or type(include_spot_market) is not bool:
             raise StorageError('PG_JOINT_SOURCE_CONFIG_INVALID')
@@ -334,13 +392,13 @@ class PgJointAccountReconciler(PgCollateralReconciler):
                     expected_epoch = self.runtime._ingress_epoch + 1
                     with localcontext() as precision:
                         precision.prec = 160
-                        original, view = await self._native()
-                        scope = await self._scope()
+                        original, view = await self._collection_native(include_spot_market)
+                        scope = await self._scope(spot_policy=include_spot_market)
                         async with self.reader.collection():
                             started = self.reader.started_at
                             market_json, market_at = None, None
                             spot_json, spot_at, spot_monotonic, account_monotonic = None, None, None, None
-                            first_runner = await self._runner(scope)
+                            first_runner = await self._runner(scope, preparing_quote)
                             rounds, accounts, account_times = [], [], []
                             for _ in range(2):
                                 orders, payload = await self._round(scope, original['capital_policy'])
@@ -349,7 +407,7 @@ class PgJointAccountReconciler(PgCollateralReconciler):
                                 account, collateral = await self._sample(original['capital_policy'])
                                 rounds.append({**payload, 'collateral': collateral})
                                 accounts.append(account)
-                            if first_runner != await self._runner(scope) or rounds[0] != rounds[1] or accounts[0] != accounts[1]:
+                            if first_runner != await self._runner(scope, preparing_quote) or rounds[0] != rounds[1] or accounts[0] != accounts[1]:
                                 raise StorageError('PG_JOINT_SOURCE_CHANGED')
                             if include_hedge_market:
                                 # One authenticated collection owns account and
@@ -367,9 +425,9 @@ class PgJointAccountReconciler(PgCollateralReconciler):
                                 spot_at, spot_monotonic = utc(self.reader.source.journal.clock()), time.monotonic()
                                 values = await self.reader.read_batch(SPOT_ROUTES)
                                 spot_json = json.dumps([v['data'] for v in values], sort_keys=True)
-                        current, after = await self._native()
+                        current, after = await self._collection_native(include_spot_market)
                         self._match(original, view, current, after, accounts[0])
-                        if scope != await self._scope():
+                        if scope != await self._scope(spot_policy=include_spot_market):
                             raise StorageError('PG_JOINT_SOURCE_NATIVE_CHANGED')
                         if self.runtime._ingress_epoch != expected_epoch:
                             raise StorageError('PG_JOINT_SOURCE_INGRESS_CHANGED')
@@ -377,6 +435,11 @@ class PgJointAccountReconciler(PgCollateralReconciler):
                                                         tuple(sorted(t for t, f in scope[v['product'] + '_FILL'].items() if f['intent_id'] == k)),
                                                         json.dumps([f['fill'] for _, f in sorted(scope[v['product'] + '_FILL'].items()) if f['intent_id'] == k], sort_keys=True))
                                      for k, v in sorted(scope['ORDER'].items()))
+                        qp = scope.get('QUOTE_POLICY')
+                        policy = None if qp is None else QuoteAdmissionPolicy(
+                            self.binding, qp['objective'], *(D(qp[k]) for k in (
+                                'min_net_edge_bps', 'uncertainty_bps', 'tick_size', 'lot_size', 'min_size')),
+                            *(qp[k] for k in ('max_fact_age_ms', 'max_reference_age_ms', 'max_fee_age_ms', 'max_capture_age_ms')))
                         report = JointSourceReport(view.cut, view.session.config_version, original['snapshot']['account']['risk_epoch'],
                                                    started, scope['ANCHOR']['anchor']['opened_at_ms'],
                                                    self.reader.collection_id, fingerprint([rounds, market_json] + ([spot_json] if include_spot_market else [])), accounts[1], account_times[1], rows,
@@ -384,7 +447,7 @@ class PgJointAccountReconciler(PgCollateralReconciler):
                                                    tuple(sorted(scope['TRANSFER'])),
                                                    tuple((k, v['at_ms'], D(v['signed_amount'])) for k, v in sorted(scope['FUNDING'].items())), first_runner,
                                                    market_json, market_at, spot_json, spot_at, spot_monotonic,
-                                                   account_monotonic if include_spot_market else None)
+                                                   account_monotonic if include_spot_market else None, policy)
                         self._report, self._epoch = report, expected_epoch
                         return report
             except BaseException as error:

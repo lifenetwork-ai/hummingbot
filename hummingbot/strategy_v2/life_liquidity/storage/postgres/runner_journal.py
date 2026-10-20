@@ -210,7 +210,7 @@ class PgQuoteRunnerJournal:
     def suppress_create_for_stop_batch():
         return True
 
-    async def prepare_quote_action(self, action, command):
+    async def prepare_quote_action(self, action, command, *, _source_cut=None):
         entry = self._entry(action)
         if not entry.accepted or entry.prepare_started or not self.local_runner_create_fence(action):
             raise StorageError('RUNNER_ACCEPTANCE_REQUIRED')
@@ -219,7 +219,11 @@ class PgQuoteRunnerJournal:
                 raise StorageError('RUNNER_ACCEPTANCE_REQUIRED')
             if type(command) is not PrepareQuoteAction or command.action != entry.row:
                 raise StorageError('RUNNER_PREPARATION_CAPTURE_MISMATCH')
-            cut = (await self.repository.snapshot(self.binding)).cut
+            # An owning native source may already hold the exact verified cut
+            # paired with these facts. It is an optimistic token, not authority:
+            # SQL must reject any intervening change instead of silently using
+            # a newer unrelated snapshot. Legacy callers still capture here.
+            cut = (await self.repository.snapshot(self.binding)).cut if _source_cut is None else _source_cut
             if not entry.accepted or not self.local_runner_create_fence(action):
                 raise StorageError('RUNNER_ACCEPTANCE_REQUIRED')
             # One physical attempt. Failures require exact operation readback,
@@ -230,7 +234,7 @@ class PgQuoteRunnerJournal:
                 entry.prepared = command
             return result
 
-    async def arm_quote_action(self, action, command):
+    async def arm_quote_action(self, action, command, *, _source_cut=None):
         entry = self._entry(action)
         async with self._lock:
             if (entry.prepared is None or entry.arm_started or not entry.accepted
@@ -239,7 +243,7 @@ class PgQuoteRunnerJournal:
             if (type(command) is not ArmQuoteAction or command.action != entry.row
                     or command.prepare_operation_id != entry.prepared.prepare.operation_id):
                 raise StorageError('RUNNER_ARM_CAPTURE_MISMATCH')
-            cut = (await self.repository.snapshot(self.binding)).cut
+            cut = (await self.repository.snapshot(self.binding)).cut if _source_cut is None else _source_cut
             if not self.local_runner_create_fence(action):
                 raise StorageError('RUNNER_PREPARATION_REQUIRED')
             # This is durable bookkeeping only. The submit hook remains denied;

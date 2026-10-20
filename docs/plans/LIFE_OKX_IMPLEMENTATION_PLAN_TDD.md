@@ -1,5 +1,16 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**Latest native SPOT execution progress (2026-10-20):** signed post-dispatch
+preparation and fresh final-market authorization now reach native ARM and durable
+ACK through the actual SPOT `OrderExecutor`/SDK. Business intent is fixed before
+capital/carry preallocation; new runner capture happens afterwards and cannot be
+renewed. The frozen affected gate is **344 pass / 2 fail**: two quote-age failures
+occur at prepare COMMIT before their intended fault injection. Both blocked
+refusal branches pass separately on unchanged source. The complete gate remains
+**RED**; one-second limits stay unchanged. Actual configured producer/service,
+shared-SDK cycle scheduling and R5 availability remain open; **PG3 is not closed**.
+See [SPOT handoff qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-r4-native-spot-preparation-and-final-send-composition-2026-10-20).
+
 **Latest native SPOT market progress (2026-10-20):** the signed metadata/book/
 account-fee adapter now supplies independent own-depth reference and size-specific
 unwind facts. All **49 new contract cases** and **5 migration audits** pass. The

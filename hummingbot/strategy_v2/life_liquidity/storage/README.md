@@ -4151,7 +4151,62 @@ Market reads check original SDK credentials, endpoint and quota identities; they
 do not invoke the SWAP send fence, which correctly requires paused makers.
 This profile requires the same credentials on both SDKs; a different-key source
 is refused rather than inferred to own the same account from a source label.
-This adapter issues no order, claim, activation or release. It does not install
-the controller/planner or authorize a newly tracked pending submission. Those
-final preparation/send handoffs and mandatory service routes remain R4. Use
+The passive adapter issues no order, claim, activation or release. It does not
+install the controller/planner. The explicit native preparation/send handoff is
+described below; mandatory configured service installation remains R4. Use
 `run_postgres --suite spot_market` for the affected source regression.
+
+## Native SPOT preparation and final market handoff
+
+An explicitly assembled `PgQuoteAccountSource` can bind one original
+`PgSpotMarketSource`, instead of a synthetic admission callback. Both sources
+must use the original journal, owner, repository, SPOT SDK and imported policy.
+Replacing the market binding cannot fall back to a callback.
+
+`PgSpotQuoteIntent` fixes the owner, permanent intent/wire identity, side, level,
+quantity and price **before** capital/carry preallocation. After that preflight,
+`capture_intent()` creates a new V2 action once. Retries and changed action bytes
+cannot acquire a renewed timestamp. This method creates a DTO, not a reservation
+or trading permission; native allocation/admission remain mandatory.
+
+During the original accepted runner's preparation await,
+`market.prepare(application, wire, ...)` obtains a new signed complete joint
+report and book/fee snapshot. Only that exact preparing executor may extend the
+reported runner scope before a native send attempt exists. Subsidy, possible
+quote/base fee buffers, carry cost and inventory risk are explicit inputs. SQL
+rechecks economics and shared allocation, including coverage of both possible
+fee currencies. An underfunded fee allocation is refused.
+
+The source's one-use preparation cut and final report cut are passed unchanged
+to native prepare/ARM. They replace redundant state reads, not native cut,
+ownership, admission or COMMIT checks. A changed epoch after preparation stops
+the SDK handoff while retaining the original holds.
+
+At final HTTP authorization, a new signed collection may recognize only the
+original application's exact unsent `PENDING_CREATE` SDK object and original
+native `PREPARED` attempt. The executor must still appear in the complete runner
+report. Cloned guards/orders, foreign tasks, early ACKs/fills, missing executors
+and unrelated unresolved orders are refused. That unsent order contributes no
+public depth. The guard permits exactly the owning collection's single epoch
+increment, then checks the original report, SDK scope, ages and local stop again
+after physical ARM, immediately before HTTP. An unknown outcome retains holds;
+it never restores a send capability. Preparation costs retain their original
+values and age when final book/fee facts are collected.
+
+The first bills, account-wide SPOT/SWAP fills and unfiltered pending-orders pages
+share one diagnostic COMMIT per round, before parsing any of them. All signed
+requests, pagination, anchors, limits and both account comparison rounds remain.
+Partial transport and unknown COMMITs retain received pages without publishing a
+report. This saves six diagnostic COMMITs per complete account capture, without
+deferring financial commands or changing source/SQL/capture deadlines.
+
+Use `run_postgres --suite spot_market_send` for the coupled source/SDK regression.
+Its capital/carry preallocation and quote terms are explicitly synthetic fixtures.
+It does not qualify a configured planner, production cost calibration, shared-SDK
+cycle scheduling or the complete controller/service. PostgreSQL backend selection
+remains rejected until configured R2.3/R4 and whole-service R5 pass.
+
+Current frozen affected regression: **344 pass / 2 fail** (346 cases). Two setup
+quotes expire at prepare COMMIT before their ACK/state fault injection; both
+refusal branches pass separately on unchanged source. This does not make the
+complete regression green or establish loaded-tail availability. Keep R5 open.

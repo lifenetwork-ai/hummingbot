@@ -14,11 +14,11 @@ from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot_market import PgSpotMarketSource
 
 
-async def market(database, *, spot_fee=None, shared_quota=False):
-    t = await sources(database, spot_fee=spot_fee, clean=shared_quota, fresh=shared_quota, shared_quota=shared_quota)
+async def market(database, *, spot_fee=None, shared_quota=False, clean=False, objective='profit_mm'):
+    t = await sources(database, spot_fee=spot_fee, clean=clean or shared_quota, fresh=clean or shared_quota, shared_quota=shared_quota)
     t.reader = t.source.reader
     await database[0].execute("INSERT INTO life_financial.spot_action_policies VALUES($1,$2,'main',8,65536,1000)", t.cfg.account_id, t.cfg.binding.policy_hash)
-    await database[0].execute("INSERT INTO life_financial.spot_quote_admission_policies VALUES($1,$2,'profit_mm',0,0,.01,.01,.01,1000,1000,1000,1000)", t.cfg.account_id, t.cfg.binding.policy_hash)
+    await database[0].execute("INSERT INTO life_financial.spot_quote_admission_policies VALUES($1,$2,$3,0,0,.01,.01,.01,1000,1000,1000,1000)", t.cfg.account_id, t.cfg.binding.policy_hash, objective)
     t.connector._trading_rules['LIFE-USDT'] = TradingRule(
         'LIFE-USDT', min_order_size=D('.01'), min_price_increment=D('.01'), min_base_amount_increment=D('.01'))
     t.spot = {
@@ -334,7 +334,7 @@ async def test_collection_does_not_publish_on_interruption_unknown_commit_or_cha
 
     from hummingbot.strategy_v2.life_liquidity.storage.contracts import CommitUnknown
     t = await market(database)
-    original_http, original_policy, original_capture = t.session.request, t.market_source._policy_snapshot, t.reader._journal.capture_many
+    original_http, original_capture = t.session.request, t.reader._journal.capture_many
 
     async def http(**kwargs):
         response = await original_http(**kwargs)
@@ -343,6 +343,8 @@ async def test_collection_does_not_publish_on_interruption_unknown_commit_or_cha
                 t.financial._runtime._ingress_epoch += 1
             elif fault == 'cancel':
                 raise asyncio.CancelledError()
+            elif fault == 'policy_change':
+                await database[0].execute('UPDATE life_financial.spot_quote_admission_policies SET tick_size=.001 WHERE account_id=$1', t.cfg.account_id)
         return response
 
     async def lost(pages):
@@ -351,18 +353,8 @@ async def test_collection_does_not_publish_on_interruption_unknown_commit_or_cha
             raise CommitUnknown('PG_COMMIT_UNKNOWN')
         return receipt
 
-    calls = 0
-
-    async def policy():
-        nonlocal calls
-        calls += 1
-        value = await original_policy()
-        if fault == 'policy_change' and calls == 2:
-            return replace(value, policy=replace(value.policy, tick_size=D('.001')))
-        return value
     t.session.request = http
     monkeypatch.setattr(t.reader._journal, 'capture_many', lost if fault == 'lost_diagnostic_commit' else original_capture)
-    monkeypatch.setattr(t.market_source, '_policy_snapshot', policy)
     try:
         with pytest.raises((StorageError, asyncio.CancelledError)):
             await t.market_source.collect()
