@@ -1,6 +1,7 @@
 """Separate bounded pools; cancelled callers never detach physical commands."""
 import asyncio
 from dataclasses import replace
+from datetime import timedelta
 from decimal import Decimal as D
 from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.helpers import backend
 from uuid import uuid4
@@ -9,6 +10,67 @@ import pytest
 
 from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.runtime import AllocateBalance, PgRuntime
+
+
+@pytest.mark.asyncio
+async def test_bounded_pools_retain_backend_plans_across_idle_maker_retirement(database):
+    store, cfg, owner = await backend(database, max_size=1, owner_duration=timedelta(seconds=60))
+
+    async def pid(connection):
+        return await connection.fetchval('SELECT pg_backend_pid()')
+    try:
+        before = {safety: await store._admit(pid, safety=safety) for safety in (False, True)}
+        assert before[False] != before[True]
+        # Actual elapsed idle time crosses the previous fixed 30 s eviction.
+        # No mocked timer, source re-dating or extra database load is used.
+        await asyncio.sleep(31)
+        after = {safety: await store._admit(pid, safety=safety) for safety in (False, True)}
+        assert after == before
+        assert all(pool.get_size() == 1 for pool in store._pools.values())
+        assert (await store.allocate(AllocateBalance('after-idle', 0, 'USDT', D('1')), owner)).amount == 1
+    finally:
+        await store.close()
+
+
+@pytest.mark.asyncio
+async def test_retained_backend_plan_does_not_cache_account_access(database):
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.access import provision_access
+    store, cfg, owner = await backend(database, max_size=1)
+    try:
+        await store.balances()
+        await provision_access(database[0], principal=cfg.principal, account_id=cfg.account_id, write=False)
+        with pytest.raises(StorageError):
+            await store.allocate(AllocateBalance('revoked-access', 0, 'USDT', D('1')), owner)
+        assert not store.healthy
+        assert await database[0].fetchval('SELECT count(*) FROM life_financial.operations WHERE account_id=$1', cfg.account_id) == 0
+        assert await database[0].fetchval("SELECT reserved FROM life_financial.balances WHERE account_id=$1 AND asset='USDT'", cfg.account_id) == 0
+    finally:
+        await store.close()
+
+
+@pytest.mark.asyncio
+async def test_killed_idle_backend_is_replaced_before_new_command(database):
+    import asyncpg
+    store, cfg, owner = await backend(database, max_size=1)
+    admin = await asyncpg.connect(database[1])
+
+    async def pid(connection):
+        return await connection.fetchval('SELECT pg_backend_pid()')
+    try:
+        before = await store._admit(pid, safety=False)
+        assert await admin.fetchval('SELECT pg_terminate_backend($1)', before)
+        # Join the driver's idle-socket termination notification, before a new
+        # operation exists. This is not retry of any interrupted transaction.
+        async with asyncio.timeout(1):
+            while store._pools[False].get_size():
+                await asyncio.sleep(.001)
+        after = await store._admit(pid, safety=False)
+        assert after != before
+        assert (await store.allocate(AllocateBalance('after-idle-disconnect', 0, 'USDT', D('1')), owner)).amount == 1
+        assert store._pools[False].get_size() == 1
+    finally:
+        await admin.close()
+        await store.close()
 
 
 @pytest.mark.asyncio

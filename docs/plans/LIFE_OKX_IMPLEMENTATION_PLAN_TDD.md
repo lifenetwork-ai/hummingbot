@@ -1,6 +1,14 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
-**Current PG3 closure work (2026-10-21):** redundant maker-terminal source
+**Current PG3 closure checkpoint (2026-10-21):** bounded PostgreSQL pools retain
+idle backend connections/compiled plans; financial/access/source checks remain
+fresh on every admission. The frozen foundation gate passes **49 cases** and
+the configured maker selector is **8 pass / 1 fail**. The two-generation quote
+still expires at **1021.395 ms / 1000 ms**, with a retained cleanup scope error.
+**PG3 remains open** for the fixed R2.3/R4/R5 exits. See
+[bounded pool qualification and remaining work](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-bounded-pool-and-compiled-plan-retention-2026-10-21).
+
+**Earlier PG3 closure work (2026-10-21):** redundant maker-terminal source
 collection is removed with a task/operation-bound, single-use handoff. All 66
 affected cancellation/source tests pass. The configured gate remains **7 pass /
 2 fail**, with schedule quotes expiring at 1086.028 and 1146.075 ms. A separate

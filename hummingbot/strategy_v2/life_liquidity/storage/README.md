@@ -4629,3 +4629,18 @@ The 66-case cancellation/source regression passes. The configured nine-case
 gate remains 7 pass / 2 schedule quote-expiry failures; a separate instrumented
 single-generation pass is diagnostic only. Complete configured/current-source
 acceptance still gates PG3.
+
+### Bounded connection and compiled-plan retention
+
+Risk and safety pools retain their idle connections until physical close, within
+their unchanged separate maxima. The previous 30-second idle eviction discarded
+healthy backends/compiled plans during long maker retirement. This changes idle
+connection residency, not financial caching: primary/role/schema/account checks
+run on every admission, and source/fact/SQL/transaction/idle-in-transaction
+deadlines remain unchanged. Dead idle backends can be replaced before a new
+command; interrupted transactions keep the original unknown-COMMIT policy.
+
+The 49-case foundation gate passes, including actual 31-second idle retention,
+dynamic access revocation and real idle backend termination. The current
+configured maker gate is 8 pass / 1 two-generation quote-expiry failure at
+1021.395 ms, retaining its cleanup scope error. PG3 remains open.

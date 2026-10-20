@@ -2,7 +2,17 @@
 
 Created: 2026-10-11
 
-**Current PG3 closure work (2026-10-21):** maker terminal confirmation can consume
+**Current PG3 closure checkpoint (2026-10-21):** bounded risk/safety pools now
+retain idle connections and their compiled plans until close. Actual 31-second
+idle tests reproduce the old backend eviction and qualify retention, fresh
+access checks and dead-idle-backend replacement. The frozen foundation gate
+passes **49 cases**; the configured maker gate is **8 pass / 1 fail**. The
+two-generation quote still expires at **1021.395 ms**, with a retained cleanup
+`PG_JOINT_SOURCE_ORDER_SCOPE` note. No source/SQL/transaction deadline is widened.
+**PG3 is open** for R2.3/R4/R5, including complete configured SPOT/SWAP routes and
+whole-product acceptance. See [bounded pool qualification](#pg3-bounded-pool-and-compiled-plan-retention-2026-10-21).
+
+**Earlier PG3 closure work (2026-10-21):** maker terminal confirmation can consume
 the same operation's current signed collection once, removing a redundant full
 collection. All 66 affected cancellation/source tests pass. The frozen configured
 gate is **7 pass / 2 fail**: both schedule cases expire during SPOT submission
@@ -6333,3 +6343,53 @@ publication, dispatched acceptance, preparation and final SDK guard; remove
 measured redundant work without changing the 1000-ms window; then qualify every
 enabled configured SPOT/SWAP route and the frozen R5 whole-product fault/parity
 gate. Neither the narrower native pass nor the diagnostic pass closes PG3.
+
+## PG3 bounded pool and compiled-plan retention (2026-10-21)
+
+Diagnostic measurements of the actual quote chain show the third capture taking
+158.7 ms for publication, 176.0 ms for dispatched acceptance, 213.3 ms for signed
+preparation collection, 149.3 ms for PREPARE, and 359.6 ms for the final guard
+(including 142.8 ms for ARM). These are one instrumented run, not percentiles.
+That diagnostic two-generation replay fails (73.73 s). The outer asyncpg
+statement cache reaches only 57/100 entries: 1644 lookups, 82 misses and 112.2 ms
+total plan-lookup time over the whole test. In the third quote's measured send
+window, 70 lookups take 2.521 ms, including three misses. Increasing the cache
+capacity is not supported by these measurements. These timings do not include
+PostgreSQL's internal PL/pgSQL subplan compilation.
+
+The same diagnostic records a fresh per-connection statement cache after the
+long retirement interval. Both pools previously used a fixed 30-second
+idle-connection lifetime. A new
+real-time regression waits 31 seconds and is RED: original risk/safety PIDs
+127/128 become 130/131. Recreating a backend also discards its session-local
+compiled plans. The runtime now disables idle-connection eviction, retaining
+connections only within the existing separate, bounded pool capacities until
+physical close. This adds idle connection/compiled-plan residency; it does not
+increase either configured pool maximum or retain account/access/source verdicts.
+Every admission still checks the actual primary, role, schema and account scope.
+Acquire, SQL, transaction, idle-in-transaction, source and final-send limits remain
+unchanged. A dead idle socket is replaced before a new command, never replayed
+as an interrupted financial transaction.
+
+On **1820 frozen implementation/test/migration hashes**, the final foundation
+gate passes **49 cases**, no failures/errors/skips (138.40 s). Three new cases
+cover real idle retention in both pools plus a later financial command, dynamic
+account-access revocation, and actual idle backend termination/replacement.
+Existing role/TLS/durability/cancellation/unknown-COMMIT tests remain included.
+`/tmp/life-pg3-retained-pools-frozen-foundation`.
+
+The same source's complete nine-case configured maker selector reports **8 pass /
+1 fail**, 752 deselected (355.99 s). The one-generation workflow and seven other
+selected cases pass. The two-generation case remains RED at
+`PG_SPOT_SUBMISSION_UNKNOWN`, original quote age **1021.395 ms** against 1000 ms.
+Its exception also retains `cleanup_failure=StorageError:PG_JOINT_SOURCE_ORDER_SCOPE`;
+cleanup does not replace the original failure or infer order absence/refund.
+`/tmp/life-pg3-retained-pools-frozen-configured`. Do not turn the separate prior
+7/2 and current 8/1 samples into a latency improvement percentage or a whole-gate
+pass. The earlier 66-case handoff gate qualifies its previous source revision.
+
+There is no new SQL migration, repository evidence artifact, financial result
+cache, resource-limit increase, phase-budget relaxation or live-account action.
+R2.3/R4/R5 still require resolving this capture/send failure and its cleanup
+behavior, qualifying all enabled final service routes, and running the complete
+current-source parity/fault/recovery/role/latency gate. PG3 remains open.

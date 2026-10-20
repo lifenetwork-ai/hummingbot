@@ -172,7 +172,11 @@ class PgRuntime:
                 for safety, size, minimum in ((False, config.max_size, config.min_size), (True, config.safety_size, 1)):
                     self._pools[safety] = await asyncpg.create_pool(
                         config.dsn, ssl=context,
-                        min_size=minimum, max_size=size, max_inactive_connection_lifetime=30,
+                        # Maker retirement can leave the risk pool idle for
+                        # more than 30 s. Retain bounded connections and their
+                        # compiled plans until close; every admission still
+                        # rechecks the primary, role, lineage and current facts.
+                        min_size=minimum, max_size=size, max_inactive_connection_lifetime=0,
                         timeout=config.acquire_timeout_ms / 1000, command_timeout=config.statement_timeout_ms / 1000,
                         init=self._initialize_connection, server_settings={
                             'application_name': 'life_financial_runtime', 'synchronous_commit': 'on', 'timezone': 'UTC', 'search_path': 'pg_catalog',
