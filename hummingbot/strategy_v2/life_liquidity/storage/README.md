@@ -4098,3 +4098,34 @@ reactivates a session or grants exchange HTTP. `run_postgres --suite joint_intak
 combines its tests with the affected batch, funding, hedge and joint-source
 profiles. Mandatory both-product listener/history installation and actual
 controller/service assembly remain R4; whole-service acceptance remains R5.
+
+
+## Joint SDK callbacks and qualified history
+
+`PgRecorderApplication.install_joint_events(observer)` installs
+`PgJointEventApplication` for the original owned SPOT and SWAP SDKs, before any
+awaited startup collection. Both fixed product sources must be registered. Known
+legacy/second recorder listeners are refused; partial registration failure removes
+both products' listeners. Each callback invalidates earlier source epochs and
+enters the bounded reporting queue. Funding callbacks are accepted only on SWAP.
+
+Callbacks are untrusted hints. One `PgJointFinancialObserver` accounts only signed
+account facts with an original atomic batch ID. `PgJointDedupRecovery` then obtains
+a fresh complete joint report and checks reported order/fill IDs, native ACKs,
+amounts, prices, fees, leverage, position action, current financial cut and both
+SDK credential contexts. Equal trade IDs on different products remain distinct.
+Publication updates both products' duplicate caches synchronously; a failed tail
+restores both original caches. Foreign existing cache entries cannot be blessed
+or silently deleted. Diagnostic tracking JSON never restores an order tracker.
+
+Stop removes both listeners and joins original financial work. Late signed money
+can finish, but stopped/failed contexts cannot publish SDK IDs. A qualified dual
+history profile can start the actual V2 runner in observation mode; missing routes
+or altered listeners/credentials prevent startup. Executor creation remains denied
+until the complete configured trading service is installed and qualified.
+
+Captured SPOT preparation also retains an explicit shared-account `risk_epoch`.
+The typed DTO validates its units; native account/claim/COMMIT gates check its
+original value. A missing epoch gets no implicit default. This change does not
+relax shared capital, fee, budget, ownership or source-age checks. Whole configured
+LIFE controller/planner/reference/book/fee assembly and R5 acceptance remain open.

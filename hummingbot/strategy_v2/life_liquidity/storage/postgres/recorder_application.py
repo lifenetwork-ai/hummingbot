@@ -90,11 +90,15 @@ class PgRecorderApplication(ReportingQueue):
             return False
 
     def runner_startup(self, connectors):
-        """Qualify the installed original SPOT event/history route before V2."""
+        """Qualify the installed original product event/history routes before V2."""
         from hummingbot.strategy_v2.life_liquidity.storage.postgres.event_application import PgSpotEventApplication
+        from hummingbot.strategy_v2.life_liquidity.storage.postgres.joint_event_application import (
+            PgJointEventApplication,
+        )
         events = self._event_application
-        if (self._runner_context is not None or not self._admission_ready() or type(events) is not PgSpotEventApplication
-                or events.reporting is not self or self.controller.config.strategy.perpetual.enabled
+        expected = PgJointEventApplication if self.controller.config.strategy.perpetual.enabled else PgSpotEventApplication
+        if (self._runner_context is not None or not self._admission_ready() or type(events) is not expected
+                or events.reporting is not self
                 or type(connectors) is not dict):
             raise StorageError('PG_RECORDER_RUNNER_STARTUP_UNQUALIFIED')
         sources = events.runner_sources()
@@ -275,6 +279,12 @@ class PgRecorderApplication(ReportingQueue):
     async def install_spot_events(self, observer):
         from hummingbot.strategy_v2.life_liquidity.storage.postgres.event_application import PgSpotEventApplication
         return await PgSpotEventApplication.install(self, observer)
+
+    async def install_joint_events(self, observer):
+        from hummingbot.strategy_v2.life_liquidity.storage.postgres.joint_event_application import (
+            PgJointEventApplication,
+        )
+        return await PgJointEventApplication.install(self, observer)
 
     async def close(self):
         try:

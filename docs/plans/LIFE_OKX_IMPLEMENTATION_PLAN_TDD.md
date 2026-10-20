@@ -1,5 +1,16 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**Latest PostgreSQL listener/history progress (2026-10-20):** **266 frozen
+native cases**, five audited migration-86 cases and 29 contracts pass. Both SDK
+listeners now connect signed joint accounting to native/report-qualified history;
+actual dual-source V2 observation startup and cold DB-runtime/listener reinstall
+retain original money/IDs/claims without File/ORM fallback or trading permission.
+The captured shared-account quote preserves its explicit risk epoch. Preflight
+reads precede new capture/admission; original timestamps, monetary thresholds and
+deadlines stay unchanged. Complete configured trading service and R5 loaded/
+whole-service acceptance remain open; **PG3 is not closed**. See
+[joint listeners/history](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-r4-joint-sdk-callbacks-and-original-history-2026-10-20).
+
 **Latest PostgreSQL financial intake progress (2026-10-20):** the frozen
 152-case `joint_intake` gate passes with zero failures/errors/skips. Signed new
 SPOT/SWAP fills, approved LIFE/USDT transfers and paid funding enter one native

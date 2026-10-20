@@ -112,13 +112,16 @@ class PrepareQuoteAction:
 
     def __post_init__(self):
         if (type(self.action) is not SpotQuoteAction or type(self.prepare) is not PrepareSpot
-                or type(self.admission) is not QuoteAdmissionFacts or self.prepare.risk_epoch is not None
+                or type(self.admission) is not QuoteAdmissionFacts
                 or self.prepare.budget_scope != 'QUOTE'
                 or any(getattr(self.action, key) != getattr(self.prepare, key) for key in (
                     'intent_id', 'session_id', 'epoch', 'config_version', 'market', 'side'))
                 or self.action.level != self.prepare.quote_level
                 or self.admission.reference_price_usdt != self.prepare.reference_price_usdt):
             raise StorageError('QUOTE_PREPARATION_SCOPE_INVALID')
+        # A shared account must retain its explicit risk epoch. PrepareSpot
+        # validates its units; the native account/claim and COMMIT gates verify
+        # the original current epoch. This DTO does not grant risk permission.
 
     def json(self):
         return {'action': self.action.json(), 'prepare': self.prepare.json(), 'admission': self.admission.json()}

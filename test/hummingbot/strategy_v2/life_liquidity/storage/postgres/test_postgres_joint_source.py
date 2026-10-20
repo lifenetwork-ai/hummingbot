@@ -13,7 +13,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.financial_source imp
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.joint_source import PgJointAccountReconciler
 
 
-async def joint(database, *, spot_fee=None, carry_options=None, apply_batch=True):
+async def joint(database, *, spot_fee=None, carry_options=None, apply_batch=True, spot_options=None, spot_prepare=None):
     async def before_apply(values, command):
         from dataclasses import replace
         from decimal import Decimal as D
@@ -31,8 +31,11 @@ async def joint(database, *, spot_fee=None, carry_options=None, apply_batch=True
                                 await values[5].cut(cfg.binding), owner)
         await values[8].check_carry(cfg.binding)
         prepared = order(owner, risk_epoch=1, fee_buffer_base_life=D('.001'), fee_buffer_quote_usdt=D('.001'))
-        await financial.prepare(prepared, cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)
-        await financial.arm(prepared.operation_id, cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)
+        if spot_prepare is None:
+            await financial.prepare(prepared, cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)
+            await financial.arm(prepared.operation_id, cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)
+        else:
+            await spot_prepare(values, prepared)
         received = await database[0].fetchval('SELECT clock_timestamp()')
         at = int(received.timestamp() * 1000)
         ack = AckSpot('spotack', prepared.operation_id, prepared.intent_id, prepared.client_order_id, prepared.market,
@@ -51,7 +54,7 @@ async def joint(database, *, spot_fee=None, carry_options=None, apply_batch=True
                     terms=replace(b.terms, observed_at_ms=at))
         return replace(command, spot_fills=(trade,), cashflows=(transfer,), funding=replace(command.funding, bundle=b))
     t = await reconciler(database, before_apply=None if spot_fee is None else before_apply, carry_options=carry_options,
-                         apply_batch=apply_batch)
+                         apply_batch=apply_batch, spot_options=spot_options)
     t.reader = PgSpotAccountReader(t.account, max_reads=128, max_bytes=4194304, timeout_ms=4000)
     t.journal.runner_facts = lambda: None
 

@@ -26,6 +26,16 @@ Signed capture, existing-maker cancellation, actual SDK final scope, late truth
 and the source/ARM optimizations are recorded in [source composition](#pg3-r2-signed-hedge-source-composition-2026-10-19).
 **PG3 stays open and configured PostgreSQL stays rejected until R2, R4 and R5 are qualified.**
 
+**Latest joint listener/history qualification (2026-10-20):** the frozen
+`joint_history` regression passes **266 cases**, zero failures/errors/skips,
+**897.22 s**. Both actual SDK callback routes feed signed native accounting and
+qualified product-scoped ID recovery. The actual V2 observation runner requires
+both routes; stop/cold DB-runtime reopen preserve original money/claims and grant
+no trading permission. Five audited migration-86 cases and 29 contract cases also
+pass. The two earlier capture-expiry failures remain recorded; preflight ordering
+was corrected without renewing existing timestamps or relaxing limits. Complete
+configured trading service and R5 remain open. See [joint listeners/history](#pg3-r4-joint-sdk-callbacks-and-original-history-2026-10-20).
+
 **Latest ordinary financial intake qualification (2026-10-20):** the frozen
 `joint_intake` gate passes **152 cases**, zero failures/errors/skips, **562.32 s**.
 Previously unbooked SPOT/SWAP fills, approved LIFE/USDT transfers and paid funding
@@ -758,6 +768,7 @@ failing integration result visible until the same current-source workflow passes
   - [x] Observation-only SPOT startup through the actual `StrategyV2Base`/orchestrator with signed native event/history and PostgreSQL reporting, no File/ORM fallback, and no executor-creation grant. The frozen 191-case native and 110-case File/core gates pass; see [observation runner qualification](#pg3-r4-postgresql-observation-runner-startup-2026-10-20).
   - [x] Explicit native quote journal → actual `OrderExecutor` → protected SPOT SDK → durable ACK, with original awaited dispatch acceptance, no retry/cold-readback send grant, and physical SDK shutdown tracking for both SPOT and hedge SWAP. The frozen 405-case native and 99-case File/SDK gates pass; see [executor application qualification](#pg3-r4-native-quote-executor-application-2026-10-20). Synthetic admission callbacks in this profile do not qualify the configured planner/reference/book/fee source or complete runner/account topology.
   - [x] Explicit signed ordinary joint financial intake: new SPOT/SWAP fills, approved LIFE/USDT flows and paid funding enter one original native atomic batch. The frozen 152-case gate below passes, including retained pending/HALT, replay, successive funding, unknown COMMIT, cancellation and cold database-runtime reopen. Historical independent-price callbacks remain owning-service inputs; mandatory both-product listeners/history and configured installation are still required.
+  - [x] Explicit dual SDK callback/history assembly: bounded original listeners on both SDKs, signed joint monetary intake, native/report-qualified IDs with atomic rollback of both caches, and actual V2 observation startup without File/ORM fallback. The frozen 266-case affected gate below passes with five audited migration cases and 29 contracts. Cold DB-runtime/listener reinstall and late in-flight funding retain HALT, money and claims; this is not a physical-process or configured trading-service qualification.
   - [ ] Actual configured LIFE controller/service, all enabled final trading routes, complete shared-account/SDK scope and both-product financial ingress/history. The observation profile does not discharge these requirements.
 - [ ] **R5 — current-source acceptance:** all supported File/native decisions and units agree; whole-runner restart/corruption/role tests and process/backend faults pass at capture, send, ACK, settlement, release and signed repair. Resolve the observed SQL statement timeout, then run the complete affected workflow on one frozen source revision. PG0 trust/anchor requirements remain explicit; neither local tests nor a database receipt prove exactly-once exchange delivery.
 
@@ -4848,3 +4859,91 @@ were corrected, the funding stream bug was fixed, and all selected workflows
 pass together on the frozen source. Cold runtime coverage does not claim a
 physical-process or actual controller/service restart. This gate does not waive
 the earlier loaded-latency failures or close R2.3, R4, R5 or PG3.
+
+
+## PG3 R4: joint SDK callbacks and original history (2026-10-20)
+
+`PgJointEventApplication` installs both actual owned SDK listeners before the
+first awaited collection. Callback hints enter bounded PostgreSQL reporting;
+`PgJointFinancialObserver` derives monetary changes only from signed private
+facts under an original batch ID. `PgJointDedupRecovery` obtains a fresh complete
+account/order/fill/bill proof, matches reporting against native ACK/fill values
+and both original credential contexts, then synchronously publishes both SDK
+ID caches or restores both old caches. Trade IDs retain their product namespace.
+Diagnostic tracking JSON never reconstructs an order tracker or grants a send.
+
+Migration 86 adds native SWAP create/fill/status origins with registered account/
+product/controller, original wire/order identity, quantity/side/leverage and
+OPEN/CLOSE checks. SPOT retains its captured-action descriptor rules. The audited
+replacement preserves validator OID/ACL and introduces no table, grant, account,
+policy or bootstrap. Five audited 85→86 upgrade/drift/repeated-startup cases pass
+in **10.79 s** (`/tmp/life-pg3-joint-history-migrations`), with no failures/errors/
+skips. Historical migration gates above qualify their recorded revisions only.
+
+The coupled SPOT fixture now uses genuine native action capture, dispatch,
+preparation and ARM, with explicit synthetic admission inputs. Integration exposed
+an old DTO restriction that prohibited the shared account's required risk epoch;
+the DTO now retains that explicit value for native claim/account/COMMIT checking.
+Missing and different epochs are denied, with no implicit default. Twenty-nine
+contract cases pass in **0.89 s** (`/tmp/life-pg3-joint-listeners-contracts.xml`).
+
+A dual-source observation profile can start the actual `StrategyV2Base` without
+File/ORM recorder fallback; executor creation remains denied. Startup requires
+both original listener/history routes. Stop joins late original financial work
+while prohibiting SDK publication. Reopening the DB runtime, observer and recorder
+requalifies original history/values/claims; this is not a physical process or
+configured trading-service restart qualification. Native HALT is retained.
+
+Development logs retain the missing joint recovery/listener modules, the original
+SQL SWAP-event rejection, a mistaken identity check against SDK `authenticator`
+properties (which allocate fresh objects), the explicit shared-risk DTO conflict,
+and a synthetic admission/subsidy mismatch. These issues were fixed before the
+frozen qualification. The 18-pass/1-fail development run also retains
+`PG_QUOTE_CAPTURE_STALE`: an approximately **535 ms** claim plus dispatch/read
+work exceeded the unchanged one-second capture age before prepare. No deadline,
+source timestamp or monetary threshold was relaxed. The next development run
+passes **37 cases**, and the additional cold-runtime case passes separately;
+these development counts are not added to the frozen acceptance count.
+
+Complete configured LIFE controller/planner/reference/book/fee and all final
+trading routes, authenticated historical price providers, mandatory service
+installation and R5 whole-service/fault/loaded-latency acceptance remain open.
+Configured PostgreSQL selection stays rejected. No `.env`, configured database,
+real credentials, real exchange HTTP, deployment or repository evidence file is
+used; only disposable local PostgreSQL and synthetic provider HTTP are exercised.
+
+
+The first frozen `joint_history --fail-fast` invocation
+(`/tmp/life-pg3-joint-history-qualified`) fails before listener installation:
+`PG_QUOTE_CAPTURE_MISMATCH` at the original native ARM COMMIT after the one-second
+capture lifetime. Its claim/dispatch/read/prepare/ARM chain includes a **257 ms**
+state read and approximately 209/188 ms claim/dispatch operations. All 2423 frozen
+source hashes remain unchanged. This is a retained integration failure, not a
+passing acceptance gate or a demonstrated SQL optimization fix. The source age
+is not renewed and the failed original attempt gets no send authority.
+
+
+The second unchanged frozen invocation (`/tmp/life-pg3-joint-history-qualified2`)
+also fails at initial quote setup; both failures remain retained. The joint fixture
+now reads its preflight cut before creating a **new** action, then reads each final
+cut before sampling new admission facts. Existing action/provider timestamps and
+IDs are not renewed. This removes avoidable preflight work from the capture window
+and models the intended producer ordering; it is not a SQL latency optimization,
+configured planner qualification or evidence that R5 tail latency is resolved.
+
+
+**Final frozen affected qualification:** `run_postgres --suite joint_history
+--fail-fast` passes **266 cases**, zero failures/errors/skips, **897.22 s**, six
+existing Pydantic warnings. It combines joint callbacks/history, ordinary intake,
+existing SPOT event/dedup/reporting/startup, and captured preparation/ARM. The
+**38 new joint listener/history cases are included in 266**, not additional.
+Logs/JUnit: `/tmp/life-pg3-joint-history-preflight-qualified`; unchanged **2423-file**
+manifest: `/tmp/life-pg3-joint-history-preflight-frozen.json`. The unchanged
+production SQL/contracts also retain the five upgrade and 29 contract passes
+recorded above. Hooks and diff checks pass before commit.
+
+All selected workflows now pass together after the fixture preflight ordering
+change. The earlier frozen failed invocations remain evidence of the original
+producer-ordering/latency risk; no SQL performance root-cause fix, loaded-tail
+reliability, mandatory service installation or PG3 closure is inferred. Native
+R2.3/R4 configured composition and R5 retain their fixed exit requirements.

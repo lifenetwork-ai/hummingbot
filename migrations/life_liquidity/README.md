@@ -1235,3 +1235,17 @@ are audited before modification. The original wrapper retains its OID and ACL;
 the helper has no PUBLIC/runtime/reporting/default-role grant. No table, policy,
 funds, activation or source/SQL timeout changes are introduced. The migration
 ledger makes repeated enabled startup/up a no-op.
+
+
+## 000086: native SWAP event origins
+
+`000086_joint_recorder_events.sql` extends diagnostic create/fill/status reporting
+to original SWAP preparations. Registered source, account, product, controller,
+wire/order ID, size, side, native leverage and OPEN/CLOSE must match. SPOT retains
+its captured-action descriptor requirement. Funding remains diagnostic; only the
+signed native accounting path changes money.
+
+The original validator body/security/path/volatility is audited. Replacement
+preserves its OID and ACL, adds no helper, grant or table and bootstraps no funds,
+policy or activation. The migration ledger makes repeated enabled startup/up a
+no-op; unexpected predecessor drift aborts the upgrade.

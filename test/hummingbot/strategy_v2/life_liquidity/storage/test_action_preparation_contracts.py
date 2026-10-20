@@ -33,7 +33,7 @@ def test_unqualified_admission_facts_are_denied(changes):
 
 
 @pytest.mark.parametrize('changes', [dict(intent_id='other'), dict(session_id='other'), dict(epoch=2), dict(config_version=2),
-                                     dict(side='SELL'), dict(quote_level=1), dict(risk_epoch=1), dict(reference_price_usdt=D('2'))])
+                                     dict(side='SELL'), dict(quote_level=1), dict(risk_epoch=0), dict(reference_price_usdt=D('2'))])
 def test_preparation_scope_cannot_diverge_from_issued_action(changes):
     with pytest.raises(StorageError):
         PrepareQuoteAction(action(), replace(prepare(), **changes), admission())
@@ -47,6 +47,14 @@ def test_command_exact_roundtrip_and_json_copy_preserves_financial_values():
     assert command.prepare.quantity_base == D('2')
     with pytest.raises(FrozenInstanceError):
         command.admission.impact_cost_usdt = D('1')
+
+
+def test_shared_preparation_retains_explicit_risk_epoch_without_inventing_one_for_spot_only():
+    plain = PrepareQuoteAction(action(), prepare(), admission())
+    shared = PrepareQuoteAction(action(), replace(prepare(), risk_epoch=7), admission())
+    assert 'risk_epoch' not in plain.json()['prepare']
+    assert shared.json()['prepare']['risk_epoch'] == 7
+    assert PrepareQuoteAction.from_json(shared.json()) == shared
 
 
 def test_missing_source_kind_never_implicitly_labels_an_independent_valuation():

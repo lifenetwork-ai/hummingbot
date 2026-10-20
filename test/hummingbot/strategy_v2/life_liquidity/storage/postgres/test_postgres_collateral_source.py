@@ -163,7 +163,7 @@ async def test_account_wide_source_routes_are_signed_unfiltered_and_durable_befo
         await t.close()
 
 
-async def reconciler(database, *, before_apply=None, carry_options=None, apply_batch=True):
+async def reconciler(database, *, before_apply=None, carry_options=None, apply_batch=True, spot_options=None):
     from datetime import datetime, timezone
     from test.hummingbot.core.web_assistant.connections.test_request_guard import Session, Throttler
     from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_joint_batch import setup
@@ -178,7 +178,7 @@ async def reconciler(database, *, before_apply=None, carry_options=None, apply_b
     )
     from hummingbot.strategy_v2.life_liquidity.storage.postgres.runner_journal import PgQuoteRunnerJournal
 
-    values, batch, command = await setup(database, carry_options={'refresh_initial_facts': True, **(carry_options or {})})
+    values, batch, command = await setup(database, carry_options={'refresh_initial_facts': True, **(carry_options or {})}, spot_options=spot_options)
     financial, cfg, owner = values[:3]
     if before_apply is not None:
         command = await before_apply(values, command)
