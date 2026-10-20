@@ -2,6 +2,15 @@
 
 Created: 2026-10-11
 
+**Standing-maker increment (2026-10-21, qualification in progress):** the explicit
+offline service can retain a fully matched original SPOT bid while financing
+an ask. A bounded imported maker schedule is implemented, with original target
+IDs, serialized creation/retirement, joined soft stop and no automatic retry of
+unknown work. The multi-generation acceptance test remains RED: the third quote
+has exceeded the unchanged 1000 ms capture limit. Neither query-plan experiment
+is installed, and PG3 is not closed. See
+[standing-maker implementation](#pg3-standing-makers-and-bounded-generations-2026-10-21).
+
 **Current delivery scope (2026-10-19, explicit operator decision):** prioritize a
 fresh PostgreSQL deployment. Planned File → PostgreSQL cutover requires that
 the File bot has stopped and its account has been fully reconciled. Importing
@@ -5843,3 +5852,119 @@ source remains unchanged during execution; production source is identical to
 the preceding 187-success run. Counts overlap and are not summed as a new
 whole-product result. The earlier broad RED gates remain recorded; these scoped
 checks do not close R2.3/R4/R5 or PG3.
+
+## PG3 standing makers and bounded generations (2026-10-21)
+
+### Implemented scope
+
+- [x] Preserve an original standing SPOT maker during sibling preallocation only
+  when signed native terms, session/epoch, actual runner instances and actual SDK
+  state/quantity/price/cumulative fills agree. Preserve every native claim in the
+  fresh capital/carry pending scope. Hedge planning retains its quiescent contract.
+- [x] Keep original sibling executor reports in the bounded deferred recorder
+  queue during the new maker's protected send window; foreign reports still deny.
+- [x] Use complete signed account-wide trade history plus exact per-order status
+  and cumulative fills for standing ACKED SPOT makers. Closed SPOT and all SWAP
+  orders retain their per-order history checks. Both full rounds, pagination,
+  bills, fees, pending/algo orders, UID brackets and SDK quotas remain required.
+- [x] Batch independent standing status responses with the financial first pages
+  when the original eight-response journal bound has spare capacity. Every signed
+  response is committed before parsing; no monetary command is batched away.
+- [x] Split yielded cancellation progress after one of several terminal
+  confirmations. Each phase retains its original deadline, each new invocation
+  obtains new complete signed evidence, and no original wire gets another cancel.
+- [x] Refresh one capital/carry/NAV basis after the complete target set is closed.
+  Each claim retirement still collects a new signed report and independently
+  verifies the exact current native basis, source age and COMMIT. Releases do not
+  move cash/positions; money changes or corruption between releases must deny.
+- [x] Implement an optional explicit `native_trading.maker_schedule` with
+  `schedule_id`, `levels`, `refresh_interval_ms`, `max_cycles`. There are no live
+  financial defaults. Absence leaves automatic scheduling disabled. Configured
+  levels/cycles must fit existing cancellation/journal bounds. The derived lease
+  check must leave time for remaining quotes, rest, retirement and shutdown.
+- [x] Keep the native tick on its asynchronous reporting path. It starts an
+  explicitly imported schedule only after provider readiness, never restarts a
+  completed schedule, and defers periodic diagnostics during an owning financial
+  cycle. Original monetary SDK events remain live throughout source windows.
+- [ ] Qualify the complete configured multi-generation workflow and its loaded
+  tails under the unchanged one-second policy. This is an R2.3/R4/R5 exit.
+
+The schedule uses only the original `service.quote` and `cancel_makers` APIs.
+Permanent intent IDs include the original account/owner namespace, schedule,
+cycle, level and side. A generation cannot advance before all original targets
+are terminal, retired, reconciled and archived. Cancellation or an unknown reply
+retains the original target set and monetary claims. `stop_makers()` joins the
+owning task and retires known makers while its original authority is valid;
+revocation/SIGTERM grants no fresh cancellation or submit authority.
+
+### Development diagnosis retained
+
+The positive two-sided configured replay passes on the actual V2/OrderExecutor,
+SDK request guard and PostgreSQL fake-HTTP path (34.16 s). Four standing-SDK
+mismatch cases pass; a fifth callback-scope case exposed a test assertion which
+mistook startup GETs for new requests and is corrected to compare the before/after
+count. These are development results, not the frozen qualification below.
+
+A serial two-generation replay initially reaches the third ARM around 1236 ms.
+A development `force_generic_plan` experiment instead fails in the first pair;
+a separate all-boolean SQL-to-PL/pgSQL experiment reaches the third quote but still
+expires. Neither experiment is installed in production or in migrations. A genuine
+post-retirement primary snapshot takes about 57 ms in a separate diagnostic;
+its retained carry/shared/recorder histories are reverified at independent reads,
+financial writes and deferred COMMIT. An index alone is not demonstrated to solve
+that repeated work.
+
+After bounded response batching and the shared generation NAV, an instrumented
+run completes the first two ARMs around 789/821 ms but rejects the third quote at
+about 1078 ms before another HTTP send. These single-run measurements do not
+prove improved tails; the RED case remains in the suite, without skip/xfail or
+wider thresholds. Source/fact/capture limits, statement/transaction/cancellation
+limits, economic budgets and the pinned 2-CPU/1-GiB PostgreSQL resources are unchanged.
+
+**Frozen affected gate:** 7 pass / 3 fail, 739 deselected (368.62 s), with all
+1649 pinned source hashes unchanged during execution. One complete two-sided
+generation passes (65.33 s); standing bid/ask and original replacement/old-target
+replay also pass. The two-generation case fails with original quote age
+1233.454 ms. Two other failures retain primary/cleanup errors: the NAV corruption
+case has a recorder version conflict, and the canceling-SDK case has an event-wire
+failure. These are not reported as injected-fault successes.
+
+The test harness is then changed to retain primary exceptions through cleanup.
+The two-case recheck passes the canceling-SDK case but the NAV case times out
+before injection (88.55 s). With the explicit aggregate calibration below, the
+next run is refused by the balance row-version trigger before corruption occurs
+(66.63 s). A final test-only owner rewrite transaction disables/re-enables user
+triggers on that disposable balance table, allowing the intended same-version
+corruption. That case **passes** (71.59 s): one original retirement commits, the
+second retains its claim and the corrupted account is denied. Runtime roles and
+production source have no such bypass. These focused rechecks do not replace the
+original RED gate or prove latency/reliability. Production source is unchanged.
+
+The scheduler/tick/native-headless regression passes **49 cases** (21.28 s).
+The initial invocation used a nonexistent test filename and ran zero tests;
+the corrected invocation uses both actual headless modules. Changed-file hooks
+pass. Counts overlap and are not added into a whole-product result. No new
+repository evidence artifact is created.
+
+The frozen complete cancellation/joint-source/lifecycle regression reports
+**105 pass / 3 fail** (452.64 s), with the same 1649 pinned source hashes
+unchanged. The SDK-not-quiescent refusal is preempted by a 1051 ms order command
+timeout (connection validation also takes 805 ms). The release database-deadline
+case is preempted by a 1018 ms SWAP command timeout, and the BUY proven-unsent
+case by a 1006 ms preparation timeout. All occur before confirmed COMMIT and do
+not establish that the intended negative injection ran. They are availability
+failures, not accepted alternative reason codes. The full gate remains RED;
+the exact affected selector is rechecked separately without changing source,
+budgets, resources or thresholds.
+
+That focused selector passes **4 cases** (20.81 s), including the three original
+failures and the matching terminal deadline case. It reaches their intended
+checks, but does not erase the preceding 105/3 gate or qualify loaded tails.
+The configured multi-generation capture-age failure is still unresolved. This
+delivery can be committed as an explicitly offline implementation increment;
+R2.3/R4/R5 and PG3 remain open, with no backend/demo/live grant.
+
+The multi-generation fixture explicitly selects a synthetic 300-second owner,
+360-second session and 60000 ms aggregate scheduling limit at initial seed. It
+does not extend any captured owner/feed, widen a source/SQL/phase limit or install
+these test values as live defaults.

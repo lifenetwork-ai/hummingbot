@@ -32,6 +32,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.hedge_source import 
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.joint_observer import PgJointFinancialObserver
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.joint_source import PgJointAccountReconciler
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.maker_cancellation import PgMakerCancellation
+from hummingbot.strategy_v2.life_liquidity.storage.postgres.maker_schedule import PgMakerLoop, PgMakerSchedule
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.observation_account_source import PgObservationAccountSource
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.recorder_application import PgRecorderApplication
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.runner_journal import PgQuoteRunnerJournal
@@ -54,6 +55,7 @@ class PgNativeTradingConfig(BaseModel):
     max_depth_distance_bps: D
     available_edge_quote_usdt: D
     quote_schedule_timeout_ms: int
+    maker_schedule: PgMakerSchedule | None = None
 
 
 class _NativeQuoteDispatch:
@@ -83,6 +85,17 @@ class _NativeQuoteDispatch:
         staged, self._staged = self._staged, None
         if (not self.owns(action) or staged != (asyncio.current_task(), fingerprint({'action_json': action.model_dump_json()}))):
             raise StorageError('PG_SERVICE_DISPATCH_ORIGIN_REQUIRED')
+
+    def owns_report(self, info):
+        """An existing original executor may report during a sibling's send."""
+        s = self.service
+        s._original()
+        executor = s._owned_executors.get(info.id)
+        return (executor is not None and info.controller_id == s.config.id
+                and any(v is executor for v in s.runner.executor_orchestrator.active_executors[s.config.id])
+                and info.config == executor.config and info == executor.executor_info
+                and s.journal._capture(CreateExecutorAction(controller_id=s.config.id, executor_config=executor.config))
+                == s.journal._entry(CreateExecutorAction(controller_id=s.config.id, executor_config=executor.config)).row)
 
 
 @dataclass(frozen=True)
@@ -246,6 +259,29 @@ class PgServiceRunner(StrategyV2Base):
         self._last_timestamp = timestamp
         self.service.controller.start()
 
+    def on_tick(self):
+        # Native reporting is asynchronous; the generic runner's synchronous
+        # stored-info/config reload path cannot be used here. Financial SDK
+        # events remain live throughout every source window. Periodic diagnostic
+        # snapshots wait until the owning financial cycle finishes and are
+        # drained before the next source capture.
+        s = self.service
+        try:
+            s._original()
+            if self._is_stop_triggered or s._revoked or not self.market_data_provider.ready:
+                return
+            if s._quote_task is None and not s.hedge._busy:
+                for executor in self.executor_orchestrator.active_executors[s.config.id]:
+                    info = executor.executor_info
+                    if s._owned_executors.get(info.id) is not executor or not s.reporting._trading_admission.owns_report(info):
+                        raise StorageError('PG_SERVICE_UNQUALIFIED_EXECUTOR')
+                    s.reporting.enqueue(info)
+                if s.makers is not None and s.makers.task is None:
+                    s.start_makers()
+        except BaseException:
+            s.revoke()
+            raise
+
     def stop(self, clock):
         self._is_stop_triggered = True
         self.service.revoke()
@@ -301,6 +337,7 @@ class PgLiquidityService:
         service._quote_task = service._quote_action = None
         service._owned_executors = {}
         service._maker_operations = {}
+        service.makers = None
         service.controller = PgServiceController(service, service.config, market_data_provider)
         try:
             service.runtime = await PgRuntime.open(runtime_config)
@@ -330,6 +367,7 @@ class PgLiquidityService:
             service.hedge = await PgHedgeApplication.create(
                 PgHedgeRepository(swap), connector=service.connectors['okx_perpetual'], pause_makers=service._pause,
                 maker_cancellation=cancellation, collect=service._missing_capture,
+                pause_allocation=service._pause_allocation,
                 local_fence=service._trading_ready, clock=clock, cycle_timeout_ms=limits.cycle_timeout_ms, **identity)
             service.source = PgHedgeSource(service.collector, carry=carry, swap_source=service.hedge.source,
                                            max_levels=limits.max_levels, timeout_ms=limits.cycle_timeout_ms,
@@ -412,10 +450,56 @@ class PgLiquidityService:
         self.producer.bind(self.quote_application)
         self._trading_model = model
         self.reporting.install_trading_admission(_NativeQuoteDispatch(self))
+        if model.maker_schedule is not None:
+            schedule = model.maker_schedule
+            if (2 * len(schedule.levels) > self.limits.max_cancels
+                    or any(v >= len(self.producer._levels) for v in schedule.levels)
+                    or 2 * len(schedule.levels) * schedule.max_cycles > self.journal.max_actions):
+                raise StorageError('PG_SERVICE_MAKER_SCHEDULE_BOUND')
+            self.makers = PgMakerLoop(
+                schedule, namespace=fingerprint([self.config.storage_binding.json(), self.journal.owner.json()]),
+                quote=self.quote, cancel=self.cancel_makers, ready=self._trading_ready, can_quote=self._maker_quote_ready)
+
+    def _maker_quote_ready(self, remaining):
+        self._original()
+        if type(remaining) is not int or remaining <= 0 or self.makers is None:
+            raise StorageError('PG_SERVICE_MAKER_SCHEDULE_BOUND')
+        # Do not start risk that cannot fit the original owner's remaining
+        # lease even at every configured quote/retirement deadline. This is a
+        # derived bound, not a new implicit financial calibration or renewal.
+        required_ms = ((remaining + 1) * self._trading_model.quote_schedule_timeout_ms
+                       + self.makers.schedule.refresh_interval_ms + self.limits.shutdown_timeout_ms)
+        return self._trading_ready() and (self.journal.owner.expires_at - utc(self.clock())).total_seconds() * 1000 > required_ms
+
+    def start_makers(self):
+        self._original()
+        if self.makers is None or not self._trading_ready():
+            raise StorageError('PG_SERVICE_MAKER_SCHEDULE_REQUIRED')
+        if self._quote_task is not None or self.hedge._busy:
+            raise StorageError('PG_SERVICE_QUOTE_BACKPRESSURE')
+        if self.runner.executor_orchestrator.active_executors[self.config.id]:
+            raise StorageError('PG_SERVICE_MAKER_START_REQUIRES_RECONCILIATION')
+        task = self.makers.start()
+
+        def completed(result):
+            if result.cancelled() or result.exception() is not None:
+                self.revoke()
+        task.add_done_callback(completed)
+        return task
+
+    async def stop_makers(self):
+        if self.makers is not None:
+            await self.makers.stop()
+
+    def _maker_admission(self):
+        if (self.makers is not None and self.makers.task is not None and not self.makers.task.done()
+                and asyncio.current_task() is not self.makers.task):
+            raise StorageError('PG_SERVICE_MAKER_RUNNING')
 
     async def quote(self, intent_id, side, level):
         """One serialized configured quote through the actual V2 dispatcher."""
         self._original()
+        self._maker_admission()
         if not self._trading_ready() or self.quote_application is None:
             raise StorageError('PG_SERVICE_TRADING_NOT_QUALIFIED')
         if self._quote_task is not None:
@@ -468,6 +552,16 @@ class PgLiquidityService:
                 executor.stop()
         return True
 
+    def _pause_allocation(self):
+        # The owning quote cycle already serializes new creations. Existing
+        # makers keep their original executor/SDK identity while native signed
+        # source checks account for every hold. Hedge/cancel still use _pause.
+        self._original()
+        if self._quote_task is not asyncio.current_task() or self._quote_action is not None:
+            raise StorageError('PG_SERVICE_ALLOCATION_ORIGIN_REQUIRED')
+        self._paused = True
+        return True
+
     async def _join_maker_events(self):
         if self.events is not None:
             await self.events.drain()
@@ -507,6 +601,7 @@ class PgLiquidityService:
         )
         from hummingbot.strategy_v2.models.executor_actions import StoreExecutorAction
         self._original()
+        self._maker_admission()
         if (type(intent_ids) is not tuple or not 1 <= len(intent_ids) <= self.limits.max_cancels
                 or any(type(v) is not str for v in intent_ids)
                 or len(set(intent_ids)) != len(intent_ids)):
@@ -550,7 +645,9 @@ class PgLiquidityService:
                 await self.quote_application.drain()
                 await self._join_maker_events()
                 closed = False
-                for _ in range(self.limits.max_cancels + 1):
+                # Each original maker can need one physical cancel and one
+                # terminal confirmation. No wire gets a second cancel attempt.
+                for _ in range(2 * self.limits.max_cancels + 1):
                     closed = await self.cancellation.cancel_makers(operation_id, yield_after_request=True, target_intents=targets)
                     await self._join_maker_events()
                     if closed is True:
@@ -559,8 +656,17 @@ class PgLiquidityService:
                     raise StorageError('PG_SERVICE_MAKER_CLOSURE_REQUIRED')
                 # Cancellation ACKs, stopped executors and empty SDK state do
                 # not release shared capacity. Refresh the original signed
-                # capital/carry source, measure native NAV, then obtain a NEW
-                # complete source proof for each terminal-claim retirement.
+                # capital/carry source and measure native NAV for the complete
+                # closed target set. Retirement changes no money/position or
+                # this NAV's capital/carry basis. Each individual release still
+                # obtains a NEW signed proof and independently checks the exact
+                # current native basis, freshness and physical COMMIT. A fill,
+                # transfer or source expiry between releases must deny it.
+                await self.hedge.observe_sources('service-retire-source:' + fingerprint([operation_id]))
+                portfolio = PgPortfolioRepository(self.collector.swap)
+                await portfolio.measure(MeasurePortfolio('service-retire-nav:' + fingerprint([operation_id])),
+                                        cut=(await self.financial.observation_cut(self.config.storage_binding)).cut,
+                                        owner=self.journal.owner)
                 for executor in executors:
                     intent_id = executor.config.id
 
@@ -571,11 +677,6 @@ class PgLiquidityService:
                     if terminal_id is None:
                         raise StorageError('PG_SERVICE_MAKER_TERMINAL_REQUIRED')
                     key = fingerprint([operation_id, intent_id])
-                    await self.hedge.observe_sources('service-retire-source:' + key)
-                    portfolio = PgPortfolioRepository(self.collector.swap)
-                    await portfolio.measure(MeasurePortfolio('service-retire-nav:' + key),
-                                            cut=(await self.financial.observation_cut(self.config.storage_binding)).cut,
-                                            owner=self.journal.owner)
                     await self.cancellation.release.retire_claim('service-retire:' + key, intent_id, terminal_id)
                     action = CreateExecutorAction(controller_id=self.config.id, executor_config=executor.config.model_copy(deep=True))
                     await self.journal.reconcile(action)
@@ -601,6 +702,8 @@ class PgLiquidityService:
     def revoke(self):
         if not self._revoked:
             self._revoked = True
+            if self.makers is not None:
+                self.makers.request_stop()
             if self.runtime is not None:
                 self.runtime._healthy = False
                 self.runtime._ingress_epoch += 1
@@ -635,8 +738,12 @@ class PgLiquidityService:
                 failures.append(error)
 
         async def runner_close():
-            if self._quote_task is not None:
-                await asyncio.shield(asyncio.gather(self._quote_task, return_exceptions=True))
+            owned = {self._quote_task}
+            if self.makers is not None:
+                owned.add(self.makers.task)
+            owned.discard(None)
+            if owned:
+                await asyncio.shield(asyncio.gather(*owned, return_exceptions=True))
             if self.runner is None:
                 return
             self.runner._is_stop_triggered = True

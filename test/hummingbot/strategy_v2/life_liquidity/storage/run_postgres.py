@@ -164,7 +164,7 @@ def main():
                 'spot_allocation', 'spot_market_send', 'hedge_source', 'hedge_application', 'capital', 'carry')]
         if args.suite == 'spot_market_send':
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in (
-                'service', 'service_trading', 'service_cycle', 'retired_scope', 'maker_cancellation', 'operation_preflight', 'runner_startup', 'recorder_application', 'event_application',
+                'service', 'service_trading', 'service_cycle', 'standing_makers', 'retired_scope', 'maker_cancellation', 'operation_preflight', 'runner_startup', 'recorder_application', 'event_application',
                 'spot_producer', 'produced_send', 'action_preparation', 'quote_arm', 'account_brackets', 'spot_allocation', 'spot_market_send', 'spot_market', 'spot_application', 'quote_transport', 'quote_account_source',
                 'runner_journal', 'release_proof_reuse', 'joint_source', 'hedge_source', 'hedge_application', 'joint_observer', 'financial_source', 'provider_batch',
                 'collateral_source', 'joint_history', 'joint_events')]

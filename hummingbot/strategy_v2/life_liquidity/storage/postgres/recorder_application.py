@@ -218,8 +218,10 @@ class PgRecorderApplication(ReportingQueue):
         captured = ExecutorProjection.from_info('capture', self.binding, info)
         initial = ExecutorInfo.model_validate_json(self._deferred_initial.payload_json)
         if captured.executor_id != initial.id or info.config != initial.config:
-            self.invalidate()
-            raise StorageError('PG_RECORDER_DEFERRED_SCOPE_CHANGED')
+            owns = getattr(self._trading_admission, 'owns_report', None)
+            if not callable(owns) or owns(info) is not True:
+                self.invalidate()
+                raise StorageError('PG_RECORDER_DEFERRED_SCOPE_CHANGED')
         key = fingerprint({'payload': captured.payload_json})
         if key not in self._deferred_reports:
             if self._closed or not self._healthy or len(self._deferred_reports) >= self.max_pending:

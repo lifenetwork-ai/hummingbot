@@ -1,5 +1,13 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**Standing-maker increment (2026-10-21):** the separate offline native service
+implements exact standing-order sibling allocation, bounded imported maker
+generations, joined soft stop, asynchronous native ticks and one NAV basis per
+fully closed target set. The multi-generation replay still fails the unchanged
+1000 ms capture limit after retained history grows. No query-plan experiment,
+threshold widening or PG3 closure is installed. See
+[implementation and qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-standing-makers-and-bounded-generations-2026-10-21).
+
 **PG3 work in progress (2026-10-21):** explicit-target maker cancellation,
 signed closure, capital/carry refresh, claim retirement and runner archival are
 implemented for the separate offline service. After snapshot-local shared proof

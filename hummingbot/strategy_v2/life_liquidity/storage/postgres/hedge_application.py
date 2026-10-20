@@ -27,9 +27,10 @@ class PgHedgeApplication:
     @classmethod
     async def create(cls, repository, *, connector, pause_makers, collect, local_fence,
                      clock, max_uid_age_ms, max_auth_age_ms, max_clock_skew_ms, collection_timeout_ms,
-                     cycle_timeout_ms, cancel_makers=None, maker_cancellation=None):
+                     cycle_timeout_ms, cancel_makers=None, maker_cancellation=None, pause_allocation=None):
         if (type(repository) is not PgHedgeRepository
                 or any(not callable(v) for v in (pause_makers, collect, local_fence))
+                or pause_allocation is not None and not callable(pause_allocation)
                 or (cancel_makers is None) == (maker_cancellation is None)
                 or cancel_makers is not None and not callable(cancel_makers)
                 or maker_cancellation is not None and (type(maker_cancellation) is not PgMakerCancellation
@@ -42,6 +43,7 @@ class PgHedgeApplication:
         app = cls()
         app.repository, app.connector = repository, connector
         app._pause, app._cancel, app._collect, app._fence = pause_makers, cancel_makers, collect, local_fence
+        app._pause_allocation = pause_makers if pause_allocation is None else pause_allocation
         app._maker_cancellation = maker_cancellation
         app._runtime, app._binding, app._owner = repository.runtime, repository.binding, repository.owner
         app._cycle_timeout_ms = cycle_timeout_ms
@@ -54,7 +56,7 @@ class PgHedgeApplication:
         app.source = await PgSwapAccountSource.create(PgSwapBoundary(repository.swap), connector=connector,
                                                       clock=clock, local_fence=app._ready, max_uid_age_ms=max_uid_age_ms, max_auth_age_ms=max_auth_age_ms,
                                                       max_clock_skew_ms=max_clock_skew_ms, collection_timeout_ms=collection_timeout_ms, max_pending=1)
-        app._context = (repository, connector, app.source, repository.swap, repository.financial, maker_cancellation)
+        app._context = (repository, connector, app.source, repository.swap, repository.financial, app._pause_allocation, maker_cancellation)
         return app
 
     def bind_sources(self, source):
@@ -71,13 +73,13 @@ class PgHedgeApplication:
         self._collect = source.collect
 
     def _original(self, *, observation=False):
-        repository, connector, source, swap, financial, cancellation = self._context
+        repository, connector, source, swap, financial, allocation_pause, cancellation = self._context
         repository._original()
         if (self.repository is not repository or self.connector is not connector or self.source is not source
                 or repository.swap is not swap or repository.financial is not financial
                 or repository.runtime is not self._runtime or repository.binding != self._binding
                 or repository.owner != self._owner or source.boundary.swap is not swap
-                or self._maker_cancellation is not cancellation):
+                or self._maker_cancellation is not cancellation or self._pause_allocation != allocation_pause):
             self.stop()
             raise StorageError('PG_HEDGE_APPLICATION_CONTEXT_CHANGED')
         if self._native_source is not self._bound_native_source:
@@ -134,7 +136,7 @@ class PgHedgeApplication:
         return await self._observe_sources(operation_id)
 
     async def allocate_spot(self, operation_id, intent):
-        """Paused, quiescent signed SPOT capital/carry preflight; no action."""
+        """Serialized signed SPOT capital/carry preflight; no action/send."""
         from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot_intent import PgSpotQuoteIntent
         if type(intent) is not PgSpotQuoteIntent:
             raise StorageError('PG_SPOT_ALLOCATION_INTENT_INVALID')
@@ -151,7 +153,8 @@ class PgHedgeApplication:
         self._idle.clear()
         try:
             async with asyncio.timeout(self._cycle_timeout_ms / 1000):
-                if self._pause() is not True:
+                pause = self._pause if intent is None else self._pause_allocation
+                if pause() is not True:
                     raise StorageError('PG_HEDGE_MAKER_PAUSE_REQUIRED')
                 self._paused = True
                 self._require_ready()

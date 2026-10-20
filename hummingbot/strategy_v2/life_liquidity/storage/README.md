@@ -4517,3 +4517,45 @@ snapshot and through an owner-only helper. Shared capital with a head already
 verifies release history; no-head early returns retain the independent release
 check. Standalone verifiers, write commands and deferred COMMIT checks remain
 complete. No cached verdict or new runtime grant is installed.
+
+### Bounded standing-maker schedule (offline, qualification in progress)
+
+The separate native service now accepts a fully matched original standing SPOT
+maker while allocating a sibling. Complete signed histories, exact original
+runner/SDK scope and every native monetary claim remain required. Unknown,
+canceling, foreign or unbooked SDK orders deny the sibling before another send.
+
+An explicitly imported `native_trading.maker_schedule` may contain:
+
+```json
+{
+  "schedule_id": "operator-selected-identity",
+  "levels": [0],
+  "refresh_interval_ms": 10000,
+  "max_cycles": 2
+}
+```
+
+This is an illustrative scheduling configuration, not financial calibration or
+live eligibility. Absence disables automatic scheduling. Every selected level
+must exist in the imported producer; all targets/cycles must fit the existing
+cancellation and permanent journal limits. No owner renewal is inferred.
+
+The original native tick starts the loop only once, after provider readiness.
+`service.start_makers()` starts it explicitly; `await service.stop_makers()` joins
+the original work and retires known targets while its original authority remains
+valid. Each generation submits both sides through the real protected quote API,
+rests for the configured interval, then completes signed cancellation, terminal
+proof, shared-claim retirement and runner archival before proceeding. Unknown
+work never retries or advances under a new identity.
+
+One capital/carry/NAV basis covers a completely closed target set. Every individual
+release obtains new signed evidence and independently checks that basis against
+current native money, positions and freshness at COMMIT. Diagnostic response
+batches retain the original eight-response bound, individual SDK quotas and
+durable-before-parse requirement.
+
+Continuous multi-generation acceptance is still RED at the unchanged 1000 ms
+capture limit after retained history accumulates. This increment does not close
+PG3; the PostgreSQL plan records exact gates and retained failures. The generic
+LIFE/File launcher and live/demo admission remain gated.

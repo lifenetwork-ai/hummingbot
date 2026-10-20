@@ -30,7 +30,7 @@ def trading_policy():
                 max_depth_distance_bps='500', available_edge_quote_usdt='1', quote_schedule_timeout_ms=30000)
 
 
-async def configured(database, *, model_change=None, shared_quota=True, maker_cycle=False, **options):
+async def configured(database, *, model_change=None, shared_quota=True, maker_cycle=False, spot_overrides=None, **options):
     template = LifeLiquidityConfig(id='main', storage_backend='postgres')
     template.strategy = type(template.strategy).model_validate(dict(
         template.strategy.model_dump(mode='json'),
@@ -48,6 +48,7 @@ async def configured(database, *, model_change=None, shared_quota=True, maker_cy
         # A multi-generation workflow has one explicitly longer synthetic lease
         # at initial seed, not an extension of any captured owner or feed fact.
         spot_options.update(owner_duration=timedelta(seconds=120), session_duration=timedelta(seconds=180))
+    spot_options.update(spot_overrides or {})
     t = await market(database, clean=True, shared_quota=shared_quota, stream_market=True, configuration_body=configuration,
                      spot_options=spot_options)
     config = template.model_copy(update={'storage_binding': t.cfg.binding, 'recovery_account_uid': t.cfg.binding.account_uid})
@@ -94,12 +95,31 @@ async def configured(database, *, model_change=None, shared_quota=True, maker_cy
             async def data():
                 params = kwargs.get('params') or {}
                 rows = [o for o in orders if o['state'] in ('live', 'partially_filled')] if tail == 'orders-pending' else orders
+                if tail == 'orders-pending':
+                    rows = sorted(rows, key=lambda o: int(o['ordId']), reverse=True)
                 if params.get('clOrdId'):
                     rows = [o for o in rows if o['clOrdId'] == params['clOrdId']]
                 return dict(code='0', data=rows)
             response.json = data
             return response
-        return await http(**kwargs)
+        response = await http(**kwargs)
+        if maker_cycle and tail == 'books' and (kwargs.get('params') or {}).get('instId') == 'LIFE-USDT':
+            original_book = response.json
+
+            async def public_book():
+                data = await original_book()
+                # New fake public snapshots include actual standing own depth.
+                # The production builder must subtract it before valuation.
+                for side, key in (('buy', 'bids'), ('sell', 'asks')):
+                    levels = {D(v[0]): D(v[1]) for v in data['data'][0][key]}
+                    for order in orders:
+                        if order['side'] == side and order['state'] in ('live', 'partially_filled'):
+                            price = D(order['px'])
+                            levels[price] = levels.get(price, D('0')) + D(order['sz']) - D(order['accFillSz'])
+                    data['data'][0][key] = [[str(p), str(q), '0', '2'] for p, q in sorted(levels.items(), reverse=side == 'buy')]
+                return data
+            response.json = public_book
+        return response
     t.session.request = exchange
     await t.financial.close()
     service = await PgLiquidityService.open(

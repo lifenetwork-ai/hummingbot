@@ -175,11 +175,11 @@ class PgMakerCancellation:
         return report
 
     async def cancel_makers(self, operation_id, *, include_hedge_market=False, yield_after_request=False, target_intents=None):
-        """Return True only after signed closure; False means one request ACK.
+        """True proves all closures; False means bounded progress, no release.
 
-        A configured coordinator may yield after one guarded request to join its
-        original listeners outside this phase's unchanged deadline. It must call
-        again for a NEW signed terminal proof. An unresolved repeated attempt
+        A configured coordinator may yield after one guarded request or one of
+        several terminal confirmations, outside this phase's unchanged deadline.
+        It must call again for a NEW complete signed proof. A repeated attempt
         remains forbidden, including when the previous call returned False.
         """
         identifier(operation_id)
@@ -228,6 +228,7 @@ class PgMakerCancellation:
                         if report.runner_executor_ids or self.connector._order_tracker.active_orders:
                             raise StorageError('PG_MAKER_CANCEL_SDK_NOT_QUIESCENT')
                         changed = False
+                        unfinished = sum(native['state'] not in ('TERMINAL', 'ABORTED_BEFORE_SEND') for native, _ in orders)
                         for native, exchange in orders:
                             if native['state'] not in ('TERMINAL', 'ABORTED_BEFORE_SEND'):
                                 changed = True
@@ -236,6 +237,9 @@ class PgMakerCancellation:
                                 receipt = await self.release.confirm_terminal(self._id(operation_id, native, 'terminal'), native['intent_id'])
                                 if receipt.state != 'TERMINAL':
                                     raise StorageError('PG_MAKER_CANCEL_TERMINAL_UNQUALIFIED')
+                                unfinished -= 1
+                                if yield_after_request and unfinished:
+                                    return False  # One durable terminal, not all closures or a claim release.
                         self._ready()
                         if include_hedge_market and not changed and report.market_json is not None:
                             self._hedge_handoff = (operation_id, report, self.collector._epoch)

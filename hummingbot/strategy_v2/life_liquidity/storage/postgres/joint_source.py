@@ -332,10 +332,20 @@ class PgJointAccountReconciler(PgCollateralReconciler):
         if sample_account:
             # All four financial first pages precede this later account sample,
             # with the same individual signed reads and one durable batch before
-            # parsing. Continuations/per-order histories are still mandatory.
+            # parsing. Every global cursor continuation remains mandatory.
             routes += (('/api/v5/account/balance', {}), ('/api/v5/account/positions', {}))
+        # A standing SPOT status needs no result from the financial first
+        # pages. Keep each original signed request/quota and durable response,
+        # but use spare capacity in the same bounded diagnostic batch. Parsing
+        # and every order/pending/history comparison still happen below.
+        status_intents = tuple(intent for intent, native in scope['ORDER'].items()
+                               if native['product'] == 'SPOT' and native['state'] == 'ACKED')[:8 - len(routes)]
+        status_offset = len(routes)
+        routes += tuple(('/api/v5/trade/order', {'instId': 'LIFE-USDT', 'clOrdId': scope['ORDER'][intent]['wire_id']})
+                        for intent in status_intents)
         sample_at, sample_monotonic = utc(self.reader.source.journal.clock()), time.monotonic()
         initial = await self.reader.read_batch(routes)
+        statuses = dict(zip(status_intents, initial[status_offset:]))
         helper = SpotAccountBillReader(self.reader, anchor_bill_id=anchor, max_pages=self.max_pages, max_fill_pages=self.max_pages)
         bills = await helper.bills_since_anchor(first_page=initial[0])
         if len(bills) > self.swap.capital.max_rows:
@@ -365,7 +375,10 @@ class PgJointAccountReconciler(PgCollateralReconciler):
                 continue
             product, wire = native['product'], native['wire_id']
             first_history = None
-            if native['exchange_order_id'] is not None:
+            standing_spot = native['product'] == 'SPOT' and native['state'] == 'ACKED'
+            if intent in statuses:
+                data = statuses[intent]['data']
+            elif native['exchange_order_id'] is not None and not standing_spot:
                 # The immutable native ID selects a bounded first history page.
                 # Both requests keep their original signed guards and quotas;
                 # one durable provider batch precedes parsing either response.
@@ -383,6 +396,16 @@ class PgJointAccountReconciler(PgCollateralReconciler):
                 raise StorageError('PG_JOINT_SOURCE_ORDER_SCOPE')
             row = data[0]
             self._order(row, native, scope[product + '_FILL'], policy)
+            if standing_spot and row['state'] in ('live', 'partially_filled'):
+                # Full signed account-wide histories already prove exact
+                # product/trade/order/wire/quantity/fee identity. _order also
+                # proves this order's cumulative fill total. Bills/principal,
+                # all global pages and the second complete round remain.
+                # Repeating that same history with ordId adds no coverage and
+                # exhausts SDK history quota inside the original quote window.
+                orders[intent] = row
+                payloads['orders'][intent] = (row, 'VERIFIED_ACCOUNT_HISTORY')
+                continue
 
             async def history(after, order_id=row['ordId'], kind=product):
                 return await (self.reader.get_spot_fill_history_page('LIFE-USDT', order_id, after) if kind == 'SPOT'

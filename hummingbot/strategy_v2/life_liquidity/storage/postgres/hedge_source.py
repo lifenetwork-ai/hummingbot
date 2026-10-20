@@ -263,18 +263,77 @@ class PgHedgeSource:
     def _check(self, report, epoch, market):
         self._original()
         self.collector.check_report(report, epoch=epoch)
-        if (report.runner_executor_ids or self.reader.source._connector._order_tracker.active_orders
+        standing = self._standing_spot_scope(report) if self._allocating else {}
+        if (not self._allocating and (report.runner_executor_ids or self.reader.source._connector._order_tracker.active_orders)
                 or self.swap_source._connector._order_tracker.active_orders
                 or self.reader.source._quota is None and not self.swap_source._uid_fresh()):
             raise StorageError('PG_HEDGE_SOURCE_RUNNER_NOT_QUIESCENT')
         for row in report.orders:
             native, exchange = json.loads(row.native_json), None if row.exchange_json is None else json.loads(row.exchange_json)
+            if native['intent_id'] in standing:
+                continue  # Full signed/native/runner/SDK match, checked above.
             if native.get('retired_spot') is True and native['product'] == 'SPOT' and native['state'] == 'TERMINAL' and exchange is None:
                 continue  # Verified permanent history, not a new terminal grant.
             if exchange is None or exchange['state'] not in ('filled', 'canceled') or native['state'] == 'PREPARED':
                 raise StorageError('PG_HEDGE_SOURCE_ORDERS_NOT_RECONCILED')
         if not 0 <= self._now() - market.observed_at_ms <= self.collector.max_age_ms:
             raise StorageError('PG_HEDGE_SOURCE_STALE')
+
+    def _standing_spot_scope(self, report):
+        """Only the original allocation task may retain fully matched makers.
+
+        Hedge planning/refresh keeps its quiescent contract. Unknown/unsent,
+        canceling, foreign-product or unmatched runner/SDK orders cannot fund a
+        sibling. Partial fills must already agree with signed native accounting.
+        """
+        from hummingbot.core.data_type.common import OrderType
+        from hummingbot.core.data_type.in_flight_order import OrderState
+        self._allocation_task()
+        if not self._allocating or self._allocation_request is None:
+            raise StorageError('PG_SPOT_ALLOCATION_ORIGINAL_TASK_REQUIRED')
+        expected = {}
+        for evidence in report.orders:
+            native = json.loads(evidence.native_json)
+            order = None if evidence.exchange_json is None else json.loads(evidence.exchange_json)
+            if order is None or order['state'] not in ('live', 'partially_filled'):
+                continue  # The normal _check still verifies every closed row.
+            if (native['product'] != 'SPOT' or native['state'] != 'ACKED'
+                    or native['session_id'] != str(self.owner.session_id) or native['epoch'] != self.owner.epoch
+                    or native['exchange_order_id'] != order['ordId']):
+                raise StorageError('PG_SPOT_ALLOCATION_STANDING_SCOPE')
+            expected[native['intent_id']] = native, order
+        active = self.reader.source._connector._order_tracker.active_orders
+        if (len(report.runner_executor_ids) != len(expected) or set(report.runner_executor_ids) != set(expected)
+                or set(active) != {native['wire_id'] for native, _ in expected.values()}
+                or self.swap_source._connector._order_tracker.active_orders):
+            raise StorageError('PG_SPOT_ALLOCATION_STANDING_SCOPE')
+        for native, fact in expected.values():
+            order = active[native['wire_id']]
+            if (order.current_state not in (OrderState.OPEN, OrderState.PARTIALLY_FILLED)
+                    or order.client_order_id != native['wire_id'] or order.exchange_order_id != fact['ordId']
+                    or order.trading_pair != 'LIFE-USDT' or order.order_type is not OrderType.LIMIT_MAKER
+                    or order.trade_type.name != native['side'] or order.price != _amount(fact['px'])
+                    or order.amount != _amount(fact['sz']) or order.executed_amount_base != _amount(fact['accFillSz'])):
+                raise StorageError('PG_SPOT_ALLOCATION_STANDING_SCOPE')
+        return expected
+
+    def _standing_claims(self, report, claims):
+        from hummingbot.strategy_v2.life_liquidity.shared_capital import CapitalClaim
+        standing = self._standing_spot_scope(report)
+        values = {c['intent_id']: c for c in claims}
+        pending = []
+        for intent_id, (native, _) in sorted(standing.items()):
+            value = values.get(intent_id)
+            if value is None:
+                raise StorageError('PG_SPOT_ALLOCATION_STANDING_CLAIM')
+            claim = CapitalClaim(**{**value, 'quantity_base': _amount(value['quantity_base']), 'price_usdt': _amount(value['price_usdt'])})
+            if (claim.account_uid, claim.session_id, claim.epoch, claim.config_version, claim.risk_epoch,
+                claim.wire_id, claim.product, claim.side, claim.position_action, claim.quantity_base, claim.price_usdt, claim.leverage) != (
+                    self.binding.account_uid, str(self.owner.session_id), self.owner.epoch, report.config_version, report.risk_epoch,
+                    native['wire_id'], 'SPOT', native['side'], 'OPEN', _amount(native['quantity']), _amount(native['price']), 1):
+                raise StorageError('PG_SPOT_ALLOCATION_STANDING_CLAIM')
+            pending.append(claim)
+        return tuple(pending)
 
     def _capital_observe(self):
         if self._capture is None or self._capture[0] != 'capital':
@@ -311,7 +370,7 @@ class PgHedgeSource:
                 if quota is not None and source_report is None:
                     await stack.enter_async_context(quota.collection())
                     self._original()
-                if (self.reader.source._connector._order_tracker.active_orders
+                if (_allocation is None and self.reader.source._connector._order_tracker.active_orders
                         or self.swap_source._connector._order_tracker.active_orders):
                     raise StorageError('PG_HEDGE_SOURCE_RUNNER_NOT_QUIESCENT')
                 cap_preflight = (await preflight_new_operation(self.capital, cap_id)
@@ -361,11 +420,12 @@ class PgHedgeSource:
                     collateral = min(account.collateral_usdt, marked).quantize(D('1e-18'), rounding=ROUND_FLOOR)
                     if collateral < 0:
                         raise StorageError('PG_HEDGE_SOURCE_COLLATERAL_NEGATIVE')
+                    pending = self._standing_claims(report, cap['claims']) if _allocation is not None else ()
                     snapshot = CapitalSnapshot(self.binding.account_uid, '2', 'USDT', cp['position_mode'], 'cross', cp['leverage'],
                                                int(report.account_observed_at.timestamp() * 1000), sequence, True, 'okx_account',
                                                decimal(account.base_life), decimal(account.cash_usdt), decimal(account.long_base), decimal(account.short_base),
                                                decimal(collateral), decimal(account.initial_margin_usdt), decimal(account.maintenance_margin_usdt),
-                                               D('0'), mark.price_usdt, index.price_usdt, 'okx_mark', 'okx_index', ())
+                                               D('0'), mark.price_usdt, index.price_usdt, 'okx_mark', 'okx_index', pending)
                     payments = tuple(FundingPayment(k, at, signed_decimal(amount)) for k, at, amount in report.funding_payments)
                     coverage = min(int(report.observed_at.timestamp() * 1000), funding_at)
                     bundle = CarryBundle(CarryAccount(snapshot, tuple(v.bill_id for v in payments), True, True), mark, index,
@@ -425,7 +485,7 @@ class PgHedgeSource:
             raise StorageError('PG_SPOT_ALLOCATION_ORIGINAL_TASK_REQUIRED')
 
     async def allocate_spot(self, operation_id, intent):
-        """Allocate once while both makers are paused and fully reconciled.
+        """Allocate once with quiescent or exactly reconciled standing makers.
 
         Original signed observations finance this exact business intent before
         its NEW runner capture. Native denials and unknown COMMITs retain claims;
