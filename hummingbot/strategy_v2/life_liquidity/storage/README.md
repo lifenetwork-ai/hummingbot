@@ -4614,3 +4614,18 @@ byte/rejection comparisons. The index costs extra STATUS write/storage work.
 Backend query plans and the installed asyncpg statement cache already cover
 compiled SQL. Account balances, current-source/freshness checks, risk, revocation
 and send permission are not candidates for a cross-command or TTL result cache.
+
+### Current terminal source handoff
+
+Maker cancellation may consume its current complete signed report for one
+terminal command instead of collecting the account again. The application,
+task, operation, intent and ingress epoch are bound to a one-use capability.
+Receipt lookup cannot renew it; stale/replaced reports or intervening writes
+deny. Each subsequent terminal and every shared-claim release still needs a new
+collection, and physical COMMIT independently checks the original source/cut.
+This is operation-local source consumption, not a financial verdict cache.
+
+The 66-case cancellation/source regression passes. The configured nine-case
+gate remains 7 pass / 2 schedule quote-expiry failures; a separate instrumented
+single-generation pass is diagnostic only. Complete configured/current-source
+acceptance still gates PG3.

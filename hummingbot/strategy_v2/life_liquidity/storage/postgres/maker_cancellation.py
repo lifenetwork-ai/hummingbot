@@ -229,12 +229,19 @@ class PgMakerCancellation:
                             raise StorageError('PG_MAKER_CANCEL_SDK_NOT_QUIESCENT')
                         changed = False
                         unfinished = sum(native['state'] not in ('TERMINAL', 'ABORTED_BEFORE_SEND') for native, _ in orders)
+                        terminal_report = report
                         for native, exchange in orders:
                             if native['state'] not in ('TERMINAL', 'ABORTED_BEFORE_SEND'):
                                 changed = True
                                 self._ready()
                                 stage = 'terminal'
-                                receipt = await self.release.confirm_terminal(self._id(operation_id, native, 'terminal'), native['intent_id'])
+                                terminal_id = self._id(operation_id, native, 'terminal')
+                                source = None if terminal_report is None else self.release.terminal_source(
+                                    terminal_report, terminal_id, native['intent_id'])
+                                # A terminal command changes the native cut.
+                                # Subsequent terminals require new collection.
+                                terminal_report = None
+                                receipt = await self.release.confirm_terminal(terminal_id, native['intent_id'], _source=source)
                                 if receipt.state != 'TERMINAL':
                                     raise StorageError('PG_MAKER_CANCEL_TERMINAL_UNQUALIFIED')
                                 unfinished -= 1

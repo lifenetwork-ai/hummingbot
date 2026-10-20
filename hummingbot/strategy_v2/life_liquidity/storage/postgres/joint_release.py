@@ -24,6 +24,25 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.swap_terminal import
 from hummingbot.strategy_v2.life_liquidity.storage.terminal import SpotTerminalFacts, TerminalSpot
 
 
+class _TerminalSource:
+    """One task may consume its current signed collection for one terminal."""
+
+    def __init__(self, application, report, operation_id, intent_id):
+        application._original()
+        application.collector.check_report(report, epoch=application.collector._epoch)
+        self.original = (application, report, operation_id, intent_id, asyncio.current_task(), application.collector._epoch)
+        self.used = False
+
+    def take(self, application, operation_id, intent_id):
+        original, report, operation, intent, task, epoch = self.original
+        if (self.used or original is not application or operation != operation_id
+                or intent != intent_id or task is not asyncio.current_task()):
+            raise StorageError('PG_JOINT_TERMINAL_SOURCE_INVALID')
+        self.used = True
+        application.collector.check_report(report, epoch=epoch)
+        return report, epoch
+
+
 class PgJointReleaseApplication:
     def __init__(self, collector):
         if type(collector) is not PgJointAccountReconciler:
@@ -69,20 +88,30 @@ class PgJointReleaseApplication:
                 return receipt
         return None
 
-    async def confirm_terminal(self, operation_id, intent_id):
-        return await self._run(operation_id, intent_id, terminal_operation_id=None)
+    def terminal_source(self, report, operation_id, intent_id):
+        identifier(operation_id)
+        identifier(intent_id)
+        return _TerminalSource(self, report, operation_id, intent_id)
+
+    async def confirm_terminal(self, operation_id, intent_id, *, _source=None):
+        return await self._run(operation_id, intent_id, terminal_operation_id=None, source=_source)
 
     async def retire_claim(self, operation_id, intent_id, terminal_operation_id):
         identifier(terminal_operation_id)
         return await self._run(operation_id, intent_id, terminal_operation_id=terminal_operation_id)
 
-    async def _run(self, operation_id, intent_id, *, terminal_operation_id):
+    async def _run(self, operation_id, intent_id, *, terminal_operation_id, source=None):
         identifier(operation_id)
         identifier(intent_id)
         self._original()
         if self._lock.locked():
             raise StorageError('PG_JOINT_RELEASE_BACKPRESSURE')
         async with self._lock:
+            supplied = None
+            if source is not None:
+                if terminal_operation_id is not None or type(source) is not _TerminalSource:
+                    raise StorageError('PG_JOINT_TERMINAL_SOURCE_INVALID')
+                supplied = source.take(self, operation_id, intent_id)
             # A receipt read has no new release effect and recreates no source
             # authority. Unknown COMMIT uses the exact original operation ID.
             existing = await self._existing(operation_id, intent_id, terminal_operation_id)
@@ -91,7 +120,13 @@ class PgJointReleaseApplication:
             self.runtime._observation_inflight += 1
             report = None
             try:
-                report = await self.collector.collect()
+                if supplied is None:
+                    report = await self.collector.collect()
+                else:
+                    report, epoch = supplied
+                    # Receipt lookup may await. Never renew a supplied report,
+                    # recollect on failure, or use it after another write.
+                    self.collector.check_report(report, epoch=epoch)
                 self._original()
                 native, exchange, evidence = self._order(report, intent_id)
                 fence = JointSourceFence(self.collector, report, operation_id=operation_id, intent_id=intent_id)

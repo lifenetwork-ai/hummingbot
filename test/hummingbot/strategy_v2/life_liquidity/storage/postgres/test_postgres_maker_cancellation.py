@@ -70,6 +70,94 @@ async def test_signed_cancel_reconciles_partial_maker_before_terminal_and_preser
 
 
 @pytest.mark.asyncio
+async def test_closed_maker_consumes_original_collection_once_before_terminal(database, monkeypatch):
+    t = await makers(database)
+    t.spot_order['state'], t.pending['SPOT'] = 'canceled', []
+    original, reports = t.joint.collect, []
+
+    async def collect(**kwargs):
+        report = await original(**kwargs)
+        reports.append(report)
+        return report
+    monkeypatch.setattr(t.joint, 'collect', collect)
+    try:
+        claims = await t.values[5].claims(t.cfg.binding)
+        assert await t.cancellation.cancel_makers('closed-original', yield_after_request=True)
+        assert len(reports) == 1
+        assert not t.cancel_requests
+        assert (await t.financial.attempt('intent1', t.cfg.binding)).state.value == 'TERMINAL'
+        assert await t.values[5].claims(t.cfg.binding) == claims
+        assert t.joint._report is None
+    finally:
+        await t.financial.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('fault', ['task', 'operation', 'intent', 'application', 'used', 'ingress', 'expired', 'replaced',
+                                   'ingress_during_lookup', 'expiry_during_lookup', 'write_during_lookup'])
+async def test_terminal_handoff_cannot_refresh_or_expand_original_authority(database, monkeypatch, fault):
+    from datetime import timedelta
+
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.joint_release import PgJointReleaseApplication
+    from hummingbot.strategy_v2.life_liquidity.storage.spot_lifecycle import SpotLifecycleCommand
+    t = await makers(database)
+    t.spot_order['state'], t.pending['SPOT'] = 'canceled', []
+    try:
+        before = await t.financial.snapshot(t.cfg.binding)
+        claims = await t.values[5].claims(t.cfg.binding)
+        report = await t.joint.collect()
+        app = t.cancellation.release
+        source = app.terminal_source(report, 'original-terminal', 'intent1')
+        operation, intent = 'original-terminal', 'intent1'
+        if fault == 'operation':
+            operation = 'other-terminal'
+        elif fault == 'intent':
+            intent = 'other-intent'
+        elif fault == 'application':
+            app = PgJointReleaseApplication(t.joint)
+        elif fault == 'used':
+            assert source.take(app, operation, intent) == (report, t.joint._epoch)
+        elif fault == 'ingress':
+            t.financial._runtime._ingress_epoch += 1
+        elif fault == 'expired':
+            monkeypatch.setattr(t.journal, 'clock', lambda: report.observed_at + timedelta(milliseconds=t.joint.max_age_ms + 1))
+        elif fault == 'replaced':
+            await t.joint.collect()
+        if fault.endswith('_during_lookup'):
+            original = app._existing
+
+            async def lookup(*args):
+                result = await original(*args)
+                if fault == 'ingress_during_lookup':
+                    t.financial._runtime._ingress_epoch += 1
+                elif fault == 'expiry_during_lookup':
+                    monkeypatch.setattr(t.journal, 'clock', lambda: report.observed_at + timedelta(milliseconds=t.joint.max_age_ms + 1))
+                else:
+                    # An independent writer can change the native cut without
+                    # advancing this process's ingress epoch.
+                    await t.financial.apply_lifecycle(SpotLifecycleCommand('other-writer', 'operation1', 'intent1', 'wire1', 'REQUEST_CANCEL'),
+                                                      cut=report.cut, owner=t.owner)
+                return result
+            monkeypatch.setattr(app, '_existing', lookup)
+
+        async def no_refresh(**kwargs):
+            pytest.fail('A rejected handoff must not refresh its authority')
+        monkeypatch.setattr(t.joint, 'collect', no_refresh)
+        with pytest.raises(StorageError):
+            action = app.confirm_terminal(operation, intent, _source=source)
+            if fault == 'task':
+                await asyncio.create_task(action)
+            else:
+                await action
+        assert await database[0].fetchval('SELECT count(*) FROM life_financial.spot_terminal_facts') == 0
+        assert (await t.financial.snapshot(t.cfg.binding)).balance == before.balance
+        assert await t.values[5].claims(t.cfg.binding) == claims
+        assert not t.cancel_requests
+    finally:
+        await t.financial.close()
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize('closed', [True, False])
 async def test_yielded_cancel_ack_grants_no_terminal_release_or_repeat_http(database, closed):
     t = await makers(database)

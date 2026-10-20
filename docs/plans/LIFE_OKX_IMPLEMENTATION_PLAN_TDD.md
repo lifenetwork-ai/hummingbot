@@ -1,6 +1,14 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
-**Current PG3 N+1/index work (2026-10-21):** migration 96 removes duplicate
+**Current PG3 closure work (2026-10-21):** redundant maker-terminal source
+collection is removed with a task/operation-bound, single-use handoff. All 66
+affected cancellation/source tests pass. The configured gate remains **7 pass /
+2 fail**, with schedule quotes expiring at 1086.028 and 1146.075 ms. A separate
+instrumented one-generation replay passes; it is diagnostic, not replacement
+qualification. **PG3 remains open** for the fixed R2.3/R4/R5 exits. See
+[current terminal handoff and next acceptance work](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-current-terminal-source-handoff-2026-10-21).
+
+**Earlier PG3 N+1/index work (2026-10-21):** migration 96 removes duplicate
 ORDER/STATE predecessor reads (five to three per event) and indexes STATUS
 history by account/wire/version. An actual-query synthetic plan test reduces
 unrelated scanned rows from 8194 to zero. No cross-command financial cache or

@@ -2,7 +2,16 @@
 
 Created: 2026-10-11
 
-**Current N+1/index optimization (2026-10-21):** migration 96 reduces
+**Current PG3 closure work (2026-10-21):** maker terminal confirmation can consume
+the same operation's current signed collection once, removing a redundant full
+collection. All 66 affected cancellation/source tests pass. The frozen configured
+gate is **7 pass / 2 fail**: both schedule cases expire during SPOT submission
+(1086.028 and 1146.075 ms quote age). A diagnostic one-generation replay passes,
+but does not replace the failing gate. R2.3/R4/R5 remain open; the next target is
+the capture → dispatch → preparation → SDK path, followed by complete configured
+SPOT/SWAP and whole-product acceptance. See [terminal handoff qualification](#pg3-current-terminal-source-handoff-2026-10-21).
+
+**Earlier N+1/index optimization (2026-10-21):** migration 96 reduces
 predecessor lookups from five to three per event, confined to the same STABLE
 invocation, and adds a STATUS wire/version index. The actual lookup discards
 zero unrelated rows versus 8194 before on synthetic query-plan load. Sixteen
@@ -6283,3 +6292,44 @@ PG3 closure is introduced. Changed-file hooks pass.
 PYTEST_ADDOPTS='-k "test_actual_upgrade_keeps_every_old_layer_body_digest_flags_and_scope and legacy_pending"' python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_postgres --suite all --output /tmp/life-pg3-96-legacy-pending-recheck
 PYTEST_ADDOPTS='-k imported_schedule --deselect=test/hummingbot/strategy_v2/life_liquidity/storage/postgres/test_postgres_service_cycle.py::test_imported_schedule_retires_every_original_maker_before_next_generation[1]' python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_postgres --suite spot_market_send --output /tmp/life-pg3-96-final-maker-generations
 ```
+
+## PG3 current terminal source handoff (2026-10-21)
+
+The terminal stage previously collected the same complete account twice without
+an intervening write. The new regression is genuinely RED on that implementation:
+one already closed maker performs two collections instead of one. The maker now
+hands its original report to `PgJointReleaseApplication` for the first terminal
+command only. The capability is bound to the application, task, operation,
+intent and ingress epoch, and is consumed once. Receipt lookup cannot renew the
+report. Any later terminal or shared-claim release still obtains a new signed
+collection after the preceding write.
+
+Original UID, native cut, account scope, report age and independent physical
+COMMIT checks remain. Expired/replaced reports, another task/application/ID,
+reuse, and ingress or a native writer during lookup cannot cause terminal work
+or a fallback refresh. No SQL migration, result cache, monetary policy, source
+timestamp, phase deadline or Docker resource change is introduced.
+
+Qualification pins **1820 implementation/test/migration hashes** after hooks:
+
+- `maker_cancellation` filtered to maker cancellation and joint source: **66
+  passed**, 54 deselected, zero failures/errors/skips, 272.68 s. Includes 12 new
+  handoff cases and existing signed-source/COMMIT/unknown-reply/cancellation
+  regressions. `/tmp/life-pg3-terminal-handoff-frozen-native`.
+- The complete nine-case configured standing-maker selector: **7 passed / 2
+  failed**, 752 deselected, 285.79 s. Both schedule cases fail before terminal
+  at `PG_SPOT_SUBMISSION_UNKNOWN`, quote ages **1086.028 / 1146.075 ms**. The
+  second records `PG_QUOTE_CAPTURE_MISMATCH`; the first has no normalized SQL
+  refusal. `/tmp/life-pg3-terminal-handoff-frozen-configured`. This gate stays RED.
+- A separate instrumented one-generation replay passes (64.28 s). The terminal
+  handoffs take 114.1 and 96.2 ms after their original collections, with no
+  collection nested inside terminal. This demonstrates removal of duplicate
+  work, not a latency percentile or an uninstrumented acceptance pass.
+  `/tmp/life-pg3-terminal-handoff-phase-diagnostic` and the diagnostic plugin/data
+  stay outside the repository. Counts above are not summed.
+
+Next work stays inside the fixed exits: profile the actual quote capture,
+publication, dispatched acceptance, preparation and final SDK guard; remove
+measured redundant work without changing the 1000-ms window; then qualify every
+enabled configured SPOT/SWAP route and the frozen R5 whole-product fault/parity
+gate. Neither the narrower native pass nor the diagnostic pass closes PG3.
