@@ -126,6 +126,13 @@ class PgSpotAccountReader:
     def _route(cls, path, params):
         if type(params) is not dict or any(type(key) is not str or type(value) is not str for key, value in params.items()):
             raise StorageError('PG_FINANCIAL_SOURCE_ROUTE_INVALID')
+        spot = {
+            '/api/v5/public/instruments': {'instType': 'SPOT', 'instId': 'LIFE-USDT'},
+            '/api/v5/market/books': {'instId': 'LIFE-USDT', 'sz': '64'},
+            '/api/v5/account/trade-fee': {'instType': 'SPOT', 'instId': 'LIFE-USDT'},
+        }.get(path)
+        if spot is not None and params == spot:
+            return
         market = {
             '/api/v5/public/instruments': {'instType': 'SWAP', 'instId': 'LIFE-USDT-SWAP'},
             '/api/v5/market/books': {'instId': 'LIFE-USDT-SWAP', 'sz': '64'},

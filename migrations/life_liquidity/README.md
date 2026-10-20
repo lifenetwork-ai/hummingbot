@@ -1249,3 +1249,15 @@ The original validator body/security/path/volatility is audited. Replacement
 preserves its OID and ACL, adds no helper, grant or table and bootstraps no funds,
 policy or activation. The migration ledger makes repeated enabled startup/up a
 no-op; unexpected predecessor drift aborts the upgrade.
+
+## 000087: fixed SPOT market diagnostic routes
+
+`000087_spot_market_routes.sql` adds only exact LIFE-USDT SPOT instrument, book
+(`sz=64`) and account trade-fee GET queries to the existing provider-page route
+validator. Other instruments, extra parameters and query widening stay denied.
+These are decoded diagnostics, not authenticated financial facts or send grants.
+
+The predecessor body/security/path/volatility is audited before replacement;
+the original OID and ACL are preserved. There is no new table, grant, policy,
+balance or activation. Repeated enabled startup/up remains a migration-ledger
+no-op; drift aborts atomically. Previously applied scripts are unchanged.

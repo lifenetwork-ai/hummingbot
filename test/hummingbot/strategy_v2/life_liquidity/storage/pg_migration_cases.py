@@ -2926,3 +2926,44 @@ async def test_joint_event_upgrade_preserves_original_oid_acl_tables_and_refuses
     assert tables == await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace='life_financial'::regnamespace ORDER BY oid")
     for table in ('accounts', 'operations', 'send_attempts', 'shared_capital_observations', 'carry_checks', 'hedge_plans', 'activation_grants'):
         assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('unexpected_shape', ['none', 'body', 'security', 'search_path', 'volatility'])
+async def test_spot_market_upgrade_preserves_original_function_and_refuses_drift(db, unexpected_shape):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 87:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    target = 'life_financial.spot_provider_route(text,jsonb)'
+    if unexpected_shape == 'body':
+        definition = await c.fetchval('SELECT pg_get_functiondef(to_regprocedure($1))', target)
+        await c.execute(definition.replace('BEGIN', 'BEGIN\n-- unexpected', 1))
+    elif unexpected_shape == 'security':
+        await c.execute('ALTER FUNCTION ' + target + ' SECURITY DEFINER')
+    elif unexpected_shape == 'search_path':
+        await c.execute('ALTER FUNCTION ' + target + ' SET search_path=pg_catalog,public')
+    elif unexpected_shape == 'volatility':
+        await c.execute('ALTER FUNCTION ' + target + ' STABLE')
+    query = '''SELECT p.oid,p.oid::regprocedure::text AS signature,p.proacl,p.prosrc,p.provolatile::text AS provolatile,p.prosecdef,p.proconfig,p.proowner
+        FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='life_financial' ORDER BY p.oid'''
+    before = {r['signature']: dict(r) for r in await c.fetch(query)}
+    tables = await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace='life_financial'::regnamespace ORDER BY oid")
+    path = DEFAULT_DIRECTORY / '000087_spot_market_routes.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    if unexpected_shape != 'none':
+        with pytest.raises(asyncpg.RaiseError, match='LIFE_SPOT_MARKET_ROUTE_MIGRATION_MISMATCH'):
+            await migrate(c, directory, action='up')
+        assert {r['signature']: dict(r) for r in await c.fetch(query)} == before
+        assert (await versions(c))[-1]['version'] == 86
+    else:
+        assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+        after = {r['signature']: dict(r) for r in await c.fetch(query)}
+        assert set(after) == set(before)
+        for signature, original in before.items():
+            assert after[signature] == (original if signature != target else {**original, 'prosrc': after[signature]['prosrc']})
+        assert (await migrate(c, directory, action='up'))['applied'] == []
+    assert tables == await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace='life_financial'::regnamespace ORDER BY oid")
+    for table in ('accounts', 'operations', 'send_attempts', 'shared_capital_observations', 'carry_checks', 'hedge_plans', 'activation_grants'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0

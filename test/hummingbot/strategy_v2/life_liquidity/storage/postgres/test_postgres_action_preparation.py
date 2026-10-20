@@ -21,6 +21,10 @@ async def bridge(database, *, side='BUY', objective='liquidity_service', prepare
     if prepare_policy:
         await database[0].execute('''INSERT INTO life_financial.spot_quote_admission_policies VALUES(
             $1,$2,$3,$4,$5,.01,.01,.01,$6,$6,$6,$6)''', cfg.account_id, cfg.binding.policy_hash, objective, min_edge, uncertainty, admission_age_ms)
+    # Read the original preflight before constructing a NEW action, as a
+    # configured producer must. Cold proof work does not belong to an already
+    # captured quote's lifetime. Never renew an existing action/feed timestamp.
+    initial_cut = (await repo.snapshot(cfg.binding)).cut
     at = await database[0].fetchval('SELECT clock_timestamp()')
     executor = OrderExecutorConfig(id='intent1', controller_id='controller1', timestamp=at.timestamp(), connector_name='okx',
                                    trading_pair='LIFE-USDT', side=TradeType[side], amount=D('2'), price=D('1'),
@@ -32,7 +36,7 @@ async def bridge(database, *, side='BUY', objective='liquidity_service', prepare
     row = action(owner, side=side, payload_json=raw)
     if not claim:
         return repo, cfg, owner, row
-    await repo.claim_quote_actions(ClaimQuoteActions('claim', (row,)), cut=(await repo.snapshot(cfg.binding)).cut, owner=owner)
+    await repo.claim_quote_actions(ClaimQuoteActions('claim', (row,)), cut=initial_cut, owner=owner)
     await repo.transition_quote_action(await transition(database, cfg, row, 'DISPATCHED'), cut=(await repo.snapshot(cfg.binding)).cut, owner=owner)
     return repo, cfg, owner, row
 
@@ -239,6 +243,8 @@ async def test_admission_expiring_at_physical_commit_rolls_back_everything(datab
 @pytest.mark.asyncio
 @pytest.mark.parametrize('committed', [False, True])
 async def test_actual_backend_termination_keeps_action_holds_and_operation_atomic(database, monkeypatch, committed):
+    import asyncio
+
     import asyncpg
 
     from hummingbot.strategy_v2.life_liquidity.storage.contracts import CommitUnknown
@@ -269,9 +275,21 @@ async def test_actual_backend_termination_keeps_action_holds_and_operation_atomi
         saved = await cold.lookup_prepare('operation1', cfg.binding)
         assert (saved is not None) is committed
         assert (await cold.quote_actions(cfg.binding))[0].state == ('PREPARED' if committed else 'DISPATCHED')
-        assert (await cold.prepare_quote_action(cmd, cut=cut, owner=owner)).replayed is committed
-        assert (await cold.balance(cfg.binding)).reserved_quote_usdt == D('2.2')
-        assert await database[0].fetchval("SELECT count(*) FROM life_financial.operations WHERE operation_id='operation1'") == 1
+        # A cold reopen cannot renew an old quote. Once it expires, a committed
+        # operation remains readback-only; an absent operation must not acquire
+        # new holds merely to make the recovery test reach its success path.
+        await asyncio.sleep(1.05)
+        before = await cold.snapshot(cfg.binding)
+        if committed:
+            assert (await cold.prepare_quote_action(cmd, cut=cut, owner=owner)).replayed
+        else:
+            with pytest.raises(StorageError, match='QUOTE_CAPTURE_STALE|QUOTE_ADMISSION_STALE'):
+                await cold.prepare_quote_action(cmd, cut=cut, owner=owner)
+            assert await cold.lookup_prepare('operation1', cfg.binding) is None
+        after = await cold.snapshot(cfg.binding)
+        assert (after.balance, after.budget, after.cut) == (before.balance, before.budget, before.cut)
+        assert after.balance.reserved_quote_usdt == (D('2.2') if committed else D('0'))
+        assert await database[0].fetchval("SELECT count(*) FROM life_financial.operations WHERE operation_id='operation1'") == int(committed)
     finally:
         await cold.close()
 

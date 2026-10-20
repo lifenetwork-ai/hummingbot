@@ -1,5 +1,14 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**Latest native SPOT market progress (2026-10-20):** the signed metadata/book/
+account-fee adapter now supplies independent own-depth reference and size-specific
+unwind facts. All **49 new contract cases** and **5 migration audits** pass. The
+full affected run is **294 pass / 4 fail**; one expired cold-retry test expectation
+is corrected with two physical-backend passes, while three timing workflows
+remain unresolved. No deadline or budget is relaxed. Actual configured service,
+final pending-SDK handoff and whole-service acceptance remain open; **R4 and PG3
+are not closed**. See [market source progress](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-r4-native-spot-market-provenance-2026-10-20).
+
 **Latest PostgreSQL listener/history progress (2026-10-20):** **266 frozen
 native cases**, five audited migration-86 cases and 29 contracts pass. Both SDK
 listeners now connect signed joint accounting to native/report-qualified history;

@@ -769,6 +769,7 @@ failing integration result visible until the same current-source workflow passes
   - [x] Explicit native quote journal → actual `OrderExecutor` → protected SPOT SDK → durable ACK, with original awaited dispatch acceptance, no retry/cold-readback send grant, and physical SDK shutdown tracking for both SPOT and hedge SWAP. The frozen 405-case native and 99-case File/SDK gates pass; see [executor application qualification](#pg3-r4-native-quote-executor-application-2026-10-20). Synthetic admission callbacks in this profile do not qualify the configured planner/reference/book/fee source or complete runner/account topology.
   - [x] Explicit signed ordinary joint financial intake: new SPOT/SWAP fills, approved LIFE/USDT flows and paid funding enter one original native atomic batch. The frozen 152-case gate below passes, including retained pending/HALT, replay, successive funding, unknown COMMIT, cancellation and cold database-runtime reopen. Historical independent-price callbacks remain owning-service inputs; mandatory both-product listeners/history and configured installation are still required.
   - [x] Explicit dual SDK callback/history assembly: bounded original listeners on both SDKs, signed joint monetary intake, native/report-qualified IDs with atomic rollback of both caches, and actual V2 observation startup without File/ORM fallback. The frozen 266-case affected gate below passes with five audited migration cases and 29 contracts. Cold DB-runtime/listener reinstall and late in-flight funding retain HALT, money and claims; this is not a physical-process or configured trading-service qualification.
+  - [x] Native SPOT market provenance implementation and new contract cases: signed metadata/book/account-fee capture joined to the original complete account report, independent own-depth subtraction and size-specific unwind facts. All 49 new cases and five audited upgrades pass. The broader 298-case run is **294 pass / 4 fail**, with one faulty expired-retry expectation subsequently corrected and its two physical-backend cases passing; three timing workflows remain open below. This does not install a planner, prepare a new shared claim or qualify a final pending SDK submission.
   - [ ] Actual configured LIFE controller/service, all enabled final trading routes, complete shared-account/SDK scope and both-product financial ingress/history. The observation profile does not discharge these requirements.
 - [ ] **R5 — current-source acceptance:** all supported File/native decisions and units agree; whole-runner restart/corruption/role tests and process/backend faults pass at capture, send, ACK, settlement, release and signed repair. Resolve the observed SQL statement timeout, then run the complete affected workflow on one frozen source revision. PG0 trust/anchor requirements remain explicit; neither local tests nor a database receipt prove exactly-once exchange delivery.
 
@@ -4947,3 +4948,89 @@ change. The earlier frozen failed invocations remain evidence of the original
 producer-ordering/latency risk; no SQL performance root-cause fix, loaded-tail
 reliability, mandatory service installation or PG3 closure is inferred. Native
 R2.3/R4 configured composition and R5 retain their fixed exit requirements.
+
+## PG3 R4: native SPOT market provenance (2026-10-20)
+
+`PgSpotMarketSource` adds signed LIFE SPOT metadata/book/account-fee capture to
+the original joint account/UID collection. Imported and SDK rules must agree;
+complete native/private/SDK own orders are subtracted from the reference and
+unwind depth. BUY unwinds consume bids and SELL unwinds consume asks, with
+adverse VWAP rounding. Reuse retains original timestamps; missing depth denies
+that size, with no mid/anchor fallback. Carry/inventory costs remain explicit
+owning-service inputs. Fixed-route migration 87 reuses existing diagnostic tables
+and preserves original function OID/ACL, with no policy or funds bootstrap.
+
+Passive market reads verify both original credential/auth/endpoint/quota contexts
+without invoking the SWAP final-send fence, which requires paused makers. This
+fixes an integration conflict exposed by the actual shared-SDK startup fixture;
+it does not weaken or grant that send fence. The adapter grants no send, claim,
+activation, release or cold-readback capability. Actual planner/shared-claim and
+new pending-SDK preparation/final-send handoffs remain part of configured R4.
+That handoff must distinguish the original owned unsent preparation from unknown
+SDK orders and unrelated ingress. It must not simply ignore every PREPARED order
+or reset a final request guard's captured ingress epoch after arbitrary awaits.
+Fresh final facts must also satisfy the native after-prepare timestamp rule.
+
+The first frozen affected run retains **30 passes / 1 failure** before its model
+mutation test: strict cross-clock microsecond containment rejected the native
+policy timestamp. The source now uses the existing configured 100 ms DB/SDK
+clock-skew bound plus monotonic elapsed-time comparison, as the existing quote
+identity source does. Two deterministic tests cover sub-millisecond rounding
+and out-of-bound skew; the original failure did not log the precise clock offset,
+so rounding is a covered case rather than an established cause of that run.
+Feed/capture age remains one second; no timeout,
+budget or monetary threshold changes. An earlier development run also retains
+a 1.04 s `spot_state` SQL deadline failure during existing fixture setup, before
+market collection. No SQL latency root-cause fix is claimed.
+
+The next frozen affected run retains **63 passes / 1 failure**: the existing
+`financial_source[outside]` fixture reaches `PG_QUOTE_CAPTURE_STALE` before its
+target read-bound check, after a roughly 718 ms state read and 447 ms claim.
+The shared action fixture now performs its preflight read before constructing a
+new action and consumes that original cut for direct claims. Existing captures
+and provider stamps are not renewed. The affected selector also includes the
+action-preparation and runner-journal regression; R5 SQL/loaded-tail reliability
+is not inferred from this producer-ordering correction.
+
+The expanded frozen run retains **121 passes / 1 failure**: existing hedge
+repricing reaches `PG_JOINT_SOURCE_REPORT_REVOKED` after capital/carry, with the
+same report/collection/epoch and fresh UID but **1006.512 ms** report age. The
+one-second bound correctly denies it. All **49 new market cases** pass before
+that failure. The unchanged source was then run without fail-fast to exercise
+all remaining affected cases; the failing workflow was not excluded or relaxed.
+
+Five audited **86→87** upgrade/drift/repeated-startup cases pass in **10.45 s**,
+with zero failures/errors/skips (`/tmp/life-pg3-spot-market-migrations`). The
+2426-file source/test/SQL manifest stayed unchanged through the complete run.
+
+**Complete affected run:** `run_postgres --suite spot_market` finishes **298
+cases: 294 pass / 4 fail / 0 error / 0 skip**, six existing Pydantic warnings,
+**973.68 s** (`/tmp/life-pg3-spot-market-complete`). The 49 new cases are included
+in 294, not additional. Failures are retained:
+
+- `joint_source` lost-reply/release setup: source expires at the terminal COMMIT
+  before the selected lost-reply injection; `PG_JOINT_SOURCE_EXPIRED_AT_COMMIT`.
+- `quote_account_source` same-credential send: ARM rejects the old original
+  capture with `PG_QUOTE_CAPTURE_MISMATCH`, after a roughly **636 ms** claim and
+  the remaining dispatch/preparation/source work. No timestamp is renewed.
+- `runner_journal` amount-mutation setup: the original claim exceeds its **1 s**
+  execution deadline (**1015.45 ms** execute; **1121.84 ms** total), before the
+  mutation check. `PG_DATABASE_UNAVAILABLE` wraps that diagnosed timeout; it is
+  not evidence of an unavailable configured database.
+- `action_preparation` killed-backend/non-COMMIT case: the test expected a cold
+  expired quote to acquire new holds. It now deliberately expires the original
+  capture: committed operations return the old receipt; absent operations deny
+  stale preparation and retain zero new holds. Both physical-backend variants
+  pass in **8.25 s** (`/tmp/life-pg3-spot-market-expired-recovery-final`). The two
+  intermediate test edits retain assertion failures for old unconditional hold/
+  operation-count expectations; no production predicate was relaxed.
+
+After the frozen run, only a production comment was clarified about separate
+DB/SDK clocks; its Python AST is identical to the tested source. The targeted
+cold-recovery test correction above is separately qualified. The full 298-case
+gate has not been rerun on that test correction, and **is not green**. Its three
+timing workflows remain R5 blockers; one passing run cannot establish tail
+reliability. No SQL/source/capture/transaction budget is increased and no failing
+case is excluded. Logs stay under `/tmp`; no new repository evidence file is
+created. The actual controller still rejects PostgreSQL selection. Complete
+configured R2.3/R4/R5 and PG3 remain open.

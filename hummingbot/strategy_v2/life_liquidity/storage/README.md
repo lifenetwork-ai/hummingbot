@@ -4129,3 +4129,29 @@ The typed DTO validates its units; native account/claim/COMMIT gates check its
 original value. A missing epoch gets no implicit default. This change does not
 relax shared capital, fee, budget, ownership or source-age checks. Whole configured
 LIFE controller/planner/reference/book/fee assembly and R5 acceptance remain open.
+
+## Native SPOT market provenance
+
+`PgSpotMarketSource` collects fixed LIFE SPOT metadata, the 64-level book and
+account fee group inside the original signed joint account/UID collection.
+`000087` extends the existing decoded-page journal's exact route allowlist; no
+new table is needed. Provider pages are retained before parsing and remain
+diagnostic, never a price authority reconstructed from database readback.
+
+Imported native tick/lot/minimum rules must agree with the exchange and SDK.
+Complete reconciled own orders are subtracted from reference and executable
+depth; unresolved or mismatched SDK orders deny the capture. The existing
+`ReferenceEngine` qualifies the independent LIFE market reference. A BUY unwind
+consumes independent bids and a SELL unwind consumes independent asks, with
+adverse VWAP rounding and no mid-price fallback. Insufficient depth rejects that
+size without revoking an otherwise qualified smaller quote. Costs for carry and
+inventory remain mandatory inputs; source timestamps are never renewed on reuse.
+
+Market reads check original SDK credentials, endpoint and quota identities; they
+do not invoke the SWAP send fence, which correctly requires paused makers.
+This profile requires the same credentials on both SDKs; a different-key source
+is refused rather than inferred to own the same account from a source label.
+This adapter issues no order, claim, activation or release. It does not install
+the controller/planner or authorize a newly tracked pending submission. Those
+final preparation/send handoffs and mandatory service routes remain R4. Use
+`run_postgres --suite spot_market` for the affected source regression.

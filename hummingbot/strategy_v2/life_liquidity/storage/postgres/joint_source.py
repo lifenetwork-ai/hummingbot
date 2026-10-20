@@ -6,6 +6,7 @@ Runner topology remains an owning-application contract, checked through the
 original runner journal, not inferred from account or SQL completeness.
 """
 import asyncio
+import time
 from contextlib import AsyncExitStack
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -78,6 +79,10 @@ class JointSourceReport:
     runner_executor_ids: tuple[str, ...]
     market_json: str | None = None
     market_observed_at: datetime | None = None
+    spot_market_json: str | None = None
+    spot_market_observed_at: datetime | None = None
+    spot_market_monotonic: float | None = None
+    account_observed_monotonic: float | None = None
     trading_permission: bool = field(default=False, init=False)
 
 
@@ -309,9 +314,9 @@ class PgJointAccountReconciler(PgCollateralReconciler):
             raise StorageError('PG_JOINT_SOURCE_RUNNER_SCOPE')
         return tuple(sorted(facts.executor_ids))
 
-    async def collect(self, *, include_hedge_market=False):
+    async def collect(self, *, include_hedge_market=False, include_spot_market=False):
         import json
-        if type(include_hedge_market) is not bool:
+        if type(include_hedge_market) is not bool or type(include_spot_market) is not bool:
             raise StorageError('PG_JOINT_SOURCE_CONFIG_INVALID')
         if self._lock.locked():
             raise StorageError('PG_JOINT_SOURCE_BACKPRESSURE')
@@ -334,11 +339,13 @@ class PgJointAccountReconciler(PgCollateralReconciler):
                         async with self.reader.collection():
                             started = self.reader.started_at
                             market_json, market_at = None, None
+                            spot_json, spot_at, spot_monotonic, account_monotonic = None, None, None, None
                             first_runner = await self._runner(scope)
                             rounds, accounts, account_times = [], [], []
                             for _ in range(2):
                                 orders, payload = await self._round(scope, original['capital_policy'])
                                 account_times.append(utc(self.reader.source.journal.clock()))
+                                account_monotonic = time.monotonic()
                                 account, collateral = await self._sample(original['capital_policy'])
                                 rounds.append({**payload, 'collateral': collateral})
                                 accounts.append(account)
@@ -353,6 +360,13 @@ class PgJointAccountReconciler(PgCollateralReconciler):
                                 market_at = utc(self.reader.source.journal.clock())
                                 values = await self.reader.read_batch(ROUTES)
                                 market_json = json.dumps([v['data'] for v in values], sort_keys=True)
+                            if include_spot_market:
+                                from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot_market import (
+                                    ROUTES as SPOT_ROUTES,
+                                )
+                                spot_at, spot_monotonic = utc(self.reader.source.journal.clock()), time.monotonic()
+                                values = await self.reader.read_batch(SPOT_ROUTES)
+                                spot_json = json.dumps([v['data'] for v in values], sort_keys=True)
                         current, after = await self._native()
                         self._match(original, view, current, after, accounts[0])
                         if scope != await self._scope():
@@ -365,11 +379,12 @@ class PgJointAccountReconciler(PgCollateralReconciler):
                                      for k, v in sorted(scope['ORDER'].items()))
                         report = JointSourceReport(view.cut, view.session.config_version, original['snapshot']['account']['risk_epoch'],
                                                    started, scope['ANCHOR']['anchor']['opened_at_ms'],
-                                                   self.reader.collection_id, fingerprint([rounds, market_json]), accounts[1], account_times[1], rows,
+                                                   self.reader.collection_id, fingerprint([rounds, market_json] + ([spot_json] if include_spot_market else [])), accounts[1], account_times[1], rows,
                                                    tuple(sorted((p, key) for p in ('SPOT', 'SWAP') for key in scope[p + '_FILL'])),
                                                    tuple(sorted(scope['TRANSFER'])),
                                                    tuple((k, v['at_ms'], D(v['signed_amount'])) for k, v in sorted(scope['FUNDING'].items())), first_runner,
-                                                   market_json, market_at)
+                                                   market_json, market_at, spot_json, spot_at, spot_monotonic,
+                                                   account_monotonic if include_spot_market else None)
                         self._report, self._epoch = report, expected_epoch
                         return report
             except BaseException as error:
