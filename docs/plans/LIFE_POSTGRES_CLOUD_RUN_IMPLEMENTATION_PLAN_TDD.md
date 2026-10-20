@@ -26,7 +26,16 @@ Signed capture, existing-maker cancellation, actual SDK final scope, late truth
 and the source/ARM optimizations are recorded in [source composition](#pg3-r2-signed-hedge-source-composition-2026-10-19).
 **PG3 stays open and configured PostgreSQL stays rejected until R2, R4 and R5 are qualified.**
 
-**Latest native SPOT execution progress (2026-10-20):** post-dispatch signed
+**Latest native SPOT capital progress (2026-10-20):** paused, quiescent
+preallocation now uses the original signed account/market source for native
+capital reserve and a subsequent carry check. The actual SPOT executor/send
+profile no longer clones repositories or reconstructs preallocation observations
+from SQL. The frozen allocation/send regression passes **196 cases**, zero
+failures/errors/skips. Configured quote/cost production, standing-maker
+replenishment and complete shared-SDK cycle scheduling remain open. See
+[allocation qualification](#pg3-r4-original-source-spot-capital-and-carry-preallocation-2026-10-20).
+
+**Earlier native SPOT execution progress (2026-10-20):** post-dispatch signed
 preparation and fresh final-market reads are bound to the original preparing
 runner and unsent SDK order/task. BUY/SELL and an exact subsidized quote reach
 native ARM/ACK with fake HTTP. The frozen affected gate is **344 pass / 2 fail**;
@@ -780,7 +789,7 @@ failing integration result visible until the same current-source workflow passes
   - [x] Explicit dual SDK callback/history assembly: bounded original listeners on both SDKs, signed joint monetary intake, native/report-qualified IDs with atomic rollback of both caches, and actual V2 observation startup without File/ORM fallback. The frozen 266-case affected gate below passes with five audited migration cases and 29 contracts. Cold DB-runtime/listener reinstall and late in-flight funding retain HALT, money and claims; this is not a physical-process or configured trading-service qualification.
   - [x] Native SPOT market provenance implementation and new contract cases: signed metadata/book/account-fee capture joined to the original complete account report, independent own-depth subtraction and size-specific unwind facts. All 49 new cases and five audited upgrades pass. The broader 298-case run is **294 pass / 4 fail**, with one faulty expired-retry expectation subsequently corrected and its two physical-backend cases passing; three timing workflows remain open below. This does not install a planner, prepare a new shared claim or qualify a final pending SDK submission.
   - [x] Implement the explicit native SPOT post-dispatch preparation and final market handoff: permanent business intent before capital/carry preallocation, new one-use runner capture afterwards, exact preparing executor scope, original pending SDK object/task, fresh signed final facts, original verified cuts and post-ARM synchronous refusal. The frozen 346-case regression is **344 pass / 2 fail**; two ACK/state fault injections are blocked by quote expiry during setup, and both pass separately on unchanged source. This checks implementation/branch behavior, not the full availability gate; the complete regression remains RED in R5. See [SPOT handoff qualification](#pg3-r4-native-spot-preparation-and-final-send-composition-2026-10-20).
-  - [ ] Install the qualified native quote producer with actual capital/carry and economic-cost sources, and qualify complete shared-SDK cycle scheduling before quote capture. Synthetic preallocation fixtures do not discharge this existing configured-source requirement.
+  - [ ] Install the qualified native quote producer with actual capital/carry and economic-cost sources, and qualify complete shared-SDK cycle scheduling before quote capture. Paused, quiescent SPOT preallocation now uses the original signed account/market source and native capital/carry callbacks; quote prices/costs and configured planning remain explicit inputs. The current allocation/send qualification is recorded below. This does not discharge complete cycle scheduling, standing-maker replenishment or service installation.
   - [ ] Actual configured LIFE controller/service, all enabled final trading routes, complete shared-account/SDK scope and both-product financial ingress/history. The observation profile does not discharge these requirements.
 - [ ] **R5 — current-source acceptance:** all supported File/native decisions and units agree; whole-runner restart/corruption/role tests and process/backend faults pass at capture, send, ACK, settlement, release and signed repair. Resolve the observed SQL statement timeout, then run the complete affected workflow on one frozen source revision. PG0 trust/anchor requirements remain explicit; neither local tests nor a database receipt prove exactly-once exchange delivery.
 
@@ -5140,3 +5149,56 @@ SDK cycle scheduling, historical price providers or actual LIFE controller/
 service installation. Those existing R2.3/R4 requirements, whole-service R5 and
 the recorded availability failures remain open. Configured PostgreSQL selection
 continues to reject startup; PG3 is not closed by this increment.
+
+## PG3 R4: original-source SPOT capital and carry preallocation (2026-10-20)
+
+`PgHedgeApplication.allocate_spot(operation_id, intent)` pauses proposals and
+requires both original SDKs and the complete native runner/account scope to be
+quiescent. It obtains one original signed joint account/SWAP market capture,
+refreshes native capital/carry, reserves the exact business intent, then checks
+carry again against the changed capital head. All callbacks stay on the original
+source, original repositories and owning task. No cold SQL snapshot or copied
+DTO becomes an authenticated feed. The original report timestamps/sequences
+remain unchanged; only the known own commands may advance its epoch/cut.
+
+The permanent operation identity does not change when a caller supplies different
+intent terms. Repeating an operation requires reconciliation before another
+source capture. Incorrect owner/controller/config, existing SDK makers, expired
+facts and unrelated ingress refuse allocation. Cancellation and an unknown
+reserve COMMIT retain the original native claim; no release/refund, executor
+capture, order or HTTP grant is inferred. The preflight leaves makers paused.
+The caller must require both capital and carry decisions before creating its
+one-use new runner capture. A failed or denied carry check cannot be treated as
+successful allocation from the capital receipt alone.
+
+The coupled SPOT executor/send profile now calls this API rather than cloning
+capital/carry repositories with fixture callbacks. It retains explicit synthetic
+quote prices, cost inputs and fee schedules. This implements source-owned funding
+for a quiescent new quote; it does not install the configured quote/cost producer,
+qualify standing-maker replenishment, complete shared-SDK cycle scheduling or
+the actual controller/service. Those remain the existing R2.3/R4 backlog, with
+whole-service acceptance and loaded latency in R5. Configured PostgreSQL startup
+remains rejected. No migration, deadline, risk budget or live default changes.
+
+Qualification command: `run_postgres --suite spot_allocation`; the broader
+`spot_market_send` selector also includes the new allocation module. Logs and
+the frozen source manifest remain under `/tmp`; no evidence file is added.
+
+**Qualification (base `ff0919538`):** the two initial TDD cases fail at the
+missing application API. The final frozen gate passes **196 cases**, **0
+failures / 0 errors / 0 skips**, six existing Pydantic warnings, **531.25 s**
+(`/tmp/life-pg3-spot-allocation-qualified`). Its **2430-file** Python/Cython/SQL
+manifest is unchanged before and after the run. The disposable PostgreSQL
+container is removed afterwards.
+
+The gate covers **18** allocation cases, **25** SPOT executor/send cases,
+**44** hedge-source cases, **19** hedge-application cases, **36** native capital
+cases and **54** carry cases. Both BUY/SELL preflights pass with the original
+shared SDK quota and without pooling. Original-task refusal, immutable source
+stamps, incorrect identities, capital denial, existing SDK makers, ingress
+before/after reserve and carry, cancellation and lost reserve-COMMIT reply all
+retain the required monetary/identity barriers. The 25 SPOT handoff cases use
+unpooled SDKs and all pass after replacing synthetic capital/carry callbacks.
+This does **not** qualify an entire pooled quote cycle or erase the earlier
+broader **344 pass / 2 fail** gate and retained loaded-tail failures. R2.3, R4,
+R5 and PG3 remain open until their complete current-source exits pass.

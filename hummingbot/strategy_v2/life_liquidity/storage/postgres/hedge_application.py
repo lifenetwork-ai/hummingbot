@@ -131,6 +131,16 @@ class PgHedgeApplication:
 
     async def observe_sources(self, operation_id):
         """Initial/late signed observations only; no plan, activation or send."""
+        return await self._observe_sources(operation_id)
+
+    async def allocate_spot(self, operation_id, intent):
+        """Paused, quiescent signed SPOT capital/carry preflight; no action."""
+        from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot_intent import PgSpotQuoteIntent
+        if type(intent) is not PgSpotQuoteIntent:
+            raise StorageError('PG_SPOT_ALLOCATION_INTENT_INVALID')
+        return await self._observe_sources(operation_id, intent=intent)
+
+    async def _observe_sources(self, operation_id, *, intent=None):
         identifier(operation_id)
         self._original()
         if self._busy:
@@ -145,7 +155,8 @@ class PgHedgeApplication:
                     raise StorageError('PG_HEDGE_MAKER_PAUSE_REQUIRED')
                 self._paused = True
                 self._require_ready()
-                result = await self._native_source.refresh(operation_id)
+                result = (await self._native_source.refresh(operation_id) if intent is None
+                          else await self._native_source.allocate_spot(operation_id, intent))
                 self._require_ready()
                 return result
         except BaseException:

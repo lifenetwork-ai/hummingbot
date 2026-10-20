@@ -1,7 +1,7 @@
 """Native final market reads and original SDK handoff; fake HTTP only.
 
-Capital/preparation are explicit fixtures, not a configured planner. Every final
-book, fee, UID and account observation crosses the actual signed SDK/PG source.
+Capital/carry and final market observations use the original signed sources.
+Intent prices and economic costs remain explicit, not a configured planner.
 """
 import asyncio
 import json
@@ -18,19 +18,14 @@ import pytest
 from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.core.data_type.in_flight_order import OrderState
 from hummingbot.strategy_v2.executors.order_executor.order_executor import OrderExecutor
-from hummingbot.strategy_v2.life_liquidity.shared_capital import CapitalSnapshot
 from hummingbot.strategy_v2.life_liquidity.storage.actions import RunnerActionFacts
 from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.quote_account_source import PgQuoteAccountSource
-from hummingbot.strategy_v2.life_liquidity.storage.postgres.shared_capital import PgSharedCapitalRepository
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot_application import PgSpotQuoteApplication
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot_intent import PgSpotQuoteIntent
-from hummingbot.strategy_v2.life_liquidity.storage.products import ReserveCapital
 
 
 async def application(database, *, maker=D('.0005'), side='BUY', objective='profit_mm', price=None, subsidy=D('0')):
-    from hummingbot.strategy_v2.life_liquidity.shared_capital import CapitalClaim
-    from hummingbot.strategy_v2.life_liquidity.storage.postgres.carry import PgCarryRepository
     t = await market(database, clean=True, objective=objective)
     price = price if price is not None else D('.97') if side == 'BUY' else D('1.03')
     # Synthetic SPOT fee schedule: both possible fee currencies fit the
@@ -43,24 +38,6 @@ async def application(database, *, maker=D('.0005'), side='BUY', objective='prof
     async def runner():
         return RunnerActionFacts(t.cfg.binding, datetime.now(timezone.utc), 'main', tuple(sorted(active)), True)
     journal.runner_facts, journal.local_ready = runner, lambda: True
-    # Seed the original capital/carry fixture before NEW action capture. Reuse
-    # its exact signed snapshot without renewing observed_at_ms or sequence.
-    original_carry, captured_bundle = t.source.carry.observe, []
-
-    async def capture_bundle(*args, **kwargs):
-        captured_bundle.append(t.source._capture[4])
-        return await original_carry(*args, **kwargs)
-    t.source.carry.observe = capture_bundle
-    await t.app.observe_sources('quote-bootstrap')
-    t.source.carry.observe = original_carry
-    raw = (await t.values[5].frame(t.cfg.binding))['snapshot']
-    numeric = ('spot_life_base', 'spot_cash_quote', 'long_base', 'short_base', 'collateral_quote',
-               'initial_margin_quote', 'maintenance_margin_quote', 'funding_liability_quote',
-               'mark_price_usdt', 'index_price_usdt')
-    snapshot = CapitalSnapshot(**{**raw, **{k: D(raw[k]) for k in numeric}, 'pending': ()})
-    capital_fixture = PgSharedCapitalRepository(t.financial, owner=t.owner, observation=lambda: snapshot,
-                                                max_rows=64, max_bytes=1048576)
-    carry_fixture = PgCarryRepository(capital_fixture, observation=lambda: captured_bundle[0], max_rows=64, max_bytes=1048576)
     preparation = [None]
 
     async def prepare(action, wire):
@@ -131,13 +108,8 @@ async def application(database, *, maker=D('.0005'), side='BUY', objective='prof
 
     async def start():
         nonlocal create
-        claim = CapitalClaim('quote1', wire, '12345', str(t.owner.session_id), t.owner.epoch, 1, 1,
-                             'SPOT', side, 'OPEN', D('1'), price, 1)
-        receipt = await capital_fixture.reserve(ReserveCapital('quote-capital', claim),
-                                                await capital_fixture.cut(t.cfg.binding), t.owner)
-        assert receipt.decision.allowed
-        carried = await carry_fixture.observe('quote-carry', cut=await carry_fixture.cut(t.cfg.binding), owner=t.owner)
-        assert carried.decision.allowed
+        allocated = await t.app.allocate_spot('quote-allocation', intent)
+        assert allocated.capital.decision.allowed and allocated.carry.decision.allowed
         create = source.capture_intent(intent)
         created.append(create)
         await journal.publish('quote-claim', (create,))

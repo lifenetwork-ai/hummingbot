@@ -4200,13 +4200,36 @@ Partial transport and unknown COMMITs retain received pages without publishing a
 report. This saves six diagnostic COMMITs per complete account capture, without
 deferring financial commands or changing source/SQL/capture deadlines.
 
-Use `run_postgres --suite spot_market_send` for the coupled source/SDK regression.
-Its capital/carry preallocation and quote terms are explicitly synthetic fixtures.
-It does not qualify a configured planner, production cost calibration, shared-SDK
-cycle scheduling or the complete controller/service. PostgreSQL backend selection
-remains rejected until configured R2.3/R4 and whole-service R5 pass.
+`PgHedgeApplication.allocate_spot(operation_id, intent)` now supplies a paused,
+quiescent preflight from the original signed account/SWAP market source. It
+refreshes native capital/carry, reserves the exact SPOT business intent and
+rechecks carry against the changed allocation head. The original source owns
+every callback on the original task; no snapshot is reconstructed from SQL or
+passed through a replacement repository. Provider stamps and sequences stay
+unchanged. Only the known own writes may advance the report epoch/cut.
 
-Current frozen affected regression: **344 pass / 2 fail** (346 cases). Two setup
+This preflight creates neither a V2 capture nor an order. Require both capital
+and carry decisions to allow before calling `capture_intent()`. Denial,
+interruption or unknown COMMIT never refunds an allocated claim or authorizes
+a retry. Reusing the operation, including with different intent terms, requires
+reconciliation. Existing makers on either SDK are refused; this API does not
+cancel them, resume a paused controller or qualify steady-state replenishment.
+
+Use `run_postgres --suite spot_allocation` for the coupled allocation,
+hedge/capital/carry and actual SPOT executor/send regression; the broader
+`spot_market_send` suite also includes these allocation cases. Quote prices,
+economic costs and fee schedules remain explicit synthetic test inputs. This
+does not qualify a configured planner, production cost calibration, complete
+shared-SDK cycle scheduling or the controller/service. PostgreSQL backend
+selection remains rejected until configured R2.3/R4 and whole-service R5 pass.
+
+The frozen `spot_allocation` gate passes **196 cases**, zero failures/errors/skips:
+18 allocation, 25 SPOT send, 44 hedge source, 19 hedge application, 36 capital and
+54 carry cases. BUY/SELL preallocation includes actual shared SDK quota; the
+coupled SPOT send cases remain unpooled. This does not establish whole-cycle
+pooled scheduling or loaded-tail availability.
+
+Earlier frozen handoff regression: **344 pass / 2 fail** (346 cases). Two setup
 quotes expire at prepare COMMIT before their ACK/state fault injection; both
 refusal branches pass separately on unchanged source. This does not make the
 complete regression green or establish loaded-tail availability. Keep R5 open.

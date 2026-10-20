@@ -1,6 +1,15 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
-**Latest native SPOT execution progress (2026-10-20):** signed post-dispatch
+**Latest native SPOT capital progress (2026-10-20):** quiescent preallocation
+now reserves native capital and rechecks carry through the original signed
+account/market source and owning task. The actual executor/send profile uses
+this API instead of cloned repositories or reconstructed feed callbacks. The
+frozen coupled allocation/send gate passes **196 cases**, zero failures/errors/skips.
+Quote prices/costs remain explicit test inputs; configured production, standing-maker
+replenishment, shared-SDK cycle scheduling and R5 remain open. **PG3 is not closed.**
+See [allocation qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-r4-original-source-spot-capital-and-carry-preallocation-2026-10-20).
+
+**Earlier native SPOT execution progress (2026-10-20):** signed post-dispatch
 preparation and fresh final-market authorization now reach native ARM and durable
 ACK through the actual SPOT `OrderExecutor`/SDK. Business intent is fixed before
 capital/carry preallocation; new runner capture happens afterwards and cannot be
