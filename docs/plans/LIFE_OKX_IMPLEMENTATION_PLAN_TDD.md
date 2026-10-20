@@ -1,10 +1,18 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
-**Current PG3 optimization (2026-10-21):** migrations 93–94 reuse fresh proofs
-within one deferred COMMIT check and one primary snapshot. Focused corruption
-and populated upgrade comparisons pass; the final multi-generation
-replay still expires at 1229.879 ms. Full configured/current-source qualification
-remains required. See [fresh proof reuse and exact results](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-fresh-commit-and-financial-snapshot-proof-reuse-2026-10-21).
+**Current PG3 optimization (2026-10-21):** migration 95 removes the large-ASCII
+identity timeout and joins executor verification reads. A same-backend diagnostic
+measures local executor proof medians of 4.771 ms before versus 3.706 ms after;
+an event-join experiment showed no clear benefit and is discarded. The frozen
+final source passes 14 migration audits and 39 focused correctness regressions.
+The uninstrumented two-generation gate still fails at 1013.325 ms against the
+unchanged 1000-ms limit. Full configured/current-source latency qualification
+remains required; **PG3 is open**. See [recorder optimization and exact gates](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-recorder-read-optimization-2026-10-21).
+
+**Earlier fresh proof optimization (2026-10-21):** migrations 93–94 reuse fresh
+proofs within one deferred COMMIT check and one primary snapshot. Their final
+multi-generation replay expires at 1229.879 ms. See
+[fresh proof reuse and retained results](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-fresh-commit-and-financial-snapshot-proof-reuse-2026-10-21).
 
 **Standing-maker increment (2026-10-21):** the separate offline native service
 implements exact standing-order sibling allocation, bounded imported maker

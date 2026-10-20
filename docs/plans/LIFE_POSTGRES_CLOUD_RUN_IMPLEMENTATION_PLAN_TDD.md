@@ -2,13 +2,14 @@
 
 Created: 2026-10-11
 
-**Current optimization (2026-10-21):** migrations 93–94 remove repeated
-proofs within a fresh deferred COMMIT check and a single primary snapshot.
-Post-write corruption and populated predecessor snapshot/digest comparisons
-pass their focused gates. The final two-generation replay remains RED
-at 1229.879 ms. Current-source configured qualification is recorded below;
-R2.3/R4/R5 and PG3 remain open until their full fixed exits pass. See
-[fresh proof reuse](#pg3-fresh-commit-and-financial-snapshot-proof-reuse-2026-10-21).
+**Current optimization (2026-10-21):** migration 95 adds a printable-ASCII
+identity fast path and joined executor verification reads. Local same-backend
+executor proof medians are 4.771 ms before and 3.706 ms after; an event-join
+experiment is discarded because it shows no clear benefit. The frozen final
+source passes 14 migration audits and 39 focused correctness regressions. The
+uninstrumented two-generation gate is still RED at 1013.325 ms against the
+unchanged 1000-ms quote limit. R2.3/R4/R5 and PG3 remain open until their complete
+fixed exits pass. See [recorder optimization and exact gates](#pg3-recorder-read-optimization-2026-10-21).
 
 **Standing-maker increment (2026-10-21, qualification in progress):** the explicit
 offline service can retain a fully matched original SPOT bid while financing
@@ -6093,3 +6094,95 @@ The different single-run ages do not demonstrate a reliable end-to-end latency
 improvement. The verified result is less duplicate proof work with preserved
 financial decisions; it is not performance qualification or PG3 closure.
 Changed-file hooks pass. R2.3/R4/R5 and PG3 remain open.
+
+## PG3 recorder read optimization (2026-10-21)
+
+Migration 95 adds a printable-ASCII fast path to the existing permanent identity
+codec and joins related recorder lookups in the first executor stream
+loop. The event verifier is unchanged. All original integrity predicates remain, including independent expected
+effects, stage/application receipts, canonical identities, hashes, executor
+origin/transitions, contiguous sequences, projection parents/heads, orphan checks
+and actual native rows. There is no new function/table/index, grant, persisted
+verdict, shortened history, financial write, source clock or policy change.
+Exact predecessor source/security audits refuse unexpected drift atomically;
+original OIDs/owners/ACLs are preserved and startup/up remains ledger-idempotent.
+
+The genuine RED reproducer is a valid 512-KiB ASCII identity string under the
+existing 1000-ms statement deadline: the old character-concatenation loop raises
+`QueryCanceledError` (one failure, 2.78 s including setup). The fast path passes
+that same test (1.83 s including setup). The complete codec gate passes **2
+cases** (4.12 s), comparing pre-upgrade implementation, Unicode/DEL/control
+escapes, nested objects, large integers, rejected values and Python permanent
+identity bytes through the real upgrade. A separate recursive-core experiment
+showed no clear same-backend codec benefit and is not installed.
+
+The initial event-and-executor candidate migration audit passes **21 cases** (44.62 s): exact source/security/path/
+volatility/strictness/parallel metadata drift refusal, atomic rollback, unchanged
+catalog OIDs/ACLs/tables, empty financial state and repeated startup. Recorder
+parity passes **15 cases** (55.70 s) over actual pre-upgrade event projections,
+pending delivery and actual V2 initial/progress/terminal runner callbacks. The
+predecessor verifier is preserved as an independent oracle; both implementations
+reject damaged operations, receipts, hashes, effects, projection heads, native
+rows and executor progress. Inventory rows remain unchanged. The first parity
+run was 9 pass/6 fail because the harness expected two callbacks while the real
+runner emits three; the assertion now checks the actual three-entry history.
+It was not a product failure or a successful RED optimization test.
+
+Reproducible focused commands (disposable pinned PostgreSQL, 2 CPU / 1 GiB):
+
+```bash
+python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_postgres --suite codecs --output /tmp/life-pg3-95-codecs
+python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_postgres --suite recorder_proofs --output /tmp/life-pg3-95-recorder-proofs-final
+PYTEST_ADDOPTS='-k recorder_reads_upgrade' python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_migrations --output /tmp/life-pg3-95-migrations
+```
+
+These results establish scoped correctness and resolve the large-input timeout.
+They do not by themselves qualify multi-generation latency or close PG3.
+
+### Measured candidate selection
+
+A development-only alternating old/new comparison uses the same backend and real
+retained history before the third maker capture, with two warmup rounds and 12
+samples per implementation. Median executor proof latency is 4.771 ms old versus
+3.706 ms joined. Event proof latency is 5.449 ms old versus 5.902 ms joined: no
+clear benefit. The final migration therefore retains only the executor join and
+ASCII fast path; the original event verifier remains byte-for-byte unchanged.
+This microbenchmark does not establish whole-service tail performance. Its
+instrumented two-generation replay still denies the next HTTP send at original
+quote age 1338.577 ms (one failure, 80.00 s). No instrumented result is counted as
+an uninstrumented acceptance pass. Final-source rechecks follow below.
+
+### Final-source qualification
+
+After discarding the event join, hooks pass and all **1818 implementation/test/
+migration source hashes** are pinned before running serial disposable gates.
+The final migration audit passes **14 cases** (25.18 s). The combined focused
+regression passes **39 cases**, 3155 deselected, no failures/errors/skips
+(159.03 s): codec/identity parity, applied/pending/corrupt recorder history,
+post-write COMMIT corruption, positive/negative full snapshots, historical layer
+bodies/cuts/flags and same-read shared proof reuse. All 1818 hashes remain
+unchanged through these gates. The initial candidate's 21-case audit and 15-case
+parity result above are development history, not extra final-source successes.
+
+```bash
+PYTEST_ADDOPTS='-k "test_postgres_recorder_proofs or test_postgres_json_codecs or test_postgres_commit_proofs or test_postgres_snapshot_financial_reuse or test_postgres_snapshot_bodies or test_snapshot_reuses_shared_proofs_only_within_its_own_primary_view"' python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_postgres --suite all --output /tmp/life-pg3-95-final-proof-regressions
+PYTEST_ADDOPTS='-k recorder_reads_upgrade' python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_migrations --output /tmp/life-pg3-95-final-migrations
+PYTEST_ADDOPTS='-k imported_schedule --deselect=test/hummingbot/strategy_v2/life_liquidity/storage/postgres/test_postgres_service_cycle.py::test_imported_schedule_retires_every_original_maker_before_next_generation[1]' python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_postgres --suite spot_market_send --output /tmp/life-pg3-95-final-maker-generations
+```
+
+No source/fact/capture/statement/transaction/idle/cancellation limit, economic
+budget, pinned resource limit, clock or runtime permission is widened. No new
+repository evidence file is created. The generic launcher and demo/live
+eligibility remain gated; focused correctness is not PG3 closure.
+
+The final **uninstrumented** configured two-generation replay reports **1 fail**,
+748 deselected, no skips/errors (78.05 s): original quote age **1013.325 ms**
+exceeds the unchanged 1000-ms limit and `PG_QUOTE_CAPTURE_MISMATCH` prevents the
+next HTTP send. All **1818 pinned source hashes** remain unchanged after this
+gate as well. The earlier 1229.879-ms result and this single-run age are not a
+qualified percentile comparison. A retry until passing would not establish
+availability; the multi-generation gate remains RED. The remaining latency
+margin and complete R2.3/R4/R5 product/recovery/loaded-tail exits still block PG3.
+This increment is a measured local optimization with preserved correctness,
+not a full service latency or release qualification. Final changed-file hooks
+pass; the pinned PostgreSQL resources and all policy limits remain unchanged.

@@ -4575,7 +4575,27 @@ for the post-write corruption and populated snapshot parity regressions. The
 PostgreSQL plan records configured maker-cycle qualification separately; these
 focused checks alone do not close PG3 or enable demo/live trading.
 
-The final configured two-generation replay still expires at 1229.879 ms against
-the unchanged 1000 ms capture policy. Fewer proof calls have not qualified
+The migrations 93–94 configured two-generation replay expires at 1229.879 ms
+against the unchanged 1000 ms capture policy. Fewer proof calls have not qualified
 end-to-end latency. R2.3/R4/R5 and PG3 remain open; exact gates and retained
 failures are in the PostgreSQL plan.
+
+### Recorder verification reads and identity bytes
+
+Migration 95 joins repeated executor stream lookups inside each current STABLE
+verification read. The event verifier is unchanged. Expected effects, operation/receipt identities, executor
+transitions, sequence completeness, parent/head chains and native reporting rows
+remain verified. It also returns printable ASCII identity strings directly,
+retaining Unicode/type validation and original permanent IDs. There is no saved
+verification result, financial write, new privilege or extended source lifetime.
+
+Use `storage.run_postgres --suite codecs` for canonical identity/large-input
+regressions and `--suite recorder_proofs` for actual pre-upgrade event and runner
+streams compared with the predecessor under deliberate corruption. These are
+focused correctness checks; they do not replace configured latency qualification
+or the full PG3 exit gates.
+
+Migration 95's final uninstrumented two-generation gate still denies the next
+HTTP send at 1013.325 ms against the unchanged 1000-ms limit. Fourteen migration
+audits and 39 focused correctness regressions pass on unchanged pinned source.
+The different single-run quote ages do not qualify loaded tails or close PG3.

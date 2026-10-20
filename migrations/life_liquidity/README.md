@@ -1356,3 +1356,25 @@ atomically. New helpers revoke every non-owner grant, including grants inherited
 from deployment default privileges. Startup/up is repeatable through the existing
 migration ledger. These changes introduce no table, history rewrite, financial
 policy default or runtime permission. They do not by themselves qualify PG3.
+
+## 000095: recorder verification reads and ASCII identity strings
+
+`000095_recorder_verification_reads.sql` joins the executor stream with its stage
+operation and preceding stream row in the existing verification query. The
+event verifier is unchanged; its experimental join showed no clear benefit
+and was discarded. Original expected effects, transition, contiguous
+sequence, parent/head, receipt, hash, native-row and orphan checks remain; no
+history is discarded or verdict saved between statements.
+
+Printable ASCII JSON strings return their existing JSON representation directly
+from `recorder_identity_text`. Unicode/DEL escaping, object ordering and type/
+numeric rejection keep the predecessor behavior and permanent identity bytes.
+The fast path removes a per-character concatenation timeout on a valid 512-KiB
+ASCII input under the existing one-second statement deadline.
+
+The migration audits exact predecessor sources and function security metadata,
+preserves existing OIDs/owners/ACLs and adds no function, table, index or grant.
+Unexpected drift rolls back atomically; repeated startup uses the migration
+ledger without reapplying DDL. Financial commands, COMMIT guards, source clocks,
+cut format and policy limits are unchanged. Focused checks and configured maker
+qualification are recorded separately in the PostgreSQL plan.
