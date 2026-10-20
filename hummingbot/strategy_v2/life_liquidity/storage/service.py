@@ -106,8 +106,9 @@ class FileLiquidityService:
         await self.store._call(self.controller._update_processed_data_sync)
 
     @classmethod
-    async def open(cls, config, *, connectors, sources, market_data_provider, create_binding=False):
-        if type(config) is not FileServiceConfig or type(sources) is not ServiceSources or type(create_binding) is not bool:
+    async def open(cls, config, *, connectors, sources, market_data_provider, create_binding=False, _startup_owner=None):
+        if (type(config) is not FileServiceConfig or type(sources) is not ServiceSources or type(create_binding) is not bool
+                or _startup_owner is not None and (type(_startup_owner) is not list or _startup_owner)):
             raise StorageError('SERVICE_ASSEMBLY_INVALID')
         # Detach mutable nested controller settings before the first await.
         config = FileServiceConfig.model_validate_json(config.model_dump_json())
@@ -161,6 +162,8 @@ class FileLiquidityService:
         service.configuration = None
         service._recovery_lock = asyncio.Lock()
         service.store = service.spot = service.swap = service.joint = service.hedge = service.reporting = service.runner = None
+        if _startup_owner is not None:
+            _startup_owner.append(service)
         root = Path(config.state_dir)
         files = LegacySpotFiles(root / 'binding.json', root / 'session.json', root / 'wal.json',
                                 root / 'reservations.json', root / 'subsidy.json', root / 'loss.json',

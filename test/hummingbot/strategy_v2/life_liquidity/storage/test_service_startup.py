@@ -52,9 +52,11 @@ async def test_configured_spot_service_assembles_controller_and_runner_then_star
     connector.get_account_uid = uid
     sources = ServiceSources(clock=lambda: NOW, risk_epoch=lambda: 1, authorize_permit=lambda _: True,
                              spot_admission=lambda _: SpotAdmission(Decimal('1'), Decimal('.1'), Decimal('0'), Decimal('0')))
+    starting = []
     service = await FileLiquidityService.open(config, connectors={'okx': connector}, sources=sources,
-                                              market_data_provider=MagicMock(), create_binding=True)
+                                              market_data_provider=MagicMock(), create_binding=True, _startup_owner=starting)
     try:
+        assert starting == [service]
         assert service.controller._storage_runtime is service.runtime
         assert service.runner.controllers['life'] is service.controller
         assert service.controller._order_safety_wal is service.store._wal

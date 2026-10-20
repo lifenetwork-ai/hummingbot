@@ -101,12 +101,21 @@ async def test_managed_source_close_timeout_retains_one_owned_cleanup(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_managed_source_lifetime_survives_host_timeout_with_physical_work(tmp_path):
+async def test_managed_source_lifetime_survives_host_timeout_with_physical_work(tmp_path, monkeypatch):
     import threading
+
+    from hummingbot.connector.exchange.okx.okx_exchange import OkxExchange
     _, path = await config_file(tmp_path)
     started, closed = asyncio.Event(), asyncio.Event()
     entered, release = threading.Event(), threading.Event()
     stop, services = asyncio.Event(), []
+    network_closes = []
+    original_stop = OkxExchange.stop_network
+
+    async def stop_network(connector):
+        network_closes.append(services[0].store._closed)
+        await original_stop(connector)
+    monkeypatch.setattr(OkxExchange, 'stop_network', stop_network)
 
     @asynccontextmanager
     async def factory(config):
@@ -137,9 +146,12 @@ async def test_managed_source_lifetime_survives_host_timeout_with_physical_work(
             with pytest.raises(TimeoutError):
                 await asyncio.wait_for(task, 2)
             assert not closed.is_set()
+            assert network_closes == []
             release.set()
             await worker
             await asyncio.wait_for(closed.wait(), 2)
+            await services[0].connectors['okx'].join_network_shutdown()
+            assert network_closes and all(network_closes)
         finally:
             release.set()
             stop.set()

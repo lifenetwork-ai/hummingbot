@@ -2,7 +2,18 @@
 
 Created: 2026-10-11
 
-**Current PG3 closure checkpoint (2026-10-21):** bounded risk/safety pools now
+**Current PG3 lifecycle qualification (2026-10-21):** shutdown now retains the
+original service, both SDK networks and factory clients through physical cleanup,
+including partial startup and bounded caller timeouts. Native cleanup uses the
+original controller ID/limits and reports only owned executors. On the final
+frozen source, **56 host/File service cases** and **14 native service cases**
+pass. The broader pre-final-host-ordering native gate remains **94 pass / 1
+quote-capture expiry**; the action was already captured after setup, so this is
+an unresolved latency failure, not grounds to re-date the fixture. The prior
+two-generation maker failure at 1021.395 ms is also unresolved. **PG3 and
+R2.3/R4/R5 remain open.** See [owned shutdown qualification](#pg3-owned-service-and-sdk-shutdown-2026-10-21).
+
+**Earlier PG3 closure checkpoint (2026-10-21):** bounded risk/safety pools now
 retain idle connections and their compiled plans until close. Actual 31-second
 idle tests reproduce the old backend eviction and qualify retention, fresh
 access checks and dead-idle-backend replacement. The frozen foundation gate
@@ -918,6 +929,7 @@ failing integration result visible until the same current-source workflow passes
   - [x] R3.3: Durable markout/probe/stress/inventory/EXIT decisions, original spending and mode-specific permission at native prepare/arm/COMMIT gates; reads, late facts and restart cannot restore permission or refund budgets. Native safety/recovery probes, markout/bootstrap, reservation-derived stress/rolling capacity and original inventory/EXIT spending are qualified by the frozen 382-case closure gate below.
   - [x] R3.4: One frozen coupled native control/session/risk regression with File economic parity, cold readback/corruption/role refusals and process/backend/cancellation failures. The frozen 382-case native gate, 56 File mode tests and 38 audited upgrade cases pass; see the R3 closure qualification below. Configured source/runner installation remains R4.
 - [ ] **R4 — configured assembly:** install planner/reference/book/fee, complete runner/account scope, SPOT/SWAP final request guards, ingress/collectors and recorder/SDK history in the actual controller/service. Exit replay: start the configured PostgreSQL service with fake exchange; both products complete the selected workflow; a missing route fails startup without File fallback. PostgreSQL selection remains rejected until this passes.
+  - [x] Owned service/SDK/factory shutdown for the declared startup, timeout, cancellation and refused-context profiles: final 56-case host/File and 14-case native gates pass. No caller timeout cancels physical cleanup, no foreign executor is adopted, and source clients remain held through network shutdown. This lifecycle slice does not discharge configured trading routes or R5; see [qualification](#pg3-owned-service-and-sdk-shutdown-2026-10-21).
   - [x] Configured native offline observation service and process entrypoint: actual controller/V2 runner, both ordinary SPOT/SWAP financial listeners/history, cold reopen, migration-before-factory startup and joined shutdown. Native integration passes 95 cases; shared File/native host, CLI and runtime-config qualification passes 41 cases. Direct hedge trading remains refused. This completes the observation assembly only; see [service qualification](#pg3-r4-configured-native-observation-service-2026-10-20).
   - [x] Observation-only SPOT startup through the actual `StrategyV2Base`/orchestrator with signed native event/history and PostgreSQL reporting, no File/ORM fallback, and no executor-creation grant. The frozen 191-case native and 110-case File/core gates pass; see [observation runner qualification](#pg3-r4-postgresql-observation-runner-startup-2026-10-20).
   - [x] Explicit native quote journal → actual `OrderExecutor` → protected SPOT SDK → durable ACK, with original awaited dispatch acceptance, no retry/cold-readback send grant, and physical SDK shutdown tracking for both SPOT and hedge SWAP. The frozen 405-case native and 99-case File/SDK gates pass; see [executor application qualification](#pg3-r4-native-quote-executor-application-2026-10-20). Synthetic admission callbacks in this profile do not qualify the configured planner/reference/book/fee source or complete runner/account topology.
@@ -6393,3 +6405,66 @@ cache, resource-limit increase, phase-budget relaxation or live-account action.
 R2.3/R4/R5 still require resolving this capture/send failure and its cleanup
 behavior, qualifying all enabled final service routes, and running the complete
 current-source parity/fault/recovery/role/latency gate. PG3 remains open.
+
+## PG3 owned service and SDK shutdown (2026-10-21)
+
+The host now owns one shutdown sequence: original service cleanup → both SDK
+network shutdowns → factory/client release. Public waits retain their existing
+deadlines and shield the physical tasks. A timeout or cancellation cannot close
+the network ahead of an original ACK/DB task, cancel a network shutdown still in
+progress, release the factory while a network is stopping, or turn an original
+failure into success. Original connector instances are pinned at construction;
+additional idempotent native Clock stops are joined. Secondary cleanup failures
+are retained as type-only notes while the first error remains observable.
+
+Both launchers also retain a bounded private cleanup holder before the first
+owned storage await. A partially opened service remains available for cleanup
+even if its `open` call never returns. This registers resource ownership only;
+it creates no account, configuration, activation or trading permission.
+
+The native cleanup regression also found two existing refusal-path failures:
+changing the public config ID caused `KeyError`, and an injected foreign runner
+entry caused `AttributeError` while serializing its nonexistent reporting data.
+Cleanup now uses the original serialized controller ID and pinned limits, and
+reports only original owned executor instances. Refusal, stopped listeners,
+physical pool closure, unchanged balances/claims and no SDK POST are asserted.
+Foreign metadata is never adopted or used to infer order absence/retirement.
+
+### Qualification and retained failures
+
+The initial host tests are genuinely RED for premature network/client release;
+the slow-network variants also reproduce factory release ahead of SDK shutdown.
+The first expanded native service gate is **93 pass / 2 fail** (393.92 s), both
+cleanup scope errors above. After their fix, the next 95-case gate is **94 pass /
+1 fail** (407.50 s): `test_actual_executor_waits_for_receipt_then_cold_orchestrator_reads_without_resend`
+fails at `PG_QUOTE_CAPTURE_STALE` during its real journal/PREPARE setup, before
+its receipt/cold-orchestrator injection. Its helper already creates a NEW action
+after policy/preflight setup. No action, feed, lease or policy timestamp is
+renewed, and no deadline is widened. This broader gate remains RED.
+
+The final source additionally completes the host's SDK-before-factory ordering.
+All **1820 implementation/test/migration hashes** are pinned after hooks:
+
+- **56 host/File startup cases pass**, no failures/errors/skips, 29.18 s:
+  `/tmp/life-pg3-owned-shutdown-final-hosts.xml`. Includes actual Clock/worker
+  lifetimes, both SDK network ownership, slow shutdown, partial open/pre-host
+  failure and caller cancellation.
+- **14 native service cases pass**, 81 deselected, no failures/errors/skips,
+  70.84 s: `/tmp/life-pg3-owned-shutdown-final-native`. Includes real PostgreSQL
+  startup/cold reopen, original cleanup registration before awaited installation,
+  revoked contexts and physical close ownership. The four refusal profiles are
+  included, not additional cases.
+
+The intermediate 95-case gate predates only the final host-ordering change;
+the final 14-case native run does not relabel it as a 95-case pass. The earlier
+configured maker gate remains 8 pass / 1 two-generation send-expiry failure.
+No full current-source R5, loaded latency, configured final-route, demo or live
+acceptance is inferred. There is no new repository evidence file or SQL migration.
+
+A disposable event-ID encoder experiment compares 140 permanent IDs and retains
+identical output. Its alternating 500-call medians are 42.361 ms for the current
+function and 18.206 ms for the prototype. These absolute per-call savings do not
+establish a material whole-send improvement; the prototype stays outside product
+code. Do not add a financial result cache or another encoder migration based on
+this local percentage. Remaining work is the original complete configured
+SPOT/SWAP composition and the current-source fault/parity/latency exits.

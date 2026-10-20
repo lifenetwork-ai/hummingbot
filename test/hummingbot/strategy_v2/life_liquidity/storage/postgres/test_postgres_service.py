@@ -119,10 +119,14 @@ async def test_native_service_context_changes_revoke_scope_without_new_risk(data
     from types import SimpleNamespace
     s = await setup(database)
     service = None
+    money = None
+    claims = None
     try:
         await s.reporting.close()
         await s.t.financial.close()
         service = await open_service(s)
+        money = await database[0].fetch('SELECT asset,total,reserved FROM life_financial.balances WHERE account_id=$1 ORDER BY asset', s.t.cfg.account_id)
+        claims = await database[0].fetch('SELECT * FROM life_financial.shared_capital_claims WHERE account_id=$1 ORDER BY intent_id', s.t.cfg.account_id)
         if fault == 'credentials':
             s.t.connector.okx_api_key = 'changed-synthetic-key'
             with pytest.raises(StorageError):
@@ -140,6 +144,11 @@ async def test_native_service_context_changes_revoke_scope_without_new_risk(data
     finally:
         if service is not None:
             await service.close()
+            assert service._close_task.done() and service.runtime._closing and not service.runtime._tasks
+            assert not service.events._registered and not s.t.session.sent
+            assert await database[0].fetch('SELECT asset,total,reserved FROM life_financial.balances WHERE account_id=$1 ORDER BY asset', s.t.cfg.account_id) == money
+            assert await database[0].fetch('SELECT * FROM life_financial.shared_capital_claims WHERE account_id=$1 ORDER BY intent_id', s.t.cfg.account_id) == claims
+            assert 'foreign' not in service._owned_executors
         await s.t.financial.close()
 
 
@@ -185,6 +194,7 @@ async def test_cancelled_native_startup_closes_opened_pools_before_returning(dat
     s = await setup(database)
     entered = asyncio.Event()
     captured = []
+    starting = []
     task = None
 
     async def blocked(reporting, observer):
@@ -195,12 +205,15 @@ async def test_cancelled_native_startup_closes_opened_pools_before_returning(dat
         await s.reporting.close()
         await s.t.financial.close()
         monkeypatch.setattr(PgRecorderApplication, 'install_joint_events', blocked)
-        task = asyncio.create_task(open_service(s))
+        task = asyncio.create_task(open_service(s, _startup_owner=starting))
         await asyncio.wait_for(entered.wait(), 4)
+        assert len(starting) == 1 and starting[0]._opening
+        assert starting[0].financial is captured[0].financial
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
             await task
         assert captured[0]._closed and captured[0].financial._runtime._closing
+        assert starting[0]._close_task.done()
         assert not captured[0].financial._runtime._tasks and not s.t.session.sent
     finally:
         if task is not None and not task.done():

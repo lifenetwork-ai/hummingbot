@@ -4644,3 +4644,22 @@ The 49-case foundation gate passes, including actual 31-second idle retention,
 dynamic access revocation and real idle backend termination. The current
 configured maker gate is 8 pass / 1 two-generation quote-expiry failure at
 1021.395 ms, retaining its cleanup scope error. PG3 remains open.
+
+### Owned service, SDK and factory shutdown
+
+The shared host pins original connectors and joins service cleanup, both SDK
+network shutdowns and factory/client release in that order. Bounded public waits
+shield these owned tasks; timing out cannot interrupt a late original ACK/DB
+task or release a client while SDK shutdown still runs. Native Clock's additional
+idempotent stops are joined. Original errors remain observable after completion.
+
+File/native launchers register a private, bounded cleanup holder before owned
+storage startup. Failed partial construction therefore retains its service even
+when `open` does not return. This confers no activation or financial authority.
+Native cleanup uses pinned controller scope/limits and reports only original
+owned executors, preserving money/claims after context refusal.
+
+The final 56-case host/File and 14-case native service gates pass. The broader
+native gate remains 94 pass / 1 capture-expiry failure before its intended receipt
+injection, and the prior two-generation send failure remains open. These scoped
+lifecycle passes do not close configured trading assembly, R5 or PG3.

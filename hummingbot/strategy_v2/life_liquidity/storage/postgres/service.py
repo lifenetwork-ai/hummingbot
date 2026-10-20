@@ -302,7 +302,7 @@ class PgLiquidityService:
 
     @classmethod
     async def open(cls, config, *, runtime_config, owner, connectors, market_data_provider,
-                   sources, limits, clock, independent_fill_value, independent_cashflow_value, native_trading=False):
+                   sources, limits, clock, independent_fill_value, independent_cashflow_value, native_trading=False, _startup_owner=None):
         from controllers.generic.life_liquidity import LifeLiquidityConfig
         if (type(config) is not LifeLiquidityConfig or config.storage_backend != 'postgres'
                 or type(runtime_config) is not PgConfig or config.storage_binding != runtime_config.binding
@@ -316,7 +316,8 @@ class PgLiquidityService:
                 or any(type(s) is not EventSource or s.controller_id != config.id for s in sources)
                 or tuple(s.market for s in sources) != ('okx', 'okx_perpetual')
                 or any(not callable(v) for v in (clock, independent_fill_value, independent_cashflow_value))
-                or inspect.iscoroutinefunction(clock) or type(native_trading) is not bool):
+                or inspect.iscoroutinefunction(clock) or type(native_trading) is not bool
+                or _startup_owner is not None and (type(_startup_owner) is not list or _startup_owner)):
             raise StorageError('PG_SERVICE_ASSEMBLY_INVALID')
         if native_trading:
             from hummingbot.strategy_v2.life_liquidity.storage.postgres.shared_sdk_quota import PgSharedSdkQuota
@@ -339,6 +340,10 @@ class PgLiquidityService:
         service._maker_operations = {}
         service.makers = None
         service.controller = PgServiceController(service, service.config, market_data_provider)
+        if _startup_owner is not None:
+            # The owning process host retains this cleanup handle even when
+            # open fails before returning a fully constructed service.
+            _startup_owner.append(service)
         try:
             service.runtime = await PgRuntime.open(runtime_config)
             service.financial = PgSpotRepository(service.runtime)
@@ -725,11 +730,12 @@ class PgLiquidityService:
         self.revoke()
         if self._close_task is None:
             self._close_task = asyncio.create_task(self._close())
-        async with asyncio.timeout(self.limits.shutdown_timeout_ms / 1000):
+        async with asyncio.timeout(self._limits.shutdown_timeout_ms / 1000):
             await asyncio.shield(self._close_task)
 
     async def _close(self):
         failures = []
+        controller_id = json.loads(self._config_json)['id']
 
         async def join(work):
             try:
@@ -758,9 +764,13 @@ class PgLiquidityService:
             tasks = tuple(v._control_loop_task for v in executors if getattr(v, '_control_loop_task', None) is not None)
             if tasks:
                 await asyncio.shield(asyncio.gather(*tasks, return_exceptions=True))
-            current = tuple(self.runner.executor_orchestrator.active_executors[self.config.id])
+            current = tuple(self.runner.executor_orchestrator.active_executors[controller_id])
+            original_ids = {id(executor) for executor in executors}
             for executor in current:
-                self.reporting.enqueue(executor.executor_info)
+                # Foreign runner entries remain unqualified evidence; neither
+                # inspect their payloads nor adopt them into owned reporting.
+                if id(executor) in original_ids:
+                    self.reporting.enqueue(executor.executor_info)
             self.controller.stop()
 
         # Caller deadlines remain bounded in close(). This one owned physical
@@ -773,7 +783,7 @@ class PgLiquidityService:
             if tasks:
                 await join(asyncio.shield(asyncio.gather(*tasks, return_exceptions=True)))
         if self.hedge is not None:
-            await join(self.hedge.close(shutdown_timeout_ms=self.limits.shutdown_timeout_ms))
+            await join(self.hedge.close(shutdown_timeout_ms=self._limits.shutdown_timeout_ms))
             await join(self.hedge._idle.wait())
             if self.hedge._physical:
                 await join(asyncio.shield(asyncio.gather(*self.hedge._physical, return_exceptions=True)))

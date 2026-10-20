@@ -1,6 +1,15 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
-**Current PG3 closure checkpoint (2026-10-21):** bounded PostgreSQL pools retain
+**Current PG3 lifecycle qualification (2026-10-21):** original service cleanup,
+both SDK shutdowns and factory/client release are joined in order, including
+partial startup and caller timeouts. Native shutdown retains original scope and
+never adopts a foreign executor. The final frozen source passes **56 host/File
+cases** and **14 native service cases**. A broader native gate remains **94 pass /
+1 quote-capture expiry**; the earlier two-generation quote expiry also remains.
+**PG3 stays open** for the fixed R2.3/R4/R5 exits. See
+[owned shutdown qualification and remaining work](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-owned-service-and-sdk-shutdown-2026-10-21).
+
+**Earlier PG3 closure checkpoint (2026-10-21):** bounded PostgreSQL pools retain
 idle backend connections/compiled plans; financial/access/source checks remain
 fresh on every admission. The frozen foundation gate passes **49 cases** and
 the configured maker selector is **8 pass / 1 fail**. The two-generation quote

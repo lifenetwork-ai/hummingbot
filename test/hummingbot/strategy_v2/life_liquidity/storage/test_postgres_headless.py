@@ -100,6 +100,150 @@ async def test_repository_host_holds_factory_clients_after_service_close_timeout
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('slow_network', [False, True])
+async def test_host_close_timeout_retains_both_sdk_networks_until_physical_cleanup(slow_network):
+    from contextlib import AsyncExitStack
+
+    from hummingbot.strategy_v2.life_liquidity.storage.headless import FileServiceHost
+    from hummingbot.strategy_v2.life_liquidity.storage.headless_connectors import JoinedNetworkShutdown
+    release, events = asyncio.Event(), []
+    network_entered, network_release = asyncio.Event(), asyncio.Event()
+    if not slow_network:
+        network_release.set()
+
+    class Network:
+        check_network_task = None
+
+        async def stop_network(self):
+            network_entered.set()
+            await network_release.wait()
+            events.append('network-close')
+
+    class SDK(JoinedNetworkShutdown, Network):
+        pass
+
+    async def physical():
+        await release.wait()
+        events.append('physical-close')
+    owned = asyncio.create_task(physical())
+
+    async def close():
+        async with asyncio.timeout(.01):
+            await asyncio.shield(owned)
+
+    @asynccontextmanager
+    async def factory():
+        try:
+            yield
+        finally:
+            events.append('factory-close')
+    connectors = {m: SDK() for m in ('okx', 'okx_perpetual')}
+    provider = object()
+    inputs = SimpleNamespace(connectors=connectors, market_data_provider=provider)
+    service = SimpleNamespace(connectors=connectors, controller=SimpleNamespace(market_data_provider=provider),
+                              close=close, revoke=lambda: None, _close_task=owned)
+    stack = AsyncExitStack()
+    await stack.enter_async_context(factory())
+    host = FileServiceHost(service, inputs, tick_seconds=.1, shutdown_timeout_s=.02, source_stack=stack)
+    try:
+        with pytest.raises(TimeoutError):
+            await host.close()
+        with pytest.raises(TimeoutError):
+            await host._stop_networks()
+        assert not events and not owned.done()
+        # Host deadlines cannot cancel the original network-stop tasks either.
+        for sdk in connectors.values():
+            assert sdk._headless_network_stops
+            assert all(not t.done() for t in sdk._headless_network_stops)
+    finally:
+        release.set()
+        await owned
+        try:
+            if slow_network:
+                await asyncio.wait_for(network_entered.wait(), 1)
+                await asyncio.sleep(.03)  # Cross the host's own wait budget.
+                assert 'factory-close' not in events and not host._close_task.done()
+        finally:
+            network_release.set()
+            await asyncio.gather(host._close_task, return_exceptions=True)
+            await asyncio.gather(*(sdk.join_network_shutdown() for sdk in connectors.values()))
+            await stack.aclose()
+    assert events[0] == 'physical-close'
+    assert events.count('factory-close') == 1 and events.count('network-close') == 2
+    assert events[-1] == 'factory-close'
+    with pytest.raises(TimeoutError):
+        await host.close()  # Observing completion never erases the original error.
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('failure', ['host', 'open'])
+async def test_native_prehost_failure_retains_factory_and_network_until_owned_close(tmp_path, monkeypatch, failure):
+    configured = config()
+    path = tmp_path / 'service.yml'
+    path.write_text(configured.model_dump_json())
+    release, closed, events = asyncio.Event(), asyncio.Event(), []
+    runtime = SimpleNamespace(binding=configured.controller.storage_binding, account_id=configured.account_id,
+                              database_lineage=configured.database_lineage)
+    monkeypatch.setattr(headless, 'PgConfig', SimpleNamespace)
+    monkeypatch.setattr(headless, 'auto_migrate', AsyncMock())
+
+    class Inputs:
+        def __init__(self):
+            self.connectors = {m: SimpleNamespace(stop_network=lambda: events.append('network-close'),
+                                                  join_network_shutdown=AsyncMock()) for m in ('okx', 'okx_perpetual')}
+            self.market_data_provider = object()
+            self.clock = self.independent_fill_value = self.independent_cashflow_value = lambda *args: None
+    monkeypatch.setattr(headless, 'PgHeadlessInputs', Inputs)
+
+    @asynccontextmanager
+    async def factory(value):
+        try:
+            yield Inputs()
+        finally:
+            events.append('factory-close')
+            closed.set()
+    monkeypatch.setattr(headless, 'load_factory', lambda spec: factory)
+
+    async def physical():
+        await release.wait()
+        events.append('physical-close')
+    owned = asyncio.create_task(physical())
+
+    class Service:
+        _close_task = owned
+
+        async def close(self):
+            async with asyncio.timeout(.01):
+                await asyncio.shield(owned)
+    service = Service()
+
+    async def open_service(*args, **kwargs):
+        if failure == 'open':
+            registration = kwargs.get('_startup_owner')
+            if registration is not None:
+                registration.append(service)
+            raise StorageError('SYNTHETIC_PARTIAL_OPEN_FAILURE')
+        return service
+    monkeypatch.setattr(headless.PgLiquidityService, 'open', open_service)
+
+    def invalid_host(*args, **kwargs):
+        raise StorageError('SYNTHETIC_HOST_CONSTRUCTION_FAILURE')
+    monkeypatch.setattr(headless, 'PgServiceHost', invalid_host)
+    try:
+        with pytest.raises(TimeoutError):
+            await headless.launch(config_path=path, factory_spec='trusted:factory', stop=asyncio.Event(),
+                                  tick_seconds=.1, startup_timeout_s=1, shutdown_timeout_s=.02,
+                                  runtime_config=runtime, migration_config=object())
+        assert not events and not owned.done()
+    finally:
+        release.set()
+        await owned
+        await asyncio.wait_for(closed.wait(), 1)
+    assert events[0] == 'physical-close'
+    assert events.count('network-close') == 2 and events.count('factory-close') == 1
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize('failure', [None, 'migration', 'config', 'open', 'run', 'factory_result'])
 async def test_native_launcher_awaits_migrations_and_joins_owned_sources_after_service(tmp_path, monkeypatch, failure):
     configured = config()

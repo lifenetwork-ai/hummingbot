@@ -19,7 +19,12 @@ from pydantic import BaseModel, ConfigDict
 
 from controllers.generic.life_liquidity import LifeLiquidityConfig
 from hummingbot.strategy_v2.life_liquidity.storage.contracts import OwnerToken, StorageError
-from hummingbot.strategy_v2.life_liquidity.storage.headless import FileServiceHost, _seconds, load_factory
+from hummingbot.strategy_v2.life_liquidity.storage.headless import (
+    FileServiceHost,
+    _close_owned_service,
+    _seconds,
+    load_factory,
+)
 from hummingbot.strategy_v2.life_liquidity.storage.headless_connectors import (
     HeadlessOkxExchange,
     HeadlessOkxPerpetualDerivative,
@@ -88,6 +93,7 @@ async def launch(*, config_path, factory_spec, stop, tick_seconds, startup_timeo
     if not isinstance(stop, asyncio.Event):
         raise StorageError('PG_HEADLESS_STOP_INVALID')
     inputs = service = host = None
+    starting = []
     source_stack = AsyncExitStack()
     # Exactly the same awaited numbered migration contract as the File host.
     await auto_migrate(migration_config)
@@ -115,7 +121,8 @@ async def launch(*, config_path, factory_spec, stop, tick_seconds, startup_timeo
                 config.controller, runtime_config=runtime_config, owner=config.owner, sources=config.sources,
                 limits=config.limits, connectors=inputs.connectors, market_data_provider=inputs.market_data_provider,
                 clock=inputs.clock, independent_fill_value=inputs.independent_fill_value,
-                independent_cashflow_value=inputs.independent_cashflow_value, native_trading=config.native_trading)
+                independent_cashflow_value=inputs.independent_cashflow_value, native_trading=config.native_trading,
+                _startup_owner=starting)
             host = PgServiceHost(service, inputs, tick_seconds=tick_seconds, shutdown_timeout_s=shutdown_timeout_s,
                                  source_stack=source_stack)
         if on_started is not None:
@@ -130,8 +137,9 @@ async def launch(*, config_path, factory_spec, stop, tick_seconds, startup_timeo
         else:
             async def cleanup():
                 try:
-                    if service is not None:
-                        await service.close()
+                    original = service if service is not None else starting[0] if starting else None
+                    if original is not None:
+                        await _close_owned_service(original)
                 finally:
                     try:
                         if type(inputs) is PgHeadlessInputs:
@@ -141,6 +149,7 @@ async def launch(*, config_path, factory_spec, stop, tick_seconds, startup_timeo
                     finally:
                         await source_stack.aclose()
             task = asyncio.create_task(cleanup())
+            task.add_done_callback(lambda t: None if t.cancelled() else t.exception())
             async with asyncio.timeout(shutdown_timeout_s):
                 await asyncio.shield(task)
 
