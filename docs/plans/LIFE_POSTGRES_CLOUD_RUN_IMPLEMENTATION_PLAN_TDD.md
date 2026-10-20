@@ -2,7 +2,17 @@
 
 Created: 2026-10-11
 
-**Current optimization (2026-10-21):** migration 95 adds a printable-ASCII
+**Current N+1/index optimization (2026-10-21):** migration 96 reduces
+predecessor lookups from five to three per event, confined to the same STABLE
+invocation, and adds a STATUS wire/version index. The actual lookup discards
+zero unrelated rows versus 8194 before on synthetic query-plan load. Sixteen
+migration audits pass; the 84-case regression is 83 pass / 1 v54 seed-time expiry
+before migration 96. That historical case passes separately on unchanged source.
+The final configured two-generation replay still times out in terminal
+confirmation. That path and the complete R2.3/R4/R5 exits still gate PG3. See
+[N+1, index and cache qualification](#pg3-n1-index-and-cache-audit-2026-10-21).
+
+**Earlier recorder optimization (2026-10-21):** migration 95 adds a printable-ASCII
 identity fast path and joined executor verification reads. Local same-backend
 executor proof medians are 4.771 ms before and 3.706 ms after; an event-join
 experiment is discarded because it shows no clear benefit. The frozen final
@@ -6186,3 +6196,90 @@ margin and complete R2.3/R4/R5 product/recovery/loaded-tail exits still block PG
 This increment is a measured local optimization with preserved correctness,
 not a full service latency or release qualification. Final changed-file hooks
 pass; the pinned PostgreSQL resources and all policy limits remain unchanged.
+
+## PG3 N+1, index and cache audit (2026-10-21)
+
+The current source has two reproducible recorder read costs:
+
+| Area | Finding | Selected change |
+|---|---|---|
+| Repeated predecessor lookup | An ordinary ORDER/STATUS/STATE event makes five predecessor reads; ORDER and STATE each look up the same predecessor twice | Migration 96 reuses those two rows only within the same STABLE invocation: three reads remain, and each subsequent call reads afresh |
+| STATUS history filter | Existing `(account_id,table_kind,key_hash,source_version)` history index cannot efficiently filter `after_row->>'order_id'` without a key hash | Partial `(account_id, after_row->>'order_id', source_version)` STATUS index, retaining original timestamp/version sorting |
+| Cache | Backend PL/pgSQL plans and the installed asyncpg default statement cache (100 entries) already retain compiled SQL; positive proof reuse is confined to one fresh statement | No Redis/TTL or cross-command financial verdict cache; no weakening of current money, source, risk, revocation or COMMIT checks |
+
+The duplicate-read test genuinely fails before migration 96: **5 actual calls
+instead of 3** (6.18 s including setup). The actual status query, extracted from
+the production function and run under `EXPLAIN (ANALYZE,BUFFERS)`, rejects **8194
+unrelated rows** with 8192 synthetic load rows before the index (7.20 s including
+setup). Both tests then pass (10.99 s together). The synthetic extra effects are
+explicitly unqualified query-plan load, not a valid account history or whole-
+service capacity test. The plan test compares returned data against a forced
+sequential scan and asserts a bounded row count instead of machine-dependent
+wall time.
+
+Migration 96 preserves the original effect builder's bytes and source validation,
+original helpers and verifier bodies, OIDs, owners, ACLs, tables and financial
+state. The index adds STATUS-only storage/write maintenance. A text wire key
+avoids eager JSON timestamp casts; original sort/error semantics remain. Exact
+predecessor bodies/security metadata and an unused index name are required,
+with atomic rollback on drift. Repeated startup remains ledger-idempotent.
+
+A separate parent-chain batching prototype is discarded: its same-backend seeded
+median is 4.166 ms before and 3.871 ms after, insufficient benefit to justify that
+additional rewrite. The first prototype returned false because of PL/pgSQL alias
+ambiguity and was fixed only in the disposable experiment; no such function was
+installed in product code. A development instrumented two-generation attempt
+also expires during shared release before reaching its benchmark hook
+(`PG_JOINT_SOURCE_EXPIRED_AT_COMMIT`, 67.73 s). This is a retained RED availability
+result, not a successful measurement or an installed optimization.
+
+### Frozen query qualification
+
+All **1820 implementation/test/migration hashes** are pinned after hooks.
+The final migration gate passes **16 cases** (30.44 s), including unchanged
+function identities/grants and atomic refusal of an existing index name.
+The coupled query/event/crash/codec/recorder/COMMIT/snapshot gate reports
+**83 pass / 1 fail**, 3115 deselected, no errors/skips (289.12 s). All five new
+query cases pass: repeated lookups are three per event and repeat independently,
+the original lookup plan uses the new index, and real ordered/fill-before-create/
+funding predecessor effect bytes and rejection codes match through upgrade.
+Actual EXPLAIN discards **0 unrelated rows**, versus 8194 in the RED run; the
+index occupies **802816 bytes (784 KiB)** on the explicitly unqualified synthetic
+load. These are query-plan metrics, not whole-service scale acceptance.
+
+The one broad failure is `legacy_pending-54` while preparing the original v54
+SWAP fixture, before migration 96 is applied: `PG_SWAP_CUT_STALE` with original
+account/mark/index/funding/terms ages **1172.873 ms**, capture age 979.022 ms,
+against the unchanged 1000-ms policy. No new effect builder or index is installed
+in that database at the failure boundary. Retain this as a RED broad availability
+result; separate rechecks below must not relabel it as an 84-case pass. No feed,
+capture, deadline, resource or economic limit is widened.
+
+```bash
+PYTEST_ADDOPTS='-k recorder_history_upgrade' python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_migrations --output /tmp/life-pg3-96-final-migrations
+PYTEST_ADDOPTS='-k "test_postgres_events or test_postgres_recorder_queries or test_postgres_recorder_proofs or test_postgres_json_codecs or test_postgres_commit_proofs or test_postgres_snapshot_financial_reuse or test_postgres_snapshot_bodies or test_snapshot_reuses_shared_proofs_only_within_its_own_primary_view"' python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_postgres --suite all --output /tmp/life-pg3-96-final-query-regressions
+```
+
+The isolated historical `legacy_pending-54` recheck passes **1 case**, 3198
+deselected (12.07 s), without a code, fixture, clock or threshold change. It
+reaches the real 54→96 upgrade and completes full layer/cut/negative-flag
+comparisons. This resolves the missing focused comparison, while the earlier
+83/1 broad availability result stays recorded as RED. All 1820 source hashes
+remain unchanged through both runs.
+
+The final **uninstrumented two-generation** replay remains RED: **1 fail**, 748
+deselected (57.55 s), `PG_MAKER_CANCEL_UNAVAILABLE` with
+`stage=terminal, failure_kind=TimeoutError`. It expires while confirming terminal
+closure during the first generation, before the next-generation capture; there
+is no comparable new third-quote age. Do not compare its duration with the prior
+1013.325-ms quote-age sample or claim overall latency improvement. The complete
+collection/terminal-confirmation path and its unchanged phase deadline still
+need qualification. All **1820 pinned source hashes** remain unchanged after the
+migration, regression, isolated historical comparison and configured replay.
+No new repository evidence artifact, runtime grant, threshold/resource change or
+PG3 closure is introduced. Changed-file hooks pass.
+
+```bash
+PYTEST_ADDOPTS='-k "test_actual_upgrade_keeps_every_old_layer_body_digest_flags_and_scope and legacy_pending"' python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_postgres --suite all --output /tmp/life-pg3-96-legacy-pending-recheck
+PYTEST_ADDOPTS='-k imported_schedule --deselect=test/hummingbot/strategy_v2/life_liquidity/storage/postgres/test_postgres_service_cycle.py::test_imported_schedule_retires_every_original_maker_before_next_generation[1]' python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_postgres --suite spot_market_send --output /tmp/life-pg3-96-final-maker-generations
+```

@@ -1378,3 +1378,28 @@ Unexpected drift rolls back atomically; repeated startup uses the migration
 ledger without reapplying DDL. Financial commands, COMMIT guards, source clocks,
 cut format and policy limits are unchanged. Focused checks and configured maker
 qualification are recorded separately in the PostgreSQL plan.
+
+## 000096: repeated predecessor reads and status-history index
+
+`000096_recorder_history_lookups.sql` removes two duplicate predecessor lookups
+inside each `recorder_event_effects` call. ORDER and STATE reuse the exact row
+already read with the same account, key and version in that STABLE invocation;
+STATUS still performs its own lookup. Subsequent invocations read again. Source
+validation, effect bytes, hashes, history and all financial/COMMIT checks remain.
+
+The partial B-tree index `recorder_status_by_wire_version` covers
+`(account_id, after_row->>'order_id', source_version)` for STATUS effects. The
+existing history index starts with a key hash absent from this query, so it
+cannot efficiently select one wire across growing unrelated histories. The new
+index leaves the original timestamp/version sorting intact. It deliberately
+indexes text rather than casting JSON timestamps, preserving malformed-value
+handling and avoiding eager timestamp casts during index maintenance. It adds
+storage and write maintenance for STATUS rows only.
+
+Exact helper bodies/security metadata are audited before changing the effect
+builder. Existing function OIDs, owners, ACLs, tables and data are preserved.
+An existing object with the new index name refuses the upgrade atomically;
+ordinary repeated startup/up uses the migration ledger without reapplying DDL.
+No financial verdict or permission cache is introduced. Existing backend query
+plans and asyncpg prepared-statement caching remain; no external cache is needed
+for this change. Focused query-shape tests are not PG3 latency qualification.

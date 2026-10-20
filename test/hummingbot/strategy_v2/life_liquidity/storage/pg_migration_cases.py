@@ -3357,3 +3357,74 @@ async def test_recorder_reads_upgrade_preserves_catalog_and_refuses_predecessor_
     assert tables == await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace IN ('life_financial'::regnamespace,'life_recorder'::regnamespace) ORDER BY oid")
     for table in ('accounts', 'operations', 'send_attempts', 'projection_receipts', 'recorder_outbox', 'activation_grants'):
         assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('target_name', ['recorder_event_effects', 'recorder_effect', 'recorder_previous_effect'])
+@pytest.mark.parametrize('drift', ['none', 'body', 'security', 'search_path', 'volatility'])
+async def test_recorder_history_upgrade_adds_only_status_index_and_preserves_proof_contracts(db, target_name, drift):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 96:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    signatures = {
+        'recorder_event_effects': 'life_financial.recorder_event_effects(uuid,jsonb,jsonb,bigint)',
+        'recorder_effect': 'life_financial.recorder_effect(uuid,text,jsonb,jsonb,bigint)',
+        'recorder_previous_effect': 'life_financial.recorder_previous_effect(uuid,text,jsonb,bigint)',
+    }
+    target = signatures[target_name]
+    if drift == 'body':
+        definition = await c.fetchval('SELECT pg_get_functiondef(to_regprocedure($1))', target)
+        await c.execute(definition.replace('AS $function$', 'AS $function$\n-- unexpected predecessor source', 1))
+    elif drift == 'security':
+        await c.execute('ALTER FUNCTION ' + target + ' SECURITY INVOKER')
+    elif drift == 'search_path':
+        await c.execute('ALTER FUNCTION ' + target + ' SET search_path=pg_catalog,public')
+    elif drift == 'volatility':
+        await c.execute('ALTER FUNCTION ' + target + ' VOLATILE')
+    query = '''SELECT p.oid,p.oid::regprocedure::text AS signature,p.proacl,p.prosrc,p.provolatile::text AS provolatile,
+        p.prosecdef,p.proconfig,p.proowner,p.proisstrict,p.proparallel::text AS proparallel
+        FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='life_financial' ORDER BY p.oid'''
+    before = {r['signature']: dict(r) for r in await c.fetch(query)}
+    indexes = await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace='life_financial'::regnamespace AND relkind='i' ORDER BY oid")
+    path = DEFAULT_DIRECTORY / '000096_recorder_history_lookups.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    if drift != 'none':
+        with pytest.raises(asyncpg.RaiseError, match='LIFE_RECORDER_HISTORY_MIGRATION_MISMATCH'):
+            await migrate(c, directory, action='up')
+        assert {r['signature']: dict(r) for r in await c.fetch(query)} == before
+        assert (await versions(c))[-1]['version'] == 95
+        assert indexes == await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace='life_financial'::regnamespace AND relkind='i' ORDER BY oid")
+    else:
+        assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+        after = {r['signature']: dict(r) for r in await c.fetch(query)}
+        assert set(after) == set(before)
+        for signature, value in before.items():
+            assert after[signature] == (value if signature != signatures['recorder_event_effects'] else {**value, 'prosrc': after[signature]['prosrc']})
+        assert await c.fetchval("SELECT count(*) FROM pg_class WHERE relnamespace='life_financial'::regnamespace AND relkind='i'") == len(indexes) + 1
+        definition = await c.fetchval("SELECT pg_get_indexdef('life_financial.recorder_status_by_wire_version'::regclass)")
+        assert "(account_id, ((after_row ->> 'order_id'::text)), source_version)" in definition
+        assert "WHERE (table_kind = 'STATUS'::text)" in definition
+        assert (await migrate(c, directory, action='up'))['applied'] == []
+    for table in ('accounts', 'operations', 'recorder_outbox', 'recorder_projection_effects'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+
+
+@pytest.mark.asyncio
+async def test_recorder_history_upgrade_refuses_an_existing_index_name_atomically(db):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 96:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    await c.execute('CREATE INDEX recorder_status_by_wire_version ON life_financial.operations(account_id)')
+    before = await c.fetch("SELECT oid,prosrc,proacl FROM pg_proc WHERE pronamespace='life_financial'::regnamespace ORDER BY oid")
+    index = await c.fetchval("SELECT pg_get_indexdef('life_financial.recorder_status_by_wire_version'::regclass)")
+    path = DEFAULT_DIRECTORY / '000096_recorder_history_lookups.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    with pytest.raises(asyncpg.RaiseError, match='LIFE_RECORDER_HISTORY_MIGRATION_MISMATCH'):
+        await migrate(c, directory, action='up')
+    assert (await versions(c))[-1]['version'] == 95
+    assert before == await c.fetch("SELECT oid,prosrc,proacl FROM pg_proc WHERE pronamespace='life_financial'::regnamespace ORDER BY oid")
+    assert index == await c.fetchval("SELECT pg_get_indexdef('life_financial.recorder_status_by_wire_version'::regclass)")

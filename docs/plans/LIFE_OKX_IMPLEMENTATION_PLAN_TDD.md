@@ -1,6 +1,16 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
-**Current PG3 optimization (2026-10-21):** migration 95 removes the large-ASCII
+**Current PG3 N+1/index work (2026-10-21):** migration 96 removes duplicate
+ORDER/STATE predecessor reads (five to three per event) and indexes STATUS
+history by account/wire/version. An actual-query synthetic plan test reduces
+unrelated scanned rows from 8194 to zero. No cross-command financial cache or
+Redis is introduced. Sixteen migration audits pass; the broad 84-case regression
+has one old-v54 seed expiry, whose separate unchanged-source recheck passes.
+The final two-generation replay still times out at terminal confirmation;
+**PG3 remains open** for configured and whole-product qualification. See
+[N+1, index and cache results](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-n1-index-and-cache-audit-2026-10-21).
+
+**Earlier recorder optimization (2026-10-21):** migration 95 removes the large-ASCII
 identity timeout and joins executor verification reads. A same-backend diagnostic
 measures local executor proof medians of 4.771 ms before versus 3.706 ms after;
 an event-join experiment showed no clear benefit and is discarded. The frozen

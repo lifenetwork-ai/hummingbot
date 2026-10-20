@@ -4599,3 +4599,18 @@ Migration 95's final uninstrumented two-generation gate still denies the next
 HTTP send at 1013.325 ms against the unchanged 1000-ms limit. Fourteen migration
 audits and 39 focused correctness regressions pass on unchanged pinned source.
 The different single-run quote ages do not qualify loaded tails or close PG3.
+
+### N+1, indexes and cache scope
+
+Migration 96 removes duplicate ORDER/STATE predecessor reads within each event
+reconstruction, reducing five lookups to three. Each new invocation still reads
+its own MVCC snapshot. A partial STATUS index on account/wire/source-version
+avoids scanning unrelated wires; timestamp ordering and historical version
+filtering keep the original semantics.
+
+Use `storage.run_postgres --suite recorder_queries` for actual lookup counts,
+indexed EXPLAIN on explicitly unqualified synthetic load and pre-upgrade effect
+byte/rejection comparisons. The index costs extra STATUS write/storage work.
+Backend query plans and the installed asyncpg statement cache already cover
+compiled SQL. Account balances, current-source/freshness checks, risk, revocation
+and send permission are not candidates for a cross-command or TTL result cache.
