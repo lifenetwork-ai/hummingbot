@@ -1261,3 +1261,19 @@ The predecessor body/security/path/volatility is audited before replacement;
 the original OID and ACL are preserved. There is no new table, grant, policy,
 balance or activation. Repeated enabled startup/up remains a migration-ledger
 no-op; drift aborts atomically. Previously applied scripts are unchanged.
+
+## 000088: conservative subsidy at native monetary precision
+
+`000088_quote_subsidy_quantum.sql` rounds required prospective subsidy UP to
+the existing scale-18 monetary quantum at preparation and final send. Decimal
+fee/quantity products can require finer precision than a currency hold; they
+must neither be rounded down nor make every such quote unrepresentable.
+Preparation requires exactly that conservative rounded hold; final send still
+cannot enlarge/refund it. Prices, fees, net economics, budgets, freshness and
+all original financial checks remain exact and unchanged.
+
+Both predecessor function bodies/security/path/volatility are audited. OIDs,
+ACLs, domains, tables and existing financial rows remain unchanged; no funds,
+policy or activation are created. Existing valid scale-18 requirements produce
+the same result. The original migration ledger handles repeated startup/up;
+predecessor drift rolls back the whole migration.

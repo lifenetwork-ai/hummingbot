@@ -86,6 +86,7 @@ class JointSourceReport:
     account_observed_monotonic: float | None = None
     quote_policy: QuoteAdmissionPolicy | None = None
     primary_observed_at: datetime | None = None
+    producer_configuration_hash: str | None = None
     trading_permission: bool = field(default=False, init=False)
 
 
@@ -113,7 +114,11 @@ class PgJointAccountReconciler(PgCollateralReconciler):
                     'tick_size',p.tick_size::text,'lot_size',p.lot_size::text,'min_size',p.min_size::text,
                     'max_fact_age_ms',p.max_fact_age_ms,'max_reference_age_ms',p.max_reference_age_ms,
                     'max_fee_age_ms',p.max_fee_age_ms,'max_capture_age_ms',p.max_capture_age_ms)
-                    FROM life_financial.spot_quote_admission_policies p WHERE p.account_id=$1) AS quote_policy
+                    FROM life_financial.spot_quote_admission_policies p WHERE p.account_id=$1) AS quote_policy,
+                    (SELECT CASE WHEN octet_length(c.body::text)<=65536 THEN c.body->'spot_quote_producer' END
+                        FROM life_financial.configurations c JOIN life_financial.accounts a
+                        ON a.account_id=c.account_id AND a.config_hash=c.config_hash AND a.policy_hash=c.policy_hash
+                        WHERE a.account_id=$1) AS quote_producer
                     FROM (''' + query + ') s'
             return await c.fetchrow(query, self.runtime.config.account_id,
                                     self.swap.capital.max_rows, self.swap.capital.max_bytes)
@@ -135,6 +140,7 @@ class PgJointAccountReconciler(PgCollateralReconciler):
             if type(p) is not dict or p['policy_hash'] != self.binding.policy_hash:
                 raise StorageError('PG_JOINT_SOURCE_QUOTE_POLICY_REQUIRED')
             result['QUOTE_POLICY'] = p
+            result['QUOTE_PRODUCER'] = value['quote_producer']
         return result
 
     async def _collection_native(self, spot_policy):
@@ -467,7 +473,8 @@ class PgJointAccountReconciler(PgCollateralReconciler):
                                                    tuple((k, v['at_ms'], D(v['signed_amount'])) for k, v in sorted(scope['FUNDING'].items())), first_runner,
                                                    market_json, market_at, spot_json, spot_at, spot_monotonic,
                                                    account_monotonic if include_spot_market else None, policy,
-                                                   utc(datetime.fromisoformat(current['snapshot']['observed_at'])) if include_spot_market else None)
+                                                   utc(datetime.fromisoformat(current['snapshot']['observed_at'])) if include_spot_market else None,
+                                                   fingerprint(scope['QUOTE_PRODUCER']) if include_spot_market else None)
                         self._report, self._epoch = report, expected_epoch
                         return report
             except BaseException as error:

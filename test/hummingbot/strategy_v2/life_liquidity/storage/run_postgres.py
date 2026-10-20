@@ -17,7 +17,7 @@ def main():
     import asyncpg  # noqa: F401 -- mandatory for this opt-in real-process runner.
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--suite', choices=('all', 'spot_allocation', 'spot_market_send', 'spot_market', 'joint_history', 'joint_intake', 'quote_composition', 'runner_startup', 'hedge_source', 'r2_integration', 'maker_cancellation', 'hedge_composition', 'r3_control', 'r3_risk', 'recorder', 'capital', 'session', 'lifecycle', 'actions', 'action_prepare', 'action_reconcile', 'action_abandon', 'runner_journal', 'quote_arm', 'quote_transport', 'quote_source', 'outbox', 'configuration', 'events', 'positions', 'reporting_application', 'approval_import', 'ack_ingress', 'observation_context', 'financial_ingress', 'financial_collection', 'inventory_settlement', 'markout', 'carry', 'swap', 'swap_accounting', 'swap_fills', 'funding', 'funding_repair', 'funding_cohort', 'swap_repair', 'spot_repair', 'cashflow_repair', 'terminal_repair', 'spot_recovery_paths', 'portfolio', 'swap_terminal', 'shared_release', 'joint_batch', 'joint_repair', 'hedge', 'swap_transport', 'collateral', 'joint_source', 'r1_accounting', 'joint_recovery', 'legacy_applying', 'legacy_joint', 'legacy_imports', 'late_capital'), default='all')
+    parser.add_argument('--suite', choices=('all', 'foundation', 'spot_producer', 'spot_allocation', 'spot_market_send', 'spot_market', 'joint_history', 'joint_intake', 'quote_composition', 'runner_startup', 'hedge_source', 'r2_integration', 'maker_cancellation', 'hedge_composition', 'r3_control', 'r3_risk', 'recorder', 'capital', 'session', 'lifecycle', 'actions', 'action_prepare', 'action_reconcile', 'action_abandon', 'runner_journal', 'quote_arm', 'quote_transport', 'quote_source', 'outbox', 'configuration', 'events', 'positions', 'reporting_application', 'approval_import', 'ack_ingress', 'observation_context', 'financial_ingress', 'financial_collection', 'inventory_settlement', 'markout', 'carry', 'swap', 'swap_accounting', 'swap_fills', 'funding', 'funding_repair', 'funding_cohort', 'swap_repair', 'spot_repair', 'cashflow_repair', 'terminal_repair', 'spot_recovery_paths', 'portfolio', 'swap_terminal', 'shared_release', 'joint_batch', 'joint_repair', 'hedge', 'swap_transport', 'collateral', 'joint_source', 'r1_accounting', 'joint_recovery', 'legacy_applying', 'legacy_joint', 'legacy_imports', 'late_capital'), default='all')
     parser.add_argument('--fail-fast', action='store_true', help='Stop at the first failure while retaining the original log/XML')
     parser.add_argument('--linux-image', help='Immutable locally built image ID; recorder suite only')
     args = parser.parse_args()
@@ -144,12 +144,18 @@ def main():
         elif args.suite == 'quote_source':
             selector /= 'test_postgres_quote_account_source.py'
         selectors = [str(selector)]
+        if args.suite == 'foundation':
+            selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in (
+                'schema', 'transactions', 'pool_safety', 'faults', 'tls')]
+            selectors.append(str(selector / 'test_zz_durability.py'))
+        if args.suite == 'spot_producer':
+            selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in ('spot_producer', 'produced_send')]
         if args.suite == 'spot_allocation':
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in (
                 'spot_allocation', 'spot_market_send', 'hedge_source', 'hedge_application', 'capital', 'carry')]
         if args.suite == 'spot_market_send':
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in (
-                'account_brackets', 'spot_allocation', 'spot_market_send', 'spot_market', 'spot_application', 'quote_transport', 'quote_account_source',
+                'spot_producer', 'produced_send', 'action_preparation', 'quote_arm', 'account_brackets', 'spot_allocation', 'spot_market_send', 'spot_market', 'spot_application', 'quote_transport', 'quote_account_source',
                 'runner_journal', 'joint_source', 'hedge_source', 'hedge_application', 'joint_observer', 'financial_source', 'provider_batch',
                 'collateral_source', 'joint_history', 'joint_events')]
             selectors.extend(str(selector / name) for name in ('test_shared_sdk_quota.py', 'test_spot_intent.py'))

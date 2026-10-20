@@ -25,9 +25,14 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot_application imp
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot_intent import PgSpotQuoteIntent
 
 
-async def application(database, *, maker=D('.0005'), side='BUY', objective='profit_mm', price=None, subsidy=D('0'), shared_quota=False):
-    t = await market(database, clean=True, objective=objective, shared_quota=shared_quota)
+async def application(database, *, maker=D('.0005'), side='BUY', objective='profit_mm', price=None, subsidy=D('0'), shared_quota=False, produced=False):
     price = price if price is not None else D('.97') if side == 'BUY' else D('1.03')
+    body = dict(controller_id='main', config_version=1,
+                levels=[dict(spread_bps=str(abs(price - 1) * 10000), quantity_base='1')],
+                carry_cost_bps='1', inventory_risk_bps='2', max_subsidy_per_quote_usdt='0.1')
+    t = await market(database, clean=True, objective=objective, shared_quota=shared_quota,
+                     configuration_body=(lambda _: dict(spot_quote_producer=body)) if produced else None,
+                     stream_market=produced)
     # Synthetic SPOT fee schedule: both possible fee currencies fit the
     # existing .001 shared fee allocation. SWAP terms/budgets are unchanged.
     t.spot['trade-fee'][0]['feeGroup'][0]['maker'] = str(-maker)
@@ -40,7 +45,7 @@ async def application(database, *, maker=D('.0005'), side='BUY', objective='prof
     journal.runner_facts, journal.local_ready = runner, lambda: True
     preparation = [None]
 
-    async def prepare(action, wire):
+    async def explicit_prepare(action, wire):
         assert action == create
         preparation[0] = await t.market_source.prepare(app, wire, subsidy_quote_usdt=subsidy,
                                                        fee_buffer_quote_usdt=price * maker, fee_buffer_base_life=maker,
@@ -49,8 +54,18 @@ async def application(database, *, maker=D('.0005'), side='BUY', objective='prof
     source = await PgQuoteAccountSource.create(journal, connector=t.connector, market_source=t.market_source,
                                                max_uid_age_ms=1000, max_auth_age_ms=1000, max_clock_skew_ms=100,
                                                max_pending=1, collection_timeout_ms=1000)
+    producer = None
+    if produced:
+        from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot_producer import PgSpotQuoteProducer
+        producer = await PgSpotQuoteProducer.create(source)
+
+        # The actual application pins the bound producer method; assertions
+        # below inspect its original command rather than a numeric callback.
+    prepare = producer.prepare if produced else explicit_prepare
     app = PgSpotQuoteApplication(source, preparation_source=prepare, max_pending=1,
                                  operation_timeout_ms=5000, shutdown_timeout_ms=1000)
+    if produced:
+        producer.bind(app)
     guards, final_checks = [], []
     original_guard = source.guard
 
@@ -108,7 +123,9 @@ async def application(database, *, maker=D('.0005'), side='BUY', objective='prof
     executors = []
 
     async def start():
-        nonlocal create
+        nonlocal create, intent
+        if producer is not None:
+            intent = await producer.propose('quote1', TradeType[side], 0)
         try:
             allocated = await t.app.allocate_spot('quote-allocation', intent)
         except BaseException as error:

@@ -14,8 +14,8 @@ from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot_market import PgSpotMarketSource
 
 
-async def market(database, *, spot_fee=None, shared_quota=False, clean=False, objective='profit_mm'):
-    t = await sources(database, spot_fee=spot_fee, clean=clean or shared_quota, fresh=clean or shared_quota, shared_quota=shared_quota)
+async def market(database, *, spot_fee=None, shared_quota=False, clean=False, objective='profit_mm', configuration_body=None, stream_market=False):
+    t = await sources(database, spot_fee=spot_fee, clean=clean or shared_quota, fresh=clean or shared_quota, shared_quota=shared_quota, configuration_body=configuration_body)
     t.reader = t.source.reader
     await database[0].execute("INSERT INTO life_financial.spot_action_policies VALUES($1,$2,'main',8,65536,1000)", t.cfg.account_id, t.cfg.binding.policy_hash)
     await database[0].execute("INSERT INTO life_financial.spot_quote_admission_policies VALUES($1,$2,$3,0,0,.01,.01,.01,1000,1000,1000,1000)", t.cfg.account_id, t.cfg.binding.policy_hash, objective)
@@ -30,6 +30,7 @@ async def market(database, *, spot_fee=None, shared_quota=False, clean=False, ob
     }
     original = t.session.request
     t.spot_at = None
+    t.stream_sequence = 0
 
     async def http(**kwargs):
         tail, params = kwargs['url'].rsplit('/', 1)[1], kwargs.get('params') or {}
@@ -39,6 +40,17 @@ async def market(database, *, spot_fee=None, shared_quota=False, clean=False, ob
         response = Response()
 
         async def body():
+            if stream_market:
+                # Explicit fake live provider: each HTTP produces a NEW book
+                # snapshot/sequence. Never change an already received response.
+                rows = deepcopy(t.spot[tail])
+                for row in rows:
+                    if 'ts' in row:
+                        row['ts'] = str(int(datetime.now(timezone.utc).timestamp() * 1000))
+                    if 'seqId' in row:
+                        t.stream_sequence += 1
+                        row['seqId'] = t.stream_sequence
+                return dict(code='0', data=rows)
             if t.spot_at is None:
                 # A new synthetic batch at first receipt; never date an old
                 # response at the parser or on subsequent reads.
@@ -147,8 +159,8 @@ async def test_fresh_joint_account_uses_original_shared_sdk_quota_and_waits_befo
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize('side,expected', [('BUY', D('.9866666666666666666666666666')),
-                                           ('SELL', D('1.0133333333333333333333333334'))])
+@pytest.mark.parametrize('side,expected', [('BUY', D('.986666666666666666')),
+                                           ('SELL', D('1.013333333333333334'))])
 async def test_unwind_uses_opposite_executable_depth_with_adverse_rounding_and_original_stamps(database, side, expected):
     t = await market(database)
     try:
@@ -156,6 +168,7 @@ async def test_unwind_uses_opposite_executable_depth_with_adverse_rounding_and_o
         facts = t.market_source.admission(capture, side=side, quantity_base=D('6'),
                                           carry_cost_usdt=D('.1'), inventory_risk_usdt=D('.2'))
         assert facts.exit_value_usdt == expected
+        assert await database[0].fetchval('SELECT $1::text::life_financial.positive_amount', str(facts.exit_value_usdt)) == expected
         assert facts.exit_value_includes_impact and facts.impact_cost_usdt == 0
         assert (facts.carry_cost_usdt, facts.inventory_risk_usdt) == (D('.1'), D('.2'))
         assert facts.reference_price_usdt == 1

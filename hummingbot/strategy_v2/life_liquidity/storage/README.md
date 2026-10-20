@@ -4277,9 +4277,82 @@ primary snapshot time. A tolerated local clock lead therefore cannot create a
 future SQL admission fact. Provider/capture timestamps are unchanged and no age
 limit is widened; the conservative bound can only reduce remaining freshness.
 
-The frozen affected gate passes **492 cases**, zero failures/errors/skips,
+The earlier frozen affected gate (`d7eca3d72`) passes **492 cases**, zero failures/errors/skips,
 **1465.04 s**, with all **2431** Python/Cython/SQL hashes unchanged. Complete
 qualification and prior failed runs are recorded in the PG plan. This is
 an explicit, quiescent first-quote composition; configured price/cost production,
 standing-maker replenishment, historical workloads and controller/service
 installation retain their R2.3/R4/R5 exits.
+
+## Native imported SPOT quote/cost producer
+
+`PgSpotQuoteProducer` reads a required `spot_quote_producer` object from the
+immutable imported PostgreSQL configuration. It has no model defaults and
+does not change that configuration or create policy rows. Example **synthetic
+test calibration only**:
+
+```json
+{
+  "controller_id": "main",
+  "config_version": 1,
+  "levels": [{"spread_bps": "300", "quantity_base": "1"}],
+  "carry_cost_bps": "1",
+  "inventory_risk_bps": "2",
+  "max_subsidy_per_quote_usdt": "0.1"
+}
+```
+
+All economic values are exact decimal strings. Unknown/missing fields, floats,
+nonfinite/negative values, foreign controller/version and more than 64 levels
+are refused. The owning journal's lower action bound also applies. These
+coefficients need owners/calibration for the intended exposure horizon before
+any live eligibility; the example is not a deployment budget.
+
+`propose(intent_id, side, level)` collects the original signed SPOT market and
+account report, computes the configured reference spread and rounds outward
+to the original tick/lot rules. It applies size-specific independent unwind
+economics before returning the immutable business intent. It creates no V2
+capture, native capital claim or order. IDs are consumed before awaiting; a
+refused/cancelled proposal cannot be renewed under that ID in this process.
+Retained IDs are bounded by the original journal capacity. Cold/native replay
+and any existing claims still require the usual explicit reconciliation.
+
+Bind the producer once to a `PgSpotQuoteApplication` constructed with
+`preparation_source=producer.prepare`. The owning service must separately
+preallocate through the original hedge/account source, verify capital/carry,
+wait for quota before its new capture, publish and actually dispatch that
+capture. Post-dispatch preparation recollects the original source and computes
+costs from that fresh original capture; no numeric preparation callback is
+needed. The source compares the imported producer body in its before/after
+primary scope, and the original report's configuration hash must match the
+producer. Copied capture/intent, substituted model/application, stale facts and
+stop cannot become a preparation capability.
+
+Carry cost is configured bps of reference notional. Inventory cost is configured
+bps of the increase in absolute net LIFE exposure from the original account
+(SPOT + long SWAP - short SWAP). These are explicit modeled costs, with native
+capital/stress/carry gates still independent. Potential maker rebates are never
+precredited; both possible fee currencies receive upward-rounded holds.
+All monetary holds round UP to the admitted scale-18 currency quantum. The
+per-quote ceiling also applies after rounding. Size-weighted sale proceeds
+round down and repurchase cost up at scale 18. Migration 88 makes SQL's required
+subsidy use the same conservative quantum at prepare/final ARM; no history,
+funds, schema domain, deadline or budget threshold is rewritten.
+Subsidy is the conservative calculated deficit subject to the per-quote ceiling;
+PostgreSQL independently checks remaining session/day/campaign budgets and
+native final economics. Preparation costs retain their original timestamps at
+the final SDK check. No deadline, quota or economic threshold is enlarged.
+
+The affected `spot_market_send` suite includes producer and actual executor/SDK
+replays. `spot_producer` selects the focused new cases. This implements an
+explicit imported model, not the configured LIFE controller/headless service,
+adaptive standing-maker replenishment or the complete R5 acceptance. Configured
+PostgreSQL startup continues to reject until those existing gates pass.
+
+Migration-88 affected regression: **625 pass / 1 fail** (626 cases, 1869.87 s).
+All 33 producer/domain/actual-SDK cases pass within that gate. The failed
+release-cancellation case expires its original source at COMMIT before reaching
+its injection. After a diagnostic-only test change, all four cancellation
+branches pass separately (21.16 s); the full availability gate remains RED.
+Production/SQL hashes remain unchanged between these runs. Complete scope,
+frozen manifests and prior failed runs are recorded in the PG plan.

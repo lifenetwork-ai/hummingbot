@@ -127,7 +127,9 @@ class PgQuoteRunnerJournal:
             # ambiguous reply retains SQL claims but registers no local authority.
             if await self.repository.lookup_quote_action(operation_id, self.binding) is not None:
                 raise StorageError('RUNNER_CLAIM_REPLAY_REQUIRES_RECOVERY')
-            cut = (await self.repository.snapshot(self.binding)).cut
+            # The command needs the verified primary cut, not a materialized
+            # wallet/budget projection. SQL keeps the same spot_state audit.
+            cut = (await self.repository.observation_cut(self.binding)).cut
             if not self._ready():
                 raise StorageError('RUNNER_LOCAL_REVOKED')
             result = await self.repository.claim_quote_actions(command, cut=cut, owner=self.owner)
@@ -166,7 +168,7 @@ class PgQuoteRunnerJournal:
         async with self._lock:
             if not self.local_runner_create_preflight(action):
                 return False
-            cut = (await self.repository.snapshot(self.binding)).cut
+            cut = (await self.repository.observation_cut(self.binding)).cut
             facts = await self._facts()
             if not self.local_runner_create_preflight(action):
                 return False

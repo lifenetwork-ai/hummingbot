@@ -347,6 +347,34 @@ class PgSpotMarketSource:
         capture = await self.collect(preparing_quote=application)
         if application.preparing_action() != action:
             raise StorageError('PG_SPOT_MARKET_PREPARING_CONTEXT')
+        return self._prepare_command(application, wire, action, row, capture, subsidy, quote_fee, base_fee, carry, inventory)
+
+    async def prepare_produced(self, application, wire, producer):
+        """Only the bound producer may price costs from this new source read."""
+        from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot_producer import PgSpotQuoteProducer
+        if (type(producer) is not PgSpotQuoteProducer or producer.market is not self
+                or producer.application is None or producer.application is not application or application._prepare != producer.prepare
+                or application.source is not producer.source):
+            raise StorageError('PG_SPOT_MARKET_PRODUCER_REQUIRED')
+        producer._original()
+        action = application.preparing_action()
+        row = application.journal._entry(action).row
+        if wire != application.source.wire_for_action(action):
+            raise StorageError('PG_SPOT_MARKET_PREPARING_CONTEXT')
+        intent = producer._proposals.get(row.intent_id)
+        cfg = action.executor_config
+        if (intent is None or intent.wire_id != wire or intent.side is not cfg.side
+                or intent.quantity_base != cfg.amount or intent.price_usdt != cfg.price):
+            raise StorageError('PG_SPOT_MARKET_PRODUCER_INTENT_MISMATCH')
+        capture = await self.collect(preparing_quote=application)
+        if application.preparing_action() != action:
+            raise StorageError('PG_SPOT_MARKET_PREPARING_CONTEXT')
+        costs = producer.assess(capture, intent)
+        return self._prepare_command(application, wire, action, row, capture, costs.subsidy_quote_usdt,
+                                     costs.fee_buffer_quote_usdt, costs.fee_buffer_base_life,
+                                     costs.carry_cost_usdt, costs.inventory_risk_usdt)
+
+    def _prepare_command(self, application, wire, action, row, capture, subsidy, quote_fee, base_fee, carry, inventory):
         cfg = action.executor_config
         facts = self.admission(capture, side=cfg.side.name, quantity_base=cfg.amount,
                                carry_cost_usdt=carry, inventory_risk_usdt=inventory)
@@ -404,7 +432,9 @@ class PgSpotMarketSource:
                     raise StorageError('PG_SPOT_MARKET_EXIT_DEPTH_INSUFFICIENT')
                 # Native amounts have at most 28 fractional digits. Rounding
                 # must worsen the unwind, including recurring VWAP ratios.
-                exit_value = (value / quantity).quantize(D('1e-28'), rounding=ROUND_FLOOR if side == 'BUY' else ROUND_CEILING)
+                # Native quote facts use the admitted scale-18 schema. Round
+                # executable sale proceeds down and repurchase cost up.
+                exit_value = (value / quantity).quantize(D('1e-18'), rounding=ROUND_FLOOR if side == 'BUY' else ROUND_CEILING)
                 book_at = datetime.fromtimestamp(capture.book.exchange_timestamp_ms / 1000, timezone.utc)
                 fee_at = datetime.fromtimestamp(capture.fees.exchange_timestamp_ms / 1000, timezone.utc)
                 primary_at = capture.report.primary_observed_at

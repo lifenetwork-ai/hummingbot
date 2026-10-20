@@ -45,6 +45,24 @@ async def assembled(database, **seed_options):
 
 
 @pytest.mark.asyncio
+async def test_publication_and_acceptance_need_verified_cuts_without_materializing_wallet_budget_views(database, monkeypatch):
+    repo, cfg, owner, row, app, create, runner, dispatch, active, _ = await assembled(database)
+
+    async def unwanted(*args, **kwargs):
+        raise AssertionError('runner does not need a wallet/budget projection')
+    monkeypatch.setattr(repo, 'snapshot', unwanted)
+    try:
+        await app.publish('compact-claim', (create,))
+        active.add(row.intent_id)
+        assert await app.async_on_runner_create_action_dispatched(create)
+        assert (await repo.quote_actions(cfg.binding))[0].state == 'DISPATCHED'
+        assert (await repo.observation_cut(cfg.binding)).cut.checkpoint.revision > 0
+    finally:
+        await dispatch.close()
+        await repo.close()
+
+
+@pytest.mark.asyncio
 async def test_actual_dispatch_waits_for_persisted_acceptance_before_financial_preparation(database, monkeypatch):
     repo, cfg, owner, row, app, create, runner, dispatch, active, _ = await assembled(database)
     entered, release = asyncio.Event(), asyncio.Event()

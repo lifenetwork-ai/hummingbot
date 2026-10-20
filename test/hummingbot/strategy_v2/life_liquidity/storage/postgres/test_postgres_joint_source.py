@@ -363,6 +363,7 @@ async def test_cancelled_joint_release_caller_cannot_restore_source_or_repeat_a_
     entered, finish = asyncio.Event(), asyncio.Event()
     original_commit = runtime._commit
     operation_id = 'cancelled-' + stage
+    task = None
     try:
         if stage == 'release':
             await t.application.confirm_terminal('qualified-terminal', 'swap1')
@@ -383,7 +384,19 @@ async def test_cancelled_joint_release_caller_cannot_restore_source_or_repeat_a_
         action = (t.application.confirm_terminal(operation_id, 'swap1') if stage == 'terminal'
                   else t.application.retire_claim(operation_id, 'swap1', 'qualified-terminal'))
         task = asyncio.create_task(action)
-        await asyncio.wait_for(entered.wait(), 5)
+        waiting = asyncio.create_task(entered.wait())
+        try:
+            done, _ = await asyncio.wait((waiting, task), timeout=5, return_when=asyncio.FIRST_COMPLETED)
+            if task in done:
+                # A source/SQL failure before the injection must stay RED and
+                # expose its actual reason, rather than a five-second timeout.
+                await task
+                raise AssertionError('release completed before its owned COMMIT injection')
+            if waiting not in done:
+                raise TimeoutError('owned COMMIT injection was not reached')
+        finally:
+            waiting.cancel()
+            await asyncio.gather(waiting, return_exceptions=True)
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
             await task
@@ -410,6 +423,10 @@ async def test_cancelled_joint_release_caller_cannot_restore_source_or_repeat_a_
         assert after.balance == before.balance and after.budget == before.budget and not t.session.sent
     finally:
         finish.set()
+        if task is not None:
+            if not task.done():
+                task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
         await t.financial.close()
 
 

@@ -1,5 +1,17 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**Latest PG audit/producer progress (2026-10-20):** the stale PG1 configuration
+transition checkbox is corrected; 131 focused file/contract audit cases pass.
+The PG2 foundation passes 45 cases after migration 88; ten upgrade/drift cases
+pass. A native imported quote/cost producer now reaches the actual executor/SDK
+path. Scale-18 prospective holds and conservative VWAP/subsidy rounding fix a
+reproduced precision mismatch. The frozen affected gate is **625 pass / 1 fail**:
+source expiry prevents a release-COMMIT injection. All 33 new producer cases
+pass; the four cancellation branches pass separately after improving test
+diagnostics. The complete gate remains RED. See [producer and audit checkpoint](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-r4-imported-quote-producer-and-pg1pg2-audit-2026-10-20).
+**PG3 remains open:** actual configured controller/headless assembly,
+continuous maker replacement and whole-product R5 acceptance are still required.
+
 **Latest pooled SPOT progress (2026-10-20):** quota waiting now precedes a new
 capture; original preparation/final tasks continue through the unchanged shared
 SDK limits. Opening/closing UID responses also verify the complete account model,

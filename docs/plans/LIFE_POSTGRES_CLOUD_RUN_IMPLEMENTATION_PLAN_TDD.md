@@ -26,6 +26,29 @@ Signed capture, existing-maker cancellation, actual SDK final scope, late truth
 and the source/ARM optimizations are recorded in [source composition](#pg3-r2-signed-hedge-source-composition-2026-10-19).
 **PG3 stays open and configured PostgreSQL stays rejected until R2, R4 and R5 are qualified.**
 
+**PG1/PG2 implementation audit (2026-10-20, base `d7eca3d72`):** the PG1
+configuration-transition checkbox was stale after C3/C4 closure and is now
+checked with its original qualified scope. The current focused file audit
+passes **131 cases**: target import/archive maintenance, financial configuration
+service, headless lifecycle, storage contracts and explicit PG runtime config.
+This is a focused current-source audit, not a rerun of the historical 2343-case
+PG1 closure. No new file-service implementation gap was found in those routes.
+PG2's remaining release/identity and selected disk/host/failover/PITR gates are
+still open; a local test cannot establish them. Local schema/pool/role/TLS and
+process-failure coverage passes **45 cases**, zero failures/errors/skips,
+**107.58 s**, via `run_postgres --suite foundation`. Actual concurrent
+allocation, version conflicts, serialization/deadlock retries, pool exhaustion,
+statement cancellation, dropped/unknown COMMIT, TLS and same-volume process
+restart are covered. This does not rebuild or qualify a deployed release image.
+After migration 88, the same 45-case foundation passes again in **87.09 s**;
+these are overlapping runs, not 90 distinct cases. All **10** migration-88
+OID/ACL/table-preservation, repeat-startup and predecessor-drift cases pass
+(17.03 s). Previously applied scripts remain unchanged.
+PG3 still needs actual configured service installation; backend selection is
+currently explicitly rejected in the LIFE controller and the headless launcher
+still installs only the File service. These are implementation gaps in R4,
+not deployment tests that can be silently deferred to PG9.
+
 **Latest pooled SPOT progress (2026-10-20):** original preallocation now waits
 for shared quota before a new capture; only that capture's original owning
 preparation/final tasks can continue its collections without waiting for a
@@ -377,7 +400,7 @@ Dependencies: PG0.
   - [x] **Repository runner clock entry/owned controller cleanup (2026-10-15):** the file service uses a concrete V2 runner whose controller queue owns planning, avoiding abstract script proposals on ready ticks and UI/MQTT construction on clock start. Clock stop revokes synchronously; service close joins the controller loop and safety/fee/listing tasks before dispatcher/recorder/worker cleanup. Actual native Clock tests qualify this library lifecycle only; the configured process/connector launch and signal lifecycle below remains open.
   - [x] **Explicit file process/connector launch lifecycle (2026-10-15):** `make life-run` / `storage.headless` loads bounded validated service YAML, explicit timing/watchdog settings and a trusted qualified-source factory. The existing auto-migration runner is awaited before factory import/construction; failure prevents startup. Native Clock drives actual joined-shutdown OKX classes and the repository runner. SIGTERM/SIGINT, cancellation, native network-check cleanup and failed/expired shutdown revoke before awaits and join owned work. A blocked physical worker retains account exclusion after host timeout. Reconnect stop tasks do not grow with history. A real subprocess exits on SIGTERM and starts the original state cold without UI/prompt or activation. The nine fake/disconnected-source host cases plus existing service/runner selector pass **34 tests**, six Pydantic warnings in 19.53 seconds. Qualified production source factories, their extra client lifetimes and the separate PG7 total termination budget remain unqualified; this framework does not infer exchange credentials, enable PostgreSQL financial authority or close those gates.
   - [x] **File configuration reporting and declared operational reload (2026-10-15):** immutable configuration-report/state/receipt ports and a permanent sequenced PROJECTING/APPLIED outbox project full bound controller snapshots into the existing native SQLite `Controllers` table on the sole store worker. Original-cut/owner/operation readback repairs a missing or committed-but-lost projection; altered, duplicate or foreign scoped rows fail closed. Startup restores the verified latest configuration and rejection/kill latches without activation; a new startup kill is recorded rather than silently replaced with an older false flag. `service.reload_config`, bounded `reload_yaml`, actual controller update/load-failure hooks and headless SIGHUP share an owned, capacity-limited application. Only the already declared `manual_kill_switch` field is operationally updatable; its audit revision is separate from financial strategy version/hash. Invalid updates retain the prior configuration, record a stable reason and block queued/final sends. A later valid report requires a fresh fact/cut-bound non-replayed ACTIVATE to clear a recorded rejection. Clearing the kill field, replay, reconnect or restart cannot clear the kill latch or native HALT. Pending configuration reports gate preparation, products, reporting and activation; actual SPOT/SWAP final authority rechecks configuration after throttler waits. Caller cancellation retains physical work/account exclusion; close joins owned publication. Killed startup can keep the disabled process alive. No extra SQL table/migration, financial policy change, archive import, PostgreSQL authority or live permission is implied.
-  - [ ] **Approved financial configuration transitions:** implement and qualify strategy-version/policy/lineage transitions for nested strategy settings, including configured duration/reference/quote changes and their original-session/deadline/accounting semantics. The operational kill field and rejection audit above do not implement this requirement; unsupported changes remain rejected without changing pinned financial configuration.
+  - [x] **Approved financial configuration transitions:** C3.1–C3.3 and the final file closure below implement signed staging, quiescent source retirement, target import and actual use of approved duration/reference/quote settings. Original deadlines/history/spending are preserved; the target starts unarmed and needs a separate ACTIVATE. Operational hot reload remains limited to kill controls. This row was stale after the 2026-10-16 closure; it does not imply PostgreSQL policy migration or arbitrary hot reload support.
   - [x] **New approved transfers alongside original ACK/fill recovery (2026-10-15):** `JointSpotRecoveryInputs` and the bounded `spot_cashflows` repository input supply previously unadmitted, independently valued, already approved LIFE/USDT transfers with complete account facts. Native joint replay qualifies the full account and subtracts external flows from adjusted NAV. Verified native intent and financial saga commands retain immutable transfer identities/values before money, including a crash between those two publications. Only native joint authority or exact original saga resume can create the transfer's financial receipt; a direct DTO is not admission authority. Original ACK or FILLING commands complete with newer SPOT fills and SWAP cash without a fabricated standalone cashflow-start receipt. Native subset verification now checks the combined fill/cashflow projection before cashflow-only checks, and cold resume compares the actually booked transfer subset against the frozen command. APPLIED joint projections audit transfer receipts/history. Actual configured service source wiring and cold replay use the same worker; replays do not reprice, resend, clear holds, extend deadlines or activate. Existing command families outside this qualified composition remain below.
   - [x] **Recovery compositions (PG1-C2, 2026-10-16):** the recovery matrix below extends original hold/arm/prepared-receipt/ACK/fill/cashflow cases to interrupted cancel bookkeeping, terminal release and net-flat inventory settlement with newer independently qualified SPOT fills, SWAP fees/funding and approved LIFE/USDT transfers. Original operation IDs, commands, captured valuations and budget spending survive cold replay and repeated interruption. Admission-only coverage never removes the actual pending principal/subsidy overlays. New unrelated commands remain blocked while recovery is pending.
   - [x] **Product/accounting acceptance (PG1-C3/C4):** the final selector qualifies coupled file financial equivalence and supported archived-format/import/policy/lineage transitions. Source callbacks retain their declared controlled-source scope; recovery/reporting/import receipts cannot substitute for separate activation or provider qualification.
@@ -801,8 +824,9 @@ failing integration result visible until the same current-source workflow passes
   - [x] Native SPOT market provenance implementation and new contract cases: signed metadata/book/account-fee capture joined to the original complete account report, independent own-depth subtraction and size-specific unwind facts. All 49 new cases and five audited upgrades pass. The broader 298-case run is **294 pass / 4 fail**, with one faulty expired-retry expectation subsequently corrected and its two physical-backend cases passing; three timing workflows remain open below. This does not install a planner, prepare a new shared claim or qualify a final pending SDK submission.
   - [x] Implement the explicit native SPOT post-dispatch preparation and final market handoff: permanent business intent before capital/carry preallocation, new one-use runner capture afterwards, exact preparing executor scope, original pending SDK object/task, fresh signed final facts, original verified cuts and post-ARM synchronous refusal. The earlier frozen 346-case regression is **344 pass / 2 fail**; two ACK/state fault injections were blocked by quote expiry during setup. The later 492-case current-source pooled regression below passes these covered workflows. Whole-product availability in R5 remains required. See [SPOT handoff qualification](#pg3-r4-native-spot-preparation-and-final-send-composition-2026-10-20).
   - [ ] Install the qualified native quote producer with actual capital/carry and economic-cost sources, and qualify complete shared-SDK cycle scheduling before quote capture. Paused, quiescent SPOT preallocation uses the original account/market source. The explicit first-quote pooled composition now waits before new capture and retains original phase/task/SDK guards; qualification is recorded below. Configured quote/cost production, standing-maker replenishment, competing/background/historical workloads and service installation remain required.
+    - Imported-model implementation: `PgSpotQuoteProducer` derives tick/lot-rounded levels from the original signed SPOT reference and calculates independent-exit economics, fee buffers, modeled carry/inventory cost and subsidy. An original post-dispatch source capture brackets the immutable imported model; its hash must match. The producer is bound to the actual SPOT application, replacing numeric preparation callbacks in its explicit executor/SDK profile. Whole-service installation, live model calibration and continuous-maker acceptance are not inferred from this slice; see the producer/audit checkpoint below.
   - [ ] Actual configured LIFE controller/service, all enabled final trading routes, complete shared-account/SDK scope and both-product financial ingress/history. The observation profile does not discharge these requirements.
-- [ ] **R5 — current-source acceptance:** all supported File/native decisions and units agree; whole-runner restart/corruption/role tests and process/backend faults pass at capture, send, ACK, settlement, release and signed repair. Resolve the observed SQL statement timeout, then run the complete affected workflow on one frozen source revision. PG0 trust/anchor requirements remain explicit; neither local tests nor a database receipt prove exactly-once exchange delivery.
+- [ ] **R5 — current-source acceptance:** all supported File/native decisions and units agree; whole-runner restart/corruption/role tests and process/backend faults pass at capture, send, ACK, settlement, release and signed repair. Resolve the observed SQL statement timeout and source-age tails, then run the complete affected workflow on one frozen source revision. The migration-88 producer/prepare/ARM regression is **625 pass / 1 fail**: source expiry prevents the release-COMMIT injection. The four cancellation branches pass separately after a diagnostic-only test change; the broad gate remains RED. PG0 trust/anchor requirements remain explicit; neither local tests nor a database receipt prove exactly-once exchange delivery.
 
 **Execution order:** R1 → R3 → R2/R4 → R5. Existing standalone gates remain
 regression inputs. Use `run_postgres --suite r1_accounting` for the selected
@@ -5305,3 +5329,119 @@ test still requires its exact intended reason rather than accepting an earlier
 setup failure. The final gate includes all these cases; no timeout, freshness
 limit or economic budget was widened. This is one qualified bounded profile,
 not a claim that all loaded histories meet the same deadline.
+
+## PG3 R4 imported quote producer and PG1/PG2 audit (2026-10-20)
+
+Base: `d7eca3d72`. `PgSpotQuoteProducer` reads exact required levels and
+carry/inventory/subsidy coefficients from the immutable imported configuration.
+Controller/version, finite decimal strings and bounded levels are mandatory;
+there are no default economic values. It derives tick/lot-rounded intents from
+the original signed LIFE reference, validates size-specific independent exit
+economics and consumes bounded process-local proposal IDs before awaiting.
+Economic refusal creates no V2 capture or financial claim.
+
+The actual SPOT application binds `producer.prepare` once. After original
+capital/carry preallocation and fresh runner capture/dispatch, a new original
+signed market/account report supplies fees, net inventory and size-specific
+exit value. Its before/after primary scope includes the immutable producer body;
+the report's hash must match the producer. Copied captures/intents, a changed
+model/application/configuration, expiry and stop are denied. The DTO then uses
+upward-rounded fee buffers for either fee currency, explicit modeled carry and
+inventory-increase costs, and the calculated subsidy deficit. Native SQL still
+independently checks current capital, risk, carry, subsidy and final economics.
+The final SDK phase retains the preparation's original cost timestamps.
+
+This closes the missing **implementation slice** that previously required
+numeric preparation callbacks in the explicit execution profile. It does not
+install the configured LIFE controller/service or implement continuous maker
+replacement. Coefficients are explicit model inputs needing calibration; they
+are not authenticated forecasts of future funding or live threshold defaults.
+Actual kernel/domain guards, quotas, monetary limits and one-second age bounds
+are unchanged. The precision fix below adds forward migration 88; no table,
+`.env` or repository evidence file is added.
+
+Runner publication and dispatch now request `observation_cut()` instead of
+materializing wallet/budget projections solely to discard them. The underlying
+primary `spot_state` verification and physical command/COMMIT guards remain.
+The producer's model check is included in the original market scope rather than
+a separate DB read inside the capture window. These avoid redundant work; they
+do not establish a loaded-tail availability guarantee.
+
+The new focused cases cover both sides/objectives, original shared SDK quota,
+actual executor/send/ACK, exact calculated subsidy, fee-currency buffers,
+uncredited rebates, stale/copied/changed models and explicit unbound refusal.
+Fake live-provider tests create new sequence-stamped response snapshots at HTTP;
+they never renew an already received feed. Existing cached-feed refusal tests
+retain their original fixed timestamps. Fixture configuration is imported at
+seed time: attempted UPDATE correctly raised `LIFE_IMMUTABLE_HISTORY`. Only
+explicit migrator corruption tests disable that trigger to exercise detection.
+
+The focused development history remains visible: the initial import is RED at
+the missing implementation; the first DB run has 15 setup failures from the
+incorrect configuration UPDATE. After seed-time import, 11 pass and four send
+cases reject the deliberately fixed cached SPOT feed. With an explicit new
+provider stream, all 15 then pass (47.69 s). Expanded pooled development is
+**25 pass / 3 fail** (106.29 s), followed by **26 pass / 2 fail** (107.61 s)
+after the compact-read/model-scope changes. The latter two are source age
+1033.03 ms during allocation and capture age 1010.22 ms at ARM. They are
+deadline refusals, not statement timeouts. A later successful sample alone
+cannot prove these availability tails eliminated; R5 retains that obligation.
+
+**Precision defect found during the audit:** the native money domain supports
+18 fractional digits, but producer holds and repeating size-weighted unwind
+values were rounded at 28. The first two native-domain/rounding-ceiling tests
+are RED. After upward scale-18 hold rounding, they pass; an actual tiny-fee SDK
+case then reproduces SQL's unrepresentable exact subsidy requirement. Migration
+`000088_quote_subsidy_quantum.sql` rounds that prospective requirement UP at
+both prepare and final ARM. It preserves OIDs/ACLs, all original checks and every
+existing valid scale-18 requirement. No existing financial row is rewritten.
+Producer subsidy is rejected if that rounding exceeds its imported per-quote
+ceiling. Executable sale proceeds round down and repurchase cost up at scale
+18, so repeating VWAPs fit the admitted schema without making economics better.
+All three focused precision/actual-SDK cases pass (12.12 s). The ten upgrade
+cases pass (17.03 s), including source/security/path/volatility drift in either
+function and atomic rollback after a predecessor mismatch. The scale-18 domains,
+tables and all other functions remain unchanged; repeated `up` is a no-op.
+The 45-case foundation passes again after migration 88 (87.09 s). Affected
+qualification follows below.
+
+The initial frozen 523-case attempt was deliberately interrupted for this
+precision correction after **274 pass / 1 fail**, **791.54 s**. Its source
+hashes were unchanged until the test process and disposable DB had stopped.
+The failure was before the intended ingress injection: allocation report age
+1194.93 ms with expired UID. It is not a successful fault-injection proof or a
+statement timeout. Logs are retained under `/tmp/life-pg3-producer-qualified`.
+That interrupted attempt is not a complete acceptance gate.
+
+PG1/PG2 audit results and outstanding deployment qualifications are recorded at
+the top of this plan. Configured PostgreSQL still rejects until complete R2.3,
+R4 service installation and whole-product R5 pass. No parent phase is closed by
+this explicit producer profile.
+
+**Final production-source regression:** `run_postgres --suite spot_market_send`
+now also includes direct native preparation/ARM tests because migration 88
+affects those guards. The frozen **626-case** run completes **625 pass / 1 fail**,
+**0 errors / 0 skips**, six existing Pydantic warnings, **1869.87 s**
+(`/tmp/life-pg3-producer-88-qualified`). All **2435** Python/Cython/SQL hashes
+are unchanged during that run; its disposable database is removed. All **33**
+new producer/domain/actual-SDK cases are included and pass, not additional
+coverage added to the 626.
+
+The failure is
+`test_cancelled_joint_release_caller_cannot_restore_source_or_repeat_a_committed_effect[True-release]`.
+It waits five seconds for an injection marker that is set only after the
+original COMMIT succeeds. The native transaction instead fails with
+`PG_JOINT_SOURCE_EXPIRED_AT_COMMIT` before that marker: the last native reads
+take **195.63 / 403.49 ms** and shared release **234.66 ms**. Its source bound
+closes admission and rolls back release. This is not a statement timeout and
+does not exercise the intended post-COMMIT cancellation branch.
+
+After that full run, only the cancellation **test diagnostic** changes: wait
+for either the original task or the COMMIT marker; propagate an earlier task
+exception immediately and join owned tasks during cleanup. Source expiry must
+still fail; no prior setup failure can count as a successful injection. The
+four before/after-COMMIT terminal/release cases then pass (**21.16 s**,
+`/tmp/life-pg3-release-diagnostic`), with production/SQL unchanged and the updated
+2435-file manifest unchanged across that focused run. This verifies those
+branches; it neither substitutes for the full RED gate nor eliminates the
+observed latency tails. R2.3, configured R4, R5 and PG3 remain open.
