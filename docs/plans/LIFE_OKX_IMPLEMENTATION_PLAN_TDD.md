@@ -1,5 +1,14 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**Retained terminal-proof checkpoint (2026-10-22):** migration 105 reduces
+duplicate account-wide terminal proofs inside each release audit. The affected
+59-case regression and five migration cases pass; the final untraced
+provisional workload passes two maker generations in **152.73 s** with the
+original **1000-ms quote policy**. Only these long integration tests use a
+360-second outer watchdog. **PG3 stays open** for provisional recovery/retirement
+and complete configured R2.3/R4/R5 qualification. See
+[implementation and qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#native-snapshot-composition-and-retained-terminal-proofs-2026-10-22).
+
 **Joined-audit/cleanup checkpoint (2026-10-22):** candidate birth audits now
 join retained origins and compute shared model hashes once per invocation.
 The final 79-case affected regression and four migration cases pass.

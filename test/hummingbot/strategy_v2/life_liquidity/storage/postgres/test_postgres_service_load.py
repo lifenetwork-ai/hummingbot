@@ -14,7 +14,12 @@ from hummingbot.core.data_type.common import TradeType
 
 
 @pytest.mark.asyncio
+@pytest.mark.timeout(360)
 async def test_configured_makers_replenish_after_fill_history_with_competing_shared_sdk_reads(database, monkeypatch):
+    # This complete workflow includes the original 300-second owner lease,
+    # retained-fill setup, two generations, retirement and joined cleanup. Give
+    # the outer CI watchdog that lease plus 60 seconds of fixture/cleanup room;
+    # the 1000-ms quote and all actual operation/owner limits stay independent.
     from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.flow_trace import QuoteFlowTrace
     trace = QuoteFlowTrace(monkeypatch).install() if os.environ.get('LIFE_PG_TEST_FLOW_TRACE') == '1' else None
     values = {}

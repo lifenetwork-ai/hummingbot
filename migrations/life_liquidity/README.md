@@ -1579,3 +1579,13 @@ Every ticket/body/dispatch remains checked; no financial verdict is cached
 across statements or phases. The actual joined query is tested with EXPLAIN at
 1, 4 and 8 tickets, including a shared configuration and corrupted old origins.
 No extra index or weakened history/COMMIT/freshness predicate is introduced.
+
+## 000105: account-wide terminal proofs within each release audit
+
+Each retained-release audit evaluates the full account-wide terminal verifier
+once for each product with releases. A private helper retains every per-release
+operation, terminal, source, pending and historical-version check. Local verdicts
+end with that STABLE invocation; standalone terminal proofs, fresh statements
+and deferred COMMIT audits remain independent. Upgrade pins predecessor bodies
+and security metadata and strips inherited helper grants. It creates no tables,
+balances or permissions; applied migrations 1–104 remain unchanged.

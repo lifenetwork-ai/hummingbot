@@ -1,5 +1,15 @@
 # LIFE: PostgreSQL and Cloud Run Implementation Plan (TDD)
 
+**Retained terminal-proof checkpoint (2026-10-22):** migration 105 evaluates
+account-wide terminal proofs once per product within each retained-release
+audit. **59 affected regressions** and **five migration cases** pass. The final
+untraced provisional workload passes both maker generations in **152.73 s**,
+with the original **1000-ms quote policy** and all original financial assertions.
+Its explicit integration-test watchdog is 360 seconds; the generic 120-second
+pytest default had interrupted final event drain. **PG3 remains open** for
+provisional recovery/retirement and complete configured R2.3/R4/R5 qualification.
+See [scope, diagnostic and final qualification](#native-snapshot-composition-and-retained-terminal-proofs-2026-10-22).
+
 **Joined-audit/cleanup checkpoint (2026-10-22):** migration 104's candidate
 verifier now reads account data once, joins retained origins, and materializes
 each referenced model hash once per invocation. The final **79-case affected
@@ -8297,8 +8307,9 @@ retains original claims; it is not silently expired, refunded or adopted.
 - [ ] Complete the original untraced loaded deadline and adequate retained-
   history margin, then qualify the remaining R2.3/R4/R5 exits.
 
-The mutable, uncommitted migration 104 is the candidate under test; applied
-migrations 1–103 are unchanged. Existing account-scoped primary/unique keys
+Migration 104 was the uncommitted candidate for this experiment and was then
+committed in `3ce44d83f`; the later migration 105 leaves files 1–104 unchanged.
+Existing account-scoped primary/unique keys
 support its joins. No new index is justified by this small-history experiment,
 and an index alone would not remove per-row hash/history verification.
 
@@ -8385,3 +8396,130 @@ rebuild, crash recovery and same-version corruption detection before replacing
 existing audits. Do not silently defer retained-history checks or weaken the
 fresh final-source/ARM boundary. PG3 closure still requires the original loaded
 and complete affected recovery/financial/role gates on one revision.
+
+## Native snapshot composition and retained terminal proofs (2026-10-22)
+
+The next diagnostic measures the original provisional retained-fill workload
+on a disposable PostgreSQL 16 instance with the original 2 CPU/1 GiB limits.
+`track_functions=all` and transaction-local function-counter deltas distinguish
+inclusive and exclusive SQL time for each context, compound PREPARE and ARM.
+Diagnostic-only context reads acquire an explicit read transaction and extra
+counter round trips (up to 7.025 ms per counter read); this instrumented run is
+not deadline acceptance. Logs and profiles stay under `/tmp`; no new evidence
+artifact is added to the repository.
+
+For quote five, the four context SQL statements between birth and ARM take
+**355.017 ms** in aggregate. Their `spot_state` calls account for
+**80.828–89.522 ms** within each **84.973–93.398 ms** statement. The six
+`swap_fill_replay` calls in each statement take only **0.786–1.002 ms** in total.
+Thus removing that outer replay alone cannot solve the observed cost. The
+snapshot's retained proof graph dominates this sample; these inclusive costs
+overlap and must not be summed with their children.
+
+The same context calls `spot_lifecycle_verified` **five times**; ARM calls it
+**11 times**. A concrete repeated branch is `shared_release_verified`: it calls
+the full account-wide terminal verifier again for every retained release, even
+though each invocation sees one STABLE primary snapshot. The diagnostic still
+fails at the original capture guard after one maker generation, at reported
+error-unwind age **1006.214 ms**, not the exact SQL denial time.
+
+### Bounded implementation
+
+- [x] Add migration 105; applied files 1–104 remain unchanged. In each original
+  release audit, lazily evaluate the full SPOT lifecycle/SWAP terminal verifier
+  once per encountered product. A LEFT JOIN preserves missing claim origins.
+- [x] Pass those local results only to one owner-only release-proof helper.
+  Each original release still independently checks its command, fingerprint,
+  receipt, owner, terminal, reservations, pending history, portfolio source,
+  original version and observation time. The standalone original proof is
+  unchanged; no positive verdict survives the STABLE invocation.
+- [x] Pin both ancestor bodies and security metadata; preserve the original
+  audit OID/ACL and revoke helper grants inherited from deployment defaults.
+  There is no new index, table, cross-statement cache or clock/deadline change.
+- [x] Qualify original-reference equivalence, same-version retained corruption,
+  per-product call counts, independent later reads, upgrade/repeat/hostile ACL,
+  and affected original release/COMMIT/fault regressions.
+- [x] Pass the complete original financial/source/SDK loaded flow with the
+  documented per-test outer watchdog and original product deadlines.
+- [ ] Complete provisional recovery/retirement and current configured
+  R2.3/R4/R5 gates; the offline selector does not establish production eligibility.
+
+The regression first reproduces **two** full lifecycle calls for two original
+SPOT releases where the new bound is one. It creates the releases through the
+actual original V2/SDK maker cycle on version 104, keeps that original audit as
+an independent reference, and then upgrades the stopped service. Subsequent
+checks alter retained truth without advancing account version and compare both
+verdicts. Qualification results and the final loaded outcome follow below.
+
+The final affected regression passes **59 cases**, **306.74 s**, with 3388
+deselected and six existing warnings. Its three new contracts cover original
+104-to-105 SPOT history, full terminal-proof counts (two to one for two SPOT
+releases, again one on each later statement), empty/SWAP release scope and
+same-version reservation/terminal/source-basis/receipt corruption against the
+independent original audit. Original SPOT/SWAP release, terminal, expiry,
+generation change, lost-COMMIT/cold-readback and post-write COMMIT-corruption
+cases pass; four actual provisional V2/SDK original-acceptance/COMMIT-loss cases
+also pass.
+
+The separate migration gate passes **five cases**, **9.21 s**, with 335
+deselected. Actual 104-to-105 upgrade and repeat preserve the standalone proof
+and audit ACL; inherited PUBLIC/runtime/reporter helper grants are stripped.
+Changed proof body, audit body, search path or volatility refuses atomically
+at version 104. All **1861** pinned code/SQL files are unchanged across these
+gates. This is affected-scope qualification, not complete PG3 acceptance.
+
+### Outer test watchdog diagnosis
+
+The first separate untraced loaded run reaches pytest's generic **120-second**
+watchdog: **1 fail**, 21 deselected, six warnings, **123.55 s** including teardown.
+It has no recorded financial reason code or capture-age refusal before that
+interruption. This is not a loaded pass or evidence of a precise quote-age
+margin. A second bounded diagnostic preserves the same watchdog and records
+sanitized task paths/counts: all five original quote calls return by **115.28 s**;
+at **120.39 s** the maker is draining events for final retirement, with one
+completed generation and no maker failure. The earlier 100/110/115-second
+samples identify event drain and deferred recorder work after quote HTTP/ACK.
+
+A separate untraced diagnostic with an explicit **360-second outer pytest
+watchdog** completes the exact original financial/source/SDK workload:
+**1 pass**, 21 deselected, six warnings, **152.32 s**. Both maker generations,
+all five sends, complete cancellations/retirements, original fill/fee/budget and
+cash totals, no remaining claims/orders/executors, and actual resource closure
+assertions pass. No runtime/source/SQL/financial clock or deadline changes.
+
+The repository's global watchdog remains 120 seconds. The two complete loaded
+test functions now have a specific **360-second** watchdog: the fixture's
+existing 300-second owner lease plus 60 seconds of outer setup/cleanup room.
+The wrapper needs its own mark because directly calling a marked test function
+does not apply that function's pytest watchdog to its caller. This annotation
+does not increase the quote's **1000-ms** lifetime, 5000-ms phase bounds,
+60000-ms configured quote schedule, owner/session leases, quota, economic
+budgets or any product gate. Product code/SQL and all three new regression
+contracts remain byte-for-byte unchanged from the 59-case/five-migration gates;
+only these two test watchdog annotations change before final qualification.
+This is an explicit test-harness correction, not an end-to-end speedup claim.
+
+### Final normal-command qualification
+
+The final command uses the repository test marker, without a CLI timeout
+override, tracing or profiling:
+
+```text
+env -u LIFE_PG_TEST_FLOW_TRACE PYTEST_ADDOPTS='-k test_provisional_protocol_runs_original' \
+  python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_postgres \
+  --suite service_load --fail-fast --output /tmp/life-pg3-release-terminal-load-final
+```
+
+It passes **one complete workload**, **152.73 s**, with 21 deselected and six
+existing warnings. Both maker generations, original five SDK order submissions,
+retained fill/fee/cash/budget values, complete paired cancellations/retirements,
+no outstanding claim/order/executor and physical-cleanup assertions pass.
+All **1861** final code/SQL hashes stay pinned through the run. Compared with
+the 59-case/five-migration qualification, only the two documented test-watchdog
+annotations/comments differ; runtime/SQL and those affected contracts do not.
+
+This qualifies the bounded provisional loaded workflow on the stated synthetic
+fixture/resource limits. It does not measure latency percentiles, prove large-
+history or live-network margin, enable the configured provisional selector,
+retire unconsumed births after stop/process loss, or close complete configured
+R2.3/R4/R5. Those remaining exits are still required for **PG3 closure**.

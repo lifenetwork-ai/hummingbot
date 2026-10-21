@@ -1,5 +1,15 @@
 # LIFE storage contracts
 
+**Retained terminal-proof checkpoint (2026-10-22):** migration 105 evaluates
+full account-wide terminal proofs once per encountered product within each
+release audit; local results do not survive that STABLE invocation. All original
+per-release and fresh COMMIT checks remain. **59 affected regressions** and
+**five migration cases** pass. The final untraced provisional two-generation
+workload passes in **152.73 s**, retaining the **1000-ms quote policy**; only
+the complete loaded tests use a 360-second outer watchdog. **PG3 remains open**
+for provisional recovery/retirement and complete configured R2.3/R4/R5 gates.
+See [implementation and qualification](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#native-snapshot-composition-and-retained-terminal-proofs-2026-10-22).
+
 **Joined-audit/cleanup checkpoint (2026-10-22):** candidate birth validation
 uses joined retained origins and one model hash per referenced configuration in
 each invocation. `PgLiquidityService.wait_closed()` joins already-started

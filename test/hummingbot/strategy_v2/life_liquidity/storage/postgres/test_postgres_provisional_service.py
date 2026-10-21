@@ -87,6 +87,7 @@ async def test_provisional_executor_cannot_send_after_unknown_compound_commit(da
 
 
 @pytest.mark.asyncio
+@pytest.mark.timeout(360)  # Same outer watchdog as the full workload invoked below.
 async def test_provisional_protocol_runs_original_retained_fill_maker_workload(database, monkeypatch):
     from test.hummingbot.strategy_v2.life_liquidity.storage.postgres import test_postgres_service_load as load
     original = load.configured

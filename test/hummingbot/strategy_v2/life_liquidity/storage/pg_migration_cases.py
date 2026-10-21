@@ -3726,3 +3726,42 @@ async def test_quote_birth_upgrade_is_repeatable_private_and_rejects_ancestor_dr
             for role in ('public', 'life_runtime_test', 'life_reporter_test'):
                 assert not await c.fetchval("SELECT has_table_privilege($1,$2,'INSERT,UPDATE,DELETE,TRUNCATE')", role, 'life_financial.' + name)
     assert before == await c.fetchval('SELECT pg_get_functiondef(to_regprocedure($1))', target)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('drift', ['none', 'proof_body', 'audit_body', 'search_path', 'volatility'])
+async def test_release_terminal_reuse_upgrade_keeps_independent_proof_and_private_acl(db, drift):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 105:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    proof = 'life_financial.shared_release_proof(uuid,text,text,bigint,bigint)'
+    audit = 'life_financial.shared_release_verified(uuid)'
+    helper = 'life_financial.shared_release_after_terminal_proofs(uuid,text,text,bigint,bigint,boolean,boolean)'
+    target = audit if drift == 'audit_body' else proof
+    if drift in ('proof_body', 'audit_body'):
+        source = await c.fetchval('SELECT pg_get_functiondef(to_regprocedure($1))', target)
+        await c.execute(source.replace('BEGIN', 'BEGIN\n-- unexpected terminal proof\n', 1))
+    elif drift == 'search_path':
+        await c.execute('ALTER FUNCTION ' + target + ' SET search_path=pg_catalog,public')
+    elif drift == 'volatility':
+        await c.execute('ALTER FUNCTION ' + target + ' VOLATILE')
+    before = await c.fetchval('SELECT pg_get_functiondef(to_regprocedure($1))', proof)
+    acl = await c.fetchval('SELECT proacl::text FROM pg_proc WHERE oid=to_regprocedure($1)', audit)
+    await c.execute('ALTER DEFAULT PRIVILEGES IN SCHEMA life_financial GRANT EXECUTE ON FUNCTIONS TO PUBLIC,life_runtime_test,life_reporter_test')
+    path = DEFAULT_DIRECTORY / '000105_release_terminal_proofs.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    if drift != 'none':
+        with pytest.raises(asyncpg.RaiseError, match='LIFE_RELEASE_TERMINAL_REUSE_MIGRATION_MISMATCH'):
+            await migrate(c, directory, action='up')
+        assert (await versions(c))[-1]['version'] == 104
+        assert not await c.fetchval('SELECT to_regprocedure($1) IS NOT NULL', helper)
+    else:
+        assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+        assert (await migrate(c, directory, action='up'))['applied'] == []
+        assert await c.fetchval('SELECT proacl::text FROM pg_proc WHERE oid=to_regprocedure($1)', audit) == acl
+        for role in ('public', 'life_runtime_test', 'life_reporter_test'):
+            assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", role, helper)
+        assert await c.fetchval('SELECT count(*) FROM life_financial.accounts') == 0
+    assert before == await c.fetchval('SELECT pg_get_functiondef(to_regprocedure($1))', proof)
