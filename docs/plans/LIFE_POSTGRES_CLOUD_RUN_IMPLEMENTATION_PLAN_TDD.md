@@ -31,6 +31,18 @@ previously clock-failing configured paired-maker/release/archive workflow passes
 guards remain unchanged. The complete current-source configured/expiry/fault
 qualification is still required; this unit does not close R2.3/R4/R5 or PG3.
 
+**Post-clock configured diagnosis and physical service restart (2026-10-21):**
+the complete configured selector with a passive GC observer is **36 pass / 1
+fail**, **775.96 s**. The second-generation quote still expires at ARM/COMMIT
+(reported age **1034.251 ms / 1000 ms**), after one complete maker generation;
+that case has no GC pause above 5 ms. A separate server-statistics replay also
+fails; neither diagnostic is a loaded-tail qualification. Four new actual
+configured-service process-death/cold-reopen cases pass **83.59 s**, preserving
+original money, budgets, holds and action identities without cold dispatch or
+resubmission. A send without received ACK correctly denies quote-capable startup;
+its observation-only restart remains available. **R2.3/R4/R5 and PG3 remain
+open.** See [diagnosis and restart qualification](#pg3-server-latency-diagnosis-and-physical-service-restart-2026-10-21).
+
 Created: 2026-10-11
 
 **Current configured hedge qualification (2026-10-21):** the explicit offline
@@ -6992,3 +7004,88 @@ The separate `/tmp` route-capacity scheduling experiment is **2 pass / 1 fail**,
 of **1012.494 ms**. It is not installed or counted as closure evidence. The
 remaining latency work must distinguish server execution from app scheduling
 pauses before another optimization is selected.
+
+## PG3 server latency diagnosis and physical service restart (2026-10-21)
+
+### Configured expiry diagnosis
+
+Production source remains the runner-clock fix at `4d8aa0ec7`. The complete
+configured trading/hedge/cycle/standing-maker selector, with a bounded passive
+GC callback outside repository source, is **36 pass / 1 fail / 874 deselected**,
+**775.96 s**, at `/tmp/life-pg3-clock-fixed-configured-gc-diagnostic`. The callback
+records pauses only: it does not collect, freeze, disable or retune GC and does
+not alter a runtime method. The failing two-generation case completes its first
+generation before its next quote fails with `PG_QUOTE_CAPTURE_MISMATCH`, at a
+reported age of **1034.251 ms**. Its ARM admission takes **179.390 ms**, including
+**130.754 ms** in execute and **41.856 ms** in COMMIT. That case records no GC
+pause of at least 5 ms. A separate hedge case has a 157.481-ms generation-2 GC
+pause; it passes, and that observation does not explain the maker failure.
+The disposable container reports zero CPU-throttled periods when sampled.
+The earlier clock failure does not recur, but the retained expiry is unresolved.
+
+Server-side statement instrumentation on the unchanged product, still on the
+original 2-CPU/1-GiB disposable PostgreSQL 16 profile, produces **1 pass / 1 fail /
+913 deselected**, **149.27 s**, at
+`/tmp/life-pg3-server-stats-two-generation`. This selector actually selects both
+schedule parameters. The second-generation case fails at a reported **1013.900
+ms**, after one generation. Its last successful dispatch takes **224.223 ms**
+(execute **86.358 ms**, COMMIT **130.045 ms**). The refused ARM takes **76.106
+ms** and rejects during execute. Server maximum execute times include
+**101.136 ms** for preparation, **109.577 ms** for ARM and **85.211 ms** for
+dispatch; their top-level prepared-plan maxima are below 0.04 ms. This supports
+investigating repeated native verification work rather than installing another
+top-level plan-cache change. A partial nested-statistics sample also shows many
+recursive canonical-JSON calls; their aggregate times are inclusive and must not
+be presented as exclusive CPU savings.
+
+The statistics extension and its administrative setup exist only in a disposable
+diagnostic container. They do not change application SQL, credentials, roles'
+financial privileges, deadlines, monetary policies or freshness limits. Neither
+instrumented replay closes R5. A pure generated operation-command fingerprint is
+being remeasured as a disposable experiment, not an installed verdict cache or
+a selected production migration. It must demonstrate a benefit and preserve
+same-version corruption detection before any implementation is accepted.
+
+### Actual configured service death and cold reopen
+
+`service_process.py` starts a new Python interpreter with its own actual
+configured controller/V2 runner, SDKs, native pools and fake exchange. It does
+not inherit an event loop, SDK cache, pool or local dispatch capability. Each
+case seeds one explicitly synthetic 300-second owner / 360-second session;
+existing facts and leases are never renewed. The source/capture/SQL limits remain
+1000 ms. The child exits immediately, without service cleanup, at these original
+boundaries:
+
+- after the new native action's physical capture COMMIT;
+- after physical financial preparation COMMIT;
+- after the fake exchange accepts the original POST, before its response reaches
+  the SDK, ACK ingress or service;
+- after the configured SDK/ACK/reporting workflow completes.
+
+The parent constructs fresh SDKs and the actual native service against the same
+database. It supplies new signed GET responses for the original fake account and
+orders; no financial DTO is promoted into source authority. It compares all
+retained balances, budget buckets/events, reservations, attempts, shared claims
+and action descriptors/events before and after restart and shutdown. Total
+5 LIFE / 10 USDT and all original holds/identities remain intact. No executor or
+local journal entry is adopted; direct original-action dispatch, cold publication
+replay and original sender restoration remain refused. No new POST occurs.
+
+The send-without-ACK case additionally requires exact
+`PG_QUOTE_POLICY_UNVERIFIED` refusal of quote-capable startup and successfully
+opens the separate observation-only service, retaining `SEND_UNKNOWN`. It does
+not treat the fake exchange's accepted-order row as an ACK or refund a claim.
+The other phases reopen the native trading assembly but cannot resurrect their
+original actions. Initial harness failures incorrectly forbade the mandatory
+signed startup GETs, then omitted explicit SDK protected-pair registration;
+those fixture omissions were corrected. The unresolved-send startup refusal was
+preserved as a required assertion. No product financial or startup guard changed.
+
+Final focused qualification is **4 pass / 22 deselected**, zero failures/errors/
+skips, **83.59 s**, at `/tmp/life-pg3-whole-service-process-qualified-profile`.
+Changed-file hooks pass. The cases are installed in the `service`,
+`service_trading` and `spot_market_send` selectors. This covers those declared
+whole-service process boundaries, not all SWAP/settlement/release/repair service
+faults or the complete current-source parity/role/latency gate. The complete
+fixed R2.3/R4/R5 exits and **PG3 remain open**. No deployment, real account, push
+or repository evidence file is used.

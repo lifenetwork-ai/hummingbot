@@ -17,6 +17,16 @@ The remaining whole-product/expiry gates still apply. Original deadlines and
 guards remain intact. See the PostgreSQL plan's current checkpoint.
 **PG3 is not closed.**
 
+The post-clock configured selector with passive GC measurements is **36 pass /
+1 fail**, **775.96 s**: the second-generation quote still expires at ARM/COMMIT
+(reported **1034.251 ms / 1000 ms**), with no significant GC pause in that case.
+Server-side diagnostics reproduce the expiry. Four actual configured-service
+process-death/cold-reopen cases now pass (**83.59 s**), retaining original money,
+holds, budgets and action identities without cold dispatch or another POST.
+An unresolved send correctly denies quote-capable startup and permits only
+observation recovery. These focused proofs do not close R2.3/R4/R5 or PG3. See
+[server diagnosis and physical service restart](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-server-latency-diagnosis-and-physical-service-restart-2026-10-21).
+
 **Current configured hedge qualification (2026-10-21):** the explicit offline
 native service composes SPOT retirement → signed hedge sources → protected SWAP
 SDK/ACK → original terminal/settlement/shared release. All 22 configured trading
