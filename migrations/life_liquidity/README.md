@@ -1422,3 +1422,27 @@ to the equivalent public entrypoint, excluding PUBLIC/default privileges.
 admission verifies its permission on every read/write admission. No financial
 verdict, source observation or permission is cached across commands. Ordinary
 repeat startup uses the existing migration ledger and does not repeat DDL.
+
+
+## 000098: one new quote capture inside metadata CLAIM
+
+`000098_native_quote_capture.sql` audits the unchanged predecessor command and
+adds a writer endpoint for one unissued, zero-timestamp executor template. It
+runs the original owner, session, exact cut, full-state and descriptor checks
+before assigning the new action's single primary-clock timestamp. All other
+payload bytes and business fields remain unchanged. The native operation and
+canonical receipt persist before the actual `CreateExecutorAction` can be
+constructed. This is a new action's birth, never renewal of an issued action,
+provider fact, preparation, session or owner lease.
+
+The original metadata command and migration-97 dispatch endpoint remain intact.
+Permanent operation replay refuses recapture. Unknown COMMIT leaves an original
+proposal for explicit bookkeeping/reconciliation, with no local dispatch
+adoption or send grant. PREPARE, final signed sources, ARM and physical COMMIT
+still apply the existing one-second capture/market/fee limits.
+
+The new endpoint inherits only explicit original metadata-writer grants on
+upgrade; PUBLIC and hostile default privileges are removed. Fresh provisioning
+and uncached primary admission include this endpoint when migration 98 is in
+the pinned bundle. Ordinary repeat startup uses the migration ledger. These
+structural changes do not establish PG3 latency or configured-service eligibility.

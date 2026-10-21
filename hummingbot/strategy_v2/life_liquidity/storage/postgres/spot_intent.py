@@ -40,3 +40,14 @@ class PgSpotQuoteIntent:
                                       controller_id=self.controller_id, owner=self.owner.json(),
                                       config_version=self.config_version, side=self.side.name, level=self.level,
                                       quantity_base=str(self.quantity_base), price_usdt=str(self.price_usdt)))[:31]
+
+    def capture_template(self):
+        """Unissued native input; zero timestamp cannot authorize V2 dispatch."""
+        from hummingbot.strategy_v2.executors.order_executor.data_types import ExecutionStrategy, OrderExecutorConfig
+        from hummingbot.strategy_v2.life_liquidity.storage.actions import SpotQuoteAction
+        cfg = OrderExecutorConfig(id=self.intent_id, controller_id=self.controller_id, timestamp=0.0,
+                                  connector_name='okx', trading_pair='LIFE-USDT', side=self.side,
+                                  amount=self.quantity_base, price=self.price_usdt, level_id=str(self.level),
+                                  execution_strategy=ExecutionStrategy.LIMIT_MAKER)
+        return SpotQuoteAction(self.intent_id, self.controller_id, str(self.owner.session_id), self.owner.epoch,
+                               self.config_version, 'LIFE-USDT', self.side.name, self.level, cfg.model_dump_json())

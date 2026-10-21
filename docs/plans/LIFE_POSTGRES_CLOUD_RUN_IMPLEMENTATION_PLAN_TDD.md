@@ -1,10 +1,11 @@
 # LIFE: PostgreSQL and Cloud Run Implementation Plan (TDD)
 
-**Current PG3 status (2026-10-21):** each maker retirement now gets its own
-current source/NAV, with archival after all releases. The uninstrumented paired
-workflow and all 36 runner/journal cases pass. The two-generation quote-age
-failure remains; **R2.3/R4/R5 and PG3 stay open**. See
-[retirement freshness and remaining acceptance](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-per-claim-retirement-freshness-2026-10-21).
+**Current PG3 status (2026-10-21):** migration 98 creates a new V2 quote's
+single native capture after the current CLAIM audit; issued timestamps and all
+one-second financial/source limits remain unchanged. Focused capture, identity,
+COMMIT and permission contracts pass, but the configured two-generation quote
+still expires. **R2.3/R4/R5 and PG3 stay open.** See
+[native capture qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-new-native-quote-capture-2026-10-21).
 
 Created: 2026-10-11
 
@@ -6650,3 +6651,106 @@ at **1053.876 ms / 1000 ms**. Neither establishes a sufficient overall improveme
 neither database setting nor generated column is installed in the runtime or
 migration bundle. Diagnostic logs remain in `/tmp`, not repository evidence files.
 **R2.3/R4/R5 and PG3 remain open** for the existing complete acceptance scope.
+
+
+## PG3 new native quote capture (2026-10-21)
+
+Base `cfc007a5d`. This changes the creation boundary of one **new, unissued**
+quote, not the fixed R2.3/R4/R5 exits or the age of any issued action/source.
+
+- The original business intent fixes identity, owner, price, quantity, side and
+  level before capital/carry allocation. Its executor template has timestamp
+  zero and is never dispatched. The new metadata command runs original native
+  owner/session/CAS-cut/full-state/descriptor checks, then assigns one primary
+  timestamp and persists the normal canonical CLAIM operation/receipt. Only a
+  confirmed result constructs the real V2 `CreateExecutorAction`.
+- Publication retains its original one-use task/operation/ingress-sealed cut.
+  The source consumes the business ID before its first native attempt. Definite
+  rejection, cancellation and unknown COMMIT retain the allocation and cannot
+  create a second local capture/wire mapping. Cold receipt readback is only
+  bookkeeping. Actual V2 acceptance still commits independently before money
+  can be prepared; final signed sources, ARM and physical COMMIT are unchanged.
+- The old publication command and migration-97 dispatch are unchanged. Only
+  explicit original metadata writers inherit the new endpoint's grant; hostile
+  defaults and PUBLIC are excluded. Fresh provisioning and every uncached
+  primary admission include the endpoint. The predecessor-schema path exists
+  for explicit archived upgrade tests, not as current startup fallback.
+- Audited upgrade: `PYTEST_ADDOPTS='-k native_capture_upgrade' python -m
+  test.hummingbot.strategy_v2.life_liquidity.storage.run_migrations --output
+  /tmp/life-pg3-native-capture-migration-audit` passes **5 cases** in **9.52 s**,
+  including repeat-up, unchanged original command/data/ACLs and atomic refusal
+  of body/security/search-path/volatility drift.
+- Current focused source/revocation repair gate passes **4 cases** in **25.33 s**
+  at `/tmp/life-pg3-native-capture-source-revocation-revised`. An earlier joint
+  gate was **48 pass / 2 fail** because its new source-fault setup omitted the
+  required capital/carry allocation and never reached the injected boundary.
+  The revised tests use real allocation and retain its original claim. The
+  final revised `run_postgres --suite runner_journal` gate passes **50 cases**
+  with zero failures/errors/skips in **114.54 s** at
+  `/tmp/life-pg3-native-capture-final-journal`. Its 36 existing dispatch/runner
+  cases and 14 native-capture cases run together on the same **1,823 pinned
+  source hashes** (`/tmp/life-pg3-native-capture-final-source.json`).
+- The final frozen configured SPOT/SWAP service gate (`run_postgres --suite
+  service_trading`) passes **22 cases**, zero failures/errors/skips, in **272.83 s**
+  at `/tmp/life-pg3-native-capture-final-service`. It covers protected quote/ACK,
+  claim-time revocation, hedge execution and no-fill/partial-fill original
+  settlement, concurrent-call refusal and late-ACK shutdown. Source hashes are
+  unchanged across this gate and the 50-case journal gate. These selectors do
+  not include the failing complete two-generation/R5 acceptance workflow.
+- Migration-file/runtime-config/immutable-intent contracts pass **47 cases** in
+  **0.32 s**. These are host contracts, not a PostgreSQL service acceptance gate.
+
+### Retained latency failures and diagnostic experiments
+
+All runs use the disposable pinned PostgreSQL 16 profile (2 CPUs, 1 GiB), original
+1000-ms source/capture/SQL limits, existing native financial budgets, and fake
+signed HTTP. The two-generation workflow is not yet qualified.
+
+- Native capture alone still fails after one complete maker cycle, with original
+  quote age **1052.507 ms** at `/tmp/life-pg3-native-capture-two-generations`.
+- A disposable pure generated-command hash plus generic-plan trial still fails
+  at **1029.371 ms** (**89.26 s** run) in
+  `/tmp/life-pg3-native-capture-combined-diagnostic`.
+- Reusing product lifecycle checks only within a STABLE release verifier also
+  fails at **1063.523 ms** (**90.78 s**) in
+  `/tmp/life-pg3-native-capture-release-lifecycle-diagnostic`.
+- A disposable collection-buffer experiment collapses diagnostic response
+  persistence to one batch before returning a qualified source report; it still
+  fails at **1023.980 ms** (**86.77 s**) in
+  `/tmp/life-pg3-native-capture-provider-collection-diagnostic`. This prototype
+  changes diagnostic batching/parse boundaries and its disposable batch bound;
+  it is **not** an unchanged-contract acceptance result or a product change.
+
+- The combined collection-buffer/generated-hash/generic-plan experiment reaches
+  second-generation maker retirement but fails its primary source context with a
+  real server statement timeout (**1002.969 ms execute**, **1128.778 ms total**,
+  **120.90 s** run) at
+  `/tmp/life-pg3-native-capture-provider-and-plans-diagnostic`. No full workflow
+  pass or quote-tail margin follows from reaching this later boundary. The
+  cancellation location in `hedge_verified` does not identify which earlier
+  nested query consumed the statement budget; compilation/query-plan causes
+  remain a diagnostic hypothesis.
+
+- Adding `jit=off` to that same disposable combined experiment passes the full
+  two-generation workflow (**1 case**, **121.39 s**), including original maker
+  cancellation, terminal/NAV/source release and recorder retirement, at
+  `/tmp/life-pg3-native-capture-no-jit-diagnostic`. This is a **diagnostic result**:
+  multiple uninstalled changes remain in that setup. It neither isolates JIT as
+  the quote-age cause nor qualifies the current repository workflow. The next
+  diagnostic removes all other prototypes and tests only `jit=off`.
+
+- The isolation control uses **only** `jit=off`, with no generated hash, forced
+  generic plan or collection buffer. It still fails at **1052.587 ms** quote age
+  after one completed cycle (**89.72 s**) at
+  `/tmp/life-pg3-native-capture-only-no-jit-diagnostic`. Disabling JIT alone is
+  therefore not a fix for the current quote-age failure. The next candidate
+  removes the generated hash from the passing combined prototype.
+
+None of the generated hashes, generic-plan settings, release-helper prototypes
+or collection buffers above is installed in the repository product. No timing
+failure is converted into a pass, no old timestamp is renewed, and no threshold
+is enlarged. The next step is to diagnose the slow source statement's compilation/query
+plans, then qualify a concrete implementation only if the reduction is
+sufficient. Complete configured SPOT/SWAP installation, current-source economic
+parity and whole-service restart/corruption/role/process/backend fault and
+latency gates remain required. **PG3 remains open.**

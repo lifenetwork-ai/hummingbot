@@ -669,9 +669,14 @@ class PgLiquidityService:
                     raise StorageError('PG_SERVICE_HEDGE_SPOT_PAUSED')
                 publication_id = 'service-publish:' + fingerprint([intent_id])
                 publication = await self.journal.preflight_publication(publication_id)
-                action = await self.quote_source.capture_intent_ready(intent)
+                if any(m.version == 98 for m in self.runtime._bundle):
+                    action = await self.quote_source.capture_and_publish_intent_ready(intent, publication_id, _publication=publication)
+                else:
+                    # Explicit predecessor-schema qualification only. Current
+                    # packages require migration 98 in every primary admission.
+                    action = await self.quote_source.capture_intent_ready(intent)
+                    await self.journal.publish(publication_id, (action,), _publication=publication)
                 self._quote_action = action.model_copy(deep=True)
-                await self.journal.publish(publication_id, (action,), _publication=publication)
                 self.runner._async_action_dispatcher.submit([action])
                 await self.runner._async_action_dispatcher.drain()
                 if not self.journal._entry(action).accepted:

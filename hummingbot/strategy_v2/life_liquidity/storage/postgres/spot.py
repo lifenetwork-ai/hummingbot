@@ -562,6 +562,31 @@ class PgSpotRepository:
             raise StorageError('PG_ACTION_COMMAND_INVALID')
         return await self._action_command(command, cut, owner, 'SPOT_ACTION_CLAIM')
 
+    async def capture_quote_action(self, operation_id, template, *, cut, owner):
+        """Append one NEW native capture after auditing its business template.
+
+        This endpoint rejects already timestamped actions and permanent replay.
+        A lost COMMIT can only be reconciled by existing bookkeeping readback.
+        """
+        if type(template) is not SpotQuoteAction:
+            raise StorageError('PG_ACTION_CAPTURE_TEMPLATE_INVALID')
+        command = ClaimQuoteActions(operation_id, (template,))
+        version, digest = self._cut(cut, owner)
+
+        def parse(value):
+            try:
+                receipt = self._action_receipt(value)
+                captured = SpotQuoteAction(**value['captured_action'])
+                if receipt.replayed or receipt.states != ((captured.intent_id, 'PROPOSED'),):
+                    raise ValueError
+                return receipt, captured
+            except (KeyError, TypeError, ValueError):
+                raise StorageUnavailable('PG_ACTION_CAPTURE_RECEIPT_INVALID') from None
+
+        args = (self._runtime.config.account_id, self.binding.json(), owner.json(), version, digest, command.json())
+        return await self._runtime._transaction('SELECT life_financial.spot_capture_quote_action($1,$2,$3,$4,$5,$6)',
+                                                args, owner, parse)
+
     async def transition_quote_action(self, command, *, cut, owner, _claim_version=None):
         if type(command) is not TransitionQuoteAction or command.facts.binding != self.binding:
             raise StorageError('PG_ACTION_COMMAND_INVALID')

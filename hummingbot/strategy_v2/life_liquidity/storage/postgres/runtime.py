@@ -27,6 +27,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.contracts import (
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.access import (
     ATOMIC_DISPATCH_ENTRYPOINT,
     MUTATING_ENTRYPOINTS,
+    NATIVE_CAPTURE_ENTRYPOINT,
     NATIVE_EXECUTION_ENTRYPOINT,
     NATIVE_EXIT_ENTRYPOINT,
     NATIVE_RISK_ENTRYPOINT,
@@ -202,6 +203,8 @@ class PgRuntime:
         args = [cfg.account_id, cfg.write, len(self._bundle) + 1, list(MUTATING_ENTRYPOINTS)]
         if 97 in versions:
             args[3].append(ATOMIC_DISPATCH_ENTRYPOINT)
+        if 98 in versions:
+            args[3].append(NATIVE_CAPTURE_ENTRYPOINT)
         query = '''WITH history AS MATERIALIZED (
             SELECT version,name,checksum FROM life_migrations.schema_migrations ORDER BY version LIMIT $3)
             SELECT current_user AS principal,pg_catalog.pg_is_in_recovery() AS replica,

@@ -10,6 +10,7 @@ import hashlib
 import hmac
 import json
 import time
+from contextlib import AsyncExitStack
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import localcontext
@@ -137,11 +138,8 @@ class PgQuoteAccountSource:
                                    admission_source=self._admission_source, endpoint_url=self.endpoint_url,
                                    age_limits=self.age_limits, account_source=self)
 
-    def capture_intent(self, intent):
-        """Create a NEW executor capture once, after external risk preflight."""
-        from hummingbot.strategy_v2.executors.order_executor.data_types import ExecutionStrategy, OrderExecutorConfig
+    def _validate_intent(self, intent):
         from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot_intent import PgSpotQuoteIntent
-        from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction
         self._credentials()
         if self._quota is not None and self._capture_ready_task is not asyncio.current_task():
             raise StorageError('PG_ACCOUNT_QUOTA_CAPTURE_REQUIRED')
@@ -159,6 +157,12 @@ class PgQuoteAccountSource:
         if (not valid_steps or intent.intent_id in self._intents or intent.intent_id in self.journal._entries
                 or len(self._intents) >= self.journal.max_actions):
             raise StorageError('PG_ACCOUNT_MARKET_INTENT_ALREADY_USED_OR_INVALID')
+
+    def capture_intent(self, intent):
+        """Create a NEW executor capture once, after external risk preflight."""
+        from hummingbot.strategy_v2.executors.order_executor.data_types import ExecutionStrategy, OrderExecutorConfig
+        from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction
+        self._validate_intent(intent)
         cfg = OrderExecutorConfig(id=intent.intent_id, controller_id=intent.controller_id,
                                   timestamp=utc(self.journal.clock()).timestamp(), connector_name='okx',
                                   trading_pair='LIFE-USDT', side=intent.side, amount=intent.quantity_base,
@@ -185,6 +189,34 @@ class PgQuoteAccountSource:
         try:
             async with asyncio.timeout(self._market_source.timeout_ms / 1000), self._quota.collection():
                 return self.capture_intent(intent)
+        finally:
+            self._capture_ready_task = None
+
+    async def capture_and_publish_intent_ready(self, intent, operation_id, *, _publication):
+        """Issue one new native capture; an issued action is never a template."""
+        from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot_intent import PgSpotQuoteIntent
+        self._credentials()
+        if self._market_source is None or type(intent) is not PgSpotQuoteIntent:
+            raise StorageError('PG_ACCOUNT_MARKET_INTENT_MISMATCH')
+        if self._capture_ready_task is not None:
+            raise StorageError('PG_ACCOUNT_SOURCE_BACKPRESSURE')
+        self._capture_ready_task = asyncio.current_task()
+        try:
+            async with asyncio.timeout(self._market_source.timeout_ms / 1000), AsyncExitStack() as stack:
+                if self._quota is not None:
+                    await stack.enter_async_context(self._quota.collection())
+                self._validate_intent(intent)
+                # Consume this business identity before awaiting its one native
+                # attempt, including definite rejection or unknown COMMIT.
+                # There is no issued action/row yet; all send lookups refuse it.
+                self._intents[intent.intent_id] = (intent, None)
+                action = await self.journal.capture_and_publish(operation_id, intent.capture_template(), _publication=_publication)
+                self._credentials()
+                row = self.journal._capture(action)
+                self._intents[intent.intent_id] = (intent, row)
+                if self._quota is not None:
+                    self._scheduled[intent.intent_id] = row
+                return action
         finally:
             self._capture_ready_task = None
 

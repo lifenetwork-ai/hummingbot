@@ -3477,3 +3477,49 @@ async def test_atomic_dispatch_upgrade_preserves_old_contract_and_refuses_drift(
     assert tables == await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace IN ('life_financial'::regnamespace,'life_recorder'::regnamespace) ORDER BY oid")
     for table in ('accounts', 'operations', 'send_attempts', 'activation_grants'):
         assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('drift', ['none', 'body', 'security', 'search_path', 'volatility'])
+async def test_native_capture_upgrade_preserves_old_contract_and_refuses_drift(db, drift):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 98:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    old = 'life_financial.spot_action_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,text,jsonb)'
+    public = 'life_financial.spot_capture_quote_action(uuid,jsonb,jsonb,bigint,life_financial.digest,jsonb)'
+    await c.execute('GRANT USAGE ON SCHEMA life_financial TO life_runtime_test,life_reporter_test')
+    await c.execute('GRANT EXECUTE ON FUNCTION ' + old + ' TO life_runtime_test')
+    # Hostile default grants must not expose the new writer endpoint.
+    await c.execute('ALTER DEFAULT PRIVILEGES IN SCHEMA life_financial GRANT EXECUTE ON FUNCTIONS TO life_runtime_test,life_reporter_test')
+    if drift == 'body':
+        definition = await c.fetchval('SELECT pg_get_functiondef(to_regprocedure($1))', old)
+        await c.execute(definition.replace('AS $function$', 'AS $function$\n-- unexpected predecessor', 1))
+    elif drift == 'security':
+        await c.execute('ALTER FUNCTION ' + old + ' SECURITY INVOKER')
+    elif drift == 'search_path':
+        await c.execute('ALTER FUNCTION ' + old + ' SET search_path=pg_catalog,public')
+    elif drift == 'volatility':
+        await c.execute('ALTER FUNCTION ' + old + ' STABLE')
+    before = await c.fetchrow('SELECT oid,proacl,prosrc,proowner,provolatile,prosecdef,proconfig FROM pg_proc WHERE oid=to_regprocedure($1)', old)
+    tables = await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace IN ('life_financial'::regnamespace,'life_recorder'::regnamespace) ORDER BY oid")
+    path = DEFAULT_DIRECTORY / '000098_native_quote_capture.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    if drift != 'none':
+        with pytest.raises(asyncpg.RaiseError, match='LIFE_NATIVE_CAPTURE_MIGRATION_MISMATCH'):
+            await migrate(c, directory, action='up')
+        assert (await versions(c))[-1]['version'] == 97
+        assert before == await c.fetchrow('SELECT oid,proacl,prosrc,proowner,provolatile,prosecdef,proconfig FROM pg_proc WHERE oid=to_regprocedure($1)', old)
+        assert not await c.fetchval('SELECT to_regprocedure($1) IS NOT NULL', public)
+    else:
+        assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+        after = await c.fetchrow('SELECT oid,proacl,prosrc,proowner,provolatile,prosecdef,proconfig FROM pg_proc WHERE oid=to_regprocedure($1)', old)
+        assert after == before
+        for principal in ('life_runtime_test', 'life_reporter_test'):
+            assert await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", principal, public) is (principal == 'life_runtime_test')
+        assert await c.fetchval("SELECT has_function_privilege('life_runtime_test',$1,'EXECUTE')", old)
+        assert (await migrate(c, directory, action='up'))['applied'] == []
+    assert tables == await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace IN ('life_financial'::regnamespace,'life_recorder'::regnamespace) ORDER BY oid")
+    for table in ('accounts', 'operations', 'send_attempts', 'activation_grants'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0

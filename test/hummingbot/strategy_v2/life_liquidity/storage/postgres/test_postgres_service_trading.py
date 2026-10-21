@@ -256,13 +256,14 @@ async def test_configured_native_service_requires_the_original_shared_sdk_quota(
 @pytest.mark.asyncio
 async def test_native_mode_revocation_after_claim_denies_http_and_retains_the_original_claim(database, monkeypatch):
     t, service = await configured(database)
-    publish = service.journal.publish
+    publication = ('capture_and_publish' if any(m.version == 98 for m in service.runtime._bundle) else 'publish')
+    publish = getattr(service.journal, publication)
 
     async def draining(*args, **kwargs):
         result = await publish(*args, **kwargs)
         await database[0].execute("UPDATE life_financial.accounts SET mode='DRAINING'")
         return result
-    monkeypatch.setattr(service.journal, 'publish', draining)
+    monkeypatch.setattr(service.journal, publication, draining)
     try:
         with pytest.raises(StorageError, match='DISPATCH_REJECTED'):
             await service.quote('revoked', TradeType.BUY, 0)

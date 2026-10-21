@@ -4715,3 +4715,24 @@ A new publication's preflight cut uses the bounded command pool before the V2
 capture is created. This reuses backend/plans; CLAIM still independently checks
 the original cut and physical COMMIT. Ordinary observation cuts retain the safety
 pool, including original-owner observation after HALT/expiry.
+
+
+### Native quote birth after metadata audit
+
+For the current schema, the configured offline service submits an immutable
+business intent's unissued executor template through the original task/operation/
+ingress-sealed publication cut. Migration 98 creates its single quote timestamp
+inside CLAIM after the current native audits. Only a confirmed result constructs
+the actual V2 `CreateExecutorAction`; its template is never dispatched. Actual
+runner acceptance still persists separately before financial preparation.
+
+The account source consumes the business identity before awaiting the first
+attempt. Rejection, cancellation or unknown COMMIT cannot create a second local
+capture or wire mapping. Readback is bookkeeping and cannot adopt dispatch
+permission. No source/cost/permission verdict is cached, and no issued timestamp,
+lease, budget or deadline is extended. Explicit archived predecessor-schema
+qualification retains its original publication path; the current runtime requires
+the complete pinned migration bundle and permissions.
+
+Focused contracts are not configured-service latency acceptance. The retained
+two-generation quote expiry and complete R2.3/R4/R5 gates still keep PG3 open.

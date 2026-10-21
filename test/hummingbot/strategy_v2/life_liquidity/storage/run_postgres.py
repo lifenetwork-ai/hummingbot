@@ -156,6 +156,8 @@ def main():
         selectors = [str(selector)]
         if args.suite == 'service_trading':
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in ('service_trading', 'service_hedge')]
+        if args.suite == 'runner_journal':
+            selectors = [str(selector.parent / ('test_postgres_' + name + '.py')) for name in ('runner_journal', 'native_capture')]
         if args.suite == 'service':
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in (
                 'service', 'runner_startup', 'joint_events', 'joint_history', 'recorder_application', 'event_application')]
@@ -176,7 +178,7 @@ def main():
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in (
                 'service', 'service_trading', 'service_hedge', 'service_cycle', 'standing_makers', 'retired_scope', 'maker_cancellation', 'operation_preflight', 'runner_startup', 'recorder_application', 'event_application',
                 'spot_producer', 'produced_send', 'action_preparation', 'quote_arm', 'account_brackets', 'spot_allocation', 'spot_market_send', 'spot_market', 'spot_application', 'quote_transport', 'quote_account_source',
-                'runner_journal', 'release_proof_reuse', 'joint_source', 'hedge_source', 'hedge_application', 'joint_observer', 'financial_source', 'provider_batch',
+                'runner_journal', 'native_capture', 'release_proof_reuse', 'joint_source', 'hedge_source', 'hedge_application', 'joint_observer', 'financial_source', 'provider_batch',
                 'collateral_source', 'joint_history', 'joint_events')]
             selectors.extend(str(selector / name) for name in ('test_shared_sdk_quota.py', 'test_spot_intent.py'))
         if args.suite == 'spot_market':

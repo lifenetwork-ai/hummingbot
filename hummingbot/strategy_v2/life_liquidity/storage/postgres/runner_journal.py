@@ -5,6 +5,7 @@ must be qualified independently; this adapter never infers complete scope from
 SQL, creates a live owner, or turns a receipt into a transport permit.
 """
 import asyncio
+import json
 import math
 import re
 from dataclasses import dataclass
@@ -152,11 +153,7 @@ class PgQuoteRunnerJournal:
                 # projection. SQL keeps the same independent spot_state audit.
                 cut = (await self.repository.observation_cut(self.binding)).cut
             else:
-                original, self._publication = self._publication, None
-                if (original is None or original[0] is not _publication or original[1] is not asyncio.current_task()
-                        or original[2] != operation_id or original[4] != self.repository._runtime._ingress_epoch):
-                    raise StorageError('RUNNER_PUBLICATION_PREFLIGHT_ORIGIN_REQUIRED')
-                cut = original[3]
+                cut = self._consume_publication(operation_id, _publication)
             if not self._ready():
                 raise StorageError('RUNNER_LOCAL_REVOKED')
             result = await self.repository.claim_quote_actions(command, cut=cut, owner=self.owner)
@@ -171,6 +168,45 @@ class PgQuoteRunnerJournal:
                                            if len(rows) == 1 and any(m.version == 97 for m in self.repository._runtime._bundle) else None),
                     revoked=not self._ready())
             return result
+
+    def _consume_publication(self, operation_id, ticket):
+        original, self._publication = self._publication, None
+        if (original is None or original[0] is not ticket or original[1] is not asyncio.current_task()
+                or original[2] != operation_id or original[4] != self.repository._runtime._ingress_epoch):
+            raise StorageError('RUNNER_PUBLICATION_PREFLIGHT_ORIGIN_REQUIRED')
+        return original[3]
+
+    async def capture_and_publish(self, operation_id, template, *, _publication):
+        """Create one NEW action from its confirmed native metadata capture.
+
+        The template is never dispatched. An original action is constructed only
+        after the backend supplies its one birth timestamp and confirms CLAIM.
+        """
+        if type(template) is not SpotQuoteAction:
+            raise StorageError('RUNNER_PUBLICATION_INVALID')
+        async with self._lock:
+            if not self._ready():
+                raise StorageError('RUNNER_LOCAL_REVOKED')
+            if len(self._entries) >= self.max_actions:
+                raise StorageError('RUNNER_JOURNAL_CAPACITY')
+            if template.intent_id in self._entries:
+                raise StorageError('RUNNER_IDENTITY_ALREADY_REGISTERED')
+            cut = self._consume_publication(operation_id, _publication)
+            result, captured = await self.repository.capture_quote_action(operation_id, template, cut=cut, owner=self.owner)
+            if result.replayed:
+                raise StorageError('RUNNER_CLAIM_REPLAY_REQUIRES_RECOVERY')
+            if captured.json() | {'payload_json': template.payload_json} != template.json():
+                raise StorageError('RUNNER_NATIVE_CAPTURE_MISMATCH')
+            old, actual = json.loads(template.payload_json), json.loads(captured.payload_json)
+            if old.pop('timestamp') != 0 or actual.pop('timestamp') <= 0 or actual != old:
+                raise StorageError('RUNNER_NATIVE_CAPTURE_MISMATCH')
+            action = CreateExecutorAction(controller_id=captured.controller_id,
+                                          executor_config=OrderExecutorConfig.model_validate_json(captured.payload_json))
+            if self._capture(action) != captured:
+                raise StorageError('RUNNER_NATIVE_CAPTURE_MISMATCH')
+            self._entries[captured.intent_id] = _Entry(
+                captured, dispatch_version=cut.checkpoint.revision + 1, revoked=not self._ready())
+            return action
 
     def local_runner_create_preflight(self, action):
         try:

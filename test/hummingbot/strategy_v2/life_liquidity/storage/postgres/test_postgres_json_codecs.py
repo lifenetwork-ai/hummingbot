@@ -36,7 +36,7 @@ async def test_identity_upgrade_preserves_unicode_numeric_and_permanent_id_bytes
     raw = [json.dumps(v, ensure_ascii=True) for v in values]
     before = await c.fetch('SELECT identity_reference.original(v::jsonb) AS body FROM unnest($1::text[]) WITH ORDINALITY AS e(v,n) ORDER BY n', raw)
     assert (await migrate(c, action='up'))['applied'] == ['000095_recorder_verification_reads.sql', '000096_recorder_history_lookups.sql',
-                                                          '000097_atomic_metadata_dispatch.sql']
+                                                          '000097_atomic_metadata_dispatch.sql', '000098_native_quote_capture.sql']
     after = await c.fetch('SELECT life_financial.recorder_identity_text(v::jsonb) AS body FROM unnest($1::text[]) WITH ORDINALITY AS e(v,n) ORDER BY n', raw)
     assert before == after
     for value, row in zip(values, after):
