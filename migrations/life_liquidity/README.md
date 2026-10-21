@@ -1506,3 +1506,43 @@ Qualification includes differential malformed/predecessor cases, real funding
 accounting, counted full walks (two down to one), upgrade/repeat startup, hostile
 default grants, and predecessor body/volatility drift. This is a bounded funding
 optimization; it does not close the broader PG3 retained-fill latency gate.
+
+## 000102: share an exact carry-to-capital proof inside one invocation
+
+`000102_flow_carry_proof.sql` removes one repeated verification of the same
+shared-capital operation in snapshot/COMMIT composition. The full current carry
+proof must be TRUE and its retained checks must reference the exact current
+capital-head operation. All head, policy, current snapshot, claim and release
+checks remain. Missing/invalid carry or an unreferenced head retains the full
+independent operation verification. Normal before/after source collection
+boundaries stay separate and fresh.
+
+Two owner-only helpers carry that intermediate directly inside a STABLE call.
+Independent original entrypoints remain unchanged; no stored/session verdict or
+runtime-supplied boolean can authorize a request. The migration pins six
+predecessors' source/security/volatility/search-path/return metadata, preserves
+parent ACLs, strips hostile helper default grants, and supports checksum-ledger
+repeat startup. It adds no table, index or account data.
+
+## 000103: group two post-write account money constraints
+
+`000103_account_money_commit_group.sql` combines the funding-account and
+swap-fill-account constraints in one fresh STABLE verification, at the existing
+funding trigger position. Both original domain verifiers still execute. Only a
+TRUE `spot_capital_verified` result from this same invocation avoids a second
+identical capital proof. False/NULL and absent-policy cases take the original
+complete path. Current ownership/time/source/recorder/risk constraints and all
+history publication triggers remain independent.
+
+The migration pins the original functions and both enabled deferred-row trigger
+shapes. Original verifier functions stay unchanged, and the two new helpers
+reject inherited PUBLIC/runtime/reporter EXECUTE grants. Trigger grouping may
+change which error appears first when multiple independent corruptions coexist;
+all original rejection conditions remain, and isolated funding/swap failures
+keep their error codes. No pre-write proof, cross-command result or clock-based
+admission is shared. Existing scripts 1–102 retain their checksums.
+
+These migrations reduce repeated proof work, but the retained-fill loaded quote
+still exceeds its unchanged 1000-ms policy. They do not qualify PG3 or permit a
+merged CAPTURE/DISPATCH protocol. See the whole-flow implementation and actual
+phase-boundary crash tests in the PostgreSQL plan.

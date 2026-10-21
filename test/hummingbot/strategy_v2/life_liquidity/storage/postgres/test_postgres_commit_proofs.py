@@ -20,8 +20,15 @@ async def test_commit_group_reverifies_after_write_without_reusing_a_previous_ve
         await c.execute('INSERT INTO life_financial.access_bindings VALUES(current_user,$1,true)', cfg.account_id)
         for name in PROOFS:
             await c.execute('CREATE SEQUENCE life_financial.test_count_' + name + ' MINVALUE 0 START 0')
-            definition = await c.fetchval('SELECT pg_get_functiondef(to_regprocedure($1))', 'life_financial.' + name + '(uuid)')
-            await c.execute(definition.replace('BEGIN', "BEGIN PERFORM nextval('life_financial.test_count_" + name + "');", 1))
+            signatures = ['life_financial.' + name + '(uuid)']
+            if name == 'shared_capital_verified':
+                # Both complete original and same-invocation carry-aware paths
+                # are one logical capital proof. Keep corruption/freshness and
+                # the exactly-one-current-COMMIT-walk assertions unchanged.
+                signatures.append('life_financial.shared_capital_after_carry_proof(uuid,boolean)')
+            for signature in signatures:
+                definition = await c.fetchval('SELECT pg_get_functiondef(to_regprocedure($1))', signature)
+                await c.execute(definition.replace('BEGIN', "BEGIN PERFORM nextval('life_financial.test_count_" + name + "');", 1))
         before = await financial.balance(cfg.binding)
         cut = (await financial.snapshot(cfg.binding)).cut
         version, digest = financial._cut(cut, owner)

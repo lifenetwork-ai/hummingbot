@@ -1,5 +1,15 @@
 # LIFE: PostgreSQL and Cloud Run Implementation Plan (TDD)
 
+**Current whole-flow checkpoint (2026-10-21):** **358 affected regression tests**
+pass (**1326.95 s**) and **8 migration tests** pass (**15.01 s**). The separate
+final gate passes **5 post-write COMMIT tests** and **4 tracing contracts**, but
+its two-generation maker workload still fails after one generation at error-
+unwind age **1105.039 ms** with tracing/profiling disabled. Migrations 102/103
+reduce duplicate native-context and post-write proofs; actual before/after
+CAPTURE/DISPATCH backend-loss tests retain the current protocol. **No whole-flow
+latency improvement or PG3 closure is claimed.** See [implementation and final
+result](#whole-flow-optimization-implementation-2026-10-21).
+
 **Current quota/funding optimization checkpoint (2026-10-21):** **107 regression
 tests pass** in **491.84 s**, plus **3 migration tests** in **8.05 s**. Direct
 quota-profile comparison is about **1.69x** faster in its scoped microbenchmark;
@@ -7633,3 +7643,331 @@ in `test_postgres_service_load.py`, without skip/xfail or threshold changes.
 It remains outside the functional `service_trading` suite; the `all` suite
 includes it. Its known failure is part of the remaining PG3 acceptance work,
 not a passing result of this optimization commit.
+
+## Whole quote-flow performance review (2026-10-21)
+
+The next optimization unit is the complete configured quote flow, including
+history growth and failure handling. Function microbenchmarks cannot qualify it.
+The last 1009.831-ms error age is one failure observation, measured after error
+propagation; it is neither a successful HTTP-send latency nor a tail percentile.
+Being close to 1000 ms does not establish adequate operating margin.
+
+### Actual ordered flow and the budget boundary
+
+1. Before a V2 action exists: drain previous monetary/reporting work, read the
+   native model and producer configuration, collect proposal sources, allocate
+   shared capital/carry, and preflight publication. This affects quote-cycle
+   throughput and REST capacity, even though it precedes the action-age clock.
+2. Native capture/publication creates the permanent timestamped action and
+   commits its PROPOSED claim. The runner reads that committed claim, creates
+   the actual executor, then durably records DISPATCHED. Local acceptance and
+   sending stay denied until that second COMMIT is confirmed. These are separate
+   transactions; dispatch bookkeeping follows executor creation.
+3. Preparation collects complete account/market sources, with native context
+   reads before and after the signed provider rounds. It commits PREPARED.
+4. The actual authenticated SDK request guard collects another complete source,
+   again bracketed by native context reads, then attempts ARM. Successful ARM,
+   final synchronous one-use validation, HTTP and guarded ACK still follow.
+5. Only after the guarded quote application drains does the scheduling window
+   end. Monetary events and deferred reporting are then drained. The next side
+   or generation remains serialized by the maker loop.
+
+The two post-capture source collections are distinct revalidation boundaries,
+not automatically redundant evidence. Preserving the first source across a
+write or SDK await would change the current safety contract. Similarly, the
+existing same-cut/source-cut handoffs already avoid some redundant snapshots;
+reviewers must not propose removing reads that are already absent.
+
+### Measured cost in the failing flow
+
+Existing bounded diagnostics show the following ordered database operations:
+
+| Segment | Elapsed ms | COMMIT portion ms |
+| --- | ---: | ---: |
+| Native capture/publication | 184.3 | 78.4 |
+| Durable runner dispatch | 166.2 | 75.1 |
+| Preparation source: opening + closing native contexts | 164.0 | — |
+| PREPARE | 195.9 | 76.9 |
+| Final-guard source: opening + closing native contexts | 163.9 | — |
+| ARM attempt, rejected during SQL execution | 83.7 | none |
+
+Four native context reads alone total approximately **327.9 ms**. Three
+successful transaction COMMIT phases total approximately **230.5 ms**; this
+includes deferred SQL verification and is not evidence of slow WAL/fsync.
+Other runner/provider-publication/connection work also occurs in this interval.
+The complete diagnostic-call sum is about 1022.9 ms, but starts before the
+capture function issues the timestamp and ends after the ARM error. It must not
+be equated to the 1009.831-ms action age or used as a successful-send SLO.
+
+`joint_source_context` builds a full verified native `spot_state` and account-wide
+scope at each bracket. That re-enters overlapping historical proof/replay paths.
+Capture, dispatch, preparation, ARM and deferred constraints also independently
+revalidate history. This serial composition is the main remaining cost pattern;
+no single missing index or Python loop has been demonstrated to explain it.
+Migration 101 addresses paid-funding validation, so its isolated speedup must not
+be attributed to this SPOT workload with no new paid-funding observation.
+
+### Next implementation order within the existing PG3 scope
+
+- [ ] Add test-only monotonic spans keyed by original intent for proposal,
+  allocation, capture, dispatch, preparation collection, PREPARE, final collection,
+  ARM, actual HTTP, ACK and post-send accounting/reporting. Separate SQL execution,
+  deferred COMMIT checks, quota wait, provider HTTP and event-loop wait. Keep
+  diagnostics bounded and free of credentials/request payloads. Establish the
+  exact failing deadline predicate; the current core SQL mismatch code combines
+  timestamp and descriptor conditions.
+- [ ] Target the full native-context producer and its dependent proof graph on
+  one statement snapshot. Remove duplicate reconstruction/replay only when its
+  exact inputs and MVCC visibility are identical inside that invocation. Retain
+  fresh opening/closing boundaries, same-version corruption detection, source
+  facts and all permission checks. Avoid reviving the discarded broad helper
+  cloning prototype without an end-to-end benefit and differential proof.
+- [ ] Inspect account-update/deferred-trigger work per transaction, using the
+  existing grouped COMMIT verifier as the starting point. Measure remaining
+  repeated traversals before adding indexes or more proof plumbing. Combine
+  work within the same transaction only where independently reproducible checks
+  remain; no pre-write result may authorize a post-write COMMIT.
+- [ ] Evaluate fewer durable phases only as a separately specified alternative
+  if the preceding changes cannot create margin. Capture/dispatch/PREPARE/ARM
+  encode real crash and ownership boundaries. Merging them requires explicit
+  intermediate-state/recovery semantics, original operation receipts, pre-send
+  claims and before/after-COMMIT fault tests. It is not a safe mechanical removal
+  of a transaction or trigger.
+- [ ] Re-run the complete multi-generation flow with retained fills, concurrent
+  bounded SDK traffic, both quote sides and growing histories. Record original
+  deadline failures and successful HTTP/ACK phase timings separately; retain
+  economic/fault/role regressions. Only then run the fixed R2.3/R4/R5 exits.
+
+Reporting drains before a new quote and after ACK affect throughput and future
+history size; the current deferred reporting path already keeps it outside the
+original capture-to-ACK scheduling window. Removing it or moving monetary
+reconciliation behind a new risk decision is not justified by these timings.
+Parallel BUY/SELL work likewise needs account-version, shared-capital and SDK
+quota design; naive `gather` would introduce contention and causal conflicts.
+**PG3 remains open.** This review changes no executable code or acceptance limit.
+
+## Whole-flow optimization implementation (2026-10-21)
+
+This implements the flow review above as three bounded changes and a tested
+transaction-boundary decision. The original 1000-ms quote/source policies,
+financial budgets, quotas, durable operation IDs and single-send semantics stay
+unchanged. No real exchange/account or repository evidence artifact is used.
+
+### 1. Monotonic flow instrumentation
+
+`QuoteFlowTrace` lives under `test/` and is installed only by the opt-in load
+qualification. It assigns local quote ordinals and propagates them through the
+actual V2/SDK child tasks with a ContextVar. Fixed spans cover proposal, capital/
+carry allocation, publication preflight, native capture, durable runner dispatch,
+preparation source/transaction, final request authorization/source, ARM, fake
+signed HTTP, guarded ACK and monetary/reporting drains. Nested collection-lock
+and SDK quota waits are measured separately; overlapping spans must not be added
+as though they were disjoint.
+
+Core phase spans and high-volume HTTP/quota detail have separate bounded rings,
+so frequent quota polling cannot evict the whole earlier quote timeline. Each
+ring reports dropped samples. No SQL, arguments, credentials, URL queries,
+business IDs, response payloads or raw error text are captured. The workload
+annotates failures with its bounded spans; all logs remain under `/tmp`.
+Dedicated tests verify child-task correlation, bounded retention, cancellation,
+original exception identity, and HTTP argument redaction. The explicit runner
+entrypoint is `--suite service_load`; it includes the load case and trace tests.
+
+A disposable-only diagnostic hook, not shipped in migrations/runtime, identifies
+the actual core denial: `age_ms=1028.541000`, `max_ms=1000`, `future=false`,
+`amount_match=true`, `price_match=true`. The typed capture reaches ARM too late;
+this reproduced failure is not an amount/price mismatch. Error-unwind age
+1035.674 ms is a later measurement, not the age at the SQL predicate.
+
+### 2. Native-context proof reuse
+
+Migration 102 keeps an independent `carry_verified` call on every current root
+snapshot. That full proof independently checks every retained carry check and
+its referenced shared-capital operation. A private shared-capital helper may
+avoid checking the head operation again only when the carry proof is exactly
+TRUE and a retained carry check references that exact head operation. All other
+shared-capital head/policy/snapshot/claim/release predicates remain. Missing,
+invalid or unreferenced carry evidence takes the original full path.
+
+The snapshot composition passes this result directly between two private
+helpers inside one STABLE invocation. Independent public/diagnostic predecessor
+functions are unchanged. No intermediate verdict is stored in JSON/session state,
+persisted, carried across awaits/writes or accepted from runtime/reporting roles.
+The normal root still recomputes the current before/after native source contexts.
+
+### 3. Deferred COMMIT proof reuse
+
+The existing capital/carry/portfolio COMMIT group uses the same narrowly scoped
+carry-to-shared proof, independently after the write. Migration 103 additionally
+groups the existing funding-account and swap-fill-account constraints into one
+fresh STABLE call. Both original funding and swap-accounting verifiers still run.
+Only an exactly TRUE capital result from this same call avoids the second
+identical `spot_capital_verified` invocation. False/NULL or absent-policy paths
+retain the original complete checks. It does not infer a child verifier's TRUE
+result from a parent function with SQL NULL/early-return semantics.
+
+The two account triggers become one at the existing funding trigger position;
+remaining owner, source, time, recorder, risk and monetary-history publication
+triggers stay installed. These grouped historical checks perform no writes or
+clock-based admission. If multiple unrelated corruptions coexist, the first
+reported error can move earlier in deferred trigger ordering, while every
+original rejection predicate remains. Isolated failures retain their original
+funding/swap error codes. No constraint is replaced by a pre-write result.
+
+Migrations 102/103 pin predecessor bodies, security/volatility/search-path/return
+metadata and exact trigger shape, preserve independent functions, deny helper
+EXECUTE even under hostile default ACLs, and retain checksum-ledger repeat-start
+behavior. Applied migrations 1–101 are unchanged.
+
+### 4. Transaction fusion decision
+
+**Do not mechanically fuse CAPTURE and DISPATCH in the current protocol.** The
+real runner reads the committed PROPOSED claim before constructing its executor.
+DISPATCH is the acknowledgment of that already-created executor, and the local
+acceptance flag remains false until its COMMIT returns. One long uncommitted
+transaction would hide the claim from the independent reader or require a new
+provisional acceptance protocol and its recovery semantics. PREPARE/ARM likewise
+bracket another authenticated source and the original request guard; simply
+moving them together removes an existing revalidation boundary.
+
+New real-service tests terminate the physical PostgreSQL backend before/after
+CAPTURE and DISPATCH COMMIT. Independent connection reads assert the expected
+pre-COMMIT visibility and actual executor count, then verify durable
+absence/PROPOSED/DISPATCHED state after connection loss. No SDK order is posted,
+original shared capital remains held, no monetary reservation is invented, and
+uncertain dispatch cannot set local acceptance. Reporting may explicitly refuse
+an executor after uncertain dispatch (`PG_RECORDER_ORIGIN_INVALID`); shutdown
+must surface that failure while closing both pools and clearing pending counts.
+This tests the fusion decision without introducing an unsafe merged endpoint.
+
+### Loaded result and qualification boundary
+
+The phase-traced two-generation retained-fill gate (without function profiling)
+with migrations 102/103 still
+fails after one completed generation: original error-unwind age **1019.716 ms**,
+with **3 trace tests passing / 1 load test failing**, **106.74 s**. The final
+quote's preparation source is about **220.5 ms** and its final source about
+**239.8 ms**. Dispatch is about **167.8 ms**, PREPARE **201.4 ms**, and rejected ARM
+**86.4 ms**. The core SQL diagnosis above comes from a separate instrumented run;
+it must not be presented as the predicate timing of this unprofiled run.
+
+The earlier profiled comparison reduces `shared_operation_verified` calls from
+1876 to 1527 (349 fewer) on the same bounded workload, but instrumentation and
+run-to-run variation prevent claiming a whole-service latency distribution.
+The source-boundary and post-write proofs still dominate the flow. Functional
+proof reductions do not discharge the loaded deadline or fixed R2.3/R4/R5 exits.
+**PG3 remains open.**
+
+### Throughput is separate from capture freshness
+
+The same traced failure takes about 6.1 seconds for the full quote call. Proposal
+is about 643 ms, capital/carry allocation about 2836 ms, publication preflight
+about 87 ms, and capture/publication about 1593 ms. Those intervals include
+pre-capture quota waiting; a 1593-ms capture/publication span is not a 1593-ms
+issued action. The native capture timestamp is created only after the original
+quiet-window wait and pre-capture validation.
+
+`PgSharedSdkQuota.collection` deliberately waits for outstanding REST intervals
+to clear before starting fresh evidence. Proposal, preallocation and native
+capture can therefore wait before the one-second capture clock. Actual SDK
+limits and signed account-configuration brackets still gate later requests.
+This is a separate quote-turnover/cadence cost. Reducing SQL alone cannot be
+claimed to remove it. Blindly overlapping BUY/SELL work or caching account
+configuration would change the current account-wide freshness/causality contract.
+The recorded flow separates this scheduling work from the capture-to-HTTP path.
+
+The core monotonic/HTTP/quota instrumentation is opt-in through the test-only
+`LIFE_PG_TEST_FLOW_TRACE=1` environment variable. No repository `.env` is read.
+The normal `--suite service_load` acceptance run leaves this tracing disabled,
+so a deadline near 1000 ms cannot be qualified or blamed on profiler overhead.
+The trace helper's dedicated tests still run in that suite.
+
+```sh
+# Normal acceptance, phase tracing disabled by default.
+python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_postgres \
+  --suite service_load --fail-fast --output /tmp/life-pg3-flow-untraced
+# Explicit diagnostic run; same policies and financial workload.
+LIFE_PG_TEST_FLOW_TRACE=1 \
+  python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_postgres \
+  --suite service_load --fail-fast --output /tmp/life-pg3-flow-traced
+```
+
+
+### Qualified affected regression and migration gates
+
+On the unchanged **1415 production/SQL files**, disposable PostgreSQL 16
+(**2 CPU / 1 GiB**) passes **358 affected regression tests**, zero failures/errors/
+skips, six existing warnings, **1326.95 s**. This includes native carry/shared
+capital, both new proof-composition matrices, absent-policy and unreferenced-head
+fallbacks, funding/cohort/signed repair, SWAP fills/accounting, portfolio/cashflow
+repair, configured partial SPOT fills, signed restart repair, quota cancellation,
+actual BUY/SELL runner quotes, physical source/publication/PREPARE/ARM loss and
+all four new physical CAPTURE/DISPATCH before/after-COMMIT cases. The capture and
+dispatch boundaries retain the exact original durable states and monetary holds.
+
+The dedicated migration gate passes **8 tests**, zero failures/errors/skips,
+**15.01 s**, covering version-101/102 upgrade, repeat startup, preserved independent
+functions/ACLs, hostile deployment defaults, drifted predecessor bodies, altered
+search paths and disabled/changed deferred triggers. All production/SQL hashes
+are unchanged across the regression; trace-only test logging was isolated and
+its latest four unit contracts pass separately (**0.10 s**).
+
+The original post-write-corruption test still requires one fresh logical carry,
+shared-capital and release proof after the command's old-state checks. Its
+instrumentation now counts both the independent and carry-aware shared-capital
+entrypoints as that same logical proof. Its economic rollback, corruption and
+exactly-one-current-COMMIT-walk assertions remain unchanged.
+
+```sh
+PYTEST_ADDOPTS='-k "test_postgres_flow_proofs or test_postgres_money_commit_group or quote_phase_boundaries or test_flow_trace or test_postgres_carry or test_postgres_shared_capital or test_postgres_funding or test_postgres_swap_fills or test_postgres_swap_accounting or test_postgres_portfolio or test_postgres_cashflow_repair or configured_spot_partial_fill or configured_pending_fill or cancelled_configured_quote_releases or configured_native_quote_uses_real or (test_postgres_service_spot_backend and (publication or prepare or arm))"' \
+  python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_postgres \
+  --suite all --fail-fast --output /tmp/life-pg3-flow-qualified-regression
+PYTEST_ADDOPTS='-k "account_money_group_upgrade or flow_carry_proof_upgrade"' \
+  python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_migrations \
+  --output /tmp/life-pg3-flow-final-migrations
+```
+
+
+### Final acceptance result with tracing disabled
+
+On the final **2532-file code/SQL pin**, the separate gate passes all **5**
+post-write-corruption/COMMIT proof tests and **4** current tracing contracts.
+The actual two-generation maker workload still fails after **one completed
+generation**, reporting original error-unwind quote age **1105.039 ms** against
+the unchanged **1000-ms** policy (**9 pass / 1 fail**, **122.67 s**, six existing
+warnings). `LIFE_PG_TEST_FLOW_TRACE` is explicitly unset; neither phase tracing,
+Python profiling nor PostgreSQL function profiling is enabled in this gate.
+
+This confirms a remaining loaded deadline failure without tracing. The reported
+age is captured during error unwind, not the exact SQL/HTTP boundary or a tail
+percentile. The 1006/1019/1105-ms measurements come from separate runs with
+varying instrumentation and scheduler/DB timing; they do not demonstrate an
+end-to-end latency improvement or adequate margin. Only the duplicate proof
+walk reductions and functional/recovery equivalence are qualified here.
+
+```sh
+env -u LIFE_PG_TEST_FLOW_TRACE \
+  PYTEST_ADDOPTS='-k "configured_makers_replenish or test_postgres_commit_proofs or test_flow_trace"' \
+  python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_postgres \
+  --suite all --fail-fast --output /tmp/life-pg3-flow-final-untraced
+```
+
+### Requested four-item result
+
+- [x] Implement bounded, opt-in original-quote flow spans, separate quota/HTTP/
+  DB phase analysis, and diagnose the reproduced exact SQL capture-age denial.
+- [x] Reduce one duplicate capital-operation proof in each eligible native
+  snapshot invocation; qualify equal outputs, corrupt-data refusal and fallback.
+- [x] Reduce repeated post-write proof work within COMMIT; retain independent
+  domain checks and qualify actual rollback, repair, faults and source clocks.
+- [x] Evaluate phase fusion against actual executor visibility and before/after
+  physical COMMIT loss. Keep CAPTURE/DISPATCH/PREPARE/ARM boundaries under the
+  current protocol; no unsafe merged endpoint is introduced.
+- [ ] Resolve the remaining two-generation loaded deadline, establish margin
+  across retained-history growth, then complete the fixed R2.3/R4/R5 gates.
+
+The next implementation needs to target the remaining complete source/proof
+path or explicitly design a new acceptance/recovery protocol. Another isolated
+microbenchmark or a successful single quote cannot close this item. **PG3 stays
+open.** No default, financial budget, quota, timestamp or source predicate is
+weakened by this work.

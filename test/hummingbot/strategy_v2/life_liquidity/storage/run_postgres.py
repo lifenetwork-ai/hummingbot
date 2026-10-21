@@ -17,7 +17,7 @@ def main():
     import asyncpg  # noqa: F401 -- mandatory for this opt-in real-process runner.
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--suite', choices=('all', 'recorder_queries', 'recorder_proofs', 'codecs', 'commit_proofs', 'snapshot_proofs', 'service', 'service_trading', 'release_source', 'foundation', 'spot_producer', 'spot_allocation', 'spot_market_send', 'spot_market', 'joint_history', 'joint_intake', 'quote_composition', 'runner_startup', 'hedge_source', 'r2_integration', 'maker_cancellation', 'hedge_composition', 'r3_control', 'r3_risk', 'recorder', 'capital', 'session', 'lifecycle', 'actions', 'action_prepare', 'action_reconcile', 'action_abandon', 'runner_journal', 'provider_collection', 'quote_arm', 'quote_transport', 'quote_source', 'outbox', 'configuration', 'events', 'positions', 'reporting_application', 'approval_import', 'ack_ingress', 'observation_context', 'financial_ingress', 'financial_collection', 'inventory_settlement', 'markout', 'carry', 'swap', 'swap_accounting', 'swap_fills', 'funding', 'funding_repair', 'funding_cohort', 'swap_repair', 'spot_repair', 'cashflow_repair', 'terminal_repair', 'spot_recovery_paths', 'portfolio', 'swap_terminal', 'shared_release', 'joint_batch', 'joint_repair', 'hedge', 'swap_transport', 'collateral', 'joint_source', 'r1_accounting', 'joint_recovery', 'legacy_applying', 'legacy_joint', 'legacy_imports', 'late_capital'), default='all')
+    parser.add_argument('--suite', choices=('all', 'recorder_queries', 'recorder_proofs', 'codecs', 'commit_proofs', 'snapshot_proofs', 'service', 'service_trading', 'service_load', 'release_source', 'foundation', 'spot_producer', 'spot_allocation', 'spot_market_send', 'spot_market', 'joint_history', 'joint_intake', 'quote_composition', 'runner_startup', 'hedge_source', 'r2_integration', 'maker_cancellation', 'hedge_composition', 'r3_control', 'r3_risk', 'recorder', 'capital', 'session', 'lifecycle', 'actions', 'action_prepare', 'action_reconcile', 'action_abandon', 'runner_journal', 'provider_collection', 'quote_arm', 'quote_transport', 'quote_source', 'outbox', 'configuration', 'events', 'positions', 'reporting_application', 'approval_import', 'ack_ingress', 'observation_context', 'financial_ingress', 'financial_collection', 'inventory_settlement', 'markout', 'carry', 'swap', 'swap_accounting', 'swap_fills', 'funding', 'funding_repair', 'funding_cohort', 'swap_repair', 'spot_repair', 'cashflow_repair', 'terminal_repair', 'spot_recovery_paths', 'portfolio', 'swap_terminal', 'shared_release', 'joint_batch', 'joint_repair', 'hedge', 'swap_transport', 'collateral', 'joint_source', 'r1_accounting', 'joint_recovery', 'legacy_applying', 'legacy_joint', 'legacy_imports', 'late_capital'), default='all')
     parser.add_argument('--fail-fast', action='store_true', help='Stop at the first failure while retaining the original log/XML')
     parser.add_argument('--linux-image', help='Immutable locally built image ID; recorder suite only')
     args = parser.parse_args()
@@ -156,8 +156,10 @@ def main():
         elif args.suite == 'quote_source':
             selector /= 'test_postgres_quote_account_source.py'
         selectors = [str(selector)]
+        if args.suite == 'service_load':
+            selectors = [str(selector / ('test_' + name + '.py')) for name in ('flow_trace', 'postgres_service_load')]
         if args.suite == 'service_trading':
-            selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in ('service_trading', 'service_hedge', 'service_replay', 'service_process', 'service_swap_process', 'service_backend', 'service_spot_backend', 'service_fills', 'service_repair')]
+            selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in ('service_trading', 'service_hedge', 'service_replay', 'service_process', 'service_swap_process', 'service_backend', 'service_spot_backend', 'service_fills', 'service_repair', 'quote_phase_boundaries')]
         if args.suite == 'runner_journal':
             selectors = [str(selector.parent / ('test_postgres_' + name + '.py')) for name in ('runner_journal', 'native_capture')]
         if args.suite == 'provider_collection':
@@ -226,8 +228,10 @@ def main():
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in ('control', 'successor_control')]
         if args.suite == 'carry':
             selectors.append(str(selector.with_name('test_postgres_carry_proof_reuse.py')))
+            selectors.append(str(selector.with_name('test_postgres_flow_proofs.py')))
         if args.suite == 'funding':
             selectors.append(str(selector.with_name('test_postgres_funding_history_reuse.py')))
+            selectors.append(str(selector.with_name('test_postgres_money_commit_group.py')))
         if args.suite == 'legacy_imports':
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in ('legacy_applying', 'legacy_core_cashflows', 'legacy_spot', 'legacy_joint', 'coupled_ack', 'file_recovery_history', 'completed_outer_history', 'outer_recovery_history', 'unfilled_swap', 'joint_trade_ids', 'received_observations')]
         if args.suite == 'joint_source':
@@ -241,7 +245,7 @@ def main():
                 'transactions', 'lifecycle', 'inventory_settlement', 'collateral', 'collateral_source',
                 'joint_source', 'joint_account_source', 'financial_source', 'financial_observer',
                 'financial_dedup', 'provider_journal', 'command_fingerprint', 'joint_batch', 'joint_repair', 'swap_fills',
-                'swap_accounting', 'funding', 'funding_history_reuse', 'funding_repair', 'funding_cohort', 'swap_repair',
+                'swap_accounting', 'funding', 'funding_history_reuse', 'flow_proofs', 'money_commit_group', 'funding_repair', 'funding_cohort', 'swap_repair',
                 'spot_repair', 'cashflow_repair', 'terminal_repair', 'portfolio', 'portfolio_math',
                 'swap_terminal', 'shared_release', 'late_capital')]
         if args.suite == 'joint_recovery':

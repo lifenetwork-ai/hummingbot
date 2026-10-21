@@ -1,0 +1,74 @@
+"""Whole snapshot/COMMIT equivalence for same-invocation capital proof reuse."""
+from dataclasses import replace
+from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_carry import setup
+
+import pytest
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('state', ['qualified', 'pending', 'denied', 'capital_corrupt', 'carry_corrupt', 'unreferenced_head'])
+async def test_flow_snapshot_and_commit_keep_original_proofs_with_fewer_shared_operation_walks(database, state):
+    c = database[0]
+    helper = 'life_financial.shared_capital_after_carry_proof(uuid,boolean)'
+    assert await c.fetchval('SELECT to_regprocedure($1) IS NOT NULL', helper)
+    # Explicit synthetic matrix policy, separate from the unchanged 1000-ms
+    # loaded/service gates; preserve one original lease throughout this test.
+    financial, cfg, owner, _, account_feed, capital, _, _, repo = await setup(database, max_age_ms=60000, refresh_initial_facts=True)
+    try:
+        if state != 'pending':
+            if state == 'denied':
+                repo.observation = lambda: None
+            assert (await repo.check_carry(cfg.binding)).allowed is (state != 'denied')
+        if state == 'unreferenced_head':
+            at = int((await c.fetchval('SELECT clock_timestamp()')).timestamp() * 1000)
+            account_feed[0] = replace(account_feed[0], sequence=2, observed_at_ms=at)
+            assert (await capital.check_capital(cfg.binding)).allowed
+        if state in ('capital_corrupt', 'carry_corrupt'):
+
+            kind = 'SHARED_CAPITAL' if state == 'capital_corrupt' else 'CARRY_CHECK'
+            await c.execute('ALTER TABLE life_financial.operations DISABLE TRIGGER USER')
+            await c.execute("UPDATE life_financial.operations SET receipt=receipt||'{\"changed\":\"corrupt\"}'::jsonb WHERE account_id=$1 AND command->>'kind'=$2", cfg.account_id, kind)
+            await c.execute('ALTER TABLE life_financial.operations ENABLE TRIGGER USER')
+        await c.execute('INSERT INTO life_financial.access_bindings VALUES(current_user,$1,false)', cfg.account_id)
+        definition = await c.fetchval("SELECT pg_get_functiondef('life_financial.spot_body_before_swap(uuid)'::regprocedure)")
+        needle = """IF NOT life_financial.can_access(p_account) THEN RAISE EXCEPTION 'LIFE_ACCOUNT_SCOPE_INVALID' USING ERRCODE='P0001';END IF;
+    verified:=life_financial.carry_verified(p_account);
+    b:=life_financial.spot_body_with_carry_proof(p_account,verified);
+    ready:=life_financial.carry_ready_after_verification(p_account,verified);"""
+        assert definition.count(needle) == 1
+        prior = definition.replace('life_financial.spot_body_before_swap(', 'life_financial.test_prior_flow_body(', 1)
+        prior = prior.replace(
+            needle,
+            'b:=life_financial.spot_body_before_carry(p_account); verified:=life_financial.carry_verified(p_account); ready:=life_financial.carry_ready_after_verification(p_account,verified);')
+        await c.execute(prior)
+        await c.execute('REVOKE ALL ON FUNCTION life_financial.test_prior_flow_body(uuid) FROM PUBLIC')
+        await c.execute('CREATE SEQUENCE life_financial.test_shared_walks MINVALUE 0 START 0')
+        full = await c.fetchval("SELECT pg_get_functiondef('life_financial.shared_operation_verified(uuid,text)'::regprocedure)")
+        await c.execute(full.replace('BEGIN', "BEGIN PERFORM nextval('life_financial.test_shared_walks');", 1))
+        values, counts = [], []
+        for name in ('spot_body_before_swap', 'test_prior_flow_body'):
+            await c.fetchval("SELECT setval('life_financial.test_shared_walks',0,false)")
+            values.append(await c.fetchval(f'SELECT life_financial.{name}($1)::text', cfg.account_id))
+            counts.append(await c.fetchval('SELECT CASE WHEN is_called THEN last_value+1 ELSE 0 END FROM life_financial.test_shared_walks'))
+        assert values[0] == values[1]
+        assert counts[1] == counts[0] + (state in ('qualified', 'denied')), counts
+        if state == 'qualified':
+            commit = await c.fetchval("SELECT pg_get_functiondef('life_financial.capital_carry_portfolio_commit_check(uuid,bigint)'::regprocedure)")
+            needle = 'shared_ok:=life_financial.shared_capital_after_carry_proof(p_account,carry_ok);'
+            assert commit.count(needle) == 1
+            prior = commit.replace('life_financial.capital_carry_portfolio_commit_check(', 'life_financial.test_prior_flow_commit(', 1)
+            prior = prior.replace(needle, 'shared_ok:=life_financial.shared_capital_verified(p_account);')
+            await c.execute(prior)
+            await c.execute('REVOKE ALL ON FUNCTION life_financial.test_prior_flow_commit(uuid,bigint) FROM PUBLIC')
+            counts = []
+            version = await c.fetchval('SELECT version FROM life_financial.accounts WHERE account_id=$1', cfg.account_id)
+            for name in ('capital_carry_portfolio_commit_check', 'test_prior_flow_commit'):
+                await c.fetchval("SELECT setval('life_financial.test_shared_walks',0,false)")
+                await c.execute(f'SELECT life_financial.{name}($1,$2)', cfg.account_id, version)
+                counts.append(await c.fetchval('SELECT last_value+1 FROM life_financial.test_shared_walks'))
+            assert counts[1] == counts[0] + 1
+        for signature in (helper, 'life_financial.spot_body_with_carry_proof(uuid,boolean)'):
+            for role in ('life_pg2_runtime', 'life_pg2_reporter'):
+                assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", role, signature)
+    finally:
+        await financial.close()

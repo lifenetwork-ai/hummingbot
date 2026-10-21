@@ -1,5 +1,14 @@
 # LIFE storage contracts
 
+**Current whole-flow checkpoint (2026-10-21):** **358 affected regression tests**
+and **8 migration tests** pass. Migrations 102/103 reduce duplicate same-snapshot
+and post-write capital proofs; opt-in test spans cover the actual quote flow.
+Physical CAPTURE/DISPATCH loss preserves the existing acceptance protocol.
+The final untraced maker workload still fails after one generation at reported
+quote age **1105.039 ms** against the unchanged **1000-ms** policy. **PG3 and
+R2.3/R4/R5 remain open; no whole-flow latency improvement is claimed.** See
+[implementation and final result](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#whole-flow-optimization-implementation-2026-10-21).
+
 **Quota/funding optimization (2026-10-21):** **107 affected regression tests**
 and **3 migration tests** pass. SDK profile pins compare all current fields on
 every invocation without reconstructing/sorting complete signatures. Migration

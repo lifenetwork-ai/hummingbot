@@ -3605,3 +3605,84 @@ async def test_funding_history_upgrade_retains_acl_and_rejects_partial_validator
         for role in ('public', 'life_runtime_test', 'life_reporter_test'):
             assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", role, helper)
         assert await c.fetchval('SELECT count(*) FROM life_financial.accounts') == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('drift', ['none', 'carry_body', 'commit_body', 'search_path'])
+async def test_flow_carry_proof_upgrade_preserves_independent_entrypoints_and_private_acl(db, drift):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 102:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    target = ('life_financial.capital_carry_portfolio_commit_check(uuid,bigint)' if drift == 'commit_body'
+              else 'life_financial.carry_check_verified(uuid,text)')
+    if drift in ('carry_body', 'commit_body'):
+        source = await c.fetchval('SELECT pg_get_functiondef(to_regprocedure($1))', target)
+        await c.execute(source.replace('BEGIN', 'BEGIN\n-- drifted ancestor\n', 1))
+    elif drift == 'search_path':
+        await c.execute('ALTER FUNCTION ' + target + ' SET search_path=pg_catalog,public')
+    await c.execute('ALTER DEFAULT PRIVILEGES IN SCHEMA life_financial GRANT EXECUTE ON FUNCTIONS TO PUBLIC,life_runtime_test,life_reporter_test')
+    independent = ('life_financial.shared_capital_verified(uuid)', 'life_financial.spot_body_before_carry(uuid)',
+                   'life_financial.carry_verified(uuid)', 'life_financial.carry_check_verified(uuid,text)')
+    before = {name: await c.fetchval('SELECT pg_get_functiondef(to_regprocedure($1))', name) for name in independent}
+    parent = 'life_financial.spot_body_before_swap(uuid)'
+    acl = await c.fetchval('SELECT proacl::text FROM pg_proc WHERE oid=to_regprocedure($1)', parent)
+    path = DEFAULT_DIRECTORY / '000102_flow_carry_proof.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    if drift != 'none':
+        with pytest.raises(asyncpg.RaiseError, match='LIFE_FLOW_CARRY_REUSE_MIGRATION_MISMATCH'):
+            await migrate(c, directory, action='up')
+        assert (await versions(c))[-1]['version'] == 101
+        assert not await c.fetchval("SELECT to_regprocedure('life_financial.shared_capital_after_carry_proof(uuid,boolean)') IS NOT NULL")
+    else:
+        assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+        assert (await migrate(c, directory, action='up'))['applied'] == []
+        assert await c.fetchval('SELECT proacl::text FROM pg_proc WHERE oid=to_regprocedure($1)', parent) == acl
+        for helper in ('life_financial.shared_capital_after_carry_proof(uuid,boolean)', 'life_financial.spot_body_with_carry_proof(uuid,boolean)'):
+            for role in ('public', 'life_runtime_test', 'life_reporter_test'):
+                assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", role, helper)
+    assert before == {name: await c.fetchval('SELECT pg_get_functiondef(to_regprocedure($1))', name) for name in independent}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('drift', ['none', 'body', 'disabled_trigger', 'trigger_condition'])
+async def test_account_money_group_upgrade_preserves_other_guards_and_rejects_drift(db, drift):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 103:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    if drift == 'body':
+        definition = await c.fetchval("SELECT pg_get_functiondef('life_financial.funding_commit_guard()'::regprocedure)")
+        await c.execute(definition.replace('BEGIN', 'BEGIN\n-- drifted money constraint\n', 1))
+    elif drift == 'disabled_trigger':
+        await c.execute('ALTER TABLE life_financial.accounts DISABLE TRIGGER funding_account_commit')
+    elif drift == 'trigger_condition':
+        await c.execute('DROP TRIGGER swap_fill_at_commit ON life_financial.accounts')
+        await c.execute('''CREATE CONSTRAINT TRIGGER swap_fill_at_commit AFTER UPDATE ON life_financial.accounts
+            DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.version>OLD.version)
+            EXECUTE FUNCTION life_financial.swap_fill_commit_guard()''')
+    query = "SELECT tgname,pg_get_triggerdef(oid) definition FROM pg_trigger WHERE tgrelid='life_financial.accounts'::regclass AND NOT tgisinternal ORDER BY tgname"
+    before = {r['tgname']: r['definition'] for r in await c.fetch(query)}
+    originals = {name: await c.fetchval('SELECT pg_get_functiondef(to_regprocedure($1))', name)
+                 for name in ('life_financial.funding_commit_guard()', 'life_financial.swap_fill_commit_guard()')}
+    await c.execute('ALTER DEFAULT PRIVILEGES IN SCHEMA life_financial GRANT EXECUTE ON FUNCTIONS TO PUBLIC,life_runtime_test,life_reporter_test')
+    path = DEFAULT_DIRECTORY / '000103_account_money_commit_group.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    if drift != 'none':
+        with pytest.raises(asyncpg.RaiseError, match='LIFE_ACCOUNT_MONEY_GROUP_(MIGRATION|TRIGGER)_MISMATCH'):
+            await migrate(c, directory, action='up')
+        assert before == {r['tgname']: r['definition'] for r in await c.fetch(query)}
+        assert (await versions(c))[-1]['version'] == 102
+    else:
+        assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+        assert (await migrate(c, directory, action='up'))['applied'] == []
+        after = {r['tgname']: r['definition'] for r in await c.fetch(query)}
+        for name in before.keys() - {'funding_account_commit', 'swap_fill_at_commit'}:
+            assert after[name] == before[name]
+        assert 'swap_fill_at_commit' not in after and 'account_money_commit_guard()' in after['funding_account_commit']
+        for signature in ('life_financial.account_money_commit_check(uuid)', 'life_financial.account_money_commit_guard()'):
+            for role in ('public', 'life_runtime_test', 'life_reporter_test'):
+                assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", role, signature)
+    assert originals == {name: await c.fetchval('SELECT pg_get_functiondef(to_regprocedure($1))', name) for name in originals}

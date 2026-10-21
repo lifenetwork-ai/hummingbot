@@ -1,6 +1,7 @@
 """Configured retained-fill maker cycles with real shared SDK quota contention."""
 import asyncio
 import json
+import os
 import time
 from datetime import timedelta
 from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_service_cycle import cancellation_feed
@@ -13,7 +14,9 @@ from hummingbot.core.data_type.common import TradeType
 
 
 @pytest.mark.asyncio
-async def test_configured_makers_replenish_after_fill_history_with_competing_shared_sdk_reads(database):
+async def test_configured_makers_replenish_after_fill_history_with_competing_shared_sdk_reads(database, monkeypatch):
+    from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.flow_trace import QuoteFlowTrace
+    trace = QuoteFlowTrace(monkeypatch).install() if os.environ.get('LIFE_PG_TEST_FLOW_TRACE') == '1' else None
     values = {}
 
     def model(body):
@@ -24,6 +27,8 @@ async def test_configured_makers_replenish_after_fill_history_with_competing_sha
         independent_fill_value=lambda product, trade, at: values[(product, trade)],
         spot_overrides=dict(owner_duration=timedelta(seconds=300), session_duration=timedelta(seconds=360)))
     stream, traffic, primary = None, None, None
+    if trace is not None:
+        trace.http(t.session)
     request_times = []
     try:
         f = await partial_spot_fill(t, service, values, TradeType.BUY, 'USDT')
@@ -74,6 +79,10 @@ async def test_configured_makers_replenish_after_fill_history_with_competing_sha
         assert service.runtime.healthy
     except BaseException as error:
         primary = error
+        if trace is not None:
+            error.add_note('bounded_monotonic_flow=' + json.dumps(trace.rows()))
+            error.add_note('flow_spans_dropped=' + str(trace.dropped))
+            error.add_note('flow_detail_spans_dropped=' + str(trace.details_dropped))
         error.add_note('completed_maker_cycles=' + str(service.makers.completed_cycles))
         if request_times:
             origin = request_times[0][2]
