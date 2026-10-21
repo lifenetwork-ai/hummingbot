@@ -1,6 +1,18 @@
 # LIFE storage contracts
 
-**Current whole-flow checkpoint (2026-10-21):** **358 affected regression tests**
+**Current bounded PostgreSQL decision (2026-10-21):** a disposable audit-bundle
+trial reduces sampled snapshot work but still fails the unchanged 1000-ms maker
+deadline; its 41 helper copies are rejected for production. Test-only tracing
+now separates DB/COMMIT phases and preserves CAPTURE/order-HTTP interval bounds
+through quota-detail truncation. The proposed provisional-runner/atomic-prepare
+protocol has a fixed-birth and physical-failure design; it is not implemented or
+enabled. **PG3 and R2.3/R4/R5 remain open.** See the
+[decision and next protocol](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#bounded-proof-graph-experiment-and-protocol-decision-2026-10-21).
+The final untraced gate has **18 pass / 1 fail**: all 13 tracing contracts and
+five COMMIT tests pass; the maker workload still expires at reported unwind age
+**1030.515 ms**, before one complete generation. Production/SQL sources are unchanged.
+
+**Previous whole-flow checkpoint (2026-10-21):** **358 affected regression tests**
 and **8 migration tests** pass. Migrations 102/103 reduce duplicate same-snapshot
 and post-write capital proofs; opt-in test spans cover the actual quote flow.
 Physical CAPTURE/DISPATCH loss preserves the existing acceptance protocol.

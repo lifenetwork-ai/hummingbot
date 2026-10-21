@@ -1,6 +1,18 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
-**Current whole-flow checkpoint (2026-10-21):** **358 affected regression tests**
+**Current bounded PostgreSQL decision (2026-10-21):** the same-statement
+proof-graph trial still fails the original 1000-ms maker workload and requires
+41 helper copies; it is rejected for production. Test diagnostics now bound
+native birth to order-HTTP entry and distinguish physical DB/COMMIT phases.
+The next protocol candidate specifies a fixed birth, provisional executor and
+atomic preparation, with explicit unknown-COMMIT recovery and original final
+source/ARM guards. It is a design, not an enabled route. **PG3 and R2.3/R4/R5
+remain open.** See the [experiment and next protocol](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#bounded-proof-graph-experiment-and-protocol-decision-2026-10-21).
+Final separate gate: **13 tracing contracts + 5 COMMIT tests pass**; the untraced
+maker workload fails at reported unwind age **1030.515 ms**, before completing a
+generation (**18 pass / 1 fail**, **69.05 s**). Production/SQL sources are unchanged.
+
+**Previous whole-flow checkpoint (2026-10-21):** **358 affected regression tests**
 and **8 migration tests** pass. Migrations 102/103 reduce duplicate same-snapshot
 and post-write capital proofs; opt-in test spans cover the actual quote flow.
 Physical CAPTURE/DISPATCH loss preserves the existing acceptance protocol.

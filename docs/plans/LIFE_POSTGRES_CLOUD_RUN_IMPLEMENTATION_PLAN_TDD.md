@@ -1,6 +1,21 @@
 # LIFE: PostgreSQL and Cloud Run Implementation Plan (TDD)
 
-**Current whole-flow checkpoint (2026-10-21):** **358 affected regression tests**
+**Current bounded proof-graph decision (2026-10-21):** the fixed retained-fill,
+two-generation workload still fails. A disposable same-statement audit bundle
+reduced sampled native-context work but moved the observed rejection into ARM
+COMMIT; it did not pass the original 1000-ms gate. Its 41 helper copies are
+**rejected for production**. Opt-in diagnostics now distinguish physical
+CAPTURE/COMMIT boundaries and HTTP entry, with monotonic birth-interval bounds
+and explicit incomplete-detail reporting. The next candidate is a designed
+provisional-runner/atomic-preparation protocol, with the original clocks and
+financial guards retained. **R2.3/R4/R5 and PG3 remain open.** See the
+[bounded experiment and protocol design](#bounded-proof-graph-experiment-and-protocol-decision-2026-10-21).
+Final qualification: **13 tracing contracts + 5 post-write COMMIT tests pass**;
+the untraced maker workload still fails at reported unwind age **1030.515 ms**,
+before completing a maker generation (**18 pass / 1 fail**, **69.05 s**).
+The dated checkpoints below retain their original revision-specific results.
+
+**Previous whole-flow checkpoint (2026-10-21):** **358 affected regression tests**
 pass (**1326.95 s**) and **8 migration tests** pass (**15.01 s**). The separate
 final gate passes **5 post-write COMMIT tests** and **4 tracing contracts**, but
 its two-generation maker workload still fails after one generation at error-
@@ -7971,3 +7986,201 @@ path or explicitly design a new acceptance/recovery protocol. Another isolated
 microbenchmark or a successful single quote cannot close this item. **PG3 stays
 open.** No default, financial budget, quota, timestamp or source predicate is
 weakened by this work.
+
+## Bounded proof-graph experiment and protocol decision (2026-10-21)
+
+### Fixed workload and measurement contract
+
+Use `test_configured_makers_replenish_after_fill_history_with_competing_shared_sdk_reads`
+unchanged: one retained actual SPOT partial fill and cancellation, two maker
+generations, BUY/SELL replacement, and four competing account-UID reads through
+the original two SDKs/shared quota. PostgreSQL 16 runs in the existing disposable
+2-CPU/1-GiB container. The service, V2 dispatcher, executors, authenticated SDK,
+fake exchange, financial budgets and all 1000-ms capture/source policies remain
+the existing ones. SQL/source deadlines and owner/session durations are not
+renewed by the experiment. The workload grows retained action/release history;
+an early failure cannot establish performance for later history sizes.
+
+The opt-in `QuoteFlowTrace` now records four physical DB admissions and their
+COMMIT attempts independently: CAPTURE, DISPATCH, PREPARE and ARM. Successful
+CAPTURE admission starts before the backend creates the timestamp and returns
+after confirmed COMMIT/pool release. Therefore, at original order-HTTP entry:
+
+```text
+HTTP entry - CAPTURE return <= elapsed since native birth
+                           <= HTTP entry - CAPTURE admission start
+```
+
+These are bounds from one monotonic clock, not a host-vs-DB wall-clock estimate,
+a financial verdict, or the exact SQL birth instant. A refused ARM reports only
+the interval to its admission start; error unwind is not HTTP entry or the exact
+denial instant. Unknown/failed/multiple captures or endpoints yield no bounds.
+Any dropped core spans suppress bounds. DB/COMMIT and order-HTTP spans share the
+bounded core ring; high-volume quota polling/private source HTTP use a separate
+ring and cannot evict these endpoints. Detail truncation is explicitly reported,
+so its counts/durations are not presented as a complete trace. Nested source,
+context, authorization, transaction and COMMIT spans overlap and must not be
+summed as independent latency.
+
+Diagnostics remain test-only and off by default. They retain fixed operation
+labels/local quote ordinals and durations, not arguments, business IDs, SQL,
+credentials, raw exception messages or responses. Original exceptions,
+cancellation, task context, one-use source cuts and request guards are retained.
+
+### Bounded audit-bundle trial: reject
+
+The baseline and temporary SQL trial use separate fresh disposable databases and
+the same workload/resource policy. The prototype is kept under `/tmp` only; it
+is not a migration or runtime route. Within each original STABLE snapshot, it
+computes fresh funding, SWAP accounting, SPOT accounting, capital and lifecycle
+proofs in dependency order, passing the positive results through private helper
+arguments. A non-TRUE proof falls back to the independent original snapshot.
+There is no cross-statement, transaction/GUC, persisted or application verdict
+cache. COMMIT and both authenticated source rounds remain independent.
+
+The required graph reaches **41 helper copies**, plus five proof-computation
+helpers and one independent original-body helper. This is a diagnostic prototype;
+complete corruption/role/NULL/economic equivalence is not qualified for it.
+
+| Observed last attempted quote | Baseline | Disposable audit-bundle trial |
+| --- | ---: | ---: |
+| DISPATCH DB admission | 156.383 ms | 146.435 ms |
+| Preparation source collection | 236.941 ms | 205.155 ms |
+| PREPARE DB admission | 195.458 ms | 180.423 ms |
+| Final source collection | 236.398 ms | 210.636 ms |
+| ARM DB admission | 82.706 ms, refused during execute | 189.072 ms, refused during COMMIT |
+| Completed maker generations | 1 | 1 |
+| Reported age during error unwind | 1022.300 ms | 1033.315 ms |
+| Original unchanged load gate | FAIL | FAIL |
+
+Both runs have phase tracing enabled and PostgreSQL function profiling disabled.
+Baseline duration is **106.78 s**; trial duration is **105.87 s**. These are single
+runs, not a paired latency distribution, p95/p99 or demonstrated whole-flow
+speedup. The later COMMIT rejection means a faster earlier stage did not complete
+the protected send. It does not prove physical fsync is slow: COMMIT contains
+the original deferred SQL checks. No HTTP send is inferred for the failed quote.
+
+**Decision:** retire this helper-copy prototype. The result does not justify
+shipping a new proof graph, an index, a saved financial verdict, a longer quote
+lifetime or another clock capture. Migrations 1–103 and production financial
+code are unchanged by this bounded experiment. Existing output/rollback/fault
+qualifications of migrations 102/103 remain the prior revision's qualifications.
+Logs and prototype files stay under `/tmp`; no repository evidence file is added.
+
+The final tracing implementation also exposes the boundary that was previously
+missing from the summary. In a fresh diagnostic run of the unchanged production
+code, the initial fill quote reaches order HTTP at a bounded birth age of
+**408.215–470.916 ms**, the next maker quote at **710.695–826.034 ms**, and the
+following quote reaches ARM admission already at **836.762–979.267 ms**. That ARM
+is refused before order HTTP; the run stops before a complete maker generation,
+with reported unwind age **1008.358 ms** (**62.76 s**). Core span loss is zero;
+**1445** high-volume detail spans are dropped and their metrics are explicitly
+partial. The fixed core boundaries remain retained. Different quote history,
+SDK quota timing and scheduling co-vary here: these three samples are not an
+isolated history-scaling curve, latency percentile or comparison with the SQL
+trial. They show why timing only the earlier snapshot helpers is insufficient.
+
+### Final qualification on unchanged production sources
+
+The final separate gate explicitly unsets tracing, loads no experiment plugin,
+and enables neither Python nor PostgreSQL profiling. All **13 tracing contracts**
+and **5 original post-write-corruption/COMMIT proof tests** pass. The retained-fill
+maker workload still fails with `PG_QUOTE_CAPTURE_MISMATCH`, before completing a
+maker generation, at reported error-unwind age **1030.515 ms**: **18 pass / 1
+fail**, **3387 deselected**, six existing warnings, **69.05 s**. The failure is
+retained as a real failed gate, with no skip/xfail or threshold change. The
+diagnostic SQL prototype is absent from this run.
+
+All **1415 production/SQL hashes** match the previous implementation throughout;
+all **2526 pinned code/SQL files**, including the new tracing tests, are unchanged
+across this final gate. The 358-case financial regression and eight migration
+cases above are previous-commit qualifications, not reruns claimed for this
+measurement/documentation-only change. Changed-file hooks, diff checks and source
+checks pass; no complete R5 pass or PG3 closure is inferred.
+
+```sh
+LIFE_PG_TEST_FLOW_TRACE=1 \
+  PYTEST_ADDOPTS='-k configured_makers_replenish' \
+  python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_postgres \
+  --suite service_load --fail-fast --output /tmp/life-pg3-proof-spike-retained-bounds
+env -u LIFE_PG_TEST_FLOW_TRACE \
+  PYTEST_ADDOPTS='-k "configured_makers_replenish or test_postgres_commit_proofs or test_flow_trace"' \
+  python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_postgres \
+  --suite all --fail-fast --output /tmp/life-pg3-proof-spike-final-untraced
+```
+
+### Next protocol candidate: provisional runner and atomic preparation
+
+This is a concrete design candidate inside existing R2.3/R4/R5, **not an
+implemented or accepted replacement**. The previous physical-fault tests prove
+that the current runner requires a separately committed PROPOSED claim; its
+CAPTURE/DISPATCH/PREPARE functions cannot simply be put in one long transaction.
+The candidate changes the local acceptance protocol explicitly:
+
+1. Keep the existing permanent business intent and capital/carry preallocation.
+   Its money/claims remain held through every subsequent failure.
+2. Issue one immutable primary birth ticket bound to that intent, payload,
+   owner/generation/session and model hash. It has no financial/send permission.
+   Its timestamp starts the same 1000-ms lifetime **before** preparation facts
+   are collected. The ticket cannot be refreshed, replaced or replayed as a new
+   birth for that intent. An unknown issuance result requires recovery.
+3. Construct a provisional actual runner executor bound to that original ticket.
+   It is visible in complete runner scope but unaccepted and unable to submit.
+   The source may obtain fresh preparation observations only; this provisional
+   state must not be confused with the current accepted-executor capability.
+4. After complete original preparation sources, one new atomic native command
+   records capture, original executor dispatch and financial preparation. It
+   must have one account CAS/version transition and a canonical compound receipt,
+   with explicitly defined phase identities/history and original economic
+   effects. Its deferred checks prove the entire post-write state at COMMIT.
+   Calling the three existing commands sequentially is not this protocol: their
+   intermediate versions, triggers and acceptance assumptions differ.
+5. Only the original confirmed reply may accept that exact provisional executor
+   in the original task/service. A committed receipt or cold readback alone
+   cannot reconstruct local acceptance or a sender. A lost reply retains the
+   prepared holds and enters observation/recovery.
+6. Retain the separate fresh final source collection, original ARM/COMMIT clock
+   checks, one-use pending SDK request and authenticated HTTP/ACK handling.
+   Source facts must still be observed after the original birth. No stage resets
+   an issued timestamp, source cut, quota, owner or session.
+
+The proposed birth ticket is a new bounded, non-monetary identity contract, not
+a cheaper financial authorization. Its SQL privileges, concurrency, model pin,
+readback, digest/provenance and schema effects must be designed and tested before
+implementation. Full account/history verification remains in the compound
+financial command and final path; a successful metadata write cannot substitute
+for it. No production entrypoint, backend selector or capability is enabled by
+this design. Expected saved serial work is a hypothesis until a real prototype
+passes the fixed workload; subtracting component timings is not a measurement.
+
+| Physical boundary/failure | Required durable and local result |
+| --- | --- |
+| Birth issuance reply lost | Same intent/ticket identity; no second birth, executor acceptance or HTTP; original holds remain. |
+| After birth, before provisional executor | Known unsent ticket; restart grants observation/recovery only. |
+| Stale/conflicting/foreign preparation source | Refuse before acceptance; retain original facts, intent and claims. |
+| Before compound COMMIT | Provisional executor cannot send; rollback adds no prepared monetary effects. |
+| After compound COMMIT, reply lost | Durable prepared effects retained; local executor remains unaccepted; no retry/send grant. |
+| Stop/owner or ingress change before/after acceptance | Revoke locally; original final source/ARM fences refuse; retirement requires fresh signed closure. |
+| ARM/HTTP result unknown or late ACK | Preserve SEND_UNKNOWN/IDs, gross cost and holds; no implicit resend or refund. |
+
+### Fixed follow-through and stop conditions
+
+- [x] Freeze and reproduce the existing complete retained-fill maker workload.
+- [x] Instrument physical CAPTURE/COMMIT and HTTP boundaries without wall-clock
+  substitution; keep incomplete or failed measurements explicit.
+- [x] Run one bounded same-invocation proof-graph trial and record rejection.
+- [x] Specify the alternative acceptance protocol and its physical-failure matrix.
+- [ ] TDD the provisional-executor/birth/compound-receipt contracts, including
+  original source ordering, account-wide scope, role boundaries, immutability,
+  unknown results and compatibility with existing financial/history readers.
+- [ ] Implement a bounded actual-runner prototype with before/after physical
+  COMMIT/process loss, cancellation, replay and foreign-context refusal. Keep
+  configured production startup denied until qualified.
+- [ ] Pass the original untraced maker workload and demonstrate margin across
+  retained-history growth; then run complete affected parity/corruption/recovery
+  and the fixed R2.3/R4/R5 acceptance on one frozen revision.
+
+If the real prototype cannot preserve these invariants or cannot pass the
+original deadline, stop this candidate and record the unresolved architectural
+constraint. An isolated microbenchmark, provisional test double, optimistic
+timing subtraction or a moved deadline cannot close PG3.

@@ -1,6 +1,6 @@
 """Flow instrumentation preserves execution, task context and exceptions."""
 import asyncio
-from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.flow_trace import QuoteFlowTrace
+from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.flow_trace import FlowSpan, QuoteFlowTrace
 
 import pytest
 
@@ -57,7 +57,7 @@ async def test_http_span_never_records_url_credentials_query_or_body(monkeypatch
     trace = QuoteFlowTrace(monkeypatch)
     trace.http(session)
     assert await session.request(url='https://private:secret@example.org/api/v5/trade/order?token=secret', method='POST', data='secret') == 42
-    assert trace.details[0].phase == 'http_order'
+    assert trace.spans[0].phase == 'http_order'
     assert 'secret' not in repr(trace.rows())
 
 
@@ -80,3 +80,135 @@ async def test_high_volume_http_detail_cannot_evict_core_quote_phases(monkeypatc
     assert len(trace.spans) == 1 and trace.spans[0].phase == 'quote_total'
     assert len(trace.details) == 2 and trace.details_dropped == 8 and trace.dropped == 0
     assert len(trace.rows()) == 3 and {v[0] for v in trace.rows()} == {1}
+
+
+@pytest.mark.asyncio
+async def test_source_polling_cannot_evict_capture_or_order_endpoint_bounds(monkeypatch):
+    from types import SimpleNamespace
+
+    async def request(**kwargs):
+        return 42
+    session = SimpleNamespace(request=request)
+
+    class Worker:
+        async def capture(self):
+            await asyncio.sleep(0)
+
+        async def quote(self):
+            await self.capture()
+            for _ in range(10):
+                await session.request(url='https://example.org/api/v5/account/config', method='GET')
+            await session.request(url='https://example.org/api/v5/trade/order', method='POST')
+    trace = QuoteFlowTrace(monkeypatch, capacity=3)
+    trace.http(session)
+    trace.wrap(Worker, 'capture', 'db_capture')
+    trace.wrap(Worker, 'quote', 'quote_total', starts_quote=True)
+    await Worker().quote()
+    summary, = trace.summaries()
+    assert trace.details_dropped == 7 and trace.dropped == 0
+    assert {v.phase for v in trace.spans} == {'db_capture', 'http_order', 'quote_total'}
+    assert summary['retention_complete'] and not summary['details_complete']
+    bounds = summary['capture_to_http_entry_ms']
+    assert 0 <= bounds['lower'] <= bounds['upper']
+
+
+def test_summary_bounds_original_birth_between_capture_admission_and_confirmation(monkeypatch):
+    trace = QuoteFlowTrace(monkeypatch)
+    trace.spans.extend([
+        FlowSpan(1, 'quote_total', 0, 1100, 'success'),
+        FlowSpan(1, 'prepare_collection', 200, 250, 'success'),
+        FlowSpan(1, 'native_context', 200, 80, 'success'),
+        FlowSpan(1, 'native_context', 350, 90, 'success'),
+    ])
+    trace.details.extend([
+        FlowSpan(0, 'http_order', 0, 5, 'success'),  # Setup is not a quote.
+        FlowSpan(1, 'db_capture', 100, 100, 'success'),
+        FlowSpan(1, 'commit_capture', 150, 40, 'success'),
+        FlowSpan(1, 'http_order', 1000, 20, 'success'),
+    ])
+    trace.details_dropped = 1000  # Quota polling cannot evict core DB/HTTP.
+    summary, = trace.summaries()
+    assert summary['capture_to_http_entry_ms'] == dict(lower=800, upper=900)
+    # Nested contexts are separately labelled, not added to the source duration
+    # or to either bound. No host/DB wall clock comparison is involved.
+    assert summary['phases']['prepare_collection'] == dict(count=1, elapsed_ms=250, errors=0)
+    assert summary['phases']['native_context'] == dict(count=2, elapsed_ms=170, errors=0)
+    assert summary['phases']['commit_capture'] == dict(count=1, elapsed_ms=40, errors=0)
+    assert summary['retention_complete'] is True and summary['details_complete'] is False
+
+
+def test_failed_arm_has_only_attempt_start_bounds_and_no_invented_http_time(monkeypatch):
+    trace = QuoteFlowTrace(monkeypatch)
+    trace.details.extend([
+        FlowSpan(1, 'db_capture', 100, 100, 'success'),
+        FlowSpan(1, 'db_arm', 800, 250, 'error'),
+    ])
+    summary, = trace.summaries()
+    assert summary['capture_to_arm_start_ms'] == dict(lower=600, upper=700)
+    assert 'capture_to_http_entry_ms' not in summary
+    assert summary['phases']['db_arm']['errors'] == 1
+
+
+def test_evicted_core_disables_bounds_instead_of_treating_partial_trace_as_complete(monkeypatch):
+    trace = QuoteFlowTrace(monkeypatch)
+    trace.details.extend([
+        FlowSpan(1, 'db_capture', 0, 100, 'success'),
+        FlowSpan(1, 'http_order', 500, 10, 'success'),
+    ])
+    trace.dropped = 1
+    summary, = trace.summaries()
+    assert summary['retention_complete'] is False
+    assert 'capture_to_http_entry_ms' not in summary
+
+
+@pytest.mark.parametrize('capture', ['absent', 'error', 'multiple', 'overlap'])
+def test_missing_uncertain_or_ambiguous_capture_cannot_yield_interval_estimate(monkeypatch, capture):
+    trace = QuoteFlowTrace(monkeypatch, capacity=2)
+    if capture != 'absent':
+        trace.details.append(FlowSpan(1, 'db_capture', 0, 100, 'error' if capture == 'error' else 'success'))
+    if capture == 'multiple':
+        trace.details.append(FlowSpan(1, 'db_capture', 100, 100, 'success'))
+        trace.spans.append(FlowSpan(1, 'http_order', 500, 10, 'success'))
+    else:
+        trace.details.append(FlowSpan(1, 'http_order', 50 if capture == 'overlap' else 500, 10, 'success'))
+    summary, = trace.summaries()
+    assert not any(k.startswith('capture_to_') for k in summary)
+
+
+@pytest.mark.asyncio
+async def test_database_spans_only_fixed_operations_keep_commit_errors_and_quote_context(monkeypatch):
+    from types import SimpleNamespace
+
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.diagnostics import _current_trace
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.runtime import PgRuntime
+    error = ConnectionError('private driver payload')
+
+    async def admit(self, callback, **kwargs):
+        token = _current_trace.set(SimpleNamespace(operation=kwargs.get('operation')))
+        try:
+            return await callback(self)
+        finally:
+            _current_trace.reset(token)
+
+    async def commit(self, transaction):
+        raise error
+
+    async def read(self):
+        return 'secret result'
+    monkeypatch.setattr(PgRuntime, '_admit', admit)
+    monkeypatch.setattr(PgRuntime, '_commit', commit)
+    trace = QuoteFlowTrace(monkeypatch)
+    trace.database()
+    store = object.__new__(PgRuntime)
+    token = trace._quote.set(7)
+    try:
+        assert await store._admit(read, operation='secret_unknown_operation') == 'secret result'
+        assert not trace.spans
+        with pytest.raises(ConnectionError) as caught:
+            await store._admit(lambda s: s._commit('private transaction'), operation='spot_capture_quote_action')
+        assert caught.value is error
+    finally:
+        trace._quote.reset(token)
+    assert [(v.quote, v.phase, v.outcome) for v in trace.spans] == [
+        (7, 'commit_capture', 'error'), (7, 'db_capture', 'error')]
+    assert 'secret' not in repr(trace.rows()) and 'private' not in repr(trace.rows())

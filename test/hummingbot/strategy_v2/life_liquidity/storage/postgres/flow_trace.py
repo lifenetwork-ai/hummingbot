@@ -36,12 +36,14 @@ class QuoteFlowTrace:
 
         @wraps(original)
         async def tracked(instance, *args, **kwargs):
+            label = phase(kwargs) if callable(phase) else phase
+            if label is None:
+                return await original(instance, *args, **kwargs)
             token = None
             if starts_quote:
                 trace._next += 1
                 token = trace._quote.set(trace._next)
             quote = trace._quote.get()
-            label = phase(kwargs) if callable(phase) else phase
             start, outcome = perf_counter(), 'success'
             try:
                 return await original(instance, *args, **kwargs)
@@ -88,7 +90,29 @@ class QuoteFlowTrace:
         self.wrap(PgHedgeApplication, 'allocate_spot', 'capital_carry_allocation')
 
         self.quota()
+        self.database()
         return self
+
+    def database(self):
+        from hummingbot.strategy_v2.life_liquidity.storage.postgres.diagnostics import _current_trace
+        from hummingbot.strategy_v2.life_liquidity.storage.postgres.runtime import PgRuntime
+        operations = {
+            'spot_capture_quote_action': 'capture',
+            'spot_dispatch_claimed_action': 'dispatch',
+            'spot_action_prepare': 'prepare',
+            'spot_arm_quote': 'arm',
+        }
+
+        def admission(kwargs):
+            name = operations.get(kwargs.get('operation'))
+            return None if name is None else 'db_' + name
+
+        def commit(_):
+            current = _current_trace.get()
+            name = None if current is None else operations.get(current.operation)
+            return None if name is None else 'commit_' + name
+        self.wrap(PgRuntime, '_admit', admission)
+        self.wrap(PgRuntime, '_commit', commit)
 
     def quota(self):
         from hummingbot.strategy_v2.life_liquidity.storage.postgres.shared_sdk_quota import PgSharedSdkQuota, _QuotaView
@@ -136,10 +160,16 @@ class QuoteFlowTrace:
             finally:
                 path = urlsplit(kwargs['url']).path
                 label = 'http_order' if path == '/api/v5/trade/order' and kwargs['method'] == 'POST' else 'http_source'
-                if len(trace.details) == trace.details.maxlen:
-                    trace.details_dropped += 1
-                trace.details.append(FlowSpan(quote, label, (start - trace._origin) * 1000,
-                                              (perf_counter() - start) * 1000, outcome))
+                value = FlowSpan(quote, label, (start - trace._origin) * 1000,
+                                 (perf_counter() - start) * 1000, outcome)
+                if label == 'http_order':
+                    if len(trace.spans) == trace.spans.maxlen:
+                        trace.dropped += 1
+                    trace.spans.append(value)
+                else:
+                    if len(trace.details) == trace.details.maxlen:
+                        trace.details_dropped += 1
+                    trace.details.append(value)
         self._patch.setattr(session, 'request', tracked)
 
     def rows(self):
@@ -147,3 +177,45 @@ class QuoteFlowTrace:
         # request parameters/bodies, SQL or raw exceptions leave the helper.
         return [(v.quote, v.phase, round(v.started_ms, 3), round(v.elapsed_ms, 3), v.outcome)
                 for v in sorted((*self.spans, *self.details), key=lambda v: v.started_ms)]
+
+    def summaries(self):
+        """Monotonic birth-interval bounds, not a SQL timestamp or a verdict.
+
+        Native birth is inside the physical CAPTURE admission. Its successful
+        return follows confirmed COMMIT/pool release. Those two boundaries bound
+        elapsed time to HTTP entry without comparing host/DB wall clocks. Failed
+        ARM exposes only its *start*, never a fabricated HTTP/denial timestamp.
+        Phase durations overlap; they must not be added to the interval bounds.
+        An evicted/multiple capture or endpoint produces no interval estimate.
+        """
+        spans = sorted((*self.spans, *self.details), key=lambda v: v.started_ms)
+        groups = {}
+        for value in spans:
+            if value.quote > 0:
+                groups.setdefault(value.quote, []).append(value)
+        result = []
+        for quote, group in sorted(groups.items()):
+            phases = {}
+            for value in group:
+                phase = phases.setdefault(value.phase, dict(count=0, elapsed_ms=0.0, errors=0))
+                phase['count'] += 1
+                phase['elapsed_ms'] += value.elapsed_ms
+                phase['errors'] += value.outcome != 'success'
+            for value in phases.values():
+                value['elapsed_ms'] = round(value['elapsed_ms'], 3)
+            complete = self.dropped == 0
+            summary = dict(quote=quote, phases=phases, retention_complete=complete,
+                           details_complete=self.details_dropped == 0)
+            capture = [v for v in group if v.phase == 'db_capture']
+            endpoints = [v for v in group if v.phase == 'http_order']
+            label = 'capture_to_http_entry_ms'
+            if not endpoints:
+                endpoints = [v for v in group if v.phase == 'db_arm']
+                label = 'capture_to_arm_start_ms'
+            if complete and len(capture) == len(endpoints) == 1 and capture[0].outcome == 'success':
+                first, last = capture[0], endpoints[0]
+                lower = last.started_ms - first.started_ms - first.elapsed_ms
+                if lower >= 0:
+                    summary[label] = dict(lower=round(lower, 3), upper=round(last.started_ms - first.started_ms, 3))
+            result.append(summary)
+        return result

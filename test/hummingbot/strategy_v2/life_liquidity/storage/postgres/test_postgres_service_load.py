@@ -77,10 +77,13 @@ async def test_configured_makers_replenish_after_fill_history_with_competing_sha
         assert await database[0].fetchval('SELECT count(*) FROM life_financial.spot_fill_facts') == 1
         assert len([r for r in t.requests if r['method'] == 'POST' and r['url'].endswith('/order')]) == 5
         assert service.runtime.healthy
+        if trace is not None:
+            print('bounded_quote_flow_summary=' + json.dumps(trace.summaries()))
     except BaseException as error:
         primary = error
         if trace is not None:
             error.add_note('bounded_monotonic_flow=' + json.dumps(trace.rows()))
+            error.add_note('bounded_quote_flow_summary=' + json.dumps(trace.summaries()))
             error.add_note('flow_spans_dropped=' + str(trace.dropped))
             error.add_note('flow_detail_spans_dropped=' + str(trace.details_dropped))
         error.add_note('completed_maker_cycles=' + str(service.makers.completed_cycles))
