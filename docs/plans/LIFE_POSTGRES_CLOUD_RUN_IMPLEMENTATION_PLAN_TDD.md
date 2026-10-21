@@ -43,6 +43,17 @@ resubmission. A send without received ACK correctly denies quote-capable startup
 its observation-only restart remains available. **R2.3/R4/R5 and PG3 remain
 open.** See [diagnosis and restart qualification](#pg3-server-latency-diagnosis-and-physical-service-restart-2026-10-21).
 
+**Configured hedge readback fix (2026-10-21):** a real regression shows replaying
+a completed hedge would attempt to cancel a later standing SPOT maker. Primary
+readback now precedes cancellation, with the cycle reserved before its first
+await and its time charged to the original execution/cancellation budgets. The
+final configured trading/hedge/crash selector passes **29 cases**, **377.72 s**,
+with 1522 source hashes unchanged. The generated-command-hash experiment also
+passes the previously failing complete **37-case** configured selector, **808.06
+s**, but remains a disposable SQL experiment, not a production migration or R5
+closure. **R2.3/R4/R5 and PG3 remain open.** See
+[readback and hash-candidate qualification](#pg3-hedge-readback-before-side-effects-and-hash-candidate-2026-10-21).
+
 Created: 2026-10-11
 
 **Current configured hedge qualification (2026-10-21):** the explicit offline
@@ -7089,3 +7100,69 @@ whole-service process boundaries, not all SWAP/settlement/release/repair service
 faults or the complete current-source parity/role/latency gate. The complete
 fixed R2.3/R4/R5 exits and **PG3 remain open**. No deployment, real account, push
 or repository evidence file is used.
+
+## PG3 hedge readback before side effects and hash candidate (2026-10-21)
+
+### Correct original-ID hedge readback
+
+The new configured regression first completes a deadband hedge, then creates a
+real protected SPOT maker. Replaying the old hedge on the prior service attempts
+to call `cancel_makers` for that later original executor. It fails exactly at the
+forbidden cancellation boundary: **1 expected failure / 3279 deselected**,
+**23.83 s**, at `/tmp/life-pg3-configured-hedge-replay-red-final`. An earlier run
+fails only in the disposable diagnostic export's byte-field JSON serialization;
+it is not counted as the product regression.
+
+`execute_hedge` now reserves its cycle synchronously, verifies the original
+application/repository context and reads the current primary receipt before any
+maker cancellation, allocation pause or source collection. An existing verified
+receipt returns as diagnostic replay without changing the later maker, native
+holds/budgets, original SDK object or HTTP count. No receipt restores dispatch
+or send authority. For a new operation, the same task transfers the cycle slot
+to the existing cancellation route and takes it back without an intervening
+await; native financial/source/SDK gates are unchanged.
+
+The probe is bounded by the original application cycle and schedule limits.
+Its measured duration is deducted from the ORIGINAL 5000-ms application budget.
+With existing makers, probe plus cancellation must fit the original cancellation
+aggregate; the subsequent schedule aggregate starts where it did before. With
+no makers, the probe consumes the existing single schedule aggregate. There is
+no extra five-second allowance, no source/action timestamp renewal and no wider
+SQL, capture or freshness limit. New tests also hold the primary read to verify
+quote/cancel/second-hedge/direct-application exclusion and inject a 4.5-second
+probe followed by a hung delegate to verify the shared original cycle budget,
+revocation and unchanged money with no POST.
+
+The initial Green regression passes **1 case**, **23.84 s**; three focused
+readback/concurrency/deadline cases pass **40.84 s** before the final synchronous
+slot-transfer placement. The final frozen, uninstrumented
+`run_postgres --suite service_trading` gate passes **29 cases**, zero failures/
+errors/skips, **377.72 s**, at `/tmp/life-pg3-hedge-readback-final-configured`.
+All **1522** source/test/migration hashes at
+`/tmp/life-pg3-hedge-readback-final-source.json` remain unchanged throughout that
+final gate. Changed-file hooks pass. The new cases belong to the configured
+trading and complete SPOT-market-send selectors. This qualifies this readback
+fix, not every outstanding R2.3/R4/R5 route or the retained quote-expiry failure.
+
+### Pure immutable command-hash candidate
+
+The disposable generated-column experiment keeps the original canonical-v1
+function and compares each stored deterministic command digest against the
+original operation fingerprint. It changes no financial/source verdict, age,
+monetary budget, role grant or physical-send guard. It is not installed in the
+repository or enabled by a runtime configuration.
+
+The server-instrumented two-generation diagnostic passes **1 case / 914
+deselected**, **122.08 s**, at
+`/tmp/life-pg3-generated-command-hash-server-diagnostic`. Top-level preparation,
+ARM and dispatch timings do not improve uniformly; this isolated pass is not a
+loaded-tail qualification. The subsequent complete configured selector on the
+same experimental profile passes **37 cases / 878 deselected**, **808.06 s**, at
+`/tmp/life-pg3-generated-command-hash-configured-diagnostic`, including both maker
+schedule parameters, actual terminal/shared release and same-version money
+corruption refusal. It has no GC or server-statistics plugin. This is a useful
+candidate result, not a current production gate. A `/tmp` migration draft audits
+the exact 19 verifier bodies and 26 selected expressions; it is not applied to
+the repository. Actual migration/backfill/idempotency/OID/ACL/corruption and
+current-source loaded/full-product qualification are still required before
+acceptance. **R2.3/R4/R5 and PG3 remain open.**

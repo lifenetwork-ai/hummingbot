@@ -528,21 +528,46 @@ class PgLiquidityService:
             raise StorageError('PG_SERVICE_HEDGE_NOT_ENABLED')
         if self._quote_task is not None or self.hedge._busy:
             raise StorageError('PG_SERVICE_QUOTE_BACKPRESSURE')
-        current = self.runner.executor_orchestrator.active_executors[self.config.id]
-        if current:
-            # cancel_makers owns this same cycle slot before its first await.
-            # No await separates its release from the following acquisition.
-            await self.cancel_makers(tuple(v.config.id for v in current))
+        loop = asyncio.get_running_loop()
+        started = loop.time()
+        schedule_seconds = self._trading_model.quote_schedule_timeout_ms / 1000
+        cycle_seconds = self.limits.cycle_timeout_ms / 1000
         self._quote_task = asyncio.current_task()
         try:
-            async with asyncio.timeout(self._trading_model.quote_schedule_timeout_ms / 1000):
+            # Reserve the cycle before the first read. Original-ID readback
+            # must not cancel a later maker, pause allocation or collect sources.
+            # This is a fresh verified receipt, never a cached risk decision.
+            async with asyncio.timeout_at(started + min(schedule_seconds, cycle_seconds)):
+                self.hedge._original(observation=True)
+                previous = await self.hedge.repository.lookup(operation_id, self.config.storage_binding)
+            if previous is not None:
+                return previous
+            lookup_seconds = loop.time() - started
+            current = self.runner.executor_orchestrator.active_executors[self.config.id]
+            if current:
+                # The existing cancellation API reserves this same task's slot
+                # synchronously. No await separates either ownership transfer.
+                async with asyncio.timeout_at(started + schedule_seconds):
+                    self._quote_task = None
+                    await self.cancel_makers(tuple(v.config.id for v in current))
+                    self._quote_task = asyncio.current_task()
+                schedule_deadline = loop.time() + schedule_seconds
+            else:
+                schedule_deadline = started + schedule_seconds
+            async with asyncio.timeout_at(schedule_deadline):
                 await self._join_maker_events()
                 if await self._read_trading_config() != self._trading_model:
                     raise StorageError('PG_SERVICE_TRADING_CONFIG_CHANGED')
                 await self.controller.runner_facts()
                 self._hedge_task = asyncio.current_task()
                 try:
-                    result = await self.hedge.execute(operation_id)
+                    # The probe consumes the ORIGINAL application cycle budget;
+                    # it does not introduce another five-second allowance.
+                    remaining = cycle_seconds - lookup_seconds
+                    if remaining <= 0:
+                        raise TimeoutError
+                    async with asyncio.timeout(remaining):
+                        result = await self.hedge.execute(operation_id)
                 finally:
                     self._hedge_task = None
                 await self._join_maker_events()

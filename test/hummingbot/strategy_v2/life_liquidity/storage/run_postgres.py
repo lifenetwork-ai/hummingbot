@@ -157,7 +157,7 @@ def main():
             selector /= 'test_postgres_quote_account_source.py'
         selectors = [str(selector)]
         if args.suite == 'service_trading':
-            selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in ('service_trading', 'service_hedge', 'service_process')]
+            selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in ('service_trading', 'service_hedge', 'service_replay', 'service_process')]
         if args.suite == 'runner_journal':
             selectors = [str(selector.parent / ('test_postgres_' + name + '.py')) for name in ('runner_journal', 'native_capture')]
         if args.suite == 'provider_collection':
@@ -181,7 +181,7 @@ def main():
                 'spot_allocation', 'spot_market_send', 'hedge_source', 'hedge_application', 'capital', 'carry')]
         if args.suite == 'spot_market_send':
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in (
-                'service', 'service_trading', 'service_hedge', 'service_process', 'service_cycle', 'standing_makers', 'retired_scope', 'maker_cancellation', 'operation_preflight', 'runner_startup', 'recorder_application', 'event_application',
+                'service', 'service_trading', 'service_hedge', 'service_replay', 'service_process', 'service_cycle', 'standing_makers', 'retired_scope', 'maker_cancellation', 'operation_preflight', 'runner_startup', 'recorder_application', 'event_application',
                 'spot_producer', 'produced_send', 'action_preparation', 'quote_arm', 'account_brackets', 'spot_allocation', 'spot_market_send', 'spot_market', 'spot_application', 'quote_transport', 'quote_account_source',
                 'runner_journal', 'native_capture', 'release_proof_reuse', 'joint_source', 'hedge_source', 'hedge_application', 'joint_observer', 'financial_source', 'provider_batch', 'provider_collection', 'provider_journal', 'joint_account_source',
                 'collateral_source', 'joint_history', 'joint_events',

@@ -27,6 +27,14 @@ An unresolved send correctly denies quote-capable startup and permits only
 observation recovery. These focused proofs do not close R2.3/R4/R5 or PG3. See
 [server diagnosis and physical service restart](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-server-latency-diagnosis-and-physical-service-restart-2026-10-21).
 
+The original-ID hedge readback path now avoids canceling a later standing maker
+and shares the original execution budget with its primary probe. Its final
+configured trading/hedge/crash gate passes **29 cases**, **377.72 s**, with 1522
+source hashes unchanged. A separate disposable generated-command-hash experiment
+passes **37 configured cases**, **808.06 s**; the migration is not installed and
+the complete current-source R2.3/R4/R5 exits remain required. See
+[readback and hash-candidate qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-hedge-readback-before-side-effects-and-hash-candidate-2026-10-21).
+
 **Current configured hedge qualification (2026-10-21):** the explicit offline
 native service composes SPOT retirement → signed hedge sources → protected SWAP
 SDK/ACK → original terminal/settlement/shared release. All 22 configured trading
