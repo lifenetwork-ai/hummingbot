@@ -6746,11 +6746,58 @@ signed HTTP. The two-generation workflow is not yet qualified.
   therefore not a fix for the current quote-age failure. The next candidate
   removes the generated hash from the passing combined prototype.
 
+- Keeping the native capture and adding only collection buffering,
+  `force_generic_plan` and `jit=off` (no generated hash or release/helper-plan
+  rewrites) passes the full two-generation workflow in **121.08 s** at
+  `/tmp/life-pg3-native-capture-no-generated-hash-diagnostic`. It exercises all
+  four original signed SPOT submissions and both original cancellation/release
+  generations, with the existing money/source-age assertions. This supports
+  implementing and qualifying this smaller candidate; it does **not** prove
+  adequate tail margin or a current-product/R5 pass.
+- A separate migration-90-style plan-retention prototype for twelve remaining
+  SQL helpers, without collection buffering or engine changes, still fails at
+  **1065.267 ms** quote age (**89.63 s**) at
+  `/tmp/life-pg3-native-capture-sql-plan-retention-diagnostic`. Those helper
+  rewrites are not selected for implementation on this evidence.
+
 None of the generated hashes, generic-plan settings, release-helper prototypes
 or collection buffers above is installed in the repository product. No timing
 failure is converted into a pass, no old timestamp is renewed, and no threshold
-is enlarged. The next step is to diagnose the slow source statement's compilation/query
-plans, then qualify a concrete implementation only if the reduction is
-sufficient. Complete configured SPOT/SWAP installation, current-source economic
+is enlarged. The next step is to implement and qualify the smaller passing candidate below;
+its source/persistence boundary is not qualified by the disposable monkeypatch. Complete configured SPOT/SWAP installation, current-source economic
 parity and whole-service restart/corruption/role/process/backend fault and
 latency gates remain required. **PG3 remains open.**
+
+
+### Next latency implementation candidate (fixed R2.3/R4/R5 scope)
+
+This is work on the existing latency defect, not a new exit or a replacement
+for whole-service acceptance. No generated column, new financial table, saved
+financial verdict or cross-command source/permission cache is selected.
+
+- [ ] Add a bounded native diagnostic **collection** command and explicit
+  authenticated joint-collector path. Preserve every original signed request,
+  route, byte/page budget, sequence, UID bracket and provider/source timestamp.
+  Default standalone reader calls retain their existing durable-before-return
+  behavior. Hold the original observation barrier through physical collection
+  persistence; no qualified source report or monetary command may escape before
+  confirmed COMMIT. Refusal/cancellation must retain received partial diagnostics
+  where commit can be confirmed, without retry or financial authority on unknown
+  COMMIT. Document the internal parse/persistence boundary explicitly.
+- [ ] Pin and verify the qualified query-engine profile on both bounded runtime
+  pools. Reusing query plans must not reuse financial verdicts, source facts or
+  permissions. Preserve all uncached primary/role/lineage/owner checks and all
+  existing physical SQL/transaction/source/capture deadlines. Qualify the
+  profile against current-state changes and parameter-sensitive queries.
+- [ ] Test collection bounds and atomic rollback, original-body/sequence replay,
+  partial transport/semantic failure, actual cancellation/unknown COMMIT/cold
+  readback, ingress/task substitution, role refusal and the observation barrier.
+  Then pass the actual configured two-generation workflow **without plugins**
+  on one frozen source, followed by the complete fixed R2.3/R4/R5 affected gates.
+  A single successful diagnostic replay cannot close any parent gate.
+
+PostgreSQL documents that JIT compilation can add overhead to short queries,
+and that generic plans make JIT cost decisions at preparation time. This
+motivates qualification of the candidate engine profile; it does not identify
+JIT as the cause of the unchanged product's quote-age failure.
+[PostgreSQL 16 JIT decision documentation](https://www.postgresql.org/docs/16/jit-decision.html).
