@@ -6903,3 +6903,29 @@ SPOT/SWAP and current-source
 economic/parity/restart/corruption/role/process/backend fault/latency qualification
 remains mandatory. No new evidence file, `.env` read, configured DB, real
 exchange request, deployment or push is used. **PG3 remains open.**
+
+### Cancellation scheduling experiment rejected (2026-10-21)
+
+After collection commit `9d2fbbbb6`, a task/lease-bound cancellation continuation
+was tested locally. It kept the original 5000-ms phase, both independent source
+collections and every per-request SDK quota. Two focused cases passed in
+41.51 s: a complete one-maker service retirement with fresh before/after cuts,
+foreign-task/stale-phase refusal, and the unchanged five-UID request budget.
+Those two cases were insufficient to qualify the optimization.
+
+The unchanged one/two-generation schedules and sibling-corruption workflow then
+all fail: **3 failed / 903 deselected**, **123.95 s**, at
+`/tmp/life-pg3-cancel-quota-configured-regression`. The second source collection
+reaches `PG_FINANCIAL_SOURCE_REQUEST_INVALID` while reading fill history, before
+the intended corruption. An ACKED maker that is now closed requires additional
+per-order fill-history pages in both rounds. Two such collections can exceed the
+original shared history quota; the real throttler waits and the original UID
+freshness guard correctly refuses the request. A one-maker replay did not cover
+that demand. Neither the guard nor the history proof is removed to pass the test.
+
+The continuation implementation and its draft tests are removed from the
+product; the patch/logs remain under `/tmp` only. The next scheduling design must
+account for remaining capacity and the complete actual source request shape
+**before** new UID/account facts, preserve every signed history comparison and
+per-request limit, and remain inside the existing phase/aggregate deadlines.
+This is still the existing R2.3/R4/R5 latency task, not a new closure exception.
