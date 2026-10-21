@@ -2,7 +2,19 @@
 
 Created: 2026-10-11
 
-**Current PG3 lifecycle qualification (2026-10-21):** shutdown now retains the
+**Current configured hedge qualification (2026-10-21):** the explicit offline
+service now composes SPOT maker retirement, signed hedge sources, protected SWAP
+SDK/ACK and source-consuming terminal/settlement/shared release. The frozen
+22-case configured trading gate passes, including partial-fill fees, original-ID
+replay, concurrent-call refusal and late-ACK shutdown. Native trading startup
+requires both products' monetary policies. SPOT allocation with hedge selected
+publishes a fresh advisory decision from its original signed market before
+runner capture. No deadline or financial budget changes. **PG3 remains open**:
+the wider allocation regression, retained SQL/quote latency failures and complete
+fixed R2.3/R4/R5 exits are not discharged by this gate. See
+[configured hedge qualification](#pg3-configured-spot-and-hedge-workflow-2026-10-21).
+
+**Earlier PG3 lifecycle qualification (2026-10-21):** shutdown now retains the
 original service, both SDK networks and factory clients through physical cleanup,
 including partial startup and bounded caller timeouts. Native cleanup uses the
 original controller ID/limits and reports only owned executors. On the final
@@ -922,6 +934,7 @@ failing integration result visible until the same current-source workflow passes
     - [x] Shared in-process SDK REST quota kernel, including original SDK time-synchronizer HTTP, and original quota-context pinning in both final SPOT/SWAP guards. The frozen 484-case affected gate below passes. This does not qualify full source-collection scheduling or the configured service.
     - [x] Explicit complete source scheduling profile: preserve actual pooled SDK limits; wait before native/provider capture; collect account and hedge market in one signed collection; consume the same operation's original quiescent cancellation report without renewing its timestamps. Fresh startup, prior SDK quota use, real signed SDK send, timeout and stale/ingress/foreign-scope refusals pass in the 193-case focused gate below. This does not install the configured service or prove all loaded/live account histories meet the one-second window.
     - [ ] Install the qualified source profile in the complete configured runner/account topology and mandatory service; qualify the whole selected workflow under R4/R5.
+    - The explicit offline configured hedge workflow now passes 22 frozen service cases, including existing-maker retirement, original signed sources, SWAP SDK/ACK, no-fill and partial-fill terminal/settlement/release, replay and late-ACK shutdown. Full selected mode installation, multi-generation/source/SQL tails and whole-product R5 remain required; see the configured hedge qualification below.
 
 - [x] **R3 — control/risk/session:** signed pending repair and successor reconciliation/activation; persistent native markout/probe/stress/inventory/EXIT gates. Exit replay: restart and late observations retain HALT, budgets and approvals; each enabled risk mode reaches its native financial gate.
   - [x] R3.1: Signed native DRAIN/REVOKE/RECOVER and separate new-generation ACTIVATE; retain the original observation writer, permanent approvals/grant consumption, HALT and financial history across cancellation/unknown COMMIT. Migration 76 and the control port are qualified by the 44-case native control/successor gate, physical COMMIT/process/backend/cancellation and corruption cases, and the audited upgrades recorded below. No PG4 lease/credential exclusion is inferred.
@@ -6468,3 +6481,71 @@ establish a material whole-send improvement; the prototype stays outside product
 code. Do not add a financial result cache or another encoder migration based on
 this local percentage. Remaining work is the original complete configured
 SPOT/SWAP composition and the current-source fault/parity/latency exits.
+
+## PG3 configured SPOT and hedge workflow (2026-10-21)
+
+The explicit `OFFLINE_SIMULATION` service now accepts the imported
+`native_trading.hedge_enabled` selection. It installs no policy, numerical default
+or activation. Both enabled products require their fill/funding/joint-batch
+policies before trading startup; selected hedge additionally requires its
+hedge/portfolio/SWAP-terminal/shared-release policies. An empty initial history
+must not hide an absent monetary route until the first fill.
+
+`execute_hedge(original_operation_id)` reserves the same service cycle as quote
+and cancel. Existing original makers traverse authenticated cancellation,
+terminal/NAV/release and actual runner retirement before new hedge capture.
+Original signed capital/carry/market facts reach the protected SWAP SDK and
+durable ACK. Original plan lookup has no retry/send authority. A direct adapter
+call is refused before DB/pause effects and cannot poison another cycle's
+post-ACK observation. Makers never restart implicitly.
+
+Selected SPOT allocation now persists an advisory hedge decision using that
+allocation's original signed market before the runner timestamp is created.
+Refreshing capital/carry cannot re-date an earlier hedge decision's market.
+The decision has no child or HTTP authority. Native prepare/ARM still independently
+require current hedge permission.
+
+The original SDK ACK starts signed financial observation, which must block NEW
+risk without falsely invalidating the already acknowledged receipt. The hedge
+completion check retains original context, explicit stop and base runtime
+failures; all checks before plan/prepare/ARM/HTTP still require full readiness.
+`settle_hedge(original_settlement_id, original_plan_id)` accepts identities only
+and uses fresh signed terminal evidence, native NAV and original monetary fills
+before settlement and shared retirement. Interrupted stages retain original
+claims/IDs for explicit reconciliation; no callback amount refunds capital.
+
+Qualification uses the actual V2 service, both actual SDKs, disposable pinned
+PostgreSQL and fake signed/private HTTP only. TDD first reproduced the absent
+service entry points and then the post-ACK readiness race, missing monetary
+policy and stale hedge-advice composition failures. The source is frozen at
+**1821 implementation/test/migration hashes**. The complete
+`run_postgres --suite service_trading` gate passes **22 cases**, zero
+failures/errors/skips, six existing Pydantic warnings, **267.47 s**. Cases include
+no-fill and partial-fill terminal/settlement/release, original fee/gross-cost
+retention, original-ID replay, maker-before-hedge ordering, concurrent/direct-call
+refusal, post-ACK in-flight observation and both revoke/caller-cancel late ACKs.
+Logs/XML and hash pin remain under `/tmp/life-pg3-configured-hedge-*`; no new
+repository evidence artifact is created.
+
+The wider frozen allocation/source/hedge gate is **207 pass / 1 fail** in
+**595.30 s**, with no errors/skips. The failure is the existing foreign-SPOT
+case: it requires `RUNNER_NOT_QUIESCENT` and zero provider HTTP, but received
+`PG_SPOT_ALLOCATION_STANDING_SCOPE` after collection. The final correction
+rejects a standing SDK order with an empty original runner before HTTP/native
+observations. Nonempty runner facts confer no permission; all complete signed
+scope/hold checks remain. The unchanged SPOT/SWAP refusal cases then pass
+**2 cases** in **7.76 s**. The final source, separately pinned at 1821 hashes,
+passes **9 configured/standing-scope cases**, **765 deselected**, in **175.54 s**:
+actual quote BUY/SELL, existing-maker-to-hedge composition, all four mismatched
+standing-maker refusals and both foreign SPOT/SWAP refusals. There are zero
+failures/errors/skips and six existing warnings. Neither focused result relabels
+the earlier 208-case gate as green; the 22-case gate predates only this local
+early-refusal correction. The final selector is retained under
+`/tmp/life-pg3-configured-hedge-final-scope`.
+
+An earlier intermediate composition run also hit the unchanged **1000-ms SQL deadline** at
+hedge planning; its later focused success does not qualify that tail. The retained
+configured multi-generation quote failure and broader service quote-capture
+failure remain open. Full selected mode/route installation and current-source
+File parity/restart/corruption/role/process/backend/fault/latency acceptance still
+belong to the fixed R2.3/R4/R5 exits. **PG3 is not closed by this increment.**

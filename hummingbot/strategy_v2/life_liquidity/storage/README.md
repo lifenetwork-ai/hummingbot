@@ -4462,9 +4462,30 @@ Actual configured dispatch uses an exact owning service/action/dispatcher-task
 capability; equal action bytes, native receipts and direct orchestrator calls
 cannot mint it. Complete runner facts additionally require the original owned
 executor instances. Report-only readiness still grants no trading authority.
-The actual hedge application/source are installed in this opt-in profile, but
-standing-maker cancellation/replenishment and selected whole-service hedge/control
-workflows retain the PG3 R2/R4/R5 qualification requirements.
+The imported model can additionally select `hedge_enabled: true` (omitted/false
+grants no hedge execution). Startup requires the imported hedge, portfolio,
+SWAP-terminal and shared-release policies for that route. Every trading profile
+also requires both products' fill policies plus paid-funding and joint-batch
+policies; an empty initial account/history cannot hide an absent monetary route.
+Startup installs no missing policy or financial default.
+
+`await service.execute_hedge(permanent_operation_id)` serializes with quote and
+cancel work. Existing original makers first traverse signed cancellation,
+terminal, NAV, release and runner retirement. The hedge then consumes fresh
+signed account/capital/carry/market facts and the original protected SWAP SDK
+through durable ACK. Direct adapter calls have no configured cycle ownership.
+Original plan readback never sends another child. A running maker schedule must
+be stopped/joined before an explicit external hedge call; hedge never restarts it.
+
+When hedge is selected, SPOT preallocation publishes an advisory native hedge
+decision from that allocation's original signed market before runner capture.
+This grants no child/send authority and cannot renew an older market's time.
+`await service.settle_hedge(permanent_settlement_id, original_plan_id)` consumes
+fresh signed terminal truth, native NAV and original fills before settlement and
+claim retirement. Callback amounts cannot release capital. Interrupted stages
+retain their original IDs/holds for explicit reconciliation; completed original
+receipt readback never reactivates risk. Selected whole-service hedge/control,
+multi-generation latency and fault acceptance retain PG3 R2/R4/R5 requirements.
 
 Native quote claims durably retain the original executor configuration before
 local executor creation. The diagnostic INITIAL/RUNNING projections are bounded

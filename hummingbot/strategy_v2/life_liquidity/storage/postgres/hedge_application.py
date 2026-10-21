@@ -27,10 +27,11 @@ class PgHedgeApplication:
     @classmethod
     async def create(cls, repository, *, connector, pause_makers, collect, local_fence,
                      clock, max_uid_age_ms, max_auth_age_ms, max_clock_skew_ms, collection_timeout_ms,
-                     cycle_timeout_ms, cancel_makers=None, maker_cancellation=None, pause_allocation=None):
+                     cycle_timeout_ms, cancel_makers=None, maker_cancellation=None, pause_allocation=None, execution_admission=None):
         if (type(repository) is not PgHedgeRepository
                 or any(not callable(v) for v in (pause_makers, collect, local_fence))
                 or pause_allocation is not None and not callable(pause_allocation)
+                or execution_admission is not None and not callable(execution_admission)
                 or (cancel_makers is None) == (maker_cancellation is None)
                 or cancel_makers is not None and not callable(cancel_makers)
                 or maker_cancellation is not None and (type(maker_cancellation) is not PgMakerCancellation
@@ -44,6 +45,7 @@ class PgHedgeApplication:
         app.repository, app.connector = repository, connector
         app._pause, app._cancel, app._collect, app._fence = pause_makers, cancel_makers, collect, local_fence
         app._pause_allocation = pause_makers if pause_allocation is None else pause_allocation
+        app._execution_admission = app._bound_execution_admission = execution_admission
         app._maker_cancellation = maker_cancellation
         app._runtime, app._binding, app._owner = repository.runtime, repository.binding, repository.owner
         app._cycle_timeout_ms = cycle_timeout_ms
@@ -82,7 +84,8 @@ class PgHedgeApplication:
                 or self._maker_cancellation is not cancellation or self._pause_allocation != allocation_pause):
             self.stop()
             raise StorageError('PG_HEDGE_APPLICATION_CONTEXT_CHANGED')
-        if self._native_source is not self._bound_native_source:
+        if (self._native_source is not self._bound_native_source
+                or self._execution_admission != self._bound_execution_admission):
             self.stop()
             raise StorageError('PG_HEDGE_APPLICATION_CONTEXT_CHANGED')
         # Late bookkeeping depends on the original repository/child context,
@@ -135,14 +138,14 @@ class PgHedgeApplication:
         """Initial/late signed observations only; no plan, activation or send."""
         return await self._observe_sources(operation_id)
 
-    async def allocate_spot(self, operation_id, intent):
+    async def allocate_spot(self, operation_id, intent, *, require_hedge=False):
         """Serialized signed SPOT capital/carry preflight; no action/send."""
         from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot_intent import PgSpotQuoteIntent
-        if type(intent) is not PgSpotQuoteIntent:
+        if type(intent) is not PgSpotQuoteIntent or type(require_hedge) is not bool:
             raise StorageError('PG_SPOT_ALLOCATION_INTENT_INVALID')
-        return await self._observe_sources(operation_id, intent=intent)
+        return await self._observe_sources(operation_id, intent=intent, require_hedge=require_hedge)
 
-    async def _observe_sources(self, operation_id, *, intent=None):
+    async def _observe_sources(self, operation_id, *, intent=None, require_hedge=False):
         identifier(operation_id)
         self._original()
         if self._busy:
@@ -159,7 +162,7 @@ class PgHedgeApplication:
                 self._paused = True
                 self._require_ready()
                 result = (await self._native_source.refresh(operation_id) if intent is None
-                          else await self._native_source.allocate_spot(operation_id, intent))
+                          else await self._native_source.allocate_spot(operation_id, intent, require_hedge=require_hedge))
                 self._require_ready()
                 return result
         except BaseException:
@@ -172,6 +175,11 @@ class PgHedgeApplication:
     async def execute(self, operation_id):
         identifier(operation_id)
         self._original(observation=True)
+        # A configured service reserves its original cycle before any lookup
+        # or pause. A rejected foreign caller owns no work to stop/cancel and
+        # must not poison an already acknowledged sibling's observation phase.
+        if self._execution_admission is not None and self._execution_admission() is not True:
+            raise StorageError('PG_HEDGE_APPLICATION_ORIGIN_REQUIRED')
         if self._busy:
             raise StorageError('PG_HEDGE_APPLICATION_BACKPRESSURE')
         self._busy = True
@@ -212,7 +220,16 @@ class PgHedgeApplication:
                 if result.child_operation_id != child.operation_id:
                     raise StorageError('PG_HEDGE_CHILD_RECEIPT_MISMATCH')
                 await self._send(child)
-                self._require_ready()
+                # A durable SDK ACK starts the original financial listener.
+                # Its in-flight signed observation correctly denies NEW risk,
+                # but cannot invalidate this already acknowledged result. No
+                # plan/prepare/ARM/HTTP follows this completion check. Keep
+                # explicit stop, original context and base runtime failures;
+                # all pre-send paths still require full runtime.healthy.
+                self._original(observation=True)
+                if (self._stopped or not self._runtime._healthy or self._runtime._closing
+                        or self._fence() is not True):
+                    raise StorageError('PG_HEDGE_APPLICATION_STOPPED')
                 return result
         except BaseException:
             self.stop()

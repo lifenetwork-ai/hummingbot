@@ -30,7 +30,8 @@ def trading_policy():
                 max_depth_distance_bps='500', available_edge_quote_usdt='1', quote_schedule_timeout_ms=30000)
 
 
-async def configured(database, *, model_change=None, shared_quota=True, maker_cycle=False, spot_overrides=None, **options):
+async def configured(database, *, model_change=None, shared_quota=True, maker_cycle=False, spot_overrides=None,
+                     hedge_policy=None, independent_fill_value=None, omit_financial_policy=None, **options):
     template = LifeLiquidityConfig(id='main', storage_backend='postgres')
     template.strategy = type(template.strategy).model_validate(dict(
         template.strategy.model_dump(mode='json'),
@@ -39,6 +40,8 @@ async def configured(database, *, model_change=None, shared_quota=True, maker_cy
 
     def configuration(binding):
         model = trading_policy()
+        if hedge_policy is not None:
+            model['hedge_enabled'] = True
         if model_change is not None:
             model_change(model)
         return dict(controller=template.model_copy(update={'storage_binding': binding, 'recovery_account_uid': binding.account_uid}).model_dump(mode='json'),
@@ -64,12 +67,29 @@ async def configured(database, *, model_change=None, shared_quota=True, maker_cy
     t.connector.order_book_tracker._order_books['LIFE-USDT'] = book
     await database[0].execute('INSERT INTO life_financial.spot_fill_policies VALUES($1,$2,1000,4096)',
                               t.cfg.account_id, t.cfg.binding.policy_hash)
-    if maker_cycle:
+    if omit_financial_policy != 'funding':
+        await database[0].execute('INSERT INTO life_financial.funding_accounting_policies VALUES($1,$2,64,128,1048576)',
+                                  t.cfg.account_id, t.cfg.binding.policy_hash)
+    if omit_financial_policy not in ('funding', 'joint'):
+        await database[0].execute('INSERT INTO life_financial.joint_batch_policies VALUES($1,$2,32,64,1048576)',
+                                  t.cfg.account_id, t.cfg.binding.policy_hash)
+    if maker_cycle or hedge_policy is not None:
         # Explicit synthetic imported policy; service startup creates no policy.
         await database[0].execute('INSERT INTO life_financial.portfolio_policies VALUES($1,$2,1,1000,5000,64,1048576)',
                                   t.cfg.account_id, t.cfg.binding.policy_hash)
         await database[0].execute('INSERT INTO life_financial.shared_release_policies VALUES($1,$2,64,1048576)',
                                   t.cfg.account_id, t.cfg.binding.policy_hash)
+    if hedge_policy is not None:
+        from bidict import bidict
+
+        from hummingbot.strategy_v2.life_liquidity.shared_capital import _json
+        body = _json(asdict(hedge_policy))
+        await database[0].execute('INSERT INTO life_financial.hedge_policies VALUES($1,$2,$3::jsonb,$4,64,128,1048576)',
+                                  t.cfg.account_id, t.cfg.binding.policy_hash, json.dumps(body), fingerprint(body))
+        await database[0].execute('INSERT INTO life_financial.swap_terminal_policies VALUES($1,$2,64,1048576)',
+                                  t.cfg.account_id, t.cfg.binding.policy_hash)
+        t.swap_connector.enable_protected_trading_pair('LIFE-USDT')
+        t.swap_connector._set_trading_pair_symbol_map(bidict({'LIFE-USDT-SWAP': 'LIFE-USDT'}))
     http, orders = t.session.request, []
     t.service_orders = orders
 
@@ -79,8 +99,13 @@ async def configured(database, *, model_change=None, shared_quota=True, maker_cy
         tail = kwargs['url'].rsplit('/', 1)[1]
         if kwargs['method'] == 'POST' and tail == 'order':
             body = json.loads(kwargs['data'])
-            orders.append(dict(instType='SPOT', instId='LIFE-USDT', clOrdId=body['clOrdId'], ordId=str(123456 + len(orders)),
-                               state='live', side=body['side'], sz=body['sz'], px=body['px'], accFillSz='0', tdMode='cash', ordType='post_only'))
+            swap = body['instId'] == 'LIFE-USDT-SWAP'
+            order = dict(instType='SWAP' if swap else 'SPOT', instId=body['instId'], clOrdId=body['clOrdId'],
+                         ordId=str(123456 + len(orders)), state='live', side=body['side'], sz=body['sz'], px=body['px'],
+                         accFillSz='0', tdMode=body['tdMode'], ordType=body['ordType'])
+            if swap:
+                order.update(posSide=body['posSide'], lever='2', reduceOnly=False)
+            orders.append(order)
             t.requests.append(kwargs)
             response = Response()
 
@@ -99,6 +124,9 @@ async def configured(database, *, model_change=None, shared_quota=True, maker_cy
                     rows = sorted(rows, key=lambda o: int(o['ordId']), reverse=True)
                 if params.get('clOrdId'):
                     rows = [o for o in rows if o['clOrdId'] == params['clOrdId']]
+                for key in ('instType', 'instId'):
+                    if params.get(key):
+                        rows = [o for o in rows if o[key] == params[key]]
                 return dict(code='0', data=rows)
             response.json = data
             return response
@@ -113,7 +141,7 @@ async def configured(database, *, model_change=None, shared_quota=True, maker_cy
                 for side, key in (('buy', 'bids'), ('sell', 'asks')):
                     levels = {D(v[0]): D(v[1]) for v in data['data'][0][key]}
                     for order in orders:
-                        if order['side'] == side and order['state'] in ('live', 'partially_filled'):
+                        if order['instType'] == 'SPOT' and order['side'] == side and order['state'] in ('live', 'partially_filled'):
                             price = D(order['px'])
                             levels[price] = levels.get(price, D('0')) + D(order['sz']) - D(order['accFillSz'])
                     data['data'][0][key] = [[str(p), str(q), '0', '2'] for p, q in sorted(levels.items(), reverse=side == 'buy')]
@@ -125,8 +153,8 @@ async def configured(database, *, model_change=None, shared_quota=True, maker_cy
     service = await PgLiquidityService.open(
         config, runtime_config=t.cfg, owner=t.owner, connectors=connectors,
         market_data_provider=MarketDataProvider(connectors), sources=registered, limits=limits(),
-        clock=t.reader.source.journal.clock, independent_fill_value=lambda *args: D('1'),
-        independent_cashflow_value=lambda *args: D('1'), native_trading=True, **options)
+        clock=t.reader.source.journal.clock, independent_fill_value=independent_fill_value or (lambda *args: None),
+        independent_cashflow_value=lambda *args: None, native_trading=True, **options)
     return t, service
 
 

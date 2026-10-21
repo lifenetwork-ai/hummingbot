@@ -56,6 +56,7 @@ class PgNativeTradingConfig(BaseModel):
     available_edge_quote_usdt: D
     quote_schedule_timeout_ms: int
     maker_schedule: PgMakerSchedule | None = None
+    hedge_enabled: bool = False
 
 
 class _NativeQuoteDispatch:
@@ -336,6 +337,7 @@ class PgLiquidityService:
         service.native_trading, service._native_trading = native_trading, native_trading
         service.quote_application = service.quote_source = service.producer = None
         service._quote_task = service._quote_action = None
+        service._hedge_task = None
         service._owned_executors = {}
         service._maker_operations = {}
         service.makers = None
@@ -348,6 +350,8 @@ class PgLiquidityService:
             service.runtime = await PgRuntime.open(runtime_config)
             service.financial = PgSpotRepository(service.runtime)
             native_model = await service._read_trading_config() if native_trading else None
+            if native_trading:
+                await service._require_financial_intake()
             capital = PgSharedCapitalRepository(service.financial, owner=owner, observation=service._missing_capture,
                                                 max_rows=limits.max_rows, max_bytes=limits.max_bytes)
             carry = PgCarryRepository(capital, observation=service._missing_capture,
@@ -373,11 +377,14 @@ class PgLiquidityService:
                 PgHedgeRepository(swap), connector=service.connectors['okx_perpetual'], pause_makers=service._pause,
                 maker_cancellation=cancellation, collect=service._missing_capture,
                 pause_allocation=service._pause_allocation,
+                execution_admission=service._hedge_execution_owned if native_trading else None,
                 local_fence=service._trading_ready, clock=clock, cycle_timeout_ms=limits.cycle_timeout_ms, **identity)
             service.source = PgHedgeSource(service.collector, carry=carry, swap_source=service.hedge.source,
                                            max_levels=limits.max_levels, timeout_ms=limits.cycle_timeout_ms,
                                            available_edge_quote=D('0') if native_model is None else native_model.available_edge_quote_usdt)
             service.hedge.bind_sources(service.source)
+            if native_model is not None and native_model.hedge_enabled:
+                await service._require_hedge_policies()
             observer = PgJointFinancialObserver(service.source, independent_fill_value=independent_fill_value,
                                                 independent_cashflow_value=independent_cashflow_value)
             service.reporting = await PgRecorderApplication.install(
@@ -465,6 +472,143 @@ class PgLiquidityService:
                 schedule, namespace=fingerprint([self.config.storage_binding.json(), self.journal.owner.json()]),
                 quote=self.quote, cancel=self.cancel_makers, ready=self._trading_ready, can_quote=self._maker_quote_ready)
 
+    async def _require_financial_intake(self):
+        """Both enabled products need their complete native monetary route."""
+        async def read(c):
+            return await c.fetchval('''SELECT
+                EXISTS(SELECT 1 FROM life_financial.spot_fill_policies p WHERE p.account_id=$1 AND p.policy_hash=$2)
+                AND EXISTS(SELECT 1 FROM life_financial.swap_fill_policies p WHERE p.account_id=$1 AND p.policy_hash=$2)
+                AND EXISTS(SELECT 1 FROM life_financial.funding_accounting_policies p WHERE p.account_id=$1 AND p.policy_hash=$2)
+                AND EXISTS(SELECT 1 FROM life_financial.joint_batch_policies p WHERE p.account_id=$1 AND p.policy_hash=$2)''',
+                                    self.runtime.config.account_id, self.config.storage_binding.policy_hash)
+        if await self.runtime._admit(read, safety=True) is not True:
+            raise StorageError('PG_SERVICE_FINANCIAL_INTAKE_REQUIRED')
+
+    async def _require_hedge_policies(self):
+        """Refuse a selected route whose immutable native policies are absent.
+
+        This read installs nothing and grants no financial permission. Every
+        later source/command independently verifies its current native basis.
+        """
+        async def read(c):
+            return await c.fetchval('''SELECT NOT (life_financial.spot_state(a.account_id)->>'unverified')::boolean
+                AND EXISTS(SELECT 1 FROM life_financial.hedge_policies h WHERE h.account_id=a.account_id AND h.policy_hash=a.policy_hash)
+                AND EXISTS(SELECT 1 FROM life_financial.portfolio_policies p WHERE p.account_id=a.account_id AND p.policy_hash=a.policy_hash)
+                AND EXISTS(SELECT 1 FROM life_financial.shared_release_policies r WHERE r.account_id=a.account_id AND r.policy_hash=a.policy_hash)
+                AND EXISTS(SELECT 1 FROM life_financial.swap_terminal_policies t WHERE t.account_id=a.account_id AND t.policy_hash=a.policy_hash)
+                FROM life_financial.accounts a WHERE a.account_id=$1''', self.runtime.config.account_id)
+        if await self.runtime._admit(read, safety=True) is not True:
+            raise StorageError('PG_SERVICE_HEDGE_POLICY_REQUIRED')
+
+    async def execute_hedge(self, operation_id):
+        """One configured signed hedge; serialize with original maker work.
+
+        Retire existing owned makers through their authenticated cancellation,
+        NAV and release route before the new hedge source is captured. Existing
+        plan readback is diagnostic only and cannot authorize another SDK send.
+        This operation never restarts the maker schedule.
+        """
+        identifier(operation_id)
+        self._original()
+        self._maker_admission()
+        if not self._trading_ready() or not self._trading_model.hedge_enabled:
+            raise StorageError('PG_SERVICE_HEDGE_NOT_ENABLED')
+        if self._quote_task is not None or self.hedge._busy:
+            raise StorageError('PG_SERVICE_QUOTE_BACKPRESSURE')
+        current = self.runner.executor_orchestrator.active_executors[self.config.id]
+        if current:
+            # cancel_makers owns this same cycle slot before its first await.
+            # No await separates its release from the following acquisition.
+            await self.cancel_makers(tuple(v.config.id for v in current))
+        self._quote_task = asyncio.current_task()
+        try:
+            async with asyncio.timeout(self._trading_model.quote_schedule_timeout_ms / 1000):
+                await self._join_maker_events()
+                if await self._read_trading_config() != self._trading_model:
+                    raise StorageError('PG_SERVICE_TRADING_CONFIG_CHANGED')
+                await self.controller.runner_facts()
+                self._hedge_task = asyncio.current_task()
+                try:
+                    result = await self.hedge.execute(operation_id)
+                finally:
+                    self._hedge_task = None
+                await self._join_maker_events()
+                return result
+        except BaseException:
+            self.revoke()
+            raise
+        finally:
+            self._quote_task = None
+
+    def _hedge_execution_owned(self):
+        self._original()
+        return (self._hedge_task is asyncio.current_task() and self._quote_task is self._hedge_task
+                and self._hedge_task is not None and self._trading_ready() and self._trading_model.hedge_enabled)
+
+    async def settle_hedge(self, operation_id, plan_operation_id):
+        """Close an original hedge from fresh signed terminal truth.
+
+        Callers supply identities only. No callback amount or cached ACK can
+        certify a terminal or release. An interrupted stage retains its native
+        original operation and claims for explicit reconciliation. This route
+        neither sends another order nor restarts makers.
+        """
+        from hummingbot.strategy_v2.life_liquidity.storage.postgres.hedge import SettleHedge
+        from hummingbot.strategy_v2.life_liquidity.storage.postgres.portfolio import (
+            MeasurePortfolio,
+            PgPortfolioRepository,
+        )
+        command = SettleHedge(operation_id, plan_operation_id)
+        self._original()
+        self._maker_admission()
+        if not self.native_trading or not self._trading_model.hedge_enabled:
+            raise StorageError('PG_SERVICE_HEDGE_NOT_ENABLED')
+        if self._quote_task is not None or self.hedge._busy:
+            raise StorageError('PG_SERVICE_QUOTE_BACKPRESSURE')
+        self._quote_task = asyncio.current_task()
+        started = False
+        try:
+            async with asyncio.timeout(self._trading_model.quote_schedule_timeout_ms / 1000):
+                root = await self.hedge.repository._read(self.config.storage_binding, plan_operation_id)
+                if (root is None or root['command']['kind'] != 'HEDGE_PLAN'
+                        or root['command']['command']['child'] is None):
+                    raise StorageError('PG_SERVICE_HEDGE_CHILD_REQUIRED')
+                child = root['command']['command']['child']['prepare']
+                intent_id = child['config']['id']
+                key = fingerprint(command.json())
+                terminal_id, release_id = 'service-hedge-terminal:' + key, 'service-hedge-retire:' + key
+                release = self.cancellation.release
+                if await release.release._read(release_id, self.config.storage_binding) is not None:
+                    # Original verified receipt readback has no new source,
+                    # settlement/release grant or SDK effect, even after stop.
+                    await release.retire_claim(release_id, intent_id, terminal_id)
+                    return await self.hedge.settle(command)
+                if not self._trading_ready():
+                    raise StorageError('PG_SERVICE_HEDGE_RECONCILIATION_REQUIRED')
+                started = True
+                await self._join_maker_events()
+                if await self._read_trading_config() != self._trading_model:
+                    raise StorageError('PG_SERVICE_TRADING_CONFIG_CHANGED')
+                await self.hedge.observe_sources('service-hedge-source:' + key)
+                portfolio = PgPortfolioRepository(self.collector.swap)
+                await portfolio.measure(MeasurePortfolio('service-hedge-nav:' + key),
+                                        cut=(await self.financial.observation_cut(self.config.storage_binding)).cut,
+                                        owner=self.journal.owner)
+                terminal = await release.confirm_terminal(terminal_id, intent_id)
+                if terminal.state != 'TERMINAL':
+                    raise StorageError('PG_SERVICE_HEDGE_TERMINAL_REQUIRED')
+                result = await self.hedge.settle(command)
+                if result.state != 'TERMINAL':
+                    raise StorageError('PG_SERVICE_HEDGE_SETTLEMENT_REQUIRED')
+                await release.retire_claim(release_id, intent_id, terminal_id)
+                return result
+        except BaseException:
+            if started:
+                self.revoke()
+            raise
+        finally:
+            self._quote_task = None
+
     def _maker_quote_ready(self, remaining):
         self._original()
         if type(remaining) is not int or remaining <= 0 or self.makers is None:
@@ -507,7 +651,7 @@ class PgLiquidityService:
         self._maker_admission()
         if not self._trading_ready() or self.quote_application is None:
             raise StorageError('PG_SERVICE_TRADING_NOT_QUALIFIED')
-        if self._quote_task is not None:
+        if self._quote_task is not None or self.hedge._busy:
             raise StorageError('PG_SERVICE_QUOTE_BACKPRESSURE')
         self._quote_task = asyncio.current_task()
         try:
@@ -517,9 +661,12 @@ class PgLiquidityService:
                 if await self._read_trading_config() != self._trading_model:
                     raise StorageError('PG_SERVICE_TRADING_CONFIG_CHANGED')
                 intent = await self.producer.propose(intent_id, side, level)
-                allocated = await self.hedge.allocate_spot('service-allocate:' + fingerprint([intent_id]), intent)
+                allocated = await self.hedge.allocate_spot('service-allocate:' + fingerprint([intent_id]), intent,
+                                                           require_hedge=self._trading_model.hedge_enabled)
                 if not allocated.capital.decision.allowed or allocated.carry is None or not allocated.carry.decision.allowed:
                     raise StorageError('PG_SERVICE_CAPITAL_OR_CARRY_DENIED')
+                if self._trading_model.hedge_enabled and (allocated.hedge is None or allocated.hedge.decision['allow_spot_risk_increase'] is not True):
+                    raise StorageError('PG_SERVICE_HEDGE_SPOT_PAUSED')
                 publication_id = 'service-publish:' + fingerprint([intent_id])
                 publication = await self.journal.preflight_publication(publication_id)
                 action = await self.quote_source.capture_intent_ready(intent)
@@ -551,6 +698,9 @@ class PgLiquidityService:
             self._quote_task = self._quote_action = None
 
     def _pause(self):
+        self._original()
+        if self.native_trading and self._quote_task is not asyncio.current_task():
+            raise StorageError('PG_SERVICE_CYCLE_ORIGIN_REQUIRED')
         self._paused = True
         for executor in self._owned_executors.values():
             if executor.status is not RunnableStatus.TERMINATED:

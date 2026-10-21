@@ -1,6 +1,15 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
-**Current PG3 lifecycle qualification (2026-10-21):** original service cleanup,
+**Current configured hedge qualification (2026-10-21):** the explicit offline
+native service composes SPOT retirement → signed hedge sources → protected SWAP
+SDK/ACK → original terminal/settlement/shared release. All 22 configured trading
+cases pass on one frozen source, including partial fills, replay, concurrent
+calls and late-ACK shutdown. Mandatory monetary-policy startup and same-source
+SPOT hedge advice are installed. **PG3 remains open** for the complete fixed
+R2.3/R4/R5 exits and retained SQL/source/quote latency failures. See
+[configured hedge qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-configured-spot-and-hedge-workflow-2026-10-21).
+
+**Earlier PG3 lifecycle qualification (2026-10-21):** original service cleanup,
 both SDK shutdowns and factory/client release are joined in order, including
 partial startup and caller timeouts. Native shutdown retains original scope and
 never adopts a foreign executor. The final frozen source passes **56 host/File

@@ -57,6 +57,7 @@ class SpotAllocationReceipt:
     observations: HedgeSourceReceipt
     capital: object
     carry: object
+    hedge: object = None
     trading_permission: bool = field(default=False, init=False)
 
 
@@ -484,7 +485,7 @@ class PgHedgeSource:
         if self._allocating and (not self._planning or self._plan_task is not asyncio.current_task()):
             raise StorageError('PG_SPOT_ALLOCATION_ORIGINAL_TASK_REQUIRED')
 
-    async def allocate_spot(self, operation_id, intent):
+    async def allocate_spot(self, operation_id, intent, *, require_hedge=False):
         """Allocate once with quiescent or exactly reconciled standing makers.
 
         Original signed observations finance this exact business intent before
@@ -493,7 +494,7 @@ class PgHedgeSource:
         """
         from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot_intent import PgSpotQuoteIntent
         identifier(operation_id)
-        if (type(intent) is not PgSpotQuoteIntent or intent.owner != self.owner
+        if (type(require_hedge) is not bool or type(intent) is not PgSpotQuoteIntent or intent.owner != self.owner
                 or intent.controller_id != self.reader.source.journal.controller_id
                 or intent.config_version != self.reader.source.journal.config_version):
             raise StorageError('PG_SPOT_ALLOCATION_INTENT_INVALID')
@@ -508,14 +509,40 @@ class PgHedgeSource:
         try:
             self._original()
             async with asyncio.timeout(self.timeout_ms / 1000):
+                if self.swap_source._connector._order_tracker.active_orders:
+                    raise StorageError('PG_HEDGE_SOURCE_RUNNER_NOT_QUIESCENT')
+                if self.reader.source._connector._order_tracker.active_orders:
+                    # An empty original runner cannot own a standing SDK
+                    # maker. Refuse this local contradiction before provider
+                    # HTTP or native observations. Nonempty facts grant no
+                    # permission: full signed/native/runner/SDK matching below
+                    # remains mandatory, including every original hold.
+                    facts = await self.reader.source.journal._facts()
+                    self._original()
+                    if not facts.executor_ids:
+                        raise StorageError('PG_HEDGE_SOURCE_RUNNER_NOT_QUIESCENT')
                 cap_preflight = await preflight_new_operation(self.capital, capital_id)
                 carry_preflight = await preflight_new_operation(self.carry, carry_id)
                 if cap_preflight is None or carry_preflight is None:
                     raise StorageError('PG_HEDGE_SOURCE_ORIGINAL_OPERATION_REQUIRES_RECONCILIATION')
+                repository = PgHedgeRepository(self.collector.swap)
+                hedge_id = 'spot-hedge:' + key
+                if require_hedge and await repository.lookup(hedge_id, self.binding) is not None:
+                    raise StorageError('PG_HEDGE_SOURCE_ORIGINAL_OPERATION_REQUIRES_RECONCILIATION')
                 request = _SpotAllocation('spot-source:' + key, intent, capital_id, carry_id, cap_preflight, carry_preflight)
                 self._allocation_request = request
                 observed = await self.refresh(request.source_operation, _allocation=request)
-                return SpotAllocationReceipt(observed, observed.capital, observed.carry)
+                hedge = None
+                if require_hedge and observed.capital.decision.allowed and observed.carry is not None and observed.carry.decision.allowed:
+                    # Consume this allocation's ORIGINAL signed hedge market
+                    # before any runner timestamp exists. A prior decision's
+                    # market cannot be re-dated by fresh capital/carry alone.
+                    # Advisory only: no child, cancellation or HTTP authority.
+                    report, epoch, cut, market, _, _ = self._qualified
+                    self._check(report, epoch, market)
+                    hedge = await repository.plan(PlanHedge.capture(hedge_id, market), cut=cut, owner=self.owner)
+                    self._check(report, epoch + 1, market)
+                return SpotAllocationReceipt(observed, observed.capital, observed.carry, hedge)
         except BaseException:
             self.stop()
             raise
