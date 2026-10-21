@@ -1,12 +1,14 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
-**Current PG3 status (2026-10-21):** migration 99 adds bounded provider-collection
-persistence behind the original observation barrier and pins the query-engine
-profile. An isolated actual two-generation maker replay passes without diagnostic
-plugins. Focused fault and migration audits pass; broader current-source
-regression and complete configured/economic/restart/fault/role/latency acceptance
-remain required. **R2.3/R4/R5 and PG3 stay open.** See
-[provider collection qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-bounded-provider-collection-and-query-engine-profile-2026-10-21).
+**Current PG3 status (2026-10-21):** migration 100 stores a generated immutable
+canonical-v1 command digest while retaining the original fingerprint comparisons
+and independent current-state checks. The affected upgrade/snapshot/recorder
+regression passes **55 cases**, **192.12 s**, including 10 new contracts; the
+actual two-generation service passes **1 case**, **122.02 s**, without plugins.
+All 2517 pinned code/SQL hashes remain unchanged. Complete current-source
+configured/economic/restart/fault/role/loaded-latency acceptance remains required.
+**R2.3/R4/R5 and PG3 stay open.** See
+[generated command-digest qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-generated-immutable-command-digest-2026-10-21).
 
 The pre-clock-fix configured selector is **34 pass / 3 fail**: dispatch/ARM/COMMIT
 expiry and a runner-facts/CLAIM causal-order refusal. The latter reproduces with

@@ -1472,3 +1472,15 @@ unknown COMMIT never authorize replay or a late source report.
 Migration-99 runtime connections also pin and verify generic query plans with
 JIT disabled on both pools. This changes query execution/planning behavior only;
 all financial proofs, uncached identity/grant checks and deadlines remain.
+
+`000100_generated_command_fingerprint.sql` stores an operation's canonical-v1
+command digest in a PostgreSQL `GENERATED ALWAYS ... STORED` column. It backfills
+existing operations and recomputes the value on a command update. Verifiers still
+compare it with the original retained fingerprint and perform their independent
+source, owner, version, policy, accounting and COMMIT checks. No financial verdict
+or permission is cached. The migration audits the original canonical function
+and 19 verifier bodies before replacing 26 repeated digest expressions; existing
+OIDs/ACLs are retained and the new helper has no non-owner execute grant, including
+hostile deployment defaults. No new lookup index is needed: the value travels
+with the operation already selected by its existing identity. Reruns use the
+normal checksum/version ledger; a drifted predecessor is refused atomically.

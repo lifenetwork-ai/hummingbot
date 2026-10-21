@@ -4773,3 +4773,13 @@ or risk revocation. Original native dispatch/financial/COMMIT fences continue
 to enforce permission and age. The frozen 57-case journal gate and the previously
 clock-failing paired-maker/release/archive service case pass. Whole-service
 expiry, failure and loaded-latency acceptance still gate PG3.
+
+Migration 100 adds a stored generated digest of each immutable operation command.
+It uses the original canonical-v1 bytes, is recomputed by PostgreSQL if an owner
+changes a command, and cannot be assigned directly. Selected verifiers read that
+deterministic value and continue comparing it with the ORIGINAL fingerprint;
+all current-state monetary/source/permission checks still run. This is not a
+financial verdict cache. Existing operations are backfilled without changing
+their business history, financial cut, money or budgets. The helper is private,
+existing function identities/ACLs are retained, and qualification still belongs
+to the fixed PG3 R2.3/R4/R5 gates in the implementation plan.

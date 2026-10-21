@@ -1,12 +1,15 @@
 # LIFE: PostgreSQL and Cloud Run Implementation Plan (TDD)
 
-**Current PG3 status (2026-10-21):** migration 99 adds bounded provider-collection
-persistence behind the original observation barrier and pins the query-engine
-profile. An isolated actual two-generation maker replay passes without diagnostic
-plugins. Focused fault and migration audits pass; broader current-source
-regression and complete configured/economic/restart/fault/role/latency acceptance
-remain required. **R2.3/R4/R5 and PG3 stay open.** See
-[provider collection qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-bounded-provider-collection-and-query-engine-profile-2026-10-21).
+**Current PG3 status (2026-10-21):** migration 100 replaces repeated immutable
+operation-command hashing with a stored generated canonical-v1 digest, retaining
+the original fingerprint comparisons and independent current-state verifiers.
+The affected upgrade/snapshot/recorder gate passes **55 cases**, **192.12 s**,
+including all 10 new digest/backfill/corruption/ACL/drift contracts. The actual
+two-generation service replay passes **1 case**, **122.02 s**, without plugins.
+All 2517 pinned code/SQL hashes remain unchanged. Complete current-source
+configured/economic/restart/fault/role/loaded-latency acceptance is still required.
+**R2.3/R4/R5 and PG3 stay open.** See
+[generated command-digest qualification](#pg3-generated-immutable-command-digest-2026-10-21).
 
 **Complete configured selector before the clock fix:** **34 pass / 3
 fail**, **692.25 s**, at `/tmp/life-pg3-provider-collection-configured-complete`.
@@ -7166,3 +7169,59 @@ the exact 19 verifier bodies and 26 selected expressions; it is not applied to
 the repository. Actual migration/backfill/idempotency/OID/ACL/corruption and
 current-source loaded/full-product qualification are still required before
 acceptance. **R2.3/R4/R5 and PG3 remain open.**
+
+## PG3 generated immutable command digest (2026-10-21)
+
+Migration `000100_generated_command_fingerprint.sql` implements the measured
+candidate as a PostgreSQL stored generated column on the existing operation row.
+It uses the unchanged original canonical-v1 function; INSERT and command UPDATE
+compute the digest automatically. Callers cannot assign the generated value.
+Nineteen audited verifier bodies replace exactly 26 repeated command-digest
+expressions with that value. Each still compares it with the ORIGINAL retained
+operation fingerprint, and all receipt/source/owner/version/policy/accounting/
+COMMIT checks continue independently. No financial verdict, permission, TTL,
+grant or source observation is cached. Existing identity indexes select the
+same row; there is no additional hash lookup index or transport route.
+
+The migration verifies predecessor body hashes, signatures and security/search
+path attributes before any change. It retains existing function OIDs and ACLs,
+removes every non-owner grant from the new private helper (including hostile
+deployment defaults), backfills existing operations and uses the existing
+checksum/version migration ledger. Normal reruns apply nothing; predecessor
+drift is refused atomically on repeated attempts. No policy, synthetic/live
+calibration, SQL/transaction/source/capture deadline or existing migration byte
+is changed.
+
+TDD and qualification on the original 2-CPU/1-GiB disposable PostgreSQL profile:
+
+- RED: **1 expected undefined-column failure**, **5.99 s**, at
+  `/tmp/life-pg3-generated-command-fingerprint-red` before implementation.
+- Initial Green: **3 pass**, **10.47 s**, then **9 pass**, **21.49 s**, as upgrade,
+  byte equality and drift cases were added. These are development gates, not
+  extra cases added to the final count.
+- Final digest contracts: **10 pass / 3282 deselected**, **23.41 s**, at
+  `/tmp/life-pg3-generated-command-fingerprint-final-contracts`. Actual 99→100
+  backfill preserves original operation JSON, financial cut, money/budgets and
+  all existing function OIDs/ACL/security attributes. Owner-level same-version
+  command corruption recomputes the generated value and still fails the original
+  carry proof without changing the account version or money. Direct generated
+  assignment and runtime/helper access remain refused. Nested canonical-byte
+  equality, repeated startup, hostile default grants and four predecessor-drift
+  refusals are included.
+- Actual uninstrumented two-generation configured service: **1 pass / 927
+  deselected**, **122.02 s**, at
+  `/tmp/life-pg3-command-fingerprint-native-two-generation`. It completes both
+  generations and original terminal/claim release with unchanged 1000-ms guards.
+- Affected upgrade/snapshot/recorder regression: **55 pass / 873 deselected**,
+  **192.12 s**, at `/tmp/life-pg3-command-fingerprint-upgrade-regression`. This
+  count INCLUDES the 10 new contracts. It also qualifies the six existing upgrade
+  test files' extended migration tails and retained predecessor/corruption oracles.
+
+All **2517** code/SQL hashes at
+`/tmp/life-pg3-command-fingerprint-final-source.json` remain unchanged across the
+two final workflow/regression gates. Changed-file hooks pass. These results
+qualify this deterministic storage optimization; they do not replace a complete
+current-source File/native economic, configured SPOT/SWAP, whole-service fault/
+restart/corruption/role and loaded-latency acceptance gate. No production/demo
+eligibility, deploy, real exchange account, push or repository evidence file is
+introduced. **The fixed R2.3/R4/R5 exits and PG3 remain open.**

@@ -183,7 +183,7 @@ def main():
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in (
                 'service', 'service_trading', 'service_hedge', 'service_replay', 'service_process', 'service_cycle', 'standing_makers', 'retired_scope', 'maker_cancellation', 'operation_preflight', 'runner_startup', 'recorder_application', 'event_application',
                 'spot_producer', 'produced_send', 'action_preparation', 'quote_arm', 'account_brackets', 'spot_allocation', 'spot_market_send', 'spot_market', 'spot_application', 'quote_transport', 'quote_account_source',
-                'runner_journal', 'native_capture', 'release_proof_reuse', 'joint_source', 'hedge_source', 'hedge_application', 'joint_observer', 'financial_source', 'provider_batch', 'provider_collection', 'provider_journal', 'joint_account_source',
+                'runner_journal', 'native_capture', 'command_fingerprint', 'release_proof_reuse', 'joint_source', 'hedge_source', 'hedge_application', 'joint_observer', 'financial_source', 'provider_batch', 'provider_collection', 'provider_journal', 'joint_account_source',
                 'collateral_source', 'joint_history', 'joint_events',
                 'snapshot_bodies', 'snapshot_financial_reuse', 'recorder_queries', 'recorder_proofs', 'json_codecs')]
             selectors.extend(str(selector / name) for name in ('test_shared_sdk_quota.py', 'test_spot_intent.py'))
@@ -238,13 +238,13 @@ def main():
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in (
                 'transactions', 'lifecycle', 'inventory_settlement', 'collateral', 'collateral_source',
                 'joint_source', 'joint_account_source', 'financial_source', 'financial_observer',
-                'financial_dedup', 'provider_journal', 'joint_batch', 'joint_repair', 'swap_fills',
+                'financial_dedup', 'provider_journal', 'command_fingerprint', 'joint_batch', 'joint_repair', 'swap_fills',
                 'swap_accounting', 'funding', 'funding_repair', 'funding_cohort', 'swap_repair',
                 'spot_repair', 'cashflow_repair', 'terminal_repair', 'portfolio', 'portfolio_math',
                 'swap_terminal', 'shared_release', 'late_capital')]
         if args.suite == 'joint_recovery':
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in (
-                'collateral', 'collateral_source', 'joint_source', 'joint_account_source', 'financial_source', 'financial_observer', 'financial_dedup', 'provider_journal', 'joint_batch', 'joint_repair', 'swap_fills', 'swap_accounting', 'funding', 'funding_repair', 'funding_cohort', 'swap_repair', 'spot_repair', 'cashflow_repair', 'terminal_repair', 'legacy_applying', 'legacy_core_cashflows', 'legacy_spot', 'legacy_joint', 'coupled_ack', 'file_recovery_history', 'completed_outer_history', 'outer_recovery_history', 'unfilled_swap', 'joint_trade_ids', 'received_observations', 'portfolio', 'swap_terminal', 'shared_release', 'late_capital')]
+                'collateral', 'collateral_source', 'joint_source', 'joint_account_source', 'financial_source', 'financial_observer', 'financial_dedup', 'provider_journal', 'command_fingerprint', 'joint_batch', 'joint_repair', 'swap_fills', 'swap_accounting', 'funding', 'funding_repair', 'funding_cohort', 'swap_repair', 'spot_repair', 'cashflow_repair', 'terminal_repair', 'legacy_applying', 'legacy_core_cashflows', 'legacy_spot', 'legacy_joint', 'coupled_ack', 'file_recovery_history', 'completed_outer_history', 'outer_recovery_history', 'unfilled_swap', 'joint_trade_ids', 'received_observations', 'portfolio', 'swap_terminal', 'shared_release', 'late_capital')]
         if args.suite == 'spot_recovery_paths':
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in (
                 'spot_observations', 'received_observations', 'lifecycle', 'observation_context', 'inventory_settlement', 'financial_ingress', 'financial_commands')]
