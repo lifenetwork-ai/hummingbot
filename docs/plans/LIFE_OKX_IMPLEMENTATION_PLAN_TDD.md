@@ -1,5 +1,14 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**Latest configured crash/replay checkpoint (2026-10-21):** **36 configured
+trading/hedge/replay/process-death cases pass**, **525.42 s**, including four
+SPOT and seven SWAP physical-process/cold-reopen cases. A reproduced advisory-
+preflight crash/replay defect is fixed before maker cancellation, within the
+unchanged execution budget. All 2518 pinned code/SQL hashes remain unchanged.
+Full current-source economic/mode/fault/repair/role and loaded multi-generation
+acceptance remains required; **R2.3/R4/R5 and PG3 stay open**. See
+[joint crash qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-configured-joint-crash-and-preflight-replay-2026-10-21).
+
 **Current PG3 status (2026-10-21):** migration 100 stores a generated immutable
 canonical-v1 command digest while retaining the original fingerprint comparisons
 and independent current-state checks. The affected upgrade/snapshot/recorder

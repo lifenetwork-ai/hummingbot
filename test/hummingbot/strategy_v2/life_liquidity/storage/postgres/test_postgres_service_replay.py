@@ -93,7 +93,8 @@ async def test_hedge_primary_probe_and_new_execution_share_original_five_second_
     delegated = asyncio.Event()
 
     async def slow_primary(*args):
-        await asyncio.sleep(4.5)
+        if args[0] == 'original-cycle-budget':
+            await asyncio.sleep(4.5)
         return await original(*args)
 
     async def unavailable_execution(operation_id):

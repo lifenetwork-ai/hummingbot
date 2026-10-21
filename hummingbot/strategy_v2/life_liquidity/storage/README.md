@@ -4783,3 +4783,13 @@ financial verdict cache. Existing operations are backfilled without changing
 their business history, financial cut, money or budgets. The helper is private,
 existing function identities/ACLs are retained, and qualification still belongs
 to the fixed PG3 R2.3/R4/R5 gates in the implementation plan.
+
+Configured hedge replay checks the original main and advisory-preflight
+identities before maker cancellation. An interrupted original preflight requires
+reconciliation; it cannot cause another cancellation or fresh source request.
+Both primary reads share the original reserved task and execution budget.
+The frozen configured trading/replay/crash gate passes 36 cases, including
+physical death and fresh-SDK cold reopen at four SPOT and seven SWAP boundaries.
+Cold reads grant no sender or claim release. SWAP terminal/settlement/release
+crash cases cover canceled no-fill orders; filled-order crash repair and complete
+current-source configured/economic/fault/role/loaded gates still belong to PG3.

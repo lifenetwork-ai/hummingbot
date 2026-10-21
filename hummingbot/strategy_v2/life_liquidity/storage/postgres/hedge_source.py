@@ -551,6 +551,11 @@ class PgHedgeSource:
             self._allocation_request = None
             self._planning, self._allocating, self._plan_task = False, False, None
 
+    @staticmethod
+    def preflight_operation_id(operation_id):
+        identifier(operation_id)
+        return 'hedge-source-plan:' + fingerprint([operation_id])
+
     async def collect(self, operation_id, *, source_report=None):
         """Build one child from the native decision, with permanent identities.
 
@@ -569,7 +574,7 @@ class PgHedgeSource:
         try:
             self._original()
             repository = PgHedgeRepository(self.collector.swap)
-            preflight = 'hedge-source-plan:' + fingerprint([operation_id])
+            preflight = self.preflight_operation_id(operation_id)
             if await repository.lookup(preflight, self.binding) is not None:
                 raise StorageError('PG_HEDGE_SOURCE_ORIGINAL_OPERATION_REQUIRES_RECONCILIATION')
             result = await self.refresh(operation_id, source_report=source_report)

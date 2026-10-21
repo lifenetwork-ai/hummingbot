@@ -1,23 +1,14 @@
 """Actual whole-service death and cold native runner, fake HTTP/disposable PG."""
 import os
-from copy import deepcopy
-from datetime import datetime, timezone
-from decimal import Decimal as D
-from test.hummingbot.core.web_assistant.connections.test_request_guard import Response
-from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.service_process import crash_service, decoded_config
-from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_service import limits
-from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_shared_sdk_quota import sdk_pair
+from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.service_process import (
+    cold_service_context,
+    crash_service,
+)
 
 import pytest
 
-from controllers.generic.life_liquidity import LifeLiquidityConfig
-from hummingbot.core.data_type.common import PositionMode
-from hummingbot.data_feed.market_data_provider import MarketDataProvider
 from hummingbot.strategy_v2.executors.order_executor.data_types import OrderExecutorConfig
-from hummingbot.strategy_v2.life_liquidity.storage.contracts import OwnerToken, StorageError, fingerprint
-from hummingbot.strategy_v2.life_liquidity.storage.postgres.service import PgLiquidityService
-from hummingbot.strategy_v2.life_liquidity.storage.postgres.shared_sdk_quota import PgSharedSdkQuota
-from hummingbot.strategy_v2.life_liquidity.storage.recorder_events import EventSource
+from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError, fingerprint
 from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction
 
 
@@ -37,51 +28,10 @@ async def monetary_rows(connection, account_id):
 async def test_configured_service_process_death_retains_original_holds_without_cold_replay(database, phase, expected):
     manifest = await crash_service(database, phase)
     assert manifest['process_id'] != os.getpid() and manifest['phase'] == phase
-    cfg = decoded_config(manifest['config'])
+    context = cold_service_context(manifest)
+    cfg, calls, reopen = context.config, context.calls, context.reopen
     before = await monetary_rows(database[0], cfg.account_id)
-    spot, swap, http = sdk_pair()
-    spot.enable_protected_trading_pair('LIFE-USDT')
-    PgSharedSdkQuota.install(spot=spot, swap=swap)
-    connectors = dict(okx=spot, okx_perpetual=swap)
-    calls = []
-
-    swap._contract_sizes['LIFE-USDT'] = D('.25')
-    swap._perpetual_trading.set_position_mode(PositionMode.HEDGE)
-    swap._perpetual_trading.set_leverage('LIFE-USDT', 2)
-
-    async def original_exchange(**kwargs):
-        calls.append(kwargs)
-        assert kwargs['method'] == 'GET', 'Cold recovery attempted a new wire'
-        assert kwargs['headers'].get('OK-ACCESS-SIGN')
-        tail, params = kwargs['url'].rsplit('/', 1)[1], kwargs.get('params') or {}
-        rows = {'config': [manifest['account_config']], 'balance': [manifest['balance']],
-                'positions': manifest['positions'], 'bills-archive': [dict(billId='100')],
-                'fills-history': [], 'orders-algo-pending': []}
-        if tail in ('order', 'orders-pending'):
-            data = manifest['orders']
-            for key in ('clOrdId', 'instId', 'instType'):
-                if params.get(key):
-                    data = [row for row in data if row[key] == params[key]]
-        else:
-            data = rows[tail]
-        response = Response()
-
-        async def body():
-            return dict(code='0', data=deepcopy(data))
-        response.json = body
-        return response
-    http.request = original_exchange
     service = None
-
-    async def reopen(native_trading):
-        return await PgLiquidityService.open(
-            LifeLiquidityConfig.model_validate_json(manifest['controller']), runtime_config=cfg,
-            owner=OwnerToken.from_json(manifest['owner']), connectors=connectors,
-            market_data_provider=MarketDataProvider(connectors),
-            sources=tuple(EventSource(**s) for s in manifest['sources']), limits=limits(),
-            clock=lambda: datetime.now(timezone.utc), independent_fill_value=lambda *args: None,
-            independent_cashflow_value=lambda *args: None, native_trading=native_trading)
-
     try:
         if phase == 'send':
             # A physical send with no received ACK is unresolved native risk.

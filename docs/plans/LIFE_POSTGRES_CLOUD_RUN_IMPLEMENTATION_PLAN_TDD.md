@@ -1,5 +1,16 @@
 # LIFE: PostgreSQL and Cloud Run Implementation Plan (TDD)
 
+**Latest configured crash/replay checkpoint (2026-10-21):** the frozen
+configured trading/hedge/replay/process-death gate passes **36 cases**, **525.42 s**,
+including four SPOT and seven SWAP physical-process/cold-reopen cases. A real
+preflight-crash regression exposed cancellation on replay before the original
+advisory operation was checked. The service now checks that original operation
+before any cancellation, within the unchanged aggregate execution budget.
+All 2518 pinned code/SQL hashes remain unchanged. This closes the tested replay
+defect; complete configured modes, economic parity, whole-product fault/repair/
+role coverage and loaded multi-generation latency remain **R2.3/R4/R5** work.
+**PG3 remains open.** See [joint crash qualification](#pg3-configured-joint-crash-and-preflight-replay-2026-10-21).
+
 **Current PG3 status (2026-10-21):** migration 100 replaces repeated immutable
 operation-command hashing with a stored generated canonical-v1 digest, retaining
 the original fingerprint comparisons and independent current-state verifiers.
@@ -7225,3 +7236,45 @@ current-source File/native economic, configured SPOT/SWAP, whole-service fault/
 restart/corruption/role and loaded-latency acceptance gate. No production/demo
 eligibility, deploy, real exchange account, push or repository evidence file is
 introduced. **The fixed R2.3/R4/R5 exits and PG3 remain open.**
+
+## PG3 configured joint crash and preflight replay (2026-10-21)
+
+The actual configured service now has physical SWAP process-death qualification
+at advisory preflight, child preparation, accepted send without received ACK,
+received ACK, terminal accounting, settlement and shared-claim release. The
+terminal/settlement/release profiles use an authenticated cancellation with no
+fill. Each child exits without cleanup; cold reopening constructs new actual
+SDKs, pools, controller and runner against the original signed fake exchange
+truth. It never restores an SDK sender, adopts an executor or submits a POST.
+Unresolved send refuses quote-capable startup; observation-only recovery remains
+available. Original wire IDs, money, gross budgets and retained claims are
+compared independently across reopen and diagnostic readback. These cases do
+not qualify filled-order crash repair or automatic release after interrupted
+settlement.
+
+TDD exposed a real replay defect: death after the original advisory preflight
+left no main hedge receipt, so a repeated public hedge call could enter maker
+cancellation before discovering that retained preflight. The service now checks
+both original identities before side effects. The preflight identity has one
+shared deterministic implementation. Both reads use the original reserved task
+and timeout; their elapsed time is charged to the unchanged five-second cycle.
+No financial/source/permission result is cached or deadline renewed.
+
+- RED: **1 expected failure**, **17.77 s**, at
+  `/tmp/life-pg3-swap-preflight-process-red`: interrupted preflight entered
+  cancellation again. Green: **1 pass**, **16.65 s**, at
+  `/tmp/life-pg3-swap-preflight-process-green`.
+- Development physical-crash gate: **11 pass / 25 deselected**, **230.58 s**, at
+  `/tmp/life-pg3-configured-joint-process-boundaries`.
+- Final `run_postgres --suite service_trading --fail-fast`: **36 pass**, no
+  failures/errors/skips, six existing warnings, **525.42 s**, at
+  `/tmp/life-pg3-swap-process-final-trading`. This count INCLUDES those eleven
+  SPOT/SWAP crash cases and the original cycle-budget/concurrency regressions.
+
+All **2518** code/SQL hashes in
+`/tmp/life-pg3-swap-process-final-source.json` remain unchanged. The runner uses
+the original disposable PostgreSQL 16, 2-CPU/1-GiB profile and actual SDK guards
+with fake HTTP. No migration or source/SQL/COMMIT/fee/capture limit changes.
+Current-source full economic, configured-mode, backend/corruption/role/signed-
+repair and loaded multi-generation acceptance is still required. This tested
+increment does not close **R2.3/R4/R5 or PG3** or permit demo/live deployment.

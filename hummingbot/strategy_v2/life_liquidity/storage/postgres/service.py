@@ -540,6 +540,11 @@ class PgLiquidityService:
             async with asyncio.timeout_at(started + min(schedule_seconds, cycle_seconds)):
                 self.hedge._original(observation=True)
                 previous = await self.hedge.repository.lookup(operation_id, self.config.storage_binding)
+                if previous is None:
+                    preflight = await self.hedge.repository.lookup(
+                        PgHedgeSource.preflight_operation_id(operation_id), self.config.storage_binding)
+                    if preflight is not None:
+                        raise StorageError('PG_HEDGE_SOURCE_ORIGINAL_OPERATION_REQUIRES_RECONCILIATION')
             if previous is not None:
                 return previous
             lookup_seconds = loop.time() - started
