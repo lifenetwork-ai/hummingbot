@@ -811,17 +811,13 @@ class PgLiquidityService:
                     raise StorageError('PG_SERVICE_MAKER_CLOSURE_REQUIRED')
                 # Cancellation ACKs, stopped executors and empty SDK state do
                 # not release shared capacity. Refresh the original signed
-                # capital/carry source and measure native NAV for the complete
-                # closed target set. Retirement changes no money/position or
-                # this NAV's capital/carry basis. Each individual release still
-                # obtains a NEW signed proof and independently checks the exact
-                # current native basis, freshness and physical COMMIT. A fill,
-                # transfer or source expiry between releases must deny it.
-                await self.hedge.observe_sources('service-retire-source:' + fingerprint([operation_id]))
+                # capital/carry source and measure native NAV for each original
+                # claim. A sibling's earlier NAV can expire while its signed
+                # release completes. Each new intent owns distinct permanent
+                # source/NAV IDs and still needs an independent signed release
+                # proof and physical COMMIT. Any failure revokes the cycle;
+                # neither this stage nor a stale attempt is implicitly retried.
                 portfolio = PgPortfolioRepository(self.collector.swap)
-                await portfolio.measure(MeasurePortfolio('service-retire-nav:' + fingerprint([operation_id])),
-                                        cut=(await self.financial.observation_cut(self.config.storage_binding)).cut,
-                                        owner=self.journal.owner)
                 for executor in executors:
                     intent_id = executor.config.id
 
@@ -832,7 +828,18 @@ class PgLiquidityService:
                     if terminal_id is None:
                         raise StorageError('PG_SERVICE_MAKER_TERMINAL_REQUIRED')
                     key = fingerprint([operation_id, intent_id])
+                    await self.hedge.observe_sources('service-retire-source:' + key)
+                    await portfolio.measure(MeasurePortfolio('service-retire-nav:' + key),
+                                            cut=(await self.financial.observation_cut(self.config.storage_binding)).cut,
+                                            owner=self.journal.owner)
                     await self.cancellation.release.retire_claim('service-retire:' + key, intent_id, terminal_id)
+                # Complete all independently proved financial releases before
+                # archival work. Recorder projections and reconciliation can
+                # otherwise delay a sibling's financial completion.
+                # A failed release still revokes this cycle with its original
+                # claims/unknowns retained; archival cannot authorize a release.
+                for executor in executors:
+                    intent_id = executor.config.id
                     action = CreateExecutorAction(controller_id=self.config.id, executor_config=executor.config.model_copy(deep=True))
                     await self.journal.reconcile(action)
                     self.runner.executor_orchestrator.store_executor(StoreExecutorAction(

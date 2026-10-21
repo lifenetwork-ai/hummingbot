@@ -68,6 +68,21 @@ async def test_publication_preflight_cut_is_original_one_use_and_task_bound(data
 
 
 @pytest.mark.asyncio
+async def test_new_publication_preflight_reads_its_original_cut_on_the_command_pool(database):
+    repo, _, _, _, app, create, _, dispatch, _, _ = await assembled(database)
+    try:
+        ticket = await app.preflight_publication('new-claim')
+        read = next(d for d in reversed(repo._runtime.diagnostics) if d.operation == 'spot_observation_cut')
+        assert read.safety is False
+        await app.publish('new-claim', (create,), _publication=ticket)
+        claim = next(d for d in reversed(repo._runtime.diagnostics) if d.operation == 'spot_action_command')
+        assert claim.backend_pid == read.backend_pid
+    finally:
+        await dispatch.close()
+        await repo.close()
+
+
+@pytest.mark.asyncio
 async def test_publication_and_acceptance_need_verified_cuts_without_materializing_wallet_budget_views(database, monkeypatch):
     repo, cfg, owner, row, app, create, runner, dispatch, active, _ = await assembled(database)
 

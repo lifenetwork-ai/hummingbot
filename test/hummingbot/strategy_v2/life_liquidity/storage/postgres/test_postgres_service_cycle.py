@@ -73,16 +73,74 @@ async def test_imported_schedule_retires_every_original_maker_before_next_genera
         balance = await service.financial.balance(t.cfg.binding)
         assert balance.total_base_life == 5 and balance.total_quote_usdt == 10
         assert balance.reserved_base_life == balance.reserved_quote_usdt == 0
-        # Each completely closed generation has one shared NAV/source basis;
-        # the two releases still carry separate original signed proofs.
-        assert await database[0].fetchval("""SELECT count(*) FROM life_financial.operations
-            WHERE command->>'kind'='PORTFOLIO_NAV' AND operation_id LIKE 'service-retire-nav:%'""") == cycles
+        # Check original source freshness at every financial release, rather
+        # than requiring one historical NAV to cover both siblings.
+        assert await database[0].fetchval('''SELECT bool_and(v.at_ms IS NOT NULL AND r.received_at_ms>=v.at_ms
+            AND r.received_at_ms-v.at_ms<=p.max_age_ms)
+            FROM life_financial.shared_claim_releases r
+            JOIN life_financial.carry_checks c ON c.account_id=r.account_id AND c.operation_id=r.basis->>'carry_operation_id'
+            JOIN life_financial.portfolio_policies p ON p.account_id=r.account_id
+            CROSS JOIN LATERAL (VALUES ((c.bundle#>>'{account,snapshot,observed_at_ms}')::bigint),
+                ((c.bundle#>>'{mark,observed_at_ms}')::bigint),((c.bundle#>>'{index,observed_at_ms}')::bigint),
+                ((c.bundle#>>'{funding,observed_at_ms}')::bigint),((c.bundle#>>'{terms,observed_at_ms}')::bigint)) v(at_ms)
+            WHERE r.account_id=$1''', t.cfg.account_id) is True
         assert await database[0].fetchval("""SELECT count(*) FROM life_financial.operations
             WHERE command->>'kind'='SHARED_RELEASE' AND operation_id LIKE 'service-retire:%'""") == 2 * cycles
         with pytest.raises(StorageError, match='ALREADY_STARTED'):
             service.start_makers()
     except BaseException as error:
         primary = error
+        error.add_note('completed_maker_cycles=' + str(service.makers.completed_cycles))
+        raise
+    finally:
+        try:
+            await service.close()
+        except BaseException as error:
+            if primary is None:
+                raise
+            primary.add_note('cleanup_failure=' + type(error).__name__ + ':' + str(error))
+        finally:
+            stream.cancel()
+            await asyncio.gather(stream, return_exceptions=True)
+
+
+@pytest.mark.asyncio
+async def test_paired_maker_release_finishes_before_recorder_archival(database, monkeypatch):
+    t, service = await configured(database, maker_cycle=True,
+                                  model_change=lambda model: model.update(quote_schedule_timeout_ms=60000),
+                                  spot_overrides=dict(owner_duration=timedelta(seconds=300), session_duration=timedelta(seconds=360)))
+    stream, canceled = await cancellation_feed(t)
+    targets, released = ('paired-bid', 'paired-ask'), set()
+    retire, reconcile = service.cancellation.release.retire_claim, service.journal.reconcile
+
+    async def retirement(operation_id, intent_id, terminal_id):
+        result = await retire(operation_id, intent_id, terminal_id)
+        assert result.released is True
+        released.add(intent_id)
+        return result
+
+    async def archival(action):
+        # All sibling releases need their own source/claim proof before any
+        # recorder archival. Their original monetary totals remain unchanged.
+        assert released == set(targets)
+        assert not await service.source.capital.claims(t.cfg.binding)
+        return await reconcile(action)
+
+    monkeypatch.setattr(service.cancellation.release, 'retire_claim', retirement)
+    monkeypatch.setattr(service.journal, 'reconcile', archival)
+    primary = None
+    try:
+        await service.quote(targets[0], TradeType.BUY, 0)
+        await service.quote(targets[1], TradeType.SELL, 0)
+        assert set(await service.cancel_makers(targets)) == set(targets)
+        assert len(canceled) == 2 and released == set(targets)
+        assert not service.runner.executor_orchestrator.active_executors['main']
+        balance = await service.financial.balance(t.cfg.binding)
+        assert balance.total_base_life == 5 and balance.total_quote_usdt == 10
+        assert balance.reserved_base_life == balance.reserved_quote_usdt == 0
+    except BaseException as error:
+        primary = error
+        error.add_note('released_claims=' + str(len(released)))
         raise
     finally:
         try:

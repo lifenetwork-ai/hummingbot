@@ -175,6 +175,18 @@ class PgSpotRepository:
         SQL observation guard still rejects actual primary clock rollback,
         changed original ownership, stale cuts and inconsistent accounting.
         """
+        return await self._observed_cut(binding, safety=True)
+
+    async def publication_cut(self, binding):
+        """Capture a NEW publication's optimistic cut on its command pool.
+
+        This runs before a new V2 timestamp exists. The later CLAIM independently
+        verifies the cut and COMMIT. Only backend/query plans are reused; neither
+        this view nor a financial verdict is reused as permission.
+        """
+        return await self._observed_cut(binding, safety=False)
+
+    async def _observed_cut(self, binding, *, safety):
         self._binding(binding)
 
         async def read(c):
@@ -182,7 +194,7 @@ class PgSpotRepository:
                 SELECT life_financial.spot_state($1) AS v)
                 SELECT v#>>'{account,version}' AS version,v->>'digest' AS digest,
                     v->>'observed_at' AS observed_at FROM current_state""", self._runtime.config.account_id)
-        value = await self._runtime._admit(read, safety=True, operation='spot_observation_cut')
+        value = await self._runtime._admit(read, safety=safety, operation='spot_observation_cut')
         try:
             version = int(value['version'])
             checkpoint = StateCut(binding, version, version, (ResourceVersion('account', version),), value['digest'])

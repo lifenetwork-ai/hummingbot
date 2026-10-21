@@ -1,10 +1,10 @@
 # LIFE: PostgreSQL and Cloud Run Implementation Plan (TDD)
 
-**Current PG3 status (2026-10-21):** single-action metadata dispatch now captures
-its verified cut inside the native command. All 35 runner/journal cases and five
-migration audits pass. Configured maker acceptance still has source/capture
-expiry failures; **R2.3/R4/R5 and PG3 remain open**. See
-[atomic dispatch and retained failures](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-atomic-metadata-dispatch-2026-10-21).
+**Current PG3 status (2026-10-21):** each maker retirement now gets its own
+current source/NAV, with archival after all releases. The uninstrumented paired
+workflow and all 36 runner/journal cases pass. The two-generation quote-age
+failure remains; **R2.3/R4/R5 and PG3 stay open**. See
+[retirement freshness and remaining acceptance](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-per-claim-retirement-freshness-2026-10-21).
 
 Created: 2026-10-11
 
@@ -6609,3 +6609,44 @@ Retained availability results are not replaced by these focused passes:
 **R2.3/R4/R5 and PG3 remain open.** Resolve the configured source/capture/COMMIT
 paths and run the fixed current-source whole-workflow acceptance. One fewer read
 is established; overall latency improvement is not established by these runs.
+
+## PG3 per-claim retirement freshness (2026-10-21)
+
+The configured paired-maker regression genuinely reproduces archival starting
+when only the bid claim had retired. The service now completes all individually
+proved releases before reconciliation/recorder archival. Each original claim
+gets a distinct permanent capital/carry source and NAV before its release. This
+supersedes the earlier shared-NAV optimization: sharing one short-lived NAV across
+sequential release/archival work did not reliably satisfy the native age policy.
+No earlier observation, action, lease or failed attempt receives a new timestamp.
+Any failure revokes the cycle and retains the original unresolved work.
+
+The new paired regression passes on ordinary uninstrumented PostgreSQL: **1 pass**,
+780 deselected (67.02 s), including both signed cancellations, both native releases
+before any archival, empty final runner scope and unchanged cash/base balances.
+The new aggregate test explicitly uses the existing synthetic 60000-ms paired/
+multi-generation scheduling profile at initial configuration; source, quote,
+reference, fee and SQL limits stay at 1000 ms, and cancellation/source phases keep
+their original limits. It is not a new live default. Maker replays now verify the
+original account/mark/index/funding/terms timestamps against every release's native
+age policy, rather than asserting a particular number of NAV computations.
+
+A separate new-publication test reproduces a preflight read on the observation
+pool and passes after routing that pre-capture read through the bounded command
+pool (5.61 s). Only the backend/plans are reused. The original one-use cut, task,
+operation and ingress-epoch guards remain; CLAIM independently verifies current
+native state and physical COMMIT. Observation/late-accounting reads retain their
+safety pool. No SQL migration or additional grant is introduced by this increment.
+
+The complete runner/journal regression passes **36 cases** (87.57 s), including
+original-cut/task/ingress refusals, original CAS, corruption, role and physical-
+COMMIT/lost-reply behavior. Logs: `/tmp/life-pg3-current-publication-journal`.
+
+The complete configured R5 gate remains open. A diagnostic generic-plan trial of
+the current per-claim path is **2 pass / 1 fail** (204.63 s): after one complete
+generation, a subsequent quote fails ARM COMMIT at **1037.965 ms / 1000 ms**. A
+separate generated-command-hash prototype is also **2 pass / 1 fail** (200.22 s),
+at **1053.876 ms / 1000 ms**. Neither establishes a sufficient overall improvement;
+neither database setting nor generated column is installed in the runtime or
+migration bundle. Diagnostic logs remain in `/tmp`, not repository evidence files.
+**R2.3/R4/R5 and PG3 remain open** for the existing complete acceptance scope.

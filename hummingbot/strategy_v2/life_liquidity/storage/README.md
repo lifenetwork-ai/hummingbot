@@ -4701,3 +4701,17 @@ grant, while fresh provisioning and uncached runtime permission checks include i
 The final 35-case runner/journal and five migration-audit gates pass. The configured
 maker replay still has source/capture deadline failures; this increment does not
 close PG3 or qualify loaded latency.
+
+### Current maker retirement sources
+
+Each original maker claim now has its own permanently named capital/carry
+observation and NAV before signed retirement. The earlier shared NAV could expire
+while a sibling completed release/reporting. All independently proved releases
+finish before journal reconciliation and recorder archival. Failure retains the
+original unresolved work and revokes the cycle; no stage automatically retries
+or renews an earlier proof. Cash, positions and original spending remain intact.
+
+A new publication's preflight cut uses the bounded command pool before the V2
+capture is created. This reuses backend/plans; CLAIM still independently checks
+the original cut and physical COMMIT. Ordinary observation cuts retain the safety
+pool, including original-owner observation after HALT/expiry.

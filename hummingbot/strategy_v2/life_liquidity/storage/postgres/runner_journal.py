@@ -126,7 +126,7 @@ class PgQuoteRunnerJournal:
                 raise StorageError('RUNNER_PUBLICATION_PREFLIGHT_UNAVAILABLE')
             if await self.repository.lookup_quote_action(operation_id, self.binding) is not None:
                 raise StorageError('RUNNER_CLAIM_REPLAY_REQUIRES_RECOVERY')
-            cut = (await self.repository.observation_cut(self.binding)).cut
+            cut = (await self.repository.publication_cut(self.binding)).cut
             self._publication = (object(), asyncio.current_task(), operation_id, cut,
                                  self.repository._runtime._ingress_epoch)
             return self._publication[0]
