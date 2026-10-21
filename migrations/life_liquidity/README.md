@@ -1484,3 +1484,25 @@ OIDs/ACLs are retained and the new helper has no non-owner execute grant, includ
 hostile deployment defaults. No new lookup index is needed: the value travels
 with the operation already selected by its existing identity. Reruns use the
 normal checksum/version ledger; a drifted predecessor is refused atomically.
+
+## 000101: avoid a duplicate full funding-bundle validation
+
+`000101_funding_bundle_history.sql` retains the first complete current-bundle
+validation in `funding_bundle_reason`. After that succeeds, the second retained
+predecessor needs only payment membership/value, coverage/settlement, and all
+five stream sequence/time/mutation comparisons. It still reads the original
+qualified predecessor on the primary; neither that read nor any historical
+observation is removed. Every new invocation repeats the complete validation.
+
+The relation-only helper is owner-only, including when deployment defaults grant
+EXECUTE to PUBLIC or application roles. The original entrypoint keeps its OID,
+ACL, arguments, exception codes and timestamp. No financial verdict is stored or
+reused between statements. Migration 101 pins both original validator bodies and
+metadata before changing the one second-call site; drift refuses the migration
+atomically. Applied scripts 1–100 remain unchanged. The normal checksum ledger
+makes repeated startup skip the already applied script.
+
+Qualification includes differential malformed/predecessor cases, real funding
+accounting, counted full walks (two down to one), upgrade/repeat startup, hostile
+default grants, and predecessor body/volatility drift. This is a bounded funding
+optimization; it does not close the broader PG3 retained-fill latency gate.

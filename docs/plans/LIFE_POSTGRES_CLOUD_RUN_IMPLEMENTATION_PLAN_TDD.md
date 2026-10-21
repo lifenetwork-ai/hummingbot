@@ -1,5 +1,14 @@
 # LIFE: PostgreSQL and Cloud Run Implementation Plan (TDD)
 
+**Current quota/funding optimization checkpoint (2026-10-21):** **107 regression
+tests pass** in **491.84 s**, plus **3 migration tests** in **8.05 s**. Direct
+quota-profile comparison is about **1.69x** faster in its scoped microbenchmark;
+funding bundle validation is about **1.79x** faster on one retained native
+observation, reducing full bundle walks from two to one while retaining both
+predecessor relations. No timestamp, quota or financial threshold changes.
+**R2.3/R4/R5 and PG3 remain open.** The latest loaded run still fails after one maker generation at
+1009.831 ms versus the original 1000-ms limit. See [scope, tests and measurements](#quota-profile-and-funding-predecessor-validation-optimization-2026-10-21).
+
 **Current configured filled-order/recovery checkpoint (2026-10-21):** **40 tests
 pass**, **332.64 s**, on 2522 unchanged code/SQL hashes. Actual SPOT BUY/SELL
 partial fills account LIFE/USDT fees, retain gross loss and claims, then retire
@@ -7526,3 +7535,101 @@ All diagnostic logs/prototypes remain under `/tmp`; no evidence file is added.
 
 The 40-case unit is a functional/lifecycle qualification. It is not the fixed
 whole-product R5 gate, a latency SLO, File-wide economic parity or live eligibility.
+
+## Quota profile and funding predecessor validation optimization (2026-10-21)
+
+Two bounded hot paths are changed; this is not whole-PG3 acceptance.
+
+- `_ProfilePin` captures immutable scalar/linked-limit signatures at SDK
+  bootstrap. Every `assert_binding` still compares all current values, settings,
+  credentials, factories, locks and task-log identity. Direct list/map comparison
+  avoids tuple reconstruction and sorting. A map entry may skip a second field
+  walk only when it references the exact list row already checked synchronously
+  in this call. Distinct but equal map objects retain the original fallback;
+  map insertion order remains irrelevant. No validation verdict is cached.
+- Migration `000101_funding_bundle_history.sql` keeps the first full funding
+  bundle validation against its prior funding facts. Only after that returns
+  `CARRY_QUALIFIED` does the second prior-carry comparison use the owner-only
+  relation helper. All payment membership/value, coverage/settlement and five
+  stream sequence/time/mutation checks remain. Prior facts are still read on
+  the primary. Every independent read, new command and COMMIT repeats its
+  original checks; no clock, quota or financial limit changes.
+- Applied migrations 1–100 are unchanged. Migration 101 pins both original
+  validator sources/metadata, preserves the parent OID/ACL, strips non-owner
+  helper grants including hostile deployment defaults, and uses the ordinary
+  checksum ledger for repeat startup. It adds no financial table or index.
+- Differential tests compare the old complete carry validator with the
+  factored path over valid/malformed current bundles, predecessor payments,
+  coverage, sequences, times and mutations. Actual native funding verifies the
+  same result with one full bundle walk instead of two. Quota tests compare
+  field/map/list/linked-limit/settings/identity mutations with the original
+  tuple equality and verify post-validation mutation still revokes before HTTP.
+
+### Measurement boundary
+
+The quota microbenchmark compares all three actual SDK/shared profiles over
+five samples of 5000 checks: median 348.860 ms before and 206.890 ms after,
+about **1.69x** for that comparison only. Whole `assert_binding`, SDK requests,
+source collection and database latency are not claimed to improve by that ratio.
+Funding timing compares the original full path with the new path on the same
+retained native funding observation, at its original timestamp. Timing and
+profiling outputs remain under `/tmp`; no repository evidence artifact is added.
+
+The unprofiled workload after the quota change alone still fails after one
+complete maker generation, reporting `PG_QUOTE_CAPTURE_MISMATCH` at original
+quote age **1066.162 ms** against the unchanged **1000-ms** policy. The core SQL
+reason combines timestamp and descriptor predicates, so age is diagnostic
+context rather than a new more-specific SQL denial code. These component
+optimizations do not establish loaded-tail availability or close R2.3/R4/R5.
+
+### Qualified affected regression
+
+The disposable PostgreSQL 16 gate (**2 CPU / 1 GiB**) passes **107 tests**,
+zero failures/errors/skips, **491.84 s**, with six existing warnings: all funding,
+funding cohort and signed-repair cases, the new history differential/counting
+cases, actual configured SPOT partial-fill/signed-repair/cancellation paths and
+all 39 shared-SDK quota contracts. The dedicated migration gate passes **3 tests**
+in **8.05 s**, covering version-100 upgrade/repeat startup, default ACL stripping
+and atomic body/volatility drift rejection. The new history tests are included
+in the `funding` and `r1_accounting` runner suites.
+
+```sh
+PYTEST_ADDOPTS='-k "test_postgres_funding or test_shared_sdk_quota or configured_spot_partial_fill or configured_pending_fill or cancelled_configured_quote_releases"' \
+  python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_postgres \
+  --suite all --fail-fast --output /tmp/life-pg3-quota-funding-qualified
+PYTEST_ADDOPTS='-k funding_history_upgrade' \
+  python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_migrations \
+  --output /tmp/life-pg3-funding-history-upgrade
+```
+
+The uninstrumented funding microbenchmark uses five samples of 100 complete
+funding calls: median **81.040 ms** before and **45.364 ms** after (**1.79x**).
+Both functions receive the same retained bundle and original prior identities /
+received timestamp. Test counters are removed before timing. This measures
+funding validation, not the entire historical audit or configured maker cycle.
+
+### Current integrated limit remains unresolved
+
+After formatting, the expanded 41-case history matrix and counted funding test
+pass again. The same run's retained-fill, two-maker-generation workload still
+fails after **one complete generation**, reporting `PG_QUOTE_CAPTURE_MISMATCH`
+at original quote age **1009.831 ms** against the unchanged **1000-ms** policy
+(**2 pass / 1 fail**, 113.75 s). The final diagnostic pins **2525 code/SQL files**;
+profiling is not enabled during the load case. The separate funding timing
+hook runs only after its own test and before that disposable database is torn
+down; it does not run concurrently with maker capture.
+
+This is a failing loaded gate. The difference from the prior 1066.162-ms run is
+not a measured latency distribution or evidence of sufficient safety margin.
+The SQL optimization specifically reduces funding-bundle validation; broad
+carry/recorder history audits still repeat, and the SPOT-only retained-fill
+workload is not a paid-funding performance workload. No threshold is relaxed,
+no failed gate is checked off, and **R2.3/R4/R5 and PG3 remain open**. Further work
+must target those remaining current-history/critical-path costs and then repeat
+the complete fixed acceptance gates on one frozen source.
+
+The retained-fill load test is kept as an explicit opt-in acceptance regression
+in `test_postgres_service_load.py`, without skip/xfail or threshold changes.
+It remains outside the functional `service_trading` suite; the `all` suite
+includes it. Its known failure is part of the remaining PG3 acceptance work,
+not a passing result of this optimization commit.

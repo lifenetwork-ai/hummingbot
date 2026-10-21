@@ -298,3 +298,78 @@ async def test_original_sdk_time_synchronizer_auxiliary_http_uses_shared_quota(m
     clock_reads = [r for r in session.sent if r['url'].endswith('/public/time')]
     assert len(clock_reads) == 1
     assert len([r for r in quota._shared._task_logs if r.rate_limit.limit_id == '/api/v5/public/time']) == 1
+
+
+@pytest.mark.parametrize('change', [
+    'none', 'limit_id', 'limit', 'interval', 'weight', 'linked_id', 'linked_weight',
+    'linked_append', 'linked_reverse', 'list_reverse', 'list_append', 'map_only',
+    'map_extra', 'map_missing', 'map_order', 'equal_map_copy', 'equal_list_copy',
+    'pct', 'safety', 'retry', 'lock', 'logs',
+])
+def test_profile_pin_matches_original_value_and_identity_comparison(change):
+    from copy import deepcopy
+
+    from hummingbot.core.api_throttler.async_throttler import AsyncThrottler
+    from hummingbot.core.api_throttler.data_types import LinkedLimitWeightPair, RateLimit
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.shared_sdk_quota import _ProfilePin, _shape
+    t = AsyncThrottler([
+        RateLimit('a', 10, 2, linked_limits=[LinkedLimitWeightPair('b', 1), LinkedLimitWeightPair('c', 2)]),
+        RateLimit('b', 20, 3), RateLimit('c', 30, 4),
+    ])
+    original, pin = _shape(t), _ProfilePin(t)
+    row = t._rate_limits[0]
+    if change in ('limit_id', 'limit', 'weight'):
+        setattr(row, change, 'other' if change == 'limit_id' else 99)
+    elif change == 'interval':
+        row.time_interval = 99
+    elif change == 'linked_id':
+        row.linked_limits[0].limit_id = 'other'
+    elif change == 'linked_weight':
+        row.linked_limits[0].weight = 99
+    elif change == 'linked_append':
+        row.linked_limits.append(LinkedLimitWeightPair('c', 3))
+    elif change == 'linked_reverse':
+        row.linked_limits.reverse()
+    elif change == 'list_reverse':
+        t._rate_limits.reverse()
+    elif change == 'list_append':
+        t._rate_limits.append(RateLimit('d', 1, 1))
+    elif change == 'map_only':
+        t._id_to_limit_map['a'] = deepcopy(row)
+        t._id_to_limit_map['a'].weight = 99
+    elif change == 'map_extra':
+        t._id_to_limit_map['other'] = row
+    elif change == 'map_missing':
+        del t._id_to_limit_map['a']
+    elif change == 'map_order':
+        t._id_to_limit_map = dict(reversed(list(t._id_to_limit_map.items())))
+    elif change == 'equal_map_copy':
+        t._id_to_limit_map = deepcopy(t._id_to_limit_map)
+    elif change == 'equal_list_copy':
+        t._rate_limits = deepcopy(t._rate_limits)
+    elif change == 'pct':
+        t.limits_pct = Decimal('.5')
+    elif change == 'safety':
+        t._safety_margin_pct = .9
+    elif change == 'retry':
+        t._retry_interval = 9
+    elif change == 'lock':
+        t._lock = asyncio.Lock()
+    elif change == 'logs':
+        t._task_logs = []
+    expected = _shape(t) == original
+    assert pin.matches(t) is expected
+    assert expected is (change in ('none', 'map_order', 'equal_map_copy', 'equal_list_copy'))
+
+
+@pytest.mark.asyncio
+async def test_profile_pin_checks_each_invocation_and_revokes_before_http():
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.shared_sdk_quota import PgSharedSdkQuota
+    spot, swap, session = sdk_pair()
+    quota = PgSharedSdkQuota.install(spot=spot, swap=swap)
+    quota.assert_binding()
+    # Mutating a profile after a successful validation cannot reuse its verdict.
+    swap._throttler._rate_limits[0].weight += 1
+    with pytest.raises(StorageError, match='PG_SHARED_QUOTA_CONTEXT_CHANGED'):
+        await spot.get_account_uid()
+    assert not session.sent and quota._revoked

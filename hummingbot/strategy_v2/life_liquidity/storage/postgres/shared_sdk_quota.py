@@ -35,6 +35,57 @@ def _shape(throttler):
             id(throttler._lock), id(throttler._task_logs))
 
 
+class _ProfilePin:
+    """Frozen values, compared afresh without rebuilding/sorting profile tuples.
+
+    SDK maps normally reference the list's RateLimit objects. After validating
+    every list row in this synchronous call, checking that identity avoids a
+    duplicate field walk. Distinct but value-equal map rows retain the original
+    equality semantics through the full fallback comparison.
+    """
+    __slots__ = ('_rows', '_map', '_settings')
+
+    def __init__(self, throttler):
+        shape = _shape(throttler)
+        self._rows, mapping, *settings = shape
+        self._settings = tuple(settings)
+        indices = {id(row): i for i, row in enumerate(throttler._rate_limits)}
+        self._map = tuple((key, row, indices.get(id(throttler._id_to_limit_map[key])))
+                          for key, row in mapping)
+
+    @staticmethod
+    def _row_matches(row, expected):
+        if (row.limit_id != expected[0] or row.limit != expected[1]
+                or row.time_interval != expected[2] or row.weight != expected[3]
+                or len(row.linked_limits) != len(expected[4])):
+            return False
+        for linked, (limit_id, weight) in zip(row.linked_limits, expected[4]):
+            if linked.limit_id != limit_id or linked.weight != weight:
+                return False
+        return True
+
+    def matches(self, throttler):
+        rows, mapping = throttler._rate_limits, throttler._id_to_limit_map
+        settings = self._settings
+        if (len(rows) != len(self._rows) or len(mapping) != len(self._map)
+                or throttler.limits_pct != settings[0]
+                or throttler._safety_margin_pct != settings[1] or throttler._retry_interval != settings[2]
+                or id(throttler._lock) != settings[3] or id(throttler._task_logs) != settings[4]):
+            return False
+        for row, expected in zip(rows, self._rows):
+            if not self._row_matches(row, expected):
+                return False
+        for key, expected, index in self._map:
+            row = mapping.get(key)
+            if row is None:
+                return False
+            if index is not None and row is rows[index]:
+                continue  # All its fields were compared above, without awaits.
+            if not self._row_matches(row, expected):
+                return False
+        return True
+
+
 def _route(limit_id):
     value = limit_id
     for prefix in ('GET-', 'POST-', 'DELETE-', 'PUT-'):
@@ -179,7 +230,7 @@ class PgSharedSdkQuota:
                         or sdk._order_tracker.active_orders or not cls._cold(sdk)
                         or not cls._sources_match(sdk, factory)):
                     raise ValueError
-                records.append((sdk, factory, base, auth, sdk.domain, cls._values(sdk), _shape(base)))
+                records.append((sdk, factory, base, auth, sdk.domain, cls._values(sdk), _ProfilePin(base)))
                 for row in base._id_to_limit_map.values():
                     route = _route(row.limit_id)
                     if route is not None:
@@ -200,7 +251,7 @@ class PgSharedSdkQuota:
             quota._spot_cycle_token = ContextVar('life_sdk_spot_cycle', default=None)
             quota._shared = AsyncThrottler([RateLimit(path, limit, interval, weight)
                                            for path, (limit, interval, weight) in sorted(groups.items())])
-            quota._shared_shape = _shape(quota._shared)
+            quota._shared_shape = _ProfilePin(quota._shared)
             quota._views = tuple(_QuotaView(quota, row[2]) for row in records)
         except (AttributeError, KeyError, TypeError, ValueError, StorageError):
             raise StorageError('PG_SHARED_QUOTA_BOOTSTRAP_INVALID') from None
@@ -340,7 +391,7 @@ class PgSharedSdkQuota:
 
     def assert_binding(self):
         try:
-            if self._revoked or _shape(self._shared) != self._shared_shape:
+            if self._revoked or not self._shared_shape.matches(self._shared):
                 raise ValueError
             for (sdk, factory, base, auth, domain, values, shape), view in zip(self._records, self._views):
                 if (sdk._throttler is not base or sdk._web_assistants_factory is not factory
@@ -351,7 +402,7 @@ class PgSharedSdkQuota:
                         or view._owner is not self or view._base is not base or sdk.domain != domain
                         or self._values(sdk) != values or self._auth_values(sdk) != values
                         or not self._sources_match(sdk, factory)
-                        or tuple(sdk.trading_pairs) != ('LIFE-USDT',) or _shape(base) != shape):
+                        or tuple(sdk.trading_pairs) != ('LIFE-USDT',) or not shape.matches(base)):
                     raise ValueError
         except (AttributeError, KeyError, TypeError, ValueError, StorageError):
             self.revoke()

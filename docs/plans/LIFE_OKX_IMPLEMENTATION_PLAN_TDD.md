@@ -1,5 +1,14 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**Current bounded PostgreSQL optimization checkpoint (2026-10-21):** quota
+profile comparison avoids duplicate tuple/map construction; funding validation
+keeps one full current-bundle walk and both prior-history relations. **107
+regression tests** and **3 migration tests** pass. Scoped microbenchmarks improve
+about **1.69x** (profile comparison) and **1.79x** (funding validation), respectively;
+these are not whole-service speedups. **PG3 and R2.3/R4/R5 remain open.** The latest loaded run still fails after one maker generation at
+1009.831 ms versus the original 1000-ms limit. See
+[qualification and measurement limits](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#quota-profile-and-funding-predecessor-validation-optimization-2026-10-21).
+
 **Current configured filled-order/recovery checkpoint (2026-10-21):** **40 tests
 pass**, **332.64 s**, with 2522 unchanged code/SQL hashes. SPOT BUY/SELL partial
 fills with LIFE/USDT fees retain exact money, gross cost and original claims;

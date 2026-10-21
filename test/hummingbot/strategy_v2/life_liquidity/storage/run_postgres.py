@@ -226,6 +226,8 @@ def main():
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in ('control', 'successor_control')]
         if args.suite == 'carry':
             selectors.append(str(selector.with_name('test_postgres_carry_proof_reuse.py')))
+        if args.suite == 'funding':
+            selectors.append(str(selector.with_name('test_postgres_funding_history_reuse.py')))
         if args.suite == 'legacy_imports':
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in ('legacy_applying', 'legacy_core_cashflows', 'legacy_spot', 'legacy_joint', 'coupled_ack', 'file_recovery_history', 'completed_outer_history', 'outer_recovery_history', 'unfilled_swap', 'joint_trade_ids', 'received_observations')]
         if args.suite == 'joint_source':
@@ -239,7 +241,7 @@ def main():
                 'transactions', 'lifecycle', 'inventory_settlement', 'collateral', 'collateral_source',
                 'joint_source', 'joint_account_source', 'financial_source', 'financial_observer',
                 'financial_dedup', 'provider_journal', 'command_fingerprint', 'joint_batch', 'joint_repair', 'swap_fills',
-                'swap_accounting', 'funding', 'funding_repair', 'funding_cohort', 'swap_repair',
+                'swap_accounting', 'funding', 'funding_history_reuse', 'funding_repair', 'funding_cohort', 'swap_repair',
                 'spot_repair', 'cashflow_repair', 'terminal_repair', 'portfolio', 'portfolio_math',
                 'swap_terminal', 'shared_release', 'late_capital')]
         if args.suite == 'joint_recovery':

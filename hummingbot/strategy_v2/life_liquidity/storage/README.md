@@ -1,5 +1,13 @@
 # LIFE storage contracts
 
+**Quota/funding optimization (2026-10-21):** **107 affected regression tests**
+and **3 migration tests** pass. SDK profile pins compare all current fields on
+every invocation without reconstructing/sorting complete signatures. Migration
+101 keeps a full funding bundle check plus both predecessor relations with one
+fewer full walk; its partial helper is owner-only. The retained-fill maker
+latency gate and whole-product PG3 acceptance remain open. See
+[scope and measurements](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#quota-profile-and-funding-predecessor-validation-optimization-2026-10-21).
+
 **Native offline service checkpoint (2026-10-21):** 40 affected startup, actual
 SPOT partial-fill, signed-repair and shared-SDK quota tests pass (332.64 s).
 Repaired raw audit rows no longer permanently block observation-only startup;

@@ -3572,3 +3572,36 @@ async def test_provider_collection_upgrade_preserves_old_ingestion_and_refuses_d
     assert tables == await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace IN ('life_financial'::regnamespace,'life_recorder'::regnamespace) ORDER BY oid")
     for table in ('accounts', 'operations', 'send_attempts', 'activation_grants'):
         assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('drift', ['none', 'body', 'volatility'])
+async def test_funding_history_upgrade_retains_acl_and_rejects_partial_validator_access(db, drift):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 101:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    parent = 'life_financial.funding_bundle_reason(uuid,jsonb,text,text,bigint)'
+    helper = 'life_financial.funding_prior_bundle_reason(jsonb,jsonb,bigint)'
+    original_acl = await c.fetchval('SELECT proacl::text FROM pg_proc WHERE oid=to_regprocedure($1)', parent)
+    if drift == 'body':
+        full = await c.fetchval('SELECT pg_get_functiondef(to_regprocedure($1))', parent)
+        await c.execute(full.replace('BEGIN', 'BEGIN\n-- unexpected relation change', 1))
+    elif drift == 'volatility':
+        await c.execute('ALTER FUNCTION ' + parent + ' IMMUTABLE')
+    await c.execute('ALTER DEFAULT PRIVILEGES IN SCHEMA life_financial GRANT EXECUTE ON FUNCTIONS TO PUBLIC,life_runtime_test,life_reporter_test')
+    path = DEFAULT_DIRECTORY / '000101_funding_bundle_history.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    if drift != 'none':
+        with pytest.raises(asyncpg.RaiseError, match='LIFE_FUNDING_HISTORY_MIGRATION_MISMATCH'):
+            await migrate(c, directory, action='up')
+        assert not await c.fetchval('SELECT to_regprocedure($1) IS NOT NULL', helper)
+        assert (await versions(c))[-1]['version'] == 100
+    else:
+        assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+        assert (await migrate(c, directory, action='up'))['applied'] == []
+        assert await c.fetchval('SELECT proacl::text FROM pg_proc WHERE oid=to_regprocedure($1)', parent) == original_acl
+        for role in ('public', 'life_runtime_test', 'life_reporter_test'):
+            assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", role, helper)
+        assert await c.fetchval('SELECT count(*) FROM life_financial.accounts') == 0
