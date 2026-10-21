@@ -321,7 +321,7 @@ class PgLiquidityService:
                 or type(runtime_config) is not PgConfig or config.storage_binding != runtime_config.binding
                 or config.storage_binding.environment != 'OFFLINE_SIMULATION'
                 or type(owner) is not OwnerToken or type(limits) is not PgServiceLimits
-                or not config.strategy.perpetual.enabled or not runtime_config.write
+                or not config.strategy.spot.enabled or not config.strategy.perpetual.enabled or not runtime_config.write
                 or runtime_config.safety_size < 2 or limits.max_pending > runtime_config.max_pending
                 or type(connectors) is not dict or set(connectors) != {'okx', 'okx_perpetual'}
                 or getattr(market_data_provider, 'connectors', None) != connectors

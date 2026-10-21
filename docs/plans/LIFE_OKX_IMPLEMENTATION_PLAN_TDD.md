@@ -1,5 +1,15 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**Latest maker/configuration checkpoint (2026-10-21):** **15 scoped maker and
+standing-order cases pass**, **544.96 s**, including both one- and two-generation
+workflows on the same source as the 36-case trading/crash gate below. A separate
+reproduced startup defect is fixed: the selected native dual-product service
+refuses an originally imported `spot.enabled=false` before opening pools/runner.
+The subsequent **9-case startup/real BUY/SELL gate passes**, **62.09 s**. Complete
+current-source fault/repair/role/economic and loaded-tail acceptance is still
+required; **R2.3/R4/R5 and PG3 remain open**. See the
+[maker/input qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#maker-regression-and-dual-product-input-correction).
+
 **Latest configured crash/replay checkpoint (2026-10-21):** **36 configured
 trading/hedge/replay/process-death cases pass**, **525.42 s**, including four
 SPOT and seven SWAP physical-process/cold-reopen cases. A reproduced advisory-

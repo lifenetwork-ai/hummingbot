@@ -1,5 +1,16 @@
 # LIFE: PostgreSQL and Cloud Run Implementation Plan (TDD)
 
+**Latest maker/configuration checkpoint (2026-10-21):** the complete scoped
+maker/standing-order regression passes **15 cases**, **544.96 s**, on the same
+2518 pinned code/SQL files as the 36-case configured trading/crash gate below.
+This includes both one- and two-generation workflows, paired release/archive,
+replacement and standing-order corruption refusals. A subsequent actual
+configuration regression exposed startup accepting `spot.enabled=false` in the
+selected dual-product profile. Startup now refuses that configuration before
+opening pools/runner; **9 focused startup/real BUY/SELL cases pass**, **62.09 s**.
+These distinct checkpoints are not a whole-product or loaded-tail acceptance
+claim. **R2.3/R4/R5 and PG3 remain open.**
+
 **Latest configured crash/replay checkpoint (2026-10-21):** the frozen
 configured trading/hedge/replay/process-death gate passes **36 cases**, **525.42 s**,
 including four SPOT and seven SWAP physical-process/cold-reopen cases. A real
@@ -7278,3 +7289,41 @@ with fake HTTP. No migration or source/SQL/COMMIT/fee/capture limit changes.
 Current-source full economic, configured-mode, backend/corruption/role/signed-
 repair and loaded multi-generation acceptance is still required. This tested
 increment does not close **R2.3/R4/R5 or PG3** or permit demo/live deployment.
+
+### Maker regression and dual-product input correction
+
+On the exact **2518** code/SQL hashes already used by the 36-case gate above,
+`run_postgres --suite spot_market_send --fail-fast` with
+`PYTEST_ADDOPTS='-k "service_cycle or standing_makers"'` passes **15 cases / 920
+deselected**, six existing warnings, **544.96 s**, at
+`/tmp/life-pg3-m100-configured-maker-regression`. It includes one and two complete
+generations, paired maker release before archival, original claim retention,
+replacement and cancellation/quantity/unbooked-fill/foreign-SDK/corrupt-money
+refusals. This is an uninstrumented regression at commit `98845bd59`, with no
+deadline or initial synthetic lease changes. It qualifies those workflows;
+competing/background/loaded-history acceptance remains required.
+
+The following input audit found a separate real assembly defect. A controller
+with `spot.enabled=false` was imported into its ORIGINAL config JSON/hash before
+startup, and the actual native trading service still opened. This contradicted
+the existing selected dual-product profile; it was not a mutated-object test.
+Startup now requires both product flags before opening a DB pool or runner, as
+already required for the perpetual flag. No new product restriction, financial
+limit or fallback is introduced.
+
+- RED: **1 expected DID-NOT-RAISE failure**, **8.31 s**, at
+  `/tmp/life-pg3-disabled-spot-startup-red`.
+- Development Green: **7 pass**, **26.62 s**, at
+  `/tmp/life-pg3-disabled-spot-startup-green`.
+- Final focused input/real BUY/SELL regression: **9 pass / 927 deselected**, no
+  failures/errors/skips, six existing warnings, **62.09 s**, at
+  `/tmp/life-pg3-dual-product-final-startup`. The new refused configuration creates
+  no attempt, claim, action or hedge plan. Existing invalid connector, owner,
+  source, limits, disabled perpetual and missing-model refusals remain qualified;
+  both real SDK BUY/SELL paths complete with the original guards.
+
+The final input gate uses the **2518** hashes in
+`/tmp/life-pg3-dual-product-final-source.json`, unchanged through hooks/commit.
+Its service guard and fixture are newer than the earlier 36+15 gates; those
+results are retained at their actual revision, not relabeled as a new complete
+current-source gate. Complete fixed **R2.3/R4/R5** acceptance remains required.

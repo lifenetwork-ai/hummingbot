@@ -4381,6 +4381,8 @@ actual `StrategyV2Base` runner, PostgreSQL reporting, authenticated account
 reader and both SPOT/SWAP financial callback/history routes. It owns one native
 runtime and does not open a File financial worker or legacy ORM recorder.
 The selected profile requires both products and `OFFLINE_SIMULATION`.
+Both original controller product flags must be enabled; a disabled SPOT or
+perpetual flag refuses startup before opening pools or constructing the runner.
 
 Startup consumes an existing imported account, owner and immutable controller /
 recorder-source configuration. It never seeds money, approves a transition,

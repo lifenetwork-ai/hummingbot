@@ -31,11 +31,14 @@ def trading_policy():
 
 
 async def configured(database, *, model_change=None, shared_quota=True, maker_cycle=False, spot_overrides=None,
-                     hedge_policy=None, independent_fill_value=None, omit_financial_policy=None, **options):
+                     hedge_policy=None, independent_fill_value=None, omit_financial_policy=None, strategy_changes=None, **options):
     template = LifeLiquidityConfig(id='main', storage_backend='postgres')
     template.strategy = type(template.strategy).model_validate(dict(
         template.strategy.model_dump(mode='json'),
         perpetual=dict(enabled=True, position_mode='HEDGE', margin_mode='cross', leverage=2)))
+    if strategy_changes is not None:
+        template.strategy = type(template.strategy).model_validate(dict(
+            template.strategy.model_dump(mode='json'), **strategy_changes))
     registered = tuple(EventSource('main', 'life.yml', 'strategy_v2', m) for m in ('okx', 'okx_perpetual'))
 
     def configuration(binding):
@@ -156,6 +159,21 @@ async def configured(database, *, model_change=None, shared_quota=True, maker_cy
         clock=t.reader.source.journal.clock, independent_fill_value=independent_fill_value or (lambda *args: None),
         independent_cashflow_value=lambda *args: None, native_trading=True, **options)
     return t, service
+
+
+@pytest.mark.asyncio
+async def test_disabled_spot_cannot_open_the_native_dual_product_trading_profile(database):
+    service = None
+    try:
+        # The disabled value is imported into the original controller JSON and
+        # config hash before seeding. This is not a mutated post-start object.
+        with pytest.raises(StorageError, match='PG_SERVICE_ASSEMBLY_INVALID'):
+            _, service = await configured(database, strategy_changes={'spot': {'enabled': False}})
+        for table in ('send_attempts', 'shared_capital_claims', 'quote_actions', 'hedge_plans'):
+            assert await database[0].fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+    finally:
+        if service is not None:
+            await service.close()
 
 
 @pytest.mark.asyncio
