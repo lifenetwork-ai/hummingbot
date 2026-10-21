@@ -4806,3 +4806,16 @@ order scope refuses both observation qualification and inferred release. Shutdow
 reports that refusal while joining workers and closing pools. These canceled
 no-fill scenarios preserve the real source-fenced COMMIT checks and financial
 limits; complete product/fill/repair/role/loaded acceptance still gates PG3.
+
+Native service shutdown joins controller stop independently of final executor
+reporting. A reporting failure remains visible while the controller reaches
+TERMINATED and original workers/listeners/pools still close. The frozen
+SPOT/shutdown gate passes 39 cases, including 22 actual SPOT backend-loss cases
+at source/publication/prepare/ARM/ACK/terminal/release/projection boundaries and
+SELL principal/ACK variants, plus existing startup/late-ACK regressions.
+Original captured-undelivered SPOT ACKs continue refusing configured startup.
+Explicit typed durable-response delivery uses a fresh native runtime without a
+sender and changes only ACK metadata; subsequent configured cold observation
+neither sends an order nor changes budgets, claims or original request identity.
+Filled-order, signed operator repair and complete current-source product/role/
+economic/loaded acceptance still gate PG3.

@@ -1,5 +1,15 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**Latest configured SPOT/shutdown checkpoint (2026-10-21):** **39 cases pass**,
+**567.51 s**, including 22 actual SPOT backend-loss cases plus native startup and
+late-ACK lifecycle checks. A reproduced cleanup defect is fixed: final reporting
+failure can no longer skip controller termination. Original pending SPOT ACKs
+still block startup and require explicit typed response delivery; money, claims,
+wire/payload identity and original deadlines remain. All 2520 pinned code/SQL
+hashes are unchanged. Complete filled-order/signed-repair/role/economic and loaded
+whole-product acceptance is still required; **R2.3/R4/R5 and PG3 stay open**. See
+[SPOT/shutdown qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#configured-spot-backend-fault-and-controller-shutdown-qualification).
+
 **Latest configured backend-fault checkpoint (2026-10-21):** **20 configured
 SWAP cases pass**, **331.83 s**, covering actual backend termination before/after
 source capture through settlement/release. Cold signed readback preserves money,

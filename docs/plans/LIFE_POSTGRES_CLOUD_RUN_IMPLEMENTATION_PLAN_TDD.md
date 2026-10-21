@@ -1,5 +1,17 @@
 # LIFE: PostgreSQL and Cloud Run Implementation Plan (TDD)
 
+**Latest configured SPOT/shutdown checkpoint (2026-10-21):** **39 cases pass**,
+**567.51 s**, including **22** actual configured SPOT backend-fault cases plus
+native startup and late-ACK lifecycle regressions. An actual backend-loss
+regression exposed a controller left `RUNNING` when final reporting failed;
+controller stop is now an independently joined cleanup step and the original
+reporting error remains visible. Pending original SPOT ACKs still block startup;
+typed original-response delivery precedes cold reopen without changing money,
+claims or request identity. All **2520** pinned code/SQL hashes are unchanged.
+Filled-order/signed-repair/role/economic and loaded whole-product acceptance
+remain required. **R2.3/R4/R5 and PG3 stay open.** See
+[SPOT/shutdown qualification](#configured-spot-backend-fault-and-controller-shutdown-qualification).
+
 **Latest configured SWAP backend-fault checkpoint (2026-10-21):** **20 cases
 pass**, **331.83 s**, killing the actual transaction backend before/after source
 capture, preflight, preparation, ARM, ACK capture/application/delivery, terminal,
@@ -7382,3 +7394,56 @@ and commit. The original disposable PostgreSQL 16, 2-CPU/1-GiB profile is retain
 `service`, `service_trading` and `spot_market_send` selectors include this matrix.
 It does not replace configured SPOT fault, filled-order/signed repair, complete
 economic/role or loaded multi-generation acceptance. **PG3 stays open.**
+
+### Configured SPOT backend-fault and controller shutdown qualification
+
+The actual configured SPOT API now has before/after physical-COMMIT backend
+termination at provider capture, action publication, preparation, ARM, received
+ACK capture/application/delivery, canceled/no-fill terminal accounting, shared
+release and post-release executor projection. Twenty BUY cases cover these ten
+boundaries; SELL preparation-after and ACK-application-after additionally cover
+LIFE principal holds. Each case verifies a successful actual backend termination
+and the owning `commit_unknown` trace. Original source-fenced COMMIT wrappers,
+SQL/transaction/fact/reference/fee/capture limits and migration bytes remain.
+
+This found a real cleanup defect: final executor reporting could fail before
+`controller.stop()`, leaving a started native controller `RUNNING` after pools
+and listeners were closed. The original failed-COMMIT fixture reproduces this
+state: **1 expected failure**, **16.43 s**, at
+`/tmp/life-pg3-controller-stop-reporting-failure-red`. Controller stop now has its
+own joined cleanup step after runner cleanup, including partial startup without
+a runner. Reporting still reports its original error; remaining cleanup still
+joins. Initial Green is **1 pass**, **19.16 s**, at
+`/tmp/life-pg3-controller-stop-reporting-failure-green`. Backend cases start the
+actual controller and require TERMINATED state, its termination event, removed
+listeners, finished event/SDK/application workers and closed pools.
+
+The SPOT ACK contract differs from SWAP observation: a captured undelivered
+original SPOT ACK blocks ordinary startup with
+`PG_JOINT_OBSERVER_RECOVERY_REQUIRED`. Tests retain that refusal. A fresh native
+runtime with no sender explicitly applies only the original typed durable ACK,
+reads its original replay and marks delivery idempotently; only then does a fresh
+SDK/configured observation service open. Every wallet/budget/claim/preparation/
+action/terminal/release row and original ARM record is compared independently.
+Only allowed ACK state/exchange-ID/version and delivery metadata change; wire,
+payload, quantity, price, owner and original timestamps remain. Cold readback
+never sends a POST, restores an executor or releases a claim. ARM committed
+without HTTP remains `SEND_UNKNOWN`; missing order scope stays refused.
+
+Development checks cover the nine early cases before the captured-ACK branch,
+**7 ACK/replay cases** (**131.64 s**) and **7 terminal/release/projection/SELL-
+prepare cases** (**228.73 s**). These overlap the final matrix and are not summed.
+The final frozen selector is `run_postgres --suite spot_market_send --fail-fast`
+with `PYTEST_ADDOPTS='-k "test_postgres_service.py or configured_spot_backend_loss
+or configured_hedge_shutdown or native_service_cancelled_close"'` (one line).
+It passes **39 / 939 deselected**, no failures/errors/skips, six existing
+warnings, **567.51 s**, at `/tmp/life-pg3-spot-backend-final-lifecycle`. This
+INCLUDES all 22 new SPOT cases, actual native startup profiles and the original
+late-ACK shutdown cases. All **2520** exact code/SQL hashes in
+`/tmp/life-pg3-spot-backend-final-source.json` are unchanged through hooks/commit.
+The original disposable PostgreSQL 16, 2-CPU/1-GiB profile remains.
+
+This qualifies canceled/no-fill SPOT backend loss and original ACK readback,
+including the projection boundary after financial release. It is not a complete
+filled-order, signed operator repair, role/economic or loaded-history gate.
+Current-source whole-product **R2.3/R4/R5 and PG3 remain open**.

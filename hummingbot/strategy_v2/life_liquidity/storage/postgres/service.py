@@ -976,12 +976,15 @@ class PgLiquidityService:
                 # inspect their payloads nor adopt them into owned reporting.
                 if id(executor) in original_ids:
                     self.reporting.enqueue(executor.executor_info)
+
+        async def controller_close():
             self.controller.stop()
 
         # Caller deadlines remain bounded in close(). This one owned physical
         # cleanup retains SDK/DB resources until late original ACK/report work
         # actually ends, even if a component returns its own timeout/error.
         await join(runner_close())
+        await join(controller_close())
         if self.quote_application is not None:
             await join(self.quote_application.close())
             tasks = (*self.quote_application._pending.values(), *self.quote_application._physical.values())
