@@ -1,5 +1,14 @@
 # LIFE: PostgreSQL and Cloud Run Implementation Plan (TDD)
 
+**Provisional revocation checkpoint (2026-10-22):** four new actual-runner
+cases revoke at stop or advance the source-ingress epoch immediately before or
+after physical atomic-prepare COMMIT. Committed holds/claims remain, no ARM/order
+HTTP occurs, cleanup closes all DB tasks/pools, and fresh-repository readback
+restores no preparation origin. The coupled **eight-case gate passes**. This
+qualifies these revocation boundaries only; unconsumed-birth retirement, owner/
+process-loss recovery and configured R2.3/R4/R5 remain open. See
+[qualification and remaining work](#provisional-stop-and-ingress-boundaries-2026-10-22).
+
 **Retained terminal-proof checkpoint (2026-10-22):** migration 105 evaluates
 account-wide terminal proofs once per product within each retained-release
 audit. **59 affected regressions** and **five migration cases** pass. The final
@@ -8523,3 +8532,41 @@ fixture/resource limits. It does not measure latency percentiles, prove large-
 history or live-network margin, enable the configured provisional selector,
 retire unconsumed births after stop/process loss, or close complete configured
 R2.3/R4/R5. Those remaining exits are still required for **PG3 closure**.
+
+## Provisional stop and ingress boundaries (2026-10-22)
+
+- [x] Test the actual provisional V2/SDK service with stop immediately before
+  and after the physical `quote_birth_prepare` COMMIT returns.
+- [x] Test source-ingress epoch change at those same boundaries. The fault
+  injection advances the exact runtime epoch used by the existing intake
+  barrier; it does not inject a complete signed financial event or qualify its
+  separate ingestion path.
+- [x] Confirm each physically committed prepare retains its original PREPARED
+  attempt, one birth consumption, shared claim and positive reserved balance.
+  Neither local revocation nor SDK failure hints refund those committed holds.
+- [x] Verify no ARM operation and no order HTTP, denied redispatch, joined
+  physical cleanup, no remaining DB tasks and closed pools. Any existing
+  deferred-recorder refusal remains visible; it is not treated as clean
+  financial reconciliation.
+- [x] Reopen the database runtime/repository with no original process-local
+  preparation state. Read the exact original ticket/action/timestamp/hash;
+  both the historical DTO and the original DTO brought into this new repository
+  are refused as preparation origins. Monetary/action/claim rows remain exact.
+- [ ] Qualify owner changes and physical process death in the provisional
+  protocol; a new repository in the same test process is not that qualification.
+- [ ] Implement and qualify explicit retirement/recovery of an issued but
+  unconsumed birth. Such a ticket still blocks new issuance and retains claims;
+  no TTL expiry, automatic refund, history deletion or cold sender adoption is
+  introduced by these tests.
+- [ ] Finish configured selector/service installation and complete current-
+  source R2.3/R4/R5 qualification before PG3 closure.
+
+The coupled gate passes **eight cases**, **121.58 s**, with 3443 deselected and
+six existing warnings: four new stop/ingress boundary cases, two original
+BUY/SELL acceptance/SDK-ACK cases, and two original physical backend-loss cases
+before/after compound COMMIT. Each test stays within its existing outer
+watchdog. No runtime or SQL change was needed for these covered refusals; the
+existing local-source/acceptance fences behave as required. The previous
+two-generation loaded pass remains revision-specific; it was not rerun for this
+test/documentation-only increment. No new migration, performance claim, live
+selector, network deployment or evidence file is introduced. **PG3 stays open.**

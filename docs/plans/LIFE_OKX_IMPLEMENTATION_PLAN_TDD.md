@@ -1,5 +1,13 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**Provisional revocation checkpoint (2026-10-22):** the coupled eight-case gate
+passes actual-runner stop/ingress boundaries around atomic prepare, original
+BUY/SELL acceptance and compound-COMMIT backend loss. Committed holds/claims
+survive; no ARM/order HTTP or fresh-repository preparation authority is restored.
+Owner/process-loss recovery, unconsumed-birth retirement and configured
+R2.3/R4/R5 remain required; **PG3 stays open**. See
+[scope and remaining work](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#provisional-stop-and-ingress-boundaries-2026-10-22).
+
 **Retained terminal-proof checkpoint (2026-10-22):** migration 105 reduces
 duplicate account-wide terminal proofs inside each release audit. The affected
 59-case regression and five migration cases pass; the final untraced
