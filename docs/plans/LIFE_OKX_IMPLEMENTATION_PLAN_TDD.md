@@ -1,5 +1,16 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**Current configured filled-order/recovery checkpoint (2026-10-21):** **40 tests
+pass**, **332.64 s**, with 2522 unchanged code/SQL hashes. SPOT BUY/SELL partial
+fills with LIFE/USDT fees retain exact money, gross cost and original claims;
+signed repair survives backend/process death around COMMIT and fresh SDK startup
+without restoring a sender or clearing HALT. A repaired-audit-history startup
+bug is fixed. Quote scheduling now excludes unrelated SDK traffic from the
+original capture/prepare/guarded-ACK window without changing quotas or clocks.
+**PG3 remains open:** the retained-fill, two-generation workload still expires
+at 1075.901 ms against the original 1000-ms limit. Complete R2.3/R4/R5 acceptance
+remains required. See [qualification and remaining gate](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#configured-filled-order-and-signed-repair-qualification).
+
 **Latest configured SPOT/shutdown checkpoint (2026-10-21):** **39 cases pass**,
 **567.51 s**, including 22 actual SPOT backend-loss cases plus native startup and
 late-ACK lifecycle checks. A reproduced cleanup defect is fixed: final reporting

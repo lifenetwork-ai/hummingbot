@@ -193,13 +193,17 @@ class PgJointFinancialObserver:
                         epoch = self.runtime._ingress_epoch + 1
                         original, view, original_scope = await self.collector._collection_context(False)
                         context = await self.context.observation_context(self.binding)
-                        frame = await self.batch.frame(self.binding)
-                        if context.cut != view.cut or context.pending or any(v['state'] != 'APPLIED' for v in frame['batches']):
+                        # The verified primary snapshot distinguishes unresolved
+                        # work from raw RECOVERY_REQUIRED rows retained after a
+                        # signed repair. Audit history must not permanently
+                        # block observation-only startup after that repair.
+                        pending_batch = original['snapshot']['joint_batches']['pending']
+                        if context.cut != view.cut or context.pending or type(pending_batch) is not bool or pending_batch:
                             error = StorageError('PG_JOINT_OBSERVER_RECOVERY_REQUIRED')
                             error.add_note('revisions=' + str((view.cut.checkpoint.revision, context.cut.checkpoint.revision))
                                            + ', cut_changed=' + str(context.cut != view.cut)
                                            + ', pending=' + str(context.pending)
-                                           + ', pending_batch=' + str(any(v['state'] != 'APPLIED' for v in frame['batches'])))
+                                           + ', pending_batch=' + str(pending_batch))
                             raise error
                         cap = await self.source.capital.frame(self.binding)
                         carry = await self.source.carry.frame(self.binding)

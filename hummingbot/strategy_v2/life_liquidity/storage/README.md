@@ -1,5 +1,13 @@
 # LIFE storage contracts
 
+**Native offline service checkpoint (2026-10-21):** 40 affected startup, actual
+SPOT partial-fill, signed-repair and shared-SDK quota tests pass (332.64 s).
+Repaired raw audit rows no longer permanently block observation-only startup;
+HALT, original claims and no-sender recovery remain. Original quote tasks share
+one bounded scheduling window through guarded SDK ACK; original quotas and
+financial/source checks remain. Retained-fill two-generation latency and the
+whole-product PG3 exits remain open. See the [current qualification](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#configured-filled-order-and-signed-repair-qualification).
+
 `contracts.py` defines immutable `StateBinding`, `StateCut`, resource versions,
 owner facts, snapshots and commit receipts, plus `StateRepository`,
 `OwnershipRepository` and `UnitOfWork` protocols. These describe storage reads

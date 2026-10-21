@@ -46,7 +46,7 @@ async def crash_service(database, phase, *, product='SPOT'):
     return json.loads(stdout.decode().splitlines()[-1])
 
 
-def cold_service_context(manifest):
+def cold_service_context(manifest, *, independent_fill_value=None):
     """Fresh actual SDKs; signed original fake truth, never a restored sender."""
     from copy import deepcopy
     from decimal import Decimal as D
@@ -78,8 +78,8 @@ def cold_service_context(manifest):
         assert kwargs['headers'].get('OK-ACCESS-SIGN')
         tail, params = kwargs['url'].rsplit('/', 1)[1], kwargs.get('params') or {}
         rows = {'config': [manifest['account_config']], 'balance': [manifest['balance']],
-                'positions': manifest['positions'], 'bills-archive': [dict(billId='100')],
-                'fills-history': [], 'orders-algo-pending': []}
+                'positions': manifest['positions'], 'bills-archive': manifest.get('bills', [dict(billId='100')]),
+                'fills-history': manifest.get('fills', {}).get(params.get('instType'), []), 'orders-algo-pending': []}
         if tail in ('order', 'orders-pending'):
             data = manifest['orders']
             if tail == 'orders-pending':
@@ -90,6 +90,8 @@ def cold_service_context(manifest):
                     data = [row for row in data if row[key] == params[key]]
         else:
             data = rows[tail]
+            if tail == 'fills-history':
+                data = [r for r in data if all(not params.get(k) or r[k] == params[k] for k in ('instId', 'ordId'))]
         response = Response()
 
         async def body():
@@ -104,7 +106,7 @@ def cold_service_context(manifest):
             owner=OwnerToken.from_json(manifest['owner']), connectors=connectors,
             market_data_provider=MarketDataProvider(connectors),
             sources=tuple(EventSource(**s) for s in manifest['sources']), limits=limits(),
-            clock=lambda: datetime.now(timezone.utc), independent_fill_value=lambda *args: None,
+            clock=lambda: datetime.now(timezone.utc), independent_fill_value=independent_fill_value or (lambda *args: None),
             independent_cashflow_value=lambda *args: None, native_trading=native_trading)
     return SimpleNamespace(config=config, calls=calls, connectors=connectors, reopen=reopen)
 

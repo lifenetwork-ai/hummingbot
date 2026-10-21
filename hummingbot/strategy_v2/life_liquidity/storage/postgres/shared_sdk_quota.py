@@ -196,6 +196,8 @@ class PgSharedSdkQuota:
             quota._lease = ContextVar('life_sdk_quota_lease', default=None)
             quota._active_lease = None
             quota._lease_task = None
+            quota._spot_cycle = None
+            quota._spot_cycle_token = ContextVar('life_sdk_spot_cycle', default=None)
             quota._shared = AsyncThrottler([RateLimit(path, limit, interval, weight)
                                            for path, (limit, interval, weight) in sorted(groups.items())])
             quota._shared_shape = _shape(quota._shared)
@@ -224,7 +226,23 @@ class PgSharedSdkQuota:
             if self._lease_task is asyncio.current_task():
                 yield
                 return
-        async with self._collection_lock:
+        # Unrelated requests must not consume a newly quiet window between
+        # capture and the original SDK task's final source collection. Wait
+        # outside the collection mutex, including callers already queued when
+        # the cycle started. A cycle is scheduling only: every request still
+        # takes its unchanged original SDK and shared rate limits below.
+        while True:
+            cycle = self._spot_cycle
+            if cycle is not None and self._spot_cycle_token.get() is not cycle[2]:
+                await cycle[3].wait()
+                self.assert_binding()
+                continue
+            await self._collection_lock.acquire()
+            cycle = self._spot_cycle
+            if cycle is None or self._spot_cycle_token.get() is cycle[2]:
+                break
+            self._collection_lock.release()
+        try:
             self.assert_binding()
             lease = object()
             token = self._lease.set(lease)
@@ -236,6 +254,54 @@ class PgSharedSdkQuota:
                 self._active_lease = None
                 self._lease_task = None
                 self._lease.reset(token)
+        finally:
+            self._collection_lock.release()
+
+    @asynccontextmanager
+    async def spot_cycle(self, source, intent):
+        """One local quote window; no reservation, source verdict or send grant."""
+        from hummingbot.strategy_v2.life_liquidity.storage.postgres.quote_account_source import PgQuoteAccountSource
+        from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot_intent import PgSpotQuoteIntent
+        self.assert_binding()
+        if (type(source) is not PgQuoteAccountSource or source._quota is not self or source._market_source is None
+                or type(intent) is not PgSpotQuoteIntent or intent.owner != source.journal.owner
+                or intent.controller_id != source.journal.controller_id):
+            raise StorageError('PG_SHARED_QUOTA_SPOT_CYCLE_INVALID')
+        source._credentials()
+        async with self._collection_lock:
+            if self._spot_cycle is not None:
+                raise StorageError('PG_SHARED_QUOTA_SPOT_CYCLE_BUSY')
+            cycle = source, intent.intent_id, object(), asyncio.Event()
+            self._spot_cycle = cycle
+            token = self._spot_cycle_token.set(cycle[2])
+        try:
+            yield
+        finally:
+            self._spot_cycle = None
+            cycle[3].set()
+            self._spot_cycle_token.reset(token)
+
+    @asynccontextmanager
+    async def spot_phase(self, application, action):
+        """Join only the original accepted application task and its SDK child."""
+        from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot_application import PgSpotQuoteApplication
+        self.assert_binding()
+        if (type(application) is not PgSpotQuoteApplication or application.source._quota is not self
+                or application._pending.get(action.executor_config.id) is not asyncio.current_task()):
+            raise StorageError('PG_SHARED_QUOTA_SPOT_PHASE_INVALID')
+        application._ready(action)
+        cycle = self._spot_cycle
+        if cycle is None:
+            yield
+            return
+        if cycle[:2] != (application.source, action.executor_config.id):
+            raise StorageError('PG_SHARED_QUOTA_SPOT_PHASE_INVALID')
+        application.source.assert_scheduled_capture(action, self)
+        token = self._spot_cycle_token.set(cycle[2])
+        try:
+            yield
+        finally:
+            self._spot_cycle_token.reset(token)
 
     @asynccontextmanager
     async def collection(self, *, continuation=None):

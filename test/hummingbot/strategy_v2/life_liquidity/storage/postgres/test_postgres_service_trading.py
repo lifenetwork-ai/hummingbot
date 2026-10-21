@@ -31,7 +31,8 @@ def trading_policy():
 
 
 async def configured(database, *, model_change=None, shared_quota=True, maker_cycle=False, spot_overrides=None,
-                     hedge_policy=None, independent_fill_value=None, omit_financial_policy=None, strategy_changes=None, **options):
+                     hedge_policy=None, independent_fill_value=None, omit_financial_policy=None, strategy_changes=None,
+                     configuration_extra=None, **options):
     template = LifeLiquidityConfig(id='main', storage_backend='postgres')
     template.strategy = type(template.strategy).model_validate(dict(
         template.strategy.model_dump(mode='json'),
@@ -48,7 +49,8 @@ async def configured(database, *, model_change=None, shared_quota=True, maker_cy
         if model_change is not None:
             model_change(model)
         return dict(controller=template.model_copy(update={'storage_binding': binding, 'recovery_account_uid': binding.account_uid}).model_dump(mode='json'),
-                    recorder_sources=[asdict(s) for s in registered], spot_quote_producer=policy(), native_trading=model)
+                    recorder_sources=[asdict(s) for s in registered], spot_quote_producer=policy(), native_trading=model,
+                    **(configuration_extra or {}))
     spot_options = dict(config_hash=fingerprint(template.strategy.model_dump(mode='json')), safety_size=2)
     if maker_cycle:
         # A multi-generation workflow has one explicitly longer synthetic lease

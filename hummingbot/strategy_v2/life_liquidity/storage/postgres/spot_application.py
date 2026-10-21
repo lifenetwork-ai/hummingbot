@@ -5,6 +5,7 @@ readback never reconstructs an HTTP capability. Configured market provenance,
 joint scope and service installation require their separate source assembly.
 """
 import asyncio
+from contextlib import AsyncExitStack
 
 from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.core.event.event_forwarder import EventForwarder
@@ -143,12 +144,14 @@ class PgSpotQuoteApplication:
     async def _run(self, action, wire, accepted):
         sdk_started = False
         try:
-            async with asyncio.timeout(self.operation_timeout_ms / 1000):
+            async with asyncio.timeout(self.operation_timeout_ms / 1000), AsyncExitStack() as stack:
                 await accepted.wait()
                 self._ready(action)
                 entry = self.journal._entry(action)
                 if not entry.accepted:
                     raise StorageError('RUNNER_ACCEPTANCE_REQUIRED')
+                if self.source._quota is not None and self.source._market_source is not None:
+                    await stack.enter_async_context(self.source._quota.spot_phase(self, action))
                 self._preparing[asyncio.current_task()] = action
                 try:
                     preparation = await self._prepare(action.model_copy(deep=True), wire)

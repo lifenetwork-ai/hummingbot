@@ -8,6 +8,7 @@ import asyncio
 import inspect
 import json
 import math
+from contextlib import AsyncExitStack
 from dataclasses import dataclass
 from decimal import Decimal as D
 
@@ -698,7 +699,7 @@ class PgLiquidityService:
             raise StorageError('PG_SERVICE_QUOTE_BACKPRESSURE')
         self._quote_task = asyncio.current_task()
         try:
-            async with asyncio.timeout(self._trading_model.quote_schedule_timeout_ms / 1000):
+            async with asyncio.timeout(self._trading_model.quote_schedule_timeout_ms / 1000), AsyncExitStack() as stack:
                 await self.events.drain()
                 await self.reporting.drain()
                 if await self._read_trading_config() != self._trading_model:
@@ -712,6 +713,8 @@ class PgLiquidityService:
                     raise StorageError('PG_SERVICE_HEDGE_SPOT_PAUSED')
                 publication_id = 'service-publish:' + fingerprint([intent_id])
                 publication = await self.journal.preflight_publication(publication_id)
+                if self.quote_source._quota is not None:
+                    await stack.enter_async_context(self.quote_source._quota.spot_cycle(self.quote_source, intent))
                 if any(m.version == 98 for m in self.runtime._bundle):
                     action = await self.quote_source.capture_and_publish_intent_ready(intent, publication_id, _publication=publication)
                 else:
@@ -732,6 +735,11 @@ class PgLiquidityService:
                 if executor._order is None:
                     raise StorageError('PG_SERVICE_EXECUTOR_NOT_SUBMITTED')
                 await self.quote_application.drain()
+                # The original guarded request/ACK has finished. Observation
+                # workers and unrelated SDK callbacks need their own normal
+                # collection windows; they must not wait on this quote while
+                # this caller waits for their accounting below.
+                await stack.aclose()
                 await self.events.drain()
                 await self.reporting.flush_deferred()
                 await self.reporting.drain()

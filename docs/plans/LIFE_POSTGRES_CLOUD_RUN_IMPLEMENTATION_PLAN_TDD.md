@@ -1,5 +1,19 @@
 # LIFE: PostgreSQL and Cloud Run Implementation Plan (TDD)
 
+**Current configured filled-order/recovery checkpoint (2026-10-21):** **40 tests
+pass**, **332.64 s**, on 2522 unchanged code/SQL hashes. Actual SPOT BUY/SELL
+partial fills account LIFE/USDT fees, retain gross loss and claims, then retire
+only on complete signed terminal proof. Five signed-repair profiles include
+physical backend loss and process death before/after COMMIT; fresh SDK startup
+retains HALT, raw pending audit history and claims without restoring a sender.
+The observer now uses the verified native unresolved-pending flag instead of
+mistaking repaired audit history for unfinished work. Original quote tasks get
+one scheduling window through guarded SDK ACK; unrelated SDK traffic waits
+outside it, with every original quota and financial/freshness check retained.
+**R2.3/R4/R5 and PG3 remain open:** retained-fill two-generation latency still
+fails the unchanged 1000-ms capture budget; whole-product current-source
+qualification remains required. See [filled recovery qualification](#configured-filled-order-and-signed-repair-qualification).
+
 **Latest configured SPOT/shutdown checkpoint (2026-10-21):** **39 cases pass**,
 **567.51 s**, including **22** actual configured SPOT backend-fault cases plus
 native startup and late-ACK lifecycle regressions. An actual backend-loss
@@ -7447,3 +7461,68 @@ This qualifies canceled/no-fill SPOT backend loss and original ACK readback,
 including the projection boundary after financial release. It is not a complete
 filled-order, signed operator repair, role/economic or loaded-history gate.
 Current-source whole-product **R2.3/R4/R5 and PG3 remain open**.
+
+## Configured filled-order and signed-repair qualification
+
+The frozen affected unit passes **40 tests**, zero failures/errors/skips,
+**332.64 s**, with six existing warnings on disposable PostgreSQL 16,
+**2 CPU / 1 GiB**. The 2522 selected production/test/SQL hashes remain unchanged.
+This covers 14 native startup profiles, four actual configured SPOT partial-fill
+profiles, five configured signed-repair profiles, one priority-waiter cancellation
+profile and 16 shared-SDK quota contracts. All HTTP uses real SDK signing against
+explicit fake exchange data; no real account, deployment or push is involved.
+
+- BUY/SELL with LIFE/USDT fees: native balance, independent fee valuation, gross
+  execution loss, original open claim, signed terminal/release and original-ID
+  replay agree. Replaying closure cannot book a second fill or refund cost.
+- A deliberately wrong final account source retains the original complete raw
+  batch and HALT. Initial cold startup refuses unresolved work. A separate
+  operator compares two complete signed private rounds, signs RECOVER against
+  the exact original cut/facts and uses the schema-owner approval channel.
+  Wrong signatures, runtime-role approval and unsigned resolution are refused.
+- Actual backend termination and child-process death before/after repair COMMIT
+  retain the original identities. Before COMMIT, money remains unbooked and cold
+  startup stays refused; after COMMIT, cold readback observes exactly one fill.
+  Repaired startup never restores tracking/executors, replays an HTTP send,
+  clears HALT or releases the original claim. A severed protocol that needs
+  bounded forced teardown must explicitly return readback-required and close
+  every pool; it cannot report clean shutdown.
+- Regression RED: native repair completed, but ordinary startup still rejected
+  retained `RECOVERY_REQUIRED` audit rows. The observer now reads the current
+  verified snapshot's unresolved flag. The old raw row remains unchanged.
+- A scheduled quote's original application task and SDK child share scheduling
+  priority from pre-capture through original guarded ACK. It does not reserve or
+  refund REST quota, reuse a financial verdict, renew a timestamp or transfer a
+  send grant. Cancellation wakes unrelated waiters while retaining the claim;
+  a historical action cannot join another task's phase. The window ends before
+  independent financial-event/reporting drains to avoid circular waiting.
+
+Reproduction of this frozen unit:
+
+```sh
+PYTEST_ADDOPTS='-k "test_postgres_service.py or configured_spot_partial_fill or configured_pending_fill or cancelled_configured_quote_releases or test_shared_sdk_quota"' \
+  python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_postgres \
+  --suite spot_market_send --fail-fast --output /tmp/life-pg3-filled-recovery-final-unit
+```
+
+### Retained-fill latency is still an open R2.3/R4/R5 gate
+
+The new integrated workload first books/retires a genuine partial fill, then
+runs two maker generations with four bounded original-SDK UID reads. Before
+quote-window scheduling, background config requests consume the shared five-per-
+two-second capacity between the two source rounds: the original action reaches
+about **1589.741 ms** and no generation completes. Scheduling isolation reaches
+one complete generation; a later original capture still expires at
+**1075.901 ms**. Neither result qualifies the complete workload.
+
+A diagnostic PostgreSQL function profile shows repeated current-history audits:
+`carry_bundle_reason` 2024 calls, `recorder_event_integrity` 310 calls and
+`cashflow_effective` 2570 calls in the profiled failing run. A separate uncommitted
+cashflow-inlining prototype still fails after one generation at **1047.851 ms**;
+it is discarded because this does not resolve the gate. Applied migrations
+1–100 remain unchanged. Next optimization targets current recorder event and
+predecessor reads; no decision/permission cache or reduced audit scope is allowed.
+All diagnostic logs/prototypes remain under `/tmp`; no evidence file is added.
+
+The 40-case unit is a functional/lifecycle qualification. It is not the fixed
+whole-product R5 gate, a latency SLO, File-wide economic parity or live eligibility.
