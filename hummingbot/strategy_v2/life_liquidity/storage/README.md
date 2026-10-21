@@ -4795,3 +4795,14 @@ physical death and fresh-SDK cold reopen at four SPOT and seven SWAP boundaries.
 Cold reads grant no sender or claim release. SWAP terminal/settlement/release
 crash cases cover canceled no-fill orders; filled-order crash repair and complete
 current-source configured/economic/fault/role/loaded gates still belong to PG3.
+
+The configured SWAP backend-fault matrix additionally passes 20 cases: actual
+transaction backend termination before/after source collection, preflight,
+prepare, ARM, ACK capture/application/delivery, terminal, settlement and release.
+Fresh actual SDKs never receive a sender from cold readback. Original raw ACK
+delivery is idempotent and changes no money, gross budget, claim or wire identity.
+ARM committed without a sent HTTP request stays `SEND_UNKNOWN`; missing provider
+order scope refuses both observation qualification and inferred release. Shutdown
+reports that refusal while joining workers and closing pools. These canceled
+no-fill scenarios preserve the real source-fenced COMMIT checks and financial
+limits; complete product/fill/repair/role/loaded acceptance still gates PG3.

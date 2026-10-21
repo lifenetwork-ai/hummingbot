@@ -1,5 +1,14 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**Latest configured backend-fault checkpoint (2026-10-21):** **20 configured
+SWAP cases pass**, **331.83 s**, covering actual backend termination before/after
+source capture through settlement/release. Cold signed readback preserves money,
+gross budgets and original claims/IDs without another POST; unknown missing-order
+scope remains refused. All 2519 pinned code/SQL hashes are unchanged. Complete
+SPOT/product/signed-repair/role/economic and loaded-tail acceptance is still
+required; **R2.3/R4/R5 and PG3 remain open**. See
+[backend-fault qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#configured-swap-backend-fault-qualification).
+
 **Latest maker/configuration checkpoint (2026-10-21):** **15 scoped maker and
 standing-order cases pass**, **544.96 s**, including both one- and two-generation
 workflows on the same source as the 36-case trading/crash gate below. A separate

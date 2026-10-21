@@ -1,5 +1,16 @@
 # LIFE: PostgreSQL and Cloud Run Implementation Plan (TDD)
 
+**Latest configured SWAP backend-fault checkpoint (2026-10-21):** **20 cases
+pass**, **331.83 s**, killing the actual transaction backend before/after source
+capture, preflight, preparation, ARM, ACK capture/application/delivery, terminal,
+settlement and release. Fresh SDK/service reopen preserves money, gross budgets,
+original IDs and unresolved claims; only original committed ACK metadata can be
+delivered once. Missing unknown-order scope is explicitly refused. All **2519**
+pinned code/SQL hashes remain unchanged. This qualifies those no-fill configured
+SWAP boundaries, not all SPOT/product/signed-repair/role/economic/loaded acceptance.
+**R2.3/R4/R5 and PG3 remain open.** See
+[configured backend-fault qualification](#configured-swap-backend-fault-qualification).
+
 **Latest maker/configuration checkpoint (2026-10-21):** the complete scoped
 maker/standing-order regression passes **15 cases**, **544.96 s**, on the same
 2518 pinned code/SQL files as the 36-case configured trading/crash gate below.
@@ -7327,3 +7338,47 @@ The final input gate uses the **2518** hashes in
 Its service guard and fixture are newer than the earlier 36+15 gates; those
 results are retained at their actual revision, not relabeled as a new complete
 current-source gate. Complete fixed **R2.3/R4/R5** acceptance remains required.
+
+### Configured SWAP backend-fault qualification
+
+The actual configured service, real V2/SDK and original signed fake exchange
+now run a before/after physical-COMMIT fault matrix at ten boundaries: provider
+collection, advisory preflight, child preparation, ARM, received ACK capture,
+native ACK application, ACK delivery, canceled/no-fill terminal accounting,
+settlement and shared release. Each injection asserts `pg_terminate_backend`
+actually kills its owning transaction PID and verifies a `commit_unknown`
+physical trace. Terminal/release keep their original source-fenced COMMIT wrapper
+intact. Original guards, limits, financial functions and migrations are unchanged.
+
+Fresh actual SDKs/service perform only signed GETs after the failure. Original
+money/gross budgets, claims, preparations, terminal/settlement/release facts and
+ARM identities are compared independently. Capture cases additionally retain
+the exact original provider-page bodies across rollback/COMMIT and cold reopen.
+Committed original raw ACKs can be delivered once; this updates only allowed ACK
+metadata/events, preserving wire/payload/quantity/price/owner fields, money and
+claims. No original-ID readback or delivery grants a sender.
+
+When ARM physically committed but HTTP never ran, the provider has no order.
+The original event observer and cold service correctly refuse complete source
+qualification with `PG_JOINT_SOURCE_ORDER_SCOPE`. Shutdown reports that refusal
+and still joins original workers, removes listeners and closes pools. The test
+retains `SEND_UNKNOWN` and the original claim; it neither fabricates an order nor
+infers definite absence/refund from a missing result. This is a qualified refusal,
+not automatic repair of an unresolved order.
+
+Development checks passed the eight send/ACK profiles (**110.90 s**), six early
+source/preflight/preparation profiles and six later terminal/settlement/release
+profiles (**161.02 s**). A two-case provider-body audit passes **24.06 s**. These
+checks overlap the final matrix and are not added to its count. Earlier harness
+failures corrected SDK exception expectations, trace selection and preservation
+of the real source-fenced transaction wrapper; they were not production defects.
+
+The final frozen `run_postgres --suite service_trading --fail-fast`, with
+`PYTEST_ADDOPTS='-k configured_swap_backend_loss'`, passes **20 / 37 deselected**,
+zero failures/errors/skips, six existing warnings, **331.83 s**, at
+`/tmp/life-pg3-service-backend-final`. All **2519** exact code/SQL hashes in
+`/tmp/life-pg3-service-backend-final-source.json` remain unchanged through hooks
+and commit. The original disposable PostgreSQL 16, 2-CPU/1-GiB profile is retained.
+`service`, `service_trading` and `spot_market_send` selectors include this matrix.
+It does not replace configured SPOT fault, filled-order/signed repair, complete
+economic/role or loaded multi-generation acceptance. **PG3 stays open.**
