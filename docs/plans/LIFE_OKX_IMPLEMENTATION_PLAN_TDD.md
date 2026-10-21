@@ -1,11 +1,12 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
-**Current PG3 status (2026-10-21):** migration 98 creates a new V2 quote's
-single native capture after the current CLAIM audit; issued timestamps and all
-one-second financial/source limits remain unchanged. Focused capture, identity,
-COMMIT and permission contracts pass, but the configured two-generation quote
-still expires. **R2.3/R4/R5 and PG3 stay open.** See
-[native capture qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-new-native-quote-capture-2026-10-21).
+**Current PG3 status (2026-10-21):** migration 99 adds bounded provider-collection
+persistence behind the original observation barrier and pins the query-engine
+profile. The actual two-generation maker workflow now passes without diagnostic
+plugins. Focused fault and migration audits pass; broader current-source
+regression and complete configured/economic/restart/fault/role/latency acceptance
+remain required. **R2.3/R4/R5 and PG3 stay open.** See
+[provider collection qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-bounded-provider-collection-and-query-engine-profile-2026-10-21).
 
 **Current configured hedge qualification (2026-10-21):** the explicit offline
 native service composes SPOT retirement → signed hedge sources → protected SWAP

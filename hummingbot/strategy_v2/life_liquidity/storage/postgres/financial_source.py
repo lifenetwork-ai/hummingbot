@@ -7,6 +7,7 @@ import asyncio
 import json
 import time
 from contextlib import AsyncExitStack, asynccontextmanager
+from dataclasses import dataclass
 from uuid import uuid4
 
 from hummingbot.connector.exchange.okx import okx_constants as C
@@ -19,6 +20,15 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.quote_account_source
     PgQuoteAccountSource,
     _UidConfiguration,
 )
+
+
+@dataclass
+class _CollectionCapture:
+    collector: object
+    task: object
+    collection_id: str
+    pages: list
+    attempted: bool = False
 
 
 class _FinancialReadGuard:
@@ -72,6 +82,7 @@ class PgSpotAccountReader:
         self.started_at = None
         self._opening_configuration = self._closing_configuration = None
         self._configuration_seal = self._configuration_task = None
+        self._collection_capture = None
         self._context = (source, source.journal, self.repository, self.runtime, self.binding, self.owner, self._journal)
 
     def _original(self):
@@ -84,18 +95,32 @@ class PgSpotAccountReader:
                 or self.repository._runtime is not self.runtime or self.source.journal.binding != self.binding
                 or self.repository.binding != self.binding or self.source.journal.owner != self.owner or self.runtime._closing):
             raise StorageError('PG_FINANCIAL_SOURCE_CONTEXT_CHANGED')
+        capture = self._collection_capture
+        if capture is not None and (type(capture) is not _CollectionCapture
+                                    or capture.task is not asyncio.current_task() or capture.collection_id != self.collection_id
+                                    or not capture.collector.owns_reader_collection(self)):
+            raise StorageError('PG_FINANCIAL_SOURCE_COLLECTION_ORIGIN')
 
     @asynccontextmanager
-    async def collection(self, *, account_brackets=False, quota_continuation=None):
+    async def collection(self, *, account_brackets=False, quota_continuation=None, _collector=None):
         if type(account_brackets) is not bool:
             raise StorageError('PG_FINANCIAL_SOURCE_CONFIG_INVALID')
         if self._active or self._read_active:
             raise StorageError('PG_FINANCIAL_SOURCE_BACKPRESSURE')
+        if _collector is not None:
+            from hummingbot.strategy_v2.life_liquidity.storage.postgres.joint_source import PgJointAccountReconciler
+            if (type(_collector) is not PgJointAccountReconciler or not account_brackets
+                    or not _collector.owns_reader_collection(self)
+                    or not any(m.version == 99 for m in self._context[3]._bundle)):
+                raise StorageError('PG_FINANCIAL_SOURCE_COLLECTION_ORIGIN')
         runtime = self._context[3]
+        journal = self._context[6]
         self._active, self._reads, self._bytes = True, 0, 0
         self.collection_id = 'provider:' + uuid4().hex
         self._opening_configuration = self._closing_configuration = None
         self._configuration_seal = None
+        capture = None if _collector is None else _CollectionCapture(_collector, asyncio.current_task(), self.collection_id, [])
+        self._collection_capture = capture
         runtime._ingress_epoch += 1
         runtime._observation_inflight += 1
         try:
@@ -105,27 +130,35 @@ class PgSpotAccountReader:
                     await stack.enter_async_context(self.source._quota.collection(continuation=quota_continuation))
                 elif quota_continuation is not None:
                     raise StorageError('PG_SHARED_QUOTA_CONTINUATION_INVALID')
-                self._original()
-                if type(self.source) is PgObservationAccountSource:
-                    await self.source.validate_observation_identity()
+                try:
                     self._original()
-                opening = (await self._configuration_bracket() if account_brackets else await self.source._uid(force=True))
-                self._original()
-                if account_brackets:
-                    self._opening_configuration = opening
-                    self._configuration_seal = self.collection_id, opening, None
-                # Quota waiting before this boundary contains no account or
-                # market observation. Never date an already received page here.
-                self.started_at = opening.observed_at if account_brackets else utc(self.source.journal.clock())
-                yield self
-                self._original()
-                closing = (await self._configuration_bracket() if account_brackets else await self.source._uid(force=True))
-                self._original()
-                if account_brackets:
-                    self._closing_configuration = closing
-                    self._configuration_seal = self.collection_id, opening, closing
-                if type(self.source) is PgObservationAccountSource:
-                    await self.source.validate_observation_identity()
+                    if type(self.source) is PgObservationAccountSource:
+                        await self.source.validate_observation_identity()
+                        self._original()
+                    opening = (await self._configuration_bracket() if account_brackets else await self.source._uid(force=True))
+                    self._original()
+                    if account_brackets:
+                        self._opening_configuration = opening
+                        self._configuration_seal = self.collection_id, opening, None
+                    # Quota waiting contains no received account/market fact.
+                    self.started_at = opening.observed_at if account_brackets else utc(self.source.journal.clock())
+                    yield self
+                    self._original()
+                    closing = (await self._configuration_bracket() if account_brackets else await self.source._uid(force=True))
+                    self._original()
+                    if account_brackets:
+                        self._closing_configuration = closing
+                        self._configuration_seal = self.collection_id, opening, closing
+                    if type(self.source) is PgObservationAccountSource:
+                        await self.source.validate_observation_identity()
+                        self._original()
+                finally:
+                    if capture is not None:
+                        await self._flush_collection(capture, journal)
+                # The original observation barrier still covers physical flush.
+                # This check and the collector's later native/source comparison
+                # precede publication of any qualified source report.
+                if capture is not None:
                     self._original()
                 after, elapsed = utc(self.source.journal.clock()), time.monotonic() - started
                 if after < before or abs((after - before).total_seconds() - elapsed) * 1000 > self.source.max_clock_skew_ms:
@@ -136,8 +169,39 @@ class PgSpotAccountReader:
                 raise
             raise StorageError('PG_FINANCIAL_SOURCE_UNAVAILABLE') from None
         finally:
+            self._collection_capture = None
             self._active = False
             runtime._observation_inflight -= 1
+
+    async def _capture_pages(self, pages, *, batch=False):
+        capture = self._collection_capture
+        if capture is None:
+            if batch:
+                await self._journal.capture_many(pages)
+            else:
+                await self._journal.capture(pages[0])
+            return
+        # A request already received under its original signed guard must be
+        # retained even if credentials/context were revoked during HTTP. Source
+        # validation still rejects that response before publishing any report.
+        if capture.task is not asyncio.current_task():
+            raise StorageError('PG_FINANCIAL_SOURCE_COLLECTION_ORIGIN')
+        if capture.attempted or len(capture.pages) + len(pages) > self.max_reads:
+            raise StorageError('PG_FINANCIAL_SOURCE_COLLECTION_BOUND')
+        # Store detached immutable wire strings. Consumer parsing cannot mutate
+        # the original response or request metadata awaiting diagnostic COMMIT.
+        capture.pages.extend(json.dumps(p, ensure_ascii=False, allow_nan=False) for p in pages)
+
+    async def _flush_collection(self, capture, journal):
+        if capture.task is not asyncio.current_task() or capture.attempted:
+            raise StorageError('PG_FINANCIAL_SOURCE_COLLECTION_ORIGIN')
+        capture.attempted = True  # Exactly one attempt, including unknown COMMIT.
+        if capture.pages:
+            # Original journal/runtime, even after credentials/context refusal.
+            # These bytes are diagnostics and cannot authenticate source facts.
+            await journal.capture_collection(tuple(json.loads(p) for p in capture.pages))
+        if self._collection_capture is not capture or capture.collection_id != self.collection_id:
+            raise StorageError('PG_FINANCIAL_SOURCE_COLLECTION_ORIGIN')
 
     async def _configuration_bracket(self):
         self._original()
@@ -154,7 +218,7 @@ class PgSpotAccountReader:
             self._read_active, self._configuration_task = False, None
 
     async def _capture_configuration(self, proof):
-        """Journal an original signed UID response before parsing its model."""
+        """Retain an original signed UID bracket before exposing source facts."""
         self._original()
         if (type(proof) is not _UidConfiguration or proof.source is not self.source
                 or self.source._configuration_proof is not proof or not self.source._uid_fresh()
@@ -166,15 +230,16 @@ class PgSpotAccountReader:
         self._bytes += len(proof.body_json.encode('utf-8'))
         if self._bytes > self.max_bytes:
             raise StorageError('PG_FINANCIAL_SOURCE_BYTE_BOUND')
-        await self._journal.capture(dict(binding=self.binding.json(), owner=self.owner.json(), collection_id=self.collection_id,
-                                         sequence=self._reads, path=C.OKX_ACCOUNT_CONFIG_PATH, params={}, response_json=proof.body_json))
+        page = dict(binding=self.binding.json(), owner=self.owner.json(), collection_id=self.collection_id,
+                    sequence=self._reads, path=C.OKX_ACCOUNT_CONFIG_PATH, params={}, response_json=proof.body_json)
+        await self._capture_pages((page,))
         self._original()
         if self.source._configuration_proof is not proof:
             raise StorageError('PG_FINANCIAL_SOURCE_CONFIGURATION_ORIGIN')
         self._validate_response(json.loads(proof.body_json))
 
     def account_configuration(self, *, closing=False):
-        """Detached data from this collection's journaled original bracket."""
+        """Detached original signed bracket; native report waits for flush."""
         proof = self._closing_configuration if closing else self._opening_configuration
         seal = self._configuration_seal
         source, journal, repository, runtime, binding, owner, capture = self._context
@@ -282,16 +347,17 @@ class PgSpotAccountReader:
 
     async def _read_one(self, path, params):
         result, page = await self._fetch_one(path, params)
-        await self._journal.capture(page)
+        await self._capture_pages((page,))
         self._validate_response(result)
         return result
 
     async def read_batch(self, routes):
-        """At most eight fixed reads; one durable commit precedes all parsing.
+        """At most eight original signed reads, with bounded response retention.
 
-        This batches diagnostic persistence, never account/financial commands.
-        Partial transport failure retains already received pages. No data is
-        returned after an ambiguous commit, cancellation or malformed response.
+        Default calls commit before returning data. The native joint collector
+        may parse internally behind its observation barrier; one collection
+        COMMIT precedes report publication. Neither mode batches money commands.
+        Partial transport failure retains already received pages.
         """
         if (type(routes) is not tuple or not 0 < len(routes) <= 8 or self._read_active):
             raise StorageError('PG_FINANCIAL_SOURCE_READ_BACKPRESSURE')
@@ -309,9 +375,9 @@ class PgSpotAccountReader:
                     pages.append(page)
             except BaseException:
                 if pages:
-                    await self._journal.capture_many(tuple(pages))
+                    await self._capture_pages(tuple(pages), batch=True)
                 raise
-            await self._journal.capture_many(tuple(pages))
+            await self._capture_pages(tuple(pages), batch=True)
             for result in received:
                 self._validate_response(result)
             return tuple(received)
@@ -320,6 +386,7 @@ class PgSpotAccountReader:
 
     async def _fetch_one(self, path, params):
         self._original()
+        binding, owner = self._context[4:6]
         self._route(path, params)
         if self._reads >= self.max_reads:
             raise StorageError('PG_FINANCIAL_SOURCE_READ_BOUND')
@@ -342,7 +409,7 @@ class PgSpotAccountReader:
         # Retain received parseable diagnostics before any semantic/context
         # rejection. This is decoded JSON, not raw HTTP bytes or authenticated
         # financial facts. Unknown commit never returns data to the parser.
-        return json.loads(encoded), {'binding': self.binding.json(), 'owner': self.owner.json(),
+        return json.loads(encoded), {'binding': binding.json(), 'owner': owner.json(),
                                      'collection_id': collection_id, 'sequence': sequence,
                                      'path': path, 'params': dict(guard.params), 'response_json': encoded}
 

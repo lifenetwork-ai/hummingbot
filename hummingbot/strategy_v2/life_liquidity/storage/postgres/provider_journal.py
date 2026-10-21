@@ -1,8 +1,9 @@
 """Bounded immutable decoded provider response diagnostics, never authority.
 
-Headers, credentials and arbitrary URLs are not accepted. The original signed
-reader writes before parsing. Database rows are explicitly untrusted: a caller
-can submit diagnostic JSON, never a financial fact or send/completeness grant.
+Headers, credentials and arbitrary URLs are not accepted. Standalone readers
+persist before returning data; native joint collection holds its observation
+barrier until durable flush before publishing a report. Database rows remain
+untrusted: diagnostic JSON is never a financial fact or completeness/send grant.
 """
 import json
 from dataclasses import dataclass, field
@@ -81,6 +82,37 @@ class PgProviderJournal:
             return tuple(self._receipt(v) for v in value['pages'])
         try:
             return await self.runtime._transaction('SELECT life_financial.spot_capture_provider_pages($1,$2)',
+                                                   (self.runtime.config.account_id, values), None, parse,
+                                                   observation=True, untrusted_ingress=True)
+        except BaseException:
+            self.runtime._healthy = False
+            raise
+
+    async def capture_collection(self, bodies):
+        """One original bounded collection; its confirmed rows remain untrusted.
+
+        Internal parsers may select the next signed request while the owning
+        collector holds its observation barrier. No report escapes before this
+        command confirms; unknown COMMIT never retries or grants authority.
+        """
+        if (not self.runtime.config.write or type(bodies) is not tuple or not 0 < len(bodies) <= 512):
+            raise StorageError('PG_PROVIDER_COLLECTION_BOUND')
+        try:
+            wire = json.dumps(bodies, ensure_ascii=False, allow_nan=False)
+            if len(wire.encode('utf-8')) > 16777216:
+                raise StorageError('PG_PROVIDER_COLLECTION_BOUND')
+            values = json.loads(wire)
+        except (TypeError, ValueError):
+            raise StorageError('PG_PROVIDER_JOURNAL_CAPTURE_INVALID') from None
+
+        def parse(value):
+            if (value.get('kind') != 'PROVIDER_DECODED_COLLECTION' or value.get('trading_permission') is not False
+                    or type(value.get('pages')) is not list or len(value['pages']) != len(values)
+                    or value.get('collection_id') != values[0]['collection_id']):
+                raise StorageUnavailable('PG_PROVIDER_JOURNAL_RECEIPT_INVALID')
+            return tuple(self._receipt(v) for v in value['pages'])
+        try:
+            return await self.runtime._transaction('SELECT life_financial.spot_capture_provider_collection($1,$2)',
                                                    (self.runtime.config.account_id, values), None, parse,
                                                    observation=True, untrusted_ingress=True)
         except BaseException:

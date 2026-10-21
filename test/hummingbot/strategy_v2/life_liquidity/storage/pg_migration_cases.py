@@ -3523,3 +3523,52 @@ async def test_native_capture_upgrade_preserves_old_contract_and_refuses_drift(d
     assert tables == await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace IN ('life_financial'::regnamespace,'life_recorder'::regnamespace) ORDER BY oid")
     for table in ('accounts', 'operations', 'send_attempts', 'activation_grants'):
         assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('drift', ['none', 'page_body', 'batch_body', 'page_security', 'batch_security',
+                                   'page_search_path', 'batch_search_path', 'page_volatility', 'batch_volatility'])
+async def test_provider_collection_upgrade_preserves_old_ingestion_and_refuses_drift(db, drift):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 99:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    old = {'page': 'life_financial.spot_capture_provider_page(uuid,jsonb)',
+           'batch': 'life_financial.spot_capture_provider_pages(uuid,jsonb)'}
+    public = 'life_financial.spot_capture_provider_collection(uuid,jsonb)'
+    await c.execute('GRANT USAGE ON SCHEMA life_financial TO life_runtime_test,life_reporter_test')
+    await c.execute('GRANT EXECUTE ON FUNCTION ' + old['batch'] + ' TO life_runtime_test')
+    await c.execute('ALTER DEFAULT PRIVILEGES IN SCHEMA life_financial GRANT EXECUTE ON FUNCTIONS TO life_runtime_test,life_reporter_test')
+    if drift != 'none':
+        name, change = drift.split('_', 1)
+        target = old[name]
+        if change == 'body':
+            definition = await c.fetchval('SELECT pg_get_functiondef(to_regprocedure($1))', target)
+            await c.execute(definition.replace('AS $function$', 'AS $function$\n-- unexpected predecessor', 1))
+        elif change == 'security':
+            await c.execute('ALTER FUNCTION ' + target + (' SECURITY INVOKER' if name == 'page' else ' SECURITY DEFINER'))
+        elif change == 'search_path':
+            await c.execute('ALTER FUNCTION ' + target + ' SET search_path=pg_catalog,public')
+        else:
+            await c.execute('ALTER FUNCTION ' + target + ' STABLE')
+    metadata = '''SELECT oid,prosrc,proacl,proowner,provolatile,prosecdef,proconfig
+        FROM pg_proc WHERE oid IN (to_regprocedure($1),to_regprocedure($2)) ORDER BY oid'''
+    before = await c.fetch(metadata, old['page'], old['batch'])
+    tables = await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace IN ('life_financial'::regnamespace,'life_recorder'::regnamespace) ORDER BY oid")
+    path = DEFAULT_DIRECTORY / '000099_provider_collection.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    if drift == 'none':
+        assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+        assert (await migrate(c, directory, action='up'))['applied'] == []
+        for principal in ('life_runtime_test', 'life_reporter_test'):
+            assert await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", principal, public) is (principal == 'life_runtime_test')
+    else:
+        with pytest.raises(asyncpg.RaiseError, match='LIFE_PROVIDER_COLLECTION_MIGRATION_MISMATCH'):
+            await migrate(c, directory, action='up')
+        assert (await versions(c))[-1]['version'] == 98
+        assert not await c.fetchval('SELECT to_regprocedure($1) IS NOT NULL', public)
+    assert before == await c.fetch(metadata, old['page'], old['batch'])
+    assert tables == await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace IN ('life_financial'::regnamespace,'life_recorder'::regnamespace) ORDER BY oid")
+    for table in ('accounts', 'operations', 'send_attempts', 'activation_grants'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0

@@ -19,20 +19,23 @@ async def run():
         if d['committed']:await original(tx)
         os._exit(73)
     repo._runtime._commit=die
-    await PgProviderJournal(repo).capture(d['body'])
+    journal=PgProviderJournal(repo)
+    if d['collection']:await journal.capture_collection(tuple(d['body']))
+    else:await journal.capture(d['body'])
 asyncio.run(run())
 '''
 
 
-async def exit_provider_page(cfg, body, committed):
+async def exit_provider_page(cfg, body, committed, *, collection=False):
     assert cfg.dsn.startswith('postgresql://life_pg2_runtime@127.0.0.1:') and '/life_pg2_' in cfg.dsn
     assert type(committed) is bool
+    assert type(collection) is bool
     values = {f.name: getattr(cfg, f.name) for f in fields(cfg)}
     values.update(account_id=str(cfg.account_id), database_lineage=str(cfg.database_lineage), binding=cfg.binding.json())
     process = await asyncio.create_subprocess_exec(sys.executable, '-c', CHILD, stdin=asyncio.subprocess.PIPE,
                                                    stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     try:
-        _, stderr = await asyncio.wait_for(process.communicate(json.dumps(dict(config=values, body=body, committed=committed)).encode()), 15)
+        _, stderr = await asyncio.wait_for(process.communicate(json.dumps(dict(config=values, body=body, committed=committed, collection=collection)).encode()), 15)
     except BaseException:
         process.kill()
         await process.wait()

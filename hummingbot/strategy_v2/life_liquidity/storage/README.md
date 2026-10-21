@@ -4736,3 +4736,25 @@ the complete pinned migration bundle and permissions.
 
 Focused contracts are not configured-service latency acceptance. The retained
 two-generation quote expiry and complete R2.3/R4/R5 gates still keep PG3 open.
+
+
+### Bounded native provider collection
+
+Migration 99 adds atomic diagnostic collection persistence without changing the
+existing single-page/eight-page APIs. The native joint collector owns one task,
+lock and observation barrier through all original signed reads, UID brackets and
+physical collection flush. Internal parsing can select the next GET, but no
+qualified report or monetary command escapes before confirmed persistence.
+Provider timestamps, per-request quotas and original financial limits remain.
+Standalone readers still persist before returning data.
+
+Received detached diagnostics are retained on refusal where COMMIT can be
+confirmed. Cancellation/unknown COMMIT never retries, restores health or creates
+a late report. A pre-flush process crash can lose uncommitted diagnostic bytes;
+no source report/financial authority has been released. Stored diagnostic rows
+remain untrusted, including cold readback. The current role profile includes the
+new writer endpoint, and both pools pin/recheck generic plans with JIT off.
+
+The first actual two-generation product replay passes on the unchanged 1000-ms
+profile. Wider source/financial/fault/role/restart acceptance remains required;
+this result does not close PG3 or grant demo/live eligibility.

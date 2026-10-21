@@ -1446,3 +1446,29 @@ upgrade; PUBLIC and hostile default privileges are removed. Fresh provisioning
 and uncached primary admission include this endpoint when migration 98 is in
 the pinned bundle. Ordinary repeat startup uses the migration ledger. These
 structural changes do not establish PG3 latency or configured-service eligibility.
+
+
+## 000099: bounded decoded provider collection
+
+The new diagnostic collection endpoint accepts at most 512 pages / 16 MiB under
+one original binding/owner/collection ID and contiguous sequence. Each original
+page validator still runs. The existing single-page and eight-page APIs/bounds
+are unchanged. No financial table, budget, source timestamp or permission cache
+is introduced. Whole-collection rollback includes an invalid tail.
+
+Both predecessor bodies/security metadata are audited before installation;
+existing ingestion functions and data are unchanged. Only explicit old batch
+writers inherit the new grant, excluding PUBLIC and hostile deployment defaults.
+Provisioning and every current runtime admission enforce the endpoint's role
+profile. Repeated automatic startup uses the existing migration ledger.
+
+The owning native joint collector holds its original observation barrier through
+one physical flush before publishing a source report; internal parsing only
+selects further signed GET requests. Standalone readers preserve their original
+commit-before-return behavior. A pre-flush process crash can lose uncommitted
+raw diagnostics without releasing a report or financial authority. Failure and
+unknown COMMIT never authorize replay or a late source report.
+
+Migration-99 runtime connections also pin and verify generic query plans with
+JIT disabled on both pools. This changes query execution/planning behavior only;
+all financial proofs, uncached identity/grant checks and deadlines remain.

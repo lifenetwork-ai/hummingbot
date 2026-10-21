@@ -50,7 +50,7 @@ async def test_event_upgrade_matches_predecessor_on_applied_pending_and_corrupt_
     name = 'recorder_event_integrity'
     assert await c.fetchval('SELECT life_financial.' + name + '($1)', t.cfg.account_id)
     await reference(c, name)
-    assert (await migrate(c, action='up'))['applied'] == ['000095_recorder_verification_reads.sql', '000096_recorder_history_lookups.sql', '000097_atomic_metadata_dispatch.sql', '000098_native_quote_capture.sql']
+    assert (await migrate(c, action='up'))['applied'] == ['000095_recorder_verification_reads.sql', '000096_recorder_history_lookups.sql', '000097_atomic_metadata_dispatch.sql', '000098_native_quote_capture.sql', '000099_provider_collection.sql']
     await compare(c, name, t.cfg.account_id, True)
     if fault not in ('none', 'pending'):
         table, changes = {
@@ -93,7 +93,7 @@ async def test_executor_upgrade_matches_predecessor_on_real_initial_and_progress
     assert await c.fetchval("SELECT count(*) FROM life_financial.recorder_outbox WHERE stream LIKE 'executor:%'") == 3
     assert await c.fetchval('SELECT life_financial.' + name + '($1)', s.cfg.account_id)
     await reference(c, name)
-    assert (await migrate(c, action='up'))['applied'] == ['000095_recorder_verification_reads.sql', '000096_recorder_history_lookups.sql', '000097_atomic_metadata_dispatch.sql', '000098_native_quote_capture.sql']
+    assert (await migrate(c, action='up'))['applied'] == ['000095_recorder_verification_reads.sql', '000096_recorder_history_lookups.sql', '000097_atomic_metadata_dispatch.sql', '000098_native_quote_capture.sql', '000099_provider_collection.sql']
     await compare(c, name, s.cfg.account_id, True)
     if fault != 'none':
         table, changes = {

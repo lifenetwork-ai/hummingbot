@@ -100,6 +100,11 @@ class PgJointAccountReconciler(PgCollateralReconciler):
             raise StorageError('PG_JOINT_SOURCE_CONFIG_INVALID')
         self.max_pages, self.max_age_ms = max_pages, max_age_ms
         self._lock, self._report = asyncio.Lock(), None
+        self._collection_task = None
+
+    def owns_reader_collection(self, reader):
+        return (reader is self.reader and reader.runtime is self.runtime and self._lock.locked()
+                and self._collection_task is asyncio.current_task() and self._report is None)
 
     @staticmethod
     def _scope_sql(spot_policy):
@@ -472,6 +477,7 @@ class PgJointAccountReconciler(PgCollateralReconciler):
             raise StorageError('PG_JOINT_SOURCE_BACKPRESSURE')
         async with self._lock:
             self._report = None
+            self._collection_task = asyncio.current_task()
             try:
                 self._original()
                 self.reader.source._credentials()
@@ -487,7 +493,9 @@ class PgJointAccountReconciler(PgCollateralReconciler):
                     with localcontext() as precision:
                         precision.prec = 160
                         original, view, scope = await self._collection_context(include_spot_market)
-                        async with self.reader.collection(account_brackets=True, quota_continuation=quota_continuation):
+                        native_collection = self if any(m.version == 99 for m in self.runtime._bundle) else None
+                        async with self.reader.collection(account_brackets=True, quota_continuation=quota_continuation,
+                                                          _collector=native_collection):
                             started = self.reader.started_at
                             market_json, market_at = None, None
                             spot_json, spot_at, spot_monotonic, account_monotonic = None, None, None, None
@@ -561,6 +569,8 @@ class PgJointAccountReconciler(PgCollateralReconciler):
                 if isinstance(error, (StorageError, asyncio.CancelledError)):
                     raise
                 raise StorageError('PG_JOINT_SOURCE_INVALID') from None
+            finally:
+                self._collection_task = None
 
     def check_report(self, report, *, epoch):
         self._original()

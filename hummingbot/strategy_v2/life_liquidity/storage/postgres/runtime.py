@@ -32,6 +32,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.access import (
     NATIVE_EXIT_ENTRYPOINT,
     NATIVE_RISK_ENTRYPOINT,
     NATIVE_STRESS_ENTRYPOINT,
+    PROVIDER_COLLECTION_ENTRYPOINT,
     role_name,
 )
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.diagnostics import _current_trace, _Trace, failure, phase
@@ -183,7 +184,9 @@ class PgRuntime:
                         init=self._initialize_connection, server_settings={
                             'application_name': 'life_financial_runtime', 'synchronous_commit': 'on', 'timezone': 'UTC', 'search_path': 'pg_catalog',
                             'statement_timeout': str(config.statement_timeout_ms),
-                            'idle_in_transaction_session_timeout': str(config.idle_transaction_timeout_ms)})
+                            'idle_in_transaction_session_timeout': str(config.idle_transaction_timeout_ms),
+                            **({'jit': 'off', 'plan_cache_mode': 'force_generic_plan'}
+                               if any(m.version == 99 for m in self._bundle) else {})})
             self._healthy = True
             return self
         except BaseException:
@@ -205,6 +208,8 @@ class PgRuntime:
             args[3].append(ATOMIC_DISPATCH_ENTRYPOINT)
         if 98 in versions:
             args[3].append(NATIVE_CAPTURE_ENTRYPOINT)
+        if 99 in versions:
+            args[3].append(PROVIDER_COLLECTION_ENTRYPOINT)
         query = '''WITH history AS MATERIALIZED (
             SELECT version,name,checksum FROM life_migrations.schema_migrations ORDER BY version LIMIT $3)
             SELECT current_user AS principal,pg_catalog.pg_is_in_recovery() AS replica,
@@ -212,6 +217,7 @@ class PgRuntime:
             pg_catalog.current_setting('transaction_read_only') AS readonly,pg_catalog.current_setting('synchronous_commit') AS sync,
             pg_catalog.current_setting('fsync') AS fsync,pg_catalog.current_setting('full_page_writes') AS full_page,
             pg_catalog.current_setting('TimeZone') AS timezone,pg_catalog.current_setting('search_path') AS search_path,
+            pg_catalog.current_setting('jit') AS jit,pg_catalog.current_setting('plan_cache_mode') AS plans,
             (SELECT lineage FROM life_storage.storage_metadata) AS lineage,
             (SELECT ssl FROM pg_catalog.pg_stat_ssl WHERE pid OPERATOR(pg_catalog.=) pg_catalog.pg_backend_pid()) AS tls,
             (SELECT pg_catalog.to_jsonb(s) FROM life_financial.schema_contract s) AS contract,
@@ -265,7 +271,8 @@ class PgRuntime:
                 raise StorageUnavailable('PG_EXECUTION_ROLE_PROFILE_INVALID')
         if (row['principal'] != cfg.principal or row['replica'] or row['major'] != cfg.server_major
                 or row['readonly'] != 'off' or row['sync'] != 'on' or row['fsync'] != 'on' or row['full_page'] != 'on'
-                or row['timezone'] != 'UTC' or row['search_path'] != 'pg_catalog' or row['lineage'] != cfg.database_lineage):
+                or row['timezone'] != 'UTC' or row['search_path'] != 'pg_catalog' or row['lineage'] != cfg.database_lineage
+                or 99 in versions and (row['jit'] != 'off' or row['plans'] != 'force_generic_plan')):
             raise StorageUnavailable('PG_PRIMARY_CONTEXT_INVALID')
         if not cfg.local_insecure and row['tls'] is not True:
             raise StorageUnavailable('PG_TLS_REQUIRED')
@@ -397,6 +404,7 @@ class PgRuntime:
                 'SELECT life_financial.spot_capture_financial_ingress($1,$2)',
                 'SELECT life_financial.spot_capture_provider_page($1,$2)',
                 'SELECT life_financial.spot_capture_provider_pages($1,$2)',
+                'SELECT life_financial.spot_capture_provider_collection($1,$2)',
                 'SELECT life_financial.spot_mark_financial_ingress($1,$2,$3)',
                 'SELECT life_financial.spot_mark_ack_ingress($1,$2)')):
             raise StorageError('PG_UNTRUSTED_INGRESS_QUERY_DENIED')

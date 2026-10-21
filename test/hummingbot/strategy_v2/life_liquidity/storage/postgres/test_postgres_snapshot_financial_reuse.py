@@ -103,7 +103,7 @@ async def test_financial_reuse_upgrade_preserves_complete_cut_and_negative_flags
     definition = await c.fetchval("SELECT pg_get_functiondef('life_financial.spot_state(uuid)'::regprocedure)")
     await c.execute(definition.replace('life_financial.spot_state(', 'snapshot_financial_reference.spot_state(')
                     .replace('life_financial.spot_body(', 'snapshot_financial_reference.spot_body('))
-    assert (await migrate(c, action='up'))['applied'] == ['000094_snapshot_financial_proof_reuse.sql', '000095_recorder_verification_reads.sql', '000096_recorder_history_lookups.sql', '000097_atomic_metadata_dispatch.sql', '000098_native_quote_capture.sql']
+    assert (await migrate(c, action='up'))['applied'] == ['000094_snapshot_financial_proof_reuse.sql', '000095_recorder_verification_reads.sql', '000096_recorder_history_lookups.sql', '000097_atomic_metadata_dispatch.sql', '000098_native_quote_capture.sql', '000099_provider_collection.sql']
     # Both evaluations use genuinely aged facts, avoiding a comparison across
     # a live readiness boundary; all original flags and digest remain compared.
     await asyncio.sleep(1.05)

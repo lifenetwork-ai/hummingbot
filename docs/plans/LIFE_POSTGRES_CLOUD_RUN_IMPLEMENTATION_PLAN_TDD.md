@@ -1,11 +1,12 @@
 # LIFE: PostgreSQL and Cloud Run Implementation Plan (TDD)
 
-**Current PG3 status (2026-10-21):** migration 98 creates a new V2 quote's
-single native capture after the current CLAIM audit; issued timestamps and all
-one-second financial/source limits remain unchanged. Focused capture, identity,
-COMMIT and permission contracts pass, but the configured two-generation quote
-still expires. **R2.3/R4/R5 and PG3 stay open.** See
-[native capture qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-new-native-quote-capture-2026-10-21).
+**Current PG3 status (2026-10-21):** migration 99 adds bounded provider-collection
+persistence behind the original observation barrier and pins the query-engine
+profile. The actual two-generation maker workflow now passes without diagnostic
+plugins. Focused fault and migration audits pass; broader current-source
+regression and complete configured/economic/restart/fault/role/latency acceptance
+remain required. **R2.3/R4/R5 and PG3 stay open.** See
+[provider collection qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-bounded-provider-collection-and-query-engine-profile-2026-10-21).
 
 Created: 2026-10-11
 
@@ -124,14 +125,16 @@ as part of this narrower gate. See [release proof reuse](#pg3-claim-release-proo
 
 **Fixed remaining PG3 exit — implementation and qualification:**
 
-- [ ] Install the native configured LIFE trading service and actual V2 trading
-  assembly, including every enabled final route. The separate configured offline
-  service constructs the native controller/V2 runner, both ordinary SPOT/SWAP
-  financial listeners/history and an explicit first-SPOT-quote request path;
-  continuous maker and all selected final trading routes remain unfinished.
-- [ ] Support continuous standing-maker replenishment with complete own-order,
-  account and runner scope, capital/carry accounting and shared-SDK scheduling.
-  The qualified first-quote profile currently requires quiescence.
+- [ ] Qualify the complete configured LIFE trading assembly and every enabled
+  final route. The offline service implements the actual controller/V2 runner,
+  both products' financial listeners/history, SPOT maker creation/retirement and
+  protected SWAP hedge/ACK/settlement/release. The 22-case configured hedge gate
+  passes; complete current-source route and failure qualification remains open.
+- [ ] Qualify standing-maker replenishment with complete own-order, account and
+  runner scope, capital/carry accounting and shared-SDK scheduling. The bounded
+  imported schedule is implemented, including retention of an existing maker
+  while financing its sibling. The actual two-generation replay passes with
+  migration 99; loaded-tail reliability remains unproven.
 - [ ] Pass R5 whole-product current-source parity, restart, corruption, role,
   process/backend fault and loaded-latency acceptance on a frozen revision.
   One fewer proof invocation does not establish a tail-latency guarantee.
@@ -6775,7 +6778,7 @@ This is work on the existing latency defect, not a new exit or a replacement
 for whole-service acceptance. No generated column, new financial table, saved
 financial verdict or cross-command source/permission cache is selected.
 
-- [ ] Add a bounded native diagnostic **collection** command and explicit
+- [x] Add a bounded native diagnostic **collection** command and explicit
   authenticated joint-collector path. Preserve every original signed request,
   route, byte/page budget, sequence, UID bracket and provider/source timestamp.
   Default standalone reader calls retain their existing durable-before-return
@@ -6784,11 +6787,12 @@ financial verdict or cross-command source/permission cache is selected.
   confirmed COMMIT. Refusal/cancellation must retain received partial diagnostics
   where commit can be confirmed, without retry or financial authority on unknown
   COMMIT. Document the internal parse/persistence boundary explicitly.
-- [ ] Pin and verify the qualified query-engine profile on both bounded runtime
+- [x] Pin and verify the candidate query-engine profile on both bounded runtime
   pools. Reusing query plans must not reuse financial verdicts, source facts or
   permissions. Preserve all uncached primary/role/lineage/owner checks and all
-  existing physical SQL/transaction/source/capture deadlines. Qualify the
-  profile against current-state changes and parameter-sensitive queries.
+  existing physical SQL/transaction/source/capture deadlines.
+  - [ ] Complete wider qualification against current-state changes and
+    parameter-sensitive queries in the fixed R5 regression.
 - [ ] Test collection bounds and atomic rollback, original-body/sequence replay,
   partial transport/semantic failure, actual cancellation/unknown COMMIT/cold
   readback, ingress/task substitution, role refusal and the observation barrier.
@@ -6801,3 +6805,101 @@ and that generic plans make JIT cost decisions at preparation time. This
 motivates qualification of the candidate engine profile; it does not identify
 JIT as the cause of the unchanged product's quote-age failure.
 [PostgreSQL 16 JIT decision documentation](https://www.postgresql.org/docs/16/jit-decision.html).
+
+
+## PG3 bounded provider collection and query-engine profile (2026-10-21)
+
+Base `435f48139`. This implements the smaller candidate identified above; no
+financial table, generated hash, persistent financial verdict or source cache
+is added. **The complete fixed R2.3/R4/R5 exits remain open.**
+
+### Implementation and boundaries
+
+- Migration `000099_provider_collection.sql` adds one diagnostic collection
+  entrypoint, bounded to the existing collection ceiling of **512 pages / 16 MiB**.
+  All pages must share their original binding, owner and collection ID, with
+  contiguous sequences starting at one. Every page still invokes the audited
+  original route/identity/sequence/byte validator. The collection is atomic.
+  The original one-page and **eight-page** APIs and bounds are unchanged.
+- Only the owning authenticated joint collector can select deferred persistence
+  through the reader. Its original task, lock, UID brackets, signed request
+  guards, per-request quotas and page/byte/time limits remain. Internal parsing
+  can select further GET requests while the original observation barrier denies
+  new risk. All received detached response strings flush before the reader closes
+  and before any qualified source report is published. Provider/market/account
+  timestamps are never renewed by the flush. Standalone readers retain durable
+  persistence before returning parser data.
+- Semantic/transport/credential/context refusal flushes the received prefix
+  through the original journal where COMMIT can be confirmed. An ambiguous or
+  cancelled COMMIT never retries, publishes a report or restores health. The
+  physical operation remains owned by the runtime until completion; cold rows
+  remain untrusted diagnostics. A process crash before the collection flush can
+  lose uncommitted diagnostics; no qualified report or monetary command has been
+  released at that point. Whole-process failure qualification remains R5.
+- Migration-99 runtime bundles pin `plan_cache_mode=force_generic_plan` and
+  `jit=off` on both bounded pools, and recheck both actual settings in every
+  uncached primary admission. This reuses query plans, not their results or
+  financial/source/permission verdicts. Archived predecessor bundles retain
+  their prior engine profile. No SQL, lock, transaction, source/capture or
+  financial-budget threshold is widened.
+- Upgrade audits both original ingestion function bodies/security metadata,
+  preserves their OIDs/ACLs/data and grants only existing explicit batch writers
+  the new endpoint. PUBLIC/hostile deployment defaults are removed. Fresh
+  provisioning and uncached role admission include the new capability.
+
+### Qualification so far
+
+- Initial TDD gate: **5 expected failures** for the missing collection API and
+  query-engine profile. The first implementation passes those five cases.
+- Collector barrier test initially fails before installation. The installed
+  profile passes **15 focused cases** in **34.52 s** at
+  `/tmp/life-pg3-provider-collection-faults`, including partial semantic/transport
+  responses, credential/context/ingress refusal, foreign-task refusal, lost
+  physical COMMIT reply and cancellation with late raw persistence but no report.
+  Further bounds/role/cold-runtime cases are included in the expanded regression.
+- Migration audit: **9 passed**, zero failures/errors/skips, **16.99 s**, at
+  `/tmp/life-pg3-provider-collection-migration-audit`. Repeat `up` is a ledger
+  no-op; body/security/search-path/volatility drift of either predecessor refuses
+  atomically, and neither predecessor nor financial data is modified.
+- Actual product replay: `PYTEST_ADDOPTS='-k
+  test_imported_schedule_retires_every_original_maker_before_next_generation[2]'
+  python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_postgres
+  --suite spot_market_send --output
+  /tmp/life-pg3-provider-collection-product-two-generations` passes **1 case** in
+  **123.29 s**, with no prototype/plugin. All four signed original SPOT sends,
+  both cancellation/terminal/source/NAV/shared-release generations, zero holds
+  after retirement and unchanged **5 LIFE / 10 USDT** totals are asserted under
+  the original **1000-ms** limits on the pinned **2 CPU / 1 GiB PostgreSQL 16**
+  profile. This first pass does not establish loaded tail margin or close R5.
+
+The expanded direct source/journal regression passes **102 cases**, zero
+failures/errors/skips, **211.08 s**, at
+`/tmp/life-pg3-provider-collection-direct-regression`. The subsequent frozen
+affected gate stops at **40 pass / 1 fail**, **635.29 s**, at
+`/tmp/life-pg3-provider-collection-affected-frozen`: the sibling-retirement
+corruption test expires during `collect_after_attempt`, before its deliberate
+same-version monetary corruption. This is a failed availability gate, not
+evidence that the corruption check was reached or passed. On the same product
+source the isolated reproduction passes **1 case / 901 deselected**, **62.74 s**;
+that narrower result does not discharge the broad failure.
+
+A diagnostic-only timing plugin reproduces the whole corruption workflow in
+**61.04 s**. One successful cancellation phase takes **4412.19 ms** of its
+unchanged **5000-ms** limit: its two complete collections take **2177.86 ms**
+and **2022.08 ms**, including respective shared-quota quiet waits of **2003.06
+ms** and **1834.15 ms**; native lifecycle publication takes **204.23 ms**.
+This identifies repeated quiet-window waiting as a substantial contributor,
+without proving it is the only loaded-tail cause. The plugin changes no result,
+deadline, SDK limit or query and is not installed in the product.
+
+The final source/journal gate passes **104 cases**, zero failures/errors/skips,
+**215.63 s**, at `/tmp/life-pg3-provider-collection-final-regression`. It also
+includes real child-process death before and after the new whole-collection
+COMMIT, followed by cold atomic readback and diagnostic-only replay. The
+1825-file source pin matches the previous product freeze except for these two
+added process cases/helper; `/tmp/life-pg3-provider-collection-process-source.json`
+matches unchanged at the end. Changed-file hooks pass. Complete configured
+SPOT/SWAP and current-source
+economic/parity/restart/corruption/role/process/backend fault/latency qualification
+remains mandatory. No new evidence file, `.env` read, configured DB, real
+exchange request, deployment or push is used. **PG3 remains open.**
