@@ -4758,3 +4758,18 @@ new writer endpoint, and both pools pin/recheck generic plans with JIT off.
 The first actual two-generation product replay passes on the unchanged 1000-ms
 profile. Wider source/financial/fault/role/restart acceptance remains required;
 this result does not close PG3 or grant demo/live eligibility.
+
+### Primary time for new native runner scope (2026-10-21)
+
+Configured native journal transitions read primary time before the controller
+samples its actual original runner/executor scope. A task/journal-bound one-use
+clock capture supplies a conservative timestamp for that new observation. This
+keeps strict native CLAIM/freshness ordering across app/DB clock offsets; it
+never re-dates an issued fact or action. Each clock probe has uncached primary
+role/profile validation and supplies no financial or transport authority.
+
+Clock/scope observation remains available for reconciliation after local HALT
+or risk revocation. Original native dispatch/financial/COMMIT fences continue
+to enforce permission and age. The frozen 57-case journal gate and the previously
+clock-failing paired-maker/release/archive service case pass. Whole-service
+expiry, failure and loaded-latency acceptance still gate PG3.

@@ -2,6 +2,7 @@
 import asyncio
 import json
 from dataclasses import replace
+from datetime import timedelta
 from decimal import Decimal as D
 from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_actions import setup, transition
 from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_runner_journal import assembled
@@ -10,7 +11,7 @@ import pytest
 
 from hummingbot.core.data_type.common import TradeType
 from hummingbot.strategy_v2.executors.order_executor.data_types import ExecutionStrategy, OrderExecutorConfig
-from hummingbot.strategy_v2.life_liquidity.storage.actions import SpotQuoteAction
+from hummingbot.strategy_v2.life_liquidity.storage.actions import RunnerActionFacts, SpotQuoteAction
 from hummingbot.strategy_v2.life_liquidity.storage.contracts import CommitUnknown, StorageError
 
 
@@ -20,6 +21,123 @@ def template(owner):
                               amount=D('2'), price=D('1'), level_id='0', execution_strategy=ExecutionStrategy.LIMIT_MAKER)
     return SpotQuoteAction(cfg.id, cfg.controller_id, str(owner.session_id), owner.epoch,
                            1, cfg.trading_pair, cfg.side.name, 0, cfg.model_dump_json())
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('offset_ms', [-50, 50])
+async def test_native_capture_dispatch_samples_new_runner_facts_with_a_bounded_lagging_app_clock(database, offset_ms):
+    import time
+    repo, cfg, owner, _, app, _, _, dispatch, active, _ = await assembled(database, native_runner_scope=True)
+    # A moving synthetic app clock, calibrated once before this new action.
+    # Its 50-ms offset is within the configured service's existing 100-ms skew
+    # allowance. No issued action or previously sampled fact is re-dated.
+    primary = await database[0].fetchval('SELECT clock_timestamp()')
+    started = time.monotonic()
+
+    def lagging_clock():
+        return primary + timedelta(seconds=time.monotonic() - started, milliseconds=offset_ms)
+
+    sampled = []
+
+    async def facts():
+        value = RunnerActionFacts(cfg.binding, lagging_clock(), 'controller1', tuple(sorted(active)), True)
+        sampled.append(value)
+        return value
+    app.clock, app.runner_facts = lagging_clock, facts
+    try:
+        ticket = await app.preflight_publication('native-clock-capture')
+        action = await app.capture_and_publish('native-clock-capture', template(owner), _publication=ticket)
+        original_timestamp = action.executor_config.timestamp
+        dispatch.submit([action])
+        await dispatch.drain()
+        assert app._entry(action).accepted, 'new runner scope was compared across unsynchronized clock domains'
+        assert action.executor_config.timestamp == original_timestamp
+        assert not sampled  # Native transitions never re-date a host-clock fact.
+        times = await database[0].fetchrow('''SELECT
+            max(recorded_at) FILTER(WHERE command->>'kind'='SPOT_ACTION_CLAIM') AS claimed,
+            max((command#>>'{command,facts,observed_at}')::timestamptz)
+                FILTER(WHERE command->>'kind'='SPOT_ACTION_TRANSITION') AS sampled
+            FROM life_financial.operations WHERE account_id=$1''', cfg.account_id)
+        assert times['sampled'] >= times['claimed']
+        assert await database[0].fetchval('SELECT count(*) FROM life_financial.reservations') == 0
+        assert await database[0].fetchval('SELECT count(*) FROM life_financial.send_attempts') == 0
+    finally:
+        await dispatch.close()
+        await repo.close()
+
+
+@pytest.mark.asyncio
+async def test_native_runner_clock_anchor_does_not_refresh_a_delayed_scope_or_issue_a_new_capture(database):
+    repo, cfg, owner, _, app, _, _, dispatch, active, _ = await assembled(
+        database, native_runner_scope=True, native_scope_delay=1.05)
+    try:
+        ticket = await app.preflight_publication('clock-capture')
+        action = await app.capture_and_publish('clock-capture', template(owner), _publication=ticket)
+        original = app._capture(action)
+        dispatch.submit([action])
+        await dispatch.drain()
+        assert not app._entry(action).accepted and app._entry(action).revoked
+        # The executor was created before its SQL acceptance failed. Retain
+        # that original uncertain scope for explicit cleanup/reconciliation;
+        # a stale fact cannot erase it or grant another dispatch/send.
+        assert active == {'intent1'}
+        assert not app.local_runner_create_fence(action)
+        assert not await app.async_authorize_runner_create_action(action)
+        stored, = await repo.quote_actions(cfg.binding)
+        assert stored.state == 'PROPOSED' and stored.action == original
+        assert app._capture(action) == original
+        assert await database[0].fetchval('SELECT count(*) FROM life_financial.send_attempts') == 0
+        assert await database[0].fetchval('SELECT count(*) FROM life_financial.reservations') == 0
+    finally:
+        await dispatch.close()
+        await repo.close()
+
+
+@pytest.mark.asyncio
+async def test_native_scope_sampling_still_allows_reconciliation_after_local_risk_revocation(database):
+    repo, cfg, owner, _, app, _, _, dispatch, active, ready = await assembled(database, native_runner_scope=True)
+    try:
+        ticket = await app.preflight_publication('clock-capture')
+        action = await app.capture_and_publish('clock-capture', template(owner), _publication=ticket)
+        dispatch.submit([action])
+        await dispatch.drain()
+        assert app._entry(action).accepted
+        active.clear()  # The original fake runner has stopped its executor.
+        ready[0] = False
+        app.revoke()
+        await app.reconcile(action)
+        stored, = await repo.quote_actions(cfg.binding)
+        # An accepted executor with no PREPARE/attempt is an unused capture;
+        # native abandonment closes it as REJECTED without creating money.
+        assert stored.state == 'REJECTED'
+        assert not app.local_runner_create_fence(action)
+        assert await database[0].fetchval('SELECT count(*) FROM life_financial.send_attempts') == 0
+    finally:
+        await dispatch.close()
+        await repo.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('fault', ['task', 'journal', 'used'])
+async def test_runner_scope_clock_capture_is_original_one_use_and_grants_no_action(database, fault):
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.runner_journal import _RunnerFactCapture
+    repo, cfg, _, _, app, _, _, dispatch, active, ready = await assembled(database)
+    try:
+        at = await database[0].fetchval('SELECT clock_timestamp()')
+        capture = _RunnerFactCapture(app, at)
+        journal = object() if fault == 'journal' else app
+        if fault == 'used':
+            assert capture.take(app) == at
+
+        async def consume():
+            return capture.take(journal)
+        with pytest.raises(StorageError, match='SCOPE_CAPTURE_ORIGIN_REQUIRED'):
+            await (asyncio.create_task(consume()) if fault == 'task' else consume())
+        assert not app._entries and not active and not await repo.quote_actions(cfg.binding)
+        assert await database[0].fetchval('SELECT count(*) FROM life_financial.send_attempts') == 0
+    finally:
+        await dispatch.close()
+        await repo.close()
 
 
 @pytest.mark.asyncio

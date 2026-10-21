@@ -8,11 +8,14 @@ regression and complete configured/economic/restart/fault/role/latency acceptanc
 remain required. **R2.3/R4/R5 and PG3 stay open.** See
 [provider collection qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-bounded-provider-collection-and-query-engine-profile-2026-10-21).
 
-The subsequent complete configured selector is **34 pass / 3 fail** on the same
-product source: dispatch/ARM/COMMIT expiry and a runner-facts/CLAIM causal-order
-refusal remain. The latter reproduces with a moving app clock 50 ms behind the
-primary. The new regression is RED; original deadlines and guards remain intact.
-See the PostgreSQL plan's current checkpoint. **PG3 is not closed.**
+The pre-clock-fix configured selector is **34 pass / 3 fail**: dispatch/ARM/COMMIT
+expiry and a runner-facts/CLAIM causal-order refusal. The latter reproduces with
+a moving app clock 50 ms behind the primary. Fresh runner scope is now captured
+in the primary clock domain: **57 journal cases pass** on frozen source, and the
+previously clock-failing configured paired-maker/release/archive case passes.
+The remaining whole-product/expiry gates still apply. Original deadlines and
+guards remain intact. See the PostgreSQL plan's current checkpoint.
+**PG3 is not closed.**
 
 **Current configured hedge qualification (2026-10-21):** the explicit offline
 native service composes SPOT retirement → signed hedge sources → protected SWAP

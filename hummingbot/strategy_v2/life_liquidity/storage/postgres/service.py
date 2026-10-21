@@ -35,7 +35,10 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.maker_cancellation i
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.maker_schedule import PgMakerLoop, PgMakerSchedule
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.observation_account_source import PgObservationAccountSource
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.recorder_application import PgRecorderApplication
-from hummingbot.strategy_v2.life_liquidity.storage.postgres.runner_journal import PgQuoteRunnerJournal
+from hummingbot.strategy_v2.life_liquidity.storage.postgres.runner_journal import (
+    PgQuoteRunnerJournal,
+    _RunnerFactCapture,
+)
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.runtime import PgConfig, PgRuntime
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.shared_capital import PgSharedCapitalRepository
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot import PgSpotRepository
@@ -143,6 +146,15 @@ class PgServiceController(ControllerBase):
         self.processed_data = {'trading_enabled': False, 'reason_code': 'PG_SERVICE_TRADING_NOT_QUALIFIED'}
 
     async def runner_facts(self):
+        return self._runner_facts_at(utc(self.service.clock()))
+
+    async def native_runner_facts(self, *, _capture):
+        if type(_capture) is not _RunnerFactCapture:
+            raise StorageError('PG_SERVICE_RUNNER_CAPTURE_REQUIRED')
+        observed_at = _capture.take(self.service.journal)
+        return self._runner_facts_at(observed_at)
+
+    def _runner_facts_at(self, observed_at):
         self.service._original()
         orchestrator = self._runner_orchestrator
         if orchestrator is None:
@@ -169,7 +181,7 @@ class PgServiceController(ControllerBase):
             # projection commits; they cannot create/retry a wire. SDK scope
             # and signed terminal evidence are checked independently.
             ids = tuple(sorted(v.config.id for v in executors if v.is_active))
-        return RunnerActionFacts(self.config.storage_binding, utc(self.service.clock()), self.config.id, ids, True)
+        return RunnerActionFacts(self.config.storage_binding, observed_at, self.config.id, ids, True)
 
     def initialize_candles(self):
         pass
@@ -360,7 +372,8 @@ class PgLiquidityService:
             service.journal = PgQuoteRunnerJournal(service.financial, owner=owner, controller_id=config.id,
                                                    config_version=config.strategy.config_version,
                                                    runner_facts=service.controller.runner_facts, local_ready=service._local_ready,
-                                                   clock=clock, max_actions=limits.max_actions)
+                                                   clock=clock, max_actions=limits.max_actions,
+                                                   native_runner_facts=service.controller.native_runner_facts)
             identity = dict(max_uid_age_ms=limits.max_uid_age_ms, max_auth_age_ms=limits.max_auth_age_ms,
                             max_clock_skew_ms=limits.max_clock_skew_ms, collection_timeout_ms=limits.request_timeout_ms)
             account = await PgObservationAccountSource.create(service.journal, connector=service.connectors['okx'],

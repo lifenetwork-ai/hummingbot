@@ -8,7 +8,7 @@ regression and complete configured/economic/restart/fault/role/latency acceptanc
 remain required. **R2.3/R4/R5 and PG3 stay open.** See
 [provider collection qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-bounded-provider-collection-and-query-engine-profile-2026-10-21).
 
-**Latest complete configured selector (same product source):** **34 pass / 3
+**Complete configured selector before the clock fix:** **34 pass / 3
 fail**, **692.25 s**, at `/tmp/life-pg3-provider-collection-configured-complete`.
 All 22 configured trading/hedge cases pass. The three cycle failures include a
 dispatch-COMMIT expiry (quote age **1126.552 ms**), a second-generation ARM/COMMIT
@@ -21,7 +21,15 @@ the primary reproduces the native runner-facts/CLAIM causal-order refusal:
 **1 expected failure / 50 deselected**, **5.50 s**, at
 `/tmp/life-pg3-native-capture-clock-red`. No clock, freshness or deadline check is
 relaxed. This clock-domain issue belongs to the existing R4/R5 integration exit;
-the regression remains RED until actual runner sampling is correctly anchored.
+the initial regression was RED until actual runner sampling was correctly anchored.
+
+**Runner clock fix qualified (2026-10-21):** native transitions now read primary
+time before constructing a new scope observation from the actual runner objects.
+The final frozen journal/capture gate passes **57 cases**, **130.59 s**, and the
+previously clock-failing configured paired-maker/release/archive workflow passes
+**1 case**, **64.60 s**. Original action birth, fact/capture limits and native
+guards remain unchanged. The complete current-source configured/expiry/fault
+qualification is still required; this unit does not close R2.3/R4/R5 or PG3.
 
 Created: 2026-10-11
 
@@ -6944,3 +6952,43 @@ account for remaining capacity and the complete actual source request shape
 **before** new UID/account facts, preserve every signed history comparison and
 per-request limit, and remain inside the existing phase/aggregate deadlines.
 This is still the existing R2.3/R4/R5 latency task, not a new closure exception.
+
+## PG3 fresh runner scope in the primary clock domain (2026-10-21)
+
+The configured controller used the app clock for native action facts, while
+CLAIM and its strict causal/freshness checks use primary time. Kernel fixtures
+sampled primary time and did not reproduce this integration fault. The new
+moving-clock regression initially fails at a 50-ms app lag, despite new scope.
+
+Native dispatch and reconciliation now read primary time through the original
+uncached safety admission, then request a **new** scope observation from the
+configured controller's actual original orchestrator/executor objects. An exact
+journal/task-bound, one-use clock capture supplies a conservative timestamp
+before that synchronous scope read. No previously issued fact/action is
+re-dated. Native ownership, actual scope membership, action birth and all
+freshness/COMMIT checks remain unchanged. The clock capture itself grants no
+dispatch/send permission; observation remains possible after local HALT or risk
+revocation. Legacy callback assemblies retain their declared interface.
+
+The final frozen gate passes **57 cases**, zero failures/errors/skips,
+**130.59 s**, at `/tmp/life-pg3-native-runner-clock-final-acceptance`. It covers
+both 50-ms clock-offset directions, delayed observations under the original
+1000-ms policy, foreign journal/task and token replay, and reconciliation after
+local risk revocation. Earlier expanded runs exposed two incorrect new test
+expectations: a pre-acceptance executor cannot be silently erased, and native
+abandonment of a never-prepared capture finishes as `REJECTED`. The corrected
+tests require retained uncertain scope, revoked dispatch fences, original
+timestamps and zero new holds/wires. No product financial guard was loosened.
+
+The actual configured case previously failing at 30.343 ms passes **1 case /
+910 deselected**, **64.60 s**, at
+`/tmp/life-pg3-native-runner-clock-configured-recheck`, through paired maker
+creation, original retirement, both releases and recorder archival. All
+1825 pinned source/test/migration hashes remain unchanged during the final
+journal gate. Complete configured and fixed R2.3/R4/R5 acceptance remains open.
+
+The separate `/tmp` route-capacity scheduling experiment is **2 pass / 1 fail**,
+**187.28 s**: second-generation submission still fails at a reported quote age
+of **1012.494 ms**. It is not installed or counted as closure evidence. The
+remaining latency work must distinguish server execution from app scheduling
+pauses before another optimization is selected.

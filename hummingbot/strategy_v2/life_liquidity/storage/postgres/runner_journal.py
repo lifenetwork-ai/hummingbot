@@ -44,6 +44,24 @@ class _Entry:
     arm_started: bool = False
 
 
+class _RunnerFactCapture:
+    """Primary time before a NEW scope sample; never a fact or send grant."""
+
+    def __init__(self, journal, observed_at):
+        self._original = journal, asyncio.current_task(), utc(observed_at)
+        self.used = False
+
+    def take(self, journal):
+        original, task, at = self._original
+        if self.used or journal is not original or task is not asyncio.current_task():
+            raise StorageError('RUNNER_SCOPE_CAPTURE_ORIGIN_REQUIRED')
+        # Observation/reconciliation remains valid after HALT, local revocation
+        # or owner expiry. This token grants time/scope sampling only; original
+        # dispatch fences and native financial/observation guards still apply.
+        self.used = True
+        return at
+
+
 class PgQuoteRunnerJournal:
     """Bounded, process-local runner hooks over permanent PostgreSQL claims.
 
@@ -53,11 +71,13 @@ class PgQuoteRunnerJournal:
     """
     async_dispatch_enabled = True
 
-    def __init__(self, repository, *, owner, controller_id, config_version, runner_facts, local_ready, clock, max_actions):
+    def __init__(self, repository, *, owner, controller_id, config_version, runner_facts, local_ready, clock, max_actions,
+                 native_runner_facts=None):
         if (type(repository) is not PgSpotRepository or type(owner) is not OwnerToken
                 or not all(callable(v) for v in (runner_facts, local_ready, clock))
                 or type(config_version) is not int or not 0 < config_version <= 9223372036854775807
-                or type(max_actions) is not int or not 0 < max_actions <= 4096):
+                or type(max_actions) is not int or not 0 < max_actions <= 4096
+                or native_runner_facts is not None and not callable(native_runner_facts)):
             raise StorageError('RUNNER_JOURNAL_CONFIG_INVALID')
         identifier(controller_id)
         self.repository, self.binding, self.owner = repository, repository.binding, owner
@@ -66,6 +86,7 @@ class PgQuoteRunnerJournal:
         self._entries, self._revoked = {}, False
         self._transport = None
         self._publication = None
+        self._native_runner_facts = self._native_runner_original = native_runner_facts
         self._lock = asyncio.Lock()
 
     def _ready(self):
@@ -107,8 +128,24 @@ class PgQuoteRunnerJournal:
     def _operation(entry, stage):
         return 'runner:' + stage + ':' + fingerprint(entry.row.json())
 
-    async def _facts(self):
-        facts = await self.runner_facts()
+    async def _facts(self, *, native_transition=False):
+        if native_transition and self._native_runner_original is not None:
+            if self._native_runner_facts is not self._native_runner_original:
+                raise StorageError('RUNNER_SCOPE_CAPTURE_CONTEXT_CHANGED')
+
+            async def primary_clock(connection):
+                return await connection.fetchval('SELECT clock_timestamp()')
+            # The original CLAIM/cut read has already completed on this primary.
+            # Sample current runner objects only AFTER this timestamp. The
+            # timestamp is a conservative lower bound on that new observation,
+            # in the SQL verifier's clock domain. No issued fact is re-dated.
+            at = utc(await self.repository._runtime._admit(primary_clock, safety=True, operation='runner_scope_clock'))
+            capture = _RunnerFactCapture(self, at)
+            facts = await self._native_runner_facts(_capture=capture)
+            if not capture.used or type(facts) is not RunnerActionFacts or facts.observed_at != at:
+                raise StorageError('RUNNER_SCOPE_CAPTURE_REQUIRED')
+        else:
+            facts = await self.runner_facts()
         if (type(facts) is not RunnerActionFacts or facts.binding != self.binding
                 or facts.controller_id != self.controller_id or facts.scope_complete is not True):
             raise StorageError('RUNNER_SCOPE_UNQUALIFIED')
@@ -239,7 +276,7 @@ class PgQuoteRunnerJournal:
                 return False
             cut = ((await self.repository.observation_cut(self.binding)).cut
                    if entry.dispatch_version is None else None)
-            facts = await self._facts()
+            facts = await self._facts(native_transition=True)
             if not self.local_runner_create_preflight(action):
                 return False
             if entry.row.intent_id not in facts.executor_ids:
@@ -338,7 +375,7 @@ class PgQuoteRunnerJournal:
             if record.state in ('REJECTED', 'RECONCILED'):
                 return None  # Historical state restores no local authority.
             cut = (await self.repository.snapshot(self.binding)).cut
-            facts = await self._facts()
+            facts = await self._facts(native_transition=True)
             if entry.row.intent_id in facts.executor_ids:
                 raise StorageError('RUNNER_EXECUTOR_STILL_PRESENT')
             if record.state == 'DISPATCHED':

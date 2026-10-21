@@ -17,7 +17,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.runner_journal impor
 from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction, StopExecutorAction
 
 
-async def assembled(database, **seed_options):
+async def assembled(database, *, native_runner_scope=False, native_scope_delay=0, **seed_options):
     repo, cfg, owner, row = await bridge(database, claim=False, **seed_options)
     active = set()
     ready = [True]
@@ -26,8 +26,15 @@ async def assembled(database, **seed_options):
         return RunnerActionFacts(cfg.binding, await database[0].fetchval('SELECT clock_timestamp()'),
                                  row.controller_id, tuple(sorted(active)), True)
 
+    async def native_capture(*, _capture):
+        at = _capture.take(app)
+        if native_scope_delay:
+            await asyncio.sleep(native_scope_delay)
+        return RunnerActionFacts(cfg.binding, at, row.controller_id, tuple(sorted(active)), True)
+
     app = PgQuoteRunnerJournal(repo, owner=owner, controller_id=row.controller_id, config_version=1, runner_facts=capture,
-                               local_ready=lambda: ready[0], clock=lambda: datetime.now(timezone.utc), max_actions=8)
+                               local_ready=lambda: ready[0], clock=lambda: datetime.now(timezone.utc), max_actions=8,
+                               native_runner_facts=native_capture if native_runner_scope else None)
     create = CreateExecutorAction(controller_id=row.controller_id,
                                   executor_config=OrderExecutorConfig.model_validate_json(row.payload_json))
     runner = SimpleNamespace(controllers={row.controller_id: app}, _is_stop_triggered=False,
