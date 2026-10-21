@@ -2,11 +2,26 @@
 
 **Current PG3 status (2026-10-21):** migration 99 adds bounded provider-collection
 persistence behind the original observation barrier and pins the query-engine
-profile. The actual two-generation maker workflow now passes without diagnostic
+profile. An isolated actual two-generation maker replay passes without diagnostic
 plugins. Focused fault and migration audits pass; broader current-source
 regression and complete configured/economic/restart/fault/role/latency acceptance
 remain required. **R2.3/R4/R5 and PG3 stay open.** See
 [provider collection qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-bounded-provider-collection-and-query-engine-profile-2026-10-21).
+
+**Latest complete configured selector (same product source):** **34 pass / 3
+fail**, **692.25 s**, at `/tmp/life-pg3-provider-collection-configured-complete`.
+All 22 configured trading/hedge cases pass. The three cycle failures include a
+dispatch-COMMIT expiry (quote age **1126.552 ms**), a second-generation ARM/COMMIT
+refusal (age **996.707 ms** when reported, not proof of age at physical COMMIT),
+and `PG_ACTION_RUNNER_FACTS_BEFORE_CLAIM` with a quote only **30.343 ms** old.
+The cancellation corruption case passes in this selector; the prior 40/1
+cancel-timeout gate remains recorded. There is more than one unresolved failure
+family. A newly added regression with a moving app clock calibrated 50 ms behind
+the primary reproduces the native runner-facts/CLAIM causal-order refusal:
+**1 expected failure / 50 deselected**, **5.50 s**, at
+`/tmp/life-pg3-native-capture-clock-red`. No clock, freshness or deadline check is
+relaxed. This clock-domain issue belongs to the existing R4/R5 integration exit;
+the regression remains RED until actual runner sampling is correctly anchored.
 
 Created: 2026-10-11
 
