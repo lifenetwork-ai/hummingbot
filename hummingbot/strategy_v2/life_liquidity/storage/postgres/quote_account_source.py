@@ -192,7 +192,7 @@ class PgQuoteAccountSource:
         finally:
             self._capture_ready_task = None
 
-    async def capture_and_publish_intent_ready(self, intent, operation_id, *, _publication):
+    async def capture_and_publish_intent_ready(self, intent, operation_id, *, _publication, _model_hash=None):
         """Issue one new native capture; an issued action is never a template."""
         from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot_intent import PgSpotQuoteIntent
         self._credentials()
@@ -210,7 +210,10 @@ class PgQuoteAccountSource:
                 # attempt, including definite rejection or unknown COMMIT.
                 # There is no issued action/row yet; all send lookups refuse it.
                 self._intents[intent.intent_id] = (intent, None)
-                action = await self.journal.capture_and_publish(operation_id, intent.capture_template(), _publication=_publication)
+                if self.journal.births is not None:
+                    action = await self.journal.capture_provisional(operation_id, intent, model_hash=_model_hash, _publication=_publication)
+                else:
+                    action = await self.journal.capture_and_publish(operation_id, intent.capture_template(), _publication=_publication)
                 self._credentials()
                 row = self.journal._capture(action)
                 self._intents[intent.intent_id] = (intent, row)

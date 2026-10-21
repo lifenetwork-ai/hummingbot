@@ -91,7 +91,7 @@ class PgSpotQuoteApplication:
         # A later failure cannot authorize a retry under the same wire/claim.
         self._started.add(entry.row.intent_id)
         event = self._waiting[entry.row.intent_id] = asyncio.Event()
-        if entry.accepted:
+        if entry.accepted or entry.birth is not None and entry.dispatch_facts is not None:
             event.set()
         task = asyncio.create_task(self._run(action, wire, event))
         self._pending[entry.row.intent_id] = task
@@ -126,7 +126,7 @@ class PgSpotQuoteApplication:
             raise StorageError('PG_SPOT_SDK_SCOPE_CHANGED')
 
     def preparing_action(self):
-        """The original accepted runner, during its owned preparation await."""
+        """Original owned preparation task; provisional grants observations only."""
         task = asyncio.current_task()
         action = self._preparing.get(task)
         if action is None or self._pending.get(action.executor_config.id) is not task:
@@ -137,7 +137,8 @@ class PgSpotQuoteApplication:
                 or not self.runtime.healthy and (market is None or not market.owns_preparation_observation(self))):
             raise StorageError('PG_SPOT_PREPARING_ORIGIN_REQUIRED')
         entry = self.journal._entry(action)
-        if not entry.accepted or entry.prepare_started or entry.prepared is not None:
+        provisional = entry.birth is not None and entry.dispatch_facts is not None
+        if not (entry.accepted or provisional) or entry.prepare_started or entry.prepared is not None:
             raise StorageError('PG_SPOT_PREPARING_ORIGIN_REQUIRED')
         return action.model_copy(deep=True)
 
@@ -148,7 +149,7 @@ class PgSpotQuoteApplication:
                 await accepted.wait()
                 self._ready(action)
                 entry = self.journal._entry(action)
-                if not entry.accepted:
+                if not entry.accepted and not (entry.birth is not None and entry.dispatch_facts is not None):
                     raise StorageError('RUNNER_ACCEPTANCE_REQUIRED')
                 if self.source._quota is not None and self.source._market_source is not None:
                     await stack.enter_async_context(self.source._quota.spot_phase(self, action))
@@ -168,7 +169,7 @@ class PgSpotQuoteApplication:
                 self._ready(action)
                 if market is not None and self.runtime._ingress_epoch != source_epoch:
                     raise StorageError('PG_SPOT_PREPARATION_SOURCE_CHANGED')
-                if receipt.replayed or receipt.state != 'PREPARED':
+                if receipt.replayed or receipt.state != 'PREPARED' or not entry.accepted:
                     raise StorageError('PG_SPOT_PREPARATION_RECOVERY_REQUIRED')
                 if wire in self.connector._order_tracker.all_orders:
                     raise StorageError('PG_SPOT_SDK_WIRE_ALREADY_PRESENT')

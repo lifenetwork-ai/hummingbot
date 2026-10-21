@@ -1,8 +1,59 @@
 """Flow instrumentation preserves execution, task context and exceptions."""
 import asyncio
-from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.flow_trace import FlowSpan, QuoteFlowTrace
+from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.flow_trace import (
+    DatabaseSpan,
+    FlowSpan,
+    QuoteFlowTrace,
+)
 
 import pytest
+
+
+def test_database_capture_window_excludes_proposal_ack_and_reporting(monkeypatch):
+    trace = QuoteFlowTrace(monkeypatch)
+    trace.spans.extend([FlowSpan(1, 'db_capture', 100, 10, 'success'), FlowSpan(1, 'db_arm', 500, 100, 'success')])
+    for phase, at in [('proposal', 50), ('capture', 100), ('source', 300), ('arm', 500), ('ack', 650), ('reporting', 700)]:
+        trace.database_spans.append(DatabaseSpan(1, phase, at, 10, (('execute', 8),), 'success'))
+    summary, = trace.summaries()
+    assert set(summary['database_capture_through_arm']) == {'capture', 'source', 'arm'}
+    assert len(summary['database_by_operation']) == 6
+
+
+def test_database_samples_are_bounded_redacted_and_do_not_evict_birth_bounds(monkeypatch):
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.diagnostics import _Trace
+    trace = QuoteFlowTrace(monkeypatch, capacity=2)
+    trace.database()
+    trace._quote.set(1)
+    for _ in range(5):
+        sample = _Trace('joint_source_context', True)
+        sample.backend_pid = 12345
+        sample.enter('execute')
+        sample.finish('success')
+    trace.spans.extend([FlowSpan(1, 'db_capture', 0, 10, 'success'), FlowSpan(1, 'http_order', 500, 1, 'success')])
+    summary, = trace.summaries()
+    assert summary['capture_to_http_entry_ms'] == dict(lower=490, upper=500)
+    assert len(trace.database_spans) == 2 and trace.database_dropped == 3
+    assert summary['database_complete'] is False
+    assert summary['database_by_operation']['joint_source_context']['count'] == 2
+    assert '12345' not in repr(trace.database_spans)
+
+
+def test_database_aggregation_preserves_phase_costs_and_original_diagnostic(monkeypatch):
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.diagnostics import _Trace
+    trace = QuoteFlowTrace(monkeypatch)
+    trace.database()
+    trace.spans.append(FlowSpan(1, 'quote_total', 0, 100, 'error'))
+    token = trace._quote.set(1)
+    sample = _Trace('spot_state', True)
+    sample.enter('execute')
+    result = sample.finish('error')
+    trace._quote.reset(token)
+    summary, = trace.summaries()
+    group = summary['database_by_operation']['spot_state']
+    assert group['count'] == group['errors'] == 1
+    assert group['elapsed_ms'] == round(result.elapsed_ms, 3)
+    assert group['phases_ms'] == {k: round(v, 3) for k, v in result.phases_ms}
+    assert summary['database_complete'] is True
 
 
 @pytest.mark.asyncio

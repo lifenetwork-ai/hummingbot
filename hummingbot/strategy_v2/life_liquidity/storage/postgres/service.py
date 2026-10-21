@@ -316,7 +316,8 @@ class PgLiquidityService:
 
     @classmethod
     async def open(cls, config, *, runtime_config, owner, connectors, market_data_provider,
-                   sources, limits, clock, independent_fill_value, independent_cashflow_value, native_trading=False, _startup_owner=None):
+                   sources, limits, clock, independent_fill_value, independent_cashflow_value, native_trading=False, _startup_owner=None,
+                   provisional_quotes=False):
         from controllers.generic.life_liquidity import LifeLiquidityConfig
         if (type(config) is not LifeLiquidityConfig or config.storage_backend != 'postgres'
                 or type(runtime_config) is not PgConfig or config.storage_binding != runtime_config.binding
@@ -331,6 +332,7 @@ class PgLiquidityService:
                 or tuple(s.market for s in sources) != ('okx', 'okx_perpetual')
                 or any(not callable(v) for v in (clock, independent_fill_value, independent_cashflow_value))
                 or inspect.iscoroutinefunction(clock) or type(native_trading) is not bool
+                or type(provisional_quotes) is not bool or provisional_quotes and not native_trading
                 or _startup_owner is not None and (type(_startup_owner) is not list or _startup_owner)):
             raise StorageError('PG_SERVICE_ASSEMBLY_INVALID')
         if native_trading:
@@ -348,6 +350,7 @@ class PgLiquidityService:
         service.runtime = service.financial = service.reporting = service.events = service.runner = service.hedge = None
         service._close_task = None
         service.native_trading, service._native_trading = native_trading, native_trading
+        service.provisional_quotes = service._provisional_quotes = provisional_quotes
         service.quote_application = service.quote_source = service.producer = None
         service._quote_task = service._quote_action = None
         service._hedge_task = None
@@ -362,6 +365,16 @@ class PgLiquidityService:
         try:
             service.runtime = await PgRuntime.open(runtime_config)
             service.financial = PgSpotRepository(service.runtime)
+            births = None
+            if provisional_quotes:
+                from hummingbot.strategy_v2.life_liquidity.storage.postgres.birth import PgQuoteBirthRepository
+
+                async def birth_policy(c):
+                    return await c.fetchval('SELECT EXISTS(SELECT 1 FROM life_financial.quote_birth_policies WHERE account_id=$1 AND policy_hash=$2)',
+                                            runtime_config.account_id, runtime_config.binding.policy_hash)
+                if await service.runtime._admit(birth_policy, safety=True) is not True:
+                    raise StorageError('PG_SERVICE_BIRTH_POLICY_REQUIRED')
+                births = PgQuoteBirthRepository(service.financial)
             native_model = await service._read_trading_config() if native_trading else None
             if native_trading:
                 await service._require_financial_intake()
@@ -374,7 +387,7 @@ class PgLiquidityService:
                                                    config_version=config.strategy.config_version,
                                                    runner_facts=service.controller.runner_facts, local_ready=service._local_ready,
                                                    clock=clock, max_actions=limits.max_actions,
-                                                   native_runner_facts=service.controller.native_runner_facts)
+                                                   native_runner_facts=service.controller.native_runner_facts, birth_repository=births)
             identity = dict(max_uid_age_ms=limits.max_uid_age_ms, max_auth_age_ms=limits.max_auth_age_ms,
                             max_clock_skew_ms=limits.max_clock_skew_ms, collection_timeout_ms=limits.request_timeout_ms)
             account = await PgObservationAccountSource.create(service.journal, connector=service.connectors['okx'],
@@ -426,6 +439,7 @@ class PgLiquidityService:
         if (self.config.model_dump_json() != self._config_json or tuple(self.connectors.items()) != self._connectors
                 or self.controller.service is not self or self.controller.config is not self.config
                 or self.clock is not self._clock or self.limits is not self._limits or self.native_trading is not self._native_trading
+                or self.provisional_quotes is not self._provisional_quotes
                 or self.controller.market_data_provider is not self._provider
                 or self._provider.connectors != self.connectors):
             self.revoke()
@@ -716,7 +730,8 @@ class PgLiquidityService:
                 if self.quote_source._quota is not None:
                     await stack.enter_async_context(self.quote_source._quota.spot_cycle(self.quote_source, intent))
                 if any(m.version == 98 for m in self.runtime._bundle):
-                    action = await self.quote_source.capture_and_publish_intent_ready(intent, publication_id, _publication=publication)
+                    birth_model = dict(_model_hash=self.producer._configuration_hash) if self.provisional_quotes else {}
+                    action = await self.quote_source.capture_and_publish_intent_ready(intent, publication_id, _publication=publication, **birth_model)
                 else:
                     # Explicit predecessor-schema qualification only. Current
                     # packages require migration 98 in every primary admission.
@@ -725,7 +740,8 @@ class PgLiquidityService:
                 self._quote_action = action.model_copy(deep=True)
                 self.runner._async_action_dispatcher.submit([action])
                 await self.runner._async_action_dispatcher.drain()
-                if not self.journal._entry(action).accepted:
+                entry = self.journal._entry(action)
+                if not entry.accepted and not (entry.birth is not None and entry.dispatch_facts is not None and not entry.revoked):
                     raise StorageError('PG_SERVICE_DISPATCH_REJECTED')
                 # The real executor's control loop submits; no manual place call.
                 executors = self.runner.executor_orchestrator.active_executors[self.config.id]
@@ -943,8 +959,24 @@ class PgLiquidityService:
         self.revoke()
         if self._close_task is None:
             self._close_task = asyncio.create_task(self._close())
+            # A caller may time out or be cancelled before physical cleanup
+            # finishes. Observe late failure while retaining it on the original
+            # task for every subsequent join; never abandon or cancel COMMIT.
+            self._close_task.add_done_callback(lambda task: None if task.cancelled() else task.exception())
         async with asyncio.timeout(self._limits.shutdown_timeout_ms / 1000):
-            await asyncio.shield(self._close_task)
+            await self.wait_closed()
+
+    async def wait_closed(self):
+        """Join already-started physical cleanup, retaining its original error.
+
+        This explicit lifecycle join has no new cleanup attempt or deadline.
+        Resource owners must finish it before destroying SDK/DB dependencies;
+        cancelling a waiter cannot cancel the owned cleanup task.
+        """
+        task = self._close_task
+        if task is None:
+            raise StorageError('PG_SERVICE_CLOSE_NOT_STARTED')
+        await asyncio.shield(task)
 
     async def _close(self):
         failures = []

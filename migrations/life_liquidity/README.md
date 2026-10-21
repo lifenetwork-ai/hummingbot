@@ -1546,3 +1546,36 @@ These migrations reduce repeated proof work, but the retained-fill loaded quote
 still exceeds its unchanged 1000-ms policy. They do not qualify PG3 or permit a
 merged CAPTURE/DISPATCH protocol. See the whole-flow implementation and actual
 phase-boundary crash tests in the PostgreSQL plan.
+
+## 000104: provisional birth and atomic quote preparation
+
+`000104_provisional_quote_birth.sql` introduces three empty bounded metadata
+tables: imported birth policy, immutable issued tickets and immutable compound
+consumption origins. It seeds no accounts, policies, balances or ownership.
+Issuance gives an original intent one native timestamp without changing money
+or account version; unknown/replayed issuance cannot refresh that timestamp.
+
+The new preparation command uses the unchanged financial preparation core and
+publishes PREPARED action/history plus its original dispatch facts in the same
+transaction/version as the existing monetary holds. Native snapshots and COMMIT
+recheck retained birth/compound origins. Normal final-source, ARM/COMMIT and SDK
+guards remain independent. Cold readback grants no local acceptance or sender.
+
+Existing writer/read roles receive only their matching new entrypoints;
+private verifiers, triggers and renamed snapshot implementation lose hostile
+default grants. Tables retain scoped read policies, immutable history and no
+runtime direct DML. Migration 104 pins predecessor source and security metadata;
+the ledger makes repeated startup a no-op. Applied migrations 1–103 are unchanged.
+
+This candidate requires explicit offline service assembly and imported policy;
+it has no configured startup selector. It does not close PG3. An unconsumed
+ticket currently blocks another issuance and retains original claims pending
+explicit recovery; there is no automatic expiry, refund or replay adoption.
+
+Within each fresh invocation, birth verification reads account/capacity once,
+joins retained session/configuration/operation/event origins and materializes
+each referenced model hash once. Missing joined origins are refused explicitly.
+Every ticket/body/dispatch remains checked; no financial verdict is cached
+across statements or phases. The actual joined query is tested with EXPLAIN at
+1, 4 and 8 tickets, including a shared configuration and corrupted old origins.
+No extra index or weakened history/COMMIT/freshness predicate is introduced.

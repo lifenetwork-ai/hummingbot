@@ -1,5 +1,19 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**Joined-audit/cleanup checkpoint (2026-10-22):** candidate birth audits now
+join retained origins and compute shared model hashes once per invocation.
+The final 79-case affected regression and four migration cases pass.
+The final untraced workload still fails after one generation at reported unwind
+age 1034.450 ms; cleanup/pool/task assertions pass. **PG3 remains open.** See
+[scope and whole-flow measurements](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#joined-birth-audits-and-owned-cleanup-2026-10-22).
+
+**Provisional protocol checkpoint (2026-10-21):** the fixed-birth/atomic-prepare
+candidate now has an explicit offline implementation. Twenty focused contracts
+and four migration upgrade/privilege/drift cases pass. Its loaded and complete
+recovery acceptance remain open; no configured startup selector enables it and
+**PG3 remains open**. See the
+[implementation checkpoint](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#provisional-protocol-implementation-checkpoint-2026-10-21).
+
 **Current bounded PostgreSQL decision (2026-10-21):** the same-statement
 proof-graph trial still fails the original 1000-ms maker workload and requires
 41 helper copies; it is rejected for production. Test diagnostics now bound

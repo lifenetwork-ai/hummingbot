@@ -102,6 +102,20 @@ async def test_configured_makers_replenish_after_fill_history_with_competing_sha
                 raise
             primary.add_note('cleanup_failure=' + type(error).__name__ + ':' + str(error))
         finally:
-            if stream is not None:
-                stream.cancel()
-                await asyncio.gather(stream, return_exceptions=True)
+            try:
+                # The test owns the fake SDK and disposable DB. A bounded
+                # close timeout cannot release those dependencies while the
+                # original physical cleanup still uses them.
+                if service._close_task is not None:
+                    await service.wait_closed()
+            except BaseException as error:
+                if primary is None:
+                    raise
+                primary.add_note('cleanup_join_failure=' + type(error).__name__ + ':' + str(error))
+            finally:
+                assert service._close_task.done()
+                assert not service.runtime._tasks
+                assert all(pool._closed for pool in service.runtime._pools.values())
+                if stream is not None:
+                    stream.cancel()
+                    await asyncio.gather(stream, return_exceptions=True)

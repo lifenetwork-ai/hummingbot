@@ -1,5 +1,23 @@
 # LIFE storage contracts
 
+**Joined-audit/cleanup checkpoint (2026-10-22):** candidate birth validation
+uses joined retained origins and one model hash per referenced configuration in
+each invocation. `PgLiquidityService.wait_closed()` joins already-started
+physical cleanup and retains its original failure after caller timeout or
+cancellation. Resource owners must join it before destroying SDK/DB dependencies.
+The final 79-case affected regression and four migration cases pass;
+the final untraced workload still fails after one generation at reported unwind
+age 1034.450 ms, with cleanup/pool/task assertions passing. **PG3 stays open.**
+See the [implementation and measurements](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#joined-birth-audits-and-owned-cleanup-2026-10-22).
+
+**Provisional protocol checkpoint (2026-10-21):** migration 104 and an explicit
+offline service argument implement immutable birth plus atomic preparation.
+Twenty focused birth/financial/fault/corruption contracts and four migration
+upgrade/privilege/drift cases pass. The default protocol is unchanged. Complete
+loaded acceptance, actual-runner recovery qualification and explicit unconsumed
+birth retirement remain open; **PG3 is not closed**. See the
+[implementation checkpoint](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#provisional-protocol-implementation-checkpoint-2026-10-21).
+
 **Current bounded PostgreSQL decision (2026-10-21):** a disposable audit-bundle
 trial reduces sampled snapshot work but still fails the unchanged 1000-ms maker
 deadline; its 41 helper copies are rejected for production. Test-only tracing

@@ -1,5 +1,23 @@
 # LIFE: PostgreSQL and Cloud Run Implementation Plan (TDD)
 
+**Joined-audit/cleanup checkpoint (2026-10-22):** migration 104's candidate
+verifier now reads account data once, joins retained origins, and materializes
+each referenced model hash once per invocation. The final **79-case affected
+regression** and **four migration cases** pass on 1859 unchanged code/SQL files.
+The final untraced workload still fails after one maker generation, at reported
+unwind age **1034.450 ms**; its cleanup/pool/task assertions pass. **PG3 remains
+open.** See the
+[implementation and measurements](#joined-birth-audits-and-owned-cleanup-2026-10-22).
+
+**Provisional protocol checkpoint (2026-10-21):** the candidate now has an
+explicit offline-only implementation and migration 104. Its 20 birth/atomic
+preparation contracts and four migration upgrade/privilege/drift cases pass.
+Four actual V2/SDK tests also pass, but the untraced loaded workload still fails
+after one maker generation, at error-unwind age 1079.898 ms, and cleanup times out.
+This is partial qualification, not PG3 closure. The default protocol is unchanged;
+configured startup cannot select this candidate. Whole-workload and recovery
+results are tracked in the [implementation checkpoint](#provisional-protocol-implementation-checkpoint-2026-10-21).
+
 **Current bounded proof-graph decision (2026-10-21):** the fixed retained-fill,
 two-generation workload still fails. A disposable same-statement audit bundle
 reduced sampled native-context work but moved the observed rejection into ARM
@@ -8184,3 +8202,186 @@ If the real prototype cannot preserve these invariants or cannot pass the
 original deadline, stop this candidate and record the unresolved architectural
 constraint. An isolated microbenchmark, provisional test double, optimistic
 timing subtraction or a moved deadline cannot close PG3.
+
+## Provisional protocol implementation checkpoint (2026-10-21)
+
+Migration 104 adds bounded immutable birth metadata and an atomic preparation
+command using the unchanged financial preparation core. One native timestamp
+binds the original intent, owner, model, template and actual executor payload.
+Birth issuance changes no balances/account version and grants no send permission.
+The compound command publishes the original dispatch facts, PREPARED action,
+financial holds and canonical preparation receipt in one account-version change.
+Both retained history and deferred COMMIT checks validate the compound origin.
+The existing final source, ARM, authenticated HTTP and ACK boundaries remain.
+
+`PgLiquidityService.open(provisional_quotes=True)` is an explicit offline
+assembly argument requiring the original native-trading profile and an imported
+birth policy. It defaults to false and has no YAML, environment or headless
+startup selector. No live or demo exchange was contacted. A cold birth read is
+historical only; it cannot reconstruct an original local acceptance or sender.
+
+Qualified focused results on disposable PostgreSQL 16 (2 CPU / 1 GiB):
+
+- **20 contracts pass**, 47.61 s: immutable/non-monetary birth, one-version
+  preparation and existing financial readers, source/scope/model/owner refusal,
+  physical backend termination before/after birth and compound COMMIT,
+  same-version hash/binding/model/payload corruption (including recomputed hashes),
+  and direct-SQL malformed dispatch facts independently of Python validation.
+- **Four migration cases pass**, 7.40 s: actual 103-to-104 upgrade, repeat no-op,
+  hostile default grants, private helpers/history entrypoints, and atomic refusal
+  of changed ancestor body, search path or volatility. Migrations 1–103 are not
+  rewritten.
+- A corrupt birth read originally surfaced only a generic unavailable error.
+  The new repository now normalizes the static SQL reason through the existing
+  `sql_error` helper, retaining the explicit unverified reason without exposing
+  SQL or values. The focused contracts above include this fix.
+
+The actual V2/SDK gate passes **four cases**: BUY/SELL remain unaccepted before
+compound COMMIT, then reach their original protected SDK ACK only after confirmed
+preparation; physical backend termination before/after that COMMIT gives no order
+HTTP, retains the original shared claim and applies prepared holds only if the
+COMMIT actually occurred. Shutdown reporting refusal remains explicit in those
+fault cases, and their pools close.
+
+The same run's unchanged, untraced retained-fill workload **fails after one maker
+generation**. The normalized cause is `PG_QUOTE_CAPTURE_MISMATCH`, surfaced by
+the SDK/application as submission unknown, with reported error-unwind quote age
+**1079.898 ms** against the unchanged **1000-ms** capture policy. Unwind age is
+not the exact SQL rejection instant. This run has no tracing/profiling plugin:
+**4 pass / 1 fail**, 14 deselected, six existing warnings, **185.59 s** including
+failure cleanup. It is not a complete workload or whole-flow performance pass.
+The failure path also records a cleanup `TimeoutError` and a later unobserved
+service-close task exception while recorder work is still draining; failure
+shutdown therefore needs separate diagnosis and qualification. Do not treat a
+late exception after the disposable test database is removed as a new primary
+financial rejection or swallow it as a clean shutdown.
+
+An earlier diagnostic-only 65-second wrapper interrupted cancellation
+after three successful sends; this is neither proof of a cancellation defect nor
+a complete workload pass. An earlier untraced run reached the existing 120-second
+pytest timeout. Neither timeout nor a successful early quote establishes margin
+for later retained-history generations. Logs remain under `/tmp`.
+
+Remaining candidate work: complete unchanged loaded acceptance; qualify stop,
+owner/ingress changes and process loss on the actual runner; define explicit
+recovery/retirement for an issued but unconsumed birth; run affected original
+protocol/history/role/economic regressions and the fixed R2.3/R4/R5 gates on one
+frozen revision. An unconsumed birth currently blocks another issuance and
+retains original claims; it is not silently expired, refunded or adopted.
+**PG3 remains open.**
+
+## Joined birth audits and owned cleanup (2026-10-22)
+
+### Implemented scope
+
+- [x] Remove repeated table lookups from each birth/consumption loop. Read the
+  account and aggregate capacity once; join sessions/configurations for birth
+  checks and birth/operation/version-zero event for consumption checks. LEFT
+  JOINs and explicit missing-origin refusal retain invalid rows for detection.
+- [x] Materialize each referenced configuration/model hash once in the same
+  STABLE invocation. Every birth body, owner, binding, payload hash and dispatch
+  origin is still checked. No saved positive verdict crosses a statement,
+  preparation, final collection, ARM or COMMIT boundary.
+- [x] Add `PgLiquidityService.wait_closed()` to join the original physical
+  cleanup independently of a caller's timeout. Observe a late task exception
+  while retaining the same error for subsequent joins. Caller cancellation
+  cannot cancel cleanup or physical COMMIT. The loaded test joins cleanup and
+  checks closed pools/no remaining DB tasks before destroying its dependencies.
+- [x] Add a separate bounded test-only DB timing ring, with per-quote operation
+  counts and original admit/acquire/validate/execute/COMMIT/release durations.
+  A capture-through-ARM window excludes proposal/ACK/reporting. It never records
+  arguments, SQL, credentials, backend IDs or raw driver errors. Truncation is
+  explicit and cannot evict core birth/HTTP bounds.
+- [x] Check joined selection/growth at 1, 4 and 8 retained tickets referencing
+  one configuration; recheck old origin corruption and original financial holds.
+- [ ] Complete the original untraced loaded deadline and adequate retained-
+  history margin, then qualify the remaining R2.3/R4/R5 exits.
+
+The mutable, uncommitted migration 104 is the candidate under test; applied
+migrations 1–103 are unchanged. Existing account-scoped primary/unique keys
+support its joins. No new index is justified by this small-history experiment,
+and an index alone would not remove per-row hash/history verification.
+
+### Focused checks and measurement limits
+
+The focused gate passes **31 cases**, **85.55 s**. It includes the original
+birth/atomic preparation and backend-loss contracts; three retained actions
+sharing one model; changed old session/configuration/operation/event/dispatch;
+and cancelled/timed-out close with delayed physical pool closure and the exact
+late error retained on repeated joins. The two new test groups exposed fixture
+scope/subsidy mistakes, which were corrected without changing product economics.
+The separate **16 tracing contracts** pass, including bounded/redacted DB
+samples, phase aggregation and exclusion of proposal/ACK/reporting from the
+capture window.
+
+The final tracing-disabled regression passes **79 cases**, **309.83 s**, with
+3365 deselected and six existing warnings. It includes the birth contracts,
+actual V2 BUY/SELL and before/after compound-COMMIT faults, configured native
+service lifecycle/trading, original post-write COMMIT corruption and all tracing
+contracts. The separate migration gate passes **four cases**, **8.09 s**, with
+331 deselected: actual 103-to-104 upgrade/repeat, hostile defaults/private
+entrypoints, and changed ancestor body/search-path/volatility refusal. All 1859
+pinned Python/Cython/SQL files are unchanged across those gates. These are
+affected-scope regressions, not all-product/R5 acceptance.
+
+`EXPLAIN (ANALYZE, BUFFERS)` of the actual verifier row-selection query confirms
+one materialized model row/loop for 1, 4 and 8 tickets. Three isolated verifier
+reads at each size give medians **2.523 / 6.087 / 5.939 ms**, respectively. These
+are tiny synthetic metadata samples, not before/after speedups, constant-time
+proofs, quote latency percentiles or large-history qualification. Full retained
+row checking remains proportional to the checked history.
+
+### Complete-flow diagnostic result
+
+The original retained-fill/two-generation/competing-SDK workload, with test
+tracing enabled and no function-profiling plugin, fails after **one** maker
+generation (**106.02 s**). Three quotes reach order HTTP; the fourth commits
+ARM but is refused before order HTTP, with error-unwind age **1011.554 ms**
+against the original **1000-ms** policy. Unwind age is not an exact denial
+timestamp. Core span loss is zero, DB samples are complete, and 3070 high-volume
+detail spans are explicitly dropped.
+
+| Observed phase | Quote 1 | Quote 2 | Quote 3 | Failed quote 4 |
+| --- | ---: | ---: | ---: | ---: |
+| Four native-context reads inside the capture window | 99.185 ms | 212.389 ms | 243.952 ms | 378.457 ms |
+| Preparation source collection | 132.103 ms | 179.644 ms | 195.711 ms | 246.798 ms |
+| Compound PREPARE DB admission | 75.388 ms | 115.117 ms | 134.832 ms | 216.257 ms |
+| Final source collection | 113.272 ms | 166.092 ms | 186.322 ms | 267.980 ms |
+| ARM DB admission | 61.287 ms | 129.999 ms | 150.850 ms | 239.141 ms |
+
+Context reads are nested inside source collection; these rows must not be
+summed as independent work. Per-operation whole-quote totals additionally
+include pre-birth proposal/allocation and post-send accounting/reporting, so
+they must not be presented as costs inside the one-second lifetime. History,
+quota timing and scheduling co-vary in this single run. No paired speedup or
+general performance guarantee is inferred.
+
+The failed ARM-to-HTTP path retains unknown-order truth. Cleanup joins the
+original work and reports `PG_JOINT_SOURCE_ORDER_SCOPE`; the diagnostic run has
+no cleanup timeout or unobserved service-close task failure. This is completed
+resource cleanup with a retained reconciliation error, not successful financial
+reconciliation or permission to refund/resend. The later untraced gate also
+asserts actual pool/task closure.
+
+### Follow-through decision
+
+The final separate untraced workload on the same frozen revision still fails
+with `PG_QUOTE_CAPTURE_MISMATCH` after one completed maker generation:
+**1 fail**, 21 deselected, six existing warnings, **119.64 s**. Error-unwind age
+is **1034.450 ms**, not the exact predicate instant. This run has no tracing or
+profiling plugin. Its cleanup completes without timeout/error notes, and the
+test's original physical-cleanup/pool-closure/no-DB-task assertions all pass;
+there is no unobserved service-close task warning. All 1859 code/SQL hashes still
+match the pinned regression/migration revision. No adequate deadline margin,
+paired speedup, full two-generation pass or PG3 closure is claimed.
+
+The birth join optimization is implemented and bounded model reuse is tested;
+it has not solved the complete-flow deadline. Further work must measure the
+native financial snapshot/proof composition used by the four fresh context
+reads plus PREPARE/ARM, rather than extend a cross-command cache or tune the
+small birth verifier in isolation. Any future current-state projection or
+history compaction must define atomic ledger/projection publication, independent
+rebuild, crash recovery and same-version corruption detection before replacing
+existing audits. Do not silently defer retained-history checks or weaken the
+fresh final-source/ARM boundary. PG3 closure still requires the original loaded
+and complete affected recovery/financial/role gates on one revision.

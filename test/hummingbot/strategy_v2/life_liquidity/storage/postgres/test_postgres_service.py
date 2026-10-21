@@ -187,6 +187,52 @@ async def test_native_service_cancelled_close_keeps_the_owned_cleanup_until_phys
 
 
 @pytest.mark.asyncio
+async def test_timed_out_service_close_remains_joinable_and_retains_late_failure(database, monkeypatch):
+    import asyncio
+    s = await setup(database)
+    service = closing = None
+    entered, release = asyncio.Event(), asyncio.Event()
+    late = StorageError('SYNTHETIC_LATE_CLOSE_FAILURE')
+    try:
+        await s.reporting.close()
+        await s.t.financial.close()
+        service = await open_service(s, limits=replace(limits(), shutdown_timeout_ms=100))
+        original = service.financial.close
+
+        async def delayed_close():
+            entered.set()
+            await release.wait()
+            await original()
+            raise late
+        monkeypatch.setattr(service.financial, 'close', delayed_close)
+        closing = asyncio.create_task(service.close())
+        with pytest.raises(TimeoutError):
+            await closing
+        await asyncio.wait_for(entered.wait(), 3)
+        assert not service._close_task.done() and not service.runtime._closing
+        waiter = asyncio.create_task(service.wait_closed())
+        await asyncio.sleep(0)
+        waiter.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await waiter
+        assert not service._close_task.cancelled() and not service.runtime._closing
+        release.set()
+        with pytest.raises(StorageError) as result:
+            await service.wait_closed()
+        assert result.value is late
+        with pytest.raises(StorageError) as repeated:
+            await service.wait_closed()
+        assert repeated.value is late
+        assert service._close_task.done() and not service.runtime._tasks
+        assert all(pool._closed for pool in service.runtime._pools.values())
+    finally:
+        release.set()
+        if service is not None and service._close_task is not None:
+            await asyncio.gather(service._close_task, return_exceptions=True)
+        await s.t.financial.close()
+
+
+@pytest.mark.asyncio
 async def test_cancelled_native_startup_closes_opened_pools_before_returning(database, monkeypatch):
     import asyncio
 

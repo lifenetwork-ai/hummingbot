@@ -42,6 +42,8 @@ class _Entry:
     prepare_started: bool = False
     prepared: PrepareQuoteAction | None = None
     arm_started: bool = False
+    birth: object | None = None
+    dispatch_facts: RunnerActionFacts | None = None
 
 
 class _RunnerFactCapture:
@@ -72,7 +74,11 @@ class PgQuoteRunnerJournal:
     async_dispatch_enabled = True
 
     def __init__(self, repository, *, owner, controller_id, config_version, runner_facts, local_ready, clock, max_actions,
-                 native_runner_facts=None):
+                 native_runner_facts=None, birth_repository=None):
+        if birth_repository is not None:
+            from hummingbot.strategy_v2.life_liquidity.storage.postgres.birth import PgQuoteBirthRepository
+            if type(birth_repository) is not PgQuoteBirthRepository or birth_repository.financial is not repository:
+                raise StorageError('RUNNER_BIRTH_REPOSITORY_INVALID')
         if (type(repository) is not PgSpotRepository or type(owner) is not OwnerToken
                 or not all(callable(v) for v in (runner_facts, local_ready, clock))
                 or type(config_version) is not int or not 0 < config_version <= 9223372036854775807
@@ -87,12 +93,13 @@ class PgQuoteRunnerJournal:
         self._transport = None
         self._publication = None
         self._native_runner_facts = self._native_runner_original = native_runner_facts
+        self.births = self._births_original = birth_repository
         self._lock = asyncio.Lock()
 
     def _ready(self):
         try:
             now = utc(self.clock())
-            return (not self._revoked and self.owner.valid_from <= now < self.owner.expires_at
+            return (self.births is self._births_original and not self._revoked and self.owner.valid_from <= now < self.owner.expires_at
                     and self.local_ready() is True)
         except Exception:
             return False
@@ -245,6 +252,22 @@ class PgQuoteRunnerJournal:
                 captured, dispatch_version=cut.checkpoint.revision + 1, revoked=not self._ready())
             return action
 
+    async def capture_provisional(self, operation_id, intent, *, model_hash, _publication):
+        """One confirmed birth permits only a local, unaccepted executor."""
+        async with self._lock:
+            if self.births is None or not self._ready() or intent.intent_id in self._entries or len(self._entries) >= self.max_actions:
+                raise StorageError('RUNNER_PROVISIONAL_ORIGIN_REQUIRED')
+            cut = self._consume_publication(operation_id, _publication)
+            ticket = await self.births.issue(operation_id, intent, model_hash=model_hash, expected_version=cut.checkpoint.revision)
+            if not self._ready():
+                raise StorageError('RUNNER_LOCAL_REVOKED')
+            action = CreateExecutorAction(controller_id=ticket.action.controller_id,
+                                          executor_config=OrderExecutorConfig.model_validate_json(ticket.action.payload_json))
+            if self._capture(action) != ticket.action:
+                raise StorageError('RUNNER_NATIVE_CAPTURE_MISMATCH')
+            self._entries[ticket.action.intent_id] = _Entry(ticket.action, birth=ticket)
+            return action
+
     def local_runner_create_preflight(self, action):
         try:
             entry = self._entry(action)
@@ -275,12 +298,19 @@ class PgQuoteRunnerJournal:
             if not self.local_runner_create_preflight(action):
                 return False
             cut = ((await self.repository.observation_cut(self.binding)).cut
-                   if entry.dispatch_version is None else None)
+                   if entry.birth is None and entry.dispatch_version is None else None)
             facts = await self._facts(native_transition=True)
             if not self.local_runner_create_preflight(action):
                 return False
             if entry.row.intent_id not in facts.executor_ids:
                 raise StorageError('RUNNER_ACCEPTED_EXECUTOR_MISSING')
+            if entry.birth is not None:
+                if entry.dispatch_facts is not None or facts.observed_at.timestamp() * 1000 < entry.birth.born_at_ms:
+                    raise StorageError('RUNNER_PROVISIONAL_ORIGIN_REQUIRED')
+                entry.dispatch_facts = facts
+                if self._transport is not None:
+                    self._transport.dispatch_finished(action)
+                return True  # Local provisional handoff, not acceptance.
             command = TransitionQuoteAction(self._operation(entry, 'dispatch'), entry.row, 'PROPOSED', 'DISPATCHED', facts)
             try:
                 if entry.dispatch_version is None:
@@ -325,10 +355,11 @@ class PgQuoteRunnerJournal:
 
     async def prepare_quote_action(self, action, command, *, _source_cut=None):
         entry = self._entry(action)
-        if not entry.accepted or entry.prepare_started or not self.local_runner_create_fence(action):
+        provisional = entry.birth is not None and entry.dispatch_facts is not None
+        if not (entry.accepted or provisional) or entry.prepare_started or not self.local_runner_create_fence(action):
             raise StorageError('RUNNER_ACCEPTANCE_REQUIRED')
         async with self._lock:
-            if not entry.accepted or entry.prepare_started or not self.local_runner_create_fence(action):
+            if not (entry.accepted or provisional) or entry.prepare_started or not self.local_runner_create_fence(action):
                 raise StorageError('RUNNER_ACCEPTANCE_REQUIRED')
             if type(command) is not PrepareQuoteAction or command.action != entry.row:
                 raise StorageError('RUNNER_PREPARATION_CAPTURE_MISMATCH')
@@ -337,14 +368,23 @@ class PgQuoteRunnerJournal:
             # SQL must reject any intervening change instead of silently using
             # a newer unrelated snapshot. Legacy callers still capture here.
             cut = (await self.repository.snapshot(self.binding)).cut if _source_cut is None else _source_cut
-            if not entry.accepted or not self.local_runner_create_fence(action):
+            if not (entry.accepted or provisional) or not self.local_runner_create_fence(action):
                 raise StorageError('RUNNER_ACCEPTANCE_REQUIRED')
             # One physical attempt. Failures require exact operation readback,
             # never a fresh operation/cut or implicit rearm/resend.
             entry.prepare_started = True
-            result = await self.repository.prepare_quote_action(command, cut=cut, owner=self.owner)
+            if provisional:
+                try:
+                    result = await self.births.prepare(entry.birth, command, entry.dispatch_facts, cut=cut, owner=self.owner)
+                except BaseException:
+                    entry.revoked = True
+                    raise
+            else:
+                result = await self.repository.prepare_quote_action(command, cut=cut, owner=self.owner)
             if not result.replayed and self.local_runner_create_fence(action):
                 entry.prepared = command
+                if provisional:
+                    entry.accepted = True
             return result
 
     async def arm_quote_action(self, action, command, *, _source_cut=None):

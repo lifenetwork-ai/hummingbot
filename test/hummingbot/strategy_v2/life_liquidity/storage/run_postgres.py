@@ -157,7 +157,7 @@ def main():
             selector /= 'test_postgres_quote_account_source.py'
         selectors = [str(selector)]
         if args.suite == 'service_load':
-            selectors = [str(selector / ('test_' + name + '.py')) for name in ('flow_trace', 'postgres_service_load')]
+            selectors = [str(selector / ('test_' + name + '.py')) for name in ('flow_trace', 'postgres_service_load', 'postgres_provisional_service')]
         if args.suite == 'service_trading':
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in ('service_trading', 'service_hedge', 'service_replay', 'service_process', 'service_swap_process', 'service_backend', 'service_spot_backend', 'service_fills', 'service_repair', 'quote_phase_boundaries')]
         if args.suite == 'runner_journal':

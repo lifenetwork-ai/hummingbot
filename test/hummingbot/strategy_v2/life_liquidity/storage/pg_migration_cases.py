@@ -3686,3 +3686,43 @@ async def test_account_money_group_upgrade_preserves_other_guards_and_rejects_dr
             for role in ('public', 'life_runtime_test', 'life_reporter_test'):
                 assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", role, signature)
     assert originals == {name: await c.fetchval('SELECT pg_get_functiondef(to_regprocedure($1))', name) for name in originals}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('drift', ['none', 'body', 'search_path', 'volatility'])
+async def test_quote_birth_upgrade_is_repeatable_private_and_rejects_ancestor_drift(db, drift):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 104:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    target = 'life_financial.spot_prepare_action_core(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb,jsonb)'
+    if drift == 'body':
+        definition = await c.fetchval('SELECT pg_get_functiondef(to_regprocedure($1))', target)
+        await c.execute(definition.replace('BEGIN', 'BEGIN\n-- drifted financial ancestor\n', 1))
+    elif drift == 'search_path':
+        await c.execute('ALTER FUNCTION ' + target + ' SET search_path=pg_catalog,public')
+    elif drift == 'volatility':
+        await c.execute('ALTER FUNCTION ' + target + ' STABLE')
+    await c.execute('ALTER DEFAULT PRIVILEGES IN SCHEMA life_financial GRANT EXECUTE ON FUNCTIONS TO PUBLIC,life_runtime_test,life_reporter_test')
+    await c.execute('ALTER DEFAULT PRIVILEGES IN SCHEMA life_financial GRANT ALL ON TABLES TO PUBLIC,life_runtime_test,life_reporter_test')
+    before = await c.fetchval('SELECT pg_get_functiondef(to_regprocedure($1))', target)
+    path = DEFAULT_DIRECTORY / '000104_provisional_quote_birth.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    if drift != 'none':
+        with pytest.raises(asyncpg.RaiseError, match='LIFE_QUOTE_BIRTH_MIGRATION_MISMATCH'):
+            await migrate(c, directory, action='up')
+        assert (await versions(c))[-1]['version'] == 103
+        assert not await c.fetchval("SELECT to_regclass('life_financial.quote_births') IS NOT NULL")
+    else:
+        assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+        assert (await migrate(c, directory, action='up'))['applied'] == []
+        for signature in ('life_financial.quote_birth_verified(uuid)', 'life_financial.quote_birth_commit_guard()',
+                          'life_financial.spot_body_before_quote_birth(uuid)', 'life_financial.quote_birth_issue(uuid,jsonb,jsonb,bigint,jsonb)',
+                          'life_financial.quote_birth_prepare(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)'):
+            for role in ('public', 'life_runtime_test', 'life_reporter_test'):
+                assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", role, signature)
+        for name in ('quote_birth_policies', 'quote_births', 'quote_birth_consumptions'):
+            for role in ('public', 'life_runtime_test', 'life_reporter_test'):
+                assert not await c.fetchval("SELECT has_table_privilege($1,$2,'INSERT,UPDATE,DELETE,TRUNCATE')", role, 'life_financial.' + name)
+    assert before == await c.fetchval('SELECT pg_get_functiondef(to_regprocedure($1))', target)

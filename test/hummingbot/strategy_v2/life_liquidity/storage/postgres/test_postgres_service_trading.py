@@ -32,7 +32,7 @@ def trading_policy():
 
 async def configured(database, *, model_change=None, shared_quota=True, maker_cycle=False, spot_overrides=None,
                      hedge_policy=None, independent_fill_value=None, omit_financial_policy=None, strategy_changes=None,
-                     configuration_extra=None, **options):
+                     configuration_extra=None, provisional_quotes=False, **options):
     template = LifeLiquidityConfig(id='main', storage_backend='postgres')
     template.strategy = type(template.strategy).model_validate(dict(
         template.strategy.model_dump(mode='json'),
@@ -154,12 +154,14 @@ async def configured(database, *, model_change=None, shared_quota=True, maker_cy
             response.json = public_book
         return response
     t.session.request = exchange
+    if provisional_quotes:
+        await database[0].execute('INSERT INTO life_financial.quote_birth_policies VALUES($1,$2,64,1048576)', t.cfg.account_id, t.cfg.binding.policy_hash)
     await t.financial.close()
     service = await PgLiquidityService.open(
         config, runtime_config=t.cfg, owner=t.owner, connectors=connectors,
         market_data_provider=MarketDataProvider(connectors), sources=registered, limits=limits(),
         clock=t.reader.source.journal.clock, independent_fill_value=independent_fill_value or (lambda *args: None),
-        independent_cashflow_value=lambda *args: None, native_trading=True, **options)
+        independent_cashflow_value=lambda *args: None, native_trading=True, provisional_quotes=provisional_quotes, **options)
     return t, service
 
 
