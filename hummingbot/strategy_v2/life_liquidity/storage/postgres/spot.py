@@ -550,9 +550,19 @@ class PgSpotRepository:
             raise StorageError('PG_ACTION_COMMAND_INVALID')
         return await self._action_command(command, cut, owner, 'SPOT_ACTION_CLAIM')
 
-    async def transition_quote_action(self, command, *, cut, owner):
+    async def transition_quote_action(self, command, *, cut, owner, _claim_version=None):
         if type(command) is not TransitionQuoteAction or command.facts.binding != self.binding:
             raise StorageError('PG_ACTION_COMMAND_INVALID')
+        if _claim_version is not None:
+            if (cut is not None or type(_claim_version) is not int or not 0 < _claim_version <= 9223372036854775807
+                    or command.expected_state != 'PROPOSED' or command.state != 'DISPATCHED'
+                    or type(owner) is not OwnerToken):
+                raise StorageError('PG_ACTION_COMMAND_INVALID')
+            identity = fingerprint({'kind': 'SPOT_ACTION_TRANSITION', 'command': command.json(),
+                                    'owner': owner.json(), 'binding': self.binding.json()})
+            args = (self._runtime.config.account_id, self.binding.json(), owner.json(), _claim_version, identity, command.json())
+            return await self._runtime._transaction('SELECT life_financial.spot_dispatch_claimed_action($1,$2,$3,$4,$5,$6)',
+                                                    args, owner, self._action_receipt)
         return await self._action_command(command, cut, owner, 'SPOT_ACTION_TRANSITION')
 
     async def quote_actions(self, binding):

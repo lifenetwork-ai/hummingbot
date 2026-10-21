@@ -4684,3 +4684,20 @@ The final 56-case host/File and 14-case native service gates pass. The broader
 native gate remains 94 pass / 1 capture-expiry failure before its intended receipt
 injection, and the prior two-generation send failure remains open. These scoped
 lifecycle passes do not close configured trading assembly, R5 or PG3.
+
+### Single-action native metadata dispatch
+
+Migration 97 removes the separate full cut read between a confirmed single-action
+CLAIM and DISPATCH. The runner retains only that CLAIM's successor CAS version;
+the metadata transaction reads and verifies current native state under its lock.
+An intervening writer refuses dispatch. The old explicit-cut command is unchanged,
+and multi-action journals retain it. Runtime/reporters cannot supply a verified
+view to the private implementation. Exact replay remains bookkeeping; it cannot
+restore local acceptance, prepare money or send an order. PREPARE/ARM, original
+capture timestamps, signed collections and physical-COMMIT gates are unchanged.
+Automatic upgrades preserve explicit existing metadata writers' equivalent public
+grant, while fresh provisioning and uncached runtime permission checks include it.
+
+The final 35-case runner/journal and five migration-audit gates pass. The configured
+maker replay still has source/capture deadline failures; this increment does not
+close PG3 or qualify loaded latency.

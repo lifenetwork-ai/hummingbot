@@ -1,5 +1,11 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**Current PG3 status (2026-10-21):** single-action metadata dispatch now captures
+its verified cut inside the native command. All 35 runner/journal cases and five
+migration audits pass. Configured maker acceptance still has source/capture
+expiry failures; **R2.3/R4/R5 and PG3 remain open**. See
+[atomic dispatch and retained failures](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-atomic-metadata-dispatch-2026-10-21).
+
 **Current configured hedge qualification (2026-10-21):** the explicit offline
 native service composes SPOT retirement → signed hedge sources → protected SWAP
 SDK/ACK → original terminal/settlement/shared release. All 22 configured trading

@@ -86,6 +86,105 @@ async def test_publication_and_acceptance_need_verified_cuts_without_materializi
 
 
 @pytest.mark.asyncio
+async def test_single_claim_dispatch_verifies_current_state_once_without_a_separate_cut_read(database, monkeypatch):
+    repo, cfg, _, row, app, create, _, dispatch, active, _ = await assembled(database)
+    try:
+        await app.publish('single-claim', (create,))
+        before = await repo.balance(cfg.binding)
+
+        async def redundant_cut(*args, **kwargs):
+            raise AssertionError('dispatch must capture its cut inside the metadata transaction')
+
+        monkeypatch.setattr(repo, 'observation_cut', redundant_cut)
+        active.add(row.intent_id)
+        assert await app.async_on_runner_create_action_dispatched(create)
+        assert (await repo.quote_actions(cfg.binding))[0].state == 'DISPATCHED'
+        assert await repo.balance(cfg.binding) == before
+        assert await database[0].fetchval('SELECT count(*) FROM life_financial.send_attempts') == 0
+    finally:
+        await dispatch.close()
+        await repo.close()
+
+
+@pytest.mark.asyncio
+async def test_single_claim_dispatch_refuses_an_intervening_account_writer(database):
+    from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_session import tick
+    repo, cfg, owner, row, app, create, _, dispatch, active, _ = await assembled(database)
+    try:
+        await app.publish('single-claim', (create,))
+        await repo.tick_session(tick(owner),
+                                cut=(await repo.observation_cut(cfg.binding)).cut, owner=owner)
+        active.add(row.intent_id)
+        with pytest.raises(StorageError, match='EXPECTED_VERSION_CONFLICT'):
+            await app.async_on_runner_create_action_dispatched(create)
+        assert (await repo.quote_actions(cfg.binding))[0].state == 'PROPOSED'
+        assert not app.local_runner_create_fence(create)
+        assert await repo.attempt(row.intent_id, cfg.binding) is None
+    finally:
+        await dispatch.close()
+        await repo.close()
+
+
+@pytest.mark.asyncio
+async def test_atomic_dispatch_private_view_is_not_a_runtime_or_reporter_capability(database):
+    repo, _, _, _, _, _, _, dispatch, _, _ = await assembled(database)
+    signature = 'life_financial.spot_action_with_verified_view(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,text,jsonb,jsonb)'
+    public = 'life_financial.spot_dispatch_claimed_action(uuid,jsonb,jsonb,bigint,life_financial.digest,jsonb)'
+    try:
+        for principal in ('life_pg2_runtime', 'life_pg2_reporter'):
+            assert not await database[0].fetchval('SELECT has_function_privilege($1,$2,\'EXECUTE\')', principal, signature)
+            assert await database[0].fetchval('SELECT has_function_privilege($1,$2,\'EXECUTE\')', principal, public) is (principal == 'life_pg2_runtime')
+    finally:
+        await dispatch.close()
+        await repo.close()
+
+
+@pytest.mark.asyncio
+async def test_atomic_dispatch_detects_same_version_stored_action_corruption(database):
+    repo, cfg, _, row, app, create, _, dispatch, active, _ = await assembled(database)
+    try:
+        await app.publish('single-claim', (create,))
+        c = database[0]
+        await c.execute('ALTER TABLE life_financial.spot_action_descriptors DISABLE TRIGGER USER')
+        await c.execute("UPDATE life_financial.spot_action_descriptors SET descriptor=descriptor||'{\"level\":1}'::jsonb")
+        await c.execute('ALTER TABLE life_financial.spot_action_descriptors ENABLE TRIGGER USER')
+        active.add(row.intent_id)
+        with pytest.raises(StorageError, match='UNVERIFIED'):
+            await app.async_on_runner_create_action_dispatched(create)
+        assert not app.local_runner_create_fence(create)
+        assert await c.fetchval("SELECT state FROM life_financial.quote_actions WHERE action_id=$1", row.intent_id) == 'PROPOSED'
+        assert await c.fetchval('SELECT count(*) FROM life_financial.send_attempts') == 0
+    finally:
+        await dispatch.close()
+        await repo.close()
+
+
+@pytest.mark.asyncio
+async def test_atomic_dispatch_rechecks_generation_at_physical_commit(database, monkeypatch):
+    from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.helpers import install_generation_fault
+    repo, cfg, _, row, app, create, _, dispatch, active, _ = await assembled(database)
+    try:
+        await app.publish('single-claim', (create,))
+        await install_generation_fault(database)
+        original = repo._runtime._commit
+
+        async def changed(transaction):
+            await transaction._connection.execute('SELECT life_financial.test_change_generation($1)', cfg.account_id)
+            await original(transaction)
+
+        monkeypatch.setattr(repo._runtime, '_commit', changed)
+        active.add(row.intent_id)
+        with pytest.raises(StorageError):
+            await app.async_on_runner_create_action_dispatched(create)
+        assert not app.local_runner_create_fence(create)
+        assert await database[0].fetchval("SELECT state FROM life_financial.quote_actions WHERE action_id=$1", row.intent_id) == 'PROPOSED'
+        assert await database[0].fetchval('SELECT count(*) FROM life_financial.send_attempts') == 0
+    finally:
+        await dispatch.close()
+        await repo.close()
+
+
+@pytest.mark.asyncio
 async def test_actual_dispatch_waits_for_persisted_acceptance_before_financial_preparation(database, monkeypatch):
     repo, cfg, owner, row, app, create, runner, dispatch, active, _ = await assembled(database)
     entered, release = asyncio.Event(), asyncio.Event()

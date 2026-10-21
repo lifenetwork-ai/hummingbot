@@ -1,5 +1,11 @@
 # LIFE: PostgreSQL and Cloud Run Implementation Plan (TDD)
 
+**Current PG3 status (2026-10-21):** single-action metadata dispatch now captures
+its verified cut inside the native command. All 35 runner/journal cases and five
+migration audits pass. Configured maker acceptance still has source/capture
+expiry failures; **R2.3/R4/R5 and PG3 remain open**. See
+[atomic dispatch and retained failures](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg3-atomic-metadata-dispatch-2026-10-21).
+
 Created: 2026-10-11
 
 **Current configured hedge qualification (2026-10-21):** the explicit offline
@@ -6549,3 +6555,57 @@ configured multi-generation quote failure and broader service quote-capture
 failure remain open. Full selected mode/route installation and current-source
 File parity/restart/corruption/role/process/backend/fault/latency acceptance still
 belong to the fixed R2.3/R4/R5 exits. **PG3 is not closed by this increment.**
+
+The subsequent complete `spot_market_send --fail-fast` selector contains 774
+cases on the final frozen source. It stops at **37 pass / 1 fail** in **464.63 s**;
+the other 736 cases were not run. XML confirms 14 native service, nine quote,
+13 configured hedge and the one-generation maker cases pass. The two-generation
+maker case refuses ARM at physical COMMIT with normalized
+`PG_QUOTE_CAPTURE_MISMATCH`; original quote age is **1018.133 ms / 1000 ms**.
+The ARM diagnostic is 134.209 ms (96.245 ms execute, 32.169 ms COMMIT) and the
+database confirms rejection rather than permission to send. Logs/XML remain at
+`/tmp/life-pg3-configured-full-frozen`. This is the current acceptance failure,
+not a completed 774-case gate. Current-v96 function-cost diagnostics remain
+outside product code and are not qualification or a performance improvement.
+
+## PG3 atomic metadata dispatch (2026-10-21)
+
+Migration 97 removes a redundant full primary cut read for confirmed single-action
+runner acceptance. The runner supplies the original CLAIM's successor CAS version.
+The native DISPATCH transaction locks that account and verifies its current full
+state once. The view-taking core is private; callers cannot supply a verdict.
+The original CLAIM/transition command, multi-action path, captured action bytes and
+timestamps, owner/session checks, PREPARE/ARM and deferred COMMIT proofs remain.
+No source/financial permission cache or deadline/budget/resource change is added.
+Automatic upgrade preserves explicit existing metadata writers' equivalent public
+EXECUTE grant, excludes PUBLIC/default grants and leaves the internal core private.
+Fresh provisioning and uncached admission include the new public endpoint.
+
+TDD first reproduces the unnecessary cut read. The final runner/journal gate passes
+**35 cases** (76.80 s), including original-version conflict, same-version stored
+action corruption, private-helper permissions, physical-COMMIT generation change,
+original bytes, stale/foreign scope, cancellation and lost-reply/cold-adoption
+refusals. The final migration gate passes **5 cases** (9.44 s), checking exact
+predecessor/security drift refusal, unchanged old function/ACL/table/data, explicit
+writer grant inheritance, hostile default privileges and repeated startup.
+Logs remain under `/tmp/life-pg3-atomic-dispatch-final-journal` and
+`/tmp/life-pg3-atomic-dispatch-final-migrations`; no repository evidence file is added.
+
+Retained availability results are not replaced by these focused passes:
+
+- Initial draft with CLAIM forwarded through a new wrapper: full configured
+  selector **16 pass / 1 capture-expiry failure** (136.13 s), 1167.874-ms quote age.
+  That wrapper is removed; the original CLAIM implementation is unchanged.
+- Final-path configured maker selector: **2 failures** (146.60 s). One generation
+  reaches shared retirement and refuses `PG_SHARED_RELEASE_SOURCE_UNQUALIFIED`;
+  the two-generation case reaches ARM COMMIT and refuses at **1090.208 ms** against
+  the unchanged 1000-ms capture limit. The later early input-bound additions have
+  no accepted positive-path performance result. Logs:
+  `/tmp/life-pg3-atomic-dispatch-original-claim-cycles`.
+- An earlier draft also reached a recorder-stage COMMIT timeout (1042.912 ms at
+  that phase). It remains an unresolved availability observation; no financial
+  receipt or safe retirement is inferred from an unknown COMMIT.
+
+**R2.3/R4/R5 and PG3 remain open.** Resolve the configured source/capture/COMMIT
+paths and run the fixed current-source whole-workflow acceptance. One fewer read
+is established; overall latency improvement is not established by these runs.

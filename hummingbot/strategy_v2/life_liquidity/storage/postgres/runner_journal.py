@@ -35,6 +35,7 @@ from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction
 @dataclass
 class _Entry:
     row: SpotQuoteAction
+    dispatch_version: int | None = None
     accepted: bool = False
     revoked: bool = False
     prepare_started: bool = False
@@ -162,7 +163,13 @@ class PgQuoteRunnerJournal:
             if result.replayed:
                 raise StorageError('RUNNER_CLAIM_REPLAY_REQUIRES_RECOVERY')
             for row in rows:
-                self._entries[row.intent_id] = _Entry(row, revoked=not self._ready())
+                # A single-action, confirmed CLAIM advances exactly once. This
+                # is only a CAS version for metadata dispatch, never a cached
+                # financial verdict. Any intervening writer must conflict.
+                self._entries[row.intent_id] = _Entry(
+                    row, dispatch_version=(cut.checkpoint.revision + 1
+                                           if len(rows) == 1 and any(m.version == 97 for m in self.repository._runtime._bundle) else None),
+                    revoked=not self._ready())
             return result
 
     def local_runner_create_preflight(self, action):
@@ -194,7 +201,8 @@ class PgQuoteRunnerJournal:
         async with self._lock:
             if not self.local_runner_create_preflight(action):
                 return False
-            cut = (await self.repository.observation_cut(self.binding)).cut
+            cut = ((await self.repository.observation_cut(self.binding)).cut
+                   if entry.dispatch_version is None else None)
             facts = await self._facts()
             if not self.local_runner_create_preflight(action):
                 return False
@@ -202,7 +210,11 @@ class PgQuoteRunnerJournal:
                 raise StorageError('RUNNER_ACCEPTED_EXECUTOR_MISSING')
             command = TransitionQuoteAction(self._operation(entry, 'dispatch'), entry.row, 'PROPOSED', 'DISPATCHED', facts)
             try:
-                result = await self.repository.transition_quote_action(command, cut=cut, owner=self.owner)
+                if entry.dispatch_version is None:
+                    result = await self.repository.transition_quote_action(command, cut=cut, owner=self.owner)
+                else:
+                    result = await self.repository.transition_quote_action(
+                        command, cut=None, owner=self.owner, _claim_version=entry.dispatch_version)
             except BaseException:
                 entry.revoked = True
                 raise

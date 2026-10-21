@@ -1403,3 +1403,22 @@ ordinary repeated startup/up uses the migration ledger without reapplying DDL.
 No financial verdict or permission cache is introduced. Existing backend query
 plans and asyncpg prepared-statement caching remain; no external cache is needed
 for this change. Focused query-shape tests are not PG3 latency qualification.
+
+## 000097: atomic single-action metadata dispatch
+
+`000097_atomic_metadata_dispatch.sql` captures the verified DISPATCH cut under
+its original account lock, avoiding the runner's separate full cut read. The
+single-action runner supplies the confirmed CLAIM's successor version; an
+intervening writer conflicts. Multi-action publication and predecessor schemas
+retain the original explicit-cut path. Original action bytes/timestamps, owner,
+session, fresh full-state audit and physical-COMMIT guards remain. This operation
+records executor acceptance only; it grants no PREPARE, ARM or HTTP permission.
+
+The audited predecessor command is unchanged. A private core accepts only the
+view constructed inside this command; runtime and reporter cannot call it.
+Automatic upgrade copies explicit EXECUTE grants from the old metadata command
+to the equivalent public entrypoint, excluding PUBLIC/default privileges.
+`provision_access` grants it on fresh installations, and migration-97 runtime
+admission verifies its permission on every read/write admission. No financial
+verdict, source observation or permission is cached across commands. Ordinary
+repeat startup uses the existing migration ledger and does not repeat DDL.

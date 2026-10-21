@@ -9,6 +9,7 @@ from uuid import UUID
 from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError
 
 # One policy for provisioning and every uncached primary admission check.
+ATOMIC_DISPATCH_ENTRYPOINT = 'life_financial.spot_dispatch_claimed_action(uuid,jsonb,jsonb,bigint,life_financial.digest,jsonb)'
 MUTATING_ENTRYPOINTS = (
     'life_financial.legacy_applying_pending(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
     'life_financial.guard_account(uuid,jsonb,jsonb,bigint)',
@@ -137,6 +138,8 @@ async def provision_access(connection, *, principal, account_id, write):
         await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.swap_boundary_read(uuid,integer,integer,text),life_financial.swap_read_ack(uuid,integer,integer,text) TO "{principal}"')
         if write:
             await connection.execute('GRANT EXECUTE ON FUNCTION ' + ','.join(MUTATING_ENTRYPOINTS) + f' TO "{principal}"')
+            if await connection.fetchval('SELECT to_regprocedure($1) IS NOT NULL', ATOMIC_DISPATCH_ENTRYPOINT):
+                await connection.execute('GRANT EXECUTE ON FUNCTION ' + ATOMIC_DISPATCH_ENTRYPOINT + f' TO "{principal}"')
             if await connection.fetchval('SELECT to_regprocedure($1) IS NOT NULL', NATIVE_RISK_ENTRYPOINT):
                 await connection.execute('GRANT EXECUTE ON FUNCTION ' + NATIVE_RISK_ENTRYPOINT + f' TO "{principal}"')
             if await connection.fetchval('SELECT to_regprocedure($1) IS NOT NULL', NATIVE_STRESS_ENTRYPOINT):

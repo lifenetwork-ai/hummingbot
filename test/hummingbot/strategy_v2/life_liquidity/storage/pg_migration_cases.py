@@ -3428,3 +3428,52 @@ async def test_recorder_history_upgrade_refuses_an_existing_index_name_atomicall
     assert (await versions(c))[-1]['version'] == 95
     assert before == await c.fetch("SELECT oid,prosrc,proacl FROM pg_proc WHERE pronamespace='life_financial'::regnamespace ORDER BY oid")
     assert index == await c.fetchval("SELECT pg_get_indexdef('life_financial.recorder_status_by_wire_version'::regclass)")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('drift', ['none', 'body', 'security', 'search_path', 'volatility'])
+async def test_atomic_dispatch_upgrade_preserves_old_contract_and_refuses_drift(db, drift):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 97:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    old = 'life_financial.spot_action_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,text,jsonb)'
+    private = 'life_financial.spot_action_with_verified_view(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,text,jsonb,jsonb)'
+    public = 'life_financial.spot_dispatch_claimed_action(uuid,jsonb,jsonb,bigint,life_financial.digest,jsonb)'
+    await c.execute('GRANT USAGE ON SCHEMA life_financial TO life_runtime_test,life_reporter_test')
+    await c.execute('GRANT EXECUTE ON FUNCTION ' + old + ' TO life_runtime_test')
+    # Deployment default grants must not expose the internal verified-view input.
+    await c.execute('ALTER DEFAULT PRIVILEGES IN SCHEMA life_financial GRANT EXECUTE ON FUNCTIONS TO life_runtime_test,life_reporter_test')
+    if drift == 'body':
+        definition = await c.fetchval('SELECT pg_get_functiondef(to_regprocedure($1))', old)
+        await c.execute(definition.replace('AS $function$', 'AS $function$\n-- unexpected predecessor', 1))
+    elif drift == 'security':
+        await c.execute('ALTER FUNCTION ' + old + ' SECURITY INVOKER')
+    elif drift == 'search_path':
+        await c.execute('ALTER FUNCTION ' + old + ' SET search_path=pg_catalog,public')
+    elif drift == 'volatility':
+        await c.execute('ALTER FUNCTION ' + old + ' STABLE')
+    before = await c.fetchrow('SELECT oid,proacl,prosrc,proowner,provolatile,prosecdef,proconfig FROM pg_proc WHERE oid=to_regprocedure($1)', old)
+    tables = await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace IN ('life_financial'::regnamespace,'life_recorder'::regnamespace) ORDER BY oid")
+    path = DEFAULT_DIRECTORY / '000097_atomic_metadata_dispatch.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    if drift != 'none':
+        with pytest.raises(asyncpg.RaiseError, match='LIFE_ATOMIC_DISPATCH_MIGRATION_MISMATCH'):
+            await migrate(c, directory, action='up')
+        assert (await versions(c))[-1]['version'] == 96
+        assert before == await c.fetchrow('SELECT oid,proacl,prosrc,proowner,provolatile,prosecdef,proconfig FROM pg_proc WHERE oid=to_regprocedure($1)', old)
+        assert not await c.fetchval('SELECT to_regprocedure($1) IS NOT NULL', private)
+        assert not await c.fetchval('SELECT to_regprocedure($1) IS NOT NULL', public)
+    else:
+        assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+        after = await c.fetchrow('SELECT oid,proacl,prosrc,proowner,provolatile,prosecdef,proconfig FROM pg_proc WHERE oid=to_regprocedure($1)', old)
+        assert after == before
+        for principal in ('life_runtime_test', 'life_reporter_test'):
+            assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", principal, private)
+            assert await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", principal, public) is (principal == 'life_runtime_test')
+        assert await c.fetchval("SELECT has_function_privilege('life_runtime_test',$1,'EXECUTE')", old)
+        assert (await migrate(c, directory, action='up'))['applied'] == []
+    assert tables == await c.fetch("SELECT oid,relname FROM pg_class WHERE relnamespace IN ('life_financial'::regnamespace,'life_recorder'::regnamespace) ORDER BY oid")
+    for table in ('accounts', 'operations', 'send_attempts', 'activation_grants'):
+        assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
