@@ -356,9 +356,18 @@ async def test_foreign_sdk_order_appearing_during_final_throttle_revokes_prepare
         prepared.set()
         return result
     t.repo.plan = blocked
+    pending = None
+    readiness = None
     try:
         pending = asyncio.create_task(t.app.execute('sdk-scope'))
-        await asyncio.wait_for(prepared.wait(), 5)
+        readiness = asyncio.create_task(prepared.wait())
+        # Surface the actual application failure if preparation stops before
+        # the injection point; an Event timeout hides the SQL/source reason.
+        done, _ = await asyncio.wait((pending, readiness), timeout=5,
+                                     return_when=asyncio.FIRST_COMPLETED)
+        if pending in done:
+            await pending
+        assert readiness in done, 'hedge did not reach the preparation boundary'
         await asyncio.wait_for(t.throttler.entered.wait(), 5)
         before = t.financial._runtime._ingress_epoch
         if product == 'ACK':
@@ -378,6 +387,11 @@ async def test_foreign_sdk_order_appearing_during_final_throttle_revokes_prepare
         assert len(await t.values[5].claims(t.cfg.binding)) == 1
     finally:
         t.throttler.release.set()
+        for task in (readiness, pending):
+            if task is not None:
+                if not task.done():
+                    task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
         await t.financial.close()
 
 

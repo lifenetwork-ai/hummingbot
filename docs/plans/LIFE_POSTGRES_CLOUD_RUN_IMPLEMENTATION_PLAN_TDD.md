@@ -32,6 +32,21 @@ combined original replay/validator/revocation gate passes **71 cases**, **12.45 
 The initial native aggregate run was interrupted for these repairs and is not
 claimed as a completed gate. Current-source aggregate qualification follows.
 
+The frozen File/domain functional gate at `d6d56491f` completes with **3901
+passed, 18 separately marked O.8 performance cases deselected**, zero failures,
+errors or skips, **816.65 s**. The 2466-file source/input manifest is unchanged.
+The native aggregate stops after **605 pass / 1 fail**, **1834.02 s**: the
+foreign-SDK hedge `[ACK]` case cannot reach its injection boundary because
+`hedge_command` execution exceeds the unchanged 1000-ms statement budget. The
+server stack is in carry qualification during child SWAP preparation; no HTTP
+send follows. Four foreign-SDK branches pass independently with native function
+profiling (**17.45 s**) and without it (**22.42 s**). This does not erase the
+aggregate failure or establish a tail-latency guarantee. The test now surfaces
+an early application error directly and joins its tasks before DB cleanup,
+instead of hiding that reason behind a five-second Event timeout. A new complete
+native gate collects all failures without stopping at the first one. **PG3
+remains open pending that gate; statement/source budgets are unchanged.**
+
 **Common release-history access (2026-10-22):** migration 109 adds a partial
 covering index for the combined terminal/unused release orphan audit. A real
 query-plan regression first reproduces the unrelated-history bitmap heap scan;
