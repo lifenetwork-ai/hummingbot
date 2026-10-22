@@ -34,6 +34,18 @@ and hostile-default ACL qualification passes **4 cases, 11.45 s**. **PG3 remains
 the complete frozen gate passes.** No evidence artifact or live eligibility is
 created by this change.
 
+The first frozen handoff aggregate at `3f9ad0060` stops at **849 pass / 1
+fail, 1013.44 s**. The credentials-negative callback test never reaches its
+injection: its legacy history fixture's already-issued capture ages through
+CLAIM (599 ms), an extra Python snapshot (182 ms), dispatch (163 ms) and another
+snapshot (46 ms), then correctly receives `PG_QUOTE_CAPTURE_STALE`. Current
+schema history setup now uses the existing locked native dispatch with the
+exact original CLAIM successor version; pre-97 differential fixtures retain
+their original API. No issued timestamp, policy, TTL or production guard is
+changed. The full callback/history gate passes **38 cases, 122.60 s**, including
+the original credentials fault. This failed aggregate remains visible; a new
+complete frozen run must still qualify the fixture correction.
+
 **Integrated PG3 qualification (2026-10-22, in progress):** migration 110
 indexes repeated operation-family audits identified by whole-flow profiling.
 Migration 111 retains original provisional diagnostics without inventing an

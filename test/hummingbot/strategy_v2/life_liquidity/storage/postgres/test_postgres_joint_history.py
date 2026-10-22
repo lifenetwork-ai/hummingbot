@@ -39,7 +39,15 @@ async def prepare_spot(database, values, prepared, *, verify_epochs=False):
                                    level_id='0', execution_strategy=ExecutionStrategy.LIMIT_MAKER)
     row = action(owner, controller_id='main', payload_json=executor.model_dump_json())
     await financial.claim_quote_actions(ClaimQuoteActions('captured-spot', (row,)), cut=initial_cut, owner=owner)
-    await financial.transition_quote_action(await transition(database, cfg, row, 'DISPATCHED', operation='accepted-spot'), cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)
+    accepted = await transition(database, cfg, row, 'DISPATCHED', operation='accepted-spot')
+    if any(m.version == 97 for m in financial._runtime._bundle):
+        # Use the existing current-schema dispatch boundary, as the runner
+        # does. Its locked full audit consumes the exact CLAIM successor;
+        # a second Python snapshot only ages the already-issued capture.
+        await financial.transition_quote_action(accepted, cut=None, owner=owner,
+                                                _claim_version=initial_cut.checkpoint.revision + 1)
+    else:
+        await financial.transition_quote_action(accepted, cut=(await financial.snapshot(cfg.binding)).cut, owner=owner)
 
     async def admission():
         at = await database[0].fetchval('SELECT clock_timestamp()')
