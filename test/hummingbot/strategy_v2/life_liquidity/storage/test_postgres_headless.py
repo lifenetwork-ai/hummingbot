@@ -43,6 +43,24 @@ async def test_native_service_config_yaml_roundtrip_and_invalid_input_bound(tmp_
 
 
 @pytest.mark.asyncio
+async def test_managed_process_yaml_contains_only_public_lifecycle_configuration(tmp_path):
+    payload = json.loads(config().model_dump_json())
+    payload['managed_process'] = dict(claim_operation_id='original-claim', heartbeat_interval_ms=250)
+    path = tmp_path / 'managed.yml'
+    path.write_text(json.dumps(payload))
+    selected = await headless.PgServiceConfig.read_yaml(path)
+    assert selected.managed_process.claim_operation_id == 'original-claim'
+    assert json.loads(selected.model_dump_json()) == payload
+    for body in (dict(payload['managed_process'], heartbeat_interval_ms=0),
+                 dict(payload['managed_process'], heartbeat_interval_ms=True),
+                 dict(payload['managed_process'], capability='synthetic-secret'),
+                 dict(payload['managed_process'], claim_operation_id='invalid operation')):
+        path.write_text(json.dumps(dict(payload, managed_process=body)))
+        with pytest.raises(StorageError, match='PG_SERVICE_CONFIG_INVALID'):
+            await headless.PgServiceConfig.read_yaml(path)
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize('native,provisional', [(False, False), (True, False), (True, True)])
 async def test_native_service_protocol_selection_is_explicit_and_roundtrips(tmp_path, native, provisional):
     payload = json.loads(config().model_dump_json())
@@ -213,6 +231,7 @@ async def test_native_prehost_failure_retains_factory_and_network_until_owned_cl
 
     class Inputs:
         def __init__(self):
+            self.register_process = None
             self.connectors = {m: SimpleNamespace(stop_network=lambda: events.append('network-close'),
                                                   join_network_shutdown=AsyncMock()) for m in ('okx', 'okx_perpetual')}
             self.market_data_provider = object()
@@ -268,12 +287,14 @@ async def test_native_prehost_failure_retains_factory_and_network_until_owned_cl
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize('failure', [None, 'migration', 'config', 'open', 'run', 'factory_result'])
+@pytest.mark.parametrize('failure', [None, 'migration', 'config', 'open', 'run', 'factory_result', 'control'])
 async def test_native_launcher_awaits_migrations_and_joins_owned_sources_after_service(tmp_path, monkeypatch, failure):
     configured = config()
     if failure is None:
         payload = json.loads(configured.model_dump_json())
-        configured = headless.PgServiceConfig.model_validate_json(json.dumps(dict(payload, native_trading=True, provisional_quotes=True)))
+        configured = headless.PgServiceConfig.model_validate_json(json.dumps(dict(
+            payload, native_trading=True, provisional_quotes=True,
+            managed_process=dict(claim_operation_id='original-claim', heartbeat_interval_ms=250))))
     events, stop = [], asyncio.Event()
     path = tmp_path / 'service.yml'
     path.write_text('{}' if failure == 'config' else configured.model_dump_json())
@@ -291,6 +312,7 @@ async def test_native_launcher_awaits_migrations_and_joins_owned_sources_after_s
 
     class Inputs:
         def __init__(self):
+            self.register_process = AsyncMock()
             self.connectors = {'okx': SimpleNamespace(stop_network=lambda: events.append('network-stop'),
                                                       join_network_shutdown=AsyncMock())}
             self.market_data_provider = object()
@@ -319,6 +341,8 @@ async def test_native_launcher_awaits_migrations_and_joins_owned_sources_after_s
         events.append('open')
         assert kwargs['native_trading'] is configured.native_trading
         assert kwargs['provisional_quotes'] is configured.provisional_quotes
+        assert kwargs['managed_process'] == configured.managed_process
+        assert callable(kwargs['register_process'])
         if failure == 'open':
             raise RuntimeError('synthetic open failure')
         return Service()
@@ -340,9 +364,16 @@ async def test_native_launcher_awaits_migrations_and_joins_owned_sources_after_s
         async def _stop_networks(self):
             events.append('network-stop')
     monkeypatch.setattr(headless, 'PgServiceHost', Host)
+
+    async def explicit_control(service):
+        events.append('explicit-control')
+        await asyncio.sleep(0)
+        if failure == 'control':
+            raise RuntimeError('synthetic explicit control failure')
+        events.append('control-ready')
     invoke = headless.launch(config_path=path, factory_spec='trusted:factory', stop=stop,
                              tick_seconds=.1, startup_timeout_s=2, shutdown_timeout_s=2,
-                             runtime_config=runtime, migration_config=object())
+                             runtime_config=runtime, migration_config=object(), on_started=explicit_control)
     if failure is None:
         await invoke
     else:
@@ -354,4 +385,5 @@ async def test_native_launcher_awaits_migrations_and_joins_owned_sources_after_s
     else:
         assert events.index('import-factory') < events.index('enter') < events.index('factory-close')
         if failure in (None, 'run'):
+            assert events.index('explicit-control') < events.index('control-ready') < events.index('run')
             assert events.index('service-close') < events.index('factory-close')

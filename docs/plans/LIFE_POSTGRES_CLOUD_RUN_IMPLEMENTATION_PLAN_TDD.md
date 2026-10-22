@@ -1,5 +1,31 @@
 # LIFE: PostgreSQL and Cloud Run Implementation Plan (TDD)
 
+**PG4 in progress — first-generation service lifecycle QUALIFIED (2026-10-22).**
+The configured native service/headless host now installs the original private
+lease and heartbeat, starts locally UNARMED and requires explicit activation.
+Drain closes local risk synchronously; local RECOVERY_ONLY additionally requires
+the signed native mode transition. Stopped/expired/unknown-COMMIT processes,
+inherited capabilities and a removed service lease cannot restore readiness or
+fall back to unmanaged admission. Both SPOT and hedge SWAP use the actual SDK
+routes. Unarmed Clock ticks keep observation alive without starting makers.
+
+Final affected qualification: **186 passed, zero failures/errors/skips, 747.19 s**,
+including **14** original ownership cases, **15** managed-service cases, the
+retained unsafe sender reproduction, **22** headless cases and existing native
+service, SPOT/SWAP, reporting, runner, transaction, pool, control and execution-mode
+regressions. All **392** frozen production/migration/harness/test inputs remain
+unchanged throughout this final run. No SQL migration, financial/source TTL,
+transaction timeout or economic budget was changed.
+
+**PG4 remains open:** successor/recovery actor installation, monotonic successor
+lease epochs, image/grant binding, credential/service-identity isolation,
+enforceable external handoff and emergency-cancel manifests/routes. Actual
+credential exclusion remains a PG9 gate. The counterexample confirms why a
+cached old key is insufficiently fenced by lease expiry; B stays unarmed and the
+old SEND_UNKNOWN/holds remain. This is not a supported successor protocol.
+
+The following foundation checkpoint predates this service integration.
+
 **PG4 in progress — first managed process lease QUALIFIED (2026-10-22).**
 PG3 is closed at `234c3631c` for its selected offline scope. Migration 114 adds an
 opt-in, explicitly imported first-generation process lease, with no account,
@@ -2909,11 +2935,14 @@ Dependencies: PG3; fake exchange and local processes only until the later demo g
 
 - [ ] PG4.1: Implement DB-time lease, account-row serialization, monotonic owner epoch, process/generation UUID, lineage and one-use activation grants; stale writers cannot change financial state.
   - [x] First-generation managed lease foundation (migration 114, selected offline qualification): owner-only binding to an original signed native ACTIVATE grant, nondurable process capability, DB login/account/lineage/process binding, account-row serialization, permanent one-use claim, bounded heartbeat and physical-COMMIT guards. Old public owner JSON, a capability hash, a cold/replayed receipt and an expired/stopped process cannot recreate readiness. The initial lease epoch is 1; successor epoch advancement remains part of the explicit handoff protocol below.
-  - [ ] Complete managed successor lease lifecycle and configured service installation after independently qualified external authority exclusion; no expired-lease takeover shortcut.
+  - [ ] Complete managed successor lease lifecycle and successor service installation after independently qualified external authority exclusion; no expired-lease takeover shortcut.
+  - [x] First-generation configured service installation qualification: `PgLiquidityService` and the PostgreSQL headless entry accept explicit `managed_process` settings and an owner-side public registration callback. The service creates its own private capability, confirms one original claim, owns a bounded heartbeat and starts locally UNARMED. Original signed/native grant and financial guards remain necessary. Successor installation remains a separate unchecked gate above.
 - [ ] PG4.2: Implement startup unarmed, `DRAINING`, `RECOVERY_ONLY` and explicit rearm states; expiry/session loss does not activate a successor.
   - [x] Standalone original-process startup is locally unarmed until an original private one-use claim confirms; grant replay, lookup, stopped/expired heartbeat, unknown COMMIT and fresh runtime construction cannot recreate risk readiness. Held money remains unchanged. This does not install the complete managed service/mode lifecycle.
+  - [x] First-generation service lifecycle qualification: explicit local `arm_process()` checks the active native guard; synchronous `drain_process()` closes new risk before any awaited operator DRAIN; `enter_process_recovery_only()` additionally requires signed native RECOVERY_ONLY state. Drain/recovery/stop cannot locally rearm. The heartbeat can retain the same DB lease during an original observation without creating a financial/source cut or reopening risk. Expiry, heartbeat failure/cancellation and unknown COMMIT revoke the service; shutdown joins the owned heartbeat/physical DB work.
 - [ ] PG4.3: Implement generation-specific credential/service-identity access and manual handoff evidence; model key revocation delay and accepted in-flight requests without assuming instant exclusion.
 - [ ] PG4.4: Pause sender A after its final DB check, expire/disconnect A, start B, then resume A. Demonstrate the unfenced lease-only failure as a retained Red reproduction; the supported protocol must keep B unarmed until A's external write authority is excluded.
+  - [x] Retain the actual V2/SDK/fake-HTTP lease-only counterexample in `test_sender_generation_handoff.py`: A pauses after final authorization, expires and still creates an external order using its cached key. PostgreSQL retains the original SEND_UNKNOWN/holds and rejects B's attempted claim. This demonstrates the outstanding external authority requirement; it does not implement or qualify a supported successor handoff.
 - [ ] PG4.5: Test simultaneous revisions, same-revision replacement, lost heartbeat, DB failover/clock anomalies, stale activation grants and attempted replacement-secret access by the old identity.
 - [ ] PG4.6: Test all write routes including amendments, retries, cancellations and CAA, and the deny-by-default `RECOVERY_ONLY` allowlist. Prove any outage emergency cancel uses the Section 4 durable identity manifest, rejects missing/ambiguous/foreign identities and cannot touch successor activity. Test DB unavailability during/after handoff with an old process attempting cancel: revocation is never bypassed, uncertain successor activity denies, and losing the manifest cannot release DB holds.
 
@@ -2921,23 +2950,79 @@ Dependencies: PG3; fake exchange and local processes only until the later demo g
 grant. A matching immutable `process_lease` configuration and explicitly imported
 policy are required. `PgLeaseGrantIssuer` is an owner-side API retaining only the
 original public operator verifier; the raw random capability is created inside
-the process and never put in DB, YAML, `.env`, a receipt, log or IPC. The runtime
-sets it only for its own pool borrow and the existing pool reset removes it.
+the process and never persisted in DB rows, YAML, `.env`, a receipt, log or IPC.
+The runtime transmits it as a bound parameter to a transient DB session setting
+only for its own pool borrow; the existing pool reset removes it.
 All receipts are bookkeeping with `trading_permission: false`. Readiness is a
 necessary local admission latch, not a financial or exchange send grant. DB/proxy
 bind-parameter logging and host-memory isolation still require PG7 qualification.
 
-This first increment is deliberately **OFFLINE_SIMULATION / first generation
-only**. Claiming another operation/generation after an original head exists
-requires the unimplemented handoff protocol, including after lease expiry.
-DRAINING/RECOVERY_ONLY routing, recovery by a replacement actor, credential-broker
-isolation, external HTTP fencing, durable emergency-cancel manifests and actual
-configured managed-service installation remain PG4 work. A DB lease cannot
-exclude a cached REST/WS key; there is no supported lease-only live takeover.
+The managed service remains **OFFLINE_SIMULATION / first generation only**.
+`managed_process` YAML contains only `claim_operation_id` and an explicit positive
+`heartbeat_interval_ms` below half the imported DB lease duration. The trusted
+source factory supplies `PgHeadlessInputs.register_process`, an async owner-side
+registration channel receiving only the public registration. It must not expose
+migration/operator DSNs, signing keys or a replacement secret to the runtime.
+The CLI does not automatically invoke `arm_process()`; a qualified control host
+must call that API explicitly in the original service. The programmatic launcher
+awaits an explicitly supplied async `on_started` callback before entering the
+Clock host and bounds that callback with the configured startup timeout.
+No control channel is
+inferred from an environment flag or from historical grant/readback data.
+
+Local `DRAINING` closes admission immediately, but does not publish a signed DB
+DRAIN or prove external sender exclusion. Entering local RECOVERY_ONLY requires
+the separate signed native transition. These modes currently deny **all**
+service new-order/hedge/normal-cancel routes; no emergency cancellation exception
+is installed. Late original facts still face the native actor/lease guards.
+Claiming another operation/generation after an original head exists requires
+the unimplemented handoff protocol, including after lease expiry. Replacement
+recovery actors, credential-broker isolation, external HTTP fencing and durable
+emergency-cancel manifests remain PG4 work. A DB lease cannot exclude a cached
+REST/WS key; there is no supported lease-only live takeover.
 
 **Red tests:** `test_postgres_ownership.py`, `test_sender_generation_handoff.py`, `test_generation_secret_isolation.py`.
 
 **Done when:** local multi-process fault tests pass and automatic live takeover remains disabled. Actual OKX credential exclusion is still a PG9 environment gate; local mocks do not close it.
+
+#### First-generation service qualification details (2026-10-22)
+
+- Red baseline: `/tmp/life-pg4-managed-red` fails collection for the missing
+  managed lifecycle module. Subsequent development runs (`green1` through
+  `green6`, retained in `/tmp/life-pg4-managed-*`) exposed premature lease loss
+  during observation, false rejection of the original preparation continuation,
+  and cleanup masking the causal startup failure. Those paths were corrected;
+  the intermediate failures are not passing qualification evidence.
+- Original observation temporarily closes DB risk admission through
+  `runtime.healthy`; it does not itself expire `lease_valid`. Heartbeats use the
+  safety pool and original DB lease guard, may continue observation, and cannot
+  change the financial cut or extend the original signed owner/grant deadline.
+  The service checks the capability PID/runtime/owner and its original managed
+  component at each local fence, including before the heartbeat next runs.
+- The retained Red reproduction awaits the actual SDK HTTP barrier or original
+  task failure within the existing configured quote schedule budget. Its prior
+  arbitrary four-second test barrier was insufficient for the original quota
+  schedule; no application request, source, SQL or phase limit was widened.
+- Intermediate broad regression `/tmp/life-pg4-managed-regression` records
+  **182 passes and one failure, 711.24 s**, in unmanaged
+  `test_configured_hedge_excludes_quote_cancel_and_direct_hedge_during_capture[capture]`.
+  The exposed code is `PG_DATABASE_UNAVAILABLE`; its underlying cause was not
+  established, and it must not be described as a proven server SQL timeout.
+  Preserve this failed sample for repeated-load/operational investigation in
+  PG8. The complete final selector below passes the same case without changing
+  its inputs or limits; this does not establish a root cause for the earlier
+  sample or close the later repeated performance gate.
+- Final command: `python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_postgres --suite managed_service --output /tmp/life-pg4-managed-final-regression`.
+  The actual pinned local PostgreSQL 16 container retains the existing **2 CPU /
+  1 GiB** resource profile; all exchange HTTP remains fake. Final log and XML are
+  in that temporary directory: **186 passes, 747.19 s**, six pre-existing Pydantic
+  deprecation warnings, no failures/errors/skips.
+- Frozen manifest: `/tmp/life-pg4-managed-final-frozen.json`, **392 unchanged
+  inputs**, SHA-256 `5b79584cd3b879d3c4c3d3a54bbbfb03dd10daf201a49e82f4bf7c2e287a7737`.
+  This affected gate does not claim a new full 2307-case PG3 run, migration
+  qualification, managed 0/1k/10k performance qualification or cloud/demo proof.
+  No new evidence file, `.env` change, live exchange request or deployment is
+  introduced. All full PG4 parent checkboxes remain open.
 
 ### PG5 — Hummingbot recorder and operational compatibility
 

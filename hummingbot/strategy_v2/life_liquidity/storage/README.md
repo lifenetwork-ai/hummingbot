@@ -1,5 +1,37 @@
 # LIFE storage contracts
 
+**PG4 configured first-generation service (2026-10-22, selected offline slice qualified):**
+`postgres/managed_process.py` installs the original signed lease into
+`PgLiquidityService` and the PostgreSQL headless launcher. Import a matching
+`process_lease` policy first; startup creates no policy/account/operator grant.
+Select `managed_process` in service YAML with `claim_operation_id` and
+`heartbeat_interval_ms` (positive and less than half the imported lease duration).
+The trusted factory supplies async `PgHeadlessInputs.register_process(public_registration)`.
+Its owner-side channel sees no raw process capability. Do not put owner DSNs or
+signing keys in runtime inputs. A configured lease policy cannot start through
+the unmanaged profile, and unknown registration/claim does not fall back.
+
+The service starts locally `UNARMED`; original signed claim plus heartbeat is
+necessary but never automatically arms trading. An explicit original-service
+`await service.arm_process()` checks the native ACTIVE guard. The CLI does not
+call it. `service.drain_process()` synchronously closes new risk before operator
+control waits; `await service.enter_process_recovery_only()` additionally requires
+the separately signed native RECOVERY_ONLY transition. Neither state can locally
+rearm. Existing leases/receipts cannot arm replacement processes. Expiry, stopped
+heartbeat, DB failure and unknown COMMIT revoke immediately and cleanup joins
+the owned heartbeat/physical work. Heartbeats can run during original observation
+without changing the financial cut; observation still closes DB risk admission.
+All normal service write routes remain denied while unarmed/draining/recovering;
+no emergency-cancel exception or external credential takeover is installed.
+The final affected selector passes **186 cases in 747.19 s**, including actual
+managed SPOT and hedge SWAP, **15** managed-service cases, **14** original lease
+cases, **22** headless cases and the retained unsafe cached-key reproduction.
+All **392** frozen inputs remain unchanged. An intermediate unmanaged hedge
+case returned `PG_DATABASE_UNAVAILABLE` (182 passes / one failure); the complete
+final selector passes it without limit changes, but the earlier cause remains
+unproven and is retained for the later repeated-load gate. See the PG4 section
+of the PostgreSQL implementation plan for exact selectors and temporary logs.
+
 **PG4 first-generation foundation (2026-10-22, selected offline slice qualified):**
 `postgres/ownership.py` binds a nondurable process capability to an original
 signed native activation grant. Migration 114 adds empty opt-in lease tables and
@@ -8,7 +40,8 @@ affected gate passes **127 cases**, including all **14 ownership cases** and rea
 separate processes; **6 migration cases** qualify repeat execution, ancestor/ACL
 checks and existing-profile upgrade. Both complete native/provisional maker
 workloads pass with the same financial/source/COMMIT functions and original
-limits. This is an OFFLINE_SIMULATION foundation, not managed service installation,
+limits. This historical foundation gate precedes the service work above; it is
+an OFFLINE_SIMULATION foundation, not successor installation,
 replacement recovery or external credential fencing. Existing heads cannot be
 replaced after expiry, and readback never arms a new runtime. PG4 remains open.
 

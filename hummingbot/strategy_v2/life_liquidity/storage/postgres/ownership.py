@@ -203,8 +203,8 @@ class PgProcessLease:
         identifier(operation_id)
         runtime, cfg = self.runtime, self.runtime.config
         self.capability._validate(cfg)
-        if (runtime._process_capability is not self.capability or not runtime.healthy
-                or kind == 'HEARTBEAT' and not self.ready):
+        if (runtime._process_capability is not self.capability or not runtime._healthy or runtime._closing
+                or kind == 'HEARTBEAT' and not runtime.lease_valid):
             raise StorageError('PG_PROCESS_LEASE_LOCAL_UNARMED')
         started = time.monotonic()
         boundary = {'attempted': False}
@@ -249,7 +249,7 @@ class PgProcessLease:
                 raise
         try:
             receipt = await runtime._admit(execute, safety=True, commit_state=boundary, operation='process_lease_' + kind.lower())
-            if not receipt.replayed and runtime.healthy:
+            if not receipt.replayed and runtime._healthy and not runtime._closing:
                 if kind == 'CLAIM':
                     runtime._lease_ready = True
                 # Request-start monotonic bound is conservative across command

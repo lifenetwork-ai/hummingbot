@@ -203,6 +203,7 @@ class PgServiceController(ControllerBase):
         self.service._original()
         enabled = self.service._trading_ready()
         self.processed_data = dict(trading_enabled=enabled,
+                                   process_mode=self.service.process_mode,
                                    reason_code='PG_SERVICE_OFFLINE_NATIVE' if enabled else 'PG_SERVICE_TRADING_NOT_QUALIFIED')
 
     def determine_executor_actions(self):
@@ -251,6 +252,8 @@ class PgServiceController(ControllerBase):
     def to_format_status(self):
         if self.service._trading_ready():
             return ['PostgreSQL offline native trading: serialized quote requests enabled']
+        if self.service.process_mode != 'UNMANAGED':
+            return [f'PostgreSQL process {self.service.process_mode}: trading disabled']
         return ['PostgreSQL observation service: trading disabled']
 
 
@@ -290,7 +293,7 @@ class PgServiceRunner(StrategyV2Base):
                     if s._owned_executors.get(info.id) is not executor or not s.reporting._trading_admission.owns_report(info):
                         raise StorageError('PG_SERVICE_UNQUALIFIED_EXECUTOR')
                     s.reporting.enqueue(info)
-                if s.makers is not None and s.makers.task is None:
+                if s.makers is not None and s.makers.task is None and s._trading_ready():
                     s.start_makers()
         except BaseException:
             s.revoke()
@@ -317,7 +320,7 @@ class PgLiquidityService:
     @classmethod
     async def open(cls, config, *, runtime_config, owner, connectors, market_data_provider,
                    sources, limits, clock, independent_fill_value, independent_cashflow_value, native_trading=False, _startup_owner=None,
-                   provisional_quotes=False):
+                   provisional_quotes=False, managed_process=None, register_process=None):
         from controllers.generic.life_liquidity import LifeLiquidityConfig
         if (type(config) is not LifeLiquidityConfig or config.storage_backend != 'postgres'
                 or type(runtime_config) is not PgConfig or config.storage_binding != runtime_config.binding
@@ -347,6 +350,8 @@ class PgLiquidityService:
         service._connectors = tuple(service.connectors.items())
         service._provider, service._clock, service._limits = market_data_provider, clock, limits
         service._opening, service._revoked, service._paused = True, False, False
+        service._process = service._managed_process = None
+        service._process_owner = owner
         service.runtime = service.financial = service.reporting = service.events = service.runner = service.hedge = None
         service._close_task = None
         service.native_trading, service._native_trading = native_trading, native_trading
@@ -364,6 +369,16 @@ class PgLiquidityService:
             _startup_owner.append(service)
         try:
             service.runtime = await PgRuntime.open(runtime_config)
+
+            async def managed_policy(c):
+                return await c.fetchval('SELECT EXISTS(SELECT 1 FROM life_financial.process_lease_policies WHERE account_id=$1)', runtime_config.account_id)
+            has_managed_policy = await service.runtime._admit(managed_policy, safety=True)
+            if has_managed_policy != (managed_process is not None) or managed_process is None and register_process is not None:
+                raise StorageError('PG_SERVICE_MANAGED_PROCESS_REQUIRED')
+            if managed_process is not None:
+                from hummingbot.strategy_v2.life_liquidity.storage.postgres.managed_process import PgManagedProcess
+                service._process = service._managed_process = PgManagedProcess(service, managed_process, register_process)
+                await service._process.start()
             service.financial = PgSpotRepository(service.runtime)
             births = None
             if provisional_quotes:
@@ -427,8 +442,13 @@ class PgLiquidityService:
             service._opening = False
             service._original()
             return service
-        except BaseException:
-            await service.close()
+        except BaseException as error:
+            try:
+                await service.close()
+            except BaseException:
+                # Keep the causal startup failure. The original owned cleanup
+                # task retains its independent failure for wait_closed().
+                error.add_note('PG_SERVICE_STARTUP_CLEANUP_FAILED')
             raise
 
     @staticmethod
@@ -440,18 +460,50 @@ class PgLiquidityService:
                 or self.controller.service is not self or self.controller.config is not self.config
                 or self.clock is not self._clock or self.limits is not self._limits or self.native_trading is not self._native_trading
                 or self.provisional_quotes is not self._provisional_quotes
+                or self._process is not self._managed_process
                 or self.controller.market_data_provider is not self._provider
                 or self._provider.connectors != self.connectors):
             self.revoke()
             raise StorageError('PG_SERVICE_CONTEXT_CHANGED')
 
     def _local_ready(self):
-        return not self._revoked and not self.config.manual_kill_switch
+        if self._process is not self._managed_process:
+            self.revoke()
+            return False
+        return (not self._revoked and not self.config.manual_kill_switch
+                and (self._process is None or self._process.mode != 'STOPPED' and self.runtime.lease_valid))
+
+    @property
+    def process_mode(self):
+        return 'UNMANAGED' if self._managed_process is None else self._managed_process.mode
+
+    @property
+    def process_lease(self):
+        return None if self._managed_process is None else self._managed_process.lease
+
+    async def arm_process(self):
+        self._original()
+        if self._process is None:
+            raise StorageError('PG_SERVICE_MANAGED_PROCESS_REQUIRED')
+        await self._process.arm()
+
+    def drain_process(self):
+        self._original()
+        if self._process is None:
+            raise StorageError('PG_SERVICE_MANAGED_PROCESS_REQUIRED')
+        self._process.drain()
+
+    async def enter_process_recovery_only(self):
+        self._original()
+        if self._process is None:
+            raise StorageError('PG_SERVICE_MANAGED_PROCESS_REQUIRED')
+        await self._process.recovery_only()
 
     def _trading_ready(self):
         # Signed observation/reporting readiness is never a trading grant.
         # The configured final-route assembly has a separate acceptance exit.
-        return self.native_trading and self._local_ready()
+        return (self.native_trading and self._local_ready()
+                and (self._process is None or self._process.mode == 'ACTIVE'))
 
     async def _read_trading_config(self):
         async def read(c):
@@ -974,6 +1026,8 @@ class PgLiquidityService:
     def revoke(self):
         if not self._revoked:
             self._revoked = True
+            if self._managed_process is not None:
+                self._managed_process.stop()
             if self.makers is not None:
                 self.makers.request_stop()
             if self.runtime is not None:
@@ -1061,6 +1115,8 @@ class PgLiquidityService:
         # Caller deadlines remain bounded in close(). This one owned physical
         # cleanup retains SDK/DB resources until late original ACK/report work
         # actually ends, even if a component returns its own timeout/error.
+        if self._managed_process is not None:
+            await join(self._managed_process.join())
         await join(runner_close())
         await join(controller_close())
         if self.quote_application is not None:

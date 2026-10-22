@@ -173,7 +173,13 @@ class PgRuntime:
 
     @property
     def lease_ready(self):
-        return self._lease_ready and self.healthy and time.monotonic() < self._lease_deadline
+        return self.lease_valid and self.healthy
+
+    @property
+    def lease_valid(self):
+        # A pending original observation temporarily closes risk admission. It
+        # does not itself expire the process lease or revoke its lifecycle.
+        return self._lease_ready and self._healthy and not self._closing and time.monotonic() < self._lease_deadline
 
     @classmethod
     async def open(cls, config):
