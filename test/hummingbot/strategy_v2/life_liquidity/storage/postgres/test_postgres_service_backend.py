@@ -1,6 +1,8 @@
 """Real backend loss across configured SWAP lifecycle; fresh signed SDK reopen."""
 import asyncio
 import json
+import time
+from contextvars import ContextVar
 from copy import deepcopy
 from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
@@ -22,12 +24,51 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.hedge_source import 
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.swap_ack import PgSwapAckIngress
 
 
+def policy_clock_diagnostics(monkeypatch):
+    """Observe the real guard; never change its clocks, policy or outcome."""
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot import PgSpotRepository
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot_market import PgSpotMarketSource
+    current = ContextVar('backend_policy_clock_sample', default=None)
+    read, check = PgSpotRepository.quote_admission_policy, PgSpotMarketSource._policy_snapshot
+
+    async def observed(repository, binding):
+        value = await read(repository, binding)
+        sample = current.get()
+        if sample is not None:
+            sample['observed_at'] = value.observed_at
+            sample['binding_matches'] = value.policy.binding == binding
+        return value
+
+    async def guarded(source):
+        sample = dict(before=source._now(), started=time.monotonic())
+        token = current.set(sample)
+        try:
+            return await check(source)
+        except StorageError as error:
+            if str(error) == 'PG_SPOT_MARKET_POLICY_UNQUALIFIED':
+                after, elapsed = source._now(), time.monotonic() - sample['started']
+                observed_at = sample.get('observed_at')
+                error.add_note('policy clock diagnostics (ms): ' + json.dumps(dict(
+                    skew_bound=source.reader.source.max_clock_skew_ms,
+                    binding_matches=sample.get('binding_matches'),
+                    observed_minus_before=None if observed_at is None else (observed_at - sample['before']).total_seconds() * 1000,
+                    observed_minus_after=None if observed_at is None else (observed_at - after).total_seconds() * 1000,
+                    wall_elapsed=(after - sample['before']).total_seconds() * 1000,
+                    monotonic_elapsed=elapsed * 1000), sort_keys=True))
+            raise
+        finally:
+            current.reset(token)
+    monkeypatch.setattr(PgSpotRepository, 'quote_admission_policy', observed)
+    monkeypatch.setattr(PgSpotMarketSource, '_policy_snapshot', guarded)
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize('phase,committed', [
     pytest.param(phase, committed, id=phase + ('_after' if committed else '_before'))
     for phase in ('source', 'preflight', 'prepare', 'arm', 'capture', 'apply', 'delivery', 'terminal', 'settlement', 'release')
     for committed in (False, True)])
 async def test_configured_swap_backend_loss_preserves_original_state_without_resend(database, monkeypatch, phase, committed):
+    policy_clock_diagnostics(monkeypatch)
     t, service = await configured(database, hedge_policy=policy(),
                                   spot_overrides=dict(owner_duration=timedelta(seconds=300), session_duration=timedelta(seconds=360)))
     closing = phase in ('terminal', 'settlement', 'release')

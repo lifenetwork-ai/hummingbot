@@ -62,6 +62,26 @@ credits the stale preflight test. Each credited case uses matching current
 production, SQL, fixtures and test inputs. **PG3 remains open while the final
 1136-case segment is pending.**
 
+That segment reaches **491 pass / 1 fail, 1072.13 s**. During the backend-loss
+module's `arm_before` setup, `_policy_snapshot` correctly refuses its clock
+qualification predicate before the requested backend fault or any send. The
+old log contains no paired clock values, so neither DB/host skew nor
+wall/monotonic disagreement is proved as the cause. No matching host sleep/wake
+is present in the power log. The unchanged guard and 100-ms synthetic skew limit
+remain mandatory. Passive test-only diagnostics now attach bounded clock deltas
+to that exact refusal, without changing the policy, clocks, outcomes or adding
+I/O. The full **20-case backend-loss module passes, 284.56 s**, in a fresh
+disposable container; the earlier failure is not claimed fixed or erased and
+this pass is not a clock/availability SLO.
+
+Only that non-imported test module changed among the 2611 source/input files.
+Keep **485** passed cases from complete unchanged segment modules, supersede
+all partial backend-module results with its **20** current cases, and execute
+the remaining **631** node IDs. Together with the earlier **1153 + 6**, this is
+exactly the original **2295**-case matrix. No production/SQL/input fixture,
+deadline, clock allowance or financial assertion is altered. **PG3 remains open
+until this matrix and its declared qualification limits are reviewed.**
+
 **Integrated PG3 qualification (2026-10-22, in progress):** migration 110
 indexes repeated operation-family audits identified by whole-flow profiling.
 Migration 111 retains original provisional diagnostics without inventing an
