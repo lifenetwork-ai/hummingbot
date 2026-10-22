@@ -8,6 +8,7 @@ work and its capacity until completion; unknown commits require primary readback
 import asyncio
 import json
 import re
+import time
 from collections import deque
 from dataclasses import dataclass, field
 from decimal import Decimal
@@ -34,6 +35,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.access import (
     NATIVE_EXIT_ENTRYPOINT,
     NATIVE_RISK_ENTRYPOINT,
     NATIVE_STRESS_ENTRYPOINT,
+    PROCESS_LEASE_ENTRYPOINT,
     PROVIDER_COLLECTION_ENTRYPOINT,
     SOURCE_CARRY_ENTRYPOINT,
     UNUSED_RELEASE_ENTRYPOINT,
@@ -151,6 +153,9 @@ class PgRuntime:
         self._observation_inflight = 0
         self._close_task = None
         self._bundle = ()
+        self._process_capability = None
+        self._lease_ready = False
+        self._lease_deadline = 0.0
         self._diagnostics = deque(maxlen=128)
 
     @property
@@ -165,6 +170,10 @@ class PgRuntime:
     @property
     def healthy(self):
         return self._healthy and not self._closing and self._observation_inflight == 0
+
+    @property
+    def lease_ready(self):
+        return self._lease_ready and self.healthy and time.monotonic() < self._lease_deadline
 
     @classmethod
     async def open(cls, config):
@@ -218,6 +227,8 @@ class PgRuntime:
             args[3].extend(BIRTH_ENTRYPOINTS)
         if 108 in versions:
             args[3].append(UNUSED_RELEASE_ENTRYPOINT)
+        if 114 in versions:
+            args[3].append(PROCESS_LEASE_ENTRYPOINT)
         if 112 in versions:
             args[3].append(SOURCE_CARRY_ENTRYPOINT)
         if 106 in versions:
@@ -305,7 +316,7 @@ class PgRuntime:
     async def _admit(self, callback, *, safety, commit_state=None, operation='read'):
         cfg = self.config
         trace = _Trace(operation, safety)
-        if self._closing or not safety and not self.healthy:
+        if self._closing or not safety and (not self.healthy or self._process_capability is not None and not self.lease_ready):
             self._diagnostics.append(trace.finish('unqualified'))
             raise StorageUnavailable('PG_CLOSED_OR_UNQUALIFIED')
         maximum = cfg.safety_max_pending if safety else cfg.max_pending
@@ -328,6 +339,11 @@ class PgRuntime:
                             trace.backend_pid = c.get_server_pid()
                             phase('validate')
                             await self._validate_connection(c)
+                            if self._process_capability is not None:
+                                self._process_capability._validate(cfg)
+                                # Session-local only for this pool borrow. The
+                                # existing pool RESET ALL clears it on release.
+                                await c.execute("SELECT set_config('life.process_capability',$1,false)", self._process_capability._secret)
                             if not safety and self._observation_inflight:
                                 raise StorageError('PG_OBSERVATION_IN_PROGRESS')
                             phase('execute')

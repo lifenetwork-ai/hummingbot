@@ -1,5 +1,17 @@
 # LIFE storage contracts
 
+**PG4 first-generation foundation (2026-10-22, selected offline slice qualified):**
+`postgres/ownership.py` binds a nondurable process capability to an original
+signed native activation grant. Migration 114 adds empty opt-in lease tables and
+native entry/COMMIT checks; no policy or owner is created at startup. The final
+affected gate passes **127 cases**, including all **14 ownership cases** and real
+separate processes; **6 migration cases** qualify repeat execution, ancestor/ACL
+checks and existing-profile upgrade. Both complete native/provisional maker
+workloads pass with the same financial/source/COMMIT functions and original
+limits. This is an OFFLINE_SIMULATION foundation, not managed service installation,
+replacement recovery or external credential fencing. Existing heads cannot be
+replaced after expiry, and readback never arms a new runtime. PG4 remains open.
+
 **PostgreSQL PG3 offline delivery CLOSED (2026-10-22):** the verified disjoint
 current-source matrix has **2307 passing PostgreSQL cases**, including both
 complete native/provisional retained-fill maker workflows, actual V2/SDK final

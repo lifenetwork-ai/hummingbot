@@ -1,5 +1,13 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**PostgreSQL PG4 started (2026-10-22):** the first-generation lease/capability
+foundation is qualified offline: 127 affected tests (including 14 ownership
+cases with real local processes), six migration/upgrade cases and both complete
+retained-fill maker workloads pass. Expiry and replay cannot grant a successor.
+PG3 remains closed at `234c3631c`; complete PG4 handoff/credential exclusion and
+managed-service installation are still open in the
+[PostgreSQL plan](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md).
+
 **PostgreSQL PG3 offline delivery CLOSED (2026-10-22):** the verified disjoint
 current-source matrix has **2307 passing PostgreSQL cases**, including both
 complete native/provisional retained-fill maker workflows, actual V2/SDK final

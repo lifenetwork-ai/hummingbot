@@ -1684,3 +1684,42 @@ historical cutoff. Retained rows, financial decisions and physical-COMMIT
 checks remain complete; no verdict is cached. Audited ancestor bodies and
 function attributes must match before upgrade. Existing function OIDs, owners
 and ACLs remain unchanged, and repeated startup applies the script once.
+
+
+### 000114 — first managed process lease (offline foundation)
+
+Creates empty `process_lease_policies`, `process_lease_registrations`,
+`process_lease_commands` and `process_leases`. No account, owner, policy or grant
+is bootstrapped. The existing version/checksum migration runner applies it once;
+repeat startup skips the registered file. Unknown predecessor body/attributes
+refuse the whole transaction, and existing native guard OIDs/ACLs are preserved.
+Hostile default function/table grants are revoked from the new authority surface.
+Runtime is granted only the fixed process-lease command through `provision_access`;
+reporters receive no mutating function or table DML permission.
+
+An owner-side API verifies the original signed native ACTIVATE record before
+registering a process capability **hash**, scoped to its DB login, database
+lineage, account and original owner token. The 256-bit random capability is not persisted: it remains in process memory
+and a transient trusted DB session setting cleared on pool release. The first claim consumes the grant exactly once;
+heartbeats use DB time, never renew an expired lease and never exceed the original
+fixed activation/session expiry. Replay/lookup cannot arm a cold process. Both
+risk and financial-observation guards require the current actor, including the
+independent native financial-COMMIT branch. Untrusted received diagnostics remain
+nonfinancial and do not grant this authority.
+
+The foundation accepts only explicit OFFLINE_SIMULATION policies and the first
+lease epoch. It **does not implement successor handoff, credential exclusion or a
+managed live worker**. Existing heads, including expired heads, cannot be replaced
+by another claim. PG4 completion requires the explicit manual external fencing,
+replacement recovery/activation and emergency-cancel protocol. No lease-only
+live takeover or automatic rearm is enabled.
+
+PG7 must qualify DB/proxy bind-parameter logging and host-memory isolation;
+application diagnostics and receipts never export the raw capability.
+
+Existing provisioned writer profiles inherit the fixed lease command only from
+an explicit predecessor `guard_account` EXECUTE grant. Existing account readers
+inherit SELECT on the four empty lease tables under the same account RLS. PUBLIC
+is never an inheritance source. This preserves automatic migration/startup for
+existing profiles without granting table DML or reporter mutation. Six upgrade
+cases qualify this under hostile default ACLs and repeat execution.

@@ -4036,3 +4036,58 @@ async def test_historical_membership_upgrade_keeps_identity_acl_and_refuses_ance
                               [await c.fetchval('SELECT $1::regprocedure::oid', name) for name in signatures])
         assert after == before
         assert await c.fetchrow('SELECT to_jsonb(p) AS body FROM pg_proc p WHERE oid=$1::regprocedure', predicate) == unchanged
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('drift', ['none', 'account_body', 'observation_body', 'commit_body', 'search_path', 'owner'])
+async def test_process_lease_upgrade_preserves_guards_and_denies_hostile_default_privileges(db, drift):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 114:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    signatures = ['life_financial.guard_account(uuid,jsonb,jsonb,bigint)',
+                  'life_financial.guard_spot_observation(uuid,jsonb,jsonb,bigint)',
+                  'life_financial.commit_owner_guard()']
+    await c.execute('GRANT USAGE ON SCHEMA life_financial TO life_runtime_test,life_reporter_test')
+    await c.execute('GRANT EXECUTE ON FUNCTION ' + signatures[0] + ' TO life_runtime_test')
+    await c.execute('GRANT SELECT ON life_financial.accounts TO life_runtime_test,life_reporter_test')
+    before = await c.fetch('SELECT oid,proacl,proowner,provolatile,prosecdef,proconfig FROM pg_proc WHERE oid=ANY($1::oid[]) ORDER BY oid',
+                           [await c.fetchval('SELECT $1::regprocedure::oid', name) for name in signatures])
+    if drift.endswith('_body'):
+        target = signatures[{'account_body': 0, 'observation_body': 1, 'commit_body': 2}[drift]]
+        definition = await c.fetchval('SELECT pg_get_functiondef($1::regprocedure)', target)
+        await c.execute(definition.replace('BEGIN', 'BEGIN\n-- altered lease predecessor\n', 1))
+    elif drift == 'search_path':
+        await c.execute('ALTER FUNCTION ' + signatures[0] + ' SET search_path=pg_catalog,public')
+    elif drift == 'owner':
+        admin = await asyncpg.connect(db[1].replace('life_migrator_test@', 'postgres@'))
+        try:
+            await admin.execute('ALTER FUNCTION ' + signatures[0] + ' OWNER TO life_runtime_test')
+        finally:
+            await admin.close()
+    await c.execute('ALTER DEFAULT PRIVILEGES IN SCHEMA life_financial GRANT EXECUTE ON FUNCTIONS TO PUBLIC,life_runtime_test,life_reporter_test')
+    await c.execute('ALTER DEFAULT PRIVILEGES IN SCHEMA life_financial GRANT ALL ON TABLES TO PUBLIC,life_runtime_test,life_reporter_test')
+    path = DEFAULT_DIRECTORY / '000114_process_lease_foundation.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    if drift != 'none':
+        with pytest.raises(asyncpg.RaiseError, match='LIFE_PROCESS_LEASE_MIGRATION_MISMATCH'):
+            await migrate(c, directory, action='up')
+        assert (await versions(c))[-1]['version'] == 113
+        assert not await c.fetchval("SELECT to_regclass('life_financial.process_leases') IS NOT NULL")
+    else:
+        assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+        assert (await migrate(c, directory, action='up'))['applied'] == []
+        after = await c.fetch('SELECT oid,proacl,proowner,provolatile,prosecdef,proconfig FROM pg_proc WHERE oid=ANY($1::oid[]) ORDER BY oid',
+                              [await c.fetchval('SELECT $1::regprocedure::oid', name) for name in signatures])
+        assert after == before
+        for role in ('public', 'life_runtime_test', 'life_reporter_test'):
+            for name in ('process_lease_guard(uuid,boolean)', 'process_lease_command(uuid,text,text,uuid)',
+                         'process_lease_commit()', 'process_registration_commit()'):
+                allowed = role == 'life_runtime_test' and name == 'process_lease_command(uuid,text,text,uuid)'
+                assert await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", role, 'life_financial.' + name) is allowed
+            for table in ('process_lease_policies', 'process_lease_registrations', 'process_lease_commands', 'process_leases'):
+                assert await c.fetchval("SELECT has_table_privilege($1,$2,'SELECT')", role, 'life_financial.' + table) is (role != 'public')
+                assert not await c.fetchval("SELECT has_table_privilege($1,$2,'INSERT,UPDATE,DELETE,TRUNCATE')", role, 'life_financial.' + table)
+        for table in ('process_lease_policies', 'process_lease_registrations', 'process_lease_commands', 'process_leases'):
+            assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
