@@ -1,5 +1,16 @@
 # LIFE: PostgreSQL and Cloud Run Implementation Plan (TDD)
 
+**Configured provisional service (2026-10-22):** strict headless YAML now
+selects the provisional protocol explicitly. The native financial observer
+uses one bounded provider-collection COMMIT before publishing monetary facts,
+with original-task ownership and all freshness/financial checks retained.
+The expanded configured gate passes **202 cases**, zero failures/errors/skips,
+on **2545 unchanged code/SQL files**. It includes complete SPOT-to-SWAP
+settlement, retained-fill maker replenishment and actual process/backend loss. See the
+[implementation and qualification](#configured-provisional-service-and-observer-capture-2026-10-22).
+**PG3 remains open**, including safe financial recovery of an unprepared
+preallocation; metadata retirement alone cannot free or reactivate it.
+
 **Private cashflow projection (2026-10-22):** migration 107 exposes the raw
 cashflow relation to the SQL planner while keeping helper access private and
 retaining every financial proof. The unchanged untraced provisional two-maker-
@@ -1139,7 +1150,7 @@ failing integration result visible until the same current-source workflow passes
     - [x] Native capture has a typed `PgHedgeSource` binding: complete signed account/trade/bill proof, actual instrument/fee-group/contract-tier/leverage checks, conservative collateral, original timestamps and permanent operation IDs. Fresh native observation startup, existing-maker cancellation and protected SDK composition pass the 375-case frozen regression below.
     - [x] Shared in-process SDK REST quota kernel, including original SDK time-synchronizer HTTP, and original quota-context pinning in both final SPOT/SWAP guards. The frozen 484-case affected gate below passes. This does not qualify full source-collection scheduling or the configured service.
     - [x] Explicit complete source scheduling profile: preserve actual pooled SDK limits; wait before native/provider capture; collect account and hedge market in one signed collection; consume the same operation's original quiescent cancellation report without renewing its timestamps. Fresh startup, prior SDK quota use, real signed SDK send, timeout and stale/ingress/foreign-scope refusals pass in the 193-case focused gate below. This does not install the configured service or prove all loaded/live account histories meet the one-second window.
-    - [ ] Install the qualified source profile in the complete configured runner/account topology and mandatory service; qualify the whole selected workflow under R4/R5.
+    - [x] Install the qualified source profile in the configured offline runner/account topology and mandatory service. The current 202-case gate includes original signed SPOT-to-SWAP composition, partial/no-fill settlement, cancellation, original-ID replay, shared SDK scope and physical failures. This qualifies the declared offline profile; complete R4/R5 exits remain required.
     - The explicit offline configured hedge workflow now passes 22 frozen service cases, including existing-maker retirement, original signed sources, SWAP SDK/ACK, no-fill and partial-fill terminal/settlement/release, replay and late-ACK shutdown. Full selected mode installation, multi-generation/source/SQL tails and whole-product R5 remain required; see the configured hedge qualification below.
 
 - [x] **R3 — control/risk/session:** signed pending repair and successor reconciliation/activation; persistent native markout/probe/stress/inventory/EXIT gates. Exit replay: restart and late observations retain HALT, budgets and approvals; each enabled risk mode reaches its native financial gate.
@@ -1148,6 +1159,7 @@ failing integration result visible until the same current-source workflow passes
   - [x] R3.3: Durable markout/probe/stress/inventory/EXIT decisions, original spending and mode-specific permission at native prepare/arm/COMMIT gates; reads, late facts and restart cannot restore permission or refund budgets. Native safety/recovery probes, markout/bootstrap, reservation-derived stress/rolling capacity and original inventory/EXIT spending are qualified by the frozen 382-case closure gate below.
   - [x] R3.4: One frozen coupled native control/session/risk regression with File economic parity, cold readback/corruption/role refusals and process/backend/cancellation failures. The frozen 382-case native gate, 56 File mode tests and 38 audited upgrade cases pass; see the R3 closure qualification below. Configured source/runner installation remains R4.
 - [ ] **R4 — configured assembly:** install planner/reference/book/fee, complete runner/account scope, SPOT/SWAP final request guards, ingress/collectors and recorder/SDK history in the actual controller/service. Exit replay: start the configured PostgreSQL service with fake exchange; both products complete the selected workflow; a missing route fails startup without File fallback. PostgreSQL selection remains rejected until this passes.
+  - [x] Explicit headless protocol selection: strict YAML `native_trading` and `provisional_quotes`, both false by default; provisional requires native trading and is forwarded to the original service. The 37-case headless/File-host gate passes. The service still requires an imported birth policy and `OFFLINE_SIMULATION`; configuration parsing does not grant trading or complete R4 acceptance.
   - [x] Owned service/SDK/factory shutdown for the declared startup, timeout, cancellation and refused-context profiles: final 56-case host/File and 14-case native gates pass. No caller timeout cancels physical cleanup, no foreign executor is adopted, and source clients remain held through network shutdown. This lifecycle slice does not discharge configured trading routes or R5; see [qualification](#pg3-owned-service-and-sdk-shutdown-2026-10-21).
   - [x] Configured native offline observation service and process entrypoint: actual controller/V2 runner, both ordinary SPOT/SWAP financial listeners/history, cold reopen, migration-before-factory startup and joined shutdown. Native integration passes 95 cases; shared File/native host, CLI and runtime-config qualification passes 41 cases. Direct hedge trading remains refused. This completes the observation assembly only; see [service qualification](#pg3-r4-configured-native-observation-service-2026-10-20).
   - [x] Observation-only SPOT startup through the actual `StrategyV2Base`/orchestrator with signed native event/history and PostgreSQL reporting, no File/ORM fallback, and no executor-creation grant. The frozen 191-case native and 110-case File/core gates pass; see [observation runner qualification](#pg3-r4-postgresql-observation-runner-startup-2026-10-20).
@@ -1156,7 +1168,7 @@ failing integration result visible until the same current-source workflow passes
   - [x] Explicit dual SDK callback/history assembly: bounded original listeners on both SDKs, signed joint monetary intake, native/report-qualified IDs with atomic rollback of both caches, and actual V2 observation startup without File/ORM fallback. The frozen 266-case affected gate below passes with five audited migration cases and 29 contracts. Cold DB-runtime/listener reinstall and late in-flight funding retain HALT, money and claims; this is not a physical-process or configured trading-service qualification.
   - [x] Native SPOT market provenance implementation and new contract cases: signed metadata/book/account-fee capture joined to the original complete account report, independent own-depth subtraction and size-specific unwind facts. All 49 new cases and five audited upgrades pass. The broader 298-case run is **294 pass / 4 fail**, with one faulty expired-retry expectation subsequently corrected and its two physical-backend cases passing; three timing workflows remain open below. This does not install a planner, prepare a new shared claim or qualify a final pending SDK submission.
   - [x] Implement the explicit native SPOT post-dispatch preparation and final market handoff: permanent business intent before capital/carry preallocation, new one-use runner capture afterwards, exact preparing executor scope, original pending SDK object/task, fresh signed final facts, original verified cuts and post-ARM synchronous refusal. The earlier frozen 346-case regression is **344 pass / 2 fail**; two ACK/state fault injections were blocked by quote expiry during setup. The later 492-case current-source pooled regression below passes these covered workflows. Whole-product availability in R5 remains required. See [SPOT handoff qualification](#pg3-r4-native-spot-preparation-and-final-send-composition-2026-10-20).
-  - [ ] Install the qualified native quote producer with actual capital/carry and economic-cost sources, and qualify complete shared-SDK cycle scheduling before quote capture. Paused, quiescent SPOT preallocation uses the original account/market source. The explicit first-quote pooled composition now waits before new capture and retains original phase/task/SDK guards; qualification is recorded below. Configured quote/cost production, standing-maker replenishment, competing/background/historical workloads and service installation remain required.
+  - [x] Install the qualified native quote producer with actual capital/carry and economic-cost sources in the selected offline provisional service. Shared-SDK scheduling precedes new capture and retains original phase/task/SDK guards. The current 202-case gate includes configured quote/cost production, standing-maker cancellation, retained-fill replenishment over two maker generations and competing SDK reads, with exact money/budget/claim and cleanup assertions. This does not qualify every selected mode/final route, financial recovery of an unprepared claim, live calibration or the complete R4/R5 exits.
     - Imported-model implementation: `PgSpotQuoteProducer` derives tick/lot-rounded levels from the original signed SPOT reference and calculates independent-exit economics, fee buffers, modeled carry/inventory cost and subsidy. An original post-dispatch source capture brackets the immutable imported model; its hash must match. The producer is bound to the actual SPOT application, replacing numeric preparation callbacks in its explicit executor/SDK profile. Whole-service installation, live model calibration and continuous-maker acceptance are not inferred from this slice; see the producer/audit checkpoint below.
   - Configured first-quote implementation: the explicit offline native profile now binds the imported producer, original signed capital/carry/market sources, actual controller/V2 dispatcher and actual executor control loop to protected SPOT SDK/ACK. Exact dispatcher task and original executor instances are required. Diagnostic reports are retained outside the financial send window; native financial barriers are unchanged. Qualification is recorded below. This does not discharge continuous makers, every selected mode/final route or R5.
   - [ ] Actual configured LIFE controller/service, all enabled final trading routes, complete shared-account/SDK scope and both-product financial ingress/history. The observation profile does not discharge these requirements.
@@ -8675,9 +8687,10 @@ The original failed attempt remains recorded separately from subsequent gates.
 ### Remaining within R2.3/R4/R5
 
 - [ ] Complete configured selector/service qualification for the selected
-  protocol and all enabled final routes on current source. The provisional
-  selector remains an explicit offline service argument, absent from headless
-  configuration; its imported policy is mandatory and no fallback is installed.
+  protocol and all enabled final routes on current source. The later configured
+  provisional-service increment installs explicit headless selection; its
+  imported policy is mandatory and no fallback is installed. Full current-source
+  acceptance remains necessary.
 - [ ] Complete the fixed whole-product acceptance gates. A successful metadata
   retirement alone cannot close PG3 or prove loaded tail margin.
 
@@ -8685,6 +8698,20 @@ An unprepared preallocated shared claim remains retained after ticket
 retirement. This API cannot recycle that capacity or qualify activation. A
 separate financial recovery/release needs its own original source and native
 proofs; no such release or automatic resume is claimed by this increment.
+
+Remaining recovery acceptance within the existing R2/R4/R5 scope:
+
+- [ ] Qualify an explicit financial recovery of an unprepared preallocation,
+  separately from metadata retirement. Preserve the original claim and ticket;
+  require permanent refusal of all old-intent prepare/send paths and original
+  native evidence before any capacity can be reused.
+- [ ] Prove that physical prepare/recovery races have one durable outcome;
+  unknown COMMIT, prepared/sent attempts, pending facts, changed owner and stale
+  or foreign evidence retain the claim. Readback cannot release or activate.
+- [ ] Qualify cold recovery and separate signed successor activation after
+  reconciliation, with exact money/budget/identity parity and retained-history
+  corruption checks. The existing signed-DRAIN test currently proves refusal
+  over an unreleased claim, not a successful recovery-and-activation workflow.
 
 ## Planner-visible private cashflow projection (2026-10-22)
 
@@ -8724,3 +8751,71 @@ The earlier 1005.242-ms failed workload remains a failed result for migration
 their elapsed totals do not establish a speedup or a latency distribution.
 Current configured selector/service and full R2.3/R4/R5 acceptance remain
 required. **PG3 stays open** until those fixed exits pass.
+
+## Configured provisional service and observer capture (2026-10-22)
+
+### Implementation
+
+- [x] Add strict `provisional_quotes` to the headless YAML, false by default.
+  It requires `native_trading: true` and is forwarded unchanged to the original
+  service. Both products, existing account/owner/model/financial policies,
+  qualified SDK scope and `OFFLINE_SIMULATION` are still mandatory. No account,
+  funds, policy, successor or File fallback is created by startup.
+- [x] Refuse a missing imported birth policy before installing a quote
+  application; join the partially opened runtime and close every pool without
+  creating births, actions, claims or attempts.
+- [x] Install the migration-99 bounded diagnostic collection path in the
+  financial observer as well as the original source collector. Previously the
+  observer still committed each page/batch between signed reads. Each original
+  response remains immutable, bounded and guarded; one physical diagnostic
+  COMMIT must precede monetary publication. There is no cached financial verdict,
+  renewed source timestamp, relaxed age limit or batched monetary command.
+- [x] Bind deferred parsing to the exact original observer, reader, locked
+  mutex and task. Foreign tasks and an otherwise correctly typed observer
+  outside its owned collection cannot borrow the reader. Cold diagnostic
+  readback confers no source, money, release or send authority.
+- [x] Replay a complete configured provisional SPOT maker → cancellation and
+  original-claim retirement → protected SWAP hedge → original settlement and
+  shared release. The original service owns both SDKs and the actual V2 runner.
+  Both shared claims retire, reservations return to zero, original balances and
+  execution-loss spending agree, and replay creates no extra order.
+
+### Qualification and failures retained
+
+The pre-observer-change configured gate stopped at **89 pass / 1 fail**,
+**1603.76 s**. Startup/cleanup of the first capture/dispatch fault case refused
+`PG_FINANCIAL_SOURCE_TRANSPORT_UNQUALIFIED` while checking UID freshness after
+an eager provider batch. The intended fault had not been reached. Bounded DB
+diagnostics include cumulative page-capture/transaction delays; no specific
+host-load cause is proved. This remains a failed gate, not a successful retry.
+
+The observer's deterministic TDD contract first fails (**8.50 s**) when eager
+page/batch COMMITs are forbidden. It subsequently passes (**8.92 s**) with one
+complete diagnostic collection retained before money can publish. The coupled
+observer/provisional SPOT-to-SWAP replay passes **two cases**, **64.16 s**.
+The two asserted physical observer backend losses plus all four original
+capture/dispatch COMMIT boundaries pass **six cases**, **65.30 s**. Original
+claim, money, identity and no-resend assertions remain enabled. These selected
+gates do not by themselves close R2.3/R4/R5.
+
+The expanded `run_postgres --suite service_trading` retains the original
+configured SPOT/SWAP, fill/repair, actual process/backend and phase cases, and
+adds provisional loaded/revocation/owner/process/birth retirement plus native
+observer/provider-collection regression. The frozen current-source gate passes
+**202 cases**, **0 failures/errors/skips**, **2367.09 s**, with six existing
+warnings. All **2545** pinned Python/Cython/SQL files match their starting hashes.
+Within that same gate, the complete provisional SPOT-to-SWAP case has JUnit
+elapsed **53.914 s** and the untraced retained-fill, competing-SDK, two-generation
+case **148.532 s**, including their original financial/identity/cleanup checks.
+These individual case timings are not separate gate totals or a latency SLO.
+The earlier failed startup/capture workflow passes in this complete run; that
+does not establish which UID age/clock predicate caused the earlier refusal or
+prove a tail-latency margin. Quote/source/reference/fee limits remain 1000 ms,
+phase limits 5000 ms and all native SQL timeouts/financial proofs remain unchanged.
+
+The 37-case headless/File-host parsing/lifetime gate also passes; this is
+distinct from actual configured-service replay against fake HTTP.
+
+Metadata retirement still leaves the original unprepared shared claim held.
+Explicit source-qualified financial recovery and separate signed successor
+activation must satisfy the recovery checklist above. **PG3 is not closed.**

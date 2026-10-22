@@ -1,11 +1,17 @@
 """Signed ordinary intake of unbooked facts, synthetic private/public HTTP only."""
+import asyncio
 from decimal import Decimal as D
 from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_hedge_source import sources
 
+import asyncpg
 import pytest
 
 from hummingbot.strategy_v2.life_liquidity.fill_attribution import IndependentFillObservation
 from hummingbot.strategy_v2.life_liquidity.storage.contracts import CommitUnknown, StorageError
+from hummingbot.strategy_v2.life_liquidity.storage.postgres.diagnostics import _current_trace
+from hummingbot.strategy_v2.life_liquidity.storage.postgres.provider_journal import PgProviderJournal
+from hummingbot.strategy_v2.life_liquidity.storage.postgres.runtime import PgRuntime
+from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot import PgSpotRepository
 
 
 def observer(t):
@@ -17,6 +23,137 @@ def observer(t):
         return IndependentFillObservation(
             fill.independent_price_usdt, fill.independent_value_at_ms, fill.independent_observed_at_ms, fill.source_kind)
     return PgJointFinancialObserver(t.source, independent_fill_value=value, independent_cashflow_value=lambda *args: None)
+
+
+@pytest.mark.asyncio
+async def test_observer_commits_complete_provider_collection_before_publishing_money(database, monkeypatch):
+    t = await sources(database, apply_batch=False, spot_fee='USDT')
+    intake = observer(t)
+    journal = intake.reader._journal
+    original, committed = journal.capture_collection, []
+
+    async def eager(*args, **kwargs):
+        pytest.fail('Observer performed eager provider-page COMMIT inside signed collection')
+
+    async def capture(pages):
+        assert not committed and len(pages) > 8
+        assert [p['sequence'] for p in pages] == list(range(1, len(pages) + 1))
+        assert len({p['collection_id'] for p in pages}) == 1
+        assert await database[0].fetchval('SELECT count(*) FROM life_financial.swap_fill_facts') == 0
+        assert await database[0].fetchval('SELECT count(*) FROM life_financial.funding_cash_payments') == 0
+
+        async def foreign():
+            assert not intake.owns_reader_collection(intake.reader)
+            with pytest.raises(StorageError, match='PG_FINANCIAL_SOURCE_COLLECTION_ORIGIN'):
+                intake.reader._original()
+        await asyncio.create_task(foreign())
+        assert intake.owns_reader_collection(intake.reader)
+        result = await original(pages)
+        assert all(not p.trading_permission for p in result)
+        committed.append(tuple(pages))
+        return result
+
+    monkeypatch.setattr(journal, 'capture', eager)
+    monkeypatch.setattr(journal, 'capture_many', eager)
+    monkeypatch.setattr(journal, 'capture_collection', capture)
+    try:
+        receipt = await intake.observe('one-observer-collection')
+        assert receipt.state == 'APPLIED' and not receipt.trading_permission
+        pages, = committed
+        stored = await journal.read_collection(pages[0]['collection_id'], max_rows=512, max_bytes=1048576)
+        assert tuple(p.body for p in stored) == pages
+        assert (await t.financial.balance(t.cfg.binding)).total_quote_usdt == D('10.889')
+        assert not intake.owns_reader_collection(intake.reader)
+        # A correctly typed observer outside its original locked task cannot
+        # request deferred parsing or reconstruct a source-publication origin.
+        with pytest.raises(StorageError, match='PG_FINANCIAL_SOURCE_COLLECTION_ORIGIN'):
+            async with intake.reader.collection(account_brackets=True, _collector=intake):
+                pytest.fail('Unowned observer collection admitted')
+    finally:
+        await t.financial.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('committed', [False, True])
+async def test_observer_collection_backend_loss_retains_diagnostics_without_monetary_publication(database, monkeypatch, committed):
+    t = await sources(database, apply_batch=False, spot_fee='USDT')
+    intake, runtime = observer(t), t.financial._runtime
+    admin = await asyncpg.connect(database[1])
+    original, attempts, cold = runtime._commit, [], None
+
+    async def lost(transaction):
+        trace = _current_trace.get()
+        if trace.operation != 'spot_capture_provider_collection':
+            return await original(transaction)
+        assert not attempts
+        if committed:
+            await original(transaction)
+        assert await admin.fetchval('SELECT pg_terminate_backend($1)', trace.backend_pid)
+        attempts.append(trace.backend_pid)
+        raise ConnectionError('synthetic observer collection COMMIT reply loss')
+
+    monkeypatch.setattr(runtime, '_commit', lost)
+    try:
+        before = await t.financial.balance(t.cfg.binding)
+        claims = await t.values[5].claims(t.cfg.binding)
+        with pytest.raises(CommitUnknown):
+            await intake.observe('unknown-observer-collection')
+        assert len(attempts) == 1 and not runtime.healthy
+        assert not intake.reader._active and intake._collection_task is None
+        assert runtime._observation_inflight == 0
+        cold = PgSpotRepository(await PgRuntime.open(t.cfg))
+        rows = await PgProviderJournal(cold).read_collection(intake.reader.collection_id, max_rows=512, max_bytes=1048576)
+        assert bool(rows) is committed
+        assert not any(row.trading_permission for row in rows)
+        assert await cold.balance(t.cfg.binding) == before
+        assert await t.values[5].claims(t.cfg.binding) == claims
+        for table in ('spot_fill_facts', 'swap_fill_facts', 'funding_cash_payments'):
+            assert await admin.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+        assert not t.session.sent
+    finally:
+        if cold is not None:
+            await cold.close()
+        await t.financial.close()
+        await admin.close()
+
+
+@pytest.mark.asyncio
+async def test_observer_cancellation_joins_one_diagnostic_commit_without_late_money(database, monkeypatch):
+    t = await sources(database, apply_batch=False, spot_fee='USDT')
+    intake, runtime = observer(t), t.financial._runtime
+    entered, release, attempts = asyncio.Event(), asyncio.Event(), []
+    original = runtime._commit
+
+    async def held(transaction):
+        assert _current_trace.get().operation == 'spot_capture_provider_collection'
+        attempts.append(transaction)
+        entered.set()
+        await release.wait()
+        await original(transaction)
+
+    monkeypatch.setattr(runtime, '_commit', held)
+    work = asyncio.create_task(intake.observe('canceled-observer-collection'))
+    try:
+        await asyncio.wait_for(entered.wait(), 5)
+        work.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await work
+        assert not runtime.healthy and runtime._tasks
+        assert intake._collection_task is None and not intake.reader._active
+        assert not intake._lock.locked() and runtime._observation_inflight == 0
+        assert await database[0].fetchval('SELECT count(*) FROM life_financial.spot_provider_pages') == 0
+        release.set()
+        await asyncio.wait_for(asyncio.gather(*tuple(runtime._tasks)), 5)
+        assert len(attempts) == 1 and not runtime.healthy
+        rows = await intake.reader._journal.read_collection(intake.reader.collection_id, max_rows=512, max_bytes=1048576)
+        assert len(rows) > 8 and not any(row.trading_permission for row in rows)
+        for table in ('spot_fill_facts', 'swap_fill_facts', 'funding_cash_payments'):
+            assert await database[0].fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+        assert not t.session.sent
+    finally:
+        release.set()
+        await asyncio.gather(work, return_exceptions=True)
+        await t.financial.close()
 
 
 @pytest.mark.asyncio

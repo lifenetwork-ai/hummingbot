@@ -154,7 +154,7 @@ async def configured(database, *, model_change=None, shared_quota=True, maker_cy
             response.json = public_book
         return response
     t.session.request = exchange
-    if provisional_quotes:
+    if provisional_quotes and omit_financial_policy != 'birth':
         await database[0].execute('INSERT INTO life_financial.quote_birth_policies VALUES($1,$2,64,1048576)', t.cfg.account_id, t.cfg.binding.policy_hash)
     await t.financial.close()
     service = await PgLiquidityService.open(

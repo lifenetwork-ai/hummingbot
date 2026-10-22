@@ -1,5 +1,6 @@
 """Native CLI configuration/migration/source lifetime; no network or real DB."""
 import asyncio
+import json
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_service import limits
@@ -39,6 +40,29 @@ async def test_native_service_config_yaml_roundtrip_and_invalid_input_bound(tmp_
         path.write_text(bad)
         with pytest.raises(StorageError, match='PG_SERVICE_CONFIG_INVALID'):
             await headless.PgServiceConfig.read_yaml(path)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('native,provisional', [(False, False), (True, False), (True, True)])
+async def test_native_service_protocol_selection_is_explicit_and_roundtrips(tmp_path, native, provisional):
+    payload = json.loads(config().model_dump_json())
+    payload.update(native_trading=native, provisional_quotes=provisional)
+    path = tmp_path / 'selected.yml'
+    path.write_text(json.dumps(payload))
+    selected = await headless.PgServiceConfig.read_yaml(path)
+    assert selected.native_trading is native and selected.provisional_quotes is provisional
+    assert json.loads(selected.model_dump_json()) == payload
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('native,provisional', [(False, True), ('true', True), (True, 'true'), (True, 1)])
+async def test_native_service_rejects_invalid_or_observation_only_provisional_selection(tmp_path, native, provisional):
+    payload = json.loads(config().model_dump_json())
+    payload.update(native_trading=native, provisional_quotes=provisional)
+    path = tmp_path / 'selected.yml'
+    path.write_text(json.dumps(payload))
+    with pytest.raises(StorageError, match='PG_SERVICE_CONFIG_INVALID'):
+        await headless.PgServiceConfig.read_yaml(path)
 
 
 def test_native_cli_does_not_print_factory_or_driver_error_payload(monkeypatch, capsys):
@@ -247,6 +271,9 @@ async def test_native_prehost_failure_retains_factory_and_network_until_owned_cl
 @pytest.mark.parametrize('failure', [None, 'migration', 'config', 'open', 'run', 'factory_result'])
 async def test_native_launcher_awaits_migrations_and_joins_owned_sources_after_service(tmp_path, monkeypatch, failure):
     configured = config()
+    if failure is None:
+        payload = json.loads(configured.model_dump_json())
+        configured = headless.PgServiceConfig.model_validate_json(json.dumps(dict(payload, native_trading=True, provisional_quotes=True)))
     events, stop = [], asyncio.Event()
     path = tmp_path / 'service.yml'
     path.write_text('{}' if failure == 'config' else configured.model_dump_json())
@@ -290,6 +317,8 @@ async def test_native_launcher_awaits_migrations_and_joins_owned_sources_after_s
 
     async def open_service(*args, **kwargs):
         events.append('open')
+        assert kwargs['native_trading'] is configured.native_trading
+        assert kwargs['provisional_quotes'] is configured.provisional_quotes
         if failure == 'open':
             raise RuntimeError('synthetic open failure')
         return Service()

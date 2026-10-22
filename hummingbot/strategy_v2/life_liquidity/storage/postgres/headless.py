@@ -1,4 +1,4 @@
-"""Native observation service CLI. Migrations precede source-factory import.
+"""Native offline PostgreSQL service CLI. Migrations precede source-factory import.
 
 Uses the explicit operational PG environment settings and an existing imported
 account/owner. No file financial service or implicit account seed is installed.
@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Callable
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
 from controllers.generic.life_liquidity import LifeLiquidityConfig
 from hummingbot.strategy_v2.life_liquidity.storage.contracts import OwnerToken, StorageError
@@ -46,6 +46,13 @@ class PgServiceConfig(BaseModel):
     sources: tuple[EventSource, ...]
     limits: PgServiceLimits
     native_trading: bool = False
+    provisional_quotes: bool = False
+
+    @model_validator(mode='after')
+    def _protocol(self):
+        if self.provisional_quotes and not self.native_trading:
+            raise ValueError('provisional quotes require native trading')
+        return self
 
     @classmethod
     async def read_yaml(cls, path):
@@ -122,6 +129,7 @@ async def launch(*, config_path, factory_spec, stop, tick_seconds, startup_timeo
                 limits=config.limits, connectors=inputs.connectors, market_data_provider=inputs.market_data_provider,
                 clock=inputs.clock, independent_fill_value=inputs.independent_fill_value,
                 independent_cashflow_value=inputs.independent_cashflow_value, native_trading=config.native_trading,
+                provisional_quotes=config.provisional_quotes,
                 _startup_owner=starting)
             host = PgServiceHost(service, inputs, tick_seconds=tick_seconds, shutdown_timeout_s=shutdown_timeout_s,
                                  source_stack=source_stack)

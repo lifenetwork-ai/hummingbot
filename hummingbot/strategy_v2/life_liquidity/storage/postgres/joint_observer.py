@@ -43,6 +43,11 @@ class PgJointFinancialObserver:
         if not hasattr(self.runtime, '_financial_observer_mutex'):
             self.runtime._financial_observer_mutex = asyncio.Lock()
         self._lock = self.runtime._financial_observer_mutex
+        self._collection_task = None
+
+    def owns_reader_collection(self, reader):
+        return (reader is self.reader and reader.runtime is self.runtime and self._lock.locked()
+                and self._collection_task is asyncio.current_task())
 
     def _original(self):
         try:
@@ -184,6 +189,7 @@ class PgJointFinancialObserver:
             if previous is not None:
                 return previous  # Diagnostic original readback, never recollect.
             self.runtime._observation_inflight += 1
+            self._collection_task = asyncio.current_task()
             try:
                 with localcontext() as precision:
                     precision.prec = 160
@@ -208,7 +214,8 @@ class PgJointFinancialObserver:
                         cap = await self.source.capital.frame(self.binding)
                         carry = await self.source.carry.frame(self.binding)
                         scope = deepcopy(original_scope)
-                        async with self.reader.collection(account_brackets=True):
+                        native_collection = self if any(m.version == 99 for m in self.runtime._bundle) else None
+                        async with self.reader.collection(account_brackets=True, _collector=native_collection):
                             started = self.reader.started_at
                             runner = await self.collector._runner(scope)
                             helper = SpotAccountBillReader(self.reader, anchor_bill_id=context.policy.anchor_bill_id,
@@ -282,4 +289,5 @@ class PgJointFinancialObserver:
                     raise
                 raise StorageError('PG_JOINT_OBSERVER_UNQUALIFIED') from None
             finally:
+                self._collection_task = None
                 self.runtime._observation_inflight -= 1

@@ -1,5 +1,19 @@
 # LIFE storage contracts
 
+**Configured provisional service (2026-10-22):** headless YAML accepts explicit
+`native_trading: true` plus `provisional_quotes: true`, with a pre-imported
+matching birth policy and the existing offline-only service guards. The native
+financial observer batches bounded diagnostics once per original collection
+before publishing money; original-task ownership, freshness and monetary
+proofs remain. Complete provisional SPOT → cancel/release → SWAP → settlement/
+release and physical backend-loss cases pass. The expanded current-source
+configured gate passes **202 cases**, zero failures/errors/skips, on **2545**
+unchanged code/SQL files. It includes the untraced retained-fill/competing-SDK
+two-generation workload with the original 1000-ms quote policy.
+Metadata retirement does not release an
+unprepared shared claim or qualify activation; **PG3 remains open**. See the
+[current plan](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#configured-provisional-service-and-observer-capture-2026-10-22).
+
 **Private cashflow projection (2026-10-22):** migration 107 permits inlining
 of the private raw relation with explicitly qualified names/operators. All
 financial proofs remain independent. The 166-case affected regression, five
@@ -4533,6 +4547,16 @@ field), `life_anchor_usdt`, `model_version`, `max_observation_skew_ms`,
 No account, balance, risk activation, migration or live calibration is inferred.
 The native market adapter independently qualifies the signed LIFE book, fees,
 account scope, own-depth subtraction and executable unwind facts.
+
+The native process YAML can explicitly select the fixed-birth/atomic-prepare
+profile with both `native_trading: true` and `provisional_quotes: true`.
+`provisional_quotes` defaults to false. Selecting it while native trading is
+disabled, or providing a non-boolean flag, refuses configuration before source
+factory import. Enabled startup also requires the already imported, matching
+`quote_birth_policies` row; it never creates that policy or falls back to the
+legacy protocol when policy is missing. The qualified retained-fill maker
+workload uses this explicit provisional profile. The source factory, account,
+owner, financial/model configuration and operational limits remain required.
 
 `await service.quote(permanent_intent_id, TradeType.BUY, level)` (or SELL) runs
 the imported producer, signed capital/carry preallocation and new runner capture,

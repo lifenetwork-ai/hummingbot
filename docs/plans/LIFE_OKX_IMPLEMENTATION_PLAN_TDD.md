@@ -1,5 +1,15 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**Configured provisional service (2026-10-22):** strict headless YAML selects
+the offline provisional profile explicitly. The financial observer now commits
+one bounded provider collection before publishing money, under its original
+task/mutex and unchanged source/financial guards. The expanded configured gate
+passes **202 cases**, zero failures/errors/skips, with **2545** code/SQL files
+unchanged throughout. It includes complete SPOT-to-SWAP settlement, loaded
+maker replenishment and physical failures. **PG3 remains open**, including financial recovery of
+an unprepared preallocation after metadata retirement. See the
+[current scope and results](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#configured-provisional-service-and-observer-capture-2026-10-22).
+
 **Private cashflow projection (2026-10-22):** migration 107 makes the raw
 projection planner-visible while retaining financial proofs and private access.
 The 166-case affected regression and five migration cases pass. The unchanged

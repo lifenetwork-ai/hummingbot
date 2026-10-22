@@ -159,7 +159,11 @@ def main():
         if args.suite == 'service_load':
             selectors = [str(selector / ('test_' + name + '.py')) for name in ('flow_trace', 'postgres_service_load', 'postgres_provisional_service')]
         if args.suite == 'service_trading':
-            selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in ('service_trading', 'service_hedge', 'service_replay', 'service_process', 'service_swap_process', 'service_backend', 'service_spot_backend', 'service_fills', 'service_repair', 'quote_phase_boundaries')]
+            selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in (
+                'service_trading', 'service_hedge', 'service_replay', 'service_process', 'service_swap_process',
+                'service_backend', 'service_spot_backend', 'service_fills', 'service_repair', 'quote_phase_boundaries',
+                'provisional_service', 'provisional_revocation', 'provisional_owner', 'provisional_process',
+                'quote_birth', 'birth_retirement', 'joint_observer', 'provider_collection')]
         if args.suite == 'runner_journal':
             selectors = [str(selector.parent / ('test_postgres_' + name + '.py')) for name in ('runner_journal', 'native_capture')]
         if args.suite == 'provider_collection':

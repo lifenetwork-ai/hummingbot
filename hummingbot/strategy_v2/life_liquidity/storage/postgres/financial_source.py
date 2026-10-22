@@ -108,8 +108,9 @@ class PgSpotAccountReader:
         if self._active or self._read_active:
             raise StorageError('PG_FINANCIAL_SOURCE_BACKPRESSURE')
         if _collector is not None:
+            from hummingbot.strategy_v2.life_liquidity.storage.postgres.joint_observer import PgJointFinancialObserver
             from hummingbot.strategy_v2.life_liquidity.storage.postgres.joint_source import PgJointAccountReconciler
-            if (type(_collector) is not PgJointAccountReconciler or not account_brackets
+            if (type(_collector) not in (PgJointAccountReconciler, PgJointFinancialObserver) or not account_brackets
                     or not _collector.owns_reader_collection(self)
                     or not any(m.version == 99 for m in self._context[3]._bundle)):
                 raise StorageError('PG_FINANCIAL_SOURCE_COLLECTION_ORIGIN')
@@ -354,8 +355,8 @@ class PgSpotAccountReader:
     async def read_batch(self, routes):
         """At most eight original signed reads, with bounded response retention.
 
-        Default calls commit before returning data. The native joint collector
-        may parse internally behind its observation barrier; one collection
+        Default calls commit before returning data. A native joint collector or
+        observer may parse internally behind its observation barrier; one collection
         COMMIT precedes report publication. Neither mode batches money commands.
         Partial transport failure retains already received pages.
         """
