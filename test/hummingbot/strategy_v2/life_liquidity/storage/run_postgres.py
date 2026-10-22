@@ -163,7 +163,7 @@ def main():
                 'service_trading', 'service_hedge', 'service_replay', 'service_process', 'service_swap_process',
                 'service_backend', 'service_spot_backend', 'service_fills', 'service_repair', 'quote_phase_boundaries',
                 'provisional_service', 'provisional_revocation', 'provisional_owner', 'provisional_process',
-                'quote_birth', 'birth_retirement', 'joint_observer', 'provider_collection')]
+                'quote_birth', 'birth_retirement', 'unused_release', 'joint_observer', 'provider_collection')]
         if args.suite == 'runner_journal':
             selectors = [str(selector.parent / ('test_postgres_' + name + '.py')) for name in ('runner_journal', 'native_capture')]
         if args.suite == 'provider_collection':

@@ -100,6 +100,51 @@ class PgJointReleaseApplication:
         identifier(terminal_operation_id)
         return await self._run(operation_id, intent_id, terminal_operation_id=terminal_operation_id)
 
+    async def release_unused(self, operation_id, ticket_id):
+        """Release only a permanently retired, never prepared SPOT birth.
+
+        Uses a new full signed collection even on a cold observation service.
+        A recovered receipt is historical and cannot recreate source authority.
+        """
+        from hummingbot.strategy_v2.life_liquidity.storage.postgres.unused_release import (
+            PgUnusedReleaseRepository,
+            recovery_facts,
+        )
+        identifier(operation_id)
+        identifier(ticket_id)
+        self._original()
+        if self._lock.locked():
+            raise StorageError('PG_JOINT_RELEASE_BACKPRESSURE')
+        async with self._lock:
+            repository = PgUnusedReleaseRepository(self.collector.swap.capital)
+            existing = await repository.read(operation_id)
+            if existing is not None:
+                if existing['command']['command']['ticket_id'] != ticket_id:
+                    raise StorageError('PG_OPERATION_CONFLICT')
+                return repository._receipt({**existing['receipt'], 'replayed': True})
+
+            origin = await repository.original.capital._read('SELECT life_financial.unused_release_origin_read($1,$2)',
+                                                             (self.runtime.config.account_id, ticket_id))
+            if origin is None:
+                raise StorageError('PG_UNUSED_RELEASE_ORIGIN_REQUIRED')
+            self.runtime._observation_inflight += 1
+            report = None
+            try:
+                report = await self.collector.collect()
+                self._original()
+                fence = JointSourceFence(self.collector, report, operation_id=operation_id,
+                                         intent_id=origin['intent_id'], unused_ticket_id=ticket_id)
+                command = dict(operation_id=operation_id, intent_id=origin['intent_id'], ticket_id=ticket_id,
+                               retirement_id=origin['retirement_id'], facts=recovery_facts(self.collector, report), source=fence.deadline)
+                return await repository.release(command, report=report, fence=fence)
+            except BaseException:
+                self.runtime._healthy = False
+                raise
+            finally:
+                if report is not None and self.collector._report is report:
+                    self.collector._report = None
+                self.runtime._observation_inflight -= 1
+
     async def _run(self, operation_id, intent_id, *, terminal_operation_id, source=None):
         identifier(operation_id)
         identifier(intent_id)

@@ -3849,3 +3849,48 @@ async def test_birth_retirement_upgrade_is_atomic_private_and_preserves_original
             assert await c.fetchval("SELECT has_function_privilege($1,'life_financial.quote_birth_retire(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)','EXECUTE')", role) is (role == 'life_runtime_test')
             assert await c.fetchval("SELECT has_function_privilege($1,'life_financial.quote_birth_retire_read(uuid,text)','EXECUTE')", role) is (role != 'public')
         assert await c.fetchval('SELECT count(*) FROM life_financial.accounts') == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('drift', ['none', 'body', 'release', 'control', 'deadline', 'owner', 'search_path', 'volatility'])
+async def test_unused_release_upgrade_is_atomic_idempotent_private_and_drift_checked(db, drift):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 108:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    signatures = dict(body='life_financial.spot_body(uuid)', release='life_financial.shared_release_verified(uuid)',
+                      control='life_financial.control_facts_qualified(uuid,jsonb)',
+                      deadline='life_financial.check_joint_source_deadline(uuid,text)', owner='life_financial.commit_owner_guard()')
+    target = signatures.get(drift, signatures['body'])
+    if drift in signatures:
+        definition = await c.fetchval('SELECT pg_get_functiondef(to_regprocedure($1))', target)
+        await c.execute(definition.replace('BEGIN', 'BEGIN\n-- changed recovery ancestor\n', 1))
+    elif drift == 'search_path':
+        await c.execute('ALTER FUNCTION ' + target + ' SET search_path=pg_catalog,public')
+    elif drift == 'volatility':
+        await c.execute('ALTER FUNCTION ' + target + ' VOLATILE')
+    await c.execute('GRANT EXECUTE ON FUNCTION life_financial.shared_release_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb) TO life_runtime_test')
+    await c.execute('GRANT EXECUTE ON FUNCTION life_financial.shared_release_read(uuid,integer,integer,text) TO life_runtime_test,life_reporter_test')
+    await c.execute('ALTER DEFAULT PRIVILEGES IN SCHEMA life_financial GRANT EXECUTE ON FUNCTIONS TO PUBLIC,life_runtime_test,life_reporter_test')
+    await c.execute('ALTER DEFAULT PRIVILEGES IN SCHEMA life_financial GRANT ALL ON TABLES TO PUBLIC,life_runtime_test,life_reporter_test')
+    path = DEFAULT_DIRECTORY / '000108_unused_claim_release.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    if drift != 'none':
+        with pytest.raises(asyncpg.RaiseError, match='LIFE_UNUSED_RELEASE_MIGRATION_MISMATCH'):
+            await migrate(c, directory, action='up')
+        assert (await versions(c))[-1]['version'] == 107
+        assert not await c.fetchval("SELECT to_regclass('life_financial.unused_claim_releases') IS NOT NULL")
+    else:
+        assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+        assert (await migrate(c, directory, action='up'))['applied'] == []
+        for role in ('public', 'life_runtime_test', 'life_reporter_test'):
+            assert not await c.fetchval("SELECT has_table_privilege($1,'life_financial.unused_claim_releases','INSERT,UPDATE,DELETE,TRUNCATE')", role)
+            for signature in ('unused_release_verified(uuid)', 'unused_release_origin(uuid,jsonb,jsonb,bigint)',
+                              'unused_release_evidence(uuid,jsonb,bigint,bigint)', 'unused_release_quiescent(uuid,jsonb)',
+                              'unused_release_commit_guard()', 'spot_body_before_unused_release(uuid)', 'shared_release_before_unused_verified(uuid)'):
+                assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", role, 'life_financial.' + signature)
+            assert await c.fetchval("SELECT has_function_privilege($1,'life_financial.unused_release_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)','EXECUTE')", role) is (role == 'life_runtime_test')
+            assert await c.fetchval("SELECT has_function_privilege($1,'life_financial.unused_release_read(uuid,text,integer,integer)','EXECUTE')", role) is (role != 'public')
+            assert await c.fetchval("SELECT has_function_privilege($1,'life_financial.unused_release_origin_read(uuid,text)','EXECUTE')", role) is (role != 'public')
+        assert await c.fetchval('SELECT count(*) FROM life_financial.accounts') == 0

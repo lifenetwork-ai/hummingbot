@@ -719,6 +719,12 @@ class PgLiquidityService:
                                    cut=(await self.financial.snapshot(self.runtime.config.binding)).cut,
                                    owner=self.journal.owner)
 
+    async def release_unused_claim(self, operation_id, ticket_id):
+        """Explicit stopped-service recovery; never reactivates local risk."""
+        self._original()
+        self.revoke()
+        return await self.cancellation.release.release_unused(operation_id, ticket_id)
+
     def _maker_admission(self):
         if (self.makers is not None and self.makers.task is not None and not self.makers.task.done()
                 and asyncio.current_task() is not self.makers.task):

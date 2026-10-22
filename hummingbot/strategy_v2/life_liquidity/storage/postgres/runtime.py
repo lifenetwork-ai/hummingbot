@@ -35,6 +35,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.access import (
     NATIVE_RISK_ENTRYPOINT,
     NATIVE_STRESS_ENTRYPOINT,
     PROVIDER_COLLECTION_ENTRYPOINT,
+    UNUSED_RELEASE_ENTRYPOINT,
     role_name,
 )
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.diagnostics import _current_trace, _Trace, failure, phase
@@ -214,6 +215,8 @@ class PgRuntime:
             args[3].append(PROVIDER_COLLECTION_ENTRYPOINT)
         if 104 in versions:
             args[3].extend(BIRTH_ENTRYPOINTS)
+        if 108 in versions:
+            args[3].append(UNUSED_RELEASE_ENTRYPOINT)
         if 106 in versions:
             args[3].append(BIRTH_RETIREMENT_ENTRYPOINT)
         query = '''WITH history AS MATERIALIZED (

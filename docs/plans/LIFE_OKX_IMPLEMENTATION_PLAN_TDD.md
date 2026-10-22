@@ -1,13 +1,21 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**Unused preallocation recovery (2026-10-22):** migration 108 adds an explicit
+capacity release after an original SPOT ticket is permanently retired before
+PREPARE. It uses new complete signed provider evidence and native COMMIT proofs,
+retains money/budgets/IDs, supports cold observation recovery, and requires a
+separate signed command for successor activation. Qualification and remaining
+PG3 exits are tracked in the
+[PostgreSQL plan](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#unused-preallocation-financial-recovery-2026-10-22).
+
 **Configured provisional service (2026-10-22):** strict headless YAML selects
 the offline provisional profile explicitly. The financial observer now commits
 one bounded provider collection before publishing money, under its original
 task/mutex and unchanged source/financial guards. The expanded configured gate
 passes **202 cases**, zero failures/errors/skips, with **2545** code/SQL files
 unchanged throughout. It includes complete SPOT-to-SWAP settlement, loaded
-maker replenishment and physical failures. **PG3 remains open**, including financial recovery of
-an unprepared preallocation after metadata retirement. See the
+maker replenishment and physical failures. **PG3 was not closed by that checkpoint.** Separate unused-preallocation
+recovery is now implemented in migration 108. See the
 [current scope and results](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#configured-provisional-service-and-observer-capture-2026-10-22).
 
 **Private cashflow projection (2026-10-22):** migration 107 makes the raw

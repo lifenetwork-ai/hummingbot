@@ -1,5 +1,14 @@
 # LIFE: PostgreSQL and Cloud Run Implementation Plan (TDD)
 
+**Unused preallocation recovery (2026-10-22):** migration 108 implements
+explicit financial capacity release after permanent unused-ticket retirement,
+with fresh full signed source collection, retained-history audits and physical
+COMMIT guards. Cold observation recovery and separate signed successor
+activation are included in the recovery qualification below. This adds no
+refund, terminal, policy default or automatic resume. **PG3 remains open** for
+the existing complete R2.3/R4/R5 exits; this increment does not redefine them.
+See [scope and qualification](#unused-preallocation-financial-recovery-2026-10-22).
+
 **Configured provisional service (2026-10-22):** strict headless YAML now
 selects the provisional protocol explicitly. The native financial observer
 uses one bounded provider-collection COMMIT before publishing monetary facts,
@@ -8,8 +17,9 @@ The expanded configured gate passes **202 cases**, zero failures/errors/skips,
 on **2545 unchanged code/SQL files**. It includes complete SPOT-to-SWAP
 settlement, retained-fill maker replenishment and actual process/backend loss. See the
 [implementation and qualification](#configured-provisional-service-and-observer-capture-2026-10-22).
-**PG3 remains open**, including safe financial recovery of an unprepared
-preallocation; metadata retirement alone cannot free or reactivate it.
+**PG3 was not closed by that checkpoint.** Migration 108 adds the separate
+unused-preallocation recovery described above; metadata retirement alone still
+cannot free or reactivate a claim.
 
 **Private cashflow projection (2026-10-22):** migration 107 exposes the raw
 cashflow relation to the SQL planner while keeping helper access private and
@@ -8694,24 +8704,24 @@ The original failed attempt remains recorded separately from subsequent gates.
 - [ ] Complete the fixed whole-product acceptance gates. A successful metadata
   retirement alone cannot close PG3 or prove loaded tail margin.
 
-An unprepared preallocated shared claim remains retained after ticket
-retirement. This API cannot recycle that capacity or qualify activation. A
-separate financial recovery/release needs its own original source and native
-proofs; no such release or automatic resume is claimed by this increment.
+Metadata retirement alone leaves an unprepared shared claim retained and cannot
+qualify activation. The separate migration-108 financial release below now
+provides explicit source-qualified recovery; neither command resumes trading.
 
 Remaining recovery acceptance within the existing R2/R4/R5 scope:
 
-- [ ] Qualify an explicit financial recovery of an unprepared preallocation,
+- [x] Qualify an explicit financial recovery of an unprepared preallocation,
   separately from metadata retirement. Preserve the original claim and ticket;
   require permanent refusal of all old-intent prepare/send paths and original
   native evidence before any capacity can be reused.
-- [ ] Prove that physical prepare/recovery races have one durable outcome;
+- [x] Prove that physical prepare/recovery races have one durable outcome;
   unknown COMMIT, prepared/sent attempts, pending facts, changed owner and stale
   or foreign evidence retain the claim. Readback cannot release or activate.
-- [ ] Qualify cold recovery and separate signed successor activation after
+- [x] Qualify cold recovery and separate signed successor activation after
   reconciliation, with exact money/budget/identity parity and retained-history
-  corruption checks. The existing signed-DRAIN test currently proves refusal
-  over an unreleased claim, not a successful recovery-and-activation workflow.
+  corruption checks. Migration 108 adds the successful DRAIN/recovery/separate
+  signed-activation workflow; the existing unreleased-claim refusal stays enabled.
+  These checked recovery items do not discharge the complete gates above.
 
 ## Planner-visible private cashflow projection (2026-10-22)
 
@@ -8819,3 +8829,153 @@ distinct from actual configured-service replay against fake HTTP.
 Metadata retirement still leaves the original unprepared shared claim held.
 Explicit source-qualified financial recovery and separate signed successor
 activation must satisfy the recovery checklist above. **PG3 is not closed.**
+
+## Unused preallocation financial recovery (2026-10-22)
+
+This completes the explicit unused-preallocation recovery implementation inside
+existing R2.3/R4/R5. It does not change the five-workstream closure scope, select
+active File migration, or discharge complete current-source acceptance.
+
+### Native and owning-service flow
+
+The final storage model uses the **existing shared-capacity release ledger**
+for both proof variants. An unused birth has `terminal_operation_id = NULL` and
+an explicitly tagged `basis.kind = UNUSED_BIRTH`, linked by foreign keys to the
+new immutable unused-birth metadata. A CHECK constraint and native proof reject
+an untagged NULL terminal, a fabricated terminal reference or missing metadata.
+Normal terminal releases keep their original proof. Active-at, carry readiness,
+control/mode qualification and the snapshot body retain their original code and
+common ledger; ordinary accounts do not traverse a second release ledger.
+
+1. `retire_unprepared_birth(retirement_id, ticket_id)` stops local risk and
+   permanently prohibits preparation of that original business intent. This
+   remains the separate metadata command from migration 106.
+2. `release_unused_claim(operation_id, ticket_id)` remains stopped, looks up
+   the original retired birth through a scoped read API, and obtains a **new full
+   signed** account/order/trade/bill/funding/collateral/runner collection. A decoded
+   historical report or receipt grants no source authority.
+3. Migration 108's distinct `SHARED_UNUSED_RELEASE` command serializes on the
+   primary account row. The original SPOT claim, birth, retirement and observation
+   owner must agree; any preparation, consumption, action or reservation makes
+   this path unavailable. Native quiescence, exact historical cash, liabilities and complete economic
+   identities must agree with the original source; the complete collection also
+   compares provider positions/collateral with native accounting. Source/ingress identity is consumed by the original task, and freshness
+   is checked again in physical COMMIT with the existing imported limit.
+4. The original claim and retired IDs remain immutable history. Only capacity
+   becomes inactive at the new account version. No terminal, wallet refund,
+   position mutation, spending reversal, budget reset or activation is created.
+   Both release kinds share existing imported release-count and byte limits.
+5. Cold observation recovery can perform the same explicit operation. It does
+   not change native ownership mode: a DRAINING owner stays DRAINING. Successor
+   activation still requires a **separate fresh signed** command after complete
+   reconciliation. Historical readback never resumes this service or recreates
+   its sender, and the old intent remains permanently unusable.
+
+Prepared/sent/pending attempts retain their existing accounting/terminal recovery
+paths. Missing or foreign evidence, changed ownership, expired sources, exhausted
+bounds, unknown COMMIT or corrupted history cannot silently free capacity.
+Retained audits use the original operation's version and recorded time; a later
+cashflow, session or clock does not re-date its evidence. The complete
+unused-release proof runs once per original normal-release verifier invocation
+when that invocation encounters the new proof variant. Accounts without this
+variant retain the original normal-release path and snapshot builder.
+No process-wide financial-verdict cache is introduced.
+
+### Upgrade and TDD findings
+
+- The first end-to-end test reproduced the missing financial-recovery API after
+  metadata retirement. Basic capacity release then passed with unchanged money,
+  budgets and original history.
+- Review found that direct retirement-table reads would break an existing
+  principal upgraded without fresh table provisioning. The dedicated upgrade
+  test reproduced that refusal. The service now uses a fixed scoped native read
+  API, with explicit inherited API grants and no new table access requirement.
+- A same-version, rehashed-history test reproduced an additional causal gap:
+  a metadata retirement moved one millisecond after its financial release was
+  accepted. The retained financial audit now requires retirement to precede or
+  equal the original release timestamp, independently of the metadata self-hash.
+- Upgrade scripts audit exact predecessor definitions/attributes before replacing
+  entrypoints, strip hostile default grants, keep helpers private, and use the
+  existing idempotent migration runner. No new configuration switch, implicit
+  policy, evidence file or manual migration step is introduced.
+- An intermediate recovery gate was **19 pass / 3 fail** in **295.42 s**. One
+  refused source during setup before reaching the intended birth-COMMIT fault;
+  it does not qualify that injection or diagnose which source predicate failed.
+  The other two were fixture defects: an unversioned liability edit hit the real
+  row-version guard, and a late valid recorder write caused a version conflict
+  before the prepared-origin check. Those fixtures now explicitly inject retained
+  corruption and join original callbacks before testing the intended gate.
+  Earlier attempts with incorrect recorder-source fixture access and changing
+  migration source during development are not frozen acceptance results.
+
+### Common-path qualification and performance findings
+
+- The first frozen affected gate was **125 pass / 1 fail**, zero errors/skips,
+  **876.55 s**, on **2519 unchanged selected code/SQL files**. All **25** new
+  recovery cases passed, including physical process death, both sides of unknown
+  release COMMIT, native COMMIT expiry, separate signed activation, prepared/
+  foreign-owner refusals, byte bounds and rehashed retained-history corruption.
+- The failing original retained-fill/competing-SDK maker workload completed one
+  generation and reported `PG_SPOT_SUBMISSION_UNKNOWN` with normalized
+  `PG_QUOTE_CAPTURE_MISMATCH`; quote age **at error unwind** was **1036.666 ms**.
+  This combined denial code and unwind measurement do not independently prove
+  which capture predicate failed or the exact time at the final rejection.
+- A real-data `EXPLAIN (ANALYZE, BUFFERS)` regression reproduced an account
+  Bitmap Heap Scan/filter for the new empty-history operation predicate.
+  Migration 108 adds a partial covering operation-history index. The plan test
+  then passed with an index scan, no returned rows and no unrelated filtered rows.
+  No financial-verdict cache is used.
+- That index alone was insufficient: the next scoped gate was **8 pass / 1 fail**,
+  **246.01 s**, with the same maker workflow failing after one generation and
+  reporting **1088.376 ms at unwind**. This is not a measured speedup or closure
+  of the original failed workload.
+- A subsequently tested, superseded merged-body candidate retained the complete
+  original normal-release verifier in its public invocation and incorporates the original birth body directly into the
+  public snapshot builder. Accounts without unused-release history avoid the
+  added verifier-call and large-JSON return/copy layers. Both new-history and
+  orphan-operation checks remain current native indexed reads. The original
+  audited bodies remain private comparison references.
+- Two focused merged-body cases passed (**29.80 s**): byte-for-byte JSON body and
+  verifier equality before unused history, the real empty-history query plan,
+  exact money/budget retirement, and an orphaned release operation after its
+  immutable fact is deliberately removed. The orphan still forces recovery;
+  absence of a fact cannot qualify the fast path.
+
+- The full merged-body gate was still **126 pass / 1 fail**, **846.37 s**;
+  the retained-fill maker workload remained the failure. Preserving proofs while
+  rearranging the parallel-ledger wrappers was insufficient.
+- The final model therefore integrates the explicit unused-birth proof into the
+  common release ledger and keeps separate immutable provenance metadata. It
+  removes the added per-claim second-ledger join and restores the original
+  active-at, carry, activation/mode and snapshot functions. No guard, source age,
+  canonical quote lifetime or financial assertion is weakened. The four focused
+  common-ledger cases pass (**56.09 s**), including independent financial-validity
+  checks, cold signed activation, causal corruption and missing provenance.
+  Capital/carry readiness can correctly require a new observation after release;
+  that is distinct from financial corruption or an activation grant.
+
+### Qualification and remaining scope
+
+The common-ledger frozen affected gate is **125 pass / 2 fail**, zero errors or
+skips, **896.12 s**, with six existing warnings. All **2519** pinned code/SQL
+files remain unchanged. All **26** unused-release cases pass within that run;
+their summed JUnit case time is **337.976 s**, not a separate gate duration.
+The existing birth-retirement race, normal release, control/mode and complete
+provisional SPOT-to-SWAP cases are retained in that affected selection.
+
+The two failures are existing workflows: the retained-fill/competing-SDK maker
+case stops after one generation with normalized `PG_QUOTE_CAPTURE_MISMATCH`
+and **1026.055 ms quote age at unwind**; the original session-successor workflow
+refuses `PG_SUCCESSOR_SOURCE_UNQUALIFIED_AT_COMMIT`. These failures do not prove
+the exact capture predicate or a common root cause. They remain failures of
+current-source qualification, including after the storage-layout simplification.
+The complete unused-release recovery cases and the existing session-successor
+case are distinct workflows; the former passing does not discharge the latter.
+
+The eight migration-108 upgrade cases pass in **15.01 s**, including hostile
+default grants, predecessor drift rollback and repeat-run idempotency. All
+applicable pre-commit hooks pass. The original quote/source/fee ages, phase and
+SQL deadlines, economic assertions and resource profile remain fixed. A bounded
+whole-flow diagnostic run is separate from acceptance. Configured R2.3/R4 and
+complete whole-product R5 gates remain open; this completed recovery increment
+does not close PG3.

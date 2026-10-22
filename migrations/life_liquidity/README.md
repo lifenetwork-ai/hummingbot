@@ -1625,3 +1625,17 @@ No financial verdict is stored or reused. Original history verification,
 signed repair, money, budgets, cuts, source ages and deferred COMMIT checks stay
 independent. Upgrade pins the predecessor body/security metadata; the migration
 ledger makes repeated startup a no-op. Applied migrations 1–106 are unchanged.
+
+- `000108_unused_claim_release.sql`: an explicit `UNUSED_BIRTH` proof variant
+  in the common shared-capacity release ledger, with immutable linked provenance
+  for an original SPOT birth retired before preparation. It has no terminal ID;
+  a CHECK constraint and native proofs reject fabricated terminals, untagged
+  NULLs and missing metadata. Original owner/claim/ticket identity, complete fresh
+  source, exact money and retained history are checked at entry and physical
+  COMMIT. Both variants share the existing imported row/byte limits. Active-at,
+  carry readiness, activation/mode qualification and snapshot construction use
+  their original common ledger. A partial operation index bounds unused-history
+  audit lookups. Original claims/IDs, wallet balances and gross spending remain;
+  release neither refunds budgets nor activates a successor. Audited ancestors,
+  hostile-default privilege stripping and the existing idempotent migration
+  runner protect upgrades. No new `.env` switch, policy or seed is introduced.

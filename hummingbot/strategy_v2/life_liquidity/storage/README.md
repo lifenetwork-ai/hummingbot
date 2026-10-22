@@ -1,5 +1,29 @@
 # LIFE storage contracts
 
+**Unused preallocation recovery (2026-10-22):** migration 108 adds a separate
+capacity release for an original SPOT birth that was permanently retired before
+any preparation. The existing capacity-release ledger stores the tagged
+`UNUSED_BIRTH` proof with no terminal ID; immutable linked metadata retains its
+origin. Constraints reject a fabricated terminal or an untagged NULL variant. The explicit stopped-service sequence is:
+
+```python
+await service.retire_unprepared_birth(retirement_id, ticket_id)
+await service.release_unused_claim(release_operation_id, ticket_id)
+```
+
+The second call collects a new complete signed account/order/trade/bill/runner
+report and checks original claim/birth/retirement identity at the primary and
+physical COMMIT. It retains the original claim and tombstone, changes no wallet,
+position or loss/subsidy/stress budget, and cannot revive the old intent.
+New risk still requires fresh capital/carry readiness after release. A cold
+observation service can recover; a recovered receipt cannot send or activate.
+Release does not change native owner mode; a DRAINING owner stays DRAINING.
+Activation remains a separate signed successor command after reconciliation.
+Prepared/sent/pending cases require their existing accounting/terminal recovery
+paths. Imported shared-release limits remain mandatory; no policy or threshold
+is created by service startup. Qualification is tracked in the
+[current plan](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#unused-preallocation-financial-recovery-2026-10-22).
+
 **Configured provisional service (2026-10-22):** headless YAML accepts explicit
 `native_trading: true` plus `provisional_quotes: true`, with a pre-imported
 matching birth policy and the existing offline-only service guards. The native
