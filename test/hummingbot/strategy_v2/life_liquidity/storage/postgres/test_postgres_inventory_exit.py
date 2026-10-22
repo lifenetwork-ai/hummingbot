@@ -610,6 +610,7 @@ async def test_native_degraded_permission_allows_only_target_bounded_exit(databa
 @pytest.mark.asyncio
 async def test_native_inventory_deadline_expiring_at_actual_commit_refunds_nothing(database, monkeypatch):
     import asyncio
+    import json
     from datetime import datetime
     repo, cfg, owner, risk, ready, keys, body = await mode_store(database, deadline_seconds=3)
     try:
@@ -620,18 +621,29 @@ async def test_native_inventory_deadline_expiring_at_actual_commit_refunds_nothi
         await refresh(database, repo, cfg, owner, risk, 'deadline-fresh-nav')
         ready = await observe(database, repo, cfg, owner, risk, 'deadline-normal')
         assert ready.state == 'NORMAL'
-        await market(database, repo, cfg, owner)
+        _, source, _, _ = await market(database, repo, cfg, owner)
         original = repo._runtime._commit
+        entered_commit = False
 
         async def late(tx):
+            nonlocal entered_commit
+            entered_commit = True
             # Each statement stays within the unchanged 1s SQL timeout.
             while await tx._connection.fetchval('SELECT clock_timestamp()<$1', deadline):
                 await tx._connection.execute('SELECT pg_sleep(.1)')
+            # Prove the independent deadline decision on the exact original
+            # market at physical COMMIT. The combined transaction may reject
+            # first through the separate, unchanged 1s NAV-age guard.
+            assert await database[0].fetchval('''SELECT life_financial.execution_decision(
+                $1,$2::jsonb,'INVENTORY','intent1')->>'reason_code' ''',
+                                              cfg.account_id, json.dumps(source.json())) == 'INVENTORY_DEADLINE_EXPIRED'
             await original(tx)
         monkeypatch.setattr(repo._runtime, '_commit', late)
         before = await repo.snapshot(cfg.binding)
-        with pytest.raises(StorageError, match='PG_INVENTORY_DEADLINE_EXPIRED'):
+        with pytest.raises(StorageError) as refused:
             await repo.prepare(order(owner, quantity_base=D('.2'), risk_epoch=ready.risk_epoch), cut=before.cut, owner=owner)
+        assert entered_commit
+        assert str(refused.value) in {'PG_INVENTORY_DEADLINE_EXPIRED', 'PG_RISK_VALUE_CHANGED_OR_STALE'}
         assert (await repo.snapshot(cfg.binding)).cut == before.cut
         assert await database[0].fetchval('SELECT count(*) FROM life_financial.execution_children') == 0
     finally:

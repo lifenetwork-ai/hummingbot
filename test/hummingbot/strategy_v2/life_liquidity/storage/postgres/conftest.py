@@ -10,6 +10,24 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.migrations import DE
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.runtime import PgRuntime
 
 
+class _ImmediateNativeFailures:
+    def __init__(self, config):
+        self.config = config
+
+    def pytest_runtest_logreport(self, report):
+        # Preserve the ordinary final summary/XML, but make the original
+        # failure visible while the remaining long aggregate gate continues.
+        if report.failed:
+            terminal = self.config.pluginmanager.get_plugin('terminalreporter')
+            if terminal is not None:
+                terminal.write_sep('!', 'PostgreSQL failure: ' + report.nodeid)
+                terminal.write_line(str(report.longrepr))
+
+
+def pytest_configure(config):
+    config.pluginmanager.register(_ImmediateNativeFailures(config), 'life-native-failure-report')
+
+
 @pytest.fixture
 def reference_migrations_100(tmp_path):
     """Exact target of retained pre-101 differential proofs, not latest schema."""

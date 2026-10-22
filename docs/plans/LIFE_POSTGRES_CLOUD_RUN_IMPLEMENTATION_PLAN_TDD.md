@@ -59,6 +59,20 @@ foreign-SDK cases pass in **12.45 s** with this setup. This reduces repeated DDL
 in the test harness, not financial verification or the selected PG3 gate. The
 interrupted non-template aggregate is not counted as completed acceptance.
 
+The template aggregate reaches **803 pass / 1 fail**, **1101.38 s**, before
+being interrupted to diagnose the inventory-deadline COMMIT case. The original
+transaction correctly refuses through `PG_RISK_VALUE_CHANGED_OR_STALE` at
+physical COMMIT, rather than the test's exclusively expected inventory code;
+no monetary publication occurs. Its two risk observations are necessary after
+the waiting interval and are retained. The corrected composition test proves
+`INVENTORY_DEADLINE_EXPIRED` independently on the exact original market at the
+COMMIT boundary, requires entry to that boundary, and accepts only the deadline
+or overlapping NAV-age refusal from the transaction, with unchanged cut and no
+child publication (**1 pass, 6.33 s**). Every original expiry stays enforced.
+Native failures now print their original traceback immediately while the gate
+continues, preserving ordinary final XML/summary. This run remains incomplete;
+the full aggregate must qualify the corrected tests on frozen source.
+
 **Common release-history access (2026-10-22):** migration 109 adds a partial
 covering index for the combined terminal/unused release orphan audit. A real
 query-plan regression first reproduces the unrelated-history bitmap heap scan;
