@@ -18,11 +18,13 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.runtime import PgRun
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot import PgSpotRepository
 
 
-async def managed_service(database, *, lease_ms=4000, heartbeat_ms=250, register_change=None, managed=True, makers=False, hedge=False):
+async def managed_service(database, *, lease_ms=4000, heartbeat_ms=250, register_change=None, managed=True, makers=False, hedge=False,
+                          configuration_extra=None, handoff_role=False):
     from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_service_hedge import (
         policy as hedge_policy,
     )
-    keys = OperatorKeys({'operator': b'x' * 32}, {'operator': frozenset(('ACTIVATE', 'DRAIN', 'RECOVER', 'REVOKE'))})
+    roles = ('ACTIVATE', 'DRAIN', 'RECOVER', 'REVOKE') + (('HANDOFF',) if handoff_role else ())
+    keys = OperatorKeys({'operator': b'x' * 32}, {'operator': frozenset(roles)})
     state = SimpleNamespace(keys=keys)
 
     async def prepare(t, config):
@@ -65,7 +67,7 @@ async def managed_service(database, *, lease_ms=4000, heartbeat_ms=250, register
             database, before_service_open=prepare, maker_cycle=makers, model_change=model,
             hedge_policy=hedge_policy() if hedge else None,
             configuration_extra={'operator_verifier': keys.verifier().policy(),
-                                 'process_lease': dict(lease_duration_ms=lease_ms, max_registrations=8)},
+                                 'process_lease': dict(lease_duration_ms=lease_ms, max_registrations=8), **(configuration_extra or {})},
             managed_process=PgManagedProcessConfig(claim_operation_id='managed-claim', heartbeat_interval_ms=heartbeat_ms) if managed else None,
             register_process=register if managed else None)
     except BaseException:

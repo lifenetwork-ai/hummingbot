@@ -1,5 +1,42 @@
 # LIFE storage contracts
 
+**PG4 clean successor handoff (2026-10-23, selected offline slice qualified):**
+Migration 115 adds immutable `process_handoffs`; it bootstraps no account, owner,
+key, policy or grant. The owner-side `PgProcessHandoffIssuer` requires an original
+signed native ACTIVATE plus separate HANDOFF operator authorization and a pinned
+`CredentialExclusionVerifier`. Import its public `credential_authority` policy
+into the immutable configuration first. The authority signs exact source/target
+owner, service identity, credential resource, image digest, target capability
+hash, account/database lineage, predecessor grant/epoch, revocation observation
+and expiry. All REST/WS/CAA exclusion and in-flight reconciliation assertions
+must be true. Assertions and verifier are explicitly OFFLINE_FAKE_V1; they cannot
+be relabelled DEMO/PRODUCTION or prove that external revocation actually occurred.
+
+For an explicitly stopped, quiescent account, sign a native DRAIN/ACTIVATE through
+the existing control host. Supply the successor service with an async
+`register_process(public_registration)` callback that captures fresh post-exclusion
+facts/cut, verifies the authority assertion and exact HANDOFF approval, and calls
+`issuer.register_successor(operation_id, grant_id, public_registration,
+certificate=..., approval=..., facts=..., cut=...)`. The callback is owner-side;
+runtime receives no signing/owner credentials. The service creates the raw
+capability itself, claims once, starts UNARMED and awaits explicit arm. Epochs
+advance 1→2→3 without resetting balances/budgets or restoring old process rights.
+A third generation must match the prior recorded target identity/key resource.
+Replay/lookup/lost-COMMIT outcomes do not restore readiness.
+
+Qualification: **207 affected PostgreSQL/service cases**, **40** verifier/
+diagnostics unit cases and **12** migration/ACL/idempotency cases pass. All **399**
+frozen source/test inputs remain unchanged during the final gates. Failure reports
+now retain bounded error type/phase/SQLSTATE in terminal and JUnit without raw
+exception messages; the historical generic hedge failure remains unroot-caused.
+See the PG4 section of the PostgreSQL plan for exact selectors and `/tmp` logs.
+
+This path denies unresolved old attempts, reservations/claims and incomplete
+native facts. Replacement recovery, broker/key-delivery isolation, paused old
+sender fencing and emergency cancellation remain open PG4 work. No normal write
+route gains an outage exception. The entries below retain earlier qualified
+checkpoints; their first-generation-only restriction describes migration 114.
+
 **PG4 configured first-generation service (2026-10-22, selected offline slice qualified):**
 `postgres/managed_process.py` installs the original signed lease into
 `PgLiquidityService` and the PostgreSQL headless launcher. Import a matching

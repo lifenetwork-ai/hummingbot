@@ -1,8 +1,9 @@
-"""Opt-in first managed process lease, not external sender fencing.
+"""Opt-in managed process leases, not external sender fencing.
 
 Only a privileged issuer can bind a private capability hash to an already
 verified, signed native ACTIVATE grant. The raw capability is nondurable: process memory and a transient DB
-session setting cleared on pool release. No successor or live/deployed profile can be activated by this slice.
+session setting cleared on pool release. Successors require the separate signed
+offline clean-handoff importer; no live/deployed profile is activated here.
 """
 import asyncio
 import hashlib
@@ -112,7 +113,7 @@ class PgLeaseGrantIssuer:
         async with control._mutex, asyncio.timeout(control.runtime.config.transaction_timeout_ms / 1000):
             return await self._register(grant_id, registration)
 
-    async def _register(self, grant_id, registration):
+    async def _register(self, grant_id, registration, *, handoff=None):
         control = self.control
         control._original()
         if (not isinstance(grant_id, UUID) or type(registration) is not ProcessRegistration
@@ -126,7 +127,8 @@ class PgLeaseGrantIssuer:
             await c.execute("SELECT set_config('statement_timeout',$1,true),set_config('lock_timeout',$2,true),set_config('idle_in_transaction_session_timeout',$3,true)",
                             str(cfg.statement_timeout_ms), str(cfg.acquire_timeout_ms), str(cfg.idle_transaction_timeout_ms))
             a = await c.fetchrow('SELECT * FROM life_financial.accounts WHERE account_id=$1 FOR UPDATE', cfg.account_id)
-            if a['environment'] != 'OFFLINE_SIMULATION' or await c.fetchval('SELECT EXISTS(SELECT 1 FROM life_financial.process_leases WHERE account_id=$1)', cfg.account_id):
+            has_head = await c.fetchval('SELECT EXISTS(SELECT 1 FROM life_financial.process_leases WHERE account_id=$1)', cfg.account_id)
+            if a['environment'] != 'OFFLINE_SIMULATION' or has_head != (handoff is not None):
                 raise StorageError('PG_PROCESS_LEASE_HANDOFF_REQUIRED')
             policy = await c.fetchrow('SELECT * FROM life_financial.process_lease_policies WHERE account_id=$1', cfg.account_id)
             configuration = await c.fetchval('SELECT body FROM life_financial.configurations WHERE account_id=$1 AND config_hash=$2', cfg.account_id, cfg.binding.config_hash)
@@ -151,6 +153,8 @@ class PgLeaseGrantIssuer:
                     or a['owner_epoch'] != registration.owner.epoch or a['current_session'] != registration.owner.session_id
                     or a['owner_since'] != registration.owner.valid_from or a['owner_until'] != registration.owner.expires_at):
                 raise StorageError('PG_PROCESS_LEASE_SIGNED_GRANT_REQUIRED')
+            if handoff is not None:
+                await handoff(c, a)
             existing = await c.fetchrow('SELECT * FROM life_financial.process_lease_registrations WHERE account_id=$1 AND grant_id=$2', cfg.account_id, grant_id)
             if existing is not None:
                 if json.loads(existing['owner']) != registration.owner.json() or existing['capability_hash'] != registration.capability_hash:

@@ -1,4 +1,5 @@
 """Opt-in disposable PostgreSQL only; never consume the repository .env."""
+import json
 import os
 from collections import deque
 from uuid import uuid4
@@ -22,6 +23,10 @@ class _ImmediateNativeFailures:
             if terminal is not None:
                 terminal.write_sep('!', 'PostgreSQL failure: ' + report.nodeid)
                 terminal.write_line(str(report.longrepr))
+                for name, body in report.sections:
+                    if name in ('PostgreSQL bounded physical diagnostics', 'PostgreSQL normalized reason codes'):
+                        terminal.write_sep('-', name)
+                        terminal.write_line(body)
 
 
 def pytest_configure(config):
@@ -79,9 +84,15 @@ async def migration_template():
 def pytest_runtest_makereport(item, call):
     report = (yield).get_result()
     if report.failed:
-        samples = [repr(sample) for store in getattr(item, '_pg_diagnostic_runtimes', ()) for sample in store.diagnostics]
+        samples = [repr(sample) for store in getattr(item, '_pg_diagnostic_runtimes', ()) for sample in store.diagnostics
+                   if sample.error_kind is not None or sample.outcome not in ('success',)]
+        samples = samples[-12:]
         if samples:
             report.sections.append(('PostgreSQL bounded physical diagnostics', '\n'.join(samples)))
+            # report.sections alone is not reliably retained by JUnit's
+            # default logging mode. Properties survive without raw exceptions.
+            item.user_properties.append(('life_pg_diagnostics', json.dumps(samples)))
+            report.user_properties = list(item.user_properties)
         codes = getattr(item, '_pg_reason_codes', ())
         if codes:
             report.sections.append(('PostgreSQL normalized reason codes', '\n'.join(codes)))

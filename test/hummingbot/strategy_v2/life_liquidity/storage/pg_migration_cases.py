@@ -4091,3 +4091,52 @@ async def test_process_lease_upgrade_preserves_guards_and_denies_hostile_default
                 assert not await c.fetchval("SELECT has_table_privilege($1,$2,'INSERT,UPDATE,DELETE,TRUNCATE')", role, 'life_financial.' + table)
         for table in ('process_lease_policies', 'process_lease_registrations', 'process_lease_commands', 'process_leases'):
             assert await c.fetchval('SELECT count(*) FROM life_financial.' + table) == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('drift', ['none', 'command_body', 'guard_body', 'commit_body', 'search_path', 'owner'])
+async def test_clean_process_handoff_upgrade_preserves_entrypoints_and_refuses_lease_drift(db, drift):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 115:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    signatures = ['life_financial.process_lease_command(uuid,text,text,uuid)',
+                  'life_financial.process_lease_guard(uuid,boolean)', 'life_financial.process_lease_commit()']
+    await c.execute('GRANT USAGE ON SCHEMA life_financial TO life_runtime_test,life_reporter_test')
+    await c.execute('GRANT EXECUTE ON FUNCTION ' + signatures[0] + ' TO life_runtime_test')
+    await c.execute('GRANT SELECT ON life_financial.accounts TO life_runtime_test,life_reporter_test')
+    before = await c.fetch('SELECT oid,proacl,proowner,provolatile,prosecdef,proconfig FROM pg_proc WHERE oid=ANY($1::oid[]) ORDER BY oid',
+                           [await c.fetchval('SELECT $1::regprocedure::oid', name) for name in signatures])
+    if drift.endswith('_body'):
+        target = signatures[{'command_body': 0, 'guard_body': 1, 'commit_body': 2}[drift]]
+        definition = await c.fetchval('SELECT pg_get_functiondef($1::regprocedure)', target)
+        await c.execute(definition.replace('BEGIN', 'BEGIN\n-- altered handoff predecessor\n', 1))
+    elif drift == 'search_path':
+        await c.execute('ALTER FUNCTION ' + signatures[0] + ' SET search_path=pg_catalog,public')
+    elif drift == 'owner':
+        admin = await asyncpg.connect(db[1].replace('life_migrator_test@', 'postgres@'))
+        try:
+            await admin.execute('ALTER FUNCTION ' + signatures[0] + ' OWNER TO life_runtime_test')
+        finally:
+            await admin.close()
+    await c.execute('ALTER DEFAULT PRIVILEGES IN SCHEMA life_financial GRANT EXECUTE ON FUNCTIONS TO PUBLIC,life_runtime_test,life_reporter_test')
+    await c.execute('ALTER DEFAULT PRIVILEGES IN SCHEMA life_financial GRANT ALL ON TABLES TO PUBLIC,life_runtime_test,life_reporter_test')
+    path = DEFAULT_DIRECTORY / '000115_clean_process_handoff.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    if drift != 'none':
+        with pytest.raises(asyncpg.RaiseError, match='LIFE_PROCESS_HANDOFF_MIGRATION_MISMATCH'):
+            await migrate(c, directory, action='up')
+        assert (await versions(c))[-1]['version'] == 114
+        assert not await c.fetchval("SELECT to_regclass('life_financial.process_handoffs') IS NOT NULL")
+    else:
+        assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+        assert (await migrate(c, directory, action='up'))['applied'] == []
+        after = await c.fetch('SELECT oid,proacl,proowner,provolatile,prosecdef,proconfig FROM pg_proc WHERE oid=ANY($1::oid[]) ORDER BY oid',
+                              [await c.fetchval('SELECT $1::regprocedure::oid', name) for name in signatures])
+        assert after == before
+        for role in ('public', 'life_runtime_test', 'life_reporter_test'):
+            assert not await c.fetchval("SELECT has_function_privilege($1,'life_financial.process_handoff_guard(uuid,uuid,uuid,bigint,boolean)','EXECUTE')", role)
+            assert await c.fetchval("SELECT has_table_privilege($1,'life_financial.process_handoffs','SELECT')", role) is (role != 'public')
+            assert not await c.fetchval("SELECT has_table_privilege($1,'life_financial.process_handoffs','INSERT,UPDATE,DELETE,TRUNCATE')", role)
+        assert await c.fetchval('SELECT count(*) FROM life_financial.process_handoffs') == 0

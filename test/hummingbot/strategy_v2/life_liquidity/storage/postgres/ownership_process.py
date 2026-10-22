@@ -8,7 +8,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot import PgSpotRe
 from hummingbot.strategy_v2.life_liquidity.storage.session import SessionTick
 
 
-def run(config, owner, pipe):
+def run(config, owner, pipe, accepted_label='unsafe-write'):
     async def exercise():
         cap = ProcessCapability.create(config, owner)
         pipe.send(('registration', cap.registration))
@@ -30,7 +30,7 @@ def run(config, owner, pipe):
             except StorageError as error:
                 pipe.send(('write-denied', str(error)))
             else:
-                pipe.send(('unsafe-write', None))
+                pipe.send((accepted_label, None))
         finally:
             await financial.close()
     try:

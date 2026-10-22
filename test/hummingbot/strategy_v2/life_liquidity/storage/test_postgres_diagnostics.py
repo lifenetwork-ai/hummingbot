@@ -247,3 +247,47 @@ async def test_deadline_during_retry_wait_is_not_reported_as_prior_serialization
     sample = store.diagnostics[-1]
     assert sample.error_phase == 'retry_wait' and sample.error_kind == 'timeout' and sample.sqlstate is None
     assert not sample.commit_attempted and store._counts == {False: 0, True: 0}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('error,kind', [(TypeError, 'TypeError'), (KeyError, 'KeyError'),
+                                        (ConnectionError, 'ConnectionError'), (TimeoutError, 'TimeoutError')])
+async def test_generic_unavailable_keeps_bounded_root_error_type(error, kind):
+    store, c = runtime()
+    c.fault = error('private-test-password')
+    with pytest.raises(StorageError, match='PG_DATABASE_UNAVAILABLE'):
+        await transaction(store)
+    assert store.diagnostics[-1].error_type == kind
+    assert 'private-test-password' not in repr(store.diagnostics[-1])
+
+
+def test_failure_report_persists_redacted_diagnostics_in_terminal_and_junit(tmp_path):
+    import json
+    import os
+    import subprocess
+    import sys
+    import xml.etree.ElementTree as ET
+
+    probe = tmp_path / 'test_failure_probe.py'
+    probe.write_text('''import os
+import pytest
+from test.hummingbot.strategy_v2.life_liquidity.storage.test_postgres_diagnostics import runtime,transaction
+@pytest.mark.asyncio
+async def test_probe(request):
+    store,c=runtime()
+    request.node._pg_diagnostic_runtimes=[store]
+    c.fault=ConnectionError(os.environ['LIFE_SYNTHETIC_PROBE_SECRET'])
+    await transaction(store)
+''')
+    secret = 'synthetic-diagnostic-probe-never-print'
+    xml = tmp_path / 'probe.xml'
+    result = subprocess.run([sys.executable, '-m', 'pytest', '-q', '-p',
+                             'test.hummingbot.strategy_v2.life_liquidity.storage.postgres.conftest',
+                             str(probe), '--junitxml=' + str(xml)], text=True, capture_output=True,
+                            env={**os.environ, 'LIFE_SYNTHETIC_PROBE_SECRET': secret}, timeout=30)
+    assert result.returncode == 1
+    assert "error_type='ConnectionError'" in result.stdout and secret not in result.stdout + result.stderr
+    properties = list(ET.parse(xml).iter('property'))
+    values = [json.loads(p.attrib['value']) for p in properties if p.attrib['name'] == 'life_pg_diagnostics']
+    assert values and "error_type='ConnectionError'" in values[0][0]
+    assert secret not in xml.read_text()

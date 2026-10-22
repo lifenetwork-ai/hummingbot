@@ -1723,3 +1723,27 @@ inherit SELECT on the four empty lease tables under the same account RLS. PUBLIC
 is never an inheritance source. This preserves automatic migration/startup for
 existing profiles without granting table DML or reporter mutation. Six upgrade
 cases qualify this under hostile default ACLs and repeat execution.
+
+
+## 000115 — Explicit offline clean process handoff
+
+Creates only the empty immutable, account-RLS `process_handoffs` table and a
+private `process_handoff_guard`. Keeps the original lease command/guard/COMMIT
+OIDs, security attributes and ACLs after auditing their exact migration-114
+bodies. Unknown ancestor body/owner/search path refuses the whole transaction.
+Hostile default privileges cannot grant runtime/reporter DML or private-helper
+execution; existing explicit account readers inherit SELECT only. The versioned
+checksum ledger applies this file once and skips it on repeated startup.
+
+Only the separately pinned owner-side Ed25519 verifier imports a clean handoff
+record. Native ACTIVATE, operator HANDOFF approval, exact post-exclusion financial
+cut/facts and the OFFLINE_FAKE_V1 credential authority assertion are all required.
+The existing fixed CLAIM command advances the epoch under the account lock;
+physical COMMIT independently rechecks freshness/expiry and quiescence. Ongoing
+lease guards verify the accepted immutable origin at fixed record cost; they do
+not authorize a new claim from expired approval or scan all handoff records.
+Runtime gets no new public mutating function or issuer privilege. No migration
+creates a policy, owner, key, capability or activation grant. This is a clean
+stopped-account handoff, not unresolved recovery, real credential exclusion or
+automatic live takeover. Replacement identity/key delivery and emergency cancel
+remain later PG4 gates, actual exchange exclusion a PG9 gate.

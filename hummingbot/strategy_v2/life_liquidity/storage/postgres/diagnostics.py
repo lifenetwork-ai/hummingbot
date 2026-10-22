@@ -24,6 +24,7 @@ class PgDiagnostic:
     commit_attempted: bool
     commit_confirmed: bool
     caller_cancelled: bool
+    error_type: str | None = None
 
 
 class _Trace:
@@ -35,6 +36,7 @@ class _Trace:
         self.phase = 'admit'
         self.durations = {}
         self.error_phase = self.error_kind = self.sqlstate = None
+        self.error_type = None
         self.pending_failure = False
         self.commit_attempted = self.commit_confirmed = self.caller_cancelled = False
 
@@ -55,13 +57,23 @@ class _Trace:
         self.pending_failure = True
         self.error_kind = ('postgres' if self.sqlstate else 'timeout' if isinstance(error, TimeoutError)
                            else 'cancelled' if isinstance(error, asyncio.CancelledError) else 'error')
+        # A closed vocabulary distinguishes a Python/driver fault from a
+        # timeout without serializing arbitrary exception names or messages.
+        known = (TimeoutError, ConnectionError, TypeError, ValueError, KeyError, AssertionError, RuntimeError,
+                 asyncio.CancelledError)
+        self.error_type = next((kind.__name__ for kind in known if isinstance(error, kind)), 'OtherError')
+        kind = type(error)
+        if (kind.__module__ in ('asyncpg.exceptions', 'asyncpg.exceptions._base') and kind.__name__ in (
+                'InterfaceError', 'ConnectionDoesNotExistError', 'ConnectionFailureError', 'QueryCanceledError',
+                'SerializationError', 'DeadlockDetectedError', 'PostgresError')):
+            self.error_type = kind.__name__
 
     def finish(self, outcome):
         now = perf_counter()
         self.durations[self.phase] = self.durations.get(self.phase, 0.0) + (now - self.changed) * 1000
         return PgDiagnostic(self.operation, self.safety, self.backend_pid, (now - self.started) * 1000,
                             tuple(self.durations.items()), outcome, self.error_phase, self.error_kind, self.sqlstate,
-                            self.commit_attempted, self.commit_confirmed, self.caller_cancelled)
+                            self.commit_attempted, self.commit_confirmed, self.caller_cancelled, self.error_type)
 
 
 _current_trace = ContextVar('life_pg_physical_trace', default=None)

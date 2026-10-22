@@ -1,8 +1,9 @@
-"""Original offline service lease lifecycle; no successor or key takeover.
+"""Original offline service lease lifecycle; no automatic or key takeover.
 
 Registration is an explicit owner-side callback receiving only public fields.
 The service owns the nondurable capability, heartbeat and a one-way local arm
-latch. Neither lookup nor a restarted heartbeat can restore that latch.
+latch. A successor uses its own public registration callback with the explicit
+clean-handoff issuer. Neither lookup nor a restarted heartbeat restores a latch.
 """
 import asyncio
 import inspect

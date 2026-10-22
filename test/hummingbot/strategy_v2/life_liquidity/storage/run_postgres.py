@@ -221,10 +221,10 @@ def main():
         if args.suite in PG3_SUITES:
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in PG3_SUITES[args.suite]]
         if args.suite == 'ownership':
-            selectors = [str(selector / name) for name in ('test_postgres_ownership.py', 'test_postgres_managed_service.py', 'test_sender_generation_handoff.py')]
+            selectors = [str(selector / name) for name in ('test_postgres_ownership.py', 'test_postgres_managed_service.py', 'test_sender_generation_handoff.py', 'test_postgres_process_handoff.py')]
         if args.suite == 'managed_service':
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in (
-                'ownership', 'managed_service', 'service', 'service_trading', 'service_hedge',
+                'ownership', 'managed_service', 'process_handoff', 'diagnostics', 'service', 'service_trading', 'service_hedge',
                 'service_repair', 'service_fills', 'runner_startup', 'transactions',
                 'pool_safety', 'control', 'successor_control', 'execution_modes')]
             selectors += [str(selector / 'test_sender_generation_handoff.py'),

@@ -1,5 +1,45 @@
 # LIFE: PostgreSQL and Cloud Run Implementation Plan (TDD)
 
+**PG4 clean successor handoff QUALIFIED — selected offline slice (2026-10-23).**
+Migration 115 and `PgProcessHandoffIssuer` add an explicit clean, stopped-account
+successor path. This is **OFFLINE_SIMULATION / OFFLINE_FAKE_V1 only**. It requires
+an independently signed native ACTIVATE, a HANDOFF operator approval over the
+exact current financial cut/facts, and an Ed25519 credential-exclusion assertion
+from a separately pinned authority. REST and WS exclusion, CAA exclusion and
+accepted/in-flight reconciliation are separate required assertions. The verifier
+cannot establish those external facts from DB state or a lease.
+
+The new process creates its own nondurable private capability. Only public
+registration fields cross the owner-side callback/IPC boundary. The account lock
+serializes claim; the original command advances the lease epoch exactly once.
+Fresh facts must follow exclusion observation. The physical CLAIM COMMIT rechecks
+exclusion/operator expiry, the exact cut and complete native quiescence. A lost
+reply, replay or cold readback cannot recreate local readiness. Ongoing writes
+verify the accepted immutable handoff origin without rescanning all handoffs or
+reusing an expired approval as new authority. The third generation must name the
+second generation's exact recorded identity/key resource; same-revision and
+changed-image assertions are bound into the signed record.
+
+Final affected gate: **207 pass, 771.43 s**; unit verifier/diagnostics: **40 pass**;
+upgrade/idempotency/ACL gate: **12 pass**. All **399** frozen code/SQL/test inputs
+remain unchanged across final qualification. The two clean-path subitems below
+are complete; no full PG4 parent is closed by this increment.
+
+A configured successor uses the existing `register_process` callback and starts
+UNARMED after its original claim. It still requires explicit `arm_process()`
+before the real SDK/fake-HTTP order route. This path requires a clean native
+account; it does not recover an unresolved predecessor attempt or release holds.
+**PG4 stays open** for replacement recovery actors, credential-broker access
+isolation, supported paused/in-flight external handoff, failover/clock faults and
+durable emergency cancellation across every write route. Actual authority
+exclusion remains a PG9 environment gate; no live/cloud activation is enabled.
+
+The earlier unmanaged hedge `PG_DATABASE_UNAVAILABLE` root cause remains unknown.
+A separate diagnostic fix now retains a bounded error type, phase and SQLSTATE in
+both terminal output and JUnit properties. A deliberately failing subprocess
+checks that retention and absence of synthetic secret text. This corrects lost
+diagnostic evidence, not the unobserved original failure.
+
 **PG4 in progress — first-generation service lifecycle QUALIFIED (2026-10-22).**
 The configured native service/headless host now installs the original private
 lease and heartbeat, starts locally UNARMED and requires explicit activation.
@@ -2935,12 +2975,15 @@ Dependencies: PG3; fake exchange and local processes only until the later demo g
 
 - [ ] PG4.1: Implement DB-time lease, account-row serialization, monotonic owner epoch, process/generation UUID, lineage and one-use activation grants; stale writers cannot change financial state.
   - [x] First-generation managed lease foundation (migration 114, selected offline qualification): owner-only binding to an original signed native ACTIVATE grant, nondurable process capability, DB login/account/lineage/process binding, account-row serialization, permanent one-use claim, bounded heartbeat and physical-COMMIT guards. Old public owner JSON, a capability hash, a cold/replayed receipt and an expired/stopped process cannot recreate readiness. The initial lease epoch is 1; successor epoch advancement remains part of the explicit handoff protocol below.
-  - [ ] Complete managed successor lease lifecycle and successor service installation after independently qualified external authority exclusion; no expired-lease takeover shortcut.
+  - [x] Qualify the explicit clean successor lease/service path (migration 115): exact signed native ACTIVATE, separate HANDOFF approval and pinned offline credential authority; original one-use claim advances epoch; original successor service starts UNARMED and needs explicit arm. No lease-expiry takeover shortcut.
+  - [ ] Install and qualify a replacement recovery actor for unresolved old financial attempts/cuts after independently qualified external exclusion. The clean stopped-account path cannot substitute for this.
   - [x] First-generation configured service installation qualification: `PgLiquidityService` and the PostgreSQL headless entry accept explicit `managed_process` settings and an owner-side public registration callback. The service creates its own private capability, confirms one original claim, owns a bounded heartbeat and starts locally UNARMED. Original signed/native grant and financial guards remain necessary. Successor installation remains a separate unchecked gate above.
 - [ ] PG4.2: Implement startup unarmed, `DRAINING`, `RECOVERY_ONLY` and explicit rearm states; expiry/session loss does not activate a successor.
   - [x] Standalone original-process startup is locally unarmed until an original private one-use claim confirms; grant replay, lookup, stopped/expired heartbeat, unknown COMMIT and fresh runtime construction cannot recreate risk readiness. Held money remains unchanged. This does not install the complete managed service/mode lifecycle.
   - [x] First-generation service lifecycle qualification: explicit local `arm_process()` checks the active native guard; synchronous `drain_process()` closes new risk before any awaited operator DRAIN; `enter_process_recovery_only()` additionally requires signed native RECOVERY_ONLY state. Drain/recovery/stop cannot locally rearm. The heartbeat can retain the same DB lease during an original observation without creating a financial/source cut or reopening risk. Expiry, heartbeat failure/cancellation and unknown COMMIT revoke the service; shutdown joins the owned heartbeat/physical DB work.
 - [ ] PG4.3: Implement generation-specific credential/service-identity access and manual handoff evidence; model key revocation delay and accepted in-flight requests without assuming instant exclusion.
+  - [x] Qualify the signed OFFLINE_FAKE_V1 exclusion assertion, pinned authority, exact target capability/image/grant/lineage and predecessor identity chain. Missing REST/WS/CAA/in-flight assertions, expired or forged signatures and facts predating exclusion deny clean successor admission.
+  - [ ] Implement the independently exercised credential broker/provider and identity access isolation; an assertion verifier is not itself revocation or replacement-secret delivery.
 - [ ] PG4.4: Pause sender A after its final DB check, expire/disconnect A, start B, then resume A. Demonstrate the unfenced lease-only failure as a retained Red reproduction; the supported protocol must keep B unarmed until A's external write authority is excluded.
   - [x] Retain the actual V2/SDK/fake-HTTP lease-only counterexample in `test_sender_generation_handoff.py`: A pauses after final authorization, expires and still creates an external order using its cached key. PostgreSQL retains the original SEND_UNKNOWN/holds and rejects B's attempted claim. This demonstrates the outstanding external authority requirement; it does not implement or qualify a supported successor handoff.
 - [ ] PG4.5: Test simultaneous revisions, same-revision replacement, lost heartbeat, DB failover/clock anomalies, stale activation grants and attempted replacement-secret access by the old identity.
@@ -2957,7 +3000,9 @@ All receipts are bookkeeping with `trading_permission: false`. Readiness is a
 necessary local admission latch, not a financial or exchange send grant. DB/proxy
 bind-parameter logging and host-memory isolation still require PG7 qualification.
 
-The managed service remains **OFFLINE_SIMULATION / first generation only**.
+The managed service remains **OFFLINE_SIMULATION only**. Migration 115 adds the
+explicit clean successor path above; the following lifecycle settings apply to
+each original process claim.
 `managed_process` YAML contains only `claim_operation_id` and an explicit positive
 `heartbeat_interval_ms` below half the imported DB lease duration. The trusted
 source factory supplies `PgHeadlessInputs.register_process`, an async owner-side
@@ -2975,15 +3020,76 @@ DRAIN or prove external sender exclusion. Entering local RECOVERY_ONLY requires
 the separate signed native transition. These modes currently deny **all**
 service new-order/hedge/normal-cancel routes; no emergency cancellation exception
 is installed. Late original facts still face the native actor/lease guards.
-Claiming another operation/generation after an original head exists requires
-the unimplemented handoff protocol, including after lease expiry. Replacement
+Claiming another generation after an original head exists requires the explicit
+clean handoff protocol (migration 115), including after lease expiry. Expiry
+alone cannot replace the head. Replacement
 recovery actors, credential-broker isolation, external HTTP fencing and durable
 emergency-cancel manifests remain PG4 work. A DB lease cannot exclude a cached
 REST/WS key; there is no supported lease-only live takeover.
 
-**Red tests:** `test_postgres_ownership.py`, `test_sender_generation_handoff.py`, `test_generation_secret_isolation.py`.
+**Red tests:** `test_postgres_ownership.py`, `test_postgres_process_handoff.py`,
+`test_generation_exclusion.py`, `test_sender_generation_handoff.py`. Replacement
+secret-isolation/broker and unresolved-recovery tests remain to be implemented.
 
 **Done when:** local multi-process fault tests pass and automatic live takeover remains disabled. Actual OKX credential exclusion is still a PG9 environment gate; local mocks do not close it.
+
+#### Clean successor qualification and remaining PG4 delivery (2026-10-23)
+
+The implementation is an explicit cold handoff for a quiescent native account.
+A signed assertion reports authority exclusion; this component is a verifier,
+not a credential broker, exchange revocation API or image attestation service.
+The trusted authority must associate the source owner with its actual credentials.
+The configured service test deliberately reuses fake connectors after a clean
+shutdown; it qualifies original callback/claim/startup/SDK integration, not OS,
+service-account or replacement-key isolation.
+
+- Red collection: `/tmp/life-pg4-handoff-red` has no handoff module. Intermediate
+  development runs retain registration UUID subtype refusals, a test assembly's
+  nonexistent `reporting.sources` attribute and a third-generation UUID subtype
+  refusal. They are not passing qualification. Registration/certificate UUIDs
+  now accept the actual driver's UUID representation; public identity/capability
+  checks, deadlines and native quiescence are unchanged.
+- Migration qualification: `/tmp/life-pg4-handoff-final-migrations` passes **12
+  cases, 22.11 s**: the six migration-114 regressions plus six migration-115
+  ancestor/ACL/repeat-execution cases. Altered function body, owner or search path
+  rolls back the entire upgrade; hostile default grants cannot create an issuer.
+- Public-verifier/diagnostics unit qualification:
+  `/tmp/life-pg4-exclusion-diagnostics-final2.xml`, **40 pass, 2.05 s**. Synthetic
+  signers exist only in tests. The intentionally failed diagnostic subprocess is
+  an assertion within a passing test, not a hidden failed aggregate case.
+- Final affected selector: `python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_postgres --suite managed_service --output /tmp/life-pg4-handoff-final-regression`.
+  **207 pass, 771.43 s**, zero failures/errors/skips, six existing Pydantic warnings.
+  This includes all **20** clean-handoff cases, **14** original ownership cases,
+  **15** managed-service cases, the original unsafe sender reproduction, a real
+  SQL-timeout diagnostic case and the existing service/SPOT/SWAP/recorder/control/
+  transaction/pool/headless regressions. The previously unexplained unmanaged
+  hedge case passes unchanged; the earlier failure's cause remains unknown.
+- Frozen manifest: `/tmp/life-pg4-handoff-final-frozen.json`, **399 unchanged
+  production/migration/harness/test inputs**, SHA-256
+  `aadc9f9e6abe891b713d7626c72461b4c9953abcf61877826f4cb1def70567a2`.
+  All hashes remain identical across final qualification. The complete affected
+  gate supersedes focused development samples; it is not a new full PG3/O.8,
+  managed scale/restore, deployed-identity or demo/live qualification. Changed-file
+  hooks and `git diff --check` pass; no source TTL, SQL timeout, financial budget,
+  user `.env` or earlier migration file changed. Logs remain in `/tmp`, with no
+  new repository evidence file.
+
+The remaining PG4 offline work has these distinct deliverables:
+
+1. A replacement RECOVERY_ONLY actor for an unresolved old cut. After separately
+   qualified external exclusion, allow only original facts/reconciliation and
+   exact durable-manifest cancellation; retain original identities, holds and
+   unknown outcomes. It cannot use the clean-account ACTIVATE prerequisite.
+2. A separately exercised broker/provider and generation identity/key access
+   boundary. Model delayed revocation, cached old REST/WS credentials, CAA and
+   accepted requests; the old identity must never obtain the replacement secret.
+   A signed `true` assertion alone does not close this boundary.
+3. A supported paused-A/resumed-A handoff through the actual SDK and broker,
+   including DB unavailability and uncertain successor effects, all write routes
+   and the deny-by-default durable emergency-cancel allowlist.
+4. Multi-process/revision failure qualification for the completed protocol:
+   failover/clock anomalies, stale approvals/grants, interrupted recovery and
+   secret-access attempts. Actual exchange/cloud qualification stays in PG9.
 
 #### First-generation service qualification details (2026-10-22)
 

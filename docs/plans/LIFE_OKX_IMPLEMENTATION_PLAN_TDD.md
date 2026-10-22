@@ -1,5 +1,19 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**PostgreSQL PG4 clean successor handoff qualified (2026-10-23):** migration 115
+adds an explicit stopped/clean-account handoff with separately pinned signed
+credential-exclusion assertions, native ACTIVATE and exact HANDOFF operator
+approval. Original process claims advance lease epochs 1→2→3; the new service
+starts UNARMED and needs explicit arm. Lost COMMIT/readback cannot restore
+readiness or reset money/budgets. All assertions are OFFLINE_FAKE_V1, not proof of
+actual exchange/key exclusion. **207** affected PostgreSQL/service tests, **40**
+unit tests and **12** upgrade/idempotency/ACL tests pass; all **399** frozen inputs
+remain unchanged. No new repository evidence file, `.env` change or deployment.
+PG4 remains open for unresolved recovery actors, broker/key isolation, supported
+paused-sender handoff, failure qualification and durable emergency cancellation.
+See the [current scope and remaining work](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg4--ownership-grants-and-enforceable-handoff).
+The following entries retain the preceding qualified checkpoints.
+
 **PostgreSQL PG4 in progress (2026-10-22):** the original private lease is now
 installed in the native service/headless host, with unarmed startup, explicit
 activation, drain/recovery and heartbeat/unknown-COMMIT revocation. The final
