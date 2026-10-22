@@ -541,14 +541,20 @@ async def test_native_market_binding_cannot_be_removed_to_fall_back_to_a_callbac
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('malformed', [False, True])
-async def test_fixed_account_first_pages_share_one_diagnostic_commit_before_any_parsing(database, monkeypatch, malformed):
+async def test_fixed_account_first_pages_share_one_diagnostic_commit_before_publication(database, monkeypatch, malformed):
+    """Detached response bytes survive parsing; native reports wait for COMMIT."""
     t = await market(database)
-    batches, original = [], t.reader._journal.capture_many
+    batches, original = [], t.reader._journal.capture_collection
 
     async def capture(pages):
+        assert t.reader._active and t.financial._runtime._observation_inflight > 0
+        assert t.market_source._capture is None and t.joint._report is None
         batches.append(tuple(p['path'] for p in pages))
-        return await original(pages)
-    monkeypatch.setattr(t.reader._journal, 'capture_many', capture)
+        result = await original(pages)
+        assert t.reader._active and t.financial._runtime._observation_inflight > 0
+        assert t.market_source._capture is None and t.joint._report is None
+        return result
+    monkeypatch.setattr(t.reader._journal, 'capture_collection', capture)
     if malformed:
         t.bills = [dict(billId='99')]  # below anchor, never interpreted as empty history
     try:
@@ -560,11 +566,20 @@ async def test_fixed_account_first_pages_share_one_diagnostic_commit_before_any_
         expected = ('/api/v5/account/bills-archive', '/api/v5/trade/fills-history',
                     '/api/v5/trade/fills-history', '/api/v5/trade/orders-pending',
                     '/api/v5/account/balance', '/api/v5/account/positions')
-        assert batches.count(expected) == (1 if malformed else 2)
+        assert len(batches) == 1
+        paths = batches[0]
+        assert sum(paths[i:i + len(expected)] == expected for i in range(len(paths))) == (1 if malformed else 2)
         pages = await t.reader._journal.read_collection(t.reader.collection_id, max_rows=128, max_bytes=4194304)
+        assert tuple(p.body['path'] for p in pages) == paths
         assert pages[0].body['path'] == '/api/v5/account/config'
         assert tuple(p.body['path'] for p in pages[1:7]) == expected
-        assert all(len(batch) <= 8 for batch in batches)
+        assert len(pages) <= t.reader.max_reads
+        if malformed:
+            assert len(pages) == 7 and not t.financial._runtime.healthy
+            assert t.market_source._capture is None and t.joint._report is None
+        else:
+            assert pages[-1].body['path'] == '/api/v5/account/config'
+            assert t.market_source._capture is not None and t.joint._report is not None
         assert not [r for r in t.requests if r['method'] != 'GET']
     finally:
         await t.financial.close()
@@ -598,29 +613,38 @@ async def test_original_preparation_commit_followed_by_ingress_never_starts_sdk_
 async def test_initial_account_batch_cannot_publish_after_ambiguous_commit_or_partial_transport(database, monkeypatch, fault):
     from hummingbot.strategy_v2.life_liquidity.storage.contracts import CommitUnknown
     t = await market(database)
-    original, original_http = t.reader._journal.capture_many, t.session.request
+    original, original_http = t.reader._journal.capture_collection, t.session.request
+    injected = []
 
     async def capture(pages):
-        receipt = await original(pages)
-        if pages[0]['path'] == '/api/v5/account/bills-archive':
-            raise CommitUnknown('PG_COMMIT_UNKNOWN')
-        return receipt
+        await original(pages)
+        assert any(p['path'] == '/api/v5/account/bills-archive' for p in pages)
+        injected.append(True)
+        raise CommitUnknown('PG_COMMIT_UNKNOWN')
 
     async def http(**kwargs):
         if kwargs['url'].endswith('/trade/fills-history'):
+            injected.append(True)
             raise asyncio.CancelledError()
         return await original_http(**kwargs)
     if fault == 'commit_reply':
-        monkeypatch.setattr(t.reader._journal, 'capture_many', capture)
+        monkeypatch.setattr(t.reader._journal, 'capture_collection', capture)
     else:
         t.session.request = http
     try:
         with pytest.raises((StorageError, asyncio.CancelledError)):
             await t.market_source.collect()
+        assert injected == [True]
         assert t.market_source._capture is None and t.joint._report is None
         assert not t.reader._active and not t.market_source._busy and not t.financial._runtime.healthy
         pages = await t.reader._journal.read_collection(t.reader.collection_id, max_rows=128, max_bytes=4194304)
-        assert len(pages) == (7 if fault == 'commit_reply' else 2)  # Opening config plus all six received pages.
+        if fault == 'commit_reply':
+            # The full original collection committed before its reply was lost;
+            # it includes both account samples and the closing UID bracket.
+            assert pages[-1].body['path'] == '/api/v5/account/config'
+            assert sum(p.body['path'] == '/api/v5/account/balance' for p in pages) == 2
+        else:
+            assert len(pages) == 2  # Opening configuration and the received bill page.
         assert not [r for r in t.requests if r['method'] != 'GET']
     finally:
         await t.financial.close()

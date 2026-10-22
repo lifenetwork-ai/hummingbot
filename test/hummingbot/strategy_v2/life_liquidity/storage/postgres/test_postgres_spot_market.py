@@ -365,7 +365,8 @@ async def test_collection_does_not_publish_on_interruption_unknown_commit_or_cha
 
     from hummingbot.strategy_v2.life_liquidity.storage.contracts import CommitUnknown
     t = await market(database)
-    original_http, original_capture = t.session.request, t.reader._journal.capture_many
+    original_http, original_capture = t.session.request, t.reader._journal.capture_collection
+    injected = []
 
     async def http(**kwargs):
         response = await original_http(**kwargs)
@@ -379,13 +380,13 @@ async def test_collection_does_not_publish_on_interruption_unknown_commit_or_cha
         return response
 
     async def lost(pages):
-        receipt = await original_capture(pages)
-        if pages[0]['path'] == '/api/v5/public/instruments':
-            raise CommitUnknown('PG_COMMIT_UNKNOWN')
-        return receipt
+        await original_capture(pages)
+        assert any(p['path'] == '/api/v5/public/instruments' for p in pages)
+        injected.append(True)
+        raise CommitUnknown('PG_COMMIT_UNKNOWN')
 
     t.session.request = http
-    monkeypatch.setattr(t.reader._journal, 'capture_many', lost if fault == 'lost_diagnostic_commit' else original_capture)
+    monkeypatch.setattr(t.reader._journal, 'capture_collection', lost if fault == 'lost_diagnostic_commit' else original_capture)
     try:
         with pytest.raises((StorageError, asyncio.CancelledError)):
             await t.market_source.collect()
@@ -394,6 +395,7 @@ async def test_collection_does_not_publish_on_interruption_unknown_commit_or_cha
         assert not t.financial._runtime.healthy
         assert not [r for r in t.requests if r['method'] != 'GET']
         if fault == 'lost_diagnostic_commit':
+            assert injected == [True]
             pages = await t.reader._journal.read_collection(t.reader.collection_id, max_rows=128, max_bytes=4194304)
             assert any(v.body['path'] == '/api/v5/market/books' for v in pages)
     finally:

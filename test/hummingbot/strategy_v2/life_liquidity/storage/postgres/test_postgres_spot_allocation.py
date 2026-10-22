@@ -95,7 +95,8 @@ async def test_native_capital_denial_never_becomes_a_new_action_or_http_grant(da
 async def test_interrupted_allocation_does_not_refresh_or_release_original_claim(database, monkeypatch, fault):
     t = await market(database, clean=True)
     runtime = t.financial._runtime
-    original_reserve, original_carry = t.source.capital.reserve, t.source.carry.observe
+    carry_method = 'observe_after_capital' if any(m.version == 112 for m in runtime._bundle) else 'observe'
+    original_reserve, original_carry = t.source.capital.reserve, getattr(t.source.carry, carry_method)
     mutated = []
 
     async def reserve(*args, **kwargs):
@@ -110,18 +111,20 @@ async def test_interrupted_allocation_does_not_refresh_or_release_original_claim
             runtime._ingress_epoch += 1
         return result
 
-    async def carry(operation, **kwargs):
-        result = await original_carry(operation, **kwargs)
+    async def carry(operation, *args, **kwargs):
+        result = await original_carry(operation, *args, **kwargs)
         if fault == 'after_carry' and operation.startswith('spot-carry:'):
             runtime._ingress_epoch += 1
             mutated.append(True)
         return result
     monkeypatch.setattr(t.source.capital, 'reserve', reserve)
-    monkeypatch.setattr(t.source.carry, 'observe', carry)
+    monkeypatch.setattr(t.source.carry, carry_method, carry)
     try:
         with pytest.raises(asyncio.CancelledError if fault == 'cancel_after_reserve' else StorageError):
             await t.app.allocate_spot('interrupted', intent(t))
         assert mutated == [True]
+        if fault == 'after_carry':
+            assert await database[0].fetchval("SELECT count(*) FROM life_financial.operations WHERE account_id=$1 AND command->>'kind'='CARRY_CHECK'", t.cfg.account_id) == 1
         assert t.source._stopped and not runtime.healthy
         assert not t.source._allocation_basis and not t.source._capture
         assert len(await t.source.capital.claims(t.cfg.binding)) == (0 if fault == 'before_reserve' else 1)

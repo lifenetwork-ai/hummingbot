@@ -1,5 +1,20 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**PostgreSQL PG3 offline delivery CLOSED (2026-10-22):** the verified disjoint
+current-source matrix has **2307 passing PostgreSQL cases**, including both
+complete native/provisional retained-fill maker workflows, actual V2/SDK final
+routes, accounting/recovery, signed control, reporting and physical faults.
+The final three affected test modules pass **104 cases, 156.62 s**; production,
+SQL, shared fixtures and numerical budgets are unchanged. File/domain's **3901**
+passing cases remain applicable because subsequent production changes are PG-only.
+This qualifies the explicit `OFFLINE_SIMULATION` PgLiquidityService / actual
+PgServiceController entrypoint, not a generic controller fallback or live/cloud
+activation. Unknown outcomes retain holds until qualified explicit recovery.
+PG4 ownership/grants/external sender handoff is next; real credentials, deployed
+identity/TLS, independent anchors and failover remain separate release gates.
+See the [current PostgreSQL scope and qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md).
+The following dated checkpoints retain the earlier investigation history.
+
 **PostgreSQL loaded-flow follow-up (2026-10-22):** migration 113 removes nested
 per-claim history queries using the same historical release predicate. The
 configured service now separates durable cancel-attempt bookkeeping from a new
