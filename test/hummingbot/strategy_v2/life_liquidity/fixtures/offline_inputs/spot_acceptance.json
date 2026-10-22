@@ -1,0 +1,2477 @@
+{
+  "schema_version": 1,
+  "declared_scope": "Spot O.1-O.6; single LIFE-USDT market, single source benchmark; opt-in adapters; no production order permission",
+  "reviewer": "Codex repository/test review, 2026-10-10; operator release remains separate",
+  "scope_limits": [
+    "P6/P7 runner acceptance is O.7",
+    "Basket configuration is disabled; A17 deferred",
+    "Refresh cost decision remains advisory; deployed scheduling is D/R implementation",
+    "Actual exchange timer is D/R implementation; A13 deferred",
+    "Fake print/queue/cost/latency/value inputs are synthetic, not live defaults",
+    "Remote CI, physical power loss, real history completeness and empirical economics are unproven"
+  ],
+  "coverage_bases": {
+    "feature": "34432aadf809f3da4728f8d3117b0591fd132bdd",
+    "recent": "4efb4ad6e0a595118e58c2d38b97f993d36ea41c"
+  },
+  "test_scopes": [
+    "test/hummingbot/strategy_v2/life_liquidity",
+    "test/hummingbot/strategy/test_strategy_v2_base.py",
+    "test/hummingbot/connector/exchange/okx",
+    "test/hummingbot/connector/derivative/okx_perpetual",
+    "test/hummingbot/strategy_v2/executors/test_executor_orchestrator.py",
+    "test/hummingbot/strategy_v2/executors/order_executor",
+    "test/hummingbot/strategy_v2/executors/twap_executor",
+    "test/hummingbot/strategy_v2/controllers",
+    "test/hummingbot/connector/test_markets_recorder.py",
+    "test/hummingbot/data_feed/test_market_data_provider.py",
+    "test/hummingbot/core/web_assistant"
+  ],
+  "cases": {
+    "A01": {
+      "offline": "verified",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_runtime_integration.py::test_controller_polling_unlisted_life_never_submits_a_queued_order"
+      ],
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk and account operator for calibration/release",
+      "reason": "Exact missing-instrument and malformed listing responses deny the real V2 queued create path."
+    },
+    "A02": {
+      "offline": "verified",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_session.py::test_configured_duration_survives_restart_and_expires_at_exact_boundary"
+      ],
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk and account operator for calibration/release",
+      "reason": "30m/4h/12h retain the absolute deadline and anchor across restart; permissions expire at the exact boundary."
+    },
+    "A03": {
+      "offline": "verified",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_session.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_reference_transition.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_spot_session_replay.py"
+      ],
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk and account operator for calibration/release",
+      "reason": "Original and successor anchors/deadlines persist; expired downtime cannot chain successors; replacement requires full proof."
+    },
+    "A04": {
+      "offline": "verified",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_fakes.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_queue_latency_simulation.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o5_system_scenarios.py"
+      ],
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk and account operator for calibration/release",
+      "reason": "Quote/cancel, candle touches and unqualified prints generate no fills. Only qualified explicit external prints after ACK enter accounting."
+    },
+    "A05": {
+      "offline": "verified",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_reference.py::test_absolute_btc_price_cannot_become_life_price"
+      ],
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk and account operator for calibration/release",
+      "reason": "Relative-return and currency conversion preserve LIFE units despite the nominal BTC price."
+    },
+    "A06": {
+      "offline": "verified",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_market_data.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o2_revocation_replay.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o5_system_scenarios.py"
+      ],
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk and account operator for calibration/release",
+      "reason": "Stale/out-of-order/invalid observations and disconnected/resync feeds revoke actual queued/final sends and retain unresolved cancellation state."
+    },
+    "A07": {
+      "offline": "verified",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_risk.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_quote_capacity.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_spot_risk_binding.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o2_integrated_replay.py"
+      ],
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk and account operator for calibration/release",
+      "reason": "Rolling side and campaign capacity includes pending orders, durable reconciled fills and restart history."
+    },
+    "A08": {
+      "offline": "verified",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_fill_cancel_race.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_runner_fill_events.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_spot_session_replay.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o5_system_scenarios.py"
+      ],
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk and account operator for calibration/release",
+      "reason": "Cancel ACK and duplicate/out-of-order partial fills never double-book fills or release unresolved inventory."
+    },
+    "A09": {
+      "offline": "verified",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_spot_session_replay.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_crash_recovery_replay.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o2_revocation_replay.py"
+      ],
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk and account operator for calibration/release",
+      "reason": "Lost ACK keeps the same wire identity and reservation; actual executor retry cannot blindly submit a second order."
+    },
+    "A10": {
+      "offline": "deferred",
+      "tests": [],
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk and account operator for calibration/release",
+      "reason": "Joint-risk calculation exists, but concurrent spot/SWAP runner allocation and shared account authority require O.7."
+    },
+    "A11": {
+      "offline": "verified",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_reference_transition.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_spot_session_replay.py"
+      ],
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk and account operator for calibration/release",
+      "reason": "A successor lacking independent two-sided LIFE evidence pauses even when generic market readiness is true."
+    },
+    "A12": {
+      "offline": "deferred",
+      "tests": [],
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk and account operator for calibration/release",
+      "reason": "Advisory inventory journal is not a P7 child-order runner. Thin-book/deadline acceptance stays O.7."
+    },
+    "A13": {
+      "offline": "deferred",
+      "tests": [],
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk and account operator for calibration/release",
+      "reason": "Account/tag-scoped exchange cancellation timer and heartbeat stall integration are not implemented/proven; D must implement and test them. Generic crash/reconciliation tests do not pass this case."
+    },
+    "A14": {
+      "offline": "verified",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_runtime_risk_binding.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o4_manual_rearm.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_runtime_integration.py"
+      ],
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk and account operator for calibration/release",
+      "reason": "HALT/manual stop latches across reload and recovery; manual rearm requires authenticated-style full account proof and cannot clear HALT."
+    },
+    "A15": {
+      "offline": "verified",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_config.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_runtime_integration.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_controller_telemetry.py"
+      ],
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk and account operator for calibration/release",
+      "reason": "Offline proof is only the nontrading configuration/runner/production permission guard. Actual real-data shadow is deferred D/R."
+    },
+    "A16": {
+      "offline": "deferred",
+      "tests": [],
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk and account operator for calibration/release",
+      "reason": "ONEWAY connector reduce-only contracts exist; partial-close retry/recovery through a LIFE perpetual runner remains O.7."
+    },
+    "A17": {
+      "offline": "deferred",
+      "tests": [],
+      "remaining": [
+        "O.7"
+      ],
+      "owner": "strategy/connector maintainer; risk and account operator for calibration/release",
+      "reason": "Basket configuration is rejected by the MVP feature gate; basket loss/reweight policy is a deferred P3 feature, not passed by single-source tests."
+    },
+    "A18": {
+      "offline": "verified",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_config_update.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_controller_config_adapter.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o2_revocation_replay.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o4_manual_rearm.py"
+      ],
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk and account operator for calibration/release",
+      "reason": "Rejected/interrupted reload preserves validated config version, latches rejection and revokes queued/final sends."
+    },
+    "A19": {
+      "offline": "verified",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_market_data.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_runtime_integration.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_runtime_integration.py::test_live_auction_cannot_create_even_with_book_and_other_permits"
+      ],
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk and account operator for calibration/release",
+      "reason": "Auction/prequote crossed books are observations without continuous-trading permission."
+    },
+    "A20": {
+      "offline": "verified",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_config.py::test_synthetic_bootstrap_is_simulation_only",
+        "test/hummingbot/strategy_v2/life_liquidity/test_config.py::test_live_is_still_disabled_after_all_current_numeric_fields_are_filled"
+      ],
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk and account operator for calibration/release",
+      "reason": "Simulated bootstrap and all live modes remain rejected; no order-sending adapter is enabled."
+    },
+    "A21": {
+      "offline": "verified",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_economics.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_fee_quote_binding.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_subsidy_runtime_binding.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_inventory_subsidy_settlement.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_protected_exit.py"
+      ],
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk and account operator for calibration/release",
+      "reason": "Profit quotes require conservative positive net edge. Service holds/floors settle once within budgets; exits retain separate hard loss/slippage policy."
+    },
+    "A22": {
+      "offline": "verified",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_fees.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_fee_refresh.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_fee_quote_binding.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_reconciled_fill_attribution.py"
+      ],
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk and account operator for calibration/release",
+      "reason": "Signed actual USDT/LIFE fees and rebates, exact group/schema/identity and stale snapshots are normalized or blocked; real conversion remains R."
+    },
+    "A23": {
+      "offline": "verified",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_o2_revocation_replay.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_final_quote_send.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_protected_okx_send.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_spot_session_replay.py"
+      ],
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk and account operator for calibration/release",
+      "reason": "Actual V2 queue, real executor retry and final check after throttling reject expired/HALT/stale/config permits; replacement needs fresh epoch proof."
+    },
+    "A24": {
+      "offline": "verified",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_safety_callback_integration.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_safety_watchdog.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_controller_order_safety.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o5_system_scenarios.py"
+      ],
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk and account operator for calibration/release",
+      "reason": "Safety cancellation/expiry/reconciliation run without global readiness or executor update events. Enabled SWAP interactions remain O.7."
+    },
+    "A25": {
+      "offline": "verified",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_reference.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_own_depth.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_own_depth_runner.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_quote_reference_binding.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o5_system_scenarios.py"
+      ],
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk and account operator for calibration/release",
+      "reason": "Own ACKed/pending depth is subtracted or unavailable, tiny/transient depth cannot qualify the reference or raise risk capacity."
+    },
+    "A26": {
+      "offline": "verified",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_reference.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_quote_reference_binding.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o5_system_scenarios.py"
+      ],
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk and account operator for calibration/release",
+      "reason": "Excess divergence blocks benchmark quoting; stale benchmark can only fall back to independently qualified LIFE with zero influence."
+    },
+    "A27": {
+      "offline": "verified",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_markout_runtime_binding.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_quote_capacity.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o2_turnover_replay.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o5_system_scenarios.py"
+      ],
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk and account operator for calibration/release",
+      "reason": "Adverse alternating/small fills consume independent execution loss and markout cohorts even with net-flat holdings."
+    },
+    "A28": {
+      "offline": "verified",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_runtime_loss_binding.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_recovery_probe_binding.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_subsidy_runtime_binding.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o2_integrated_replay.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o5_system_scenarios.py"
+      ],
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk and account operator for calibration/release",
+      "reason": "Day/campaign budgets, unresolved holds, HALT and hysteresis survive restart; probes have explicit bounded quantities and costs."
+    },
+    "A29": {
+      "offline": "verified",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_o2_turnover_replay.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_accounting.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_life_cashflow_value.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_capital_risk_binding.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_controller_telemetry.py"
+      ],
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk and account operator for calibration/release",
+      "reason": "100x filled volume leaves NAV/drawdown/loss/subsidy unchanged. Approved flows and starting-inventory returns are separate; forecast values cannot certify NAV."
+    },
+    "A30": {
+      "offline": "verified",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_stress.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_spot_risk_binding.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o2_integrated_replay.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o5_system_scenarios.py"
+      ],
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk and account operator for calibration/release",
+      "reason": "Spot all-side pending fills and vanished independent depth enter reservation-derived stress; physical residual inventory stays visible."
+    },
+    "A31": {
+      "offline": "deferred",
+      "tests": [],
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk and account operator for calibration/release",
+      "reason": "Metadata conversion primitives and connector tests exist; full contract/fill/position lifecycle consistency remains O.7."
+    },
+    "A32": {
+      "offline": "deferred",
+      "tests": [],
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk and account operator for calibration/release",
+      "reason": "Exchange reduce-only connector request is covered, but shrink-between-snapshot/send LIFE runner acceptance remains O.7."
+    },
+    "A33": {
+      "offline": "deferred",
+      "tests": [],
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk and account operator for calibration/release",
+      "reason": "Standalone joint exposure/stress contract is insufficient for shared-collateral tier/basis shocks through an enabled SWAP runner; O.7."
+    },
+    "A34": {
+      "offline": "deferred",
+      "tests": [],
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk and account operator for calibration/release",
+      "reason": "Hedge decisions are advisory. Funding updates, execution churn bounds and post-expiry position monitoring remain O.7."
+    },
+    "A35": {
+      "offline": "verified",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_wal.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_executor_protected_send.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_runner_order_scope.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_recorder_cold_restart.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o4_commit_matrix.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_crash_recovery_replay.py"
+      ],
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk and account operator for calibration/release",
+      "reason": "WAL/reservation/action/SQLite boundaries recover the correct ID, retain unknown exposure and reject blind resend or executor-terminal shortcuts."
+    },
+    "A36": {
+      "offline": "verified",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_request_budget.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_safety_watchdog.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_quote_action_dispatch.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o2_integrated_replay.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o5_system_scenarios.py"
+      ],
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk and account operator for calibration/release",
+      "reason": "Spot local cancellation reserve, saturated queue, stop priority and independent watchdog are verified. Exchange heartbeat failover/stall timer remains D/R, not simulated proof."
+    },
+    "A37": {
+      "offline": "deferred",
+      "tests": [],
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk and account operator for calibration/release",
+      "reason": "Participation/impact calculations exist only in an advisory inventory journal; actual P7 child-order volume-inflation acceptance remains O.7."
+    },
+    "A38": {
+      "offline": "verified",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_economics.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_subsidy_budget.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_reference_evaluation.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o5_system_scenarios.py"
+      ],
+      "remaining": [
+        "R",
+        "C"
+      ],
+      "owner": "strategy/connector maintainer; risk and account operator for calibration/release",
+      "reason": "Synthetic objective gates reject unaffordable costs, sparse/overlapping evidence fails research qualification and frozen system replay reports insufficient evidence. Real economic release remains R/C."
+    },
+    "A39": {
+      "offline": "verified",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_account_lock.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_controller_order_safety.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_account_bills.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o4_manual_rearm.py"
+      ],
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk and account operator for calibration/release",
+      "reason": "UID-bound same-host lock blocks another strategy ID/state directory/process; foreign account activity blocks terminal release. Multihost coordination is outside MVP; shared SWAP authority stays O.7."
+    }
+  },
+  "open_requirements": {
+    "P4.1": {
+      "parent": "P4.1",
+      "sha256": "96c0b9b6c2d1a24cbab9a5b39832d1b3a0ca0491ae54f721ebc7f59cd6180fed",
+      "text": "P4.1: Reject orders that would exceed available spot balances, target inventory bounds, gross exposure, or worst-case net exposure.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Qualified spot balances/value/budget installation and real behavior; risk bounds already pass on the fake runner.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_reservations.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_spot_risk_binding.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_protected_exit.py"
+      ]
+    },
+    "P4.1#4657fc795e2c": {
+      "parent": "P4.1",
+      "sha256": "4657fc795e2c169c0b865178846e2078ce48e94c64c3fdcc194ebd658ab9954e",
+      "text": "D/R: qualify real account balances and production sender installation.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Qualified spot balances/value/budget installation and real behavior; risk bounds already pass on the fake runner.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_reservations.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_spot_risk_binding.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_protected_exit.py"
+      ]
+    },
+    "P4.2": {
+      "parent": "P4.2",
+      "sha256": "060818016a9f0090e8d16a51253f0861fd7528ad5e13bd3e84c5123fdeb3f67d",
+      "text": "P4.2: Concurrent intents competing for the same budget cannot reserve more than the shared limit.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Same-host spot contention is proven. Shared spot/SWAP coordinator and deployed account ownership remain.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_account_lock.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_reservations.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_protected_exit.py"
+      ]
+    },
+    "P4.2#97640653411f": {
+      "parent": "P4.2",
+      "sha256": "97640653411f2ec745573f4897929039cdc1329d7714e6d3f3991fbef718cb05",
+      "text": "D/R: prove deployed account ownership; spot/SWAP aggregation remains O.7/P6.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Same-host spot contention is proven. Shared spot/SWAP coordinator and deployed account ownership remain.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_account_lock.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_reservations.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_protected_exit.py"
+      ]
+    },
+    "P4.3": {
+      "parent": "P4.3",
+      "sha256": "3eb67a3c09ce359bf611a13961a7b9fae8f73d1408019802bd75a8be3cc8f95a",
+      "text": "P4.3: Retain reservations until cancellation is confirmed; partial fills convert reservations to exposure exactly once.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Real delayed fill/cancel event and full account proof must repeat the synthetic ledger invariants.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_reservations.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_reservation_persistence.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_runner_fill_events.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_spot_session_replay.py"
+      ]
+    },
+    "P4.3#5f1f96c35104": {
+      "parent": "P4.3",
+      "sha256": "5f1f96c351044841d409dd51210823c5fee3f7864ad1633042b55a59de923adc",
+      "text": "D/R: repeat with actual exchange/account events.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Real delayed fill/cancel event and full account proof must repeat the synthetic ledger invariants.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_reservations.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_reservation_persistence.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_runner_fill_events.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_spot_session_replay.py"
+      ]
+    },
+    "P4.4": {
+      "parent": "P4.4",
+      "sha256": "b4425699332169c43c7b13126d198213a831715c9e21846d7414350ab0ee0a0f",
+      "text": "P4.4: Unknown order states retain conservative reservations and enter reconciliation; a timeout is not proof that an order failed.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Verify actual authenticated history completeness/retention before releasing unknown reservations.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_wal.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_order_gateway.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_crash_recovery_replay.py"
+      ]
+    },
+    "P4.4#3b1c1ba162f1": {
+      "parent": "P4.4",
+      "sha256": "3b1c1ba162f1394cb2869328abc8881ec6f280354dfdd7961c312b4aeda4f413",
+      "text": "D/R: validate actual account history completeness and retention.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Verify actual authenticated history completeness/retention before releasing unknown reservations.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_wal.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_order_gateway.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_crash_recovery_replay.py"
+      ]
+    },
+    "P4.5": {
+      "parent": "P4.5",
+      "sha256": "a0a92cb66eedb07c2d241f4c8daa4d7e2710331d3cf4524ea4646c8ccb24df91",
+      "text": "P4.5: Exceeding a rolling fill limit prevents replenishment on the side that increases risk; cooldown does not clear fill counters.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Calibrate live rolling-window and campaign capacity; durable replenishment bounds pass offline.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_risk.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_quote_capacity.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_spot_risk_binding.py"
+      ]
+    },
+    "P4.5#a23f4f91b286": {
+      "parent": "P4.5",
+      "sha256": "a23f4f91b286d65c728a12748c4f033046ed5cf6bfa17d013cc4b53e97bbb447",
+      "text": "R: calibrate and document live rolling-window capacity.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Calibrate live rolling-window and campaign capacity; durable replenishment bounds pass offline.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_risk.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_quote_capacity.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_spot_risk_binding.py"
+      ]
+    },
+    "P4.6": {
+      "parent": "P4.6",
+      "sha256": "9eb829609a50c6aba1fd5a56159ff2b3dee2b70bf0b6ba57a57fbab9d4cc8de2",
+      "text": "P4.6: Stale data, excessive latency, lost balance/position feeds, or model divergence block new quotes and request cancellation of existing orders.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Install qualified account/feed/latency/model observations and verify actual cancellation.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_runtime_risk_binding.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o2_revocation_replay.py"
+      ]
+    },
+    "P4.6#0f21c7b95f67": {
+      "parent": "P4.6",
+      "sha256": "0f21c7b95f670e864cd484722d7f6d0bba0c703106bd09a0d0a23488ee530578",
+      "text": "D/R: connect qualified live feed/account/latency/model observations and validate actual cancellation/reconciliation.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Install qualified account/feed/latency/model observations and verify actual cancellation.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_runtime_risk_binding.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o2_revocation_replay.py"
+      ]
+    },
+    "P4.7": {
+      "parent": "P4.7",
+      "sha256": "7e33b507062976d9a2558b2aa0be1c9f972f06a10fb11b32df9b2e4350e24fae",
+      "text": "P4.7: A separate NAV/cash-flow/high-water-mark ledger accounts for realized/unrealized PnL, fees/funding, and deposits/withdrawals. Value LIFE using qualified independently observed market/exit values, not the benchmark-adjusted quote model's own forecasts. The same loss with 100 times the turnover triggers the same capital drawdown; unavailable valuation data blocks additional risk. Do not use V2 `global_pnl_pct` for capital drawdown.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "O.7",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Spot independent NAV/high-water/flow binding passes. Funding attribution stays O.7; real valuation/history and numeric thresholds stay R.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_accounting.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_capital_risk_binding.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o2_turnover_replay.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_life_cashflow_value.py"
+      ]
+    },
+    "P4.7#05d740091da4": {
+      "parent": "P4.7",
+      "sha256": "05d740091da4d4aa47f5689d77892877ea0b567a610e95b76441d1ff62ad8b62",
+      "text": "D/R: qualify actual LIFE values and exchange cashflows; perpetual funding remains O.7.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "O.7",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Spot independent NAV/high-water/flow binding passes. Funding attribution stays O.7; real valuation/history and numeric thresholds stay R.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_accounting.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_capital_risk_binding.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o2_turnover_replay.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_life_cashflow_value.py"
+      ]
+    },
+    "P4.8": {
+      "parent": "P4.8",
+      "sha256": "8e847f35a0cd636accc5ce911a600728a5ebe9c62a38e4f4f1f9aff07ed48e79",
+      "text": "P4.8: Drawdown/margin breaches enter a latched `HALTED` state; configuration reloads or the runner cannot automatically reactivate trading.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Spot HALT/rearm is proven. SWAP margin trigger binding stays O.7; deployed behavior and real thresholds stay D/R.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_runtime_risk_binding.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_risk_priority.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o4_manual_rearm.py"
+      ]
+    },
+    "P4.8#83202507bc8b": {
+      "parent": "P4.8",
+      "sha256": "83202507bc8b06bf5aeb5312bf16f38eb50ad8d1ff1732bfbb40deed65341213",
+      "text": "D/R: qualify live drawdown/margin inputs.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Spot HALT/rearm is proven. SWAP margin trigger binding stays O.7; deployed behavior and real thresholds stay D/R.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_runtime_risk_binding.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_risk_priority.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o4_manual_rearm.py"
+      ]
+    },
+    "P4.9": {
+      "parent": "P4.9",
+      "sha256": "b912eb312673a93e1adf14ad5b47782c6053c983dca90c5c2262b3b510563e7b",
+      "text": "P4.9: Implement multi-horizon markout as defined in Section 4.2, with minimum samples and separate side/size cohorts. Evaluate fills against qualified independently observed LIFE market/exit references at each horizon, not benchmark-adjusted forecasts; missing observations remain unavailable and invoke conservative risk policy. Test alternating buys/sells that remain net flat while losing money, and small fills below volume thresholds that still exhaust a loss budget. Insufficient samples cannot automatically resume quoting.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Qualify independent horizon prices, cohort sample quality and numeric live markout limits.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_markout.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_markout_runtime_binding.py"
+      ]
+    },
+    "P4.9#947df5c5d960": {
+      "parent": "P4.9",
+      "sha256": "947df5c5d9603a52bd2d9cf1f36cae3981483a860ba15d29ed4b7d6fe8e1c24c",
+      "text": "D/R: capture qualified fill/horizon values and calibrate cohorts/probes.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Qualify independent horizon prices, cohort sample quality and numeric live markout limits.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_markout.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_markout_runtime_binding.py"
+      ]
+    },
+    "P4.10": {
+      "parent": "P4.10",
+      "sha256": "dc8d10b8a4ebfbe2bdd2bd87601bc086ad18ef4f7a20f3462789555917488c08",
+      "text": "P4.10: Enforce priority: HALT > block additional risk > cancel orders > permitted exposure reduction > new quotes. Risk-reducing intents retain price limits and cannot reverse a position.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Repeat queue/stop/final-send priority on isolated demo and later approved production inputs.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_risk_priority.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_quote_action_dispatch.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o2_revocation_replay.py"
+      ]
+    },
+    "P4.10#07a89303b15d": {
+      "parent": "P4.10",
+      "sha256": "07a89303b15d6280e4d96c9154876948924ce2ff3336901bc8fa2f0b7ba1b5fc",
+      "text": "D/R: repeat against exchange behavior and shared API headroom.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Repeat queue/stop/final-send priority on isolated demo and later approved production inputs.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_risk_priority.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_quote_action_dispatch.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o2_revocation_replay.py"
+      ]
+    },
+    "P4.11": {
+      "parent": "P4.11",
+      "sha256": "230cc680b395a5946847c69d96ba548baf743913b3f321c71cefc6ff30ff2543",
+      "text": "P4.11: Positive spread with negative net edge is blocked in `profit_mm`; subsidy mode reserves/reconciles a separate budget. Test fees/rebates, rounding, minimum order size, carry, quote-currency-to-bps conversion, and prevention of double-counted costs.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Spot fee/subsidy attribution and settlement pass. Hedge/carry cost binding stays O.7; qualified tiers/values/policies require D/R installation.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_economics.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_fee_refresh.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_fee_quote_binding.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_subsidy_runtime_binding.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_inventory_subsidy_settlement.py"
+      ]
+    },
+    "P4.11#bde5659f7f1b": {
+      "parent": "P4.11",
+      "sha256": "bde5659f7f1b105e14e67b5818e36b342e0115fc7e07570f8f31b18f2effc72d",
+      "text": "D/R: validate actual account tiers, currency behavior and calibrated costs.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Spot fee/subsidy attribution and settlement pass. Hedge/carry cost binding stays O.7; qualified tiers/values/policies require D/R installation.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_economics.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_fee_refresh.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_fee_quote_binding.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_subsidy_runtime_binding.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_inventory_subsidy_settlement.py"
+      ]
+    },
+    "P4.12": {
+      "parent": "P4.12",
+      "sha256": "eccc9ddb0aefc0daf09623d9c6207f2532e0a36ccdcce1214f5f1a8fd3aa9ebd",
+      "text": "P4.12: Risk-reducing exits use a separate policy/budget. Test that profit thresholds do not block an otherwise valid exit, while an exit exceeding its price/slippage budget remains blocked and raises a residual-risk alert.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Install bounded spot exit policy using qualified executable depth and explicit numeric budgets; unfilled residual is reported, not guaranteed sold.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_protected_exit.py"
+      ]
+    },
+    "P4.12#31ab9e91bd19": {
+      "parent": "P4.12",
+      "sha256": "31ab9e91bd190f720c2f2eb5c543259255bb3a72a8924760440c78f6e0c3848a",
+      "text": "D/R: install and calibrate the production exit policy; market liquidation is not part of this route.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Install bounded spot exit policy using qualified executable depth and explicit numeric budgets; unfilled residual is reported, not guaranteed sold.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_protected_exit.py"
+      ]
+    },
+    "P4.13": {
+      "parent": "P4.13",
+      "sha256": "37d47028f3fb3d117e25782d6ec8b9b2029ab63116331de2e7a39738f1424a37",
+      "text": "P4.13: Expiry/HALT/configuration changes/stale feeds between approval and send produce zero risk-increasing requests under invalidated permits. Cover action queues, executor retries/renewals, and requests waiting on throttlers, with contract tests of the actual connector send path. Bind every permit to `session_id`/`epoch`; a valid successor requires a new permit, and no queued or retried send under the old epoch may pass after P3.9 revocation.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Spot queue/retry/throttled final permits pass. SWAP bridge is O.7; production inputs and actual exchange behavior need D/R.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_o2_revocation_replay.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_final_quote_send.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_protected_okx_send.py"
+      ]
+    },
+    "P4.13#726a1c42103b": {
+      "parent": "P4.13",
+      "sha256": "726a1c42103b816f4cdb5f9e2a48c2065cb3590205bcc6b9c48cc4e12b9100d1",
+      "text": "D/R: arm production only after qualified live gates and the P9 decision.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Spot queue/retry/throttled final permits pass. SWAP bridge is O.7; production inputs and actual exchange behavior need D/R.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_o2_revocation_replay.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_final_quote_send.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_protected_okx_send.py"
+      ]
+    },
+    "P4.14": {
+      "parent": "P4.14",
+      "sha256": "9c66230ac3af7798ed2661cdec0c42ad6da1d63a039035b278b9889208ff0c90",
+      "text": "P4.14: Commit the intent, wire client order ID, reservation, `session_id`, and epoch to the WAL before network send. Define the ID allocator; if connector APIs allocate IDs internally, add a tested hook. Crashes during allocation/WAL/send/ACK cannot duplicate orders or lose reservations. The persisted identity must let P5.7 find all old-epoch orders after restart.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Spot combined persistence boundaries pass O.4; deploy WAL-first sender with verified account/live inputs. Physical power-loss behavior remains an explicit deployment assumption.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_wal.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_executor_protected_send.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o4_commit_matrix.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_recorder_cold_restart.py"
+      ]
+    },
+    "P4.14#2d50420428e3": {
+      "parent": "P4.14",
+      "sha256": "2d50420428e35aa345358e1cebfe7012b6ab3721a7614c623ca7c6d36da42603",
+      "text": "D/R: install the WAL-first sender with a qualified live reference and all live final-send gates. The combined recorder/action interruption matrix passed O.4; production order permission stays disabled.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Spot combined persistence boundaries pass O.4; deploy WAL-first sender with verified account/live inputs. Physical power-loss behavior remains an explicit deployment assumption.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_wal.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_executor_protected_send.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o4_commit_matrix.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_recorder_cold_restart.py"
+      ]
+    },
+    "P4.15": {
+      "parent": "P4.15",
+      "sha256": "6488e3e31a751f8904ba5ca66209424111812dd35c985f0f13d2043163b0d143",
+      "text": "P4.15: The safety loop does not wait for market readiness or executor update events; it has a watchdog, reserved cancellation quota, and priority over order creation. Contract tests using the real runner/`ControllerBase` prove that expiry/block/cancel/reconciliation continue without readiness. Failed cancellation preserves unresolved state and blocks additional risk; P3.9 may not activate a successor from a cancel-request ACK alone.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Spot independent watchdog, retry and local headroom pass. Shared account API coverage, numeric headroom and deployed timings need implementation/qualification in D/R.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_safety_callback_integration.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_safety_watchdog.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_cancel_retry.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_request_budget.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o2_integrated_replay.py"
+      ]
+    },
+    "P4.15#9848861502df": {
+      "parent": "P4.15",
+      "sha256": "9848861502dfb92b1b46e4ebff0319ef0f9d68638f467c3e4e2892f5b6e418fd",
+      "text": "D/R: calibrate the watchdog interval/shared API headroom and repeat actual exchange behavior; production P5/P9 installation stays gated. Broader spot process/recorder fault acceptance passed O.4; enabled SWAP recovery remains O.7.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Spot independent watchdog, retry and local headroom pass. Shared account API coverage, numeric headroom and deployed timings need implementation/qualification in D/R.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_safety_callback_integration.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_safety_watchdog.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_cancel_retry.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_request_budget.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o2_integrated_replay.py"
+      ]
+    },
+    "P4.16": {
+      "parent": "P4.16",
+      "sha256": "2686dc720eaa63228e9fa0a70948224f8e70d9e8d447bf05d77c34f5c666ede5",
+      "text": "P4.16: Stress all orders on one side filling before cancellation, disappearing depth, basis/mark/funding shocks, and hedge outages; quotes/reservations must fit the stress budget and collateral buffer.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "O.7",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Spot all-side reservation stress passes. SWAP margin/basis/funding/outage runner remains O.7; depth/shock calibration remains R.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_stress.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_spot_risk_binding.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o2_integrated_replay.py"
+      ]
+    },
+    "P4.16#18e8a4496f18": {
+      "parent": "P4.16",
+      "sha256": "18e8a4496f18005594606b9c16a718b93333bd6ecda9d94e871400f793d9dca7",
+      "text": "D/R: qualify/calibrate live depth and shocks; SWAP margin/basis/funding/hedge acceptance remains O.7.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "O.7",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Spot all-side reservation stress passes. SWAP margin/basis/funding/outage runner remains O.7; depth/shock calibration remains R.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_stress.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_spot_risk_binding.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o2_integrated_replay.py"
+      ]
+    },
+    "P4.17": {
+      "parent": "P4.17",
+      "sha256": "5051e1ec237030f8cfe3277911f490f492a985ddbe0042b2a23052e8fd8992a6",
+      "text": "P4.17: Separate execution losses from gains/losses on starting inventory. Adverse execution can trigger the execution-loss gate even when LIFE appreciates; deposits do not erase recorded drawdown or losses.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "O.7",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Spot physical fees/flows and independent inventory/execution returns pass. Actual values/history remain R and SWAP funding remains O.7.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_accounting.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_reconciled_fill_attribution.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_life_cashflow_value.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o2_turnover_replay.py"
+      ]
+    },
+    "P4.17#8416b3e91f6c": {
+      "parent": "P4.17",
+      "sha256": "8416b3e91f6c1277166a65a96963b6ca35bd6d9049e20c0dc27096a176a713af",
+      "text": "D/R: qualify actual LIFE values and cashflow history; SWAP funding stays O.7.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "O.7",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Spot physical fees/flows and independent inventory/execution returns pass. Actual values/history remain R and SWAP funding remains O.7.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_accounting.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_reconciled_fill_attribution.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_life_cashflow_value.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o2_turnover_replay.py"
+      ]
+    },
+    "P4.18": {
+      "parent": "P4.18",
+      "sha256": "69ee20420cd100399a0bff9d6bc5eca55e228d56e273ee3cf6a18db75bc74f92",
+      "text": "P4.18: Session/day/campaign loss and subsidy budgets have explicit identities and boundaries. A new session, restart, or duration change does not reset budgets still in force. Recovery uses hysteresis and small probe quotes; HALT never clears automatically.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Immutable budget identity, restart, bounded probes and HALT pass; calibrate and own live policies.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_loss_budget.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_subsidy_budget.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_recovery_probe_binding.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_protected_exit.py"
+      ]
+    },
+    "P4.18#cd5aed037b91": {
+      "parent": "P4.18",
+      "sha256": "cd5aed037b91faff7fb4965f52b95f43eae8bad477de2bde0fea0ab7814efafc",
+      "text": "D/R: calibrate live budget and recovery policies.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Immutable budget identity, restart, bounded probes and HALT pass; calibrate and own live policies.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_loss_budget.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_subsidy_budget.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_recovery_probe_binding.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_protected_exit.py"
+      ]
+    },
+    "P5.1": {
+      "parent": "P5.1",
+      "sha256": "2a1e7ce9d20ab6ae3f0945c284624773313ea085e723e25254076c4a3c247e93",
+      "text": "P5.1: Compute candidate bid/ask levels from a qualified reference, configured spreads, and quantities. Round to tick/lot sizes and submit only levels passing economics/risk gates. Do not cross the book or exceed budgets to populate every level; report insufficient depth when KPIs are unmet.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Offline opt-in candidates/final gates pass. Build production quote-source installation from qualified LIFE/account/fee/depth inputs and calibrated KPIs in D/R.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_spot_quotes.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_quote_actions.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_final_quote_send.py"
+      ]
+    },
+    "P5.1#15e4dedc6e0d": {
+      "parent": "P5.1",
+      "sha256": "15e4dedc6e0d3fe75df496c517b538f0db55feb670a3752e517ff718210554d7",
+      "text": "Production runner: derive the snapshot from qualified LIFE reference/exit value, fresh authenticated book/rules/costs, calibrated KPI target, and account-scoped reservation authority; bind account-specific fees, subsidy and global loss budgets to the final observer before issuing post-only orders. A supplied offline snapshot is not live qualification.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Offline opt-in candidates/final gates pass. Build production quote-source installation from qualified LIFE/account/fee/depth inputs and calibrated KPIs in D/R.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_spot_quotes.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_quote_actions.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_final_quote_send.py"
+      ]
+    },
+    "P5.2": {
+      "parent": "P5.2",
+      "sha256": "e49344fada1d98434c7bb5236b38911cef4072a4daa1d6d8babcad35e5d15e54",
+      "text": "P5.2: Real quotes use post-only orders; executor `LIMIT_MAKER` must reach OKX as `post_only`, without automatic market-order fallback after rejection.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "LIMIT_MAKER/post_only/no blind market fallback is proven against connector contracts; repeat actual demo rejection and account behavior.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_executor_protected_send.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_protected_okx_send.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_spot_session_replay.py"
+      ]
+    },
+    "P5.3": {
+      "parent": "P5.3",
+      "sha256": "431d354132e1e1696544903be722351320e70db7ea737abdb62c64bc1b14c346",
+      "text": "P5.3: Each `(session, market, side, level)` has at most one valid intent/slot; cancel-replace waits for confirmation or holds sufficiently conservative reservations.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Durable level/intent/slot ownership and safe replacement pass; qualified production issuance and deployed single-host ownership remain D/R. Multihost send is prohibited.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_order_slots.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_executor_protected_send.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_quote_action_dispatch.py"
+      ]
+    },
+    "P5.3#c2b7664ea4de": {
+      "parent": "P5.3",
+      "sha256": "c2b7664ea4de582778386fcc82d165c4a39035a20383182597d018165dd14125",
+      "text": "Production runner: issue executor configs only from current qualified P5.1 candidates, bind every level to the exact quote and final-send economics/market gates, reconcile all fills and terminal states through P5.7, and verify cross-process/host sender ownership under P8.3. No live quote is issued by the current controller.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Durable level/intent/slot ownership and safe replacement pass; qualified production issuance and deployed single-host ownership remain D/R. Multihost send is prohibited.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_order_slots.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_executor_protected_send.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_quote_action_dispatch.py"
+      ]
+    },
+    "P5.4": {
+      "parent": "P5.4",
+      "sha256": "60b25dfb14c0f184523b8d704fc1f2646b846a4085e0a1e6f793159ad6698ea8",
+      "text": "P5.4: Account correctly for fills concurrent with cancel ACKs; duplicate/out-of-order events cannot double-count fills.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Actual event types and fake authenticated reconciliation pass. Verify real OKX tracker/listener ordering and complete history on demo/account.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_fill_cancel_race.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_runner_fill_events.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_spot_session_replay.py"
+      ]
+    },
+    "P5.4#3ff7937cea9b": {
+      "parent": "P5.4",
+      "sha256": "3ff7937cea9b41a63faeb860601c4e73bd5dfe2faa199ab4234a8194500cc5c0",
+      "text": "Live connector event proof: run the actual OKX order tracker and V2 strategy listener together with delayed, duplicate, and post-termination fill/cancel events; verify that no subclass bypasses V2 forwarding and that the authenticated exchange/bill scan clears each observation after restart. In-memory runner observations are advisory and are lost on process restart; durable exchange reconciliation remains authoritative. A cancel event alone never releases the reservation.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Actual event types and fake authenticated reconciliation pass. Verify real OKX tracker/listener ordering and complete history on demo/account.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_fill_cancel_race.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_runner_fill_events.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_spot_session_replay.py"
+      ]
+    },
+    "P5.5": {
+      "parent": "P5.5",
+      "sha256": "2247b4f9290f1e628724f2f97e8cb52730649e1362ec2043a35ecf6791cb805d",
+      "text": "P5.5: Excess token inventory reduces or blocks new buying; inventory skew cannot replace hard limits.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Inventory taper and final-send revocation pass; calibrate thresholds from funded balances and live risk limits.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_spot_quotes.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_quote_actions.py"
+      ]
+    },
+    "P5.5#4b853c2958da": {
+      "parent": "P5.5",
+      "sha256": "4b853c2958da9293ea839048fd2c9b447bf5cc1160a696cbadec7995279c50ff",
+      "text": "Production: calibrate both thresholds from funded inventory and approved risk limits, require them for any live quoting policy, and verify authenticated account balances and unresolved orders feed the same reservation authority at final send. The controller still issues no live quotes.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Inventory taper and final-send revocation pass; calibrate thresholds from funded balances and live risk limits.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_spot_quotes.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_quote_actions.py"
+      ]
+    },
+    "P5.6": {
+      "parent": "P5.6",
+      "sha256": "38ac494e852173be5d2f42bb3999f0954290ab34682014e343cb0c11a90f4a14",
+      "text": "P5.6: Respect connector quotas, bound retries, and avoid creating large numbers of executors on every tick.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Host-local durable dispatch/request budgets pass. Cover every authenticated request/client in deployment, authenticate UID and calibrate API/refresh policy in D/R.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_quote_action_dispatch.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_quote_action_recovery.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_request_budget.py"
+      ]
+    },
+    "P5.6#9b9f41112b98": {
+      "parent": "P5.6",
+      "sha256": "9b9f41112b98130bc26dd2ba8d85abb5f8bad1d0eb9cc889ed8c7d6f3fe41a2d",
+      "text": "Production quota/refresh policy: resolve lost/ambiguous dispatch through verified runner and exchange evidence before freeing its slot; authenticate the budget UID, persist and install the policy through controller recovery, and cover every authenticated exchange/account request and every bot/host sharing the account. Calibrate numeric quotas and per-slot refresh intervals from measured OKX limits, traffic, queue-priority cost, stale-price risk, and cancel latency. An unresolved pre-WAL dispatch claim stays blocked until explicit proof; the current host-local journals do not establish multi-host ownership.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Host-local durable dispatch/request budgets pass. Cover every authenticated request/client in deployment, authenticate UID and calibrate API/refresh policy in D/R.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_quote_action_dispatch.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_quote_action_recovery.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_request_budget.py"
+      ]
+    },
+    "P5.7": {
+      "parent": "P5.7",
+      "sha256": "722a4f8c7cc607ac972018969325094e4ec4f75ee0a9b5a2cbec9221788618ca",
+      "text": "P5.7: Implement the concrete `OldOrderGateway` for the enabled executor/OKX products. Scope every submitted and recovered wire order by `session_id`/`epoch`; request idempotent cancellation, then obtain an authoritative open-order, pending-cancel, unknown-order, and fill reconciliation view after the request. A timeout, queued stop action, or terminated executor is not terminal proof. Expiry/pause stops replenishment under the old epoch, cancels outstanding orders, and continues reconciliation while retaining filled-inventory reporting. A successor sends only after P3.9 accepts the full-scope fresh result and P4.13 issues new permits. Test delayed cancel ACK, partial fill, missing response, gateway failure, restart, and enabled-product scope against the real runner/connector adapter.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Spot issuance, migration/provenance, combined recovery and successor proof pass O.3/O.4. SWAP scope remains O.7; actual exchange event/history and production installation remain D/R.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_order_gateway.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_controller_order_safety.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_spot_session_replay.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o4_commit_matrix.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_recorder_cold_restart.py"
+      ]
+    },
+    "P5.7#2f135f770e87": {
+      "parent": "P5.7",
+      "sha256": "2f135f770e87995fa0b4f5c5f26caa85934f639f74740be143776c800049d10b",
+      "text": "Real-account exchange recovery (R): independently verify the actual initial bill anchor/opening balance, operator approvals and capital-ledger cashflow attribution, other balance changes, pending algo/other-product scope, completed manual/out-of-scope trades beyond bounded offline history, and ownership of the actual send path (P4.7/P8.3/P9). The seven-day order-history window, three-month fill/bill-history window, and shorter retention of incomplete canceled orders can leave an order permanently unknown. The O.3 fake-exchange result is not this proof.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Spot issuance, migration/provenance, combined recovery and successor proof pass O.3/O.4. SWAP scope remains O.7; actual exchange event/history and production installation remain D/R.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_order_gateway.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_controller_order_safety.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_spot_session_replay.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o4_commit_matrix.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_recorder_cold_restart.py"
+      ]
+    },
+    "P5.7#2d4b9b9c5397": {
+      "parent": "P5.7",
+      "sha256": "2d4b9b9c5397fa244927bf4086751c6ca940aec40ddf8fe033a7c86252d0ab8c",
+      "text": "D/R production installation and O.7 enabled-product scope: spot quote/reservation issuance, durable cross-journal recovery, local tracker events, successor transition, stored-executor provenance and cold restart passed O.3/O.4. Repeat these contracts with real exchange events/history and configuration-driven qualified inputs before production installation. Extend the gateway and runner acceptance to SWAP in O.7/P6.15 before enabling SWAP.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Spot issuance, migration/provenance, combined recovery and successor proof pass O.3/O.4. SWAP scope remains O.7; actual exchange event/history and production installation remain D/R.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_order_gateway.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_controller_order_safety.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_spot_session_replay.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o4_commit_matrix.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_recorder_cold_restart.py"
+      ]
+    },
+    "P5.8": {
+      "parent": "P5.8",
+      "sha256": "48cfdf4f3b7b13328426965a8540d7e9dc9fb513e6d1dbb1659ca0e0a04ab0fc",
+      "text": "P5.8: Integrate P3 reference/session permissions and the P5.7 gateway with the actual controller loader/runner; status displays the market, reference price, expiry, transition/reconciliation reason, and pause reason. The controller must not substitute the generic benchmark-ready flag for the successor's independent LIFE market-ready gate.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Fake-exchange real-loader/runner session and independent successor proof pass. Configuration-driven qualified production reference/planner/sender installation remains D/R implementation.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_runtime_integration.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_spot_session_replay.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_quote_reference_binding.py"
+      ]
+    },
+    "P5.8#5788b5ba6817": {
+      "parent": "P5.8",
+      "sha256": "5788b5ba6817933c4a02b43b716471a1496b6a206c4204b865049fe6e93a7ba9",
+      "text": "Production controller-loader binding: instantiate qualified reference/quote inputs and the protected sender from validated configuration, bind authenticated account scope and live capital budgets, prove successor's independent LIFE market gate and tracker events through the runner, and validate OKX behavior before any live permit. The default controller still denies trading permission; P5.7 exchange recovery and P9 gates remain open.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Fake-exchange real-loader/runner session and independent successor proof pass. Configuration-driven qualified production reference/planner/sender installation remains D/R implementation.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_runtime_integration.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_spot_session_replay.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_quote_reference_binding.py"
+      ]
+    },
+    "P5.9": {
+      "parent": "P5.9",
+      "sha256": "142134a4232a1ce80118fcc481fa89e3dc40a37130c404520c7d20a4c5aec110",
+      "text": "P5.9: Adjust spreads/sizes using fees, volatility, inventory, depth, and side-specific markout within hard bounds. Report unmet KPIs when wider spreads violate them; do not exceed cost budgets to preserve uptime.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Supplied adaptive fee/volatility/inventory/depth/markout contract and final revocation pass. Qualified adaptive signal acquisition/installation and calibration remain D/R implementation.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_quote_adaptation.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_final_quote_send.py"
+      ]
+    },
+    "P5.9#fafb2b7d0c0b": {
+      "parent": "P5.9",
+      "sha256": "fafb2b7d0c0bc80449f6ac443b72c62c1e81b70fd52816dbe66362dc15203d6c",
+      "text": "Production signal and calibration contract: bind fee tiers, measured volatility, side-specific markout with minimum sample quality, inventory target/band, and synchronized independently attributed LIFE depth to the authenticated account and quote snapshot. Set numeric spread/depth limits and KPI/cost budgets with owners and rationale; replay adverse fills, thin books, stale signals, and fee-tier changes against the actual runner before live use. No controller path supplies qualified adaptive signals or enables live quoting yet.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Supplied adaptive fee/volatility/inventory/depth/markout contract and final revocation pass. Qualified adaptive signal acquisition/installation and calibration remain D/R implementation.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_quote_adaptation.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_final_quote_send.py"
+      ]
+    },
+    "P5.10": {
+      "parent": "P5.10",
+      "sha256": "207c83c642e83fea5de261c9b99c813f90c63ca5362cdec44338d1dfca6c83b1",
+      "text": "P5.10: Both one-sided fills and adverse alternating fills reduce capacity; cooldown expiry does not permit unlimited replenishment. Repeated-cycle tests preserve cumulative loss/fill history.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Durable cumulative fill/loss identity and crash recovery pass. Qualify live source/history and numerical limits before production installation.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_quote_capacity.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_final_quote_send.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o2_turnover_replay.py"
+      ]
+    },
+    "P5.10#cbaa99e816f0": {
+      "parent": "P5.10",
+      "sha256": "cbaa99e816f0430d843490592e34df532c8588e8df2d160ef85cf1f22a67318e",
+      "text": "Production accounting and recovery: bind the campaign fill cap and loss-budget status to the same authenticated UID, campaign, and reconciled OKX trade/bill identities at proposal and final send. Persist the source and completeness of side-specific loss events, handle cross-journal crashes without undercounting fills or losses, and require calibrated numeric limits. A manually supplied snapshot or local ledger alone is not live permission.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Durable cumulative fill/loss identity and crash recovery pass. Qualify live source/history and numerical limits before production installation.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_quote_capacity.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_final_quote_send.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o2_turnover_replay.py"
+      ]
+    },
+    "P5.11": {
+      "parent": "P5.11",
+      "sha256": "707bfd74e135df57d772fc4418a4808ea671e827154a98625c939ad2efe0a4e9",
+      "text": "P5.11: Refresh policy balances stale-price risk against queue-priority loss and API cost; large price drift prioritizes immediate cancellation. Evaluate sensitivity to latency and fill selection rather than selecting refresh intervals solely for the best simulated PnL.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Advisory refresh cost/latency sensitivity is complete offline. Automatic refresh decision-to-cancel scheduling and qualified input acquisition remain D/R implementation; no deployed adaptive refresh is claimed.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_refresh_policy.py"
+      ]
+    },
+    "P5.11#61c5a96e00f0": {
+      "parent": "P5.11",
+      "sha256": "61c5a96e00f0f9a49bbe152e29836754e9083a6c238803110c73fdb7e3e45ad9",
+      "text": "Production lifecycle: derive desired price and risk/cost estimates from qualified market/account observations, calibrate numeric drift/age/latency thresholds, and bind the decision to the real OKX cancel path with protected request capacity, continued quote-pause on failure, terminal reconciliation, and safe replacement. Replay varied latency and fill-selection regimes, including worst-case adverse selection, before live enablement.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Advisory refresh cost/latency sensitivity is complete offline. Automatic refresh decision-to-cancel scheduling and qualified input acquisition remain D/R implementation; no deployed adaptive refresh is claimed.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_refresh_policy.py"
+      ]
+    },
+    "P5.13": {
+      "parent": "P5.13",
+      "sha256": "e96769d72604680abed44a4d3d1b437cb3b6e39061e99522d3949d010a75cba5",
+      "text": "P5.13: Build independent LIFE book depth from connector snapshots after subtracting this bot's own acknowledged and pending orders by wire ID. If IDs, order states, or depth attribution are incomplete, mark own-depth separation unavailable and block reference qualification. A single tiny trade or the bot's own displayed depth never satisfies P3.11; replay with real executor/order-tracker interfaces.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Local real tracker/public snapshot subtraction and final reference recheck pass. Authenticate complete account-wide own orders and synchronized production book/exit inputs before installation.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_own_depth.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_own_depth_runner.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_controller_own_depth.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_quote_reference_binding.py"
+      ]
+    },
+    "P5.13#f75e4b1a135a": {
+      "parent": "P5.13",
+      "sha256": "f75e4b1a135aeeb4623b062874a01edb5ad3686aa3b3d1e924e1e44304ad9a10",
+      "text": "Runner/connector proof: qualify the complete own-order set against authenticated account-wide pending orders and a synchronized public book; connect an exchange-qualified account scope and conservative executable exit value to the P5.1 quote source, with actual V2 runner/executor and sustained-market replay. Local tracker agreement does not prove that every exchange order is known; the public aggregated book contains no wire IDs. No controller path currently grants live quote permission.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Local real tracker/public snapshot subtraction and final reference recheck pass. Authenticate complete account-wide own orders and synchronized production book/exit inputs before installation.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_own_depth.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_own_depth_runner.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_controller_own_depth.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_quote_reference_binding.py"
+      ]
+    },
+    "P6.1": {
+      "parent": "P6.1",
+      "sha256": "0cd1d876e8def023b129ec62de7b4961f237e33776ae8661054e949d409e99aa",
+      "text": "P6.1: Confirm account/position modes, leverage, and contract metadata before the first quote; configuration errors generate no orders.",
+      "spot_offline": "not_in_scope",
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Full enabled-extension fake-runner allocation/execution/recovery acceptance is not complete. Standalone or connector slices are not a runner pass; implement O.7 before demo, then qualify actual account/market/cost inputs.",
+      "tests": []
+    },
+    "P6.2": {
+      "parent": "P6.2",
+      "sha256": "910c2aedb69ee4b19c4a6f29ddec72f69f278fe29bb33846d600c70645a4f25c",
+      "text": "P6.2: Contract-to-base conversion is consistent across order placement, fills, REST/WS positions, notional, and PnL. Fixed contract quantities in linear contracts retain the same base quantity when mark/entry prices change. Test fractional lots, `ctVal`, `avgPx=0`, and no upward quantity rounding. Fix `get_position_amount()` before enabling shared live risk management.",
+      "spot_offline": "not_in_scope",
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Full enabled-extension fake-runner allocation/execution/recovery acceptance is not complete. Standalone or connector slices are not a runner pass; implement O.7 before demo, then qualify actual account/market/cost inputs.",
+      "tests": []
+    },
+    "P6.3": {
+      "parent": "P6.3",
+      "sha256": "969b8c7da6757ddbcf54eb38a3a714adddc026d672c6efcb5c8465fffaeaa103",
+      "text": "P6.3: Opening/closing respects `position_action` and position mode. ONEWAY closing requires exchange-enforced reduce-only or live operation is blocked; HEDGE closing needs corresponding contract tests. Another fill reducing the position between snapshot and send cannot turn a close into a reverse position. Margin configuration must match the actual request; reject isolated mode while the adapter hard-codes cross.",
+      "spot_offline": "not_in_scope",
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Full enabled-extension fake-runner allocation/execution/recovery acceptance is not complete. Standalone or connector slices are not a runner pass; implement O.7 before demo, then qualify actual account/market/cost inputs.",
+      "tests": []
+    },
+    "P6.4": {
+      "parent": "P6.4",
+      "sha256": "c0384ff3993c981a073c16a1b54d84a641ddc106202436fa3f62c4f4eaeb58ef",
+      "text": "P6.4: Risk includes spot inventory, perpetual longs/shorts, pending orders, and margin buffers without double-counting assets in the same account.",
+      "spot_offline": "not_in_scope",
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Full enabled-extension fake-runner allocation/execution/recovery acceptance is not complete. Standalone or connector slices are not a runner pass; implement O.7 before demo, then qualify actual account/market/cost inputs.",
+      "tests": []
+    },
+    "P6.5": {
+      "parent": "P6.5",
+      "sha256": "dd14f231bd5b0ddb449773173ea297ee1041d45653c705c8bc197a89a39f0285",
+      "text": "P6.5: Perpetual mark/index/funding data remain distinct; neither a benchmark nor an internal quote price is the OKX mark price.",
+      "spot_offline": "not_in_scope",
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Full enabled-extension fake-runner allocation/execution/recovery acceptance is not complete. Standalone or connector slices are not a runner pass; implement O.7 before demo, then qualify actual account/market/cost inputs.",
+      "tests": []
+    },
+    "P6.6": {
+      "parent": "P6.6",
+      "sha256": "bc9d2ed922958b4181b7a79201bb0f658681062bc2d7e5bd89384130424c7ae9",
+      "text": "P6.6: Compute hedge ratios from actual holdings, accounting for intents/reservations; partial hedges and hedge failures cannot cause unlimited retries.",
+      "spot_offline": "not_in_scope",
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Full enabled-extension fake-runner allocation/execution/recovery acceptance is not complete. Standalone or connector slices are not a runner pass; implement O.7 before demo, then qualify actual account/market/cost inputs.",
+      "tests": []
+    },
+    "P6.7": {
+      "parent": "P6.7",
+      "sha256": "138d8a6a8e301f0eb7c0fd5cd909bce6fc2c2aa0a82fcb68b1d02da2bfb8272d",
+      "text": "P6.7: A single coordinator allocates MM and hedge intents to prevent conflicting actions; apply target-inventory updates exactly once.",
+      "spot_offline": "not_in_scope",
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Full enabled-extension fake-runner allocation/execution/recovery acceptance is not complete. Standalone or connector slices are not a runner pass; implement O.7 before demo, then qualify actual account/market/cost inputs.",
+      "tests": []
+    },
+    "P6.8": {
+      "parent": "P6.8",
+      "sha256": "9fdfe443a1d8428ae3340e2003a22aa53d88f9a995116f8dc70aa7f0da610532",
+      "text": "P6.8: When hedging is required and perpetual connectivity fails, block spot intents that increase exposure. Independent spot operation requires an explicit policy.",
+      "spot_offline": "not_in_scope",
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Full enabled-extension fake-runner allocation/execution/recovery acceptance is not complete. Standalone or connector slices are not a runner pass; implement O.7 before demo, then qualify actual account/market/cost inputs.",
+      "tests": []
+    },
+    "P6.9": {
+      "parent": "P6.9",
+      "sha256": "556707cecb8bfd82ab0c3b4c99ac94a5e5b06cc5ea9018dc575164eb6154f076",
+      "text": "P6.9: Remove the example hedge controller's `asset-USDC` assumption; test LIFE\u2013USDT against actual market metadata.",
+      "spot_offline": "not_in_scope",
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Full enabled-extension fake-runner allocation/execution/recovery acceptance is not complete. Standalone or connector slices are not a runner pass; implement O.7 before demo, then qualify actual account/market/cost inputs.",
+      "tests": []
+    },
+    "P6.10": {
+      "parent": "P6.10",
+      "sha256": "d432ba4fb441e4636cf470cd294fe159c7be82dd978a2ab427d7cd9634607a74",
+      "text": "P6.10: Hedge deadbands/batching reduce churn, but maximum unhedged quantity/time take priority. Test that small fills avoid unnecessary hedges, while deadline/exposure breaches invoke the selected risk-reduction policy.",
+      "spot_offline": "not_in_scope",
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Full enabled-extension fake-runner allocation/execution/recovery acceptance is not complete. Standalone or connector slices are not a runner pass; implement O.7 before demo, then qualify actual account/market/cost inputs.",
+      "tests": []
+    },
+    "P6.11": {
+      "parent": "P6.11",
+      "sha256": "687515ce3a01cda5329d285800a9bf06914e3d5440aaab835f6b6066067d0678",
+      "text": "P6.11: Estimate hedge cost from executable depth/size, basis, and fees; a marketable order is not necessarily an inexpensive hedge. Block new quotes when hedge costs violate net-edge or budget gates.",
+      "spot_offline": "not_in_scope",
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Full enabled-extension fake-runner allocation/execution/recovery acceptance is not complete. Standalone or connector slices are not a runner pass; implement O.7 before demo, then qualify actual account/market/cost inputs.",
+      "tests": []
+    },
+    "P6.12": {
+      "parent": "P6.12",
+      "sha256": "48a84bb94388afdae26f8116c7673bf2b1c29afbaa05ede8481c44c88e8042a0",
+      "text": "P6.12: Funding sign, schedule, and settlement changes update economics; do not hard-code an eight-hour interval. Positions remaining after session expiry retain funding/margin monitoring and carry budgets until actually closed.",
+      "spot_offline": "not_in_scope",
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Full enabled-extension fake-runner allocation/execution/recovery acceptance is not complete. Standalone or connector slices are not a runner pass; implement O.7 before demo, then qualify actual account/market/cost inputs.",
+      "tests": []
+    },
+    "P6.13": {
+      "parent": "P6.13",
+      "sha256": "b563b37613bf6d57f44cb88327f1e81f659be6f5c5a1bbc0defbd37a913158d4",
+      "text": "P6.13: A spot long/perpetual short with near-zero net delta is still blocked when stressed margin/basis exceeds limits. Cross margin uses account-level collateral and maintenance tiers; balances from two connectors cannot be counted twice.",
+      "spot_offline": "not_in_scope",
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Full enabled-extension fake-runner allocation/execution/recovery acceptance is not complete. Standalone or connector slices are not a runner pass; implement O.7 before demo, then qualify actual account/market/cost inputs.",
+      "tests": []
+    },
+    "P6.14": {
+      "parent": "P6.14",
+      "sha256": "4b781727f2b14dc6a2999625c630bf2b1c826d073fcf3b153ddb5c9ce5026005",
+      "text": "P6.14: BTC/ETH/AVAX benchmarks are not automatically LIFE hedging instruments. The MVP hedges only with an appropriate LIFE contract; cross-asset hedging requires a separate basis/correlation model and research gate outside this scope.",
+      "spot_offline": "not_in_scope",
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Full enabled-extension fake-runner allocation/execution/recovery acceptance is not complete. Standalone or connector slices are not a runner pass; implement O.7 before demo, then qualify actual account/market/cost inputs.",
+      "tests": []
+    },
+    "P6.15": {
+      "parent": "P6.15",
+      "sha256": "e3b4a14903c1ceabfed38d2664f7582cb14ba275e633583c1565f127397246e2",
+      "text": "P6.15: Before enabling LIFE perpetual orders, extend P5.7's session/epoch order gateway and P4.13's final-send permit to the SWAP connector. A spot session transition cannot activate while an enabled old-epoch SWAP order or fill remains open, pending, unknown, or unreconciled. Test cancellation and reconciliation across both products, including a disconnected perpetual connector.",
+      "spot_offline": "not_in_scope",
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Full enabled-extension fake-runner allocation/execution/recovery acceptance is not complete. Standalone or connector slices are not a runner pass; implement O.7 before demo, then qualify actual account/market/cost inputs.",
+      "tests": []
+    },
+    "P7.1": {
+      "parent": "P7.1",
+      "sha256": "af95820c304ef0c675aed4c62e4e8eaee4d6f6c355f48eeaac77adde90ea7697",
+      "text": "P7.1: Split required buys/sells into a separate execution session; filled plus pending quantity cannot exceed the target or available balances.",
+      "spot_offline": "not_in_scope",
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Full enabled-extension fake-runner allocation/execution/recovery acceptance is not complete. Standalone or connector slices are not a runner pass; implement O.7 before demo, then qualify actual account/market/cost inputs.",
+      "tests": []
+    },
+    "P7.2": {
+      "parent": "P7.2",
+      "sha256": "6c37f5496b84e4b8653c548ea89af96646368d6c1dc1ae3876e52a1726dab8b1",
+      "text": "P7.2: Do not reuse TWAP's TAKER defaults unchanged; adapters explicitly select order semantics and preserve CEX price protection.",
+      "spot_offline": "not_in_scope",
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Full enabled-extension fake-runner allocation/execution/recovery acceptance is not complete. Standalone or connector slices are not a runner pass; implement O.7 before demo, then qualify actual account/market/cost inputs.",
+      "tests": []
+    },
+    "P7.3": {
+      "parent": "P7.3",
+      "sha256": "9bf3ee712d9787b3cc03cc7b1455bb0dc1ddbc709caae706f7b16f79c9f9060a",
+      "text": "P7.3: Thin books or insufficient observed volume reduce/pause execution. Exclude known own fills from participation calculations without claiming the remaining volume is independently generated demand. Volume spikes cannot raise hard quantity/notional/slippage budgets; inflated-volume tests must not allow unbounded quantity growth.",
+      "spot_offline": "not_in_scope",
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Full enabled-extension fake-runner allocation/execution/recovery acceptance is not complete. Standalone or connector slices are not a runner pass; implement O.7 before demo, then qualify actual account/market/cost inputs.",
+      "tests": []
+    },
+    "P7.4": {
+      "parent": "P7.4",
+      "sha256": "72003eddde95be959adc55afb13b6da06fef9597db543ac0af0f3e24bd735177",
+      "text": "P7.4: Prices outside limits or excessive expected impact prevent child orders; do not relax limits to meet a deadline.",
+      "spot_offline": "not_in_scope",
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Full enabled-extension fake-runner allocation/execution/recovery acceptance is not complete. Standalone or connector slices are not a runner pass; implement O.7 before demo, then qualify actual account/market/cost inputs.",
+      "tests": []
+    },
+    "P7.5": {
+      "parent": "P7.5",
+      "sha256": "75cdb49b1b4cbe2d28d634b0605e03d69d90b6f143fe4fdccbfe912739d4d204",
+      "text": "P7.5: On deadline, report completed/partial/expired and the remaining quantity; do not silently sweep the remainder with market orders.",
+      "spot_offline": "not_in_scope",
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Full enabled-extension fake-runner allocation/execution/recovery acceptance is not complete. Standalone or connector slices are not a runner pass; implement O.7 before demo, then qualify actual account/market/cost inputs.",
+      "tests": []
+    },
+    "P7.6": {
+      "parent": "P7.6",
+      "sha256": "d4b9e3029e7fd6b83bf78e3a6153bad91aa96ae45d227c3ec1e404b9ece3033b",
+      "text": "P7.6: MM \u2192 inventory \u2192 MM transitions include cancellation/reconciliation; old orders cannot leave conflicting intents or self-trades between modules.",
+      "spot_offline": "not_in_scope",
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Full enabled-extension fake-runner allocation/execution/recovery acceptance is not complete. Standalone or connector slices are not a runner pass; implement O.7 before demo, then qualify actual account/market/cost inputs.",
+      "tests": []
+    },
+    "P7.7": {
+      "parent": "P7.7",
+      "sha256": "f7c63ee53abfff3fdc3a256fd9287d74ef7a425fb3bf1a8119b3b1908dd83222",
+      "text": "P7.7: Pausing quotes, stopping the runner, and closing positions are distinct actions; expiration of a benchmark session does not automatically close positions with market orders.",
+      "spot_offline": "not_in_scope",
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Full enabled-extension fake-runner allocation/execution/recovery acceptance is not complete. Standalone or connector slices are not a runner pass; implement O.7 before demo, then qualify actual account/market/cost inputs.",
+      "tests": []
+    },
+    "P7.8": {
+      "parent": "P7.8",
+      "sha256": "8d1060d882fee776122f932885e02f60efe97545f73bd5609567100fe6916164",
+      "text": "P7.8: Inventory reduction uses a separate exit budget and reports implementation shortfall against a benchmark fixed before execution; do not reset the benchmark to the post-sale price to conceal execution costs.",
+      "spot_offline": "not_in_scope",
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Full enabled-extension fake-runner allocation/execution/recovery acceptance is not complete. Standalone or connector slices are not a runner pass; implement O.7 before demo, then qualify actual account/market/cost inputs.",
+      "tests": []
+    },
+    "P8.1": {
+      "parent": "P8.1",
+      "sha256": "6b0ecbef4f6d30ad94fac21b9e92bf4ab73b5c18babc9cd85ef7ae4d01d34d67",
+      "text": "P8.1: Inject crashes before send, after send but before ACK, after fill but before checkpoint, and during cancel/replace; no orders or exposure become untracked.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Spot recorder/WAL/action/fill/cashflow interruption acceptance is complete O.4. SWAP remains O.7; deployed storage and actual account proof remain D/R.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_wal.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_crash_recovery_replay.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o4_commit_matrix.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_recorder_cold_restart.py"
+      ]
+    },
+    "P8.1#51f30170a746": {
+      "parent": "P8.1",
+      "sha256": "51f30170a7462d2429fe0478071b928217be2e2559a1a569c7ef02aa278422b9",
+      "text": "Real-account and enabled-product proof (R/P6): confirm database/account ownership and authenticated exchange history, including completed out-of-scope trades; extend the matrix to SWAP only when P6 is enabled. Offline replay cannot establish this proof.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Spot recorder/WAL/action/fill/cashflow interruption acceptance is complete O.4. SWAP remains O.7; deployed storage and actual account proof remain D/R.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_wal.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_crash_recovery_replay.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o4_commit_matrix.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_recorder_cold_restart.py"
+      ]
+    },
+    "P8.2": {
+      "parent": "P8.2",
+      "sha256": "d456454e7644eeb53bbd92044a022dfd8a46b81c37def3b8e863667cbb7fa273",
+      "text": "P8.2: Failed/corrupt storage or an untrusted clock enters `HALTED`/`RECONCILING`; do not start a new session from default state.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Failed/corrupt/stale storage and clock rollback pass offline. Verify deployed filesystem and timing assumptions; process kill is not physical power-loss proof.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_policy_state.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_wal.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_reservation_persistence.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_runtime_risk_binding.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o4_manual_rearm.py"
+      ]
+    },
+    "P8.2#542c3959dfc4": {
+      "parent": "P8.2",
+      "sha256": "542c3959dfc4db7cac0aa5bf2c5ee01c3c9ce9f8586307a47e768195ae5cdfcb",
+      "text": "R/operator owner: qualify deployed storage/clock monitoring and recovery from actual account history; physical power-loss durability is an operating assumption.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Failed/corrupt/stale storage and clock rollback pass offline. Verify deployed filesystem and timing assumptions; process kill is not physical power-loss proof.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_policy_state.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_wal.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_reservation_persistence.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_runtime_risk_binding.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o4_manual_rearm.py"
+      ]
+    },
+    "P8.3": {
+      "parent": "P8.3",
+      "sha256": "4f3033dd7f7fa992be4aa0e7262be20e5bab98555edaaf860cc5a5c3c6ec31d9",
+      "text": "P8.3: The MVP uses one account/subaccount dedicated to the risk pool and one sender on one host. An account/risk-pool lock blocks two local runners, including different strategy IDs. Local locks do not protect across hosts; do not deploy active-active/hot standby until centralized send authority is verified. Detect manual/out-of-scope orders and handle them under reconciliation policy.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "O.7",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Single-host spot UID lock and foreign-activity detection pass; SWAP shared sender remains O.7. Verify dedicated real UID/host/API-client ownership; no active-active deployment.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_account_lock.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_controller_order_safety.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_account_bills.py"
+      ]
+    },
+    "P8.3#847cf6c05ff5": {
+      "parent": "P8.3",
+      "sha256": "847cf6c05ff542d74d573b598ce45fb4fb1d17341baaa0d9f41bf83f76f92c45",
+      "text": "R/operator owner: establish actual dedicated account, host and API-client ownership and complete history coverage. Cross-host coordination is outside the MVP; joint SWAP aggregation remains O.7.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "O.7",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Single-host spot UID lock and foreign-activity detection pass; SWAP shared sender remains O.7. Verify dedicated real UID/host/API-client ownership; no active-active deployment.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_account_lock.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_controller_order_safety.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_account_bills.py"
+      ]
+    },
+    "P8.4": {
+      "parent": "P8.4",
+      "sha256": "0ed9e468d07355841bcbe92c868058c6cc114d07b9b6079d5a4e21016d0bbd56",
+      "text": "P8.4: The generic loader cannot automatically restart quoting after expiry/HALT; regression-test the manual kill switch and hot reload.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "HALT/expired/rejected reload cannot resume spot; repeat with deployed loader and approved configuration.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_runtime_risk_binding.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_runtime_integration.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o4_manual_rearm.py"
+      ]
+    },
+    "P8.4#17ed05c3e451": {
+      "parent": "P8.4",
+      "sha256": "17ed05c3e4510e4b17eeb48a1dfab6cedd2abbdc023151d503fd4dd94cb778a3",
+      "text": "D/R/connector and operator owners: exercise actual runner deployment/reload and the operational stop/rearm procedure. Production order permission remains disabled.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "HALT/expired/rejected reload cannot resume spot; repeat with deployed loader and approved configuration.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_runtime_risk_binding.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_runtime_integration.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o4_manual_rearm.py"
+      ]
+    },
+    "P8.5": {
+      "parent": "P8.5",
+      "sha256": "e6eb3229d5fb40b6a8982d8a7b808bedb67771d846a6fd5104a7de82b622393a",
+      "text": "P8.5: Integrate an exchange cancellation timer where the account/environment supports it, verifying account/tag scope. Renew its heartbeat only while the safety loop/ledger are healthy, rather than merely while the process is alive. Test that a stalled controller/safety loop cannot renew indefinitely.",
+      "spot_offline": "not_in_scope",
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Exchange timer/heartbeat scope and stalled-loop authority are not implemented or tested. Implement using supported demo environment, then verify actual account/tag scope; no offline timer pass is claimed.",
+      "tests": []
+    },
+    "P8.6": {
+      "parent": "P8.6",
+      "sha256": "532fb8c64680730f1c1c7960aa9012df8bcfd8e665a937a2c937abeded07076b",
+      "text": "P8.6: Stopping the heartbeat is not immediate cancellation; reconcile open orders and residual positions after the timer triggers.",
+      "spot_offline": "not_in_scope",
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Actual exchange-timer trigger plus account/position reconciliation requires timer implementation and demo proof; ACK/stopping heartbeat is not terminal proof.",
+      "tests": []
+    },
+    "P8.7": {
+      "parent": "P8.7",
+      "sha256": "91774c4662c131714c5c1d13bd15c7f69ff2e1cd4e22cb10e145e6afe0efb722",
+      "text": "P8.7: Report source age, session time remaining, PnL including fees/funding, inventory, margin, pending reservations, latency, reject counts, and reason codes.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Spot units/quality, latency/reservation/inventory metrics pass. SWAP funding/margin metrics remain O.7; deploy bounded retention/flush and qualify actual observations in D/R.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_telemetry.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_controller_telemetry.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o5_system_scenarios.py"
+      ]
+    },
+    "P8.7#5abac5ca138c": {
+      "parent": "P8.7",
+      "sha256": "5abac5ca138c14132cb4631b5d13caf2a5bb6bfbdf7868294ab5395e9b754f93",
+      "text": "O.7: actual SWAP margin/funding/hedge telemetry; D/R operator: deployed observation/flush adapter and real latency evidence.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Spot units/quality, latency/reservation/inventory metrics pass. SWAP funding/margin metrics remain O.7; deploy bounded retention/flush and qualify actual observations in D/R.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_telemetry.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_controller_telemetry.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o5_system_scenarios.py"
+      ]
+    },
+    "P8.8": {
+      "parent": "P8.8",
+      "sha256": "10e8b2ef6df4db5e0b94cf572522b81178c76b742dc09af5022cbcb148a76232",
+      "text": "P8.8: Logs include session/intent/order/config versions without secrets; reconstruct allow/block decisions from recorded snapshots.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Scoped whitelist/version/input/gate logs reconstruct synthetic decisions and block on recorder failure. Deployment retention/scheduling and live observations remain.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_telemetry.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_controller_telemetry.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o5_system_scenarios.py"
+      ]
+    },
+    "P8.8#c39234ecbe8c": {
+      "parent": "P8.8",
+      "sha256": "c39234ecbe8c4acf6d89dc9cd357ae3c0422ea8583a5488e0cb9b350bee67272",
+      "text": "D/R operator: qualify deployed logging/retention/access and scheduling. Buffered diagnostics are not recovery or financial authority; a crash can lose unflushed rows.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Scoped whitelist/version/input/gate logs reconstruct synthetic decisions and block on recorder failure. Deployment retention/scheduling and live observations remain.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_telemetry.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_controller_telemetry.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o5_system_scenarios.py"
+      ]
+    },
+    "P8.9": {
+      "parent": "P8.9",
+      "sha256": "d572cedc8f1add5c1779e1aaa2a20b291033c8b94367f5436e89822344da0b3c",
+      "text": "P8.9: Simulate empty books, no trades, benchmark spikes/staleness, concentrated one-sided fills, delayed ACK/cancel, WS disconnects, rate limits, spot/perpetual divergence, crash recovery, and expiry during disconnection.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "All declared spot fault scenarios pass. Spot/SWAP divergence/recovery requires O.7; actual latency/queue/source assumptions remain D/R.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_o5_system_scenarios.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o4_commit_matrix.py"
+      ]
+    },
+    "P8.9#49406c3f70fd": {
+      "parent": "P8.9",
+      "sha256": "49406c3f70fdcfd582762c66302b4e3869402f03fd373fc8d294879175b08138",
+      "text": "O.7: spot/perpetual divergence and SWAP recovery acceptance.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "O.7",
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "All declared spot fault scenarios pass. Spot/SWAP divergence/recovery requires O.7; actual latency/queue/source assumptions remain D/R.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_o5_system_scenarios.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o4_commit_matrix.py"
+      ]
+    },
+    "P8.11": {
+      "parent": "P8.11",
+      "sha256": "0a68e2c36f8203b7df7c39a3e79efbe651c2dd9602e0053c5ee8f36512a24f09",
+      "text": "P8.11: Measure time from a risk event to blocking/cancellation request and exchange confirmation against the budgets defined in P0; simulation measurements do not substitute for real latency.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Synthetic event/block/request/proof deltas and explicit breaches pass. Cancellation is driver-scheduled; freeze numeric budgets and measure actual deployed/exchange timings.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_telemetry.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o5_system_scenarios.py"
+      ]
+    },
+    "P8.11#aad112a0432f": {
+      "parent": "P8.11",
+      "sha256": "aad112a0432f19bf080d003afd75147040cbe4d0a0296af4d3a82fd79dedd046",
+      "text": "D/R risk/operator: calibrate numeric live response budgets in P0.6 and measure deployed event, request and terminal account-proof timings.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Synthetic event/block/request/proof deltas and explicit breaches pass. Cancellation is driver-scheduled; freeze numeric budgets and measure actual deployed/exchange timings.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_telemetry.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o5_system_scenarios.py"
+      ]
+    },
+    "P8.12": {
+      "parent": "P8.12",
+      "sha256": "d077b2b6e7398d6c3d36bc7b880fd0c09e3f42cbedb22c3e0bee33b32029c4e5",
+      "text": "P8.12: Telemetry decomposes gross edge \u2192 fees/hedge/impact/carry \u2192 net result, inventory PnL, markout by horizon, capital drawdown, liquidation value, and subsidy/loss budgets. Every metric has units/quality flags; missing values do not become zero.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "O.7",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Spot NAV/inventory/net-edge/fees/reservations/loss/subsidy and quality reconcile. Hedge/funding attribution remains O.7; actual independent executable values remain R.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_controller_telemetry.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o5_system_scenarios.py"
+      ]
+    },
+    "P8.12#3fed5f5558e0": {
+      "parent": "P8.12",
+      "sha256": "3fed5f5558e0e61bfe0cc6e4f22e0b89976300800988ad38348e8b4afa750d68",
+      "text": "O.7: enabled SWAP/hedge attribution; D/R market-data/operator: qualify actual valuation/depth/fees/KPI observations. Candidate economics and ACK journal depth do not prove externally executable liquidity.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "O.7",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Spot NAV/inventory/net-edge/fees/reservations/loss/subsidy and quality reconcile. Hedge/funding attribution remains O.7; actual independent executable values remain R.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_controller_telemetry.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o5_system_scenarios.py"
+      ]
+    },
+    "P8.13": {
+      "parent": "P8.13",
+      "sha256": "782ff13c67b1086f212b4deef6ef565e99a07dc593c5af2de14cdbad0e098397",
+      "text": "P8.13: Add replay scenarios for slow adverse fills, net-flat losses, spoof-like transient depth, latency spikes, fee/funding regime changes, basis shocks, and turnover-independent drawdown. Simulators include adverse event/fill ordering, not only favorable cases.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "O.7",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Spot slow adverse/net-flat/transient-depth/latency/fee/turnover ordering passes. Funding/basis shocks require O.7; empirical calibration remains R.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_o5_system_scenarios.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o2_turnover_replay.py"
+      ]
+    },
+    "P8.13#850b4624b44b": {
+      "parent": "P8.13",
+      "sha256": "850b4624b44b9d16c85951697a3eb1efaf265f93ac244882427fee957fba4ebc",
+      "text": "O.7: funding regime/basis shocks; R/C risk/project owners: empirical evaluation and release decision.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "O.7",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Spot slow adverse/net-flat/transient-depth/latency/fee/turnover ordering passes. Funding/basis shocks require O.7; empirical calibration remains R.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_o5_system_scenarios.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o2_turnover_replay.py"
+      ]
+    },
+    "P9.1": {
+      "parent": "P9.1",
+      "sha256": "77eb2d092ce8573c7d1a6b202e7dcd1aa0c373ae245b480360f79bd4747d1bc5",
+      "text": "P9.1: Provide a runbook covering installation, validation, simulation, shadow, demo, start, pause, resume, reconciliation, and rollback.",
+      "spot_offline": "not_in_scope",
+      "remaining": [
+        "D"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Build the installation/demo/shadow/start/pause/reconciliation/rollback operator runbook alongside concrete demo endpoint integration; O.6 reproduction is not a complete operational runbook.",
+      "tests": []
+    },
+    "P9.2": {
+      "parent": "P9.2",
+      "sha256": "c20c8dfe7de4199bd307cb5e0b795d3d3e7774cb6eba963748b24bea090de749",
+      "text": "P9.2: Shadow consumes real market data but cannot submit orders by adapter design; tests prove the order-placement path is unavailable. Exercise P3.10 on actual qualified LIFE observations when available; missing history is recorded as insufficient evidence.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Offline no-send guard and insufficient-history evaluation pass. Implement/run real-data shadow with qualified independent LIFE observations when available.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_config.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_runtime_integration.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_reference_evaluation.py"
+      ]
+    },
+    "P9.3": {
+      "parent": "P9.3",
+      "sha256": "ed23ca251a802d59e7a1e6fb7f73e6e281b0525176b1a73e53b3cebd959e5e11",
+      "text": "P9.3: Separate demo REST/WS endpoints and credentials from production. Verify connector demo support and add it if missing; do not assume LIFE exists in demo before listing.",
+      "spot_offline": "not_in_scope",
+      "remaining": [
+        "D"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Implement/verify isolated demo REST/WS routes and credentials; no demo support is inferred from fake connector success.",
+      "tests": []
+    },
+    "P9.4": {
+      "parent": "P9.4",
+      "sha256": "d8ae3283595bb49997fdd5fc42f50e0030b5908aaf6546e438f388a87c5b2182",
+      "text": "P9.4: If demo lacks LIFE, test the connector with a supported pair and LIFE logic with a fake instrument; document each test's representativeness limits.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "D"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Retain frozen fake LIFE proof and pair it with an actually available supported demo instrument; document representativeness limits.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_o5_system_scenarios.py"
+      ]
+    },
+    "P9.5": {
+      "parent": "P9.5",
+      "sha256": "1403166a6d17226e86e4b6a2e035a50bfa564cb1e9d3522474ab18aa5ece7b56",
+      "text": "P9.5: Run demo/soak through a complete configured session and expiry, one restart, disconnection, and cancellation. Record actual duration, test activity, and logs.",
+      "spot_offline": "not_in_scope",
+      "remaining": [
+        "D"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Run and record actual demo session/expiry/restart/disconnect/cancel soak; no real demo orders were sent during O.",
+      "tests": []
+    },
+    "P9.6": {
+      "parent": "P9.6",
+      "sha256": "872576b1abefa9f38f13cc620e0a628e73361619e97be45f635a9a31c08c1d37",
+      "text": "P9.6: Unit/integration/regression CI passes, diff coverage meets its gate, and no skips conceal failures in order submission/cancellation/accounting.",
+      "spot_offline": "not_in_scope",
+      "remaining": [
+        "D"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "O.6 local executable regression/diff gate closes only the local component; remote CI and demo release integration remain D, not claimed as passed.",
+      "tests": []
+    },
+    "P9.7": {
+      "parent": "P9.7",
+      "sha256": "ed2f1a6368a727b68b900bd18bf33ae37ce7481659bc995f8b8e3974e249e4a8",
+      "text": "P9.7: Live configuration includes the instrument, fees, risk budgets, qualified LIFE pricing, account mode, and position limits; missing mandatory inputs fail validation.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Build/freeze qualified account/reference/fee/budget production configuration and installation under read-only validation. Live configs currently fail closed.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_config.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_fee_refresh.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_account_data.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_reference_evaluation.py"
+      ]
+    },
+    "P9.9": {
+      "parent": "P9.9",
+      "sha256": "41938d33ae3dc0a5aa3cae8a8ba832cbb39280f15bd009aa98fa041c48b2f402",
+      "text": "P9.9: Rollback stops order creation, cancels/reconciles orders, confirms residual positions, and preserves state; reverting code alone cannot leave exchange orders unmanaged.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "D",
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Synthetic stop/cancel/reconcile/restart primitives pass; integrate and exercise operational rollback with actual demo/account state and residual positions.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_controller_order_safety.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o4_manual_rearm.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_spot_session_replay.py"
+      ]
+    },
+    "P9.10": {
+      "parent": "P9.10",
+      "sha256": "ecc206c808799059ba43b45bb4841e2ca4d6f7912946ab1bdae337f9fa795b4c",
+      "text": "P9.10: Economic reports separate calibration/evaluation, disclose sample size and confidence/uncertainty, and assess sensitivity to fees/funding/latency/queue assumptions. Tuning on evaluation data invalidates that evaluation; sparse data or no fills yields insufficient evidence.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "R",
+        "C"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Synthetic separation/insufficient-evidence contract passes. Gather qualified disjoint data, uncertainty and cost/queue sensitivity before economic release and canary evaluation.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_reference_evaluation.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o5_system_scenarios.py"
+      ]
+    },
+    "P9.11": {
+      "parent": "P9.11",
+      "sha256": "3355166443c120dac7238881c72aca6989a1412145b27304ff1fdfc0277ba72c",
+      "text": "P9.11: Economic gates use numeric thresholds fixed in advance for net edge/cost, drawdown, stress loss, capital utilization, and liquidity KPIs. `profit_mm` must meet its conservative net-edge criterion; `liquidity_service` must meet KPIs within its subsidy/loss budgets. Actual costs that violate the selected objective's gate fail release even when software tests pass. Explicitly budgeted negative expected edge is permitted only in `liquidity_service`; all hard risk limits still apply.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "R",
+        "C"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Software objective and hard budget gates pass. Freeze numeric edge/KPI/drawdown/utilization/stress criteria with rationale; empirical objective feasibility is unproven.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_economics.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_subsidy_budget.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o5_system_scenarios.py"
+      ]
+    },
+    "P9.12": {
+      "parent": "P9.12",
+      "sha256": "6e8aba65bdc7fa311fba9bfebfdad5f9dcffe7df4ce1ebbd62f2c35c1228884f",
+      "text": "P9.12: Compare against no-trading and no-benchmark MM baselines using the same capital, starting inventory, horizon, and risk constraints. Evaluate the frozen bounded-benchmark model on qualified independent LIFE data disjoint from calibration, report sample size and representativeness, and leave benchmark live eligibility unmet when data are sparse or unavailable. Separate market gains from strategy contribution; do not select a strategy solely on gross volume or rising account equity.",
+      "spot_offline": "contracts_verified",
+      "remaining": [
+        "R"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Synthetic no-model reference comparison and independent attribution pass. Real same-capital no-trade/no-benchmark baselines and disjoint LIFE evaluation are still required; sparse history leaves eligibility unmet.",
+      "tests": [
+        "test/hummingbot/strategy_v2/life_liquidity/test_reference_evaluation.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_accounting.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_o5_system_scenarios.py"
+      ]
+    },
+    "P9.8": {
+      "parent": "P9.8",
+      "sha256": "0f9b783057a541946563d6eee45b26d887a16a5b3fc486efeded6eae7b173471",
+      "text": "P9.8: The operator reviews a concrete evidence report and decides whether to enable live trading after the appropriate LIFE market opens; this plan does not authorize real-money trading.",
+      "spot_offline": "not_in_scope",
+      "remaining": [
+        "C"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Operator alone reviews concrete R evidence and separately decides live permission; no production orders are authorized.",
+      "tests": []
+    },
+    "P9.13": {
+      "parent": "P9.13",
+      "sha256": "4a79a9eee53afb91e9d4520ec9dc896a8ad541042d956ac5733ba9015b4467a7",
+      "text": "P9.13: Define a staged rollout from small spot canary \u2192 hedging \u2192 dual MM, with a separate canary budget, observation duration/sample requirement, stop/scale criteria, and review for each stage. Simulation/demo/shadow cannot establish live execution economics; a small live canary only gathers evidence within its allocated budget and cannot automatically scale with insufficient samples. Record observed canary outcomes separately from approval of the rollout plan.",
+      "spot_offline": "not_in_scope",
+      "remaining": [
+        "C"
+      ],
+      "owner": "strategy/connector maintainer; risk/project owner; account operator",
+      "reason": "Operator/risk owner must supply concrete canary capital/budget/duration/sample/stop/scale criteria per product. No automatic capital scaling or extension activation.",
+      "tests": []
+    }
+  }
+}

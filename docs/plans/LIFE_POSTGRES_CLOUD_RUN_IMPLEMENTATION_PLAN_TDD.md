@@ -12,6 +12,26 @@ tests explicitly retain their asserted schema-100 target; current-schema cases
 use the complete migration bundle. **PG3 stays open until this frozen gate
 passes; no deadline, budget, role or selected-delivery requirement is relaxed.**
 
+The File functional contract command is `pytest -q
+test/hummingbot/strategy_v2/life_liquidity --ignore=test/hummingbot/strategy_v2/life_liquidity/storage/postgres
+--ignore=test/hummingbot/strategy_v2/life_liquidity/postgres_spike -m 'not o8_performance'`.
+The 18 explicitly marked restore/settled-history timing/scale variants retain
+their original budgets and remain enabled in ordinary pytest/O.8 acceptance.
+They belong to the already separate PG8/O.8 scalability exit. PG3's configured
+maker workload and original quote/source/SQL deadlines remain mandatory.
+
+The first broad File run was **3865 pass / 54 fail**, **839.45 s**. Most failures
+referenced deleted acceptance inputs; original bytes are now versioned regression
+fixtures, restored from `a5257452802f8ea7c1227f9a9773cbfb7c5694ca`, not newly
+generated evidence. A separate File defect revoked still-valid receipts during
+refresh, causing watchdog/context refusals. Refresh now retains only a previously
+healthy COMMITTED receipt that independently passes current scope, sequence,
+hints and age checks; failure/cancellation still disarm and no flag is rearmed.
+The targeted refresh/thread/process cases pass **3 cases**, **10.89 s**; the
+combined original replay/validator/revocation gate passes **71 cases**, **12.45 s**.
+The initial native aggregate run was interrupted for these repairs and is not
+claimed as a completed gate. Current-source aggregate qualification follows.
+
 **Common release-history access (2026-10-22):** migration 109 adds a partial
 covering index for the combined terminal/unused release orphan audit. A real
 query-plan regression first reproduces the unrelated-history bitmap heap scan;

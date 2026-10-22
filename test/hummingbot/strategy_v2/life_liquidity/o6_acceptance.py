@@ -15,9 +15,11 @@ from collections import Counter
 from datetime import datetime, timezone
 from importlib.metadata import version
 from pathlib import Path
+from test.hummingbot.strategy_v2.life_liquidity.offline_inputs import SPOT_ACCEPTANCE
 
 ROOT = Path(__file__).resolve().parents[4]
-MANIFEST = ROOT / "docs/plans/evidence/life_o6_acceptance_manifest.json"
+
+MANIFEST = SPOT_ACCEPTANCE
 PLAN = ROOT / "docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md"
 
 

@@ -80,8 +80,8 @@ async def test_combined_mm_hedge_funding_inventory_and_mm_return(tmp_path, seed)
         assert restored.records() == f.log.records()
         assert len(spot.sent) == len(swap.sent) == 2
         import json
-        from test.hummingbot.strategy_v2.life_liquidity.o7_acceptance import base
-        expected = json.loads((base.ROOT / "docs/plans/evidence/life_o7_combined_replay.json").read_text())
+        from test.hummingbot.strategy_v2.life_liquidity.offline_inputs import COMBINED_REPLAY
+        expected = json.loads(COMBINED_REPLAY.read_text())
         assert seed in expected["seeds"]
         events = []
         for role, claim in (("mm", mm), ("hedge", hedge), ("inventory", inventory), ("rebalance", rebalance)):

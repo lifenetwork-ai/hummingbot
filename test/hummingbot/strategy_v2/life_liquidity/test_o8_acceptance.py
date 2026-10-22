@@ -5,6 +5,30 @@ from test.hummingbot.strategy_v2.life_liquidity import o8_acceptance as audit
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def complete_synthetic_candidate(tmp_path, monkeypatch):
+    """Exercise current validator rules without claiming archived results.
+
+    The archived input predates some required suites. Supply an explicitly
+    open unit-test candidate in tmp_path; the real CLI still consumes the
+    reviewed input and refuses its missing current evidence.
+    """
+    m = json.loads(audit.MANIFEST.read_text())
+    for key, required in audit.REQUIRED.items():
+        row = m['review_evidence'][key]
+        for suffix in required:
+            selector = audit.previous.PREFIX + suffix
+            if selector not in row['tests']:
+                row['tests'].append(selector)
+                row['status'], row['remaining'] = 'open', ['O.8']
+            case = row['cases'][0]
+            if selector not in m['cases'][case]['tests']:
+                m['cases'][case]['tests'].append(selector)
+    path = tmp_path / 'synthetic_open_candidate.json'
+    path.write_text(json.dumps(m))
+    monkeypatch.setattr(audit, 'MANIFEST', path)
+
+
 @pytest.mark.parametrize("fault", ["missing_review", "open_review", "missing_selector", "dropped_baseline", "budget", "plan"])
 def test_o8_gate_rejects_incomplete_closure(fault):
     m = json.loads(audit.MANIFEST.read_text())

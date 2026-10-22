@@ -5,6 +5,9 @@ asyncio_default_fixture_loop_scope = "function"
 # thread and the suite continues, surfacing every real failure in one run.
 timeout = 120
 timeout_method = "signal"
+markers = [
+    "o8_performance: separate PG8/O.8 timing and scale budgets; thresholds remain enforced by default",
+]
 
 [tool.black]
 line-length = 120

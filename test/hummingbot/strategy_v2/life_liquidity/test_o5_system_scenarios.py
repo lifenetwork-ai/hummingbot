@@ -62,11 +62,10 @@ async def test_external_print_queue_models_feed_real_accounting_without_fabricat
 @pytest.mark.asyncio
 async def test_frozen_evidence_bundle_matches_fresh_replay(tmp_path):
     import json
-    from pathlib import Path
     from test.hummingbot.strategy_v2.life_liquidity.o5_scenarios import run_report
+    from test.hummingbot.strategy_v2.life_liquidity.offline_inputs import SPOT_REPLAY
 
-    expected = json.loads((Path(__file__).resolve().parents[4]
-                           / "docs/plans/evidence/life_o5_spot_replay_v2.json").read_text())
+    expected = json.loads(SPOT_REPLAY.read_text())
     actual = await run_report(tmp_path)
     assert actual == expected
     assert actual["economic_viability"] == "INSUFFICIENT_EVIDENCE_UNCALIBRATED_SIMULATION"

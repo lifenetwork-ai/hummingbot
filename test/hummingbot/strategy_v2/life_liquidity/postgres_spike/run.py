@@ -19,7 +19,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[4]
 IMAGE = "postgres@sha256:e17e86066e5ef83e0952a9347f5c792b7ece00972e2aa787a6986f471b3dd3d5"  # noqa: documentation
-BUDGETS = ROOT / "docs/plans/evidence/life_o8_offline_budgets.json"
+BUDGETS = ROOT / "test/hummingbot/strategy_v2/life_liquidity/fixtures/offline_inputs/budgets.json"
 
 
 def sha(path):

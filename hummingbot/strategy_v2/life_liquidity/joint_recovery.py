@@ -541,20 +541,33 @@ class JointRecovery:
         return await application._checkpoint(function, *args)
 
     def _begin_reconciliation(self):
-        self._healthy = False
-        self._verify_storage()
-        if self._repository_application is not None:
-            # Original local bookkeeping runs on the same owning checkpoint,
-            # inside the reconciliation mutex and its failure/cancel guard.
-            self._repository_application.resume_original_lifecycle()
-        now = self.clock_ms()
-        with self.journal.locked(shallow=True) as state:
-            self._validate_state(state)
-            if type(now) is not int or now < 0 or state["last_ms"] is not None and now < state["last_ms"]:
-                raise ValueError("JOINT_CLOCK_ROLLBACK")
-            state["last_ms"] = state["last_poll_ms"] = now
-            self.journal.commit(state)
-        self.sender.request_budget.charge("STATUS", "joint:" + uuid.uuid4().hex)
+        was_healthy, self._healthy = self._healthy, False
+        try:
+            self._verify_storage()
+            if self._repository_application is not None:
+                # Original local bookkeeping runs on the same owning checkpoint,
+                # inside the reconciliation mutex and its failure/cancel guard.
+                self._repository_application.resume_original_lifecycle()
+            now = self.clock_ms()
+            with self.journal.locked(shallow=True) as state:
+                self._validate_state(state)
+                if type(now) is not int or now < 0 or state["last_ms"] is not None and now < state["last_ms"]:
+                    raise ValueError("JOINT_CLOCK_ROLLBACK")
+                state["last_ms"] = state["last_poll_ms"] = now
+                self.journal.commit(state)
+                if was_healthy:
+                    # A refresh is not new evidence. Keep only the previous
+                    # still-fresh committed receipt, checked against current
+                    # context, sequence, hints and time in this writer scope.
+                    self._healthy = True
+                    try:
+                        self._check_receipt(state, now)
+                    except Exception:
+                        self._healthy = False
+            self.sender.request_budget.charge("STATUS", "joint:" + uuid.uuid4().hex)
+        except BaseException:
+            self._healthy = False
+            raise
 
     def _complete_reconciliation(self, bundle, context, prepared, spot_fills=(), spot_facts=None, spot_cashflows=()):
         # This flag belongs to the physical checkpoint section. Cancelling an

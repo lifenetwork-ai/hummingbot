@@ -29,6 +29,7 @@ async def test_committed_history_does_not_recheckpoint_terminal_orders(tmp_path,
 
 
 @pytest.mark.asyncio
+@pytest.mark.o8_performance
 @pytest.mark.parametrize("history", [0, 1000, 10000])
 @pytest.mark.parametrize("archived", [False, True, "worker", "process", "journals"],
                          ids=["legacy", "segmented", "segmented-worker", "segmented-process", "segmented-journals"])

@@ -4,8 +4,9 @@ import hashlib
 import json
 from pathlib import Path
 from test.hummingbot.strategy_v2.life_liquidity import o6_acceptance as base
+from test.hummingbot.strategy_v2.life_liquidity.offline_inputs import FULL_ACCEPTANCE
 
-MANIFEST = base.ROOT / "docs/plans/evidence/life_o7_acceptance_manifest.json"
+MANIFEST = FULL_ACCEPTANCE
 FEATURES = ["life_usdt_spot", "single_optional_benchmark", "linear_life_usdt_swap",
             "shared_capital", "bounded_hedge", "dynamic_carry", "joint_recovery", "bounded_inventory"]
 SUITES = {

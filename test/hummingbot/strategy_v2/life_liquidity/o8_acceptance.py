@@ -5,10 +5,11 @@ import json
 import re
 from pathlib import Path
 from test.hummingbot.strategy_v2.life_liquidity import o7_acceptance as previous
+from test.hummingbot.strategy_v2.life_liquidity.offline_inputs import BUDGETS, REVIEW_ACCEPTANCE
 
 base = previous.base
-MANIFEST = base.ROOT / "docs/plans/evidence/life_o8_acceptance_manifest.json"
-BUDGETS = base.ROOT / "docs/plans/evidence/life_o8_offline_budgets.json"
+
+MANIFEST = REVIEW_ACCEPTANCE
 REQUIRED = {
     "O.8.1": ["test_o8_review.py::test_active_runner_poll_preserves_joint_authority",
               "test_o8_review.py::test_healthy_refresh_does_not_revoke_still_fresh_receipt",

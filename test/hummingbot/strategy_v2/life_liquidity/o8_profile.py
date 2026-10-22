@@ -204,7 +204,7 @@ def main():
                   mode=args.mode, history=args.history, variant=args.variant, workload_status=status, error=error,
                   git_head=subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
                   source_unchanged=before == after, source_sha256=before,
-                  budget_sha256=hashlib.sha256((ROOT / "docs/plans/evidence/life_o8_offline_budgets.json").read_bytes()).hexdigest(),
+                  budget_sha256=hashlib.sha256((Path(__file__).with_name("fixtures") / "offline_inputs/budgets.json").read_bytes()).hexdigest(),
                   python=sys.version, platform=platform.platform(), pid=os.getpid(),
                   process_peak_rss_bytes=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * (1 if sys.platform == "darwin" else 1024),
                   measurement_notes=["Fixture construction excluded from hot-path profiles; seed/migration clocks reported separately.",

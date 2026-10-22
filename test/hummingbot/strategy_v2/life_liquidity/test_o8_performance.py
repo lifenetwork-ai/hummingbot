@@ -7,15 +7,13 @@ import statistics
 import sys
 import time
 from decimal import Decimal as D
-from pathlib import Path
 from test.hummingbot.strategy_v2.life_liquidity.o7_scenarios import send, system
+from test.hummingbot.strategy_v2.life_liquidity.offline_inputs import BUDGETS
 
 import pytest
 
 from hummingbot.strategy_v2.life_liquidity.action_journal import QuoteActionRecord
 from hummingbot.strategy_v2.life_liquidity.risk import ReservationLedger, RiskLimits, SpotIntent, _Reservation
-
-BUDGETS = Path(__file__).resolve().parents[4] / "docs/plans/evidence/life_o8_offline_budgets.json"
 
 
 def limit(name):
@@ -41,6 +39,7 @@ def make_ledger(path, n):
 
 
 @pytest.mark.asyncio
+@pytest.mark.o8_performance
 @pytest.mark.parametrize("history", [0, 1000, 10000])
 async def test_scaled_restore_and_actual_authorization_with_watchdog(tmp_path, history, record_property):
     ledger = make_ledger(tmp_path / "scale.json", history)
