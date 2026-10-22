@@ -5200,3 +5200,97 @@ they do not synthesize an exchange `OrderFailure`. Migration 111 lets the
 recorder retain the original unprepared executor under its verified birth and
 exact local wire, with zero financial totals. Cold readback grants no sender;
 unused claims still require separate source-qualified retirement/release.
+
+## PG6 logical backup and isolated restore
+
+`postgres/backup.py`, `archive_tools.py` and `restore.py` provide owner-side
+logical backup transport and a permanent restore admission barrier. They are
+explicit offline maintenance tools, separate from `PgLiquidityService` startup.
+They do not consume the repository `.env`, copy source credentials into a target,
+import File financial state or grant trading permission.
+
+### Backup
+
+Supply a dedicated schema-owner connection, trusted server-compatible
+`pg_dump`/`pg_restore` argv prefixes, a child environment containing connection
+settings/secrets, and **explicit** `BackupLimits`. Credentials/DSN URLs are not
+accepted in tool arguments, and child stderr is not included in errors.
+
+```python
+writer = PgLogicalBackup(owner_connection, tools=source_tools, limits=limits)
+try:
+    bundle = await writer.create(absolute_new_backup_directory)
+finally:
+    await writer.close()  # Drain an admitted job even after caller cancellation.
+# Retain bundle.content_digest in a separate trusted backup catalog.
+```
+
+The writer captures complete row counts/byte counts/framed SHA-256 digests for
+every table in `life_migrations`, `life_storage`, `life_financial` and
+`life_recorder`. One repeatable-read transaction exports the exact snapshot used
+by `pg_dump --format=custom --snapshot=...`; concurrent source commits cannot
+split the table manifest from the archive cut. UTC/ISO/float formatting is pinned.
+The complete retained-history scan is bounded offline work, not a hot-path cache.
+
+The dump streams through a byte limit to an exclusive `0600` file in a new `0700`
+directory. The fsynced manifest is published last. Capacity/tool/caller failures
+never overwrite an old bundle or adopt a partial directory. Hashes establish
+content identity, not independent source authenticity or financial correctness.
+Keep artifacts immutable; store the trusted digest separately and qualify actual
+encryption, retention, object-store permissions and disaster recovery separately.
+
+### Restore rehearsal and runbook
+
+1. Select the exact reviewed source/schema bundle and a separately trusted
+   archive digest. `BackupBundle.open(path, expected_digest=..., limits=...)`
+   checks complete manifest shape, capacities, custom-format header and archive
+   SHA-256. Keep the selected directory immutable throughout the operation.
+2. Create an **empty isolated target**, owned by the dedicated migration owner.
+   Revoke database `CONNECT` from PUBLIC and every other non-owner principal;
+   no other login may inherit that owner. Hold the maintenance connection only.
+   Use a distinct database/connection configuration for the target tools.
+3. Await `restore_archive(target_connection, tools=target_tools, bundle=bundle,
+   limits=limits)`. It refuses existing LIFE schemas or an exposed/non-owner
+   target and executes `pg_restore --exit-on-error --single-transaction --no-owner`.
+   Original schema ACLs are retained; database CONNECT grants are not copied.
+   Complete restored table-row parity must pass. A transport timeout/cancellation
+   leaves an isolated target requiring inspection; never blindly retry it.
+4. From a separate administrative connection to **another database**, set the
+   target database `ALLOW_CONNECTIONS=false`. PostgreSQL refuses changing that
+   setting from inside the target itself. Wait for all other target backends to
+   end; no prepared transaction may remain. The maintenance connection stays open.
+5. Create `RestoreRequest` with a stable operation ID, expected source lineage,
+   a **new** target database lineage, archive SHA-256 and image content digest.
+   Await `PgRestoreQuarantine(target_connection, limits=limits).quarantine(
+   request, manifest=bundle.image)`, then drain its `close()` before closing the
+   connection. It rechecks complete parity and commits the new lineage, immutable
+   original-owner audit and `UNARMED` state atomically. No hold is released.
+6. On unknown COMMIT, reestablish the same isolated maintenance context and
+   replay the **same request**. Readback verifies original request and retained
+   monetary/account parity. It cannot renew grants, reset budgets or rearm.
+7. Keep the target unavailable to writers. There is no release/rearm API in this
+   slice. Post-cut exchange history, old REST/WS/CAA credential exclusion, new
+   controlled generation and WAL/PITR recovery qualification are still required.
+   Database health, a successful dump or row parity cannot substitute for them.
+
+A raw `pg_restore` outside this runbook bypasses target admission controls and is
+not a supported worker startup path. Physical/WAL recovery must additionally
+start with networking/credentials excluded; its offline rehearsal remains open.
+The data manifest covers table rows; it is not an independent full DDL, sequence,
+provider-identity, RPO/RTO or physical-failure-domain qualification.
+
+Local qualification (pinned PostgreSQL 16, **2 CPU / 1 GiB**, synthetic values):
+
+```sh
+python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_postgres \
+  --suite pg6 --output /tmp/life-pg6-new-run
+python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_postgres \
+  --suite pg6_regression --output /tmp/life-pg6-regression-new-run
+```
+
+Each output path must be new. Tests include real dump/restore with a concurrent
+source commit, preserved monetary holds/spending/fees/trade IDs, wrong-role and
+isolation refusals, corruption/capacity checks, lost COMMIT ACK, caller
+cancellation and a physically killed restore process followed by exact retry.
+No actual exchange/cloud or user `.env` is involved. PG6 remains open for complete
+stopped File/segmented import, rollback cutover, PITR and remaining recovery gates.

@@ -17,13 +17,23 @@ no release requirement is waived or passed by moving it.
 | PG3 | Closed for selected native/offline scope (`234c3631c`) | Clean stopped File cutover implementation stays PG6; actual account proof in OKX PG9/PG10 |
 | PG4 | Closed for selected offline handoff scope (`4fddc9419`) | Actual provider/key exclusion, deployed IAM and failover in OKX PG9/PG10 |
 | PG5 | Closed for selected offline native recorder/CLI scope | Deployed credentials/TLS remain OKX PG-E1; detached standalone reporting services are outside this worker profile |
-| PG6–PG8 | Open | Offline import/restore, image/IaC/signal tests and complete offline acceptance |
+| PG6 | In progress; logical backup/restore quarantine slice | Stopped File/segmented native import, cutover rollback, WAL/PITR, reconciliation/release and capacity qualification remain open |
+| PG7–PG8 | Open | Image/IaC/signal tests and complete offline acceptance |
 
 Only current phase checklists and this ledger determine progress. Historical
 “open at this checkpoint” statements describe their recorded revision; they are
 not unchecked current tasks and must not be changed to passing without proof.
-PG5–PG8 and O.8 still need their own acceptance; closing PG1–PG4 locally does not
+PG6–PG8 and O.8 still need their own acceptance; closing PG1–PG5 locally does not
 claim the whole product is offline complete or ready for demo/live execution.
+
+**PG6 IN PROGRESS — logical backup/restore quarantine (2026-10-23).**
+The owner-side exported-snapshot backup and isolated restore path pass **21**
+focused cases, **276** affected native regressions and **3** targeted migration
+cases in separate runs. Restored history/money/holds survive under a new database
+lineage, with every account unarmed and an independent SQL/runtime write barrier.
+There is no quarantine-release API. Complete clean File/segmented import,
+cutover rollback, WAL/PITR, post-cut reconciliation and RPO/RTO/capacity acceptance
+remain open. See [local qualification](#pg6-logical-restore-qualification-2026-10-23).
 
 **PG5 CLOSED — selected offline recorder/operational scope (2026-10-23).**
 Migration 118 adds a read-only account/source provenance guard without granting
@@ -3382,11 +3392,71 @@ Dependencies: PG3–PG5.
 - [ ] PG6.3: Compare exact financial totals, complete identity sets and recovered decisions; activate the imported lineage atomically and **unarmed**. Missing/corrupt source evidence blocks activation; never initialize empty authority to work around an import failure.
 - [ ] PG6.4: Keep the source immutable and non-sending. Before any DB-owned orders, reversal can discard staging. After DB-owned orders, rollback requires reconciled export/cutover and a new fenced generation; toggling the backend flag is prohibited.
 - [ ] PG6.5: Exercise backup/PITR restore into an isolated database. Restore is unarmed, has a new controlled lineage, rejects stale grants/epochs, and requires old-credential exclusion plus exchange history reconciliation since the restored cut. No empty history or replayed budget reset.
+  - [x] **Logical backup/restore quarantine implementation:** bounded complete table-row manifest and real `pg_dump` on one exported MVCC snapshot, exclusive/immutable archive publication, trusted external digest verification, empty owner-only target and real transactional `pg_restore`. Migration 119 and owner-side maintenance rotate database lineage atomically while retaining account lineage, original ownership audit, all financial/recorder identities, unknown attempts, holds and spent budgets. Every restored account is `UNARMED`/halted; central SQL write scope and native runtime both refuse the restored namespace. Lost-COMMIT readback and caller cancellation retain the original operation, and process death rolls back both data and trigger DDL.
+  - [ ] WAL/base-backup/PITR rehearsal, full restored schema/sequence verification, post-cut exchange reconciliation and independently qualified old-credential exclusion before a new controlled generation. The logical slice has **no quarantine-release/rearm API**. A raw restore or manual marker/backend/owner change cannot count as this gate.
 - [ ] PG6.6: Record measured backup restore, import, reconciliation, retained history and settlement/recovery headroom against PG0 RPO/RTO/capacity decisions. Export schema/versioned audit evidence; do not rely on backup existence alone.
+  - [x] Record one explicit small-fixture logical backup/restore/quarantine timing, archive bytes and complete table/row counts below. This is a functional rehearsal, not RPO/RTO or retained-history headroom acceptance.
 
 **Red tests:** `test_postgres_import.py`, `test_postgres_restore.py`, `test_postgres_cutover_rollback.py` with killed/resumed importer and fresh processes.
 
 **Done when:** both clean stopped source formats import exactly, non-quiescent sources are rejected, repeated import is idempotent, restorations cannot rearm, and the rollback runbook has a passing rehearsal.
+
+#### PG6 logical restore qualification (2026-10-23)
+
+**Verdict: this logical slice passes; PG6 remains OPEN.** Owner-side APIs are
+separate from worker startup. No File financial translator, source retirement,
+import activation, rollback exporter, quarantine release or WAL/PITR is claimed.
+The manifest verifies complete application table rows; independent full restored
+DDL/sequence/physical recovery qualification remains required.
+
+| Run | Qualified result | Retained local output |
+| --- | --- | --- |
+| `--suite pg6` | **21 passed**, zero failure/error/skip, 33.76 s | `/tmp/life-pg6-roundtrip-20261023-f3/integration.xml` |
+| `--suite pg6_regression` | **276 passed**, zero failure/error/skip, 305.28 s | `/tmp/life-pg6-regression-20261023-d1/integration.xml` |
+| Migration selector `restore_quarantine_upgrade or packaged_lineage_is_stable` | **3 passed**, 394 deselected, 6.79 s | `/tmp/life-pg6-migrations-20261023-f1/integration.xml` |
+
+These are three separate gates, not a single 300-case aggregate. Shared runtime
+and migration-119 inputs were unchanged throughout regression qualification;
+the complete focused gate was rerun after the final archive/I/O/replay changes.
+Existing dependency deprecation warnings remain; no qualified test is skipped.
+
+The focused cases exercise actual `pg_dump`/`pg_restore`, including a source
+commit **after** snapshot export: source history advances, the restored cut stays
+exact and unarmed. They retain prepared/unknown financial holds, paid fees,
+incurred loss, trade IDs and every table-row digest. Isolation/role/lineage reuse,
+corruption, capacity/partial publication, original COMMIT ACK loss and cancellation
+deny unsafe outcomes. A physically killed child rolls back restore metadata and
+trigger DDL; an original disk thread is joined before its descriptor/slot closes.
+Migration cases cover 118→119, repeat `up`, preserved access-function OID/ACL,
+hostile default-grant scrubbing, no authority bootstrap and unknown-predecessor
+refusal. The regression selector covers schema/transactions, SPOT financial
+commands/observations/lifecycle/settlement, control/leases, recorder/CLI and the
+configured native service. This is not the full PG8/product acceptance map.
+
+**Synthetic local fixture:** pinned PostgreSQL 16 container, **2 CPU / 1 GiB**;
+explicit caps **512 tables / 2,048 total rows / 1 MiB per returned row / 16 MiB
+total data and archive / 10,000 ms scan / 30,000 ms tool timeout**. These values are
+test inputs, not live defaults or widened financial/source/SQL deadlines. The
+rehearsal contains **154 tables / 146 rows**, with a **2,313,537-byte** archive.
+JUnit property `life_pg6_logical_rehearsal` records:
+
+| Phase | Observed time (ms) |
+| --- | ---: |
+| Backup fixture phase, including source SDK drain | 740.321 |
+| Archive verification, restore and complete row parity | 1,751.137 |
+| Isolated lineage rotation/quarantine and COMMIT | 460.908 |
+
+This one prepared small fixture proves the function, not cold/large-history
+headroom, post-cut reconciliation time, RPO/RTO or host/zone failover. PG0 recovery
+limits and PG6.1–PG6.6 remaining acceptance still gate phase closure.
+
+Initial red imports and failed intermediate runs remain under `/tmp`: missing
+backup/transport modules; target isolation attempted from inside the target;
+pending deferred FK events during trigger reenabling; incorrect test assumptions
+about risk epochs/driver `char` decoding; and predecessor-whitespace normalization.
+Those failures were corrected rather than waived. Changed-file hooks and diff
+checks pass. No earlier SQL migration, user `.env`, economic budget, financial
+timeout, exchange/cloud state or repository evidence file was changed/created.
 
 ### PG7 — Portable container and Cloud infrastructure definitions
 

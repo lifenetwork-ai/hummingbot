@@ -293,7 +293,11 @@ class PgRuntime:
                     WHERE n.nspname='life_recorder' AND t.relkind IN ('r','p')
                     AND has_table_privilege(current_user,t.oid,'INSERT,UPDATE,DELETE,TRUNCATE')))
                 AS recorder_profile"""
+        if 119 in versions:
+            query += ", (SELECT restore_operation_id FROM life_storage.storage_metadata) AS restore_operation_id"
         row = await c.fetchrow(query, *args)
+        if 119 in versions and cfg.write and row['restore_operation_id'] is not None:
+            raise StorageUnavailable('PG_RESTORE_QUARANTINED')
         if 118 in versions:
             recorder = row['recorder_profile']
             if recorder['read'] is not True or recorder['ddl'] is not False or recorder['direct'] is not False:

@@ -1804,3 +1804,31 @@ Scripts 116/117 use the existing automatic migration/checksum/locking entry
 point. Repeated service startup skips applied scripts; it never reruns financial
 registration, imports an account or enables trading. These scripts do not
 implement real exchange revocation, secret-provider IAM or live takeover.
+
+## 000119 — Isolated restore quarantine
+
+Adds an empty, owner-only immutable `life_storage.restore_history` and a nullable
+restore marker on storage metadata. Ordinary startup creates no account, backup,
+owner, import or activation. Repeated startup skips the registered checksum.
+The upgrade checks the exact predecessor of `can_access`, preserves its function
+OID/ACL, and scrubs hostile default grants from the new audit table.
+
+The account-to-database-lineage FK becomes deferrable for one isolated maintenance
+transaction. The existing account identity trigger still rejects ordinary identity
+changes. `PgRestoreQuarantine` requires the original dedicated schema-owner login,
+a primary with durable settings, `ALLOW_CONNECTIONS=false`, no other backend and
+no prepared transaction in that database. After complete logical-row parity it
+records original ownership, rotates **database** lineage, sets every account to
+`UNARMED`/halted and increments risk epochs. Original account lineage, sessions,
+activation grants, process leases, monetary operations, spent budgets, unknown
+attempts and holds are retained. It temporarily disables only `account_identity`
+inside that transaction, resolves deferred constraints, and reenables it before
+COMMIT; rollback or process death also rolls back the trigger DDL.
+
+Both the central SQL write-scope check and runtime admission reject a restored
+namespace while its marker is present. Replaying the same restore operation only
+returns historical readback after account/data parity; it does not increment
+epochs again or arm anything. There is **no quarantine-release API** in this
+slice. WAL/PITR qualification, post-cut exchange reconciliation, independently
+proved credential exclusion and a new controlled generation remain PG6 work.
+Never clear the marker, reset an owner or toggle a backend flag to bypass them.

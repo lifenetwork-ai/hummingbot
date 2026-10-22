@@ -70,7 +70,8 @@ async def test_packaged_lineage_is_stable_and_not_financial_bootstrap(db):
     before = await c.fetchrow('SELECT * FROM life_storage.storage_metadata')
     await migrate(c, action='up')
     assert before == await c.fetchrow('SELECT * FROM life_storage.storage_metadata')
-    assert await c.fetchval("SELECT count(*) FROM pg_tables WHERE schemaname='life_storage'") == 1
+    assert await c.fetchval("SELECT count(*) FROM pg_tables WHERE schemaname='life_storage'") == 2
+    assert await c.fetchval('SELECT count(*) FROM life_storage.restore_history') == 0
     assert DEFAULT_DIRECTORY.is_dir()
 
 
@@ -4244,3 +4245,41 @@ async def test_recorder_scope_upgrade_is_read_only_repeatable_and_scrubs_default
         assert await c.fetchval('SELECT has_function_privilege($1,$2,\'EXECUTE\')', role, function) is (role == 'life_runtime_test')
         assert not await c.fetchval('SELECT has_table_privilege($1,\'life_recorder."TradeFill"\',\'INSERT,UPDATE,DELETE\')', role)
     assert await c.fetchval('SELECT count(*) FROM life_financial.accounts') == 0
+
+
+@pytest.mark.asyncio
+async def test_restore_quarantine_upgrade_is_idempotent_private_and_no_authority_bootstrap(db):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 119:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    oid = await c.fetchval("SELECT 'life_financial.can_access(uuid,boolean)'::regprocedure::oid")
+    await c.execute('''GRANT EXECUTE ON FUNCTION life_financial.can_access(uuid,boolean) TO life_runtime_test,life_reporter_test;
+        ALTER DEFAULT PRIVILEGES IN SCHEMA life_storage GRANT ALL ON TABLES TO PUBLIC,life_runtime_test,life_reporter_test''')
+    path = DEFAULT_DIRECTORY / '000119_restore_quarantine.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    assert (await migrate(c, directory, action='up'))['applied'] == []
+    assert await c.fetchval("SELECT 'life_financial.can_access(uuid,boolean)'::regprocedure::oid") == oid
+    assert await c.fetchval('SELECT restore_operation_id FROM life_storage.storage_metadata') is None
+    assert await c.fetchval('SELECT count(*) FROM life_storage.restore_history') == 0
+    assert await c.fetchval('SELECT count(*) FROM life_financial.accounts') == 0
+    for role in ('life_runtime_test', 'life_reporter_test'):
+        assert await c.fetchval("SELECT has_function_privilege($1,'life_financial.can_access(uuid,boolean)','EXECUTE')", role)
+        assert not await c.fetchval("SELECT has_table_privilege($1,'life_storage.restore_history','SELECT,INSERT,UPDATE,DELETE,TRUNCATE')", role)
+
+
+@pytest.mark.asyncio
+async def test_restore_quarantine_upgrade_refuses_unknown_access_predecessor(db):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 119:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    await c.execute("CREATE OR REPLACE FUNCTION life_financial.can_access(p_account uuid,p_write boolean DEFAULT false) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog AS 'SELECT true'")
+    path = DEFAULT_DIRECTORY / '000119_restore_quarantine.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    with pytest.raises(asyncpg.RaiseError, match='UNKNOWN_ACCESS_PREDECESSOR'):
+        await migrate(c, directory, action='up')
+    assert not await c.fetchval("SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='life_storage' AND table_name='storage_metadata' AND column_name='restore_operation_id')")
