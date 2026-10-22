@@ -1,5 +1,17 @@
 # LIFE: PostgreSQL and Cloud Run Implementation Plan (TDD)
 
+**Integrated PG3 qualification (2026-10-22, in progress):** migration 110
+indexes repeated operation-family audits identified by whole-flow profiling.
+Migration 111 retains original provisional diagnostics without inventing an
+exchange failure or native send. Local refusal, cold recovery and the previously
+failing retained-fill maker workflow pass their focused composition gate. The
+new `run_postgres --suite pg3` unions the existing R1, R2, R3, configured-service
+and complete SPOT source/send gates, with original reporting/runner coverage;
+the separate File/domain contract gate remains required. Historical differential
+tests explicitly retain their asserted schema-100 target; current-schema cases
+use the complete migration bundle. **PG3 stays open until this frozen gate
+passes; no deadline, budget, role or selected-delivery requirement is relaxed.**
+
 **Common release-history access (2026-10-22):** migration 109 adds a partial
 covering index for the combined terminal/unused release orphan audit. A real
 query-plan regression first reproduces the unrelated-history bitmap heap scan;

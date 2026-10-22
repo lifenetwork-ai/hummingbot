@@ -36,6 +36,7 @@ class QuoteFlowTrace:
         self.details = deque(maxlen=capacity)
         self.database_spans = deque(maxlen=capacity)
         self.database_dropped = 0
+        self.revocations = deque(maxlen=16)
         self.dropped = self.details_dropped = 0
         self._origin = perf_counter()
         self._quote = ContextVar('test_quote_flow', default=0)
@@ -103,7 +104,31 @@ class QuoteFlowTrace:
 
         self.quota()
         self.database()
+        self.revocation()
         return self
+
+    def revocation(self):
+        import re
+        import sys
+        import traceback
+
+        from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError
+        from hummingbot.strategy_v2.life_liquidity.storage.postgres.service import PgLiquidityService
+        original, trace = PgLiquidityService.revoke, self
+
+        def revoked(service):
+            if not service._revoked:
+                error = sys.exception()
+                code = str(error) if isinstance(error, StorageError) else None
+                if code is not None and re.fullmatch('[A-Z0-9_]{1,128}', code) is None:
+                    code = None
+                # Test-only fixed source locations, never locals/arguments,
+                # raw exceptions, request bytes or financial identities.
+                frames = [(frame.name, frame.lineno) for frame in traceback.extract_stack(limit=8)]
+                trace.revocations.append(dict(quote=trace._quote.get(), elapsed_ms=round((perf_counter() - trace._origin) * 1000, 3),
+                                              code=code, frames=frames))
+            return original(service)
+        self._patch.setattr(PgLiquidityService, 'revoke', revoked)
 
     def database(self):
         from hummingbot.strategy_v2.life_liquidity.storage.postgres.diagnostics import _current_trace, _Trace

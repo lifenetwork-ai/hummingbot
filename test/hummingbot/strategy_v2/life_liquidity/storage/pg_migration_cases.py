@@ -3915,3 +3915,42 @@ async def test_shared_release_history_index_upgrade_keeps_proofs_privileges_and_
     assert dict(index) == dict(indisvalid=True, indisready=True, indisunique=False)
     assert (await migrate(c, directory, action='up'))['applied'] == []
     assert await c.fetchval('SELECT count(*) FROM life_financial.accounts') == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('drift', ['none', 'body', 'search_path', 'volatility'])
+async def test_operation_audit_and_provisional_recorder_upgrade_is_scoped_idempotent_and_drift_checked(db, drift):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 110:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    catalog = "SELECT oid,to_jsonb(p) AS body FROM pg_proc p WHERE pronamespace='life_financial'::regnamespace ORDER BY oid"
+    before = await c.fetch(catalog)
+    index = DEFAULT_DIRECTORY / '000110_operation_family_audits.sql'
+    (directory / index.name).write_bytes(index.read_bytes())
+    assert (await migrate(c, directory, action='up'))['applied'] == [index.name]
+    assert await c.fetch(catalog) == before
+    assert await c.fetchval("SELECT indisvalid AND indisready FROM pg_index WHERE indexrelid='life_financial.operation_family_audits'::regclass")
+    signature = 'life_financial.recorder_executor_origin(uuid,jsonb,jsonb)'
+    original = await c.fetchrow('SELECT oid,to_jsonb(p)-\'prosrc\' AS metadata FROM pg_proc p WHERE oid=$1::regprocedure', signature)
+    if drift == 'body':
+        definition = await c.fetchval('SELECT pg_get_functiondef($1::regprocedure)', signature)
+        await c.execute(definition.replace('BEGIN', 'BEGIN\n-- changed recorder ancestor\n', 1))
+    elif drift == 'search_path':
+        await c.execute('ALTER FUNCTION ' + signature + ' SET search_path=pg_catalog,public')
+    elif drift == 'volatility':
+        await c.execute('ALTER FUNCTION ' + signature + ' VOLATILE')
+    await c.execute('ALTER DEFAULT PRIVILEGES IN SCHEMA life_financial GRANT EXECUTE ON FUNCTIONS TO PUBLIC,life_runtime_test,life_reporter_test')
+    path = DEFAULT_DIRECTORY / '000111_provisional_recorder_origin.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    if drift != 'none':
+        with pytest.raises(asyncpg.RaiseError, match='LIFE_PROVISIONAL_RECORDER_MIGRATION_MISMATCH'):
+            await migrate(c, directory, action='up')
+        assert (await versions(c))[-1]['version'] == 110
+    else:
+        assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+        assert (await migrate(c, directory, action='up'))['applied'] == []
+        assert await c.fetchrow('SELECT oid,to_jsonb(p)-\'prosrc\' AS metadata FROM pg_proc p WHERE oid=$1::regprocedure', signature) == original
+        for role in ('public', 'life_runtime_test', 'life_reporter_test'):
+            assert not await c.fetchval('SELECT has_function_privilege($1,$2,\'EXECUTE\')', role, signature)

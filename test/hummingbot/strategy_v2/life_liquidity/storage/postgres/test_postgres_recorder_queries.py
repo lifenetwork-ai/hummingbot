@@ -76,7 +76,7 @@ async def test_actual_status_lookup_does_not_scan_unrelated_wire_history(databas
 @pytest.mark.asyncio
 @pytest.mark.parametrize('database', [95], indirect=True)
 @pytest.mark.parametrize('scenario', ['ordered', 'fill_first', 'funding'])
-async def test_previous_read_reuse_preserves_predecessor_effect_bytes_and_rejections(database, monkeypatch, scenario):
+async def test_previous_read_reuse_preserves_predecessor_effect_bytes_and_rejections(database, monkeypatch, scenario, reference_migrations_100):
     import asyncpg
 
     from hummingbot.strategy_v2.life_liquidity.storage.postgres import runtime as runtime_module
@@ -101,7 +101,7 @@ async def test_previous_read_reuse_preserves_predecessor_effect_bytes_and_reject
     await c.execute('CREATE SCHEMA recorder_effect_reference')
     definition = await c.fetchval("SELECT pg_get_functiondef('life_financial.recorder_event_effects(uuid,jsonb,jsonb,bigint)'::regprocedure)")
     await c.execute(definition.replace('FUNCTION life_financial.recorder_event_effects', 'FUNCTION recorder_effect_reference.original'))
-    assert (await migrate(c, action='up'))['applied'] == ['000096_recorder_history_lookups.sql', '000097_atomic_metadata_dispatch.sql', '000098_native_quote_capture.sql', '000099_provider_collection.sql', '000100_generated_command_fingerprint.sql']
+    assert (await migrate(c, reference_migrations_100, action='up'))['applied'] == ['000096_recorder_history_lookups.sql', '000097_atomic_metadata_dispatch.sql', '000098_native_quote_capture.sql', '000099_provider_collection.sql', '000100_generated_command_fingerprint.sql']
     rows = await c.fetch("SELECT body FROM life_financial.recorder_outbox WHERE stream LIKE 'event:%' ORDER BY projection_id")
     for row in rows:
         body = json.loads(row['body'])
@@ -116,4 +116,4 @@ async def test_previous_read_reuse_preserves_predecessor_effect_bytes_and_reject
                 await c.fetchval(sql, args[0], args[1], json.dumps(invalid), args[3])
             errors.append((caught.value.sqlstate, caught.value.message))
         assert errors[0] == errors[1]
-    assert (await migrate(c, action='up'))['applied'] == []
+    assert (await migrate(c, reference_migrations_100, action='up'))['applied'] == []

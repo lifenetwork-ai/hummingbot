@@ -18,7 +18,7 @@ async def retired_spot(database):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('database', [91], indirect=True)
-async def test_snapshot_reuses_shared_proofs_only_within_its_own_primary_view(database, monkeypatch):
+async def test_snapshot_reuses_shared_proofs_only_within_its_own_primary_view(database, monkeypatch, reference_migrations_100):
     from hummingbot.strategy_v2.life_liquidity.storage.postgres import runtime
     from hummingbot.strategy_v2.life_liquidity.storage.postgres.migrations import migrate
     load = runtime.load_migrations
@@ -47,7 +47,7 @@ async def test_snapshot_reuses_shared_proofs_only_within_its_own_primary_view(da
         await asyncio.sleep(1.05)
         previous, original_counts = await measured('SELECT life_financial.spot_state($1)')
         assert original_counts['shared_capital_verified'] == 2 and original_counts['shared_release_verified'] == 3
-        assert (await migrate(database[0], action='up'))['applied'] == ['000092_snapshot_shared_proof_reuse.sql', '000093_commit_proof_group.sql', '000094_snapshot_financial_proof_reuse.sql', '000095_recorder_verification_reads.sql', '000096_recorder_history_lookups.sql', '000097_atomic_metadata_dispatch.sql', '000098_native_quote_capture.sql', '000099_provider_collection.sql', '000100_generated_command_fingerprint.sql']
+        assert (await migrate(database[0], reference_migrations_100, action='up'))['applied'] == ['000092_snapshot_shared_proof_reuse.sql', '000093_commit_proof_group.sql', '000094_snapshot_financial_proof_reuse.sql', '000095_recorder_verification_reads.sql', '000096_recorder_history_lookups.sql', '000097_atomic_metadata_dispatch.sql', '000098_native_quote_capture.sql', '000099_provider_collection.sql', '000100_generated_command_fingerprint.sql']
         body, counts = await measured('SELECT life_financial.spot_state($1)')
         assert {k: v for k, v in body.items() if k != 'observed_at'} == {k: v for k, v in previous.items() if k != 'observed_at'}
         assert body['shared_capital']['verified'] and body['shared_release']['verified'] and body['portfolio']['verified']

@@ -9,7 +9,7 @@ from contextlib import AsyncExitStack
 
 from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.core.event.event_forwarder import EventForwarder
-from hummingbot.core.event.events import MarketEvent, MarketOrderFailureEvent
+from hummingbot.core.event.events import MarketEvent
 from hummingbot.strategy_v2.life_liquidity.storage.action_preparation import PrepareQuoteAction
 from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError, fingerprint
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.quote_account_source import PgQuoteAccountSource
@@ -232,11 +232,11 @@ class PgSpotQuoteApplication:
         except BaseException:
             self._failed = True
             self.stop()
-            if not sdk_started:
-                # No SDK task exists to notify the executor. This hint grants
-                # no monetary release or native absence proof.
-                self.connector.trigger_event(MarketEvent.OrderFailure,
-                                             MarketOrderFailureEvent(self.connector.current_timestamp, wire, OrderType.LIMIT_MAKER))
+            # A refusal before SDK submission is local. Publishing an exchange
+            # OrderFailure would invent a financial/event wire, particularly
+            # when the provisional birth was never prepared. The owning
+            # application retains the original failure and revokes its journal;
+            # service shutdown stops the original executor without a retry.
             raise
 
     async def drain(self):

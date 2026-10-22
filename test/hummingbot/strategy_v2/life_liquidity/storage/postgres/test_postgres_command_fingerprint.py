@@ -7,7 +7,7 @@ import asyncpg
 import pytest
 
 from hummingbot.strategy_v2.life_liquidity.storage.postgres import runtime as runtime_module
-from hummingbot.strategy_v2.life_liquidity.storage.postgres.migrations import migrate
+from hummingbot.strategy_v2.life_liquidity.storage.postgres.migrations import DEFAULT_DIRECTORY, migrate
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot import PgSpotRepository
 
 
@@ -15,6 +15,19 @@ async def qualified_carry(database):
     values = await setup(database, refresh_initial_facts=True)
     assert (await values[8].check_carry(values[1].binding)).allowed
     return values
+
+
+@pytest.fixture
+def digest_upgrade_directory(tmp_path):
+    # This differential gate is specifically 99 -> 100, including the old
+    # function catalog and exact snapshot bytes. Later migrations have their
+    # own current-schema workflow/upgrade gates, not these historical claims.
+    directory = tmp_path / 'command_digest_upgrade'
+    directory.mkdir()
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) <= 100:
+            (directory / path.name).write_bytes(path.read_bytes())
+    return directory
 
 
 @pytest.mark.asyncio
@@ -36,7 +49,7 @@ async def test_command_digest_generated_from_original_commands_without_permissio
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('database', [99], indirect=True)
-async def test_command_digest_upgrade_backfills_original_history_preserves_cut_oids_acls_and_reruns(database, monkeypatch):
+async def test_command_digest_upgrade_backfills_original_history_preserves_cut_oids_acls_and_reruns(database, monkeypatch, digest_upgrade_directory):
     c = database[0]
     load = runtime_module.load_migrations
     with monkeypatch.context() as patch:
@@ -52,7 +65,8 @@ async def test_command_digest_upgrade_backfills_original_history_preserves_cut_o
         proparallel::text,proconfig,prorettype,proargtypes::text FROM pg_proc
         WHERE pronamespace='life_financial'::regnamespace ORDER BY oid'''
     original = await c.fetch(metadata_sql)
-    assert (await migrate(c, action='up'))['applied'] == ['000100_generated_command_fingerprint.sql']
+    assert (await migrate(c, digest_upgrade_directory, action='up'))['applied'] == ['000100_generated_command_fingerprint.sql']
+    monkeypatch.setattr(runtime_module, 'load_migrations', lambda path: tuple(m for m in load(path) if m.version <= 100))
     current = {row['oid']: row for row in await c.fetch(metadata_sql)}
     assert [current[row['oid']] for row in original] == original
     assert await c.fetchval("SELECT jsonb_agg(to_jsonb(o)-'canonical_fingerprint' ORDER BY operation_id) FROM life_financial.operations o WHERE account_id=$1", cfg.account_id) == operations
@@ -64,7 +78,7 @@ async def test_command_digest_upgrade_backfills_original_history_preserves_cut_o
         assert await c.fetchval('SELECT life_financial.carry_verified($1)', cfg.account_id)
     finally:
         await cold.close()
-    assert (await migrate(c, action='up'))['applied'] == []
+    assert (await migrate(c, digest_upgrade_directory, action='up'))['applied'] == []
 
 
 @pytest.mark.asyncio
@@ -82,7 +96,7 @@ async def test_private_command_digest_matches_original_canonical_bytes_on_nested
 @pytest.mark.asyncio
 @pytest.mark.parametrize('database', [99], indirect=True)
 @pytest.mark.parametrize('fault', ['body', 'strict', 'definer', 'canonical'])
-async def test_command_digest_migration_rejects_verifier_drift_without_partial_schema(database, fault):
+async def test_command_digest_migration_rejects_verifier_drift_without_partial_schema(database, fault, digest_upgrade_directory):
     c = database[0]
     signature = 'life_financial.carry_check_verified(uuid,text)'
     if fault == 'body':
@@ -96,7 +110,7 @@ async def test_command_digest_migration_rejects_verifier_drift_without_partial_s
         await c.execute('ALTER FUNCTION life_financial.canonical_json_v1(jsonb) CALLED ON NULL INPUT')
     for _ in range(2):
         with pytest.raises(asyncpg.RaiseError, match='LIFE_COMMAND_HASH_MIGRATION_MISMATCH'):
-            await migrate(c, action='up')
+            await migrate(c, digest_upgrade_directory, action='up')
         assert await c.fetchval('SELECT max(version) FROM life_migrations.schema_migrations') == 99
         assert await c.fetchval("SELECT to_regprocedure('life_financial.command_fingerprint_v1(jsonb)') IS NULL")
         assert not await c.fetchval("SELECT EXISTS(SELECT 1 FROM pg_attribute WHERE attrelid='life_financial.operations'::regclass AND attname='canonical_fingerprint' AND NOT attisdropped)")
@@ -104,20 +118,20 @@ async def test_command_digest_migration_rejects_verifier_drift_without_partial_s
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('database', [99], indirect=True)
-async def test_command_digest_migration_removes_hostile_default_execute_grants(database):
+async def test_command_digest_migration_removes_hostile_default_execute_grants(database, digest_upgrade_directory):
     c = database[0]
     admin = await asyncpg.connect(database[1])
     role = 'life_hash_acl_' + uuid4().hex
     try:
         await admin.execute('CREATE ROLE ' + role + ' NOLOGIN')
         await c.execute('ALTER DEFAULT PRIVILEGES IN SCHEMA life_financial GRANT EXECUTE ON FUNCTIONS TO ' + role)
-        assert (await migrate(c, action='up'))['applied'] == ['000100_generated_command_fingerprint.sql']
+        assert (await migrate(c, digest_upgrade_directory, action='up'))['applied'] == ['000100_generated_command_fingerprint.sql']
         helper = 'life_financial.command_fingerprint_v1(jsonb)'
         assert not await c.fetchval('SELECT has_function_privilege($1,$2,\'EXECUTE\')', role, helper)
         assert await c.fetchval('''SELECT bool_and(a.grantee=p.proowner) FROM pg_proc p
             CROSS JOIN LATERAL aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) a
             WHERE p.oid=to_regprocedure($1)''', helper)
-        assert (await migrate(c, action='up'))['applied'] == []
+        assert (await migrate(c, digest_upgrade_directory, action='up'))['applied'] == []
     finally:
         await c.execute('ALTER DEFAULT PRIVILEGES IN SCHEMA life_financial REVOKE EXECUTE ON FUNCTIONS FROM ' + role)
         await c.execute('REVOKE ALL ON ALL FUNCTIONS IN SCHEMA life_financial FROM ' + role)

@@ -778,10 +778,10 @@ class PgLiquidityService:
                     # failures asynchronously. A revoked journal can no longer
                     # submit; waiting for an order until the schedule expires
                     # would hide that original refusal behind a timeout.
-                    if not self.journal.local_runner_create_fence(action):
-                        raise StorageError('PG_SERVICE_EXECUTOR_ORIGIN_REVOKED')
                     if self.quote_application._failed:
                         await self.quote_application.drain()
+                    if not self.journal.local_runner_create_fence(action):
+                        raise StorageError('PG_SERVICE_EXECUTOR_ORIGIN_REVOKED')
                     await asyncio.sleep(.001)
                 if executor._order is None:
                     raise StorageError('PG_SERVICE_EXECUTOR_NOT_SUBMITTED')

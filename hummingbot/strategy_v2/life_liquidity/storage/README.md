@@ -4950,3 +4950,8 @@ sender and changes only ACK metadata; subsequent configured cold observation
 neither sends an order nor changes budgets, claims or original request identity.
 Filled-order, signed operator repair and complete current-source product/role/
 economic/loaded acceptance still gate PG3.
+Local provisional preparation failures are retained as application failures;
+they do not synthesize an exchange `OrderFailure`. Migration 111 lets the
+recorder retain the original unprepared executor under its verified birth and
+exact local wire, with zero financial totals. Cold readback grants no sender;
+unused claims still require separate source-qualified retirement/release.

@@ -12,12 +12,70 @@ from pathlib import Path
 from test.hummingbot.strategy_v2.life_liquidity.storage.run_migrations import IMAGE, docker
 from uuid import uuid4
 
+PG3_SUITES = {
+    'r1_accounting': (
+        'transactions', 'lifecycle', 'inventory_settlement',
+        'collateral', 'collateral_source', 'joint_source',
+        'joint_account_source', 'financial_source', 'financial_observer',
+        'financial_dedup', 'provider_journal', 'command_fingerprint',
+        'joint_batch', 'joint_repair', 'swap_fills',
+        'swap_accounting', 'funding', 'funding_history_reuse',
+        'flow_proofs', 'money_commit_group', 'funding_repair',
+        'funding_cohort', 'swap_repair', 'spot_repair',
+        'cashflow_repair', 'terminal_repair', 'portfolio',
+        'portfolio_math', 'swap_terminal', 'shared_release',
+        'late_capital',
+    ),
+    'r2_integration': (
+        'hedge_source', 'provider_batch', 'provider_collection',
+        'financial_source', 'provider_journal', 'joint_account_source',
+        'portfolio_proof_reuse', 'carry_proof_reuse', 'portfolio',
+        'maker_cancellation', 'joint_source', 'lifecycle',
+        'hedge_application', 'hedge', 'swap_transport',
+    ),
+    'r3_risk': (
+        'risk', 'risk_stress', 'risk_markout',
+        'markout', 'control', 'successor_control',
+        'execution_modes', 'inventory_exit', 'session',
+        'financial_commands', 'inventory_settlement', 'lifecycle',
+    ),
+    'service_trading': (
+        'service_trading', 'service_hedge', 'service_replay',
+        'service_process', 'service_swap_process', 'service_backend',
+        'service_spot_backend', 'service_fills', 'service_repair',
+        'quote_phase_boundaries', 'provisional_service', 'provisional_revocation',
+        'provisional_owner', 'provisional_process', 'quote_birth',
+        'birth_retirement', 'unused_release', 'joint_observer',
+        'provider_collection', 'service_cycle', 'service_load',
+        'provisional_local_failure',
+    ),
+    'spot_market_send': (
+        'service', 'service_trading', 'service_hedge',
+        'service_replay', 'service_process', 'service_swap_process',
+        'service_backend', 'service_spot_backend', 'service_fills',
+        'service_repair', 'service_cycle', 'standing_makers',
+        'retired_scope', 'maker_cancellation', 'operation_preflight',
+        'runner_startup', 'recorder_application', 'event_application',
+        'spot_producer', 'produced_send', 'action_preparation',
+        'quote_arm', 'account_brackets', 'spot_allocation',
+        'spot_market_send', 'spot_market', 'spot_application',
+        'quote_transport', 'quote_account_source', 'runner_journal',
+        'native_capture', 'command_fingerprint', 'release_proof_reuse',
+        'joint_source', 'hedge_source', 'hedge_application',
+        'joint_observer', 'financial_source', 'provider_batch',
+        'provider_collection', 'provider_journal', 'joint_account_source',
+        'collateral_source', 'joint_history', 'joint_events',
+        'snapshot_bodies', 'snapshot_financial_reuse', 'recorder_queries',
+        'recorder_proofs', 'json_codecs',
+    ),
+}
+
 
 def main():
     import asyncpg  # noqa: F401 -- mandatory for this opt-in real-process runner.
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--suite', choices=('all', 'recorder_queries', 'recorder_proofs', 'codecs', 'commit_proofs', 'snapshot_proofs', 'service', 'service_trading', 'service_load', 'release_source', 'foundation', 'spot_producer', 'spot_allocation', 'spot_market_send', 'spot_market', 'joint_history', 'joint_intake', 'quote_composition', 'runner_startup', 'hedge_source', 'r2_integration', 'maker_cancellation', 'hedge_composition', 'r3_control', 'r3_risk', 'recorder', 'capital', 'session', 'lifecycle', 'actions', 'action_prepare', 'action_reconcile', 'action_abandon', 'runner_journal', 'provider_collection', 'quote_arm', 'quote_transport', 'quote_source', 'outbox', 'configuration', 'events', 'positions', 'reporting_application', 'approval_import', 'ack_ingress', 'observation_context', 'financial_ingress', 'financial_collection', 'inventory_settlement', 'markout', 'carry', 'swap', 'swap_accounting', 'swap_fills', 'funding', 'funding_repair', 'funding_cohort', 'swap_repair', 'spot_repair', 'cashflow_repair', 'terminal_repair', 'spot_recovery_paths', 'portfolio', 'swap_terminal', 'shared_release', 'joint_batch', 'joint_repair', 'hedge', 'swap_transport', 'collateral', 'joint_source', 'r1_accounting', 'joint_recovery', 'legacy_applying', 'legacy_joint', 'legacy_imports', 'late_capital'), default='all')
+    parser.add_argument('--suite', choices=('all', 'pg3', 'recorder_queries', 'recorder_proofs', 'codecs', 'commit_proofs', 'snapshot_proofs', 'service', 'service_trading', 'service_load', 'release_source', 'foundation', 'spot_producer', 'spot_allocation', 'spot_market_send', 'spot_market', 'joint_history', 'joint_intake', 'quote_composition', 'runner_startup', 'hedge_source', 'r2_integration', 'maker_cancellation', 'hedge_composition', 'r3_control', 'r3_risk', 'recorder', 'capital', 'session', 'lifecycle', 'actions', 'action_prepare', 'action_reconcile', 'action_abandon', 'runner_journal', 'provider_collection', 'quote_arm', 'quote_transport', 'quote_source', 'outbox', 'configuration', 'events', 'positions', 'reporting_application', 'approval_import', 'ack_ingress', 'observation_context', 'financial_ingress', 'financial_collection', 'inventory_settlement', 'markout', 'carry', 'swap', 'swap_accounting', 'swap_fills', 'funding', 'funding_repair', 'funding_cohort', 'swap_repair', 'spot_repair', 'cashflow_repair', 'terminal_repair', 'spot_recovery_paths', 'portfolio', 'swap_terminal', 'shared_release', 'joint_batch', 'joint_repair', 'hedge', 'swap_transport', 'collateral', 'joint_source', 'r1_accounting', 'joint_recovery', 'legacy_applying', 'legacy_joint', 'legacy_imports', 'late_capital'), default='all')
     parser.add_argument('--fail-fast', action='store_true', help='Stop at the first failure while retaining the original log/XML')
     parser.add_argument('--linux-image', help='Immutable locally built image ID; recorder suite only')
     args = parser.parse_args()
@@ -156,14 +214,22 @@ def main():
         elif args.suite == 'quote_source':
             selector /= 'test_postgres_quote_account_source.py'
         selectors = [str(selector)]
+        # PG3 is the union of the fixed native accounting, composition, risk
+        # and configured-service gates, plus original reporting/runner routes.
+        # The selected delivery excludes active File cutover; File economic
+        # parity is separately exercised by the offline contract suite.
+        if args.suite in PG3_SUITES:
+            selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in PG3_SUITES[args.suite]]
+        if args.suite == 'pg3':
+            modules = {name for group in PG3_SUITES.values() for name in group}
+            modules.update(('service', 'runner_startup', 'joint_events', 'recorder', 'recorder_application',
+                            'events', 'positions', 'event_application', 'configuration', 'spot_application',
+                            'runner_journal', 'quote_transport', 'quote_arm', 'unused_release', 'operation_lookups'))
+            selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in sorted(modules)]
+        if args.suite in ('pg3', 'spot_market_send'):
+            selectors.extend(str(selector / name) for name in ('test_shared_sdk_quota.py', 'test_spot_intent.py'))
         if args.suite == 'service_load':
             selectors = [str(selector / ('test_' + name + '.py')) for name in ('flow_trace', 'postgres_service_load', 'postgres_provisional_service')]
-        if args.suite == 'service_trading':
-            selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in (
-                'service_trading', 'service_hedge', 'service_replay', 'service_process', 'service_swap_process',
-                'service_backend', 'service_spot_backend', 'service_fills', 'service_repair', 'quote_phase_boundaries',
-                'provisional_service', 'provisional_revocation', 'provisional_owner', 'provisional_process',
-                'quote_birth', 'birth_retirement', 'unused_release', 'joint_observer', 'provider_collection')]
         if args.suite == 'runner_journal':
             selectors = [str(selector.parent / ('test_postgres_' + name + '.py')) for name in ('runner_journal', 'native_capture')]
         if args.suite == 'provider_collection':
@@ -185,14 +251,6 @@ def main():
         if args.suite == 'spot_allocation':
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in (
                 'spot_allocation', 'spot_market_send', 'hedge_source', 'hedge_application', 'capital', 'carry')]
-        if args.suite == 'spot_market_send':
-            selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in (
-                'service', 'service_trading', 'service_hedge', 'service_replay', 'service_process', 'service_swap_process', 'service_backend', 'service_spot_backend', 'service_fills', 'service_repair', 'service_cycle', 'standing_makers', 'retired_scope', 'maker_cancellation', 'operation_preflight', 'runner_startup', 'recorder_application', 'event_application',
-                'spot_producer', 'produced_send', 'action_preparation', 'quote_arm', 'account_brackets', 'spot_allocation', 'spot_market_send', 'spot_market', 'spot_application', 'quote_transport', 'quote_account_source',
-                'runner_journal', 'native_capture', 'command_fingerprint', 'release_proof_reuse', 'joint_source', 'hedge_source', 'hedge_application', 'joint_observer', 'financial_source', 'provider_batch', 'provider_collection', 'provider_journal', 'joint_account_source',
-                'collateral_source', 'joint_history', 'joint_events',
-                'snapshot_bodies', 'snapshot_financial_reuse', 'recorder_queries', 'recorder_proofs', 'json_codecs')]
-            selectors.extend(str(selector / name) for name in ('test_shared_sdk_quota.py', 'test_spot_intent.py'))
         if args.suite == 'spot_market':
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in (
                 'spot_market', 'financial_source', 'provider_batch', 'provider_collection', 'hedge_source', 'joint_source', 'quote_account_source',
@@ -217,17 +275,10 @@ def main():
                 'runner_startup', 'recorder_application', 'event_application', 'events', 'positions', 'configuration', 'outbox')]
         if args.suite == 'hedge_source':
             selectors = [str(selector / 'test_postgres_hedge_source.py')]
-        if args.suite == 'r2_integration':
-            selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in (
-                'hedge_source', 'provider_batch', 'provider_collection', 'financial_source', 'provider_journal', 'joint_account_source',
-                'portfolio_proof_reuse', 'carry_proof_reuse', 'portfolio',
-                'maker_cancellation', 'joint_source', 'lifecycle', 'hedge_application', 'hedge', 'swap_transport')]
         if args.suite == 'maker_cancellation':
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in ('maker_cancellation', 'joint_source', 'lifecycle')]
         if args.suite == 'hedge_composition':
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in ('hedge_application', 'hedge', 'swap_transport')]
-        if args.suite == 'r3_risk':
-            selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in ('risk', 'risk_stress', 'risk_markout', 'markout', 'control', 'successor_control', 'execution_modes', 'inventory_exit', 'session', 'financial_commands', 'inventory_settlement', 'lifecycle')]
         if args.suite == 'r3_control':
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in ('control', 'successor_control')]
         if args.suite == 'carry':
@@ -242,16 +293,6 @@ def main():
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in (
                 'collateral_source', 'joint_source', 'joint_account_source', 'financial_source',
                 'financial_observer', 'financial_dedup', 'provider_journal')]
-        if args.suite == 'r1_accounting':
-            # Fresh PostgreSQL accounting/recovery scope; active File cutover is
-            # not selected. Keep complete native repair and release faults here.
-            selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in (
-                'transactions', 'lifecycle', 'inventory_settlement', 'collateral', 'collateral_source',
-                'joint_source', 'joint_account_source', 'financial_source', 'financial_observer',
-                'financial_dedup', 'provider_journal', 'command_fingerprint', 'joint_batch', 'joint_repair', 'swap_fills',
-                'swap_accounting', 'funding', 'funding_history_reuse', 'flow_proofs', 'money_commit_group', 'funding_repair', 'funding_cohort', 'swap_repair',
-                'spot_repair', 'cashflow_repair', 'terminal_repair', 'portfolio', 'portfolio_math',
-                'swap_terminal', 'shared_release', 'late_capital')]
         if args.suite == 'joint_recovery':
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in (
                 'collateral', 'collateral_source', 'joint_source', 'joint_account_source', 'financial_source', 'financial_observer', 'financial_dedup', 'provider_journal', 'command_fingerprint', 'joint_batch', 'joint_repair', 'swap_fills', 'swap_accounting', 'funding', 'funding_repair', 'funding_cohort', 'swap_repair', 'spot_repair', 'cashflow_repair', 'terminal_repair', 'legacy_applying', 'legacy_core_cashflows', 'legacy_spot', 'legacy_joint', 'coupled_ack', 'file_recovery_history', 'completed_outer_history', 'outer_recovery_history', 'unfilled_swap', 'joint_trade_ids', 'received_observations', 'portfolio', 'swap_terminal', 'shared_release', 'late_capital')]

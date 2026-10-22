@@ -33,7 +33,7 @@ async def damage(c, table, changes):
 @pytest.mark.asyncio
 @pytest.mark.parametrize('database', [94], indirect=True)
 @pytest.mark.parametrize('fault', ['none', 'pending', 'stage', 'apply', 'receipt', 'hash', 'effect', 'head', 'native'])
-async def test_event_upgrade_matches_predecessor_on_applied_pending_and_corrupt_history(database, monkeypatch, fault):
+async def test_event_upgrade_matches_predecessor_on_applied_pending_and_corrupt_history(database, monkeypatch, fault, reference_migrations_100):
     c = database[0]
     load = runtime_module.load_migrations
     with monkeypatch.context() as patch:
@@ -50,7 +50,7 @@ async def test_event_upgrade_matches_predecessor_on_applied_pending_and_corrupt_
     name = 'recorder_event_integrity'
     assert await c.fetchval('SELECT life_financial.' + name + '($1)', t.cfg.account_id)
     await reference(c, name)
-    assert (await migrate(c, action='up'))['applied'] == ['000095_recorder_verification_reads.sql', '000096_recorder_history_lookups.sql', '000097_atomic_metadata_dispatch.sql', '000098_native_quote_capture.sql', '000099_provider_collection.sql', '000100_generated_command_fingerprint.sql']
+    assert (await migrate(c, reference_migrations_100, action='up'))['applied'] == ['000095_recorder_verification_reads.sql', '000096_recorder_history_lookups.sql', '000097_atomic_metadata_dispatch.sql', '000098_native_quote_capture.sql', '000099_provider_collection.sql', '000100_generated_command_fingerprint.sql']
     await compare(c, name, t.cfg.account_id, True)
     if fault not in ('none', 'pending'):
         table, changes = {
@@ -66,13 +66,13 @@ async def test_event_upgrade_matches_predecessor_on_applied_pending_and_corrupt_
         await compare(c, name, t.cfg.account_id, False)
     # Verification and migration never write account inventory rows.
     assert await c.fetch('SELECT * FROM life_financial.balances ORDER BY account_id,asset') == before
-    assert (await migrate(c, action='up'))['applied'] == []
+    assert (await migrate(c, reference_migrations_100, action='up'))['applied'] == []
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('database', [94], indirect=True)
 @pytest.mark.parametrize('fault', ['none', 'stage', 'hash', 'receipt', 'transition', 'native'])
-async def test_executor_upgrade_matches_predecessor_on_real_initial_and_progress_stream(database, monkeypatch, fault):
+async def test_executor_upgrade_matches_predecessor_on_real_initial_and_progress_stream(database, monkeypatch, fault, reference_migrations_100):
     c = database[0]
     load = runtime_module.load_migrations
     with monkeypatch.context() as patch:
@@ -93,7 +93,7 @@ async def test_executor_upgrade_matches_predecessor_on_real_initial_and_progress
     assert await c.fetchval("SELECT count(*) FROM life_financial.recorder_outbox WHERE stream LIKE 'executor:%'") == 3
     assert await c.fetchval('SELECT life_financial.' + name + '($1)', s.cfg.account_id)
     await reference(c, name)
-    assert (await migrate(c, action='up'))['applied'] == ['000095_recorder_verification_reads.sql', '000096_recorder_history_lookups.sql', '000097_atomic_metadata_dispatch.sql', '000098_native_quote_capture.sql', '000099_provider_collection.sql', '000100_generated_command_fingerprint.sql']
+    assert (await migrate(c, reference_migrations_100, action='up'))['applied'] == ['000095_recorder_verification_reads.sql', '000096_recorder_history_lookups.sql', '000097_atomic_metadata_dispatch.sql', '000098_native_quote_capture.sql', '000099_provider_collection.sql', '000100_generated_command_fingerprint.sql']
     await compare(c, name, s.cfg.account_id, True)
     if fault != 'none':
         table, changes = {
@@ -105,4 +105,4 @@ async def test_executor_upgrade_matches_predecessor_on_real_initial_and_progress
         }[fault]
         await damage(c, table, changes)
         await compare(c, name, s.cfg.account_id, False)
-    assert (await migrate(c, action='up'))['applied'] == []
+    assert (await migrate(c, reference_migrations_100, action='up'))['applied'] == []

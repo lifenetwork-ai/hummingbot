@@ -1645,3 +1645,13 @@ combined `SHARED_RELEASE` / `SHARED_UNUSED_RELEASE` orphan-operation predicate.
 It avoids scanning unrelated command JSON; proof functions, table privileges,
 source deadlines and all financial history remain unchanged. It runs through
 the same serialized, checksum-checked migration runner.
+
+Migration 110 indexes the common account/operation-kind discriminator used by
+financial and recorder audits, preserving the original predicates and proofs.
+Migration 111 retains diagnostics for a never-prepared original provisional
+executor: exact verified birth/config/binding, zero financial totals and only
+its deterministic opaque local wire. It creates no action descriptor, send
+attempt, exchange event, capacity release or permission. Prepared executors
+retain the original native descriptor/attempt provenance. The original private
+function OID/ACL is preserved, predecessor drift is refused, and the normal
+serialized migration runner makes repeat startup a no-op.

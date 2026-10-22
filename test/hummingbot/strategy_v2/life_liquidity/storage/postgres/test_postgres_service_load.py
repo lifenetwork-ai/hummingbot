@@ -84,9 +84,11 @@ async def test_configured_makers_replenish_after_fill_history_with_competing_sha
         assert service.runtime.healthy
         if trace is not None:
             print('bounded_quote_flow_summary=' + json.dumps(trace.summaries()))
+            print('bounded_service_revocations=' + json.dumps(list(trace.revocations)))
     except BaseException as error:
         primary = error
         if trace is not None:
+            error.add_note('bounded_service_revocations=' + json.dumps(list(trace.revocations)))
             error.add_note('bounded_monotonic_flow=' + json.dumps(trace.rows()))
             error.add_note('bounded_quote_flow_summary=' + json.dumps(trace.summaries()))
             error.add_note('flow_spans_dropped=' + str(trace.dropped))
