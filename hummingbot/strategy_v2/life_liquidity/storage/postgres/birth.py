@@ -32,6 +32,15 @@ class QuoteBirth:
     trading_permission: bool = field(default=False, init=False)
 
 
+@dataclass(frozen=True)
+class QuoteBirthRetirement:
+    retirement_id: str
+    ticket_id: str
+    retired: bool
+    replayed: bool
+    trading_permission: bool = field(default=False, init=False)
+
+
 class PgQuoteBirthRepository:
     def __init__(self, financial):
         if type(financial) is not PgSpotRepository:
@@ -114,3 +123,47 @@ class PgQuoteBirthRepository:
         return await self.runtime._transaction(
             'SELECT life_financial.quote_birth_prepare($1,$2,$3,$4,$5,$6,$7)',
             (cfg.account_id, cfg.binding.json(), owner.json(), version, digest, identity, request), owner, self.financial._receipt)
+
+    @staticmethod
+    def _retirement(value):
+        if (value.get('kind') != 'QUOTE_BIRTH_RETIRE' or value.get('retired') is not True
+                or value.get('trading_permission') is not False or type(value.get('replayed')) is not bool):
+            raise StorageUnavailable('PG_BIRTH_RETIREMENT_RECEIPT_INVALID')
+        identifier(value['retirement_id'])
+        identifier(value['ticket_id'])
+        return QuoteBirthRetirement(value['retirement_id'], value['ticket_id'], True, value['replayed'])
+
+    async def retire(self, retirement_id, ticket_id, *, cut, owner):
+        """Permanently prohibit preparation; retain every original monetary claim.
+
+        This observation command accepts cold origins because it grants no
+        sender or release. Account serialization makes retirement/prepare
+        mutually exclusive, including a still-running original executor.
+        """
+        self._original()
+        identifier(retirement_id)
+        identifier(ticket_id)
+        if len(retirement_id) > 96 or len(ticket_id) > 96:
+            raise StorageError('PG_BIRTH_RETIREMENT_REQUEST_INVALID')
+        version, digest = self.financial._cut(cut, owner)
+        cfg = self.runtime.config
+        command = dict(retirement_id=retirement_id, ticket_id=ticket_id, reason='UNCONSUMED_BIRTH_RETIRED')
+        identity = fingerprint(dict(kind='QUOTE_BIRTH_RETIRE', binding=cfg.binding.json(), owner=owner.json(),
+                                    version=version, cut=digest, command=command))
+        return await self.runtime._transaction(
+            'SELECT life_financial.quote_birth_retire($1,$2,$3,$4,$5,$6,$7)',
+            (cfg.account_id, cfg.binding.json(), owner.json(), version, digest, identity, command),
+            owner, self._retirement, observation=True)
+
+    async def lookup_retirement(self, retirement_id):
+        self._original()
+        identifier(retirement_id)
+
+        async def read(c):
+            try:
+                return await c.fetchval('SELECT life_financial.quote_birth_retire_read($1,$2)',
+                                        self.runtime.config.account_id, retirement_id)
+            except asyncpg.PostgresError as error:
+                raise sql_error(error) from None
+        value = await self.runtime._admit(read, safety=True, operation='quote_birth_retire_read')
+        return None if value is None else self._retirement(value)

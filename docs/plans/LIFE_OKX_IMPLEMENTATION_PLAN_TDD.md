@@ -1,5 +1,14 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**Unconsumed-birth recovery (2026-10-22):** migration 106 adds permanent
+ticket retirement with exact replay, retained-history audits and no monetary
+release. The service revokes local trading before recovery. Signed owner drain
+and four actual process-crash boundaries preserve original claims and deny cold
+dispatch. Qualification and remaining configured R2.3/R4/R5 work are recorded
+[here](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#unconsumed-birth-retirement-and-provisional-recovery-2026-10-22).
+**PG3 remains open**; retiring a ticket does not release preallocation or
+authorize a successor.
+
 **Provisional revocation checkpoint (2026-10-22):** the coupled eight-case gate
 passes actual-runner stop/ingress boundaries around atomic prepare, original
 BUY/SELL acceptance and compound-COMMIT backend loss. Committed holds/claims

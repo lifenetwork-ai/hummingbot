@@ -698,6 +698,27 @@ class PgLiquidityService:
         if self.makers is not None:
             await self.makers.stop()
 
+    async def retire_unprepared_birth(self, retirement_id, ticket_id):
+        """Stop local risk and permanently retire one unconsumed birth.
+
+        A concurrent original prepare wins or loses at the primary account
+        lock. This explicit recovery command cannot release capital, renew a
+        ticket, adopt an executor or reactivate this service.
+        """
+        from hummingbot.strategy_v2.life_liquidity.storage.postgres.birth import PgQuoteBirthRepository
+
+        self._original()
+        self.revoke()  # Before awaiting the primary, including on replay.
+        births = self.journal.births or PgQuoteBirthRepository(self.financial)
+        existing = await births.lookup_retirement(retirement_id)
+        if existing is not None:
+            if existing.ticket_id != ticket_id:
+                raise StorageError('PG_OPERATION_CONFLICT')
+            return existing
+        return await births.retire(retirement_id, ticket_id,
+                                   cut=(await self.financial.snapshot(self.runtime.config.binding)).cut,
+                                   owner=self.journal.owner)
+
     def _maker_admission(self):
         if (self.makers is not None and self.makers.task is not None and not self.makers.task.done()
                 and asyncio.current_task() is not self.makers.task):
@@ -747,6 +768,14 @@ class PgLiquidityService:
                 executors = self.runner.executor_orchestrator.active_executors[self.config.id]
                 executor = next(v for v in executors if v.config.id == intent_id)
                 while executor._order is None and executor.is_active:
+                    # The executor's control loop reports protected-submit
+                    # failures asynchronously. A revoked journal can no longer
+                    # submit; waiting for an order until the schedule expires
+                    # would hide that original refusal behind a timeout.
+                    if not self.journal.local_runner_create_fence(action):
+                        raise StorageError('PG_SERVICE_EXECUTOR_ORIGIN_REVOKED')
+                    if self.quote_application._failed:
+                        await self.quote_application.drain()
                     await asyncio.sleep(.001)
                 if executor._order is None:
                     raise StorageError('PG_SERVICE_EXECUTOR_NOT_SUBMITTED')

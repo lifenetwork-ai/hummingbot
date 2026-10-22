@@ -1,5 +1,15 @@
 # LIFE storage contracts
 
+**Unconsumed-birth recovery (2026-10-22):** migration 106 and
+`await service.retire_unprepared_birth(retirement_id, ticket_id)` permanently
+prohibit preparation of an original unused ticket. The service revokes trading
+before awaiting DB. Retirement serializes with prepare, retains original history
+and changes no money, budget, account version or shared claim. Cold observation
+readback has no sender/release/activation grant. Signed owner drain and physical
+process-crash qualification are tracked in the
+[current plan](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#unconsumed-birth-retirement-and-provisional-recovery-2026-10-22).
+Configured R2.3/R4/R5 acceptance and PG3 closure remain open.
+
 **Retained terminal-proof checkpoint (2026-10-22):** migration 105 evaluates
 full account-wide terminal proofs once per encountered product within each
 release audit; local results do not survive that STABLE invocation. All original

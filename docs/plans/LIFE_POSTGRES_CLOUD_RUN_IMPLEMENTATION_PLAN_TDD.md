@@ -1,5 +1,14 @@
 # LIFE: PostgreSQL and Cloud Run Implementation Plan (TDD)
 
+**Unconsumed-birth recovery (2026-10-22):** migration 106 and the service's
+explicit recovery method permanently retire an unprepared ticket without
+changing money, budgets or shared claims. Physical prepare/retire races, lost
+COMMIT, retained corruption, signed owner drain and four actual process-crash
+boundaries are implemented. Current coupled qualification is recorded
+[below](#unconsumed-birth-retirement-and-provisional-recovery-2026-10-22).
+Retirement does not release preallocation or activate a successor. The complete
+configured R2.3/R4/R5 exits still gate **PG3 closure**.
+
 **Provisional revocation checkpoint (2026-10-22):** four new actual-runner
 cases revoke at stop or advance the source-ingress epoch immediately before or
 after physical atomic-prepare COMMIT. Committed holds/claims remain, no ARM/order
@@ -8570,3 +8579,101 @@ existing local-source/acceptance fences behave as required. The previous
 two-generation loaded pass remains revision-specific; it was not rerun for this
 test/documentation-only increment. No new migration, performance claim, live
 selector, network deployment or evidence file is introduced. **PG3 stays open.**
+
+## Unconsumed-birth retirement and provisional recovery (2026-10-22)
+
+This increment completes the metadata retirement implementation within the
+existing R4/R5 provisional protocol work. It does not change the fixed exits.
+
+### Implemented behavior
+
+- [x] A permanent retirement ID and original ticket ID identify an explicit
+  observation command. The account lock serializes retirement against the
+  original atomic preparation. A consumed ticket cannot be retired; a retired
+  intent cannot enter either preparation route. A different business intent
+  can obtain a new ticket within the original imported capacity.
+- [x] Retain the original birth and an immutable, hashed retirement body. Every
+  later native birth audit rechecks both. Snapshot digest changes; account
+  version, operations, balances, holds, budgets and shared claims do not.
+- [x] `PgLiquidityService.retire_unprepared_birth(retirement_id, ticket_id)`
+  revokes local trading before its first await. Cold observation services can
+  retire an original unconsumed ticket. Exact readback/replay restores no
+  executor, acceptance, sender, release or activation permission.
+- [x] Qualify both actual primary-lock race outcomes, before/after physical
+  COMMIT loss, conflicting IDs, consumed/stale/foreign-owner refusals and six
+  same-version retained-history corruptions. Race tests observe
+  `pg_blocking_pids` before allowing the winning COMMIT.
+- [x] Signed owner DRAIN immediately after birth or prepare prevents order HTTP
+  and ARM. After original recorder work is physically joined, a fresh native
+  runtime still refuses successor activation over retained claims/holds.
+  A revoked journal also ends the service's executor-order wait promptly,
+  preserving the refusal instead of hiding it behind the schedule timeout.
+- [x] Four actual child-process deaths cover birth COMMIT, prepare COMMIT,
+  physical request acceptance before native ACK, and ACK COMMIT. Cold reopen
+  grants observation only, retains original money/claims/IDs and cannot
+  dispatch again. The birth-only crash can explicitly retire its ticket.
+
+Migration 106 pins all four ancestor bodies and security metadata, keeps new
+helpers/table DML private despite hostile default grants, preserves only
+matching public entrypoint recipients and seeds no accounts/policies. The
+seven upgrade/repeat/privilege/drift cases pass in **12.79 s**.
+
+### Current qualification
+
+The owner/process recovery development gate passes **six cases**, **127.53 s**.
+The subsequent coupled gate is **35 pass / 1 fail**, **412.78 s**. Retirement,
+primary-lock races, COMMIT loss, owner/process stop, original BUY/SELL acceptance
+and compound backend loss pass. Its unchanged untraced retained-fill workload
+fails after one maker generation with error-unwind quote age **1005.242 ms**;
+cleanup retains `PG_JOINT_SOURCE_ORDER_SCOPE`. The quote/ARM financial guard
+remains at 1000 ms. This failed loaded gate is not closed by the functional
+passes or by the earlier migration-105 workload pass. An instrumented whole-flow
+diagnostic identifies remaining composition costs before further edits.
+
+The separate original-birth/release regression passes **34 cases**, **95.02 s**.
+Together with the 35 passing functional cases above, these are **69 distinct
+passing cases**, with no overlap between selectors. The original EXPLAIN test
+now inspects the unchanged joined audit delegated through the retirement
+wrapper; its semantic checks and timings still execute the complete public
+verifier. The initial old query extractor failed structurally at that wrapper,
+and the corrected workflow passes at 1, 4 and 8 tickets. Financial source did not
+change between these two gates. This functional qualification does not replace
+the failed loaded gate.
+
+The diagnostic fails at ARM COMMIT after the same one completed generation
+(**107.15 s**, one failing case). For its fourth quote, four capture-through-ARM
+native context reads take **405.087 ms**, atomic preparation **224.915 ms**, and
+ARM **203.009 ms**. These are instrumented durations, not acceptance measurements
+or timing that may be subtracted from a failed quote. Detail retention is
+incomplete; the bounded database phase retention is complete for that quote.
+The current-context raw `cashflow_effective` projection is invoked 25 times;
+prepare and ARM invoke it 34 and 43 times respectively. It returns rows, not a
+financial verdict. The next bounded candidate exposes that query to the SQL
+planner while retaining owner-only access, pinned object/operator resolution
+and all native history proofs. The earlier pre-provisional inlining trial alone
+did not close the old workload and remains recorded above; no speedup or PG3
+closure is inferred for this current candidate before measurement.
+
+One earlier coupled attempt passed 32 cases and refused SELL startup across
+the real UTC midnight boundary: its disposable PostgreSQL log brackets the
+failing test between **2026-10-21 23:59:56.984 UTC** and
+**2026-10-22 00:00:02.231 UTC**. The native snapshot includes the current UTC
+budget day, consistent with rollover invalidating the original cut before
+history publication. The exact isolated SELL workflow subsequently passes
+in **20.01 s**. This is not evidence of a recorder-configuration race; no startup
+ordering, cut comparison, clock or financial age limit was changed to bypass it.
+The original failed attempt remains recorded separately from subsequent gates.
+
+### Remaining within R2.3/R4/R5
+
+- [ ] Complete configured selector/service qualification for the selected
+  protocol and all enabled final routes on current source. The provisional
+  selector remains an explicit offline service argument, absent from headless
+  configuration; its imported policy is mandatory and no fallback is installed.
+- [ ] Complete the fixed whole-product acceptance gates. A successful metadata
+  retirement alone cannot close PG3 or prove loaded tail margin.
+
+An unprepared preallocated shared claim remains retained after ticket
+retirement. This API cannot recycle that capacity or qualify activation. A
+separate financial recovery/release needs its own original source and native
+proofs; no such release or automatic resume is claimed by this increment.

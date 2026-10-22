@@ -25,9 +25,10 @@ def decoded_config(values):
     return PgConfig(**values)
 
 
-async def crash_service(database, phase, *, product='SPOT'):
+async def crash_service(database, phase, *, product='SPOT', provisional_quotes=False):
     """No inherited event loop, driver pool, SDK or financial capability."""
     assert product in ('SPOT', 'SWAP')
+    assert type(provisional_quotes) is bool and (not provisional_quotes or product == 'SPOT')
     assert phase in (('capture', 'prepare', 'send', 'ack') if product == 'SPOT'
                      else ('capture', 'prepare', 'send', 'ack', 'terminal', 'settlement', 'release'))
     assert database[2].startswith('postgresql://life_pg2_migrator@127.0.0.1:') and '/life_pg2_' in database[2]
@@ -36,7 +37,8 @@ async def crash_service(database, phase, *, product='SPOT'):
         stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     try:
         stdout, stderr = await asyncio.wait_for(process.communicate(json.dumps(dict(
-            migration_dsn=database[2], root_dsn=database[1], phase=phase, product=product)).encode()), 45)
+            migration_dsn=database[2], root_dsn=database[1], phase=phase, product=product,
+            provisional_quotes=provisional_quotes)).encode()), 45)
     except BaseException:
         if process.returncode is None:
             process.kill()
@@ -132,6 +134,7 @@ async def run():
         from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_service_hedge import policy
         options['hedge_policy'] = replace(policy(), initial_target_base=Decimal('5')) if phase == 'capture' else policy()
     t, service = await configured((connection, data['root_dsn'], data['migration_dsn']), **options,
+                                  provisional_quotes=data.get('provisional_quotes', False),
                                   spot_overrides=dict(owner_duration=timedelta(seconds=300), session_duration=timedelta(seconds=360)))
     manifest = dict(config=encoded_config(t.cfg), owner=t.owner.json(), controller=service.config.model_dump_json(),
                     sources=[asdict(r.source) for r in service.reporting.events], phase=data['phase'],
@@ -144,6 +147,8 @@ async def run():
     original = service.runtime._commit
     target = ({'capture': 'spot_capture_quote_action', 'prepare': 'spot_action_prepare'}.get(phase) if product == 'SPOT'
               else {'terminal': 'swap_terminal_command', 'release': 'shared_release_command'}.get(phase))
+    if data.get('provisional_quotes', False):
+        target = {'capture': 'quote_birth_issue', 'prepare': 'quote_birth_prepare'}.get(phase)
 
     async def committed(transaction):
         await original(transaction)

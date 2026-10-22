@@ -97,7 +97,12 @@ async def test_birth_join_plan_materializes_each_referenced_configuration_once(d
                                 replace(intent, intent_id='scale:' + str(index), level=index, quantity_base=D('.1')), index)
         # Explain the actual row-selection SQL used by the verifier, rather
         # than a hand-written approximation or a whole-function Result node.
-        definition = await c.fetchval("SELECT prosrc FROM pg_proc WHERE oid='life_financial.quote_birth_verified(uuid)'::regprocedure")
+        # Migration 106 wraps the unchanged joined audit with retirement
+        # validation. Explain its original delegated selection; the timings
+        # below still execute the complete public verifier including retirement.
+        definition = await c.fetchval('''SELECT prosrc FROM pg_proc WHERE oid=COALESCE(
+            to_regprocedure('life_financial.quote_birth_before_retirement_verified(uuid)'),
+            to_regprocedure('life_financial.quote_birth_verified(uuid)'))''')
         query = definition.split('FOR r IN\n', 1)[1].split(' LOOP\n', 1)[0].replace('p_account', '$1')
         plan = json.loads(await c.fetchval('EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ' + query, cfg.account_id))[0]
 

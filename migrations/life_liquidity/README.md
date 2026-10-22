@@ -1589,3 +1589,25 @@ end with that STABLE invocation; standalone terminal proofs, fresh statements
 and deferred COMMIT audits remain independent. Upgrade pins predecessor bodies
 and security metadata and strips inherited helper grants. It creates no tables,
 balances or permissions; applied migrations 1–104 remain unchanged.
+
+## 000106: permanent retirement of an unconsumed quote birth
+
+An explicit observation command records one immutable retirement per original
+ticket and retirement ID. The original birth remains available for audit.
+Retirement and atomic preparation serialize on the account lock: a consumed
+ticket cannot be retired, and a retired business intent cannot create an action,
+send attempt or consumption through either preparation route. A different new
+business intent can obtain a new ticket within the imported retained-history
+bounds. There is no automatic expiry or reissue of the old identity.
+
+Retirement changes the native snapshot digest but does not change account
+version, money, holds, budgets, operations or shared-capital claims. Its receipt
+and cold readback grant no executor, sender, release or activation authority.
+Every later birth audit rechecks retained retirement bodies and original birth
+hashes. The service recovery method revokes local trading before awaiting DB.
+Unreleased preallocation still requires separate qualified financial recovery.
+
+Upgrade pins all four ancestor bodies and security metadata, strips hostile
+default table/helper grants, and preserves matching writer/read entrypoint
+access. The migration ledger makes repeated service startup a no-op; applied
+migrations 1–105 remain unchanged. No account or policy is seeded.

@@ -3765,3 +3765,46 @@ async def test_release_terminal_reuse_upgrade_keeps_independent_proof_and_privat
             assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", role, helper)
         assert await c.fetchval('SELECT count(*) FROM life_financial.accounts') == 0
     assert before == await c.fetchval('SELECT pg_get_functiondef(to_regprocedure($1))', proof)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('drift', ['none', 'audit', 'issue', 'prepare', 'body', 'search_path', 'volatility'])
+async def test_birth_retirement_upgrade_is_atomic_private_and_preserves_original_apis(db, drift):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 106:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    signatures = dict(audit='life_financial.quote_birth_verified(uuid)',
+                      issue='life_financial.quote_birth_issue(uuid,jsonb,jsonb,bigint,jsonb)',
+                      prepare='life_financial.quote_birth_prepare(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
+                      body='life_financial.spot_body(uuid)')
+    target = signatures.get(drift, signatures['audit'])
+    if drift in signatures:
+        definition = await c.fetchval('SELECT pg_get_functiondef(to_regprocedure($1))', target)
+        await c.execute(definition.replace('BEGIN', 'BEGIN\n-- changed retirement ancestor\n', 1))
+    elif drift == 'search_path':
+        await c.execute('ALTER FUNCTION ' + target + ' SET search_path=pg_catalog,public')
+    elif drift == 'volatility':
+        await c.execute('ALTER FUNCTION ' + target + ' VOLATILE')
+    await c.execute('GRANT EXECUTE ON FUNCTION ' + signatures['issue'] + ' TO life_runtime_test')
+    await c.execute('GRANT EXECUTE ON FUNCTION life_financial.quote_birth_read(uuid,text) TO life_runtime_test,life_reporter_test')
+    await c.execute('ALTER DEFAULT PRIVILEGES IN SCHEMA life_financial GRANT EXECUTE ON FUNCTIONS TO PUBLIC,life_runtime_test,life_reporter_test')
+    await c.execute('ALTER DEFAULT PRIVILEGES IN SCHEMA life_financial GRANT ALL ON TABLES TO PUBLIC,life_runtime_test,life_reporter_test')
+    path = DEFAULT_DIRECTORY / '000106_quote_birth_retirement.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    if drift != 'none':
+        with pytest.raises(asyncpg.RaiseError, match='LIFE_BIRTH_RETIREMENT_MIGRATION_MISMATCH'):
+            await migrate(c, directory, action='up')
+        assert (await versions(c))[-1]['version'] == 105
+        assert not await c.fetchval("SELECT to_regclass('life_financial.quote_birth_retirements') IS NOT NULL")
+    else:
+        assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+        assert (await migrate(c, directory, action='up'))['applied'] == []
+        for role in ('public', 'life_runtime_test', 'life_reporter_test'):
+            assert not await c.fetchval("SELECT has_table_privilege($1,'life_financial.quote_birth_retirements','INSERT,UPDATE,DELETE,TRUNCATE')", role)
+            for signature in ('quote_birth_before_retirement_verified(uuid)', 'quote_birth_retired_identity_guard()', 'quote_birth_retirement_commit_guard()'):
+                assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", role, 'life_financial.' + signature)
+            assert await c.fetchval("SELECT has_function_privilege($1,'life_financial.quote_birth_retire(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)','EXECUTE')", role) is (role == 'life_runtime_test')
+            assert await c.fetchval("SELECT has_function_privilege($1,'life_financial.quote_birth_retire_read(uuid,text)','EXECUTE')", role) is (role != 'public')
+        assert await c.fetchval('SELECT count(*) FROM life_financial.accounts') == 0
