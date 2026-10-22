@@ -18,6 +18,7 @@ BIRTH_ENTRYPOINTS = (
 )
 BIRTH_RETIREMENT_ENTRYPOINT = 'life_financial.quote_birth_retire(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)'
 UNUSED_RELEASE_ENTRYPOINT = 'life_financial.unused_release_command(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)'
+SOURCE_CARRY_ENTRYPOINT = 'life_financial.carry_after_capital(uuid,jsonb,jsonb,bigint,life_financial.digest,text,jsonb)'
 MUTATING_ENTRYPOINTS = (
     'life_financial.legacy_applying_pending(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
     'life_financial.guard_account(uuid,jsonb,jsonb,bigint)',
@@ -152,6 +153,8 @@ async def provision_access(connection, *, principal, account_id, write):
             await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.unused_release_read(uuid,text,integer,integer),life_financial.unused_release_origin_read(uuid,text) TO "{principal}"')
         if write:
             await connection.execute('GRANT EXECUTE ON FUNCTION ' + ','.join(MUTATING_ENTRYPOINTS) + f' TO "{principal}"')
+            if await connection.fetchval('SELECT to_regprocedure($1) IS NOT NULL', SOURCE_CARRY_ENTRYPOINT):
+                await connection.execute('GRANT EXECUTE ON FUNCTION ' + SOURCE_CARRY_ENTRYPOINT + f' TO "{principal}"')
             if await connection.fetchval('SELECT to_regprocedure($1) IS NOT NULL', ATOMIC_DISPATCH_ENTRYPOINT):
                 await connection.execute('GRANT EXECUTE ON FUNCTION ' + ATOMIC_DISPATCH_ENTRYPOINT + f' TO "{principal}"')
             if await connection.fetchval('SELECT to_regprocedure($1) IS NOT NULL', NATIVE_CAPTURE_ENTRYPOINT):

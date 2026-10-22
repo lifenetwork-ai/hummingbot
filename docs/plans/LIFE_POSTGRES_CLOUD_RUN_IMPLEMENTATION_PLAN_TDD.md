@@ -1,5 +1,39 @@
 # LIFE: PostgreSQL and Cloud Run Implementation Plan (TDD)
 
+**Source-to-carry flow optimization (2026-10-22, qualification in progress):**
+quote collection now captures bounded opening identity/scope metadata, then
+performs its complete financial audit after both signed provider rounds. The
+opening marker contains no audit verdict or financial cut. Closing identity,
+scope, ingress, account money, pending history and source checks remain exact;
+the original PREPARE/ARM/COMMIT checks remain independent. The new negative gate
+passes **6 cases**, including ingress at three boundaries and same-version
+balance corruption before/during collection.
+
+Migration 112 gives source carry bookkeeping one native handoff from the exact
+just-committed capital parent. It locks and validates that parent's original
+source cut/owner/version, computes the carry view internally, and reuses it only
+within the same call. A private core retains the original carry command and
+guards; runtimes cannot supply an audit verdict. The audited post-write cut is
+returned only after physical COMMIT. Capital and carry remain separate commits:
+a failed carry keeps the original capital record, and unknown COMMIT publishes
+no cut. The original report timestamp, ingress fencing, one-second freshness,
+source identity and deferred COMMIT checks remain unchanged.
+
+The preceding native aggregate was interrupted after **1611 pass / 7 fail**,
+**3530.77 s**. It is incomplete and RED: expiry/timeouts and two historical
+upgrade assertions still required repair. The retained schema-100 differential
+tests now pin their explicit target. Before this handoff, the untraced original
+maker workload still refused an expired source report at **1093.366 ms**. With
+the new handoff that same complete retained-fill/two-generation/competing-SDK
+workload passes **1 case, 151.15 s**, without tracing or concurrent hooks and
+with all original limits/assertions. This is a focused pass, not a tail-latency
+guarantee or a completed current-source PG3 aggregate. The complete carry
+regression passes **75 cases, 67.03 s**; source/targeted historical upgrade
+regression passes **13 cases, 36.86 s**. Migration repeat-startup, ancestor-drift
+and hostile-default ACL qualification passes **4 cases, 11.45 s**. **PG3 remains open until
+the complete frozen gate passes.** No evidence artifact or live eligibility is
+created by this change.
+
 **Integrated PG3 qualification (2026-10-22, in progress):** migration 110
 indexes repeated operation-family audits identified by whole-flow profiling.
 Migration 111 retains original provisional diagnostics without inventing an

@@ -21,7 +21,7 @@ async def test_large_ascii_identity_fits_the_existing_statement_limit(database):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('database', [94], indirect=True)
-async def test_identity_upgrade_preserves_unicode_numeric_and_permanent_id_bytes(database):
+async def test_identity_upgrade_preserves_unicode_numeric_and_permanent_id_bytes(database, reference_migrations_100):
     c = database[0]
     old = await c.fetchval("SELECT pg_get_functiondef('life_financial.recorder_identity_text(jsonb)'::regprocedure)")
     await c.execute('CREATE SCHEMA identity_reference')
@@ -35,8 +35,8 @@ async def test_identity_upgrade_preserves_unicode_numeric_and_permanent_id_bytes
                 'wire': 'wire1', 'kind': 'OrderFilled', 'trade_id': s} for i, s in enumerate(strings)]
     raw = [json.dumps(v, ensure_ascii=True) for v in values]
     before = await c.fetch('SELECT identity_reference.original(v::jsonb) AS body FROM unnest($1::text[]) WITH ORDINALITY AS e(v,n) ORDER BY n', raw)
-    assert (await migrate(c, action='up'))['applied'] == ['000095_recorder_verification_reads.sql', '000096_recorder_history_lookups.sql',
-                                                          '000097_atomic_metadata_dispatch.sql', '000098_native_quote_capture.sql', '000099_provider_collection.sql', '000100_generated_command_fingerprint.sql']
+    assert (await migrate(c, reference_migrations_100, action='up'))['applied'] == ['000095_recorder_verification_reads.sql', '000096_recorder_history_lookups.sql',
+                                                                                    '000097_atomic_metadata_dispatch.sql', '000098_native_quote_capture.sql', '000099_provider_collection.sql', '000100_generated_command_fingerprint.sql']
     after = await c.fetch('SELECT life_financial.recorder_identity_text(v::jsonb) AS body FROM unnest($1::text[]) WITH ORDINALITY AS e(v,n) ORDER BY n', raw)
     assert before == after
     for value, row in zip(values, after):
@@ -45,4 +45,4 @@ async def test_identity_upgrade_preserves_unicode_numeric_and_permanent_id_bytes
         for function in ('identity_reference.original', 'life_financial.recorder_identity_text'):
             with pytest.raises(asyncpg.RaiseError, match='LIFE_EVENT_IDENTITY_INVALID'):
                 await c.fetchval('SELECT ' + function + '($1::jsonb)', raw_value)
-    assert (await migrate(c, action='up'))['applied'] == []
+    assert (await migrate(c, reference_migrations_100, action='up'))['applied'] == []

@@ -2,7 +2,7 @@
 import asyncio
 import inspect
 from dataclasses import asdict, dataclass, field
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation, localcontext
 from uuid import uuid4
 
 from hummingbot.strategy_v2.life_liquidity.carry_monitor import CarryBundle, CarryDecision
@@ -109,6 +109,14 @@ class PgCarryRepository:
                     or old['cut'] != digest or old['command']['prospective'] != candidate):
                 raise StorageError('PG_OPERATION_CONFLICT')
             return self._receipt({**previous['receipt'], 'replayed': True})
+        captured = await self._capture_bundle()
+        body = dict(operation_id=operation_id, bundle=captured, prospective=candidate)
+        request = dict(kind='CARRY_CHECK', binding=self.binding.json(), owner=owner.json(), version=version, cut=digest, command=body)
+        return await self.runtime._transaction('SELECT life_financial.carry_check($1,$2,$3,$4,$5,$6,$7)',
+                                               (self.runtime.config.account_id, self.binding.json(), owner.json(), version, digest, fingerprint(request), body),
+                                               owner, self._receipt, observation=True)
+
+    async def _capture_bundle(self):
         self.runtime._ingress_epoch += 1
         try:
             bundle = self.observation()
@@ -127,11 +135,47 @@ class PgCarryRepository:
             # Invalid JSON-domain types are feed failure, never coerced into
             # an integer stamp. Persist a denial and the primary clock advance.
             captured = None
-        body = dict(operation_id=operation_id, bundle=captured, prospective=candidate)
-        request = dict(kind='CARRY_CHECK', binding=self.binding.json(), owner=owner.json(), version=version, cut=digest, command=body)
-        return await self.runtime._transaction('SELECT life_financial.carry_check($1,$2,$3,$4,$5,$6,$7)',
-                                               (self.runtime.config.account_id, self.binding.json(), owner.json(), version, digest, fingerprint(request), body),
-                                               owner, self._receipt, observation=True)
+        return captured
+
+    async def observe_after_capital(self, operation_id, capital_operation_id, *, capital_cut, owner, _preflight=None):
+        """Consume a new capital parent's original cut, never a cached verdict.
+
+        Native SQL locks the exact parent successor and supplies its own fully
+        audited carry view. A returned cut becomes visible only after COMMIT;
+        original-operation recovery still uses lookup and new signed evidence.
+        """
+        identifier(operation_id)
+        identifier(capital_operation_id)
+        self._original()
+        if len(operation_id) > 96 or type(capital_cut) is not ProductCut or owner != self.owner:
+            raise StorageError('PG_CARRY_COMMAND_CONTEXT_INVALID')
+        version, digest = self.financial._cut(FinancialCut(capital_cut.checkpoint, capital_cut.components), owner)
+        if _preflight is None:
+            if await self.lookup(operation_id, self.binding) is not None:
+                raise StorageError('PG_ORIGINAL_OPERATION_REQUIRES_RECONCILIATION')
+        else:
+            from hummingbot.strategy_v2.life_liquidity.storage.postgres.operation_preflight import (
+                consume_operation_read,
+            )
+            consume_operation_read(self, operation_id, _preflight)
+        body = dict(operation_id=operation_id, bundle=await self._capture_bundle(), prospective=None)
+
+        def parse(value):
+            receipt = self._receipt(value)
+            try:
+                with localcontext() as context:
+                    context.prec = 120
+                    view = value['native_snapshot']
+                    if (receipt.replayed or view['unverified'] is not False
+                            or view['account']['version'] != version + 2 or value['version'] != version + 2):
+                        raise StorageUnavailable('PG_CARRY_HANDOFF_RECEIPT_INVALID')
+                    return receipt, self.financial._snapshot(view, self.binding).cut
+            except (KeyError, TypeError, ValueError, InvalidOperation):
+                raise StorageUnavailable('PG_CARRY_HANDOFF_RECEIPT_INVALID') from None
+
+        return await self.runtime._transaction('SELECT life_financial.carry_after_capital($1,$2,$3,$4,$5,$6,$7)',
+                                               (self.runtime.config.account_id, self.binding.json(), owner.json(), version, digest, capital_operation_id, body),
+                                               owner, parse, observation=True)
 
     async def check_carry(self, binding, prospective=None):
         self.financial._binding(binding)

@@ -224,7 +224,7 @@ def main():
             modules = {name for group in PG3_SUITES.values() for name in group}
             modules.update(('service', 'runner_startup', 'joint_events', 'recorder', 'recorder_application',
                             'events', 'positions', 'event_application', 'configuration', 'spot_application',
-                            'runner_journal', 'quote_transport', 'quote_arm', 'unused_release', 'operation_lookups', 'template'))
+                            'runner_journal', 'quote_transport', 'quote_arm', 'unused_release', 'operation_lookups', 'template', 'quote_collection', 'carry'))
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in sorted(modules)]
         if args.suite in ('pg3', 'spot_market_send'):
             selectors.extend(str(selector / name) for name in ('test_shared_sdk_quota.py', 'test_spot_intent.py'))

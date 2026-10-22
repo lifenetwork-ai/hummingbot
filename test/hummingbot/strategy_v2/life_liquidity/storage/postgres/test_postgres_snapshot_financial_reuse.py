@@ -75,7 +75,7 @@ async def test_invalid_carry_preserves_original_portfolio_short_circuit(database
 @pytest.mark.asyncio
 @pytest.mark.parametrize('database', [93], indirect=True)
 @pytest.mark.parametrize('damage', ['none', 'capital', 'swap_fee', 'receipt'])
-async def test_financial_reuse_upgrade_preserves_complete_cut_and_negative_flags(database, monkeypatch, damage):
+async def test_financial_reuse_upgrade_preserves_complete_cut_and_negative_flags(database, monkeypatch, damage, reference_migrations_100):
     c = database[0]
     load = runtime_module.load_migrations
     with monkeypatch.context() as patch:
@@ -103,7 +103,7 @@ async def test_financial_reuse_upgrade_preserves_complete_cut_and_negative_flags
     definition = await c.fetchval("SELECT pg_get_functiondef('life_financial.spot_state(uuid)'::regprocedure)")
     await c.execute(definition.replace('life_financial.spot_state(', 'snapshot_financial_reference.spot_state(')
                     .replace('life_financial.spot_body(', 'snapshot_financial_reference.spot_body('))
-    assert (await migrate(c, action='up'))['applied'] == ['000094_snapshot_financial_proof_reuse.sql', '000095_recorder_verification_reads.sql', '000096_recorder_history_lookups.sql', '000097_atomic_metadata_dispatch.sql', '000098_native_quote_capture.sql', '000099_provider_collection.sql', '000100_generated_command_fingerprint.sql']
+    assert (await migrate(c, reference_migrations_100, action='up'))['applied'] == ['000094_snapshot_financial_proof_reuse.sql', '000095_recorder_verification_reads.sql', '000096_recorder_history_lookups.sql', '000097_atomic_metadata_dispatch.sql', '000098_native_quote_capture.sql', '000099_provider_collection.sql', '000100_generated_command_fingerprint.sql']
     # Both evaluations use genuinely aged facts, avoiding a comparison across
     # a live readiness boundary; all original flags and digest remain compared.
     await asyncio.sleep(1.05)
@@ -112,4 +112,4 @@ async def test_financial_reuse_upgrade_preserves_complete_cut_and_negative_flags
     current, previous = json.loads(row['current']), json.loads(row['previous'])
     assert current == previous
     assert current['unverified'] is (damage != 'none')
-    assert (await migrate(c, action='up'))['applied'] == []
+    assert (await migrate(c, reference_migrations_100, action='up'))['applied'] == []

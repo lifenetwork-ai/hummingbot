@@ -14,7 +14,7 @@ from decimal import Decimal as D, localcontext
 
 from hummingbot.strategy_v2.life_liquidity.account_bills import SpotAccountBillReader
 from hummingbot.strategy_v2.life_liquidity.storage.action_preparation import QuoteAdmissionPolicy
-from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError, fingerprint, utc
+from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError, encode, fingerprint, utc
 from hummingbot.strategy_v2.life_liquidity.storage.financial import FinancialCut
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.collateral_source import (
     AccountCollateral,
@@ -89,6 +89,13 @@ class JointSourceReport:
     quote_policy: QuoteAdmissionPolicy | None = None
     primary_observed_at: datetime | None = None
     producer_configuration_hash: str | None = None
+    trading_permission: bool = field(default=False, init=False)
+
+
+@dataclass(frozen=True)
+class _QuoteCollectionOpening:
+    """Unaudited read marker; contains no financial cut or source authority."""
+    context_json: bytes
     trading_permission: bool = field(default=False, init=False)
 
 
@@ -190,6 +197,49 @@ class PgJointAccountReconciler(PgCollateralReconciler):
                     or snapshot['unverified'] or snapshot['financial_recovery_required']):
                 raise StorageError('PG_JOINT_SOURCE_QUOTE_NATIVE_UNQUALIFIED')
         return original, view, scope
+
+    async def _quote_collection_opening(self):
+        """Read only the immutable source inputs and optimistic version marker.
+
+        No financial decision is made from this marker. The closing native
+        read must independently verify the entire ledger before any report is
+        published; ARM still checks its own complete state and physical COMMIT.
+        """
+        self._original()
+
+        async def read(c):
+            return await c.fetchrow('''SELECT jsonb_build_object('account',to_jsonb(a),
+                'session',to_jsonb(s),'capital_policy',p.body) AS opening,z.*
+                FROM life_financial.accounts a
+                JOIN life_financial.sessions s ON s.account_id=a.account_id AND s.session_id=a.current_session
+                JOIN life_financial.shared_capital_policies p ON p.account_id=a.account_id AND p.policy_hash=a.policy_hash
+                CROSS JOIN (''' + self._scope_sql(True) + ''') z
+                WHERE a.account_id=$1 AND life_financial.can_access($1)''',
+                                    self.runtime.config.account_id, self.swap.capital.max_rows, self.swap.capital.max_bytes)
+        value = await self.runtime._admit(read, safety=True, operation='quote_collection_opening')
+        if value is None:
+            raise StorageError('PG_COLLATERAL_NATIVE_BASIS_REQUIRED')
+        raw = value['opening']
+        if (type(raw) is not dict or set(raw) != {'account', 'session', 'capital_policy'}
+                or any(type(v) is not dict for v in raw.values())
+                or any(raw['account'].get(k) != v for k, v in self.binding.json().items())):
+            raise StorageError('PG_COLLATERAL_CONTEXT_CHANGED')
+        wire = encode(raw)
+        if len(wire) > self.swap.capital.max_bytes:
+            raise StorageError('PG_COLLATERAL_READ_BOUND')
+        return _QuoteCollectionOpening(wire), self._decode_scope(value, True)
+
+    def _match_quote_opening(self, opening, current, after, account):
+        import json
+        if type(opening) is not _QuoteCollectionOpening:
+            raise StorageError('PG_JOINT_SOURCE_QUOTE_NATIVE_UNQUALIFIED')
+        raw = json.loads(opening.context_json)
+        if raw != dict(account=current['snapshot']['account'], session=current['snapshot']['session'],
+                       capital_policy=current['capital_policy']):
+            raise StorageError('PG_COLLATERAL_NATIVE_CUT_CHANGED')
+        # The qualified closing cut owns all monetary/position facts and their
+        # causal timestamps. Opening inputs have no audit verdict to reuse.
+        self._match_account(current, after, account)
 
     async def _pages(self, read, key, *, anchor=None, first_page=None):
         cursor, previous, result = None, None, []
@@ -492,7 +542,12 @@ class PgJointAccountReconciler(PgCollateralReconciler):
                     expected_epoch = self.runtime._ingress_epoch + 1
                     with localcontext() as precision:
                         precision.prec = 160
-                        original, view, scope = await self._collection_context(include_spot_market)
+                        opening = None
+                        if include_spot_market:
+                            opening, scope = await self._quote_collection_opening()
+                            original = json.loads(opening.context_json)
+                        else:
+                            original, view, scope = await self._collection_context(False)
                         native_collection = self if any(m.version == 99 for m in self.runtime._bundle) else None
                         async with self.reader.collection(account_brackets=True, quota_continuation=quota_continuation,
                                                           _collector=native_collection):
@@ -538,7 +593,11 @@ class PgJointAccountReconciler(PgCollateralReconciler):
                         if rounds[0] != rounds[1] or accounts[0] != accounts[1]:
                             raise StorageError('PG_JOINT_SOURCE_CHANGED')
                         current, after, after_scope = await self._collection_context(include_spot_market)
-                        self._match(original, view, current, after, accounts[0])
+                        if opening is None:
+                            self._match(original, view, current, after, accounts[0])
+                        else:
+                            self._match_quote_opening(opening, current, after, accounts[0])
+                            view = after
                         if scope != after_scope:
                             raise StorageError('PG_JOINT_SOURCE_NATIVE_CHANGED')
                         if self.runtime._ingress_epoch != expected_epoch:
@@ -552,7 +611,7 @@ class PgJointAccountReconciler(PgCollateralReconciler):
                             self.binding, qp['objective'], *(D(qp[k]) for k in (
                                 'min_net_edge_bps', 'uncertainty_bps', 'tick_size', 'lot_size', 'min_size')),
                             *(qp[k] for k in ('max_fact_age_ms', 'max_reference_age_ms', 'max_fee_age_ms', 'max_capture_age_ms')))
-                        report = JointSourceReport(view.cut, view.session.config_version, original['snapshot']['account']['risk_epoch'],
+                        report = JointSourceReport(view.cut, view.session.config_version, current['snapshot']['account']['risk_epoch'],
                                                    started, scope['ANCHOR']['anchor']['opened_at_ms'],
                                                    self.reader.collection_id, fingerprint([rounds, market_json] + ([spot_json] if include_spot_market else [])), accounts[1], account_times[1], rows,
                                                    tuple(sorted((p, key) for p in ('SPOT', 'SWAP') for key in scope[p + '_FILL'])),

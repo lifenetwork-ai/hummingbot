@@ -198,6 +198,9 @@ class PgCollateralReconciler:
     def _match(self, original, view, current, after, account):
         if view.cut != after.cut or original['positions'] != current['positions']:
             raise StorageError('PG_COLLATERAL_NATIVE_CUT_CHANGED')
+        self._match_account(original, view, account)
+
+    def _match_account(self, original, view, account):
         legs = original['positions']
         if ((account.base_life, account.cash_usdt) != (view.balance.total_base_life, view.balance.total_quote_usdt)
                 or (account.long_base, account.short_base, account.long_entry, account.short_entry) !=

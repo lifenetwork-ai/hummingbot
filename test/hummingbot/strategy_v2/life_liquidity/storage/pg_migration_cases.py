@@ -3954,3 +3954,43 @@ async def test_operation_audit_and_provisional_recorder_upgrade_is_scoped_idempo
         assert await c.fetchrow('SELECT oid,to_jsonb(p)-\'prosrc\' AS metadata FROM pg_proc p WHERE oid=$1::regprocedure', signature) == original
         for role in ('public', 'life_runtime_test', 'life_reporter_test'):
             assert not await c.fetchval('SELECT has_function_privilege($1,$2,\'EXECUTE\')', role, signature)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('drift', ['none', 'body', 'search_path', 'volatility'])
+async def test_source_carry_handoff_upgrade_preserves_original_and_private_helper_acl(db, drift):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 112:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    original = 'life_financial.carry_check(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)'
+    public = 'life_financial.carry_after_capital(uuid,jsonb,jsonb,bigint,life_financial.digest,text,jsonb)'
+    private = 'life_financial.carry_from_native_view(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb,jsonb)'
+    await c.execute('GRANT USAGE ON SCHEMA life_financial TO life_runtime_test,life_reporter_test')
+    await c.execute('GRANT EXECUTE ON FUNCTION ' + original + ' TO life_runtime_test')
+    before = await c.fetchrow('SELECT oid,to_jsonb(p) AS body FROM pg_proc p WHERE oid=$1::regprocedure', original)
+    if drift == 'body':
+        definition = await c.fetchval('SELECT pg_get_functiondef($1::regprocedure)', original)
+        await c.execute(definition.replace('BEGIN', 'BEGIN\n-- altered carry ancestor\n', 1))
+    elif drift == 'search_path':
+        await c.execute('ALTER FUNCTION ' + original + ' SET search_path=pg_catalog,public')
+    elif drift == 'volatility':
+        await c.execute('ALTER FUNCTION ' + original + ' STABLE')
+    await c.execute('ALTER DEFAULT PRIVILEGES IN SCHEMA life_financial GRANT EXECUTE ON FUNCTIONS TO PUBLIC,life_runtime_test,life_reporter_test')
+    path = DEFAULT_DIRECTORY / '000112_source_carry_handoff.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    if drift != 'none':
+        with pytest.raises(asyncpg.RaiseError, match='LIFE_SOURCE_CARRY_MIGRATION_MISMATCH'):
+            await migrate(c, directory, action='up')
+        assert (await versions(c))[-1]['version'] == 111
+        assert not await c.fetchval('SELECT to_regprocedure($1) IS NOT NULL', public)
+    else:
+        assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+        assert (await migrate(c, directory, action='up'))['applied'] == []
+        assert await c.fetchrow('SELECT oid,to_jsonb(p) AS body FROM pg_proc p WHERE oid=$1::regprocedure', original) == before
+        assert await c.fetchval("SELECT has_function_privilege('life_runtime_test',$1,'EXECUTE')", public)
+        for role in ('public', 'life_runtime_test', 'life_reporter_test'):
+            assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", role, private)
+        for role in ('public', 'life_reporter_test'):
+            assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", role, public)

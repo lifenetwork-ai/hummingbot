@@ -459,16 +459,23 @@ class PgHedgeSource:
                     self._check(report, epoch + 1, market)
                     if _allocation is not None and not capital.decision.allowed:
                         return HedgeSourceReceipt(capital, None, market)
-                    current = (await self.financial.observation_cut(self.binding)).cut
-                    if current.checkpoint.revision != report.cut.checkpoint.revision + 1:
-                        raise StorageError('PG_HEDGE_SOURCE_NATIVE_CHANGED')
                     self._capture = ('carry', report, epoch, snapshot, bundle, market)
-                    carried = await self.carry.observe(carry_id, cut=ProductCut(current.checkpoint, current.components), owner=self.owner,
-                                                       _preflight=carry_preflight)
+                    native_handoff = any(m.version == 112 for m in self.runtime._bundle)
+                    if native_handoff:
+                        carried, current = await self.carry.observe_after_capital(
+                            carry_id, cap_id, capital_cut=ProductCut(report.cut.checkpoint, report.cut.components),
+                            owner=self.owner, _preflight=carry_preflight)
+                    else:
+                        current = (await self.financial.observation_cut(self.binding)).cut
+                        if current.checkpoint.revision != report.cut.checkpoint.revision + 1:
+                            raise StorageError('PG_HEDGE_SOURCE_NATIVE_CHANGED')
+                        carried = await self.carry.observe(carry_id, cut=ProductCut(current.checkpoint, current.components), owner=self.owner,
+                                                           _preflight=carry_preflight)
                     if carried.replayed:
                         raise StorageError('PG_HEDGE_SOURCE_ORIGINAL_OPERATION_REQUIRES_RECONCILIATION')
                     self._check(report, epoch + 2, market)
-                    current = (await self.financial.observation_cut(self.binding)).cut
+                    if not native_handoff:
+                        current = (await self.financial.observation_cut(self.binding)).cut
                     if current.checkpoint.revision != report.cut.checkpoint.revision + 2:
                         raise StorageError('PG_HEDGE_SOURCE_NATIVE_CHANGED')
                     self._qualified = (report, epoch + 2, current, market, cp['leverage'], swap_policy['controller_id'])

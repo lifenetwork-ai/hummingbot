@@ -1,5 +1,16 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**PostgreSQL source-flow checkpoint (2026-10-22):** bounded quote opening
+metadata replaces an early duplicate audit; the complete closing financial
+proof and independent order/COMMIT guards remain. Migration 112 validates a
+new capital parent's original source cut and performs carry bookkeeping using
+an internally verified same-call snapshot. Capital/carry remain separate
+commits; unknown COMMIT returns no cut or permission. The complete untraced
+retained-fill/two-generation/competing-SDK workload passes in **151.15 s** with
+the original one-second limits. **PG3 remains open pending complete frozen
+regression qualification**, tracked in the
+[PostgreSQL plan](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md).
+
 **Common release-history access (2026-10-22):** migration 109 covers the native
 verifier's combined terminal/unused release orphan query with a partial index.
 The real query-plan regression passes while keeping all proof functions and

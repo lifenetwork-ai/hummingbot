@@ -90,6 +90,7 @@ class QuoteFlowTrace:
         self.wrap(PgSpotMarketSource, 'collect', lambda k: 'final_collection' if k.get('pending_quote') is not None
                   else 'prepare_collection' if k.get('preparing_quote') is not None else 'proposal_collection')
         self.wrap(PgJointAccountReconciler, '_collection_context', 'native_context')
+        self.wrap(PgJointAccountReconciler, '_quote_collection_opening', 'native_opening')
         self.wrap(PgRecorderApplication, 'drain', 'reporting_drain')
         self.wrap(PgRecorderApplication, 'flush_deferred', 'reporting_flush')
         from hummingbot.strategy_v2.life_liquidity.storage.postgres.joint_event_application import (

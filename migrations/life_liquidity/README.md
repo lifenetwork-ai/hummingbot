@@ -1655,3 +1655,22 @@ attempt, exchange event, capacity release or permission. Prepared executors
 retain the original native descriptor/attempt provenance. The original private
 function OID/ACL is preserved, predecessor drift is refused, and the normal
 serialized migration runner makes repeat startup a no-op.
+
+## 000112: source capital-to-carry handoff
+
+`000112_source_carry_handoff.sql` verifies the exact just-committed capital
+parent (original cut/version/binding/owner) under the account lock, supplies
+the complete native snapshot to a private carry core, and returns an audited
+post-write snapshot with the original bookkeeping receipt. The core differs
+from the original carry command only in where that same-call snapshot comes
+from. Public `carry_check` remains unchanged. Physical COMMIT still verifies
+owner and original stream freshness before Python receives a cut. An unknown
+COMMIT returns no cut; ordinary original-operation readback grants no trading
+permission. A failed carry preserves the independently committed capital row.
+
+No supplied audit verdict, cross-call proof cache, new source timestamp, policy
+default, trading grant or budget refund is introduced. The predecessor source
+and attributes are checked; hostile default grants on both new functions are
+stripped. Only existing explicit carry writers receive the public handoff;
+the view-taking helper remains owner-only. The existing checksum/advisory-lock
+migration runner keeps repeated service startup a no-op.

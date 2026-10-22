@@ -66,6 +66,167 @@ async def setup(database, *, max_age_ms=1000, spot_options=None, capital_changes
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('fault', [None, 'wrong_parent', 'intervening_write', 'corrupt_balance', 'commit_expiry'])
+async def test_source_carry_handoff_retains_original_capital_cut_and_commit_guards(database, monkeypatch, fault):
+    from hummingbot.strategy_v2.life_liquidity.storage.contracts import ResourceVersion, StateCut
+    from hummingbot.strategy_v2.life_liquidity.storage.financial import FinancialCut
+    from hummingbot.strategy_v2.life_liquidity.storage.products import ProductCut
+    financial, cfg, owner, _, _, capital, _, _, repo = await setup(database, refresh_initial_facts=True)
+    c = database[0]
+    try:
+        parent = await c.fetchrow('''SELECT o.operation_id,o.command::text AS command FROM life_financial.shared_capital_heads h
+            JOIN life_financial.operations o USING(account_id,operation_id) WHERE h.account_id=$1''', cfg.account_id)
+        body = json.loads(parent['command'])
+        version, digest = body['version'], body['cut']
+        cut = ProductCut(StateCut(cfg.binding, version, version, (ResourceVersion('account', version),), digest),
+                         (('postgres_account', digest),))
+        before = await financial.snapshot(cfg.binding)
+        if fault == 'intervening_write':
+            await capital.check_capital(cfg.binding)
+        if fault == 'corrupt_balance':
+            await c.execute('ALTER TABLE life_financial.balances DISABLE TRIGGER USER')
+            await c.execute("UPDATE life_financial.balances SET total=total+1 WHERE account_id=$1 AND asset='USDT'", cfg.account_id)
+            await c.execute('ALTER TABLE life_financial.balances ENABLE TRIGGER USER')
+        if fault == 'commit_expiry':
+            original = financial._runtime._commit
+
+            async def expired(tx):
+                await asyncio.sleep(1.05)
+                await original(tx)
+
+            monkeypatch.setattr(financial._runtime, '_commit', expired)
+        call = repo.observe_after_capital('source-carry', 'wrong-parent' if fault == 'wrong_parent' else parent['operation_id'],
+                                          capital_cut=cut, owner=owner)
+        if fault is not None:
+            with pytest.raises(StorageError, match={
+                'wrong_parent': 'CARRY_CAPITAL_HANDOFF_INVALID',
+                'intervening_write': 'CARRY_CAPITAL_HANDOFF_INVALID',
+                'corrupt_balance': 'CARRY_ACCOUNT_CONTEXT_STALE',
+                'commit_expiry': 'CARRY_FACTS_STALE_AT_COMMIT',
+            }[fault]):
+                await call
+            assert await repo.lookup('source-carry', cfg.binding) is None
+            assert await c.fetchval('SELECT count(*) FROM life_financial.carry_heads WHERE account_id=$1', cfg.account_id) == 0
+            assert await capital.lookup(parent['operation_id'], cfg.binding) is not None
+        else:
+            receipt, actual = await call
+            assert type(actual) is FinancialCut and actual.checkpoint.revision == version + 2
+            assert receipt.decision.allowed and not receipt.replayed and not receipt.trading_permission
+            after = await financial.snapshot(cfg.binding)
+            assert actual == after.cut and after.balance == before.balance and after.budget == before.budget
+            assert not after.recovery_required
+            saved = await repo.lookup('source-carry', cfg.binding)
+            assert saved == replace(receipt, replayed=True)
+            with pytest.raises(StorageError, match='ORIGINAL_OPERATION_REQUIRES_RECONCILIATION'):
+                await repo.observe_after_capital('source-carry', parent['operation_id'], capital_cut=cut, owner=owner)
+        assert await c.fetchval('SELECT count(*) FROM life_financial.send_attempts') == 0
+    finally:
+        await financial.close()
+
+
+@pytest.mark.asyncio
+async def test_source_carry_handoff_matches_original_command_without_exposing_native_view_helper(database):
+    import asyncpg
+
+    from hummingbot.strategy_v2.life_liquidity.storage.contracts import ResourceVersion, StateCut
+    from hummingbot.strategy_v2.life_liquidity.storage.products import ProductCut
+    financial, cfg, owner, _, _, _, _, feed, repo = await setup(database, refresh_initial_facts=True)
+    c = database[0]
+    try:
+        parent = await c.fetchrow('''SELECT o.operation_id,o.command::text AS command FROM life_financial.shared_capital_heads h
+            JOIN life_financial.operations o USING(account_id,operation_id) WHERE h.account_id=$1''', cfg.account_id)
+        cap = json.loads(parent['command'])
+        original_signature = 'life_financial.carry_check(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)'
+        helper = 'life_financial.carry_from_native_view(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb,jsonb)'
+        original = await c.fetchval('SELECT prosrc FROM pg_proc WHERE oid=$1::regprocedure', original_signature)
+        assert await c.fetchval('SELECT prosrc FROM pg_proc WHERE oid=$1::regprocedure', helper) == original.replace(
+            'view:=life_financial.spot_state(p_account);', 'view:=p_native_view;')
+        for role in ('life_pg2_runtime', 'life_pg2_reporter'):
+            assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", role, helper)
+        native = await asyncpg.connect(cfg.dsn)
+        try:
+            with pytest.raises(asyncpg.InsufficientPrivilegeError):
+                await native.fetchval('SELECT life_financial.carry_from_native_view($1,$2,$3,0,$4,$4,$2,$2)',
+                                      cfg.account_id, '{}', json.dumps(owner.json()), '0' * 64)
+        finally:
+            await native.close()
+        await c.execute('INSERT INTO life_financial.access_bindings VALUES(current_user,$1,true)', cfg.account_id)
+        tx = c.transaction()
+        await tx.start()
+        try:
+            state = json.loads(await c.fetchval('SELECT life_financial.spot_state($1)::text', cfg.account_id))
+            command = dict(operation_id='differential-carry', bundle=_json(asdict(feed[0])), prospective=None)
+            request = dict(kind='CARRY_CHECK', binding=cfg.binding.json(), owner=owner.json(),
+                           version=state['account']['version'], cut=state['digest'], command=command)
+            expected = json.loads(await c.fetchval('SELECT life_financial.carry_check($1,$2::jsonb,$3::jsonb,$4,$5,$6,$7::jsonb)::text',
+                                                   cfg.account_id, json.dumps(cfg.binding.json()), json.dumps(owner.json()),
+                                                   request['version'], request['cut'], fingerprint(request), json.dumps(command)))
+            expected_state = json.loads(await c.fetchval('SELECT life_financial.spot_state($1)::text', cfg.account_id))
+        finally:
+            await tx.rollback()
+        cut = ProductCut(StateCut(cfg.binding, cap['version'], cap['version'], (ResourceVersion('account', cap['version']),), cap['cut']),
+                         (('postgres_account', cap['cut']),))
+        actual, _ = await repo.observe_after_capital('differential-carry', parent['operation_id'], capital_cut=cut, owner=owner)
+        actual_state = json.loads(await c.fetchval('SELECT life_financial.spot_state($1)::text', cfg.account_id))
+        assert actual.decision == repo._receipt(expected).decision
+        assert json.loads(await c.fetchval("SELECT (receipt->'decision')::text FROM life_financial.operations WHERE account_id=$1 AND operation_id='differential-carry'", cfg.account_id)) == expected['decision']
+        for field in ('balances', 'budgets', 'shared_capital'):
+            assert actual_state[field] == expected_state[field]
+        assert actual_state['account']['version'] == expected['version']
+        assert actual_state['unverified'] is False and not actual.trading_permission
+    finally:
+        await financial.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('committed', [False, True])
+async def test_source_carry_handoff_lost_commit_returns_no_cut_and_recovers_only_original_receipt(database, monkeypatch, committed):
+    from hummingbot.strategy_v2.life_liquidity.storage.contracts import CommitUnknown, ResourceVersion, StateCut
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.runtime import PgRuntime
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.shared_capital import PgSharedCapitalRepository
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot import PgSpotRepository
+    from hummingbot.strategy_v2.life_liquidity.storage.products import ProductCut
+    financial, cfg, owner, _, account, _, _, feed, repo = await setup(database, refresh_initial_facts=True)
+    c, cold = database[0], None
+    try:
+        parent = await c.fetchrow('''SELECT o.operation_id,o.command::text AS command FROM life_financial.shared_capital_heads h
+            JOIN life_financial.operations o USING(account_id,operation_id) WHERE h.account_id=$1''', cfg.account_id)
+        cap = json.loads(parent['command'])
+        cut = ProductCut(StateCut(cfg.binding, cap['version'], cap['version'], (ResourceVersion('account', cap['version']),), cap['cut']),
+                         (('postgres_account', cap['cut']),))
+        original = financial._runtime._commit
+
+        async def lost(tx):
+            pid = tx._connection.get_server_pid()
+            if committed:
+                await original(tx)
+            assert await c.fetchval('SELECT pg_terminate_backend($1)', pid)
+            raise ConnectionError('synthetic original carry reply lost')
+
+        monkeypatch.setattr(financial._runtime, '_commit', lost)
+        with pytest.raises(CommitUnknown):
+            await repo.observe_after_capital('lost-source-carry', parent['operation_id'], capital_cut=cut, owner=owner)
+        cold = PgSpotRepository(await PgRuntime.open(cfg))
+        capital = PgSharedCapitalRepository(cold, owner=owner, observation=lambda: account[0], max_rows=64, max_bytes=1048576)
+
+        def forbidden():
+            raise AssertionError('A diagnostic read must never renew signed evidence')
+
+        restored = PgCarryRepository(capital, observation=forbidden, max_rows=64, max_bytes=1048576)
+        found = await restored.lookup('lost-source-carry', cfg.binding)
+        assert (found is not None) is committed
+        if found is not None:
+            assert not found.trading_permission
+        assert await c.fetchval('SELECT count(*) FROM life_financial.carry_checks') == int(committed)
+        assert await c.fetchval('SELECT count(*) FROM life_financial.send_attempts') == 0
+        assert (await cold.snapshot(cfg.binding)).cut.checkpoint.revision == cap['version'] + 1 + int(committed)
+    finally:
+        if cold is not None:
+            await cold.close()
+        await financial.close()
+
+
+@pytest.mark.asyncio
 async def test_persistent_cut_survives_carry_expiry_without_preserving_admission(database):
     financial, cfg, owner, _, _, _, _, _, repo = await setup(database, refresh_initial_facts=True)
     try:

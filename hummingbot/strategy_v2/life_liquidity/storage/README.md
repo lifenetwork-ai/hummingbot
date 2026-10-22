@@ -1,5 +1,17 @@
 # LIFE storage contracts
 
+**Source flow optimization (2026-10-22):** quote collection performs its complete
+audit after signed provider collection and compares an immutable, nonfinancial
+opening identity/scope marker. Migration 112 consumes the exact newly committed
+capital parent inside one native carry handoff, removing a duplicate full
+snapshot and two Python read admissions. Its view-taking core is private;
+original carry logic and physical-COMMIT checks remain. The post-write cut is
+published only after confirmed COMMIT; unknown outcomes require original-ID
+readback and new signed reconciliation. The complete untraced two-generation
+retained-fill maker workload passes in **151.15 s** at the unchanged one-second
+limits. This focused result does not close PG3; see the
+[current qualification](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md).
+
 **Unused preallocation recovery (2026-10-22):** migration 108 adds a separate
 capacity release for an original SPOT birth that was permanently retired before
 any preparation. The existing capacity-release ledger stores the tagged
