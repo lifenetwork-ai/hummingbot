@@ -42,20 +42,27 @@ async def test_operation_read_preflight_is_original_and_bound_to_its_owning_task
 async def test_concurrent_native_replay_never_restores_source_authority_after_preflight(database, monkeypatch, kind):
     t = await market(database, clean=True)
     original, repeated = t.financial._runtime._transaction, []
+    native_carry = kind == 'carry' and any(m.version == 112 for m in t.financial._runtime._bundle)
+    signature = 'shared_capital_command' if kind == 'capital' else 'carry_after_capital' if native_carry else 'carry_check'
 
     async def replay(query, *args, **kwargs):
-        signature = 'shared_capital_command' if kind == 'capital' else 'carry_check'
         if signature in query and not repeated:
             repeated.append(await original(query, *args, **kwargs))
-            # Actual SQL returns the original permanent receipt, not a mocked
-            # permission flag. The first effect must remain, but grant no next.
+            # Exercise actual SQL twice. The new handoff refuses the no-longer
+            # immediate capital parent; legacy commands return their permanent
+            # replay receipt. Neither path may restore local source authority.
             return await original(query, *args, **kwargs)
         return await original(query, *args, **kwargs)
     monkeypatch.setattr(t.financial._runtime, '_transaction', replay)
     try:
-        with pytest.raises(StorageError, match='ORIGINAL_OPERATION_REQUIRES_RECONCILIATION'):
+        reason = 'CARRY_CAPITAL_HANDOFF_INVALID' if native_carry else 'ORIGINAL_OPERATION_REQUIRES_RECONCILIATION'
+        with pytest.raises(StorageError, match=reason):
             await t.app.observe_sources('replayed-source')
-        assert len(repeated) == 1 and not repeated[0].replayed
+        assert len(repeated) == 1
+        first = repeated[0][0] if native_carry else repeated[0]
+        assert not first.replayed and not first.trading_permission
+        if kind == 'carry':
+            assert await database[0].fetchval('SELECT count(*) FROM life_financial.carry_checks WHERE account_id=$1', t.cfg.account_id) == 1
         assert t.source._qualified is None and t.source._stopped
         assert not await t.source.capital.claims(t.cfg.binding)
         assert not [r for r in t.requests if r['method'] == 'POST']

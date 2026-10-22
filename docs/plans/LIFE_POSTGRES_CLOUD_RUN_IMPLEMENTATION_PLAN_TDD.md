@@ -46,6 +46,22 @@ changed. The full callback/history gate passes **38 cases, 122.60 s**, including
 the original credentials fault. This failed aggregate remains visible; a new
 complete frozen run must still qualify the fixture correction.
 
+That run at `8ca2acd72` passes the former failure and reaches **1158 pass / 1
+fail, 1512.48 s**. The carry replay-injection test still names `carry_check`, so
+it never intercepts the new native handoff. It now executes the actual new RPC
+twice: the first original carry commits once; the second refuses the no-longer
+immediate capital parent, retaining the first record without source authority.
+All **6 preflight/replay cases pass, 11.61 s**. No production SQL/code/fixture is
+changed by this correction. Hash comparison of all 2611 frozen source/input
+files finds only this test module changed; it is not imported by another test.
+The next gate retains the **1153** passing cases from complete unchanged
+modules, supersedes all old preflight results with those **6** current cases,
+and runs the remaining **1136** cases. The matrix is disjoint and equals all
+**2295** original current PG3 node IDs; it neither omits an affected module nor
+credits the stale preflight test. Each credited case uses matching current
+production, SQL, fixtures and test inputs. **PG3 remains open while the final
+1136-case segment is pending.**
+
 **Integrated PG3 qualification (2026-10-22, in progress):** migration 110
 indexes repeated operation-family audits identified by whole-flow profiling.
 Migration 111 retains original provisional diagnostics without inventing an
