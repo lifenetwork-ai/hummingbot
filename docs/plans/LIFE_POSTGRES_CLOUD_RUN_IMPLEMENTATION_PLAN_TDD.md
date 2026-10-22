@@ -1,5 +1,25 @@
 # LIFE: PostgreSQL and Cloud Run Implementation Plan (TDD)
 
+**Frozen aggregate follow-up (2026-10-22):** the migration-113/current-service
+gate at `ad0ec9978` reaches **1507 pass / 1 fail, 2267.54 s**. It passes the
+complete provisional retained-fill maker workload. The failure is the schema-94
+executor-recorder upgrade fixture: its quote expires before PREPARE, before the
+requested hash-corruption injection. That historical fixture now obtains the
+original one-use publication preflight before constructing its actual NEW
+captured payload. It proves no action has been registered/claimed beforehand;
+the original publish method consumes the real preflight. No issued action,
+timestamp, production path, age limit or corruption assertion is altered.
+All **15 recorder differential cases pass, 47.59 s**.
+
+Only this non-imported test module changes among the **2620** frozen source and
+input files. Retain **1496** passing cases from complete unchanged modules,
+supersede every partial old recorder-proof result with the **15** current cases,
+then execute the remaining **796** original node IDs. Their disjoint union is
+exactly the complete **2307**-case PG3 matrix, including all new claim/cancel
+cases. Production, SQL, shared fixtures and original budgets remain frozen.
+The earlier failed aggregate remains visible; **PG3 is open until the remaining
+matrix passes and the declared closure scope is reviewed**.
+
 **Native loaded-flow follow-up (2026-10-22, in progress):** the final segment
 below passes another **28 cases**, then the original retained-fill maker
 workflow fails at ARM COMMIT with capture age **1081.157 ms**. A separate fresh,

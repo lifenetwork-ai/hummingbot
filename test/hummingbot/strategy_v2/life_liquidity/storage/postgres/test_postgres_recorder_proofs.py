@@ -1,4 +1,5 @@
 """Joined reads retain the predecessor's complete recorder integrity decisions."""
+from dataclasses import replace
 from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_events import event, setup
 from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_recorder_application import (
     close,
@@ -73,10 +74,47 @@ async def test_event_upgrade_matches_predecessor_on_applied_pending_and_corrupt_
 @pytest.mark.parametrize('database', [94], indirect=True)
 @pytest.mark.parametrize('fault', ['none', 'stage', 'hash', 'receipt', 'transition', 'native'])
 async def test_executor_upgrade_matches_predecessor_on_real_initial_and_progress_stream(database, monkeypatch, fault, reference_migrations_100):
+    from test.hummingbot.strategy_v2.life_liquidity.storage.postgres import test_postgres_quote_transport as fixture
+
+    from hummingbot.strategy_v2.executors.order_executor.data_types import OrderExecutorConfig
+    from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction
+
     c = database[0]
     load = runtime_module.load_migrations
     with monkeypatch.context() as patch:
         patch.setattr(runtime_module, 'load_migrations', lambda path: tuple(m for m in load(path) if m.version <= 94))
+        assembled = fixture.assembled
+
+        async def preflight_then_capture(*args, **kwargs):
+            values = list(await assembled(*args, **kwargs))
+            financial, cfg, _, template, journal, create, _, dispatch, *_ = values
+            try:
+                assert not journal._entries and not await financial.quote_actions(cfg.binding)
+                ticket = await journal.preflight_publication('claim')
+                # This schema-94 recorder fixture needs a NEW original quote,
+                # not a timing measurement of historical bootstrap/preflight.
+                # Nothing has been claimed or dispatched. Construct its actual
+                # captured payload only after the original verified preflight;
+                # never replace a published action or renew an issued timestamp.
+                now = await c.fetchval('SELECT clock_timestamp()')
+                config = OrderExecutorConfig.model_validate({**create.executor_config.model_dump(), 'timestamp': now.timestamp()})
+                captured = CreateExecutorAction(controller_id=template.controller_id, executor_config=config)
+                values[3] = replace(template, payload_json=config.model_dump_json())
+                values[5] = captured
+                publish = journal.publish
+
+                async def original_claim(operation, actions):
+                    assert operation == 'claim' and tuple(actions) == (captured,)
+                    return await publish(operation, actions, _publication=ticket)
+
+                patch.setattr(journal, 'publish', original_claim)
+                return tuple(values)
+            except BaseException:
+                await dispatch.close()
+                await financial.close()
+                raise
+
+        patch.setattr(fixture, 'assembled', preflight_then_capture)
         s = await executor_setup(database, patch)
         try:
             assert await s.app.before_dispatch(s.t.create)
