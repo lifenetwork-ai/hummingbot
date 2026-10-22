@@ -285,7 +285,19 @@ class PgRuntime:
                 'read',has_function_privilege(current_user,'life_financial.execution_market_frame(uuid)','EXECUTE')
                     AND has_function_privilege(current_user,'life_financial.execution_quote_budget_frame(uuid)','EXECUTE'),
                 'settle',has_function_privilege(current_user,$8,'EXECUTE')) AS execution_profile"""
+        if 118 in versions:
+            query += """,jsonb_build_object(
+                'read',has_function_privilege(current_user,'life_financial.recorder_scope_verified(uuid,text,jsonb)','EXECUTE'),
+                'ddl',has_schema_privilege(current_user,'life_recorder','CREATE'),
+                'direct',EXISTS(SELECT 1 FROM pg_class t JOIN pg_namespace n ON n.oid=t.relnamespace
+                    WHERE n.nspname='life_recorder' AND t.relkind IN ('r','p')
+                    AND has_table_privilege(current_user,t.oid,'INSERT,UPDATE,DELETE,TRUNCATE')))
+                AS recorder_profile"""
         row = await c.fetchrow(query, *args)
+        if 118 in versions:
+            recorder = row['recorder_profile']
+            if recorder['read'] is not True or recorder['ddl'] is not False or recorder['direct'] is not False:
+                raise StorageUnavailable('PG_RECORDER_ROLE_PROFILE_INVALID')
         if 78 in versions:
             risk = row['risk_profile']
             if (risk['enabled'] and (risk['mutate'] is not cfg.write or risk['read'] is not True)

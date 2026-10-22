@@ -1,5 +1,28 @@
 # LIFE PostgreSQL migrations
 
+## 000118 — Scoped recorder provenance reads
+
+`000118_recorder_scope.sql` adds a read-only `recorder_scope_verified` function.
+It requires account access and the exact registered controller/event sources,
+then checks legacy reporting rows against their original native outbox/heads.
+An unknown row in a registered namespace requires explicit import; unrelated
+sources are excluded. The current recorder application checks this at startup;
+operational history/status includes it in the same primary statement as the
+existing full integrity/pending/account proof.
+
+The migration scrubs PUBLIC/hostile default grants and copies only the existing
+native recorder verification EXECUTE profile. Normal access provisioning grants
+the new read explicitly. No table, financial state, owner, policy or activation is
+created or rewritten; no direct legacy reporting DML is granted. Current runtime
+admission refuses missing guarded-read permission, schema CREATE or direct
+reporting-table DML. A standalone legacy SQLAlchemy recorder role is separate
+from the native LIFE runtime role and cannot be reused with unsafe privileges.
+
+The same automatic startup runner applies the numbered script once when
+`LIFE_AUTO_MIGRATE=true`; repeated startup skips its exact ledger checksum.
+Earlier scripts stay immutable. Actual deployed identity/TLS/secret qualification
+is tracked in the OKX environment checklist, not established by migration success.
+
 This is the single schema migration entry point for the PostgreSQL backend.
 It installs **storage lineage, an empty typed financial schema with guarded transaction functions, and isolated legacy recorder reporting tables**. It does not import file
 state, create account balances, grant ownership, enable trading, or connect the

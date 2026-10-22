@@ -1,5 +1,62 @@
 # LIFE storage contracts
 
+## PostgreSQL operational reporting (PG5)
+
+**Current selected offline scope is qualified.** See the PostgreSQL plan's current
+ledger and PG5 qualification for the exact 392-case matrix and targeted migration
+result. Older dated design/checkpoint sections below retain their earlier scope;
+their pending-work statements do not override that current ledger.
+
+The supported native worker uses `PgRecorderApplication` and the bounded async
+outbox, not a synchronous SQLAlchemy MarketsRecorder alongside financial work.
+The standalone legacy SQLAlchemy compatibility seam remains separate. Native
+runtime/reporting credentials may execute scoped read functions but must have
+neither recorder-table DML nor schema CREATE privileges. Migration 118 copies
+only the existing native recorder-read profile; normal access provisioning also
+grants this guarded read. Startup/borrow validates the actual permissions.
+Use the existing PostgreSQL runtime environment settings and configured
+headless source factory; no second recorder DSN or SQLite file is needed.
+Config-enabled startup migration includes the new numbered script automatically.
+
+For an installed original service, call `PgRecorderOperations(service.reporting)`
+and await `snapshot(start_ms=..., timeout_s=...)` on its owning event loop. Supply
+an explicit millisecond lower bound and a positive timeout no greater than 60 s.
+The active CLI's `history`, `list_trades`, `status`, and trade export select that
+native route from the configured backend/application identity. Programmatic
+history callers must await `async_get_history_trades_json`; the legacy synchronous
+API raises `PG_HISTORY_ASYNC_REQUIRED` for this backend instead of reading the
+global recorder. The selected native service has one controller/account; mixed
+or multiple-account history merges are refused.
+
+One primary statement binds proof, original rows, pending publication and account
+recovery flags. The configured recorder row/byte ceilings also bound the complete
+operational view; exceeding them reports incomplete, never a silently truncated
+complete history. Only the console display of an already complete bounded view
+may limit recent rows. One retained physical read slot per application rejects
+overlap; timeout/cancellation cannot free it early. SQL runs through the existing
+bounded safety pool/deadlines. Full retained-history verification still runs;
+this is not PG8 scale/performance qualification or an index/cache bypass.
+
+Trade prices/amounts/fees and executor/position provenance come from original
+outbox bytes, preserving decimal strings instead of reconstructing them from
+rounded legacy ORM columns. CSV export preserves strings and refuses overwrite.
+History is reporting only, not legacy balance-based PnL evaluation or a qualified
+exchange position. Configured UID is labeled separately; a stored report never
+establishes current authentication or trading permission. Missing/foreign/legacy
+rows in registered sources, pending/delayed delivery, unknown schema/principal,
+closed DB, changed binding or lost read all produce an incomplete/unavailable
+view. An unrelated source is excluded, not adopted. Cold startup refuses scoped
+legacy rows until a separately qualified import; it cannot overwrite them into
+apparently clean state. Native recovery/orchestrator queries remain awaited and
+retain original claims/retry metadata until confirmed publication. No reporting
+result clears financial unknowns, releases capital or recreates an executor.
+
+Run `python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_postgres
+--suite pg5 --output /tmp/<new-directory>` for the selected native/CLI/recorder/
+orchestrator regression. Use `--suite pg5_operations` for the new operational
+and restart cases. Both use disposable local PostgreSQL; they do not load `.env`.
+Real deployment/account checks live in the OKX plan's environment checklist.
+
 **PG4 offline scope closed (2026-10-23): 404 current-source cases and 20 migration
 cases pass.** See the PostgreSQL plan for the exact qualification matrix, retained
 failed aggregate and 822 frozen inputs. Actual exchange/cloud exclusion and live

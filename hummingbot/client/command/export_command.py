@@ -62,6 +62,15 @@ class ExportCommand:
 
     async def export_trades(self,  # type: HummingbotApplication
                             ):
+        from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError
+        try:
+            reader = self._postgres_history_reader()
+            if reader is not None:
+                await self._export_postgres_trades(reader)
+                return
+        except StorageError:
+            self.notify('PostgreSQL reporting incomplete; export denied, no SQLite fallback.')
+            return
         with self.trading_core.trade_fill_db.get_new_session() as session:
             trades: List[TradeFill] = self._get_trades_from_session(
                 int(self.init_time * 1e3),
@@ -87,3 +96,39 @@ class ExportCommand:
             self.app.change_prompt(prompt=">>> ")
             self.placeholder_mode = False
             self.app.hide_input = False
+
+    async def _export_postgres_trades(self, reader):
+        import asyncio
+        import csv
+
+        report = await reader.snapshot(start_ms=max(0, int(self.init_time * 1000)),
+                                       timeout_s=float(self.client_config_map.commands_timeout.other_commands_timeout))
+        if not report.reporting_complete:
+            self.notify(report.format_status() + '; export denied.')
+            return
+        trades = report.trades
+        if not trades:
+            self.notify('No qualified PostgreSQL trade events to export in this bounded view.')
+            return
+        self.placeholder_mode, self.app.hide_input = True, True
+        try:
+            path = self.client_config_map.log_file_path or str(DEFAULT_LOG_FILE_PATH)
+            name = await self.prompt_new_export_file_name(path)
+            if name is None:
+                return
+            file_path = os.path.join(path, name)
+
+            def write():
+                # Detached reporting strings only; no live DB session/owner is
+                # handed to this filesystem worker. Never overwrite an export.
+                with open(file_path, 'x', encoding='utf-8', newline='') as stream:
+                    writer = csv.DictWriter(stream, fieldnames=sorted(trades[0]))
+                    writer.writeheader()
+                    writer.writerows(trades)
+            await asyncio.to_thread(write)
+            self.notify(f'Exported PostgreSQL reporting-only events to {file_path}; not a financial recovery proof.')
+        except OSError:
+            self.notify('PostgreSQL trade export failed; no file was overwritten.')
+        finally:
+            self.app.change_prompt(prompt='>>> ')
+            self.placeholder_mode, self.app.hide_input = False, False

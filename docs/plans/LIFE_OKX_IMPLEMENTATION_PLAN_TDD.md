@@ -1,5 +1,14 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**PostgreSQL PG5 CLOSED — selected offline recorder/CLI scope (2026-10-23).**
+Migration 118 adds guarded reporting provenance reads with no runtime table DML.
+Native history/status/export and cold orchestrator reads retain exact decimal,
+UID/config, position, wire and retry provenance; incomplete contexts cannot
+fall back to SQLite or grant financial authority. The current-source matrix is
+**392 passing cases** (359 unchanged + 33 affected rerun), plus **one targeted
+migration test**; see [PG5 qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg5-offline-operational-qualification-2026-10-23).
+PG6–PG8 and O.8 remain open. The real environment/account gates below remain open.
+
 **Environment checklist ownership (2026-10-23):** PostgreSQL deployment,
 actual identity/TLS/durability, OKX demo and production gates now live in
 [PostgreSQL environment qualification](#postgresql-environment-qualification)

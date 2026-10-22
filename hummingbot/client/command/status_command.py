@@ -68,6 +68,16 @@ class StatusCommand:
         return "\n".join(lines)
 
     async def strategy_status(self, live: bool = False):
+        from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError
+        from hummingbot.strategy_v2.life_liquidity.storage.postgres.operations import postgres_reporting
+        try:
+            reader = postgres_reporting(self.trading_core.strategy)
+            if reader is not None:
+                report = await reader.snapshot(start_ms=0,
+                                               timeout_s=float(self.client_config_map.commands_timeout.other_commands_timeout))
+                return report.format_status()
+        except StorageError:
+            return 'PostgreSQL reporting incomplete: PG_HISTORY_ASSEMBLY_REQUIRED; no SQLite fallback.'
         active_paper_exchanges = [exchange for exchange in self.trading_core.markets.keys() if exchange.endswith("paper_trade")]
 
         paper_trade = "\n  Paper Trading Active: All orders are simulated, and no real orders are placed." if len(active_paper_exchanges) > 0 \

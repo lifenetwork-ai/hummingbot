@@ -148,6 +148,8 @@ class PgRecorderApplication(ReportingQueue):
             if (not isinstance(imported, list) or sorted(json.dumps(s, sort_keys=True) for s in imported)
                     != sorted(json.dumps(asdict(repository.source), sort_keys=True) for repository in self.events)):
                 raise StorageError('PG_RECORDER_REGISTERED_SOURCES_REQUIRED')
+            from hummingbot.strategy_v2.life_liquidity.storage.postgres.recorder_scope import assert_recorder_scope
+            await assert_recorder_scope(self)
             repositories = (self.configurations, self.repository, self.position_repository, *self.events)
             for repository in repositories:
                 for item in await repository.pending(self.binding):

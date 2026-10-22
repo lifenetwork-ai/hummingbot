@@ -75,7 +75,7 @@ def main():
     import asyncpg  # noqa: F401 -- mandatory for this opt-in real-process runner.
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--suite', choices=('all', 'pg3', 'pg4', 'ownership', 'managed_service', 'recorder_queries', 'recorder_proofs', 'codecs', 'commit_proofs', 'snapshot_proofs', 'service', 'service_trading', 'service_load', 'release_source', 'foundation', 'spot_producer', 'spot_allocation', 'spot_market_send', 'spot_market', 'joint_history', 'joint_intake', 'quote_composition', 'runner_startup', 'hedge_source', 'r2_integration', 'maker_cancellation', 'hedge_composition', 'r3_control', 'r3_risk', 'recorder', 'capital', 'session', 'lifecycle', 'actions', 'action_prepare', 'action_reconcile', 'action_abandon', 'runner_journal', 'provider_collection', 'quote_arm', 'quote_transport', 'quote_source', 'outbox', 'configuration', 'events', 'positions', 'reporting_application', 'approval_import', 'ack_ingress', 'observation_context', 'financial_ingress', 'financial_collection', 'inventory_settlement', 'markout', 'carry', 'swap', 'swap_accounting', 'swap_fills', 'funding', 'funding_repair', 'funding_cohort', 'swap_repair', 'spot_repair', 'cashflow_repair', 'terminal_repair', 'spot_recovery_paths', 'portfolio', 'swap_terminal', 'shared_release', 'joint_batch', 'joint_repair', 'hedge', 'swap_transport', 'collateral', 'joint_source', 'r1_accounting', 'joint_recovery', 'legacy_applying', 'legacy_joint', 'legacy_imports', 'late_capital'), default='all')
+    parser.add_argument('--suite', choices=('all', 'pg3', 'pg4', 'pg5', 'pg5_operations', 'ownership', 'managed_service', 'recorder_queries', 'recorder_proofs', 'codecs', 'commit_proofs', 'snapshot_proofs', 'service', 'service_trading', 'service_load', 'release_source', 'foundation', 'spot_producer', 'spot_allocation', 'spot_market_send', 'spot_market', 'joint_history', 'joint_intake', 'quote_composition', 'runner_startup', 'hedge_source', 'r2_integration', 'maker_cancellation', 'hedge_composition', 'r3_control', 'r3_risk', 'recorder', 'capital', 'session', 'lifecycle', 'actions', 'action_prepare', 'action_reconcile', 'action_abandon', 'runner_journal', 'provider_collection', 'quote_arm', 'quote_transport', 'quote_source', 'outbox', 'configuration', 'events', 'positions', 'reporting_application', 'approval_import', 'ack_ingress', 'observation_context', 'financial_ingress', 'financial_collection', 'inventory_settlement', 'markout', 'carry', 'swap', 'swap_accounting', 'swap_fills', 'funding', 'funding_repair', 'funding_cohort', 'swap_repair', 'spot_repair', 'cashflow_repair', 'terminal_repair', 'spot_recovery_paths', 'portfolio', 'swap_terminal', 'shared_release', 'joint_batch', 'joint_repair', 'hedge', 'swap_transport', 'collateral', 'joint_source', 'r1_accounting', 'joint_recovery', 'legacy_applying', 'legacy_joint', 'legacy_imports', 'late_capital'), default='all')
     parser.add_argument('--fail-fast', action='store_true', help='Stop at the first failure while retaining the original log/XML')
     parser.add_argument('--linux-image', help='Immutable locally built image ID; recorder suite only')
     args = parser.parse_args()
@@ -220,6 +220,18 @@ def main():
         # parity is separately exercised by the offline contract suite.
         if args.suite in PG3_SUITES:
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in PG3_SUITES[args.suite]]
+        if args.suite in ('pg5', 'pg5_operations'):
+            modules = ('cli_history', 'recorder_restart') if args.suite == 'pg5_operations' else (
+                'cli_history', 'recorder_restart', 'recorder', 'recorder_application', 'outbox',
+                'events', 'positions', 'configuration', 'event_application', 'joint_events',
+                'runner_startup', 'recorder_proofs', 'recorder_queries', 'json_codecs',
+                'service', 'service_trading', 'service_fills', 'service_repair', 'schema', 'transactions')
+            selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in modules]
+            if args.suite == 'pg5':
+                selectors += [str(Path(__file__).parents[3] / 'client' / 'command' / ('test_' + name + '_command.py'))
+                              for name in ('history', 'status')]
+                selectors += [str(Path(__file__).parents[3] / 'strategy_v2' / 'executors' / 'test_executor_orchestrator.py'),
+                              str(Path(__file__).parents[3] / 'connector' / 'test_markets_recorder.py')]
         if args.suite == 'ownership':
             selectors = [str(selector / name) for name in ('test_postgres_ownership.py', 'test_postgres_managed_service.py', 'test_sender_generation_handoff.py', 'test_postgres_process_handoff.py', 'test_postgres_recovery_actor.py', 'test_postgres_generation_broker.py', 'test_postgres_generation_handoff.py')]
         if args.suite in ('managed_service', 'pg4'):

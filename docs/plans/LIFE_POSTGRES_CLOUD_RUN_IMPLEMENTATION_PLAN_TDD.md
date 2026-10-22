@@ -16,7 +16,7 @@ no release requirement is waived or passed by moving it.
 | PG2 | Closed for pinned local schema/runtime/durability scope | Deployed identity/TLS in OKX PG-E1; actual failure domain in OKX PG-E2 |
 | PG3 | Closed for selected native/offline scope (`234c3631c`) | Clean stopped File cutover implementation stays PG6; actual account proof in OKX PG9/PG10 |
 | PG4 | Closed for selected offline handoff scope (`4fddc9419`) | Actual provider/key exclusion, deployed IAM and failover in OKX PG9/PG10 |
-| PG5 | In progress | Recorder operational compatibility and restart qualification |
+| PG5 | Closed for selected offline native recorder/CLI scope | Deployed credentials/TLS remain OKX PG-E1; detached standalone reporting services are outside this worker profile |
 | PG6–PG8 | Open | Offline import/restore, image/IaC/signal tests and complete offline acceptance |
 
 Only current phase checklists and this ledger determine progress. Historical
@@ -24,6 +24,21 @@ Only current phase checklists and this ledger determine progress. Historical
 not unchecked current tasks and must not be changed to passing without proof.
 PG5–PG8 and O.8 still need their own acceptance; closing PG1–PG4 locally does not
 claim the whole product is offline complete or ready for demo/live execution.
+
+**PG5 CLOSED — selected offline recorder/operational scope (2026-10-23).**
+Migration 118 adds a read-only account/source provenance guard without granting
+runtime DML on reporting tables. The actual asynchronous native outbox and cold
+orchestrator retain original executor/config/position/UID/wire/retry/decimal data.
+CLI history/status/export and awaited JSON history use a bounded coherent primary
+view; pending/missing/foreign/legacy/closed/unqualified contexts report incomplete.
+Lost controller/runtime context, backend toggles and detach of a previously selected
+native source cannot fall back to the legacy SQLite recorder. Configured UID is
+never presented as current authentication. Reports grant no financial authority.
+The selected current-source qualification matrix has **392 passing cases** plus
+**one targeted migration case**; [qualification details](#pg5-offline-operational-qualification-2026-10-23)
+record the full 383-case baseline and complete 33-case affected rerun, rather than
+claiming a single 392-case aggregate. PG6–PG8 and O.8 remain open. Deployment and
+account qualifications remain in the OKX environment checklist.
 
 **PG4 CLOSED — selected offline ownership/handoff scope (2026-10-23).**
 Migrations 116/117 add replacement RECOVERY_ONLY actors and original private
@@ -3251,16 +3266,112 @@ qualification. Automatic live takeover remains disabled.
 
 Dependencies: PG2/PG3; can overlap PG4.
 
-- [ ] PG5.1: Configure and qualify PostgreSQL recorder access; replace local-file schema migration assumptions with versioned SQL migrations for the supported tables.
-  - [x] Standalone legacy SQLAlchemy/MarketsRecorder compatibility on the actual primary and Linux ARM64 artifact; versioned empty reporting schema and runtime admission are qualified in the [PG2 local checkpoint](#pg2-local-recorder-and-linux-qualification-2026-10-16). Full LIFE outbox/recovery integration, scoped credentials and operational configuration remain open in this phase.
-- [ ] PG5.2: Preserve executor config/custom-info, authenticated/configured UID distinction, active and historical wire IDs, positions, trade/fee precision and cold-restart provenance.
-- [ ] PG5.3: Make recorder writes/queries bounded and independently scheduled; if a synchronous recorder adapter remains, use a bounded serialized worker with task-local sessions and explicit failure/backpressure behavior. Never pass live sessions or authority objects across threads.
-- [ ] PG5.4: Update CLI status/history/trades and recovery queries that assume a local `.sqlite` path; surface backend health and incomplete provenance accurately.
-- [ ] PG5.5: Test real orchestrator store/read/restart against PostgreSQL, missing/foreign/legacy rows, commit/read failure and delayed recorder projection; retain claims and executor retry state appropriately.
+- [x] PG5.1: Configure and qualify PostgreSQL recorder access; replace local-file schema migration assumptions with versioned SQL migrations for the supported tables.
+  - [x] Standalone legacy SQLAlchemy/MarketsRecorder compatibility on the actual primary and Linux ARM64 artifact; versioned empty reporting schema and runtime admission are qualified in the [PG2 local checkpoint](#pg2-local-recorder-and-linux-qualification-2026-10-16). The selected native LIFE outbox/recovery, scoped-principal and operational integration are qualified below; actual deployed access is owned by OKX PG-E1.
+- [x] PG5.2: Preserve executor config/custom-info, authenticated/configured UID distinction, active and historical wire IDs, positions, trade/fee precision and cold-restart provenance.
+- [x] PG5.3: Make recorder writes/queries bounded and independently scheduled; if a synchronous recorder adapter remains, use a bounded serialized worker with task-local sessions and explicit failure/backpressure behavior. Never pass live sessions or authority objects across threads.
+- [x] PG5.4: Update CLI status/history/trades and recovery queries that assume a local `.sqlite` path; surface backend health and incomplete provenance accurately.
+- [x] PG5.5: Test real orchestrator store/read/restart against PostgreSQL, missing/foreign/legacy rows, commit/read failure and delayed recorder projection; retain claims and executor retry state appropriately.
 
 **Red tests:** `test_postgres_recorder_restart.py`, `test_postgres_cli_history.py` plus existing recorder/orchestrator recovery suites.
 
-**Done when:** actual recorder/runner integration works without a hidden SQLite authority fallback or a false recovery-complete verdict.
+**Done for the selected offline profile:** actual recorder/runner integration
+and active configured CLI routes are qualified without SQLite authority fallback
+or a false account/recovery-complete verdict. The native worker uses only the
+bounded asynchronous recorder; the standalone synchronous SQLAlchemy compatibility
+seam is not installed in that worker. This does not qualify a separate detached
+reporting service, a new Linux release artifact, deployed identities or PG8 scale.
+
+#### PG5 offline operational qualification (2026-10-23)
+
+- `PgRecorderApplication` repairs original native outbox entries before runner
+  startup. Migration `000118_recorder_scope.sql` additionally detects unowned
+  reporting rows in the exact registered account/controller/source namespace;
+  unrelated sources remain excluded. The security-definer read checks account
+  access and imported source identity, scrubs inherited/PUBLIC function grants,
+  and adds no financial mutation or reporting-table DML permission. Runtime
+  startup/borrow now rejects direct reporting-table writes, schema CREATE and
+  missing guarded-read access. Existing numbered scripts and monetary guards
+  remain unchanged. The existing automatic startup migration option applies 118
+  through the same version/checksum ledger, with no manual SQL step.
+- `PgRecorderOperations` obtains integrity, pending state, original event and
+  latest executor/config/position bytes plus account recovery flags in **one
+  primary statement snapshot**. Row and byte bounds are checked before payload
+  aggregation. One original read task per application retains its slot after
+  caller cancellation/timeout; overlaps are explicitly refused. Reads use the
+  existing bounded safety pool and physical SQL/transaction deadlines. Full
+  retained-history verification remains; this is not PG8 latency/scale closure.
+- Actual History/Status/Export command routes select the native application,
+  refuse missing/mixed/changed contexts and preserve exact 18-fractional-digit
+  trade/fee strings. CSV refuses overwrite and restores UI state. Programmatic
+  callers await `async_get_history_trades_json`; the legacy synchronous API
+  explicitly refuses this native backend. A denial-only source marker prevents
+  an already selected native history from becoming a legacy DB lookup after
+  detach; it cannot reconnect, import, restore permission or prove provenance.
+  The view labels configured UID separately from authentication. A verified
+  reporting view is never a clean-account verdict, release or send grant.
+- Actual OrderExecutor/ExecutorOrchestrator capture, deferred publication,
+  held-position reporting, fresh primary-runtime reconstruction and cold reads
+  preserve exact config/custom-info, original bindings, retries, current wire
+  pointer and historical wire identities. Cold reporting never recreates an
+  executor or sends. Missing/foreign/legacy rows, read failure, before/after lost
+  COMMIT replies, delayed application and backpressure retain original children,
+  retry data, financial claims and money until qualified publication/recovery.
+
+**TDD and retained development outcomes:** the initial Red collection in
+`/tmp/life-pg5-red-20261023-a1` reports the absent operations module. The first
+operations run (`operations-green-20261023-b1`) has **11 pass / 5 fail**: the new
+legacy-extra-row case exposed a real false-complete reporting view; the remaining
+restart fixtures had an active/undrained executor. The attempted direct reporting
+read in `b2` correctly failed SQL privilege checks (`42501`); the correction uses
+the account/source-guarded read function, not broader runtime table grants. `b3`
+has **15 pass / 1 fail** because its fabricated wire history was correctly refused
+by native origin checks; the fixture now uses the original admitted `wire1` and
+checks both retained/current pointer states. `b4` has **18 pass** at that earlier
+scope. These samples are retained and are not counted as final acceptance.
+
+**Current-source qualification:**
+
+1. `python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_postgres --suite pg5 --output /tmp/life-pg5-regression-20261023-c1`
+   passed **383 tests**, zero failures/errors/skips, eight existing-category
+   warnings, **767.92 s**. It includes native outbox/event/position/configuration,
+   recorder integrity/queries/codecs, real runner/service/trading/fill/repair,
+   schema/transaction, legacy CLI, MarketsRecorder and actual orchestrator cases.
+2. Final review tightened native intent after controller loss/backend toggle or
+   detach, and added forged source/account/controller refusals, exact 18-digit
+   trade/fee checks and both current/historical wire-pointer cases. Only four
+   frozen inputs changed: `history_command.py`, `postgres/operations.py`,
+   `test_postgres_cli_history.py`, and `test_postgres_recorder_restart.py`.
+   All SQL, financial/runtime code, shared fixtures and other tests stayed equal.
+   The complete affected group was rerun with
+   `PYTEST_ADDOPTS='-k "test_postgres_cli_history or test_postgres_recorder_restart or test_history_command or test_status_command"'`
+   using `--suite pg5 --output /tmp/life-pg5-affected-20261023-d3`:
+   **33 pass / 359 deselected**, zero failures/errors/skips, seven existing-category
+   warnings, **45.64 s**. The preceding affected `d2` is a passing 32-case sample,
+   not additional coverage to add to the final count.
+3. **359 unchanged passing cases + the complete 33-case affected rerun = 392
+   unique current-source passing cases.** Their disjoint node-ID union exactly
+   equals the current `--suite pg5` collection, verified in
+   `/tmp/life-pg5-qualified-matrix-20261023-d3.json` and the adjacent collection log.
+   No failed original case or deselected test is counted as passed. This is an
+   explicit qualification matrix, not a single 392-case passing invocation.
+4. `PYTEST_ADDOPTS='-k recorder_scope_upgrade' python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_migrations --output /tmp/life-pg5-migrations-20261023-d1`
+   passes **one targeted test / 394 deselected**, **2.88 s**: empty upgrade through
+   117→118, repeated `up`, hostile default ACL scrubbing, exact unchanged previous
+   function OIDs/bodies/ACLs and no financial/account bootstrap or direct table DML.
+   This is targeted new-migration qualification, not a new full migration suite.
+
+**Frozen inputs:** `/tmp/life-pg5-frozen-20261023-d3.json`, **883** production/SQL/
+fixture/test inputs, SHA-256
+`e193e254bac04aa19e5dc50701a556acbc57c9d7aa35061b073e2db75e8210f5`.
+Changed-file hooks and diff checks pass. All final hashes remain unchanged after
+qualification. The pinned PostgreSQL 16 container uses the existing **2 CPU /
+1 GiB** local profile; HTTP remains fake. No user `.env`, earlier migration,
+financial/source timeout or economic limit changed. Logs/manifests stay in `/tmp`;
+no new repository evidence file is added. Actual deployment, identity/TLS and
+provider qualification remain in OKX PG-E/PG9/PG10; PG6–PG8/O.8 remain open.
+
+
 
 ### PG6 — Import, backups, restoration and rollback
 

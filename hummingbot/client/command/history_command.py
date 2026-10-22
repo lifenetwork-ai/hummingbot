@@ -39,6 +39,8 @@ class HistoryCommand:
             self.notify("\n  Please first import a strategy config file of which to show historical performance.")
             return
         start_time = get_timestamp(days) if days > 0 else self.init_time
+        if self._schedule_postgres_history(start_time):
+            return
         with self.trading_core.trade_fill_db.get_new_session() as session:
             trades: List[TradeFill] = self._get_trades_from_session(
                 int(start_time * 1e3),
@@ -53,6 +55,9 @@ class HistoryCommand:
 
     def get_history_trades_json(self,  # type: HummingbotApplication
                                 days: float = 0):
+        if self._postgres_history_reader() is not None:
+            from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError
+            raise StorageError('PG_HISTORY_ASYNC_REQUIRED')
         if self.strategy_file_name is None:
             return
         start_time = get_timestamp(days) if days > 0 else self.init_time
@@ -62,6 +67,69 @@ class HistoryCommand:
                 session=session,
                 config_file_path=self.strategy_file_name)
             return list([TradeFill.to_bounty_api_json(t) for t in trades])
+
+    def _postgres_history_reader(self):
+        from hummingbot.strategy_v2.life_liquidity.storage.postgres.operations import postgres_reporting
+        reader = postgres_reporting(self.trading_core.strategy)
+        selected = getattr(self, '_postgres_history_sources', None)
+        if reader is None and type(selected) is frozenset and self.strategy_file_name in selected:
+            from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError
+            raise StorageError('PG_HISTORY_ASSEMBLY_REQUIRED')
+        if reader is not None:
+            # A denial-only source marker survives detach/stop. It is not a
+            # cached reader or authority and cannot open any database itself.
+            self._postgres_history_sources = frozenset(r.source.config_file_path for r in reader.app.events)
+        if reader is not None and self.strategy_file_name not in self._postgres_history_sources:
+            from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError
+            raise StorageError('PG_HISTORY_SOURCE_SCOPE')
+        return reader
+
+    def _schedule_postgres_history(self, start_time):
+        from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError
+        try:
+            if self._postgres_history_reader() is None:
+                return False
+            safe_ensure_future(self._postgres_history_report(start_time))
+        except StorageError:
+            self.notify('PostgreSQL reporting incomplete: PG_HISTORY_ASSEMBLY_REQUIRED; no SQLite fallback.')
+        return True
+
+    async def async_get_history_trades_json(self, days: float = 0):
+        reader = self._postgres_history_reader()
+        if reader is None:
+            return self.get_history_trades_json(days)
+        from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError
+        start_time = get_timestamp(days) if days > 0 else self.init_time
+        report = await reader.snapshot(start_ms=max(0, int(start_time * 1000)),
+                                       timeout_s=float(self.client_config_map.commands_timeout.other_commands_timeout))
+        if not report.reporting_complete:
+            raise StorageError(report.reason)
+        return report.trades
+
+    async def _postgres_history_report(self, start_time):
+        import json
+
+        from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError
+        try:
+            reader = self._postgres_history_reader()
+            if reader is None:
+                raise StorageError('PG_HISTORY_ASSEMBLY_REQUIRED')
+            report = await reader.snapshot(start_ms=max(0, int(start_time * 1000)),
+                                           timeout_s=float(self.client_config_map.commands_timeout.other_commands_timeout))
+            lines = [report.format_status()]
+            if report.reporting_complete:
+                trades = report.trades
+                if len(trades) > MAXIMUM_TRADE_FILLS_DISPLAY_OUTPUT:
+                    lines.append(f'Showing last {MAXIMUM_TRADE_FILLS_DISPLAY_OUTPUT} of {len(trades)} qualified events in this view.')
+                # Keep decimal and fee bytes; ORM/pandas numeric conversion is
+                # rounded legacy reporting, not native financial precision.
+                trades.sort(key=lambda t: (t['timestamp_ms'], t['market'], t['trade_id']))
+                lines.extend(json.dumps(t, sort_keys=True) for t in trades[-MAXIMUM_TRADE_FILLS_DISPLAY_OUTPUT:])
+                if not trades:
+                    lines.append('No qualified trade events in this bounded view.')
+            self.notify('\n'.join(lines))
+        except StorageError:
+            self.notify('PostgreSQL reporting incomplete: PG_HISTORY_ASSEMBLY_REQUIRED; no SQLite fallback.')
 
     async def history_report(self,  # type: HummingbotApplication
                              start_time: float,
@@ -179,6 +247,9 @@ class HistoryCommand:
                     start_time: float):
         if threading.current_thread() != threading.main_thread():
             self.ev_loop.call_soon_threadsafe(self.list_trades, start_time)
+            return
+
+        if self._schedule_postgres_history(start_time):
             return
 
         lines = []

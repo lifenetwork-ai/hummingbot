@@ -4219,3 +4219,28 @@ async def test_generation_broker_upgrade_is_empty_repeatable_and_denies_hostile_
         assert not await c.fetchval("SELECT has_table_privilege($1,'life_financial.process_broker_bindings','INSERT,UPDATE,DELETE,TRUNCATE')", role)
         assert await c.fetchval("SELECT has_function_privilege($1,'life_financial.process_bind_broker(uuid,text,text)','EXECUTE')", role) is (role == 'life_runtime_test')
         assert not await c.fetchval("SELECT has_function_privilege($1,'life_financial.process_broker_binding_commit()','EXECUTE')", role)
+
+
+@pytest.mark.asyncio
+async def test_recorder_scope_upgrade_is_read_only_repeatable_and_scrubs_default_grants(db):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 118:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    await c.execute('GRANT USAGE ON SCHEMA life_financial TO life_runtime_test,life_reporter_test')
+    await c.execute('GRANT EXECUTE ON FUNCTION life_financial.recorder_executor_verified(uuid) TO life_runtime_test')
+    await c.execute('REVOKE EXECUTE ON FUNCTION life_financial.recorder_executor_verified(uuid) FROM PUBLIC,life_reporter_test')
+    await c.execute('ALTER DEFAULT PRIVILEGES IN SCHEMA life_financial GRANT EXECUTE ON FUNCTIONS TO PUBLIC,life_runtime_test,life_reporter_test')
+    before = await c.fetch('SELECT oid,proowner,proacl,prosrc FROM pg_proc WHERE pronamespace=\'life_financial\'::regnamespace ORDER BY oid')
+    path = DEFAULT_DIRECTORY / '000118_recorder_scope.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    assert (await migrate(c, directory, action='up'))['applied'] == []
+    function = 'life_financial.recorder_scope_verified(uuid,text,jsonb)'
+    after = await c.fetch('SELECT oid,proowner,proacl,prosrc FROM pg_proc WHERE pronamespace=\'life_financial\'::regnamespace AND oid<>$1::regprocedure ORDER BY oid', function)
+    assert after == before
+    for role in ('public', 'life_runtime_test', 'life_reporter_test'):
+        assert await c.fetchval('SELECT has_function_privilege($1,$2,\'EXECUTE\')', role, function) is (role == 'life_runtime_test')
+        assert not await c.fetchval('SELECT has_table_privilege($1,\'life_recorder."TradeFill"\',\'INSERT,UPDATE,DELETE\')', role)
+    assert await c.fetchval('SELECT count(*) FROM life_financial.accounts') == 0

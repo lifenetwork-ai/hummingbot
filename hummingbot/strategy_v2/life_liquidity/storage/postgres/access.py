@@ -125,6 +125,8 @@ async def provision_access(connection, *, principal, account_id, write):
         await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.spot_action_read(uuid) TO "{principal}"')
         await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.spot_quote_arms_verified(uuid) TO "{principal}"')
         await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.recorder_executor_verified(uuid) TO "{principal}"')
+        if await connection.fetchval("SELECT to_regprocedure('life_financial.recorder_scope_verified(uuid,text,jsonb)') IS NOT NULL"):
+            await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.recorder_scope_verified(uuid,text,jsonb) TO "{principal}"')
         await connection.execute(f'GRANT EXECUTE ON FUNCTION life_financial.spot_observation_context(uuid,integer,integer) TO "{principal}"')
         # Preserve explicit qualification/provisioning of predecessor schemas.
         # The reconciliation adapter itself requires migration 57; it has no
