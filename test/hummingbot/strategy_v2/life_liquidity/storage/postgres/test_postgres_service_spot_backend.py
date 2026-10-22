@@ -140,6 +140,19 @@ async def test_configured_spot_backend_loss_preserves_original_state_without_res
                 await service.close()
             except StorageError as error:
                 expected = {'PG_RECORDER_DEFERRED_BACKPRESSURE', 'RECORDER_APPLICATION_UNAVAILABLE'}
+                if phase == 'prepare' and not committed:
+                    # The local executor has an opaque proposed wire, but its
+                    # financial PREPARE did not commit and SDK submission never
+                    # began. The origin guard must refuse that progress report,
+                    # not invent an attempt/event to make shutdown look clean.
+                    expected.add('PG_RECORDER_ORIGIN_INVALID')
+                    if str(error) == 'PG_RECORDER_ORIGIN_INVALID':
+                        assert service._close_task.exception() is error
+                        assert service.reporting._deferred_reports
+                        assert not t.service_orders
+                        for table in ('send_attempts', 'spot_preparations'):
+                            assert await database[0].fetchval('SELECT count(*) FROM life_financial.' + table + ' WHERE account_id=$1', t.cfg.account_id) == 0
+                        assert await database[0].fetchval("SELECT count(*) FROM life_financial.recorder_outbox WHERE account_id=$1 AND stream LIKE 'event:%'", t.cfg.account_id) == 0
                 if phase == 'arm' and committed:
                     expected.add('PG_JOINT_SOURCE_ORDER_SCOPE')
                 if pending_ack:

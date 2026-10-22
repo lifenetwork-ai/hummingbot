@@ -1,5 +1,27 @@
 # LIFE: PostgreSQL and Cloud Run Implementation Plan (TDD)
 
+**Configured SPOT failure-boundary follow-up (2026-10-22):** the remaining
+796-case gate reaches **210 pass / 1 fail, 1572.06 s**, including the complete
+native retained-fill maker workload. `prepare_before_buy` reaches its actual
+backend termination and preserves an absent PREPARE/no HTTP, but its cleanup
+allowlist omits the precise `PG_RECORDER_ORIGIN_INVALID` refusal. This refusal
+is already required by the separate uncertain-dispatch phase-boundary test:
+an opaque local wire without a financial attempt cannot be adopted as recorder
+progress, and shutdown must surface its incomplete provenance.
+
+The test now recognizes that code only for a definitely absent pre-COMMIT
+PREPARE. In that branch it additionally proves the original close-task error
+and deferred report remain, no HTTP was sent, and no preparation/send attempt
+or exchange-event projection was fabricated. All subsequent cold-state,
+money/claim/identity and no-resend assertions remain. The full **30-case**
+affected gate (22 SPOT backend boundaries plus both `spot_money` importers)
+passes in **531.33 s**. Production, SQL and shared helper bodies are unchanged.
+
+Replace all partial old results for those three modules, retaining the other
+unchanged module results. The disjoint current-source matrix is now **1739**
+passed cases plus **568** pending original node IDs, exactly **2307**. **PG3
+remains open** until that final segment passes and closure scope is reviewed.
+
 **Frozen aggregate follow-up (2026-10-22):** the migration-113/current-service
 gate at `ad0ec9978` reaches **1507 pass / 1 fail, 2267.54 s**. It passes the
 complete provisional retained-fill maker workload. The failure is the schema-94
