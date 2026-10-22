@@ -1,5 +1,13 @@
 # LIFE storage contracts
 
+**Private cashflow projection (2026-10-22):** migration 107 permits inlining
+of the private raw relation with explicitly qualified names/operators. All
+financial proofs remain independent. The 166-case affected regression, five
+upgrade cases and original untraced two-generation workload pass. The latter
+retains the 1000-ms quote policy (**153.95 s** total). Configured service and
+complete R2.3/R4/R5 acceptance remain required; see
+[qualification](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#planner-visible-private-cashflow-projection-2026-10-22).
+
 **Unconsumed-birth recovery (2026-10-22):** migration 106 and
 `await service.retire_unprepared_birth(retirement_id, ticket_id)` permanently
 prohibit preparation of an original unused ticket. The service revokes trading

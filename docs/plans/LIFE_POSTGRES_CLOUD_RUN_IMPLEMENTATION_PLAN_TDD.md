@@ -1,5 +1,13 @@
 # LIFE: PostgreSQL and Cloud Run Implementation Plan (TDD)
 
+**Private cashflow projection (2026-10-22):** migration 107 exposes the raw
+cashflow relation to the SQL planner while keeping helper access private and
+retaining every financial proof. The unchanged untraced provisional two-maker-
+generation workload passes in **153.95 s**, with the original 1000-ms quote
+policy and financial/cleanup assertions. This is a successful current workload
+run, not a tail-latency SLO or PG3 closure. Scope and current-source qualification
+are [below](#planner-visible-private-cashflow-projection-2026-10-22).
+
 **Unconsumed-birth recovery (2026-10-22):** migration 106 and the service's
 explicit recovery method permanently retire an unprepared ticket without
 changing money, budgets or shared claims. Physical prepare/retire races, lost
@@ -8677,3 +8685,42 @@ An unprepared preallocated shared claim remains retained after ticket
 retirement. This API cannot recycle that capacity or qualify activation. A
 separate financial recovery/release needs its own original source and native
 proofs; no such release or automatic resume is claimed by this increment.
+
+## Planner-visible private cashflow projection (2026-10-22)
+
+The whole-flow profile above identifies repeated invocation of the raw
+`cashflow_effective` relation inside current-context, prepare and ARM proofs.
+Migration 107 keeps its exact UNION/anti-join semantics, OID, owner, ACL and
+result type. SQL `STABLE SECURITY INVOKER` without a SET clause permits table-
+function inlining. Existing financial callers execute under their original
+security-definer owner; direct runtime/reporting execution remains denied.
+All relations, equality operators and casts are explicitly qualified to avoid
+depending on the caller's search path. No new helper grant, table, index, stored
+verdict, financial shortcut, deadline or permission is introduced.
+
+TDD qualification:
+
+- The new EXPLAIN contract first fails against the opaque predecessor function
+  (**6.47 s**). All **three** focused contracts subsequently pass (**12.63 s**):
+  base relations are planner-visible, access remains private, and raw rows
+  match the predecessor query before/after real signed LIFE/USDT repair. A
+  conflicting UUID equality operator in the caller's search path cannot change
+  the explicitly pinned projection or money.
+- All **five** upgrade/repeat/privilege/ancestor-drift cases pass (**10.37 s**).
+  Applied migrations 1–106 stay unchanged. The migration seeds no account or
+  policy and the helper retains its original OID and ACL.
+- The original untraced retained-fill, competing-SDK, two-generation workload
+  passes (**153.95 s**), including original balances, fee spending, permanent
+  IDs, shared-claim retirement, both maker cycles and joined cleanup. Its
+  1000-ms quote/source/reference/fee limits and 5000-ms phase limits are
+  unchanged. No tracing/profiler is enabled in this acceptance run.
+- The broader affected cashflow/repair/capital/portfolio/release/schema
+  regression passes **166 cases**, zero failures/errors/skips, **496.98 s**.
+  It includes signed repair, physical interruption, replay, corruption, native
+  monetary decisions and runtime/reporting role refusals.
+
+The earlier 1005.242-ms failed workload remains a failed result for migration
+106. The earlier migration-105 pass and current pass are separate observations;
+their elapsed totals do not establish a speedup or a latency distribution.
+Current configured selector/service and full R2.3/R4/R5 acceptance remain
+required. **PG3 stays open** until those fixed exits pass.

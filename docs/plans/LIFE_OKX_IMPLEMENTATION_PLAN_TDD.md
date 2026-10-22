@@ -1,5 +1,13 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**Private cashflow projection (2026-10-22):** migration 107 makes the raw
+projection planner-visible while retaining financial proofs and private access.
+The 166-case affected regression and five migration cases pass. The unchanged
+untraced retained-fill workload passes both maker generations in **153.95 s**
+with the original 1000-ms quote limit. Configured selector/service and complete
+R2.3/R4/R5 acceptance still gate PG3. See
+[current qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#planner-visible-private-cashflow-projection-2026-10-22).
+
 **Unconsumed-birth recovery (2026-10-22):** migration 106 adds permanent
 ticket retirement with exact replay, retained-history audits and no monetary
 release. The service revokes local trading before recovery. Signed owner drain

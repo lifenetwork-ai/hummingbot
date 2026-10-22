@@ -1611,3 +1611,17 @@ Upgrade pins all four ancestor bodies and security metadata, strips hostile
 default table/helper grants, and preserves matching writer/read entrypoint
 access. The migration ledger makes repeated service startup a no-op; applied
 migrations 1–105 remain unchanged. No account or policy is seeded.
+
+## 000107: planner-visible private cashflow projection
+
+The raw `cashflow_effective` table function keeps its OID, owner, ACL, result
+type and rows. It becomes SQL `STABLE SECURITY INVOKER` without a SET clause so
+the planner can inline its UNION/anti-join and push predicates into the base
+tables. It remains private; its intended financial verifier callers run as the
+existing schema owner. Every relation, cast and equality operator is explicitly
+qualified, including under a hostile caller search path.
+
+No financial verdict is stored or reused. Original history verification,
+signed repair, money, budgets, cuts, source ages and deferred COMMIT checks stay
+independent. Upgrade pins the predecessor body/security metadata; the migration
+ledger makes repeated startup a no-op. Applied migrations 1–106 are unchanged.

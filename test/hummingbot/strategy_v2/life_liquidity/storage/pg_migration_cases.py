@@ -3608,6 +3608,47 @@ async def test_funding_history_upgrade_retains_acl_and_rejects_partial_validator
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('drift', ['none', 'body', 'security', 'search_path', 'volatility'])
+async def test_inline_cashflow_projection_upgrade_preserves_oid_acl_and_refuses_ancestor_drift(db, drift):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 107:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    signature = 'life_financial.cashflow_effective(uuid)'
+    if drift == 'body':
+        definition = await c.fetchval('SELECT pg_get_functiondef(to_regprocedure($1))', signature)
+        await c.execute(definition.replace('SELECT f.*', 'SELECT f.* -- changed predecessor\n', 1))
+    elif drift == 'security':
+        await c.execute('ALTER FUNCTION ' + signature + ' SECURITY INVOKER')
+    elif drift == 'search_path':
+        await c.execute('ALTER FUNCTION ' + signature + ' SET search_path=pg_catalog,public')
+    elif drift == 'volatility':
+        await c.execute('ALTER FUNCTION ' + signature + ' VOLATILE')
+    await c.execute('ALTER DEFAULT PRIVILEGES IN SCHEMA life_financial GRANT EXECUTE ON FUNCTIONS TO PUBLIC,life_runtime_test,life_reporter_test')
+    query = '''SELECT oid,proacl,proowner,prosrc,prosecdef,proconfig,provolatile::text AS volatility,proretset,prorettype
+        FROM pg_proc WHERE oid=to_regprocedure($1)'''
+    before = await c.fetchrow(query, signature)
+    path = DEFAULT_DIRECTORY / '000107_inline_cashflow_projection.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    if drift != 'none':
+        with pytest.raises(asyncpg.RaiseError, match='LIFE_CASHFLOW_PROJECTION_MIGRATION_MISMATCH'):
+            await migrate(c, directory, action='up')
+        assert (await versions(c))[-1]['version'] == 106
+        assert await c.fetchrow(query, signature) == before
+    else:
+        assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+        assert (await migrate(c, directory, action='up'))['applied'] == []
+        after = await c.fetchrow(query, signature)
+        for field in ('oid', 'proacl', 'proowner', 'volatility', 'proretset', 'prorettype'):
+            assert after[field] == before[field]
+        assert not after['prosecdef'] and after['proconfig'] is None
+        for role in ('public', 'life_runtime_test', 'life_reporter_test'):
+            assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", role, signature)
+        assert await c.fetchval('SELECT count(*) FROM life_financial.accounts') == 0
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize('drift', ['none', 'carry_body', 'commit_body', 'search_path'])
 async def test_flow_carry_proof_upgrade_preserves_independent_entrypoints_and_private_acl(db, drift):
     c, _, directory = db
