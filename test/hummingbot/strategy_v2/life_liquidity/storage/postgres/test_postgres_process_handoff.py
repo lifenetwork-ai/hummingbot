@@ -303,7 +303,7 @@ async def test_spawned_successor_creates_its_own_secret_and_old_process_stays_fe
 
 
 @pytest.mark.asyncio
-async def test_configured_successor_service_claims_then_waits_for_explicit_arm_before_sdk_order(database):
+async def test_assertion_only_successor_service_cannot_arm_without_installed_broker(database):
     from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_managed_service import (
         managed_service,
     )
@@ -354,9 +354,9 @@ async def test_configured_successor_service_claims_then_waits_for_explicit_arm_b
         with pytest.raises(StorageError):
             await replacement.quote('successor-unarmed', TradeType.BUY, 0)
         assert not t.service_orders
-        await replacement.arm_process()
-        await replacement.quote('successor-armed', TradeType.BUY, 0)
-        assert len(t.service_orders) == 1
+        with pytest.raises(StorageError, match='SUCCESSOR_BROKER_REQUIRED'):
+            await replacement.arm_process()
+        assert not t.service_orders and replacement.process_mode == 'STOPPED'
         with pytest.raises(StorageError):
             await original.quote('old-rearmed', TradeType.BUY, 0)
         assert original.process_mode == 'STOPPED'

@@ -37,3 +37,31 @@ def run(config, owner, pipe, accepted_label='unsafe-write'):
         asyncio.run(exercise())
     finally:
         pipe.close()
+
+
+def run_recovery(config, owner, pipe):
+    """Replacement creates its own nondurable capability after OS spawn."""
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.recovery_actor import PgRecoveryActor
+
+    async def exercise():
+        async def register(public):
+            pipe.send(('registration', public))
+            assert await asyncio.to_thread(pipe.poll, 10), 'bounded recovery registration wait'
+            assert pipe.recv() == 'registered'
+        actor = await PgRecoveryActor.open(config, owner=owner, claim_operation_id='spawned-recovery',
+                                           heartbeat_interval_ms=250, register=register)
+        try:
+            receipt = await actor.lease.lookup('spawned-recovery')
+            pipe.send(('ready', receipt.lease_epoch, actor.source_owner, actor.mode))
+            while await asyncio.to_thread(pipe.poll, 10):
+                command = pipe.recv()
+                if command is None:
+                    return
+                await actor.apply_received(command)
+                pipe.send(('applied', (await actor.financial.attempt(command.intent_id, config.binding)).state.value))
+        finally:
+            await actor.close()
+    try:
+        asyncio.run(exercise())
+    finally:
+        pipe.close()

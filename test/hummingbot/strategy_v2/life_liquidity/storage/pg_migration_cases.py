@@ -4140,3 +4140,82 @@ async def test_clean_process_handoff_upgrade_preserves_entrypoints_and_refuses_l
             assert await c.fetchval("SELECT has_table_privilege($1,'life_financial.process_handoffs','SELECT')", role) is (role != 'public')
             assert not await c.fetchval("SELECT has_table_privilege($1,'life_financial.process_handoffs','INSERT,UPDATE,DELETE,TRUNCATE')", role)
         assert await c.fetchval('SELECT count(*) FROM life_financial.process_handoffs') == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('drift', ['none', 'command_body', 'guard_body', 'commit_body', 'search_path', 'owner', 'default'])
+async def test_recovery_actor_upgrade_preserves_entrypoints_and_refuses_lease_drift(db, drift):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 116:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    signatures = ['life_financial.process_lease_command(uuid,text,text,uuid)',
+                  'life_financial.process_lease_guard(uuid,boolean)', 'life_financial.process_lease_commit()']
+    await c.execute('GRANT USAGE ON SCHEMA life_financial TO life_runtime_test,life_reporter_test')
+    await c.execute('GRANT EXECUTE ON FUNCTION ' + signatures[0] + ' TO life_runtime_test')
+    await c.execute('GRANT SELECT ON life_financial.accounts TO life_runtime_test,life_reporter_test')
+    before = await c.fetch('SELECT oid,proacl,proowner,provolatile,prosecdef,proconfig FROM pg_proc WHERE oid=ANY($1::oid[]) ORDER BY oid',
+                           [await c.fetchval('SELECT $1::regprocedure::oid', name) for name in signatures])
+    if drift.endswith('_body'):
+        target = signatures[{'command_body': 0, 'guard_body': 1, 'commit_body': 2}[drift]]
+        definition = await c.fetchval('SELECT pg_get_functiondef($1::regprocedure)', target)
+        await c.execute(definition.replace('BEGIN', 'BEGIN\n-- altered handoff predecessor\n', 1))
+    elif drift == 'search_path':
+        await c.execute('ALTER FUNCTION ' + signatures[0] + ' SET search_path=pg_catalog,public')
+    elif drift == 'default':
+        definition = await c.fetchval("SELECT pg_get_functiondef('life_financial.process_handoff_guard(uuid,uuid,uuid,bigint,boolean)'::regprocedure)")
+        assert 'DEFAULT true' in definition
+        await c.execute(definition.replace('DEFAULT true', 'DEFAULT false', 1))
+    elif drift == 'owner':
+        admin = await asyncpg.connect(db[1].replace('life_migrator_test@', 'postgres@'))
+        try:
+            await admin.execute('ALTER FUNCTION ' + signatures[0] + ' OWNER TO life_runtime_test')
+        finally:
+            await admin.close()
+    await c.execute('ALTER DEFAULT PRIVILEGES IN SCHEMA life_financial GRANT EXECUTE ON FUNCTIONS TO PUBLIC,life_runtime_test,life_reporter_test')
+    await c.execute('ALTER DEFAULT PRIVILEGES IN SCHEMA life_financial GRANT ALL ON TABLES TO PUBLIC,life_runtime_test,life_reporter_test')
+    path = DEFAULT_DIRECTORY / '000116_replacement_recovery_actor.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    if drift != 'none':
+        with pytest.raises(asyncpg.RaiseError, match='LIFE_RECOVERY_ACTOR_MIGRATION_MISMATCH'):
+            await migrate(c, directory, action='up')
+        assert (await versions(c))[-1]['version'] == 115
+        assert not await c.fetchval("SELECT to_regclass('life_financial.process_recovery_grants') IS NOT NULL")
+    else:
+        assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+        assert (await migrate(c, directory, action='up'))['applied'] == []
+        after = await c.fetch('SELECT oid,proacl,proowner,provolatile,prosecdef,proconfig FROM pg_proc WHERE oid=ANY($1::oid[]) ORDER BY oid',
+                              [await c.fetchval('SELECT $1::regprocedure::oid', name) for name in signatures])
+        assert after == before
+        for role in ('public', 'life_runtime_test', 'life_reporter_test'):
+            for private in ('process_generation_identity(uuid,uuid)', 'process_recovery_origin(uuid,uuid,boolean)', 'process_recovery_lease_guard(uuid,boolean)'):
+                assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", role, 'life_financial.' + private)
+            assert not await c.fetchval("SELECT has_function_privilege($1,'life_financial.process_handoff_guard(uuid,uuid,uuid,bigint,boolean)','EXECUTE')", role)
+            assert await c.fetchval("SELECT has_table_privilege($1,'life_financial.process_recovery_grants','SELECT')", role) is (role != 'public')
+            assert not await c.fetchval("SELECT has_table_privilege($1,'life_financial.process_recovery_grants','INSERT,UPDATE,DELETE,TRUNCATE')", role)
+        assert await c.fetchval('SELECT count(*) FROM life_financial.process_recovery_grants') == 0
+
+
+@pytest.mark.asyncio
+async def test_generation_broker_upgrade_is_empty_repeatable_and_denies_hostile_default_privileges(db):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 117:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    await c.execute('GRANT USAGE ON SCHEMA life_financial TO life_runtime_test,life_reporter_test')
+    await c.execute('GRANT SELECT ON life_financial.accounts TO life_runtime_test,life_reporter_test')
+    await c.execute('GRANT EXECUTE ON FUNCTION life_financial.process_lease_command(uuid,text,text,uuid) TO life_runtime_test')
+    await c.execute('ALTER DEFAULT PRIVILEGES IN SCHEMA life_financial GRANT ALL ON TABLES TO PUBLIC,life_runtime_test,life_reporter_test')
+    await c.execute('ALTER DEFAULT PRIVILEGES IN SCHEMA life_financial GRANT EXECUTE ON FUNCTIONS TO PUBLIC,life_runtime_test,life_reporter_test')
+    path = DEFAULT_DIRECTORY / '000117_generation_broker_binding.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    assert (await migrate(c, directory, action='up'))['applied'] == []
+    assert await c.fetchval('SELECT count(*) FROM life_financial.process_broker_bindings') == 0
+    for role in ('public', 'life_runtime_test', 'life_reporter_test'):
+        assert await c.fetchval("SELECT has_table_privilege($1,'life_financial.process_broker_bindings','SELECT')", role) is (role != 'public')
+        assert not await c.fetchval("SELECT has_table_privilege($1,'life_financial.process_broker_bindings','INSERT,UPDATE,DELETE,TRUNCATE')", role)
+        assert await c.fetchval("SELECT has_function_privilege($1,'life_financial.process_bind_broker(uuid,text,text)','EXECUTE')", role) is (role == 'life_runtime_test')
+        assert not await c.fetchval("SELECT has_function_privilege($1,'life_financial.process_broker_binding_commit()','EXECUTE')", role)

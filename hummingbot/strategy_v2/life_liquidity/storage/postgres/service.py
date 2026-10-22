@@ -320,7 +320,7 @@ class PgLiquidityService:
     @classmethod
     async def open(cls, config, *, runtime_config, owner, connectors, market_data_provider,
                    sources, limits, clock, independent_fill_value, independent_cashflow_value, native_trading=False, _startup_owner=None,
-                   provisional_quotes=False, managed_process=None, register_process=None):
+                   provisional_quotes=False, managed_process=None, register_process=None, generation_access_factory=None):
         from controllers.generic.life_liquidity import LifeLiquidityConfig
         if (type(config) is not LifeLiquidityConfig or config.storage_backend != 'postgres'
                 or type(runtime_config) is not PgConfig or config.storage_binding != runtime_config.binding
@@ -351,6 +351,7 @@ class PgLiquidityService:
         service._provider, service._clock, service._limits = market_data_provider, clock, limits
         service._opening, service._revoked, service._paused = True, False, False
         service._process = service._managed_process = None
+        service._generation_access = service._original_generation_access = None
         service._process_owner = owner
         service.runtime = service.financial = service.reporting = service.events = service.runner = service.hedge = None
         service._close_task = None
@@ -375,11 +376,27 @@ class PgLiquidityService:
             has_managed_policy = await service.runtime._admit(managed_policy, safety=True)
             if has_managed_policy != (managed_process is not None) or managed_process is None and register_process is not None:
                 raise StorageError('PG_SERVICE_MANAGED_PROCESS_REQUIRED')
+
+            async def generation_policy(c):
+                return await c.fetchval("SELECT body->'generation_access' FROM life_financial.configurations WHERE account_id=$1 AND config_hash=$2",
+                                        runtime_config.account_id, runtime_config.binding.config_hash)
+            imported_generation = await service.runtime._admit(generation_policy, safety=True)
+            if ((imported_generation is not None) != (generation_access_factory is not None)
+                    or generation_access_factory is not None and (not callable(generation_access_factory) or managed_process is None)):
+                raise StorageError('PG_SERVICE_GENERATION_ACCESS_REQUIRED')
             if managed_process is not None:
                 from hummingbot.strategy_v2.life_liquidity.storage.postgres.managed_process import PgManagedProcess
                 service._process = service._managed_process = PgManagedProcess(service, managed_process, register_process)
                 await service._process.start()
             service.financial = PgSpotRepository(service.runtime)
+            if generation_access_factory is not None:
+                from hummingbot.strategy_v2.life_liquidity.storage.generation_access import GenerationClient
+                async with asyncio.timeout(runtime_config.transaction_timeout_ms / 1000):
+                    access = await generation_access_factory(service)
+                    if (type(access) is not GenerationClient or access.identity.registration.process != service.process_lease.capability.registration):
+                        raise StorageError('PG_SERVICE_GENERATION_ACCESS_INVALID')
+                    service._generation_access = service._original_generation_access = access
+                    await access.install(service.connectors)
             births = None
             if provisional_quotes:
                 from hummingbot.strategy_v2.life_liquidity.storage.postgres.birth import PgQuoteBirthRepository
@@ -461,15 +478,24 @@ class PgLiquidityService:
                 or self.clock is not self._clock or self.limits is not self._limits or self.native_trading is not self._native_trading
                 or self.provisional_quotes is not self._provisional_quotes
                 or self._process is not self._managed_process
+                or self._generation_access is not self._original_generation_access
                 or self.controller.market_data_provider is not self._provider
                 or self._provider.connectors != self.connectors):
             self.revoke()
             raise StorageError('PG_SERVICE_CONTEXT_CHANGED')
 
     def _local_ready(self):
-        if self._process is not self._managed_process:
+        if self._process is not self._managed_process or self._generation_access is not self._original_generation_access:
             self.revoke()
             return False
+        if self._generation_access is not None:
+            try:
+                self._generation_access._original()
+                if any(c._web_assistants_factory._generation_access.current is not self._generation_access for c in self.connectors.values()):
+                    raise StorageError('PG_SERVICE_GENERATION_CONTEXT_CHANGED')
+            except (StorageError, PermissionError, AttributeError):
+                self.revoke()
+                return False
         return (not self._revoked and not self.config.manual_kill_switch
                 and (self._process is None or self._process.mode != 'STOPPED' and self.runtime.lease_valid))
 
@@ -1138,5 +1164,7 @@ class PgLiquidityService:
             await join(self.financial.close())
         elif self.runtime is not None:
             await join(self.runtime.close())
+        if self._original_generation_access is not None:
+            self._original_generation_access.stop()
         if failures:
             raise failures[0]

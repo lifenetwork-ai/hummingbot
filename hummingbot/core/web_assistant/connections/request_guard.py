@@ -46,3 +46,40 @@ class RESTRequestSendGuard(Protocol):
     def check(self, request: RESTRequestSnapshot) -> bool:
         """Final synchronous one-use fence. Only literal True admits transport."""
         ...
+
+
+class CompositeRESTRequestGuard:
+    """Every independent authority must admit the same physical request."""
+
+    def __init__(self, guards):
+        if type(guards) is not tuple or not guards:
+            raise ValueError('REQUEST_GUARDS_REQUIRED')
+        self._guards = guards
+
+    async def authorize(self, request):
+        for guard in self._guards:
+            if await guard.authorize(request) is not True:
+                return False
+        return True
+
+    def check(self, request):
+        return all(guard.check(request) is True for guard in self._guards)
+
+
+class GenerationAccessSlot:
+    """Shared by old/new assistants; a removed/replaced bound gate fails closed."""
+
+    def __init__(self):
+        self._access = self._original = None
+
+    def bind(self, access):
+        if (not callable(getattr(access, 'rest_guard', None)) or not callable(getattr(access, 'authorize_ws', None))
+                or self._original is not None and self._original is not access):
+            raise PermissionError('GENERATION_FACTORY_REBIND_DENIED')
+        self._access = self._original = access
+
+    @property
+    def current(self):
+        if self._access is not self._original:
+            raise PermissionError('GENERATION_FACTORY_CONTEXT_CHANGED')
+        return self._access

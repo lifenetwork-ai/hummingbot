@@ -3,6 +3,7 @@ from typing import List, Optional
 from hummingbot.core.api_throttler.async_throttler_base import AsyncThrottlerBase
 from hummingbot.core.web_assistant.auth import AuthBase
 from hummingbot.core.web_assistant.connections.connections_factory import ConnectionsFactory
+from hummingbot.core.web_assistant.connections.request_guard import GenerationAccessSlot
 from hummingbot.core.web_assistant.rest_assistant import RESTAssistant
 from hummingbot.core.web_assistant.rest_post_processors import RESTPostProcessorBase
 from hummingbot.core.web_assistant.rest_pre_processors import RESTPreProcessorBase
@@ -39,6 +40,10 @@ class WebAssistantsFactory:
         self._ws_post_processors = ws_post_processors or []
         self._auth = auth
         self._throttler = throttler
+        self._generation_access = GenerationAccessSlot()
+
+    def bind_generation_access(self, access):
+        self._generation_access.bind(access)
 
     @property
     def throttler(self) -> AsyncThrottlerBase:
@@ -55,14 +60,16 @@ class WebAssistantsFactory:
             throttler=self._throttler,
             rest_pre_processors=self._rest_pre_processors,
             rest_post_processors=self._rest_post_processors,
-            auth=self._auth
+            auth=self._auth,
+            generation_access=self._generation_access,
         )
         return assistant
 
     async def get_ws_assistant(self) -> WSAssistant:
         connection = await self._connections_factory.get_ws_connection()
         assistant = WSAssistant(
-            connection, self._ws_pre_processors, self._ws_post_processors, self._auth
+            connection, self._ws_pre_processors, self._ws_post_processors, self._auth,
+            generation_access=self._generation_access,
         )
         return assistant
 

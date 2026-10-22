@@ -1,5 +1,20 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**PostgreSQL PG4 CLOSED — selected offline scope (2026-10-23).**
+Replacement recovery actors, independent generation broker/key access, supported
+paused SPOT/SWAP SDK handoffs and exact committed-ACK emergency cancellation are
+implemented. Recovery preserves unknown outcomes/holds and original financial
+provenance; resumed trading needs another signed activation and both explicit
+arms. Assertion-only successors cannot arm. The verified current-source matrix
+has **404 passing cases** plus **20 passing migration cases**, with **822 frozen
+inputs**. The PostgreSQL plan records the disjoint qualification matrix and the
+retained aggregate failures corrected in test assembly. Actual exchange/cloud
+exclusion remains a later environment gate; automatic live takeover is disabled.
+See [PG4 qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#replacement-recovery-and-independent-broker-delivery-2026-10-23).
+
+The following dated entries retain historical checkpoints; their open-work
+statements describe those earlier revisions.
+
 **PostgreSQL PG4 clean successor handoff qualified (2026-10-23):** migration 115
 adds an explicit stopped/clean-account handoff with separately pinned signed
 credential-exclusion assertions, native ACTIVATE and exact HANDOFF operator

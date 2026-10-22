@@ -27,12 +27,14 @@ class RESTAssistant:
         rest_pre_processors: Optional[List[RESTPreProcessorBase]] = None,
         rest_post_processors: Optional[List[RESTPostProcessorBase]] = None,
         auth: Optional[AuthBase] = None,
+        generation_access=None,
     ):
         self._connection = connection
         self._rest_pre_processors = rest_pre_processors or []
         self._rest_post_processors = rest_post_processors or []
         self._auth = auth
         self._throttler = throttler
+        self._generation_access = generation_access
 
     async def execute_request(
         self,
@@ -123,6 +125,9 @@ class RESTAssistant:
         request = deepcopy(request)
         request = await self._pre_process_request(request)
         request = await self._authenticate(request)
+        access = None if self._generation_access is None else self._generation_access.current
+        if access is not None:
+            request_send_guard = access.rest_guard(request, request_send_guard)
         if request_send_guard is not None:
             connection_call = self._connection.call(request, pre_send_check=pre_send_check,
                                                     async_pre_send_check=async_pre_send_check,

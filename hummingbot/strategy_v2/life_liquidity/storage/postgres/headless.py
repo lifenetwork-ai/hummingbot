@@ -80,6 +80,7 @@ class PgHeadlessInputs:
     independent_fill_value: Callable
     independent_cashflow_value: Callable
     register_process: Callable | None = None
+    generation_access_factory: Callable | None = None
 
     def __post_init__(self):
         if (type(self.connectors) is not dict or set(self.connectors) != {'okx', 'okx_perpetual'}
@@ -87,7 +88,8 @@ class PgHeadlessInputs:
                 or not isinstance(self.connectors['okx_perpetual'], HeadlessOkxPerpetualDerivative)
                 or getattr(self.market_data_provider, 'connectors', None) != self.connectors
                 or any(not callable(v) for v in (self.clock, self.independent_fill_value, self.independent_cashflow_value))
-                or self.register_process is not None and not callable(self.register_process)):
+                or self.register_process is not None and not callable(self.register_process)
+                or self.generation_access_factory is not None and not callable(self.generation_access_factory)):
             raise StorageError('PG_HEADLESS_INPUTS_INVALID')
         object.__setattr__(self, 'connectors', dict(self.connectors))
 
@@ -135,6 +137,7 @@ async def launch(*, config_path, factory_spec, stop, tick_seconds, startup_timeo
                 independent_cashflow_value=inputs.independent_cashflow_value, native_trading=config.native_trading,
                 provisional_quotes=config.provisional_quotes,
                 managed_process=config.managed_process, register_process=inputs.register_process,
+                generation_access_factory=inputs.generation_access_factory,
                 _startup_owner=starting)
             host = PgServiceHost(service, inputs, tick_seconds=tick_seconds, shutdown_timeout_s=shutdown_timeout_s,
                                  source_stack=source_stack)

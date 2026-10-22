@@ -22,11 +22,13 @@ class WSAssistant:
         ws_pre_processors: Optional[List[WSPreProcessorBase]] = None,
         ws_post_processors: Optional[List[WSPostProcessorBase]] = None,
         auth: Optional[AuthBase] = None,
+        generation_access=None,
     ):
         self._connection = connection
         self._ws_pre_processors = ws_pre_processors or []
         self._ws_post_processors = ws_post_processors or []
         self._auth = auth
+        self._generation_access = generation_access
 
     @property
     def last_recv_time(self) -> float:
@@ -60,6 +62,9 @@ class WSAssistant:
         request = deepcopy(request)
         request = await self._pre_process_request(request)
         request = await self._authenticate(request)
+        access = None if self._generation_access is None else self._generation_access.current
+        if access is not None and await access.authorize_ws(request.payload) is not True:
+            raise PermissionError('GENERATION_WS_AUTHORIZATION_DENIED')
         await self._connection.send(request)
 
     async def ping(self):

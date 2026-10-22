@@ -37,6 +37,7 @@ class PgManagedProcess:
             raise StorageError('PG_SERVICE_MANAGED_PROCESS_INVALID')
         self.service, self.config, self.register = service, config, register
         self._mode, self.task = 'UNARMED', None
+        self._claim_epoch = None
         self._sequence = 0
         self.lease = PgProcessLease(service.runtime, ProcessCapability.create(service.runtime.config, service._process_owner))
 
@@ -74,6 +75,7 @@ class PgManagedProcess:
         receipt = await self.lease.claim(self.config.claim_operation_id)
         if receipt.replayed or not self.lease.ready:
             raise StorageError('PG_SERVICE_PROCESS_ORIGINAL_CLAIM_REQUIRED')
+        self._claim_epoch = receipt.lease_epoch
         self.task = asyncio.create_task(self._heartbeat())
         self.task.add_done_callback(lambda t: None if t.cancelled() else t.exception())
 
@@ -99,6 +101,9 @@ class PgManagedProcess:
         service = self.service
         if service._opening or service._revoked or self.mode != 'UNARMED':
             raise StorageError('PG_SERVICE_PROCESS_STATE_INVALID')
+        if self._claim_epoch is None or self._claim_epoch > 1 and service._generation_access is None:
+            service.revoke()
+            raise StorageError('PG_SERVICE_SUCCESSOR_BROKER_REQUIRED')
         cfg = service.runtime.config
 
         async def check(c):

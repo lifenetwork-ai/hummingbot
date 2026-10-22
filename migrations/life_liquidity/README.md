@@ -1745,5 +1745,39 @@ not authorize a new claim from expired approval or scan all handoff records.
 Runtime gets no new public mutating function or issuer privilege. No migration
 creates a policy, owner, key, capability or activation grant. This is a clean
 stopped-account handoff, not unresolved recovery, real credential exclusion or
-automatic live takeover. Replacement identity/key delivery and emergency cancel
-remain later PG4 gates, actual exchange exclusion a PG9 gate.
+automatic live takeover. Replacement identity/key delivery and emergency cancel are supplied by the
+subsequent 116/117 adapters below; actual exchange exclusion remains a PG9 gate.
+
+
+## 000116 — Replacement recovery actor
+
+Creates the empty immutable/RLS `process_recovery_grants` subtype and private
+origin/identity guards. The shared grant registry stores an actor's lifetime;
+it is not a native ACTIVE approval. The signed logical source owner/session is
+retained while a separately registered private process claims the next lease
+epoch in RECOVERY_ONLY. Late original financial facts may progress; allocating
+commands remain denied. Expiry does not activate a replacement or reset holds,
+incurred loss, subsidy or funding. Clean subsequent activation still requires
+quiescence plus new signed native/operator/provider authority.
+
+The upgrade audits exact migration-115 bodies, return types, argument defaults,
+security attributes, owners and search paths before preserving OIDs/ACLs during
+replacement. Unknown ancestors roll back the entire migration. Initial CLAIM
+COMMIT rechecks exclusion, approval, source cut and DB time. Continuing heartbeats
+verify immutable origin without reusing expired approval as activation authority.
+No policy, account, credential, capability or owner is bootstrapped.
+
+## 000117 — Private generation broker enrollment
+
+Creates empty immutable/RLS `process_broker_bindings` and one fixed
+`process_bind_broker` command. Only the current original private native lease
+can bind a generation's public broker signing-key digest, once per grant.
+Deferred COMMIT checks repeat the lease/head checks. Readback cannot arm or bind
+another client; unknown COMMIT closes local admission. Existing explicit lease
+writers inherit only this command, existing account readers inherit SELECT,
+and hostile default privileges cannot create runtime DML/private-helper rights.
+
+Scripts 116/117 use the existing automatic migration/checksum/locking entry
+point. Repeated service startup skips applied scripts; it never reruns financial
+registration, imports an account or enables trading. These scripts do not
+implement real exchange revocation, secret-provider IAM or live takeover.

@@ -232,6 +232,7 @@ async def test_native_prehost_failure_retains_factory_and_network_until_owned_cl
     class Inputs:
         def __init__(self):
             self.register_process = None
+            self.generation_access_factory = None
             self.connectors = {m: SimpleNamespace(stop_network=lambda: events.append('network-close'),
                                                   join_network_shutdown=AsyncMock()) for m in ('okx', 'okx_perpetual')}
             self.market_data_provider = object()
@@ -313,6 +314,7 @@ async def test_native_launcher_awaits_migrations_and_joins_owned_sources_after_s
     class Inputs:
         def __init__(self):
             self.register_process = AsyncMock()
+            self.generation_access_factory = AsyncMock()
             self.connectors = {'okx': SimpleNamespace(stop_network=lambda: events.append('network-stop'),
                                                       join_network_shutdown=AsyncMock())}
             self.market_data_provider = object()
@@ -343,6 +345,7 @@ async def test_native_launcher_awaits_migrations_and_joins_owned_sources_after_s
         assert kwargs['provisional_quotes'] is configured.provisional_quotes
         assert kwargs['managed_process'] == configured.managed_process
         assert callable(kwargs['register_process'])
+        assert callable(kwargs['generation_access_factory'])
         if failure == 'open':
             raise RuntimeError('synthetic open failure')
         return Service()

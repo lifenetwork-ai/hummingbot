@@ -19,7 +19,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot import PgSpotRe
 
 
 async def managed_service(database, *, lease_ms=4000, heartbeat_ms=250, register_change=None, managed=True, makers=False, hedge=False,
-                          configuration_extra=None, handoff_role=False):
+                          configuration_extra=None, handoff_role=False, generation_access_factory=None):
     from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_service_hedge import (
         policy as hedge_policy,
     )
@@ -69,7 +69,7 @@ async def managed_service(database, *, lease_ms=4000, heartbeat_ms=250, register
             configuration_extra={'operator_verifier': keys.verifier().policy(),
                                  'process_lease': dict(lease_duration_ms=lease_ms, max_registrations=8), **(configuration_extra or {})},
             managed_process=PgManagedProcessConfig(claim_operation_id='managed-claim', heartbeat_interval_ms=heartbeat_ms) if managed else None,
-            register_process=register if managed else None)
+            register_process=register if managed else None, generation_access_factory=generation_access_factory)
     except BaseException:
         if hasattr(state, 'financial'):
             await state.financial.close()

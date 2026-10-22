@@ -66,7 +66,7 @@ class PgProcessHandoffIssuer:
             predecessor = await c.fetchval('SELECT owner FROM life_financial.process_lease_registrations WHERE account_id=$1 AND grant_id=$2',
                                            cfg.account_id, head['grant_id'])
             if head['lease_epoch'] > 1:
-                identity = await c.fetchval("SELECT body#>'{exclusion,body,target}' FROM life_financial.process_handoffs WHERE account_id=$1 AND grant_id=$2",
+                identity = await c.fetchval("SELECT life_financial.process_generation_identity($1,$2)",
                                             cfg.account_id, head['grant_id'])
                 if identity is None or json.loads(identity) != certificate.source.json():
                     raise StorageError('PG_PROCESS_HANDOFF_SOURCE_IDENTITY_CHANGED')

@@ -24,7 +24,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.runtime import PgRun
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot import PgSpotRepository
 
 
-async def managed(database, *, lease_ms=2000, register=True, configuration_extra=None, handoff_role=False):
+async def managed(database, *, lease_ms=2000, register=True, configuration_extra=None, handoff_role=False, owner_duration_ms=20000):
     from hummingbot.strategy_v2.life_liquidity.storage.postgres.control import PgControlRepository
     roles = ('ACTIVATE', 'DRAIN', 'REVOKE', 'RECOVER') + (('HANDOFF',) if handoff_role else ())
     keys = OperatorKeys({'operator': b'x' * 32}, {'operator': frozenset(roles)})
@@ -38,7 +38,7 @@ async def managed(database, *, lease_ms=2000, register=True, configuration_extra
     drain = OwnerTransition('lease-drain', OwnerMode.DRAINING, old)
     await control.transition_owner(drain, **await signed(database, financial, cfg, keys, drain))
     now = await c.fetchval('SELECT clock_timestamp()')
-    owner = OwnerToken(uuid4(), uuid4(), old.epoch, old.session_id, now, now + timedelta(seconds=20))
+    owner = OwnerToken(uuid4(), uuid4(), old.epoch, old.session_id, now, now + timedelta(milliseconds=owner_duration_ms))
     activate = OwnerTransition('lease-activate', OwnerMode.ACTIVE, owner)
     await control.transition_owner(activate, **await signed(database, financial, cfg, keys, activate))
     await c.execute('INSERT INTO life_financial.process_lease_policies VALUES($1,$2,$3,8)', cfg.account_id, cfg.binding.policy_hash, lease_ms)

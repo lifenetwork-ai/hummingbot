@@ -1,5 +1,74 @@
 # LIFE storage contracts
 
+**PG4 offline scope closed (2026-10-23): 404 current-source cases and 20 migration
+cases pass.** See the PostgreSQL plan for the exact qualification matrix, retained
+failed aggregate and 822 frozen inputs. Actual exchange/cloud exclusion and live
+takeover remain disabled environment gates.
+
+## Generation broker, recovery actor and exact cancellation
+
+The supported offline handoff combines the native lease with the independent
+`GenerationBroker` / provider. A lease, public registration or signed exclusion
+assertion alone cannot deliver a replacement key or arm a successor service.
+All these adapters reject DEMO/PRODUCTION; actual exchange exclusion, cloud IAM,
+transport TLS and deployment remain later environment gates.
+
+1. Import the public `generation_access`, `credential_authority`, operator and
+   lease policies into the immutable account configuration. No runtime creates
+   a policy, owner, capital or grant. Keep broker/provider authority and owner
+   connections outside the worker; runtime RPC exposes only signed, bounded
+   FETCH/AUTHORIZE/WS_READ calls, with replay protection and scoped replies.
+2. Supply `PgHeadlessInputs.generation_access_factory` (or the equivalent
+   `PgLiquidityService.open` argument) along with `register_process`. The original
+   worker creates its own `BrokerIdentity`. Call `bind_private_broker` using the
+   original private native lease, then owner-side `PgGenerationBrokerControl.sync`
+   to qualify the exact one-use binding. Public capability hashes cannot bind
+   another signing identity. Install the client into the actual SDK factories;
+   cached assistants share the bound gate. Installation verifies the actual
+   authenticated UID on both SDKs against the broker's pinned account UID.
+3. Start UNARMED. Trusted control explicitly enables the broker and the original
+   service explicitly calls `arm_process()`. Both are necessary before normal
+   SDK writes. An assertion-only successor without an installed client refuses
+   arm. Normal writes still require their original one-use financial send guard.
+   Private WS trading and CAA are denied in this REST-write profile.
+4. To replace an unresolved sender, close local risk and publish the signed
+   native RECOVERY_ONLY transition. `begin_exclusion` closes broker admission
+   before waiting on provider revocation. `certify` requires independent REST,
+   WS and CAA exclusion plus resolution of accepted in-flight requests.
+   A staged replacement cannot fetch its secret while exclusion or its original
+   private native claim/broker binding is incomplete. Same-revision replacements
+   still need distinct process/generation, service identity, key resource and key.
+5. `PgRecoveryGrantIssuer` authorizes a new `PgRecoveryActor` for the original
+   logical source owner/session. The separate actor's lease epoch advances;
+   native financial provenance, unknown outcomes, holds and spent budgets remain.
+   Only original observations/reconciliation can progress. Neither elapsed
+   owner time nor heartbeat/readback can turn recovery into trading. To trade
+   again, reconcile and settle the account, then issue separate native ACTIVATE,
+   HANDOFF and broker/SDK activation for another original generation.
+6. Before an outage, trusted control exports `PgCancellationManifestRepository`
+   from one verified primary cut and pins it in the current broker. It contains
+   only committed ACK order IDs, source generations, account/lineage and exact
+   SPOT/SWAP instrument/wire IDs. Save/load is bounded and immutable; missing,
+   ambiguous, corrupt, unknown-order or foreign scope denies cancellation.
+   `GenerationClient.cancel_exact` uses the real SDK with both ordId and clOrdId.
+   With actual DB pools closed, only authenticated reads and those pinned exact
+   cancels remain schedulable. Losing a manifest or receiving a cancel ACK never
+   releases a native hold. Excluded old identities remain denied; an uncertain
+   successor cannot fall back to an old generation's key or cancel-all.
+
+Run the selected offline gate with
+`python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_postgres --suite pg4 --output /tmp/<new-directory>`.
+It includes the retained unsafe lease-only SDK counterexample, supported actual
+SPOT/SWAP SDK handoffs, separate worker processes, recovery/native faults,
+headless/service regressions and core WebAssistant tests. Versioned migration
+qualification is separate. Temporary logs are not repository evidence files.
+
+## Historical qualification checkpoints
+
+The dated entries below describe earlier increments; their open-work statements
+are historical. The current completion checklist is in the PG4 section of the
+PostgreSQL implementation plan.
+
 **PG4 clean successor handoff (2026-10-23, selected offline slice qualified):**
 Migration 115 adds immutable `process_handoffs`; it bootstraps no account, owner,
 key, policy or grant. The owner-side `PgProcessHandoffIssuer` requires an original
