@@ -3994,3 +3994,45 @@ async def test_source_carry_handoff_upgrade_preserves_original_and_private_helpe
             assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", role, private)
         for role in ('public', 'life_reporter_test'):
             assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", role, public)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('drift', ['none', 'body', 'search_path', 'volatility', 'owner'])
+async def test_historical_membership_upgrade_keeps_identity_acl_and_refuses_ancestor_drift(db, drift):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 113:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    signatures = ['life_financial.' + name + '(uuid,text)' for name in ('shared_operation_verified', 'carry_check_verified')]
+    predicate = 'life_financial.shared_claim_active_at(uuid,text,bigint)'
+    before = await c.fetch('SELECT oid,proacl,proowner,provolatile,prosecdef,proconfig FROM pg_proc WHERE oid=ANY($1::oid[]) ORDER BY oid',
+                           [await c.fetchval('SELECT $1::regprocedure::oid', name) for name in signatures])
+    unchanged = await c.fetchrow('SELECT to_jsonb(p) AS body FROM pg_proc p WHERE oid=$1::regprocedure', predicate)
+    if drift == 'body':
+        definition = await c.fetchval('SELECT pg_get_functiondef($1::regprocedure)', signatures[0])
+        await c.execute(definition.replace('BEGIN', 'BEGIN\n-- changed membership ancestor\n', 1))
+    elif drift == 'search_path':
+        await c.execute('ALTER FUNCTION ' + signatures[0] + ' SET search_path=pg_catalog,public')
+    elif drift == 'volatility':
+        await c.execute('ALTER FUNCTION ' + predicate + ' VOLATILE')
+    elif drift == 'owner':
+        admin = await asyncpg.connect(db[1].replace('life_migrator_test@', 'postgres@'))
+        try:
+            await admin.execute('ALTER FUNCTION ' + predicate + ' OWNER TO life_runtime_test')
+        finally:
+            await admin.close()
+    await c.execute('ALTER DEFAULT PRIVILEGES IN SCHEMA life_financial GRANT EXECUTE ON FUNCTIONS TO PUBLIC,life_runtime_test,life_reporter_test')
+    path = DEFAULT_DIRECTORY / '000113_historical_claim_membership.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    if drift != 'none':
+        with pytest.raises(asyncpg.RaiseError, match='LIFE_HISTORY_MEMBERSHIP_MIGRATION_MISMATCH'):
+            await migrate(c, directory, action='up')
+        assert (await versions(c))[-1]['version'] == 112
+    else:
+        assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+        assert (await migrate(c, directory, action='up'))['applied'] == []
+        after = await c.fetch('SELECT oid,proacl,proowner,provolatile,prosecdef,proconfig FROM pg_proc WHERE oid=ANY($1::oid[]) ORDER BY oid',
+                              [await c.fetchval('SELECT $1::regprocedure::oid', name) for name in signatures])
+        assert after == before
+        assert await c.fetchrow('SELECT to_jsonb(p) AS body FROM pg_proc p WHERE oid=$1::regprocedure', predicate) == unchanged

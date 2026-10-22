@@ -184,6 +184,69 @@ async def test_yielded_cancel_ack_grants_no_terminal_release_or_repeat_http(data
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('fault', ['none', 'operation', 'task', 'cold', 'counter', 'receipt', 'collection', 'stop'])
+async def test_cancel_attempt_phase_yields_without_http_and_requires_fresh_single_use_continuation(database, monkeypatch, fault):
+    t = await makers(database)
+    reports = []
+    original = t.joint.collect
+
+    async def collect(**kwargs):
+        report = await original(**kwargs)
+        reports.append(report)
+        return report
+    monkeypatch.setattr(t.joint, 'collect', collect)
+    try:
+        before = await t.financial.snapshot(t.cfg.binding)
+        claims = await t.values[5].claims(t.cfg.binding)
+        assert await t.cancellation.cancel_makers('phased-cancel', yield_after_request=True, yield_after_attempt=True) is False
+        assert len(reports) == 1 and not t.cancel_requests
+        attempt = await t.financial.attempt('intent1', t.cfg.binding)
+        assert attempt.cancel_requested and attempt.cancel_attempts == 1 and attempt.state.value == 'ACKED'
+        operation, application = 'phased-cancel', t.cancellation
+        if fault == 'operation':
+            operation = 'another-cycle'
+        elif fault == 'cold':
+            application = t.application()
+        elif fault == 'counter':
+            await database[0].execute('ALTER TABLE life_financial.spot_cancel_progress DISABLE TRIGGER USER')
+            await database[0].execute('UPDATE life_financial.spot_cancel_progress SET cancel_attempts=cancel_attempts+1')
+            await database[0].execute('ALTER TABLE life_financial.spot_cancel_progress ENABLE TRIGGER USER')
+        elif fault == 'receipt':
+            await database[0].execute('ALTER TABLE life_financial.operations DISABLE TRIGGER USER')
+            assert await database[0].execute("UPDATE life_financial.operations SET receipt=jsonb_set(receipt,'{state}','\"WRONG\"'::jsonb) WHERE command#>>'{command,action}'='RECORD_CANCEL_ATTEMPT'") == 'UPDATE 1'
+            await database[0].execute('ALTER TABLE life_financial.operations ENABLE TRIGGER USER')
+        elif fault == 'collection':
+            async def stale(**kwargs):
+                return reports[0]
+            monkeypatch.setattr(t.joint, 'collect', stale)
+        elif fault == 'stop':
+            application.stop()
+        action = application.cancel_makers(operation, yield_after_request=True, yield_after_attempt=True)
+        if fault == 'none':
+            assert await action is False
+            assert len(reports) == 2 and reports[0] is not reports[1]
+            assert len(t.cancel_requests) == 1
+            assert (await t.financial.attempt('intent1', t.cfg.binding)).cancel_attempts == 1
+            assert (await t.financial.snapshot(t.cfg.binding)).balance == before.balance
+            assert await application.cancel_makers(operation, yield_after_request=True, yield_after_attempt=True) is True
+            assert len(t.cancel_requests) == 1
+        else:
+            with pytest.raises(StorageError):
+                if fault == 'task':
+                    await asyncio.create_task(action)
+                else:
+                    await action
+            assert not t.cancel_requests
+        after = await t.financial.snapshot(t.cfg.binding)
+        assert (after.balance.total_base_life, after.balance.total_quote_usdt) == (before.balance.total_base_life, before.balance.total_quote_usdt)
+        if fault != 'none':
+            assert after.balance == before.balance
+        assert await t.values[5].claims(t.cfg.binding) == claims
+    finally:
+        await t.financial.close()
+
+
+@pytest.mark.asyncio
 async def test_explicit_cancel_targets_cannot_expand_to_another_native_maker(database):
     t = await makers(database)
     try:

@@ -1,5 +1,43 @@
 # LIFE: PostgreSQL and Cloud Run Implementation Plan (TDD)
 
+**Native loaded-flow follow-up (2026-10-22, in progress):** the final segment
+below passes another **28 cases**, then the original retained-fill maker
+workflow fails at ARM COMMIT with capture age **1081.157 ms**. A separate fresh,
+untraced invocation fails at **1006.840 ms**. These are genuine expiry refusals;
+the earlier focused pass is insufficient to close PG3. The legacy send-core
+currently reports capture expiry as `PG_QUOTE_CAPTURE_MISMATCH`; that code does
+not establish a payload mismatch. No capture is redated or retried.
+
+Whole-flow, per-command SQL profiling identifies repeated historical claim
+membership queries inside each retained capital/carry proof: the fifth quote's
+ARM execution calls `shared_claim_active_at` **262 times**. Migration 113 makes
+the two history walkers use the exact original inclusive release-version
+predicate as an anti-join. It preserves full history, independent COMMIT proofs,
+function identities/ACLs, all deadlines and all accounting. Four differential
+cases pass, **9.48 s**, including corrupted receipts and a historical release;
+the nested per-claim function calls fall to zero. This is a query-plan change,
+not a saved financial verdict. The five migration identity/ACL/drift/repeat
+cases pass in **9.89 s**, including changed definer ownership. The initial
+untraced loaded run fails after **75.41 s**
+at `collect_after_attempt` in maker cancellation, before its first completed
+generation: two signed collections plus durable cancel bookkeeping exceed that
+phase's original 5000-ms limit. This run does not qualify quote latency or PG3.
+Configured cancellation now separates confirmed attempt bookkeeping from its
+fresh-source, one-use HTTP continuation. Only the task which confirmed the
+original attempt can continue it; current native counter/timestamp/receipt,
+new signed collection and final primary/request guards remain mandatory.
+Cold objects, another task/operation, reused collection, changed durable facts
+and stopped applications cannot send. These **8 cases pass, 20.52 s**.
+Each phase retains 5000 ms and the complete cycle retains its original deadline;
+the bounded coordinator permits up to three distinct steps per maker, without
+adding a physical attempt or treating an ACK as terminal/released capacity.
+The complete untraced native and provisional retained-fill/two-generation/
+competing-SDK workloads both pass: **2 cases, 295.31 s**. This focused result
+does not close the complete current-source PG3 qualification.
+Because production SQL changed, the previously qualified aggregate prefix is
+historical evidence; it is not a completed current-migration PG3 gate. PG3 and
+its original R2.3/R4/R5 exits remain open; PG4 implementation follows closure.
+
 **Source-to-carry flow optimization (2026-10-22, qualification in progress):**
 quote collection now captures bounded opening identity/scope metadata, then
 performs its complete financial audit after both signed provider rounds. The
@@ -63,7 +101,7 @@ production, SQL, fixtures and test inputs. **PG3 remains open while the final
 1136-case segment is pending.**
 
 That segment reaches **491 pass / 1 fail, 1072.13 s**. During the backend-loss
-module's `arm_before` setup, `_policy_snapshot` correctly refuses its clock
+module's `arm_before` setup, `_policy_snapshot` refuses its policy-snapshot
 qualification predicate before the requested backend fault or any send. The
 old log contains no paired clock values, so neither DB/host skew nor
 wall/monotonic disagreement is proved as the cause. No matching host sleep/wake

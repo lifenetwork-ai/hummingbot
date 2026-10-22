@@ -1,5 +1,15 @@
 # LIFE storage contracts
 
+**Historical claims and bounded cancellation (2026-10-22):** migration 113
+anti-joins the original historical release predicate in capital/carry walks,
+without caching financial verdicts or changing ACLs and deadlines. Configured
+maker cancellation yields after confirmed attempt bookkeeping, then requires
+a new signed collection and a task-bound one-use continuation before HTTP.
+Another process/task/operation or original-operation readback cannot adopt it.
+Each phase and the enclosing cycle retain their original deadlines; no extra
+physical cancel attempt is added. Both complete native/provisional loaded maker
+workloads pass, **295.31 s**; full current-source PG3 qualification remains open.
+
 **Source flow optimization (2026-10-22):** quote collection performs its complete
 audit after signed provider collection and compares an immutable, nonfinancial
 opening identity/scope marker. Migration 112 consumes the exact newly committed

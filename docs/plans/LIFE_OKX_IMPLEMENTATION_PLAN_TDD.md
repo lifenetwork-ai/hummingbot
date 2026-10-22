@@ -1,5 +1,13 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**PostgreSQL loaded-flow follow-up (2026-10-22):** migration 113 removes nested
+per-claim history queries using the same historical release predicate. The
+configured service now separates durable cancel-attempt bookkeeping from a new
+signed, one-use HTTP continuation, within the unchanged phase/cycle deadlines.
+Both complete native and provisional retained-fill maker workflows pass,
+**2 cases, 295.31 s**. PG3 remains open until full current-source qualification;
+PG4 follows PG3 closure. See the [PostgreSQL plan](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md).
+
 **PostgreSQL source-flow checkpoint (2026-10-22):** bounded quote opening
 metadata replaces an early duplicate audit; the complete closing financial
 proof and independent order/COMMIT guards remain. Migration 112 validates a

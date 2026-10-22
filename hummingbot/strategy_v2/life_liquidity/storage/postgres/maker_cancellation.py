@@ -6,6 +6,8 @@ from an HTTP cancellation ACK or from an empty SDK cache alone.
 """
 import asyncio
 import json
+from dataclasses import dataclass, replace
+from datetime import datetime
 from decimal import Decimal
 
 from hummingbot.connector.exchange.okx import okx_constants as C
@@ -14,7 +16,18 @@ from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.joint_release import PgJointReleaseApplication
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.joint_source import PgJointAccountReconciler
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.runtime import sql_error
-from hummingbot.strategy_v2.life_liquidity.storage.spot_lifecycle import SpotLifecycleCommand
+from hummingbot.strategy_v2.life_liquidity.storage.spot_lifecycle import SpotLifecycleCommand, SpotLifecycleReceipt
+
+
+@dataclass(frozen=True)
+class _CancelAttemptContinuation:
+    operation_id: str
+    task: asyncio.Task
+    native_json: str
+    collection_id: str
+    receipt: SpotLifecycleReceipt
+    cancel_attempts: int
+    attempted_at: datetime
 
 
 class _CancelGuard:
@@ -75,6 +88,7 @@ class PgMakerCancellation:
         self.retry_interval_ms, self.timeout_ms = retry_interval_ms, timeout_ms
         self._busy = self._stopped = False
         self._hedge_handoff = None
+        self._cancel_attempt = None
         self._context = (collector, self.financial, self.runtime, self.owner, self.binding, self.connector, self.release)
 
     def _ready(self):
@@ -88,6 +102,7 @@ class PgMakerCancellation:
             raise StorageError('PG_MAKER_CANCEL_PAUSED_SCOPE_REQUIRED')
 
     def stop(self):
+        self._cancel_attempt = None
         if not self._stopped:
             self._stopped = True
             original = self._context[2]
@@ -155,6 +170,35 @@ class PgMakerCancellation:
         self._ready()
         if receipt.replayed:
             raise StorageError('PG_MAKER_CANCEL_RECONCILE_BEFORE_RETRY')
+        return receipt, row.cancel_attempts + 1, cut.observed_at
+
+    async def _take_attempt(self, operation_id, report, orders, enabled):
+        """An original in-process identity is never a source or send grant.
+
+        Only the task which confirmed the attempt can continue it, once. A new
+        complete signed collection, its current native cut and the original
+        durable counter/receipt are mandatory. Cold readback cannot mint this.
+        """
+        pending, self._cancel_attempt = self._cancel_attempt, None
+        if pending is None:
+            return None
+        if (not enabled or type(pending) is not _CancelAttemptContinuation
+                or pending.operation_id != operation_id or pending.task is not asyncio.current_task()
+                or pending.collection_id == report.collection_id):
+            raise StorageError('PG_MAKER_CANCEL_CONTINUATION_INVALID')
+        native = next((native for native, _ in orders if json.dumps(native, sort_keys=True) == pending.native_json), None)
+        if native is None:
+            raise StorageError('PG_MAKER_CANCEL_ATTEMPT_CHANGED')
+        row = await self.financial.attempt(native['intent_id'], self.binding)
+        saved = await self.financial.lookup_lifecycle(pending.receipt.operation_id, self.binding)
+        self._ready()
+        self.collector.check_report(report, epoch=self.collector._epoch)
+        if (row is None or row.state.value not in ('SEND_UNKNOWN', 'ACKED') or row.client_order_id != native['wire_id']
+                or not row.cancel_requested or row.cancel_attempts != pending.cancel_attempts
+                or row.last_cancel_attempt_at != pending.attempted_at
+                or saved != replace(pending.receipt, replayed=True)):
+            raise StorageError('PG_MAKER_CANCEL_ATTEMPT_CHANGED')
+        return native
 
     def take_hedge_report(self, operation_id):
         """Consume the same operation's fresh, quiescent source handoff once.
@@ -174,13 +218,16 @@ class PgMakerCancellation:
         self.collector.check_report(report, epoch=epoch)
         return report
 
-    async def cancel_makers(self, operation_id, *, include_hedge_market=False, yield_after_request=False, target_intents=None):
+    async def cancel_makers(self, operation_id, *, include_hedge_market=False, yield_after_request=False,
+                            yield_after_attempt=False, target_intents=None):
         """True proves all closures; False means bounded progress, no release.
 
         A configured coordinator may yield after one guarded request or one of
         several terminal confirmations, outside this phase's unchanged deadline.
         It must call again for a NEW complete signed proof. A repeated attempt
         remains forbidden, including when the previous call returned False.
+        The configured coordinator can also yield after confirmed attempt
+        bookkeeping; the next phase obtains fresh evidence before any HTTP.
         """
         identifier(operation_id)
         self._ready()
@@ -191,7 +238,8 @@ class PgMakerCancellation:
                 raise StorageError('PG_MAKER_CANCEL_TARGET_SCOPE')
             for intent_id in target_intents:
                 identifier(intent_id)
-        if type(include_hedge_market) is not bool or type(yield_after_request) is not bool:
+        if (type(include_hedge_market) is not bool or type(yield_after_request) is not bool
+                or type(yield_after_attempt) is not bool or yield_after_attempt and not yield_after_request):
             raise StorageError('PG_MAKER_CANCEL_SOURCE_HANDOFF_INVALID')
         if self._busy:
             raise StorageError('PG_MAKER_CANCEL_BACKPRESSURE')
@@ -216,6 +264,7 @@ class PgMakerCancellation:
                     stage = 'collect'
                     report = await self.collector.collect(include_hedge_market=market)
                     orders = self._orders(report)
+                    continued = await self._take_attempt(operation_id, report, orders, yield_after_attempt)
                     if target_intents is not None and any(
                             native['state'] not in ('TERMINAL', 'ABORTED_BEFORE_SEND')
                             and native['intent_id'] not in target_intents for native, _ in orders):
@@ -251,21 +300,35 @@ class PgMakerCancellation:
                         if include_hedge_market and not changed and report.market_json is not None:
                             self._hedge_handoff = (operation_id, report, self.collector._epoch)
                         return True
-                    candidate = next((native for native, _ in live if native['wire_id'] not in requested), None)
+                    candidate = next((native for native, _ in live
+                                      if native['wire_id'] not in requested and (continued is None or native == continued)), None)
+                    if continued is not None and candidate is None:
+                        # The original order closed between phases. Its fresh
+                        # terminal evidence remains for the next normal pass;
+                        # never spend this identity on a different live maker.
+                        return False
                     if candidate is None:
                         raise StorageError('PG_MAKER_CANCEL_PENDING')
                     if len(requested) >= self.max_cancels:
                         raise StorageError('PG_MAKER_CANCEL_LIMIT')
-                    stage = 'attempt'
-                    await self._attempt(operation_id, candidate)
-                    # Lifecycle publication invalidates the old cut/report.
-                    stage = 'collect_after_attempt'
-                    report = await self.collector.collect()
-                    orders = self._orders(report)
-                    current = next(((native, exchange) for native, exchange in orders
-                                    if native['intent_id'] == candidate['intent_id']), None)
-                    if current is None or current[0] != candidate:
-                        raise StorageError('PG_MAKER_CANCEL_ATTEMPT_CHANGED')
+                    if continued is None:
+                        stage = 'attempt'
+                        receipt, count, at = await self._attempt(operation_id, candidate)
+                        if yield_after_attempt:
+                            self._cancel_attempt = _CancelAttemptContinuation(
+                                operation_id, asyncio.current_task(), json.dumps(candidate, sort_keys=True),
+                                report.collection_id, receipt, count, at)
+                            return False
+                        # Lifecycle publication invalidates the old cut/report.
+                        stage = 'collect_after_attempt'
+                        report = await self.collector.collect()
+                        orders = self._orders(report)
+                        current = next(((native, exchange) for native, exchange in orders
+                                        if native['intent_id'] == candidate['intent_id']), None)
+                        if current is None or current[0] != candidate:
+                            raise StorageError('PG_MAKER_CANCEL_ATTEMPT_CHANGED')
+                    else:
+                        current = next((item for item in orders if item[0] == candidate), None)
                     requested.add(candidate['wire_id'])
                     if current[1] is None or current[1]['state'] not in ('live', 'partially_filled'):
                         continue

@@ -1674,3 +1674,13 @@ and attributes are checked; hostile default grants on both new functions are
 stripped. Only existing explicit carry writers receive the public handoff;
 the view-taking helper remains owner-only. The existing checksum/advisory-lock
 migration runner keeps repeated service startup a no-op.
+
+## 000113: historical claim membership
+
+`000113_historical_claim_membership.sql` replaces the two history walkers'
+per-claim SQL function calls with the same release anti-join. A release is
+effective only when its operation version is at or before the original
+historical cutoff. Retained rows, financial decisions and physical-COMMIT
+checks remain complete; no verdict is cached. Audited ancestor bodies and
+function attributes must match before upgrade. Existing function OIDs, owners
+and ACLs remain unchanged, and repeated startup applies the script once.

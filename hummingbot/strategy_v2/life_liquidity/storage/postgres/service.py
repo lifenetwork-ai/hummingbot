@@ -907,10 +907,13 @@ class PgLiquidityService:
                 await self.quote_application.drain()
                 await self._join_maker_events()
                 closed = False
-                # Each original maker can need one physical cancel and one
-                # terminal confirmation. No wire gets a second cancel attempt.
-                for _ in range(2 * self.limits.max_cancels + 1):
-                    closed = await self.cancellation.cancel_makers(operation_id, yield_after_request=True, target_intents=targets)
+                # Each maker can need one confirmed attempt, one physical
+                # cancel and one terminal confirmation. Each bounded phase
+                # obtains new signed facts; the original full-cycle deadline
+                # still encloses all phases. No wire gets a second attempt.
+                for _ in range(3 * self.limits.max_cancels + 1):
+                    closed = await self.cancellation.cancel_makers(operation_id, yield_after_request=True,
+                                                                   yield_after_attempt=True, target_intents=targets)
                     await self._join_maker_events()
                     if closed is True:
                         break
