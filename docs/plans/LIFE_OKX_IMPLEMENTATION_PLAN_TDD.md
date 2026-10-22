@@ -1,5 +1,11 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**Environment checklist ownership (2026-10-23):** PostgreSQL deployment,
+actual identity/TLS/durability, OKX demo and production gates now live in
+[PostgreSQL environment qualification](#postgresql-environment-qualification)
+under P9, retaining PG9/PG10 IDs and adding PG-E0–PG-E2. They remain unchecked.
+The PostgreSQL plan tracks offline implementation/local acceptance through PG8.
+
 **PostgreSQL PG4 CLOSED — selected offline scope (2026-10-23).**
 Replacement recovery actors, independent generation broker/key access, supported
 paused SPOT/SWAP SDK handoffs and exact committed-ACK emergency cancellation are
@@ -1997,6 +2003,63 @@ Begin after D. Verify the opening account and market evidence without order perm
 - [ ] P9.13: Define a staged rollout from small spot canary → hedging → dual MM, with a separate canary budget, observation duration/sample requirement, stop/scale criteria, and review for each stage. Simulation/demo/shadow cannot establish live execution economics; a small live canary only gathers evidence within its allocated budget and cannot automatically scale with insufficient samples. Record observed canary outcomes separately from approval of the rollout plan.
 
 **Spot Offline Complete:** O.1–O.6 and applicable O.8 cases pass with an explicit scope record; demo and real-account evidence are not required. **Full Offline Complete:** O.1–O.8 and all P6/P7 offline cases pass when those features are declared. The current O.8 gate is open. **Demo completion for a declared scope:** D/P9.1–P9.6 pass after its matching O gate. **Eligibility to request a budgeted live canary:** R/P9.7 and P9.9–P9.12 pass for the enabled scope, P9.13 has a concrete canary plan, actual listing conditions hold, and the operator makes the P9.8 decision. **Eligibility to increase capital:** observed live canary results separately meet P9.13 scale criteria. A spot-only milestone never claims full R01–R12 completion; a working demo does not establish LIFE strategy profitability.
+
+### PostgreSQL environment qualification
+
+**Checklist ownership (2026-10-23):** all deployed-environment, OKX demo and
+production qualification for the PostgreSQL extension is owned here. The
+[PostgreSQL plan](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#current-offline-delivery-status)
+owns implementation and local/offline tests through PG8. Original PG9/PG10 IDs
+are retained below; moving them does not mark them complete. These gates are
+additional to P9/D/R/C for the declared product scope, never a replacement.
+PG8 and the matching O gate must close before environment qualification; a
+passing local PostgreSQL test or fake credential provider cannot satisfy it.
+
+- [ ] PG-E0: Before deployment, select the topology/region and release architecture;
+  freeze supported product scope, integrity/transaction/handoff decisions and
+  numeric deployed pool/timeout/retry/lease/heartbeat/source-age/shutdown/storage/
+  audit-lag/RPO/RTO limits. Record units, owner, rationale, calibration method,
+  current regional capabilities, exchange key controls and fixed-egress/demo
+  constraints. Complete the dated VM-versus-Worker-Pool cost/operations decision.
+  Synthetic fixture values are not live defaults. Carries the environment
+  portions of PG0.1–PG0.6; offline design/fixture work stays in PG0.
+- [ ] PG-E1 (from PG2.1): Qualify the selected release architecture/dependency
+  policy and deployed migration/runtime/reporting identities, least privileges
+  and TLS against the actual primary. Complete PG5 recorder integration and
+  applicable PG7 packaging first. Config-enabled startup migrations must await
+  success before runtime construction; prove mounted-secret/process isolation,
+  not merely removal of inherited DSN variables. Local ARM64/schema/ACL/TLS
+  results do not qualify deployed identities.
+- [ ] PG-E2 (from PG2.5): Rehearse disk/host loss, managed failover, backup/PITR
+  restore and reconciliation against the selected VM/Cloud SQL failure domain
+  and explicit RPO/RTO. Preserve unresolved attempts, held capital and original
+  spending after restoration; require new controlled lineage and unarmed startup.
+  Same-volume local process restart does not establish zero loss or HA.
+
+### PG9 — Cloud sandbox, VM comparison and OKX demo
+
+Dependencies: PG8 and the matching existing O gate closed. Requires isolated nonproduction infrastructure/accounts and the applicable demo authorization. PG0 declares `postgres_vm` or `postgres_cloud_run` as the release topology. The VM milestone needs PG9.1–PG9.6 on the VM plus applicable portable/database/IAM/recovery work from PG7; Cloud Run-specific PG7 work and PG9.7 remain explicitly deferred/open if Cloud Run is not selected. Claiming Cloud Run readiness requires those additional items. This is a scope distinction for the new deployment extension, not a waiver of existing O.8 requirements.
+
+- [ ] PG9.1: Provision an isolated VM/database sandbox from reviewed IaC and qualify the PostgreSQL worker there first. Record image/config/data shape, resources, network and actual cost inputs for later comparison.
+- [ ] PG9.2: Prove startup, private DB connectivity, fixed egress where needed, IAM/secret isolation, logs/alerts, backup/restore and resource limits in the deployed environment.
+- [ ] PG9.3: Exercise real container replacement, overlapping processes, SIGTERM/SIGKILL, DB disconnect/failover and recovery on the selected topology. Every replacement is unarmed until its own qualified generation handoff; one desired instance is not the assertion under test. Cloud Run scope additionally requires overlapping revisions and same-revision replacement.
+- [ ] PG9.4: Use isolated OKX demo credentials and supported instruments to qualify send/retry/cancel/WS behavior, key revocation propagation, old-key REST/WS denial, accepted-before-revocation requests and the complete manual handoff. Unsupported demo credential controls remain unresolved, not simulated passes for live eligibility.
+- [ ] PG9.5: Repeat the complete 0/1k/10k deployed performance matrix and a calibrated longer session with growing history, loss budgets, fills/fees/bills, carry, expiry and cold restart. Record throughput, latency, memory, storage growth and recovery downtime under the declared configuration.
+- [ ] PG9.6: Compare the measured VM/Cloud Run outcome against PG0 economics and operating criteria. Choose the production topology explicitly; keep PostgreSQL-on-VM supported if Cloud Run offers insufficient benefit.
+- [ ] PG9.7: For `postgres_cloud_run`, provision the Worker Pool and its Cloud-specific PG7 resources from reviewed IaC, then run PG9.2–PG9.5 on the same image/config/data shape. Require real revision/replacement/credential-isolation proof and a dated VM-versus-Cloud Run comparison before Cloud Run eligibility. If this experiment is deferred, record Cloud Run costs as estimates and outcomes as unmeasured; PG9.6 may select only the qualified VM topology.
+
+**Done when:** deployed environment and demo evidence pass for the declared topology/scope; Cloud Run-specific work remains open for a VM-only milestone. A non-LIFE demo instrument proves its connector/deployment behavior; synthetic LIFE replay and actual LIFE availability remain separate. No production order permission is granted.
+
+### PG10 — Production read-only qualification and canary review
+
+Dependencies: applicable PG9 topology gate plus the existing R/C requirements as reached below. Choosing VM does not bypass them; a VM milestone does not claim Cloud Run deployment completion.
+
+- [ ] PG10.1: Qualify authenticated production account, actual instruments/fees/history, opening balances, bill anchors, reference quality and explicit numeric economic/stress budgets using read-only access first.
+- [ ] PG10.2: Freeze source/image/schema/IaC/config/credential-generation bindings; close all PG0 live decisions and qualify production ownership exclusion/handoff prerequisites with provider-qualified REST/private-WS revocation/drain evidence. Revocation timestamps, IAM denial or a read-only authentication probe alone do not prove write exclusion, and demo eligibility does not establish production revocation behavior. If hard-fence proof requires a mutating production probe, specify a separately authorized bounded validation/cleanup step under the existing R/C approval policy before activation; absent that authorization or sufficient non-mutating proof, the gate stays open and trading remains unarmed.
+- [ ] PG10.3: Produce a concrete rollback/recovery runbook, current account/order exposure report, handoff evidence and budgeted canary proposal for separate explicit approval under the existing C gate.
+- [ ] PG10.4: Only after approval, run the bounded live canary and record actual costs, latency, restart/reconciliation and liquidity KPIs before increasing capital. Remaining unknowns retain holds and stop expansion.
+
+**Done when:** approved canary evidence passes and the operator accepts the measured topology. Deployment success, a DB migration or this plan cannot close the trading release gate.
 
 ## 7. Required Acceptance Matrix
 

@@ -1,5 +1,30 @@
 # LIFE: PostgreSQL and Cloud Run Implementation Plan (TDD)
 
+## Current offline delivery status
+
+**Scope split approved on 2026-10-23:** this plan owns offline implementation,
+local PostgreSQL/container/process tests, import/restore rehearsals and locally
+validated deployment definitions. All real deployment/account qualification is
+owned by the [OKX environment checklist](LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md#postgresql-environment-qualification):
+PG-E0–PG-E2, PG9.1–PG9.7 and PG10.1–PG10.4. These remain open at their destination;
+no release requirement is waived or passed by moving it.
+
+| Phase | Current offline verdict | Remaining ownership |
+| --- | --- | --- |
+| PG0 | Open design/fixture/decision items | Offline design/fixture values here; real topology/calibration/economics in OKX PG-E0 |
+| PG1 | Closed for declared file-service scope | No current PG1 implementation backlog; dated checkpoints are historical |
+| PG2 | Closed for pinned local schema/runtime/durability scope | Deployed identity/TLS in OKX PG-E1; actual failure domain in OKX PG-E2 |
+| PG3 | Closed for selected native/offline scope (`234c3631c`) | Clean stopped File cutover implementation stays PG6; actual account proof in OKX PG9/PG10 |
+| PG4 | Closed for selected offline handoff scope (`4fddc9419`) | Actual provider/key exclusion, deployed IAM and failover in OKX PG9/PG10 |
+| PG5 | In progress | Recorder operational compatibility and restart qualification |
+| PG6–PG8 | Open | Offline import/restore, image/IaC/signal tests and complete offline acceptance |
+
+Only current phase checklists and this ledger determine progress. Historical
+“open at this checkpoint” statements describe their recorded revision; they are
+not unchecked current tasks and must not be changed to passing without proof.
+PG5–PG8 and O.8 still need their own acceptance; closing PG1–PG4 locally does not
+claim the whole product is offline complete or ready for demo/live execution.
+
 **PG4 CLOSED — selected offline ownership/handoff scope (2026-10-23).**
 Migrations 116/117 add replacement RECOVERY_ONLY actors and original private
 broker enrollment. The configured service installs generation gates into actual
@@ -1086,6 +1111,12 @@ For every checklist: record the failing selector and baseline hash, implement th
 
 ### PG0 — Architecture, feasibility, economics and trust decisions
 
+**Offline scope:** the items below cover design approval, reproducible fixture values,
+local feasibility and estimated deployment definitions. Actual region/provider
+capabilities, deployed numerical calibration, operating costs and topology release
+decisions are owned by [OKX PG-E0](LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md#postgresql-environment-qualification).
+References to live decisions in historical checkpoints are not additional PG0 tasks.
+
 Dependencies: none; can proceed while existing O.8 work continues offline.
 
 - [ ] PG0.1: Freeze declared spot/SWAP/inventory scope, source baseline and open O.8 failures; identify affected A23/A24/A28/A30/A33/A35/A36/A39 contracts.
@@ -1096,8 +1127,8 @@ Dependencies: none; can proceed while existing O.8 work continues offline.
   - [ ] **Remaining PG0.3 release assembly:** approved PG0 trust/ownership/packaging inputs; real LIFE controller and backend-neutral ports with production watchdog/config/session lifecycle; all declared enabled product/retry routes; complete recorder repair/outbox crash/restart proof and financial equivalence. The experimental coordinator, synthetic market/account facts and in-memory HTTP session grant no production authority. The awaited DB gate plus final local fence does not establish an atomic DB/send boundary or exclude an old credential-bearing sender.
 - [ ] PG0.4: Select and pin a Cloud SQL-supported PostgreSQL major, migration tool and driver compatible with the existing Python/SQLAlchemy runtime; test dependency resolution and Linux image build.
   - [x] **Local migration foundation (2026-10-12):** central versioned SQL runner using optional `asyncpg==0.31.0`; tested on pinned PostgreSQL 16.15 and the current Python 3.13 environment. The [migration guide](../../migrations/life_liquidity/README.md) records command, role, transaction and retry contracts. It follows the separate command/scripts pattern reviewed in local `life-wallet-backend`; adds a checksum ledger and concurrent-run lock instead of re-executing every file. No full SQLAlchemy dependency/image or Cloud SQL connectivity qualification is claimed.
-- [ ] PG0.5: Record numeric test/deployment values and rationale for pool size/overflow, query/lock/transaction timeouts, retry caps, lease/heartbeat, observation age, shutdown budget, DB storage/headroom, RPO/RTO and audit lag. Record units, owner and calibration method; synthetic values are not live defaults.
-- [ ] PG0.6: Produce a dated VM-versus-Worker-Pool cost/operations comparison and a go/no-go decision for each milestone. Check documented target-region capabilities, account API-key generation/revocation constraints, fixed-egress needs and demo support; keep empirical environment behavior explicitly open for PG9.
+- [ ] PG0.5: Record numeric offline test values, proposed deployment parameters and rationale for pool size/overflow, query/lock/transaction timeouts, retry caps, lease/heartbeat, observation age, shutdown budget, DB storage/headroom, RPO/RTO and audit lag. Record units, owner and calibration method; synthetic values are not live defaults.
+- [ ] PG0.6: Prepare a dated VM-versus-Worker-Pool design/cost comparison with labeled estimates and unresolved environment inputs. Implement local prerequisite decisions only; actual region/key/egress/demo checks, measured economics and the deployment go/no-go are owned by OKX PG-E0/PG9.6–PG9.7.
 
 **Done when:** decisions and runnable spike results exist, unresolved live inputs are listed, and no implicit live defaults or unsupported fencing claim remains. This does not enable trading.
 
@@ -1385,18 +1416,18 @@ Final command: `PYTHONPATH=. conda run --no-capture-output -n hummingbot python 
 
 Dependencies: PG1 for financial schema/repositories; generic migration infrastructure can precede PG1. Recorder groundwork may proceed once schema decisions are stable.
 
-- [ ] PG2.1: Implement versioned forward migrations and separate migration/runtime/reporting roles; runtime cannot alter schema or rewrite immutable financial history. Prove the chosen permissions with the actual database.
+- [x] PG2.1: Implement versioned forward migrations and separate migration/runtime/reporting roles; runtime cannot alter schema or rewrite immutable financial history. Qualify permissions on the pinned local PostgreSQL primary. Deployed release/identity qualification is tracked in OKX PG-E1.
   - [x] **Migration runner and metadata-only bootstrap:** `make life-migration-status` / `make life-migrate`, ordered immutable SQL, applied `(version,name,SHA-256)` ledger, dedicated primary connection and bounded session advisory lock, one transaction per script plus its ledger row. Repeated `up` skips applied versions; changed/missing/renamed/reordered history fails before pending SQL. Errors/cancellation/timeouts roll back the current script; prior versions remain. Fresh-run history readback handles a committed-but-lost reply. TLS verification is default; local insecure mode is explicit and loopback-only. Auto migration is off by default; the explicit `LIFE_AUTO_MIGRATE=true` startup option uses the same runner before application construction. No automatic downgrade, financial state bootstrap or production role provisioning.
   - [x] **Typed schema and local access proof:** `000002_financial_schema.sql` / `000003_guarded_transactions.sql`, existing-role migration-owner provisioning, account-scoped runtime/reporting access, immutable history, startup/borrow compatibility checks and real TLS/role denial tests. Docker source packaging includes migrations and an opt-in pinned driver. No account, capital, owner or activation grant is automatically created.
   - [x] **Local Linux artifact:** build the full repository on Linux ARM64 with a digest-pinned base, Python/SQLAlchemy/PG driver versions, bounded compilation and isolated migration source. Verify compiled Linux modules and eleven source/migration hashes; run the recorder suite inside the actual image. Dependency manifests are captured inside the artifact; a fully locked transitive rebuild and the selected deployment architecture remain release qualifications.
   - [x] **Local SQLAlchemy recorder compatibility:** numbered reporting schema, explicit namespace, schema/version/constraint/index admission without runtime DDL or metadata stamping, actual TLS verification, fill-before-ACK, order/position/executor cold reads, unchanged financial FKs and no cached SQLite fallback. This proves the legacy reporting seam only; full LIFE outbox/provenance/scheduling/precision work remains mandatory in PG5.
-  - [ ] **Deployed release and identity:** qualify the chosen release architecture/dependency policy, deployed migration/runtime/recorder identities and TLS. Complete PG5 recorder integration before worker release. Local ARM64 compatibility tests do not close these requirements; no original release condition is waived.
+  - **Moved, still open:** [OKX PG-E1](LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md#postgresql-environment-qualification) owns deployed release/identity/TLS qualification; PG5 integration remains an offline prerequisite.
 - [x] PG2.2: Implement the schema families in Section 3 with account/environment-scoped keys, unique operation/wire/event identities, finite decimal checks, transition/version constraints and indexed active-state queries. Include atomic expected-owner/epoch/process/lineage checks and DB-time expiry guards in every financial UoW; PG4 later qualifies grant issuance and handoff. Qualified for the PG2 allocation UoW; PG3 must use these guards in every new domain command and prove full financial parity.
-- [x] PG2.3: Add async bounded pools and explicit primary/TLS/account/lineage/schema validation. No replica authority, unlimited overflow, session sharing between tasks or long-lived idle transactions. Qualified on the pinned local primary/TLS profile; deployed credential/connector qualification remains PG2.1/PG9.
+- [x] PG2.3: Add async bounded pools and explicit primary/TLS/account/lineage/schema validation. No replica authority, unlimited overflow, session sharing between tasks or long-lived idle transactions. Qualified on the pinned local primary/TLS profile; deployed credential/connector qualification is tracked in OKX PG-E1/PG9.
 - [x] PG2.4: Test two concurrent allocators, conflicting row versions, deadlock/serialization retries, pool exhaustion, statement cancellation, dropped connections and unknown COMMIT outcomes using real PostgreSQL processes.
-- [ ] PG2.5: Qualify durability settings and declared failure domain; `synchronous_commit` configuration alone is not a promise of zero loss for every Cloud SQL failure/PITR scenario.
+- [x] PG2.5: Qualify durability settings and process failure on the pinned local primary/same-volume profile. Runtime denies unsafe durability settings. Actual selected-topology disk/host/failover/PITR qualification is tracked in OKX PG-E2; no zero-loss/HA claim follows from this offline closure.
   - [x] **Local process failure:** actual SIGKILL/same-volume PostgreSQL restart retains a committed operation/hold and exact replay; unsafe `fsync` startup is denied. Runtime and COMMIT guards require primary/read-write, `synchronous_commit=on`, `fsync=on` and `full_page_writes=on`.
-  - [ ] **Selected deployment failure domain:** disk/host loss, managed failover, backup/PITR and recovery objectives on the chosen VM/Cloud SQL topology. No zero-loss or HA claim follows from the local restart test.
+  - **Moved, still open:** [OKX PG-E2](LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md#postgresql-environment-qualification) owns the selected deployment failure domain and actual recovery objectives.
 
 **Red tests:** `test_postgres_schema.py`, `test_postgres_transactions.py`, `test_postgres_pool_safety.py`, `test_postgres_faults.py`, `test_postgres_tls.py`, `test_zz_durability.py`.
 
@@ -1404,7 +1435,7 @@ Dependencies: PG1 for financial schema/repositories; generic migration infrastru
 
 ### PG2 local recorder and Linux qualification (2026-10-16)
 
-Base: `e588c8ae3` plus this delivery. PG2 local schema/transaction/process-failure work and the explicitly scoped artifact/recorder checks above are complete. **PG2 as a deployment phase remains open.** PG2.1 still needs the selected release/identity proofs; PG2.5 still needs the selected failure-domain rehearsal. PG3 domain work, PG5 integration, PG7 deployment packaging and PG8/O.8 acceptance remain mandatory. The PostgreSQL LIFE backend selector still fails closed.
+Base: `e588c8ae3` plus this delivery. PG2 local schema/transaction/process-failure work and the explicitly scoped artifact/recorder checks above are complete. **Historical verdict at this checkpoint:** PG2 deployment proofs were open. Their current ownership is OKX PG-E1/PG-E2; the current ledger closes only the local PG2 scope. PG3 domain work, PG5 integration, PG7 deployment packaging and PG8/O.8 acceptance remain mandatory. The PostgreSQL LIFE backend selector still fails closed.
 
 - **Migration and recorder:** immutable `000006_recorder_projection.sql` creates thirteen empty legacy reporting tables in `life_recorder`, with a metadata version marker and no financial/account/owner bootstrap. Projection FKs are deliberately omitted because fills/status can precede order ACK; financial FKs remain intact. The central startup runner automatically includes this script when the existing `LIFE_AUTO_MIGRATE=true` setting is enabled. It does not provision recorder credentials or grants.
 - **Admission:** `SQLConnectionManager` selects `postgresql+psycopg`, defaults to TLS `verify-full`, maps ORM tables to the explicit reporting namespace and requires the migrated schema/version, types, nullability, primary/unique constraints and indexes. Missing/stale/future/incompatible schema, schema-CREATE privilege and writable version metadata are denied without automatic repair, stamping or local-file migration. Its legacy synchronous pool has two slots, zero overflow and bounded connect/acquire/statement/lock waits; these compatibility bounds are not a calibrated production financial profile. Cache identity includes the normalized DB URL, so a changed backend/database/credential/TLS configuration cannot reuse the old SQLite connection.
@@ -1778,7 +1809,7 @@ Base revision: `393dd9f12`. This increment completes the **core File source capt
 - [x] Require DRAINING/RECOVERY_ONLY, independently supplied complete fresh zero-liability facts, a distinct externally configured `IMPORT` signature, exact source digest and an explicit same-account target namespace/database lineage. Atomically publish irreversible retirement after durable bounded capsule publication; recheck facts/signature/native cut at physical publication. An orphan capsule alone never retires a source.
 - [x] Cold readback audits the signature, full original coordinator ancestry, exact retired coordinator projection and unchanged native bytes. Retirement blocks queued/later financial/control work, including resume; exact original-ID retries only read the same receipt and cannot reactivate a writer. Changed/missing/symlinked capsules, changed native/coordinator state and expired publication facts deny.
 - [x] Capture the bound flat-format `JointRecovery` financial participants for outer `APPLYING`, including before core cash starts and after core cash is APPLIED but WAL/claims remain interrupted. Explicit `joint=original_repository` pins the real owner/policies and complete shared-capital, SWAP-action/WAL and request journals, plus each configured hedge/carry journal. The core-only call still refuses a bound repository. Archives and recorder/control-plane backup are not implicitly adopted; distributed source fencing remains separate.
-- [ ] Import a retired source into native typed PostgreSQL history against a separately qualified original baseline/order skeleton; resolve exact missing primitives through native accounting with fresh complete sources, original-ID cold COMMIT readback and no premature terminal/shared release. A capsule, target namespace or `RETIRED` receipt supplies no target money or activation authority. Complete File/native parity remains required.
+- **Open at this historical checkpoint:** Import a retired source into native typed PostgreSQL history against a separately qualified original baseline/order skeleton; resolve exact missing primitives through native accounting with fresh complete sources, original-ID cold COMMIT readback and no premature terminal/shared release. A capsule, target namespace or `RETIRED` receipt supplies no target money or activation authority. Complete File/native parity remains required.
 
 Implementation: `storage/legacy_applying.py`, the File control audit/worker barriers and a private read-only stop in the existing joint-cash resume projection. `legacy_applying_source(...)` returns immutable source evidence; `retire_legacy_applying(...)` requires the signed exact capsule; `frozen_legacy_applying_source(...)` reads the sealed original after restart. Capsules live under the source's bounded `legacy_applying_sources/` directory, published without overwriting an earlier image. They are runtime artifacts, not repository evidence files. No source is retired automatically by startup/configuration.
 
@@ -1816,7 +1847,7 @@ This does not close the full legacy parity row or R1–R5.
   kernel against fresh complete sources. Preserve the original raw pending
   receipt, bill identity and held claims after application; no import/readback
   resets HALT or authorizes terminal/shared release.
-- [ ] Extend the profile to outer joint SPOT/SWAP/trade/cashflow history and all
+- **Open at this historical checkpoint:** Extend the profile to outer joint SPOT/SWAP/trade/cashflow history and all
   supported File cut points, with original order/session/basis and gross-budget
   parity. Missing derivative quantity/reference or missing original history must
   deny; funding PNL is never used as an external-flow substitute. The current
@@ -1895,7 +1926,7 @@ This is part of R1; it does not complete all legacy parity or another fixed row.
   the diagnostic barrier in place until actual pending publication; separate
   RECOVER still owns every monetary effect. Retained successors count toward
   the existing explicit count/byte limits. Old shape/signatures stay valid.
-- [ ] Complete mixed SPOT/external-flow/prior financial history and installed
+- **Open at this historical checkpoint:** Complete mixed SPOT/external-flow/prior financial history and installed
   legacy hedge/carry coordinator state, plus remaining File/native decisions and
   gross-budget parity. Those profiles and archive origins remain refused until
   their complete provenance is imported; the original larger R1 exit stays open.
@@ -2054,7 +2085,7 @@ still computes its hash; no receipt, budget, source TTL or SQL limit is changed.
   privileges and repeat-startup behavior without bootstrap.
 - [x] Run the complete migration gate: **59 passed** in 45.26 s
   (`/tmp/life-pg3-canonical-final-migrations`).
-- [ ] Pass the frozen native regression spanning capital, direct cashflow
+- **Open at this historical checkpoint:** Pass the frozen native regression spanning capital, direct cashflow
   repair, joint batch, retired imports, transaction faults, quote arm and hedge.
   Current invocation retains **280 passes / 2 failures**, 1,553 deselections,
   no errors/skips and six existing-category warnings in 822.09 s
@@ -3214,7 +3245,7 @@ qualification. Automatic live takeover remains disabled.
   This affected gate does not claim a new full 2307-case PG3 run, migration
   qualification, managed 0/1k/10k performance qualification or cloud/demo proof.
   No new evidence file, `.env` change, live exchange request or deployment is
-  introduced. All full PG4 parent checkboxes remain open.
+  introduced. At this historical checkpoint all full PG4 parent checkboxes remained open; the later replacement/broker qualification closes their selected offline scope.
 
 ### PG5 — Hummingbot recorder and operational compatibility
 
@@ -3277,28 +3308,17 @@ Dependencies: PG1–PG7 local work; no cloud/OKX credentials required.
 
 ### PG9 — Cloud sandbox, VM comparison and OKX demo
 
-Dependencies: PG8 and the matching existing O gate closed. Requires isolated nonproduction infrastructure/accounts and the applicable demo authorization. PG0 declares `postgres_vm` or `postgres_cloud_run` as the release topology. The VM milestone needs PG9.1–PG9.6 on the VM plus applicable portable/database/IAM/recovery work from PG7; Cloud Run-specific PG7 work and PG9.7 remain explicitly deferred/open if Cloud Run is not selected. Claiming Cloud Run readiness requires those additional items. This is a scope distinction for the new deployment extension, not a waiver of existing O.8 requirements.
-
-- [ ] PG9.1: Provision an isolated VM/database sandbox from reviewed IaC and qualify the PostgreSQL worker there first. Record image/config/data shape, resources, network and actual cost inputs for later comparison.
-- [ ] PG9.2: Prove startup, private DB connectivity, fixed egress where needed, IAM/secret isolation, logs/alerts, backup/restore and resource limits in the deployed environment.
-- [ ] PG9.3: Exercise real container replacement, overlapping processes, SIGTERM/SIGKILL, DB disconnect/failover and recovery on the selected topology. Every replacement is unarmed until its own qualified generation handoff; one desired instance is not the assertion under test. Cloud Run scope additionally requires overlapping revisions and same-revision replacement.
-- [ ] PG9.4: Use isolated OKX demo credentials and supported instruments to qualify send/retry/cancel/WS behavior, key revocation propagation, old-key REST/WS denial, accepted-before-revocation requests and the complete manual handoff. Unsupported demo credential controls remain unresolved, not simulated passes for live eligibility.
-- [ ] PG9.5: Repeat the complete 0/1k/10k deployed performance matrix and a calibrated longer session with growing history, loss budgets, fills/fees/bills, carry, expiry and cold restart. Record throughput, latency, memory, storage growth and recovery downtime under the declared configuration.
-- [ ] PG9.6: Compare the measured VM/Cloud Run outcome against PG0 economics and operating criteria. Choose the production topology explicitly; keep PostgreSQL-on-VM supported if Cloud Run offers insufficient benefit.
-- [ ] PG9.7: For `postgres_cloud_run`, provision the Worker Pool and its Cloud-specific PG7 resources from reviewed IaC, then run PG9.2–PG9.5 on the same image/config/data shape. Require real revision/replacement/credential-isolation proof and a dated VM-versus-Cloud Run comparison before Cloud Run eligibility. If this experiment is deferred, record Cloud Run costs as estimates and outcomes as unmeasured; PG9.6 may select only the qualified VM topology.
-
-**Done when:** deployed environment and demo evidence pass for the declared topology/scope; Cloud Run-specific work remains open for a VM-only milestone. A non-LIFE demo instrument proves its connector/deployment behavior; synthetic LIFE replay and actual LIFE availability remain separate. No production order permission is granted.
+**Moved to the [OKX plan — PostgreSQL environment qualification](LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md#postgresql-environment-qualification).**
+PG9.1–PG9.7 retain their IDs and unchecked state there. This plan ends at
+implementation/local acceptance; real provisioning, deployed measurements and
+OKX demo qualification are tracked only in that destination checklist.
 
 ### PG10 — Production read-only qualification and canary review
 
-Dependencies: applicable PG9 topology gate plus the existing R/C requirements as reached below. Choosing VM does not bypass them; a VM milestone does not claim Cloud Run deployment completion.
-
-- [ ] PG10.1: Qualify authenticated production account, actual instruments/fees/history, opening balances, bill anchors, reference quality and explicit numeric economic/stress budgets using read-only access first.
-- [ ] PG10.2: Freeze source/image/schema/IaC/config/credential-generation bindings; close all PG0 live decisions and qualify production ownership exclusion/handoff prerequisites with provider-qualified REST/private-WS revocation/drain evidence. Revocation timestamps, IAM denial or a read-only authentication probe alone do not prove write exclusion, and demo eligibility does not establish production revocation behavior. If hard-fence proof requires a mutating production probe, specify a separately authorized bounded validation/cleanup step under the existing R/C approval policy before activation; absent that authorization or sufficient non-mutating proof, the gate stays open and trading remains unarmed.
-- [ ] PG10.3: Produce a concrete rollback/recovery runbook, current account/order exposure report, handoff evidence and budgeted canary proposal for separate explicit approval under the existing C gate.
-- [ ] PG10.4: Only after approval, run the bounded live canary and record actual costs, latency, restart/reconciliation and liquidity KPIs before increasing capital. Remaining unknowns retain holds and stop expansion.
-
-**Done when:** approved canary evidence passes and the operator accepts the measured topology. Deployment success, a DB migration or this plan cannot close the trading release gate.
+**Moved to the [OKX plan — PG10](LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md#pg10--production-read-only-qualification-and-canary-review).**
+PG10.1–PG10.4 retain their IDs and unchecked state there. Production qualification
+and explicit C-gate approval remain required; local phase closure grants no live
+permission.
 
 ## 7. Acceptance map and delivery evidence
 
@@ -3377,7 +3397,7 @@ No configured `.env` database, real exchange, SQL migration or deployment is use
 - [x] Combined regression: **263 passed, including 29 ACK cases; 0 failures/errors/skips**, with six existing Pydantic warnings (`/tmp/life-pg1-ack-final-regression.xml`). Command: `PYTHONPATH=. conda run -n hummingbot python -m pytest -q` over the storage directory and existing WAL/session/reservations/reservation-persistence/policy/archive/economics/loss/subsidy suites, with JUnit output in `/tmp`. Formatting/security hooks passed after correcting fixture imports/indentation; the 29 ACK cases were rerun after formatting (`/tmp/life-pg1-ack-post-format.xml`). No standalone evidence file is created.
 - [x] Final ACK postcondition guard: an adapter cannot publish success unless actual WAL state and exchange ID match ACKED. A synthetic native no-op retains SEND_UNKNOWN and the recovery barrier. The same combined command passes **264 tests, including 30 ACK cases; 0 failures/errors/skips**, with existing warnings (`/tmp/life-pg1-ack-complete-regression.xml`); changed-file hooks pass.
 - [x] Table needs recorded in Section 3: future account/session/attempt/reservation/balance/budget/operation/event tables. ACK uses attempt + operation/event rows; no standalone ACK SQL table or premature financial migration is required by this storage increment.
-- [ ] Remaining PG1 financial commands and authenticated controller/recovery bridge; PG2 financial migrations/constraints and PostgreSQL adapter; O.8/performance/demo/live qualification. The file adapter still verifies retained journal history and no performance gate is closed.
+- **Open at this historical checkpoint:** Remaining PG1 financial commands and authenticated controller/recovery bridge; PG2 financial migrations/constraints and PostgreSQL adapter; O.8/performance/demo/live qualification. The file adapter still verifies retained journal history and no performance gate is closed.
 
 ACK source SHA-256: `storage/financial.py`: `65a471aa2d4756c4c310ab14163b46bfa0c71bb88d66dc0fbedf1374135379eb`; `storage/file.py`: `bd3ed5b9c9a9d74af8c889334b0c6115ad06c41ac8ac056de0d6a8841746594a`; `storage/legacy_spot.py`: `446a3e9030c4efa1156f6e97f16ca658a7a4e2b74338806aec201d4071d6e461` (all under `hummingbot/strategy_v2/life_liquidity/`); `test/hummingbot/strategy_v2/life_liquidity/storage/test_spot_ack_contracts.py`: `45821d3947822801790447512357c148783f5f61ad3e306015ab7b2f66edac9d`. No SQL/driver/image changed.
 
@@ -3392,7 +3412,7 @@ No exchange, configured `.env` database, production schema or image is accessed.
 - [x] Final combined regression: **326 passed, including 38 new fill cases and the existing 24 reconciled-attribution tests; 0 failures/errors/skips**, with six existing Pydantic warnings (`/tmp/life-pg1-fill-final-regression.xml`). Command: `PYTHONPATH=. conda run -n hummingbot python -m pytest -q` over the storage directory plus existing WAL/session/reservations/reservation-persistence/policy/archive/economics/loss/subsidy and `test_reconciled_fill_attribution.py` suites. The 38 fill cases also pass after formatting (`/tmp/life-pg1-fill-post-format.xml`); changed-file hooks and `git diff --check` pass after correcting continuation indentation. No evidence file is created.
 - [x] Filled quantities and signed LIFE/USDT fees apply once in the actual native reservation checkpoint; consumed fee buffers do not double-hold money or credit rebates. Per-fill independent execution loss and cumulative subsidy floors retain existing formula/bucket semantics, including over-budget actual observations. Fee overruns close new-risk admission. Full fills remain nonterminal with unresolved fee/subsidy/identity holds.
 - [x] Partial publications retain FILLING and proposed facts; cancelled workers retain account exclusion. Fresh subprocesses reopen after real process exits immediately after wallet or subsidy-floor checkpoints without refunding or replaying writes. No power-loss durability or completed cold recovery service is claimed.
-- [ ] Remaining cashflow-approved/full NAV/causal attribution and qualified terminal/recovery commands, authenticated bridge/controller wiring, complete financial equivalence and PostgreSQL financial migrations. O.8/performance remains open: the adapter still scans retained file/projection history.
+- **Open at this historical checkpoint:** Remaining cashflow-approved/full NAV/causal attribution and qualified terminal/recovery commands, authenticated bridge/controller wiring, complete financial equivalence and PostgreSQL financial migrations. O.8/performance remains open: the adapter still scans retained file/projection history.
 
 Source SHA-256 (under `hummingbot/strategy_v2/life_liquidity/`): `storage/financial.py`: `f82ac882f6968add350bfa4b3c7b1ca04a329f8c0091f80f36e6918e96cd056e`; `storage/legacy_spot.py`: `e3d44809c887faf3fd4802ee03b130007e5c769ce90256ed7c858da47c2a1cd5`; `storage/file.py`: `4bcd6b6775ce8a2868167276d398dbc911f3b1e051fbaa096adc8e51171d6c7a`; `test/hummingbot/strategy_v2/life_liquidity/storage/test_spot_fill_contracts.py`: `9a117ab05549c063937b9708edc2d46a7bc2f9e268ca01eba11f42bef7684bac`. No SQL/driver/image changed. The optional fill policy is explicitly bound in file coordinator metadata; previous coordinators require a qualified import to adopt it.
 
@@ -3409,7 +3429,7 @@ not operator approval, authenticated bills, live oracle or calibration defaults.
 - [x] Final capital suite **31 passed**, including the added regressing NAV clock guard (`/tmp/life-pg1-capital-final.xml`); changed-file formatting/security hooks and `git diff --check` pass. This final selector verifies the added guard; the 370-case result is the preceding combined checkpoint. No new evidence file, configured `.env` DB, SQL migration, exchange request or deployment is used.
 - [x] Transfers preserve native funds, immutable bill identities and existing budgets. Timestamp-ordered CapitalLedger projection cannot fund earlier withdrawals with later fills. Recorded net-cashflow-adjusted NAV/highwater and starting inventory/loss measurements survive restart. Fixed approvals/opening values cannot be silently changed on restore. Negative spendable funds deny healthy snapshots and leave proposed transfer facts/actual debit/holds for recovery; no automatic balance repair or refund.
 - [x] Real subprocess exits after native transfer and committed NAV, plus cancellation/account exclusion and missing native postconditions, retain readback and cold-unarmed mode. NAV `current` compares financial facts only; price freshness/trading permission and complete venue coverage require the pending bridge.
-- [ ] Qualified terminal/recovery and approval-update/import services, authenticated account-wide bill/fill/oracle coverage, joint funding/SWAP/recorder/markout, controller ports, PostgreSQL financial transactions and full equivalence remain open. O.8 performance/power-loss durability/live gates remain unchanged.
+- **Open at this historical checkpoint:** Qualified terminal/recovery and approval-update/import services, authenticated account-wide bill/fill/oracle coverage, joint funding/SWAP/recorder/markout, controller ports, PostgreSQL financial transactions and full equivalence remain open. O.8 performance/power-loss durability/live gates remain unchanged.
 
 Source SHA-256: `hummingbot/strategy_v2/life_liquidity/storage/capital.py`: `a605c1847374562c87ae55680fdc5a5f7c6f82699353368a2519ef5694943bc1`; `hummingbot/strategy_v2/life_liquidity/storage/legacy_spot.py`: `114e4646ef39936fdadc3617777782ff2c36fdf69e43f4256992235b9170a8b8`; `test/hummingbot/strategy_v2/life_liquidity/storage/test_spot_capital_contracts.py`: `4c3a7bfda25caa3e9cbaf00c358be34f900090f4e09d94e2f1b532c684cb59e0`. Optional accounting policy is bound to the existing file coordinator policy. No SQL/driver/image changed.
 
@@ -3425,7 +3445,7 @@ OKX history, independently sourced balance/valuation or a live ownership grant.
 - [x] Final regression **463 passed, including 50 new terminal cases; 0 failures/errors/skips**, with six existing Pydantic warnings (`/tmp/life-pg1-terminal-regression.xml`). Command: `PYTHONPATH=. conda run -n hummingbot python -m pytest -q` over the storage directory and existing WAL/session/reservations/reservation-persistence/policy/archive/economics/loss/subsidy/reconciled-fill/reconciled-cashflow/accounting and `test_order_gateway.py` suites. Changed-file formatting/security hooks and `git diff --check` pass; raw logs remain in `/tmp`, no evidence file is created.
 - [x] Native `SubsidyBudgetLedger.matches_settled` verifies actual cost/session rather than treating a missing reserve as successful settlement. Zero-fill terminal refunds unused subsidy; partial/full fills retain economic subsidy floors/reservations and execution loss. Unused order principal and fee claims release only on completed terminal receipt. Quote slots become reusable while permanent intent/wire/exchange identities remain.
 - [x] Real killed processes after principal release, zero-fill subsidy settlement and final coordinator receipt restore pending principal overlays or completed readback. Cancelled workers retain account exclusion until physical completion. Fresh exact-operation resume finishes one pending saga without owner transfer, rearm or resend; cold-unarmed admission stays denied. This is single-host storage recovery, not external credential fencing or power-loss durability.
-- [ ] General preparation/arm/ACK/fill/cashflow recovery and control-plane grants/approval updates/import; filled inventory/exit economic settlement; authenticated gateway/bill/runner history integration; SWAP/shared-capital/recorder ports; PostgreSQL transactions and full equivalence. Existing O.8/demo/live gates remain open. No configured `.env` database, SQL migration/driver/image change, exchange request or deployment is used.
+- **Open at this historical checkpoint:** General preparation/arm/ACK/fill/cashflow recovery and control-plane grants/approval updates/import; filled inventory/exit economic settlement; authenticated gateway/bill/runner history integration; SWAP/shared-capital/recorder ports; PostgreSQL transactions and full equivalence. Existing O.8/demo/live gates remain open. No configured `.env` database, SQL migration/driver/image change, exchange request or deployment is used.
 
 Source SHA-256 (under `hummingbot/strategy_v2/life_liquidity/`): `storage/terminal.py`: `0fc8e84cb9626168132df6b086c00be5bf92453a08c9a123ebc5756f7c8aa2a9`; `storage/terminal_adapter.py`: `dd768d1e01634fe6b7e35f0df40102673d82fd944211645bd4c3ecf9edaf24f3`; `storage/legacy_spot.py`: `b207a0e5f7c316a902d86647243c848b7dc55e54b45975453ec8039dcb41c097`; `economics.py`: `dd1f4b740a249770ad451b9fb3b1f821cc0847bda496e00a616ecf2c2b041a63`; `test/hummingbot/strategy_v2/life_liquidity/storage/test_spot_terminal_contracts.py`: `88f3fda3db3213ffb328ee1443b178722f6d35f34c93609615d321d759a619d1`. Terminal freshness policy is bound to the existing coordinator policy; old coordinators require qualified import to adopt it.
 
@@ -3442,7 +3462,7 @@ thresholds or PostgreSQL ownership/transaction behavior.
 - [x] Final combined regression: **499 passed, including 36 new exact financial recovery cases; 0 failures/errors/skips**, with six existing Pydantic warnings (`/tmp/life-pg1-financial-recovery-regression.xml`). Command: `PYTHONPATH=. conda run -n hummingbot python -m pytest -q` over the storage directory plus the existing WAL/session/reservations/reservation-persistence/policy/archive/economics/loss/subsidy/reconciled-fill/reconciled-cashflow/accounting/gateway suites. Changed-file formatting/security hooks pass after import/continuation formatting corrections; final recovery selector passes 36 after formatting (`/tmp/life-pg1-financial-recovery-final.xml`). `git diff --check` passes. No evidence file is created; logs stay in `/tmp`.
 - [x] Native missing or already applied fill/fee/cashflow checkpoints reconcile against both the verified native subset and the expected final CapitalLedger projection. Original command/owner/valuation/bill facts remain immutable; fresh recovery facts are recorded separately. Unapproved/extra native activity, wrong balances/fees/identities, unrelated partial commands and stale/missing source scopes deny writes. Resumed loss/subsidy charges deduplicate without credit/refund; original WAL state, including SEND_UNKNOWN, remains unchanged.
 - [x] Four real subprocess exits after resumed native work/final receipts for fills and cashflows preserve pending or completed readback. Cancellation retains the account lock until worker completion. A successive failed resume latches uncertainty and requires another cold readback. Completed operations return historical receipts; cold admission stays unarmed. Underfunded/unrepresentable native states require the future control-plane/import path, not automatic balance repair.
-- [ ] Prepare/arm/ACK recovery, approval/owner/grant/import services, filled economic settlement and full-product/recorder ports; actual authenticated account/bill/order/runner/valuation bridge; controller and PostgreSQL financial integration; O.8 performance/durability/demo/live gates. No configured `.env` database, SQL migration, driver/image change, exchange request or deployment is used.
+- **Open at this historical checkpoint:** Prepare/arm/ACK recovery, approval/owner/grant/import services, filled economic settlement and full-product/recorder ports; actual authenticated account/bill/order/runner/valuation bridge; controller and PostgreSQL financial integration; O.8 performance/durability/demo/live gates. No configured `.env` database, SQL migration, driver/image change, exchange request or deployment is used.
 
 Source SHA-256 (under `hummingbot/strategy_v2/life_liquidity/`): `storage/recovery.py`: `a684c450ca67394d031671e9f47f49e26b7c8e05cb4300b747de245f3a5656a9`; `storage/recovery_adapter.py`: `3b6175a3583600d1bc2accd66f7ad3c4b1935eaf9da683751aba0511549aa65e`; `storage/legacy_spot.py`: `08be0f454da2b792dc73f706a6b11d4faef9e77c6ced02dc49fa558d80fc8591`; `test/hummingbot/strategy_v2/life_liquidity/storage/test_spot_financial_recovery.py`: `34b8c04ff738f0c67cf783887a98a604bc86210723f7d25b1e8eba6644dbf5f0`. The new optional recovery policy is bound to coordinator metadata; original fill WAL state is now stored before application. Older partial formats require qualified import, not guessed recovery state.
 
@@ -3457,7 +3477,7 @@ new SQL table or migration, and does not close the PG1 or O.8 parents.
 - [x] Final combined regression after source formatting: **537 passed, including 38 new ACK recovery cases; 0 failures/errors/skips**, with six existing Pydantic warnings (`/tmp/life-pg1-ack-recovery-regression.xml`). Command: the previous financial-recovery combined selector (`PYTHONPATH=. conda run -n hummingbot python -m pytest -q` over the storage directory plus WAL/session/reservations/reservation-persistence/policy/archive/economics/loss/subsidy/reconciled-fill/reconciled-cashflow/accounting/gateway suites), with JUnit output in `/tmp`. Changed-file formatting/security hooks pass after isort/continuation corrections; `git diff --check` passes. Logs stay in `/tmp`; no evidence file is created.
 - [x] Original ACK command/writer remain immutable. Fresh complete account/order facts match exact wire/exchange ID, side, quantity, price and already accounted cumulative fills. Native balances, fees, trade/bill scope, loss/subsidy and remaining holds verify before publication; unaccounted fills or unrelated partial work deny writes. Missing native ACK completes with a verified postcondition; already written ACK/final receipts deduplicate without accounting changes.
 - [x] BUY/SELL partial/full fills retain accounting and fee/subsidy claims. FILLED/CANCELED observations do not terminalize or release reservations. Same-writer expiry requires fresh facts; cold completion stays unarmed. Cancellation keeps account exclusion through physical worker completion. Two real subprocess exits after native ACK and final receipt restore pending/completed readback without another send or financial write.
-- [ ] Remaining prepare/arm recovery, filled inventory/exit settlement, approval/grant/import services, authenticated account/order/bill/runner/valuation bridge, full-product/recorder/controller ports and PostgreSQL financial authority. Retained-history scans, power-loss durability, O.8 and deployment/demo/live qualification remain open. No configured `.env` database, exchange request or deployment is used.
+- **Open at this historical checkpoint:** Remaining prepare/arm recovery, filled inventory/exit settlement, approval/grant/import services, authenticated account/order/bill/runner/valuation bridge, full-product/recorder/controller ports and PostgreSQL financial authority. Retained-history scans, power-loss durability, O.8 and deployment/demo/live qualification remain open. No configured `.env` database, exchange request or deployment is used.
 
 Source SHA-256: `hummingbot/strategy_v2/life_liquidity/storage/recovery.py`: `683a1cbdedfacffdb49eccad635801e9a36be31ea69252cc3ce0393b75a70d99`; `hummingbot/strategy_v2/life_liquidity/storage/recovery_adapter.py`: `f06ffd679544271bd04ae61a6b589af5da08ab910e95cb83110af4127b78d090`; `test/hummingbot/strategy_v2/life_liquidity/storage/test_spot_ack_recovery.py`: `f650207170f6be4b6ac3ae8a1f4b893fc5e8f6286b4950d4db8de0fc92226eb4`.
 
@@ -3471,7 +3491,7 @@ open for the settlement/product/control-plane and PG1.2/PG1.3 integration items.
 - [x] Combined regression: **566 passed, including 29 preparation/arm recovery cases; 0 failures/errors/skips**, with six existing Pydantic warnings (`/tmp/life-pg1-prepare-recovery-regression.xml`). Command: the same previous financial/ACK recovery combined selector over the storage directory plus WAL/session/reservations/reservation-persistence/policy/archive/economics/loss/subsidy/reconciled-fill/reconciled-cashflow/accounting/gateway suites, using `PYTHONPATH=. conda run -n hummingbot python -m pytest -q` and JUnit output in `/tmp`. Source formatting/security hooks pass after import/continuation corrections; all 29 new cases pass after final whitespace-only formatting (`/tmp/life-pg1-prepare-recovery-final.xml`). `git diff --check` passes. No evidence file is created.
 - [x] Durable original prepare/arm request cuts and writer fingerprints qualify exact recovery. Fresh complete facts, current cut, exact session/config/identity and verified native scope/accounting reject adoption of foreign or unrelated partial work. Missing principal/fee-backed/subsidy holds complete once, preserving the original UTC budget buckets. Older partial records without request provenance require qualified import.
 - [x] Native WAL/principal/subsidy/arm no-ops cannot publish success. PREPARED/SEND_UNKNOWN completion grants no transport or rearm; an accepted wire does not infer ACK. Four real subprocess exits after principal/unknown-send/final receipts and a cancelled owning worker retain holds, readback and account exclusion. Cold or expired completion remains unarmed; no refund or budget reset occurs.
-- [ ] PG1 remains open for the explicit remaining settlement/product/control-plane/authenticated-bridge checklist and PG1.2/PG1.3 controller/runner integration. PG2 PostgreSQL financial repositories, existing O.8 performance/durability and deployment/demo/live gates remain open. No SQL migration/driver/image change, configured `.env` database, exchange request or deployment is used.
+- **Open at this historical checkpoint:** PG1 remains open for the explicit remaining settlement/product/control-plane/authenticated-bridge checklist and PG1.2/PG1.3 controller/runner integration. PG2 PostgreSQL financial repositories, existing O.8 performance/durability and deployment/demo/live gates remain open. No SQL migration/driver/image change, configured `.env` database, exchange request or deployment is used.
 
 Source SHA-256: `hummingbot/strategy_v2/life_liquidity/storage/prepare_recovery.py`: `556333aff8fb27825f1d77afa9f4533ff422b14ab17b6e652aa4e54e7ab26bff`; `hummingbot/strategy_v2/life_liquidity/storage/legacy_spot.py`: `144917f9ded7a6fc1334a157bc39bf481a66992961c5ebde63b143d07dbd2cbc`; `hummingbot/strategy_v2/life_liquidity/storage/recovery.py`: `7fbd4b8d454c48e66099a77127d333d560bdcbedb3ae9c6088162eda30014e21`; `hummingbot/strategy_v2/life_liquidity/economics.py`: `cdd8b933b4532f5b7910c3b8c8d0b5bdcfa90fc73982f0805d4f44e01c47c8d2`; `test/hummingbot/strategy_v2/life_liquidity/storage/test_spot_prepare_recovery.py`: `66e049c12a7efa394d5c8ef7eec02b3cd76a0b3168d90a6aa9f3ed70923e016d`.
 
@@ -3487,7 +3507,7 @@ requirement was moved to a later phase merely to mark PG1 complete.
 - [x] Final combined regression: **787 passed; 0 failures/errors/skips**, with six existing Pydantic warnings (`/tmp/life-pg1-closure-final-regression.xml`). Command: `PYTHONPATH=. conda run -n hummingbot python -m pytest -q` over the storage directory and the previous WAL/session/reservations/reservation-persistence/policy/archive/economics/loss/subsidy/reconciled-fill/reconciled-cashflow/accounting/gateway suites, plus protected-SWAP/SWAP-executor/runner-scope/controller-config/controller-safety/executor-protected-send/protected-OKX selectors. Formatting/security hooks and `git diff --check` pass. No evidence file is created.
 - [x] Runtime retains public Ed25519 verification keys only after explicitly offline bootstrap. Control signatures, seed, roles, full namespace, exact cut/facts/request and derived owner/cashflow-approval projections audit on read. Commit rechecks approval/token expiry, clock rollback and native cut after lock waits. Checksummed but unsigned owner/approval mutations fail. Signed drain closes local admission before queue waits; cold activation readback never rearms.
 - [x] Bounded dispatch separates initial preflight from post-qualification fences; actual LIFE controller/dispatcher tests caught and fixed the initial requirement for a qualification before its first await. Qualifications are cleared on rejection/dispatch, capped by declared repository capacity and invalidated before a new authority request. Wrong UID/config/stop/owner facts and late shutdown replies cannot use an old qualification. Spot and SWAP final requests independently await authority after throttling and then retain the original local fence.
-- [ ] Remaining PG1: full stress/markout/SWAP/margin/funding/shared-capital/hedge/carry/recorder repository/application parity; broader policy/archived-format/import/handoff services; removal of legacy controller/proof Path/cache assumptions; complete coupled authenticated observation, financial/recorder projection/repair and every enabled lifecycle/retry. The runtime tests include an isolated owner checkpoint seam, not full account-wide financial migration. No configured database, real exchange request, deployment, SQL migration/driver/image change or live authority is used. O.8 and PG2–PG10/D/R/C gates remain unchanged.
+- **Open at this historical checkpoint:** Remaining PG1: full stress/markout/SWAP/margin/funding/shared-capital/hedge/carry/recorder repository/application parity; broader policy/archived-format/import/handoff services; removal of legacy controller/proof Path/cache assumptions; complete coupled authenticated observation, financial/recorder projection/repair and every enabled lifecycle/retry. The runtime tests include an isolated owner checkpoint seam, not full account-wide financial migration. No configured database, real exchange request, deployment, SQL migration/driver/image change or live authority is used. O.8 and PG2–PG10/D/R/C gates remain unchanged.
 
 Source SHA-256: `hummingbot/strategy_v2/life_liquidity/storage/settlement_adapter.py`: `79dc8660f764788250fa8aed4ad970fef57227017f2896494ec7e41fe63d8daf`; `hummingbot/strategy_v2/life_liquidity/storage/control_plane.py`: `da592b4d7937a8f132be13aa9b2eb71dd51cf3bcf6791a106874d920ebf6740f`; `hummingbot/strategy_v2/life_liquidity/storage/control_adapter.py`: `df043a0e78bd6229c69ca431aeec74b6af7e4ab2991d07bf1372e91ee1161690`; `hummingbot/strategy_v2/life_liquidity/storage/runtime.py`: `54cdb42cc8c8243ee2a0ae710558efc49d476a349259d4faeb665c3e18dd0d6f`; `hummingbot/strategy_v2/life_liquidity/storage/async_dispatch.py`: `c252267816d64cdb11a849aaffc4a08001ebb4eb5ba819f0163b04f518042a2c`; `controllers/generic/life_liquidity.py`: `941e5cbf61a819f694c69bb8f6411b40acb664e1c3f93b4e4018aaf3b9ba7300`; `hummingbot/strategy/strategy_v2_base.py`: `ac6daf9b91bb5547514e90cc2004c149b31a94a4d7d81eb99efb1371f1193301`.
 
@@ -6802,7 +6822,7 @@ checks do not close R2.3/R4/R5 or PG3.
   explicitly imported schedule only after provider readiness, never restarts a
   completed schedule, and defers periodic diagnostics during an owning financial
   cycle. Original monetary SDK events remain live throughout source windows.
-- [ ] Qualify the complete configured multi-generation workflow and its loaded
+- **Open at this historical checkpoint:** Qualify the complete configured multi-generation workflow and its loaded
   tails under the unchanged one-second policy. This is an R2.3/R4/R5 exit.
 
 The schedule uses only the original `service.quote` and `cancel_makers` APIs.
@@ -6910,7 +6930,7 @@ these test values as live defaults.
   carry, shared capital, NAV and release history must deny and roll back money.
 - [x] Compare actual populated v93 predecessor code with upgraded complete
   snapshots/digests, including capital, SWAP fee and operation-receipt damage.
-- [ ] Qualify configured multi-generation tails and the complete fixed R2.3/R4/R5
+- **Open at this historical checkpoint:** Qualify configured multi-generation tails and the complete fixed R2.3/R4/R5
   acceptance scope on unchanged current source. Earlier RED gates remain open.
 
 ### TDD and development results
@@ -7634,9 +7654,9 @@ financial verdict or cross-command source/permission cache is selected.
   pools. Reusing query plans must not reuse financial verdicts, source facts or
   permissions. Preserve all uncached primary/role/lineage/owner checks and all
   existing physical SQL/transaction/source/capture deadlines.
-  - [ ] Complete wider qualification against current-state changes and
+  - **Open at this historical checkpoint:** Complete wider qualification against current-state changes and
     parameter-sensitive queries in the fixed R5 regression.
-- [ ] Test collection bounds and atomic rollback, original-body/sequence replay,
+- **Open at this historical checkpoint:** Test collection bounds and atomic rollback, original-body/sequence replay,
   partial transport/semantic failure, actual cancellation/unknown COMMIT/cold
   readback, ingress/task substitution, role refusal and the observation barrier.
   Then pass the actual configured two-generation workflow **without plugins**
@@ -8425,31 +8445,31 @@ be attributed to this SPOT workload with no new paid-funding observation.
 
 ### Next implementation order within the existing PG3 scope
 
-- [ ] Add test-only monotonic spans keyed by original intent for proposal,
+- **Open at this historical checkpoint:** Add test-only monotonic spans keyed by original intent for proposal,
   allocation, capture, dispatch, preparation collection, PREPARE, final collection,
   ARM, actual HTTP, ACK and post-send accounting/reporting. Separate SQL execution,
   deferred COMMIT checks, quota wait, provider HTTP and event-loop wait. Keep
   diagnostics bounded and free of credentials/request payloads. Establish the
   exact failing deadline predicate; the current core SQL mismatch code combines
   timestamp and descriptor conditions.
-- [ ] Target the full native-context producer and its dependent proof graph on
+- **Open at this historical checkpoint:** Target the full native-context producer and its dependent proof graph on
   one statement snapshot. Remove duplicate reconstruction/replay only when its
   exact inputs and MVCC visibility are identical inside that invocation. Retain
   fresh opening/closing boundaries, same-version corruption detection, source
   facts and all permission checks. Avoid reviving the discarded broad helper
   cloning prototype without an end-to-end benefit and differential proof.
-- [ ] Inspect account-update/deferred-trigger work per transaction, using the
+- **Open at this historical checkpoint:** Inspect account-update/deferred-trigger work per transaction, using the
   existing grouped COMMIT verifier as the starting point. Measure remaining
   repeated traversals before adding indexes or more proof plumbing. Combine
   work within the same transaction only where independently reproducible checks
   remain; no pre-write result may authorize a post-write COMMIT.
-- [ ] Evaluate fewer durable phases only as a separately specified alternative
+- **Open at this historical checkpoint:** Evaluate fewer durable phases only as a separately specified alternative
   if the preceding changes cannot create margin. Capture/dispatch/PREPARE/ARM
   encode real crash and ownership boundaries. Merging them requires explicit
   intermediate-state/recovery semantics, original operation receipts, pre-send
   claims and before/after-COMMIT fault tests. It is not a safe mechanical removal
   of a transaction or trigger.
-- [ ] Re-run the complete multi-generation flow with retained fills, concurrent
+- **Open at this historical checkpoint:** Re-run the complete multi-generation flow with retained fills, concurrent
   bounded SDK traffic, both quote sides and growing histories. Record original
   deadline failures and successful HTTP/ACK phase timings separately; retain
   economic/fault/role regressions. Only then run the fixed R2.3/R4/R5 exits.
@@ -8679,7 +8699,7 @@ env -u LIFE_PG_TEST_FLOW_TRACE \
 - [x] Evaluate phase fusion against actual executor visibility and before/after
   physical COMMIT loss. Keep CAPTURE/DISPATCH/PREPARE/ARM boundaries under the
   current protocol; no unsafe merged endpoint is introduced.
-- [ ] Resolve the remaining two-generation loaded deadline, establish margin
+- **Open at this historical checkpoint:** Resolve the remaining two-generation loaded deadline, establish margin
   across retained-history growth, then complete the fixed R2.3/R4/R5 gates.
 
 The next implementation needs to target the remaining complete source/proof
@@ -8871,13 +8891,13 @@ passes the fixed workload; subtracting component timings is not a measurement.
   substitution; keep incomplete or failed measurements explicit.
 - [x] Run one bounded same-invocation proof-graph trial and record rejection.
 - [x] Specify the alternative acceptance protocol and its physical-failure matrix.
-- [ ] TDD the provisional-executor/birth/compound-receipt contracts, including
+- **Open at this historical checkpoint:** TDD the provisional-executor/birth/compound-receipt contracts, including
   original source ordering, account-wide scope, role boundaries, immutability,
   unknown results and compatibility with existing financial/history readers.
-- [ ] Implement a bounded actual-runner prototype with before/after physical
+- **Open at this historical checkpoint:** Implement a bounded actual-runner prototype with before/after physical
   COMMIT/process loss, cancellation, replay and foreign-context refusal. Keep
   configured production startup denied until qualified.
-- [ ] Pass the original untraced maker workload and demonstrate margin across
+- **Open at this historical checkpoint:** Pass the original untraced maker workload and demonstrate margin across
   retained-history growth; then run complete affected parity/corruption/recovery
   and the fixed R2.3/R4/R5 acceptance on one frozen revision.
 
@@ -8977,7 +8997,7 @@ retains original claims; it is not silently expired, refunded or adopted.
   explicit and cannot evict core birth/HTTP bounds.
 - [x] Check joined selection/growth at 1, 4 and 8 retained tickets referencing
   one configuration; recheck old origin corruption and original financial holds.
-- [ ] Complete the original untraced loaded deadline and adequate retained-
+- **Open at this historical checkpoint:** Complete the original untraced loaded deadline and adequate retained-
   history margin, then qualify the remaining R2.3/R4/R5 exits.
 
 Migration 104 was the uncommitted candidate for this experiment and was then
@@ -9114,7 +9134,7 @@ error-unwind age **1006.214 ms**, not the exact SQL denial time.
   and affected original release/COMMIT/fault regressions.
 - [x] Pass the complete original financial/source/SDK loaded flow with the
   documented per-test outer watchdog and original product deadlines.
-- [ ] Complete provisional recovery/retirement and current configured
+- **Open at this historical checkpoint:** Complete provisional recovery/retirement and current configured
   R2.3/R4/R5 gates; the offline selector does not establish production eligibility.
 
 The regression first reproduces **two** full lifecycle calls for two original
@@ -9216,13 +9236,13 @@ R2.3/R4/R5. Those remaining exits are still required for **PG3 closure**.
   preparation state. Read the exact original ticket/action/timestamp/hash;
   both the historical DTO and the original DTO brought into this new repository
   are refused as preparation origins. Monetary/action/claim rows remain exact.
-- [ ] Qualify owner changes and physical process death in the provisional
+- **Open at this historical checkpoint:** Qualify owner changes and physical process death in the provisional
   protocol; a new repository in the same test process is not that qualification.
-- [ ] Implement and qualify explicit retirement/recovery of an issued but
+- **Open at this historical checkpoint:** Implement and qualify explicit retirement/recovery of an issued but
   unconsumed birth. Such a ticket still blocks new issuance and retains claims;
   no TTL expiry, automatic refund, history deletion or cold sender adoption is
   introduced by these tests.
-- [ ] Finish configured selector/service installation and complete current-
+- **Open at this historical checkpoint:** Finish configured selector/service installation and complete current-
   source R2.3/R4/R5 qualification before PG3 closure.
 
 The coupled gate passes **eight cases**, **121.58 s**, with 3443 deselected and
@@ -9321,12 +9341,12 @@ The original failed attempt remains recorded separately from subsequent gates.
 
 ### Remaining within R2.3/R4/R5
 
-- [ ] Complete configured selector/service qualification for the selected
+- **Open at this historical checkpoint:** Complete configured selector/service qualification for the selected
   protocol and all enabled final routes on current source. The later configured
   provisional-service increment installs explicit headless selection; its
   imported policy is mandatory and no fallback is installed. Full current-source
   acceptance remains necessary.
-- [ ] Complete the fixed whole-product acceptance gates. A successful metadata
+- **Open at this historical checkpoint:** Complete the fixed whole-product acceptance gates. A successful metadata
   retirement alone cannot close PG3 or prove loaded tail margin.
 
 Metadata retirement alone leaves an unprepared shared claim retained and cannot
