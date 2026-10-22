@@ -3894,3 +3894,24 @@ async def test_unused_release_upgrade_is_atomic_idempotent_private_and_drift_che
             assert await c.fetchval("SELECT has_function_privilege($1,'life_financial.unused_release_read(uuid,text,integer,integer)','EXECUTE')", role) is (role != 'public')
             assert await c.fetchval("SELECT has_function_privilege($1,'life_financial.unused_release_origin_read(uuid,text)','EXECUTE')", role) is (role != 'public')
         assert await c.fetchval('SELECT count(*) FROM life_financial.accounts') == 0
+
+
+@pytest.mark.asyncio
+async def test_shared_release_history_index_upgrade_keeps_proofs_privileges_and_reruns(db):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 109:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    functions = "SELECT oid,to_jsonb(p) AS body FROM pg_proc p WHERE pronamespace='life_financial'::regnamespace ORDER BY oid"
+    tables = "SELECT oid,relacl,relrowsecurity FROM pg_class WHERE relnamespace='life_financial'::regnamespace AND relkind='r' ORDER BY oid"
+    original_functions, original_tables = await c.fetch(functions), await c.fetch(tables)
+    path = DEFAULT_DIRECTORY / '000109_shared_release_history_index.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    assert await c.fetch(functions) == original_functions
+    assert await c.fetch(tables) == original_tables
+    index = await c.fetchrow("SELECT indisvalid,indisready,indisunique FROM pg_index WHERE indexrelid='life_financial.shared_release_operation_history'::regclass")
+    assert dict(index) == dict(indisvalid=True, indisready=True, indisunique=False)
+    assert (await migrate(c, directory, action='up'))['applied'] == []
+    assert await c.fetchval('SELECT count(*) FROM life_financial.accounts') == 0

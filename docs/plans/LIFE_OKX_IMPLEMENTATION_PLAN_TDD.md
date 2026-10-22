@@ -1,5 +1,10 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**Common release-history access (2026-10-22):** migration 109 covers the native
+verifier's combined terminal/unused release orphan query with a partial index.
+The real query-plan regression passes while keeping all proof functions and
+source limits unchanged. Complete current-source PG3 acceptance remains open.
+
 **Unused preallocation recovery (2026-10-22):** migration 108 adds an explicit
 capacity release after an original SPOT ticket is permanently retired before
 PREPARE. It uses new complete signed provider evidence and native COMMIT proofs,

@@ -1639,3 +1639,9 @@ ledger makes repeated startup a no-op. Applied migrations 1–106 are unchanged.
   release neither refunds budgets nor activates a successor. Audited ancestors,
   hostile-default privilege stripping and the existing idempotent migration
   runner protect upgrades. No new `.env` switch, policy or seed is introduced.
+
+Migration 109 adds a partial covering index for the common release verifier's
+combined `SHARED_RELEASE` / `SHARED_UNUSED_RELEASE` orphan-operation predicate.
+It avoids scanning unrelated command JSON; proof functions, table privileges,
+source deadlines and all financial history remain unchanged. It runs through
+the same serialized, checksum-checked migration runner.

@@ -1,5 +1,12 @@
 # LIFE: PostgreSQL and Cloud Run Implementation Plan (TDD)
 
+**Common release-history access (2026-10-22):** migration 109 adds a partial
+covering index for the combined terminal/unused release orphan audit. A real
+query-plan regression first reproduces the unrelated-history bitmap heap scan;
+the indexed query and original recovery assertions then pass. Proof functions,
+table ACLs and source limits are unchanged. This access-path change does not
+discharge the complete configured acceptance gates.
+
 **Unused preallocation recovery (2026-10-22):** migration 108 implements
 explicit financial capacity release after permanent unused-ticket retirement,
 with fresh full signed source collection, retained-history audits and physical
@@ -8979,3 +8986,44 @@ SQL deadlines, economic assertions and resource profile remain fixed. A bounded
 whole-flow diagnostic run is separate from acceptance. Configured R2.3/R4 and
 complete whole-product R5 gates remain open; this completed recovery increment
 does not close PG3.
+
+### Combined release-history access path
+
+The opt-in bounded whole-flow maker diagnostic on migration 108 passes one
+case in **151.85 s**. This instrumented run does not replace the failed untraced
+affected gate or prove a latency margin.
+
+Further inspection identifies a separate concrete access-path gap: the common
+verifier's orphan query selects both release kinds, so migration 108's
+unused-only partial index cannot cover it. On original native birth history,
+the exact combined `NOT EXISTS` query reproduces a **Bitmap Heap Scan**. The
+new regression fails before migration 109 (**15.88 s**). The migration adds
+`shared_release_operation_history(account_id, operation_id)` with the exact
+two-kind partial predicate. It retains the original query, proof, MVCC
+visibility and orphan refusal; it does not cache a financial verdict.
+
+The query-plan/recovery case and original session-successor workflow then pass
+**two cases**, **19.12 s**. The common query uses an index path, returns no
+release operations and filters no unrelated operations in the tested empty
+release history. This does not measure large-history or whole-flow speedup.
+A separate real migration test passes (**4.97 s**), checking valid/ready index
+installation, unchanged function catalog rows, unchanged table ACLs/RLS and
+repeat-run no-op. Current-source configured workflows are qualified separately;
+neither this index nor a focused pass alone closes PG3.
+
+The frozen migration-109 workflow gate is **4 pass / 1 fail**, **199.57 s**,
+zero errors/skips, with six existing warnings and **2520 unchanged code/SQL
+files**. The recovery/query-plan, cold signed-activation, full SPOT-to-SWAP and
+original session-successor cases pass. The retained-fill maker again stops
+after one generation, this time with `PG_SERVICE_EXECUTOR_ORIGIN_REVOKED`;
+cleanup reports `PG_RECORDER_DEFERRED_BACKPRESSURE`. Bounded native diagnostics
+also retain `PG_EVENT_WIRE_INVALID` and `PG_RECORDER_ORIGIN_INVALID`.
+
+Quote age at this error's unwind is **-0.987 ms**, not the previous late-capture
+measurement. It must not be presented as another proven capture-expiry failure
+or as proof of a particular clock/recorder race. The next investigation is the
+owning executor/journal/recorder callback flow and original invalidation source,
+including joined cleanup; adding another speculative SQL index cannot discharge
+that failure. The previously observed freshness failures and complete configured
+R2.3/R4/R5 acceptance remain unresolved. All applicable hooks pass for this
+access-path increment, which preserves the original financial/native proofs.

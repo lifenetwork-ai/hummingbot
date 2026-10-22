@@ -56,6 +56,16 @@ async def test_unused_claim_release_keeps_money_history_and_cannot_restore_sende
             for node in operations]))
         assert operations and all('Index' in node['Node Type'] for node in operations)
         assert all(node['Actual Rows'] == 0 and node.get('Rows Removed by Filter', 0) == 0 for node in operations)
+        # This is the actual combined orphan predicate used by the common
+        # release verifier, not only the new variant's private helper.
+        orphan = json.loads(await c.fetchval('''EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)
+            SELECT NOT EXISTS(SELECT 1 FROM life_financial.operations op
+                WHERE op.account_id=$1 AND op.command->>'kind' IN ('SHARED_RELEASE','SHARED_UNUSED_RELEASE')
+                AND NOT EXISTS(SELECT 1 FROM life_financial.shared_claim_releases r
+                    WHERE r.account_id=op.account_id AND r.operation_id=op.operation_id))''', t.cfg.account_id))[0]['Plan']
+        scans = [node for node in nodes(orphan) if node.get('Relation Name') == 'operations']
+        assert scans and all('Index' in node['Node Type'] for node in scans), scans
+        assert all(node['Actual Rows'] == 0 and node.get('Rows Removed by Filter', 0) == 0 for node in scans)
         await service.retire_unprepared_birth('retire-original', ticket)
         before = await service.financial.snapshot(t.cfg.binding)
         result = await service.release_unused_claim('release-original', ticket)
