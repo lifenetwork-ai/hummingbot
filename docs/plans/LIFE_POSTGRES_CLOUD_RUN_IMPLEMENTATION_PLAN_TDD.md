@@ -47,6 +47,18 @@ instead of hiding that reason behind a five-second Event timeout. A new complete
 native gate collects all failures without stopping at the first one. **PG3
 remains open pending that gate; statement/source budgets are unchanged.**
 
+Qualification setup now migrates one connection-disabled, empty session
+template, then clones an independent database for each current-schema case.
+Every runtime/pool and financial SQL plan still starts cold; monetary data,
+application objects and readiness are never shared. Explicit prior-schema
+upgrade cases continue direct migration in a fresh database. A real 99→current
+upgrade equals the cloned template's migration checksums, complete function
+definitions/ACLs, relation ACLs, indexes, columns and constraints; mutation of
+one database is absent from its sibling (**1 pass, 9.50 s**). The four unchanged
+foreign-SDK cases pass in **12.45 s** with this setup. This reduces repeated DDL
+in the test harness, not financial verification or the selected PG3 gate. The
+interrupted non-template aggregate is not counted as completed acceptance.
+
 **Common release-history access (2026-10-22):** migration 109 adds a partial
 covering index for the combined terminal/unused release orphan audit. A real
 query-plan regression first reproduces the unrelated-history bitmap heap scan;

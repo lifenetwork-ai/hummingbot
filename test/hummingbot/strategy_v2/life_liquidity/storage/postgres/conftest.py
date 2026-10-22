@@ -21,6 +21,42 @@ def reference_migrations_100(tmp_path):
     return directory
 
 
+@pytest_asyncio.fixture(scope='session', loop_scope='session')
+async def migration_template():
+    """Migrate once, then clone an isolated empty DB for current-schema cases.
+
+    Runtime connections and financial plans remain cold. Explicit old-schema
+    upgrade cases still execute migrations directly in their own fresh DB.
+    """
+    dsn = os.environ.get('LIFE_PG_TEST_DSN')
+    if not dsn:
+        pytest.skip('Requires run_postgres.py disposable database')
+    asyncpg = pytest.importorskip('asyncpg')
+    assert dsn.startswith('postgresql://postgres@127.0.0.1:') and dsn.endswith('/life_pg2_test')
+    root = dsn.rsplit('/', 1)[0]
+    name = 'life_pg2_template_' + uuid4().hex
+    admin = await asyncpg.connect(dsn)
+    created = False
+    try:
+        await admin.execute(f'CREATE DATABASE "{name}" OWNER life_pg2_migrator')
+        created = True
+        c = await asyncpg.connect(root.replace('postgres@', 'life_pg2_migrator@') + '/' + name)
+        try:
+            await migrate(c, DEFAULT_DIRECTORY, action='up')
+        finally:
+            await c.close()
+        # No runtime/admin connection may mutate or hold the template open.
+        await admin.execute(f'ALTER DATABASE "{name}" ALLOW_CONNECTIONS false')
+        await admin.close()
+        yield name
+    finally:
+        if admin.is_closed():
+            admin = await asyncpg.connect(dsn)
+        if created:
+            await admin.execute(f'DROP DATABASE "{name}" WITH (FORCE)')
+        await admin.close()
+
+
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_makereport(item, call):
     report = (yield).get_result()
@@ -34,7 +70,7 @@ def pytest_runtest_makereport(item, call):
 
 
 @pytest_asyncio.fixture
-async def database(request, monkeypatch, tmp_path):
+async def database(request, monkeypatch, tmp_path, migration_template):
     dsn = os.environ.get('LIFE_PG_TEST_DSN')
     if not dsn:
         pytest.skip('Requires run_postgres.py disposable database')
@@ -63,7 +99,9 @@ async def database(request, monkeypatch, tmp_path):
     assert dsn.startswith('postgresql://postgres@127.0.0.1:') and dsn.endswith('/life_pg2_test')
     admin = await asyncpg.connect(dsn)
     name = 'life_pg2_' + uuid4().hex
-    await admin.execute(f'CREATE DATABASE "{name}" OWNER life_pg2_migrator')
+    explicit_upgrade = hasattr(request, 'param')
+    template = '' if explicit_upgrade else f' TEMPLATE "{migration_template}"'
+    await admin.execute(f'CREATE DATABASE "{name}" OWNER life_pg2_migrator{template}')
     function_profile = os.environ.get('LIFE_PG_TEST_FUNCTION_PROFILE') == '1'
     if function_profile:
         await admin.execute(f'ALTER DATABASE "{name}" SET track_functions=\'all\'')
@@ -72,7 +110,7 @@ async def database(request, monkeypatch, tmp_path):
     c = await asyncpg.connect(migration_dsn)
     try:
         directory = DEFAULT_DIRECTORY
-        if hasattr(request, 'param'):
+        if explicit_upgrade:
             # Explicit upgrade-test starting point, on this disposable DB only.
             assert type(request.param) is int and request.param > 0
             directory = tmp_path / 'prior_migrations'
@@ -80,7 +118,7 @@ async def database(request, monkeypatch, tmp_path):
             for path in DEFAULT_DIRECTORY.glob('*.sql'):
                 if int(path.name.split('_', 1)[0]) <= request.param:
                     (directory / path.name).write_bytes(path.read_bytes())
-        await migrate(c, directory, action='up')
+            await migrate(c, directory, action='up')
         yield c, root + '/' + name, migration_dsn
     finally:
         await c.close()
