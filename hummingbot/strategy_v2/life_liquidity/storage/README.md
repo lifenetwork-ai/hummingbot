@@ -5269,15 +5269,26 @@ encryption, retention, object-store permissions and disaster recovery separately
    replay the **same request**. Readback verifies original request and retained
    monetary/account parity. It cannot renew grants, reset budgets or rearm.
 7. Keep the target unavailable to writers. There is no release/rearm API in this
-   slice. Post-cut exchange history, old REST/WS/CAA credential exclusion, new
-   controlled generation and WAL/PITR recovery qualification are still required.
+   slice. Post-cut exchange history, old REST/WS/CAA credential exclusion and a new
+   controlled generation are still required.
    Database health, a successful dump or row parity cannot substitute for them.
 
 A raw `pg_restore` outside this runbook bypasses target admission controls and is
 not a supported worker startup path. Physical/WAL recovery must additionally
-start with networking/credentials excluded; its offline rehearsal remains open.
-The data manifest covers table rows; it is not an independent full DDL, sequence,
-provider-identity, RPO/RTO or physical-failure-domain qualification.
+start with networking/credentials excluded. The separate local physical rehearsal
+below exercises that requirement; provider-identity, production RPO/RTO and actual
+physical-failure-domain qualification remain open.
+
+`schema_image.py` adds V2 logical evidence for catalog definitions, effective
+ACL/default ACL, RLS/policies, internal/user triggers, constraints, types/domains,
+indexes, rules, database locale and sequence ownership/counters. Supply explicit
+`max_schema_objects` and `max_schema_bytes` in `BackupLimits`. Unexpected
+objects/owners/capacity refuse capture. A restored definition/permission change
+refuses quarantine even when every table row matches. Increasing sequence gaps
+are legal; rewinds or next values overlapping stored IDs are refused. Row-only
+V1 manifests can be inspected but do not authorize restoration. Migration 120
+makes one equivalent CHECK expression portable across PostgreSQL's dump reparse.
+This is an offline maintenance scan, never a hot-path permission cache.
 
 Local qualification (pinned PostgreSQL 16, **2 CPU / 1 GiB**, synthetic values):
 
@@ -5293,4 +5304,26 @@ source commit, preserved monetary holds/spending/fees/trade IDs, wrong-role and
 isolation refusals, corruption/capacity checks, lost COMMIT ACK, caller
 cancellation and a physically killed restore process followed by exact retry.
 No actual exchange/cloud or user `.env` is involved. PG6 remains open for complete
-stopped File/segmented import, rollback cutover, PITR and remaining recovery gates.
+stopped File/segmented import, rollback cutover and remaining recovery gates.
+
+### Isolated physical/WAL target rehearsal
+
+```sh
+python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_postgres \
+  --suite pg6_pitr --output /tmp/life-pg6-pitr-new-run
+```
+
+This separate serial gate creates disposable source/target containers and a named
+volume, uses real `pg_basebackup`/`pg_verifybackup` and archived WAL recovery to a
+named restore point, and removes every created container/volume. The target HBA
+rejects original worker/reporting logins before startup; only owner maintenance
+can connect. Readiness requires promotion, not merely a readable standby. Exact
+schema/data/sequence parity at the target point precedes lineage quarantine.
+A native operation committed after the point is absent; original holds remain.
+Damaged base-backup checksum and missing target WAL are mandatory negative cases.
+
+The test has explicit synthetic 120-second / 1-GiB physical-data limits on two
+2-CPU/1-GiB containers. Those bounds are not operational defaults. This gate does
+not read credentials, revoke an exchange key, reconcile missing post-cut facts,
+release quarantine or establish Cloud SQL PITR/RPO/RTO/retention headroom. Never
+clear the restore marker or reuse an old generation to work around those gates.

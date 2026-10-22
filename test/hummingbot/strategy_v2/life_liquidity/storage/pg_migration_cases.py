@@ -4283,3 +4283,44 @@ async def test_restore_quarantine_upgrade_refuses_unknown_access_predecessor(db)
     with pytest.raises(asyncpg.RaiseError, match='UNKNOWN_ACCESS_PREDECESSOR'):
         await migrate(c, directory, action='up')
     assert not await c.fetchval("SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='life_storage' AND table_name='storage_metadata' AND column_name='restore_operation_id')")
+
+
+@pytest.mark.asyncio
+async def test_portable_markout_constraint_upgrade_preserves_bounds_and_is_idempotent(db):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 120:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+
+    async def outcomes():
+        expression = await c.fetchval("""SELECT pg_get_expr(conbin,conrelid) FROM pg_constraint
+            WHERE conrelid='life_financial.spot_markout_policies'::regclass AND conname='spot_markout_policies_horizons_ms_check'""")
+        result = []
+        for values in ([], [1], [0], [-1], [1, None], [None], [1] * 16, [1] * 17, [2**63 - 1]):
+            result.append(await c.fetchval('SELECT ' + expression + ' FROM (SELECT $1::bigint[] AS horizons_ms) s', values))
+        return result
+    before = await outcomes()
+    assert before == [False, True, False, False, None, None, True, False, True]
+    path = DEFAULT_DIRECTORY / '000120_portable_markout_constraint.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    assert (await migrate(c, directory, action='up'))['applied'] == []
+    assert await outcomes() == before
+    assert await c.fetchval('SELECT count(*) FROM life_financial.accounts') == 0
+
+
+@pytest.mark.asyncio
+async def test_portable_markout_constraint_upgrade_refuses_unknown_predecessor(db):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 120:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    await c.execute('''ALTER TABLE life_financial.spot_markout_policies DROP CONSTRAINT spot_markout_policies_horizons_ms_check;
+        ALTER TABLE life_financial.spot_markout_policies ADD CONSTRAINT spot_markout_policies_horizons_ms_check CHECK(cardinality(horizons_ms)>0)''')
+    path = DEFAULT_DIRECTORY / '000120_portable_markout_constraint.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    with pytest.raises(asyncpg.RaiseError, match='UNKNOWN_MARKOUT_PREDECESSOR'):
+        await migrate(c, directory, action='up')
+    assert not await c.fetchval('SELECT EXISTS(SELECT 1 FROM life_migrations.schema_migrations WHERE version=120)')

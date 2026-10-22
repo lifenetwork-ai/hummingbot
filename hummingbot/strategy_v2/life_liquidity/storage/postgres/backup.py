@@ -11,6 +11,11 @@ from uuid import UUID
 
 from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError, digest, fingerprint
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.migrations import DEFAULT_DIRECTORY, migrate
+from hummingbot.strategy_v2.life_liquidity.storage.postgres.schema_image import (
+    SchemaImage,
+    capture_schema,
+    verify_schema,
+)
 
 SCHEMAS = ('life_migrations', 'life_storage', 'life_financial', 'life_recorder')
 
@@ -22,6 +27,8 @@ class BackupLimits:
     max_row_bytes: int
     max_total_bytes: int
     timeout_ms: int
+    max_schema_objects: int
+    max_schema_bytes: int
 
     def __post_init__(self):
         if (any(type(v) is not int or v < 1 for v in self.__dict__.values())
@@ -48,20 +55,25 @@ class DatabaseImage:
     lineage: str
     server_major: int
     tables: tuple[TableImage, ...]
+    schema: SchemaImage | None = None
 
     def __post_init__(self):
         try:
             if (type(self.lineage) is not str or not UUID(self.lineage).int or str(UUID(self.lineage)) != self.lineage
                     or type(self.server_major) is not int or self.server_major < 16 or type(self.tables) is not tuple
                     or any(type(t) is not TableImage for t in self.tables)
-                    or tuple(t.name for t in self.tables) != tuple(sorted(set(t.name for t in self.tables)))):
+                    or tuple(t.name for t in self.tables) != tuple(sorted(set(t.name for t in self.tables)))
+                    or self.schema is not None and type(self.schema) is not SchemaImage):
                 raise ValueError()
         except (ValueError, AttributeError):
             raise StorageError('PG_BACKUP_DATABASE_IMAGE_INVALID') from None
 
     def json(self):
-        return dict(format='LIFE_PG_LOGICAL_V1', lineage=self.lineage, server_major=self.server_major,
-                    tables=[asdict(t) for t in self.tables])
+        value = dict(format='LIFE_PG_LOGICAL_V1' if self.schema is None else 'LIFE_PG_LOGICAL_V2', lineage=self.lineage, server_major=self.server_major,
+                     tables=[asdict(t) for t in self.tables])
+        if self.schema is not None:
+            value['schema'] = self.schema.json()
+        return value
 
     @property
     def content_digest(self):
@@ -70,10 +82,11 @@ class DatabaseImage:
     @classmethod
     def from_json(cls, value):
         try:
-            if (type(value) is not dict or set(value) != {'format', 'lineage', 'server_major', 'tables'}
-                    or value['format'] != 'LIFE_PG_LOGICAL_V1' or type(value['tables']) is not list):
+            if (type(value) is not dict or set(value) != {'format', 'lineage', 'server_major', 'tables'} | ({'schema'} if value.get('format') == 'LIFE_PG_LOGICAL_V2' else set())
+                    or value['format'] not in ('LIFE_PG_LOGICAL_V1', 'LIFE_PG_LOGICAL_V2') or type(value['tables']) is not list):
                 raise ValueError()
-            return cls(value['lineage'], value['server_major'], tuple(TableImage(**row) for row in value['tables']))
+            return cls(value['lineage'], value['server_major'], tuple(TableImage(**row) for row in value['tables']),
+                       None if value['format'] == 'LIFE_PG_LOGICAL_V1' else SchemaImage.from_json(value['schema']))
         except (TypeError, ValueError, KeyError):
             raise StorageError('PG_BACKUP_DATABASE_IMAGE_INVALID') from None
 
@@ -91,6 +104,15 @@ async def maintenance_owner(connection):
         raise StorageError('PG_MAINTENANCE_OWNER_REQUIRED')
     if row['replica'] or row['readonly'] != 'off' or any(row[k] != 'on' for k in ('sync', 'fsync', 'writes')):
         raise StorageError('PG_MAINTENANCE_PRIMARY_DURABILITY_REQUIRED')
+
+
+def verify_database_image(expected, actual):
+    if (type(expected) is not DatabaseImage or type(actual) is not DatabaseImage
+            or expected.lineage != actual.lineage or expected.server_major != actual.server_major or expected.tables != actual.tables):
+        raise StorageError('PG_RESTORE_DATA_PARITY_FAILED')
+    if expected.schema is None or actual.schema is None:
+        raise StorageError('PG_RESTORE_SCHEMA_EVIDENCE_REQUIRED')
+    verify_schema(expected.schema, actual.schema)
 
 
 async def capture_transaction(connection, *, limits):
@@ -131,7 +153,8 @@ async def capture_transaction(connection, *, limits):
         images.append(TableImage('.'.join(table), rows, size, sha.hexdigest()))
     lineage = str(await c.fetchval('SELECT lineage FROM life_storage.storage_metadata'))
     major = int(await c.fetchval("SELECT current_setting('server_version_num')::int / 10000"))
-    return DatabaseImage(lineage, major, tuple(images))
+    schema = await capture_schema(c, limits=limits)
+    return DatabaseImage(lineage, major, tuple(images), schema)
 
 
 async def capture_database(connection, *, limits, directory=DEFAULT_DIRECTORY):

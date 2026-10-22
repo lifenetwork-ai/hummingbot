@@ -1832,3 +1832,18 @@ epochs again or arm anything. There is **no quarantine-release API** in this
 slice. WAL/PITR qualification, post-cut exchange reconciliation, independently
 proved credential exclusion and a new controlled generation remain PG6 work.
 Never clear the marker, reset an owner or toggle a backend flag to bypass them.
+
+
+## 000120 — Portable markout horizon constraint
+
+Verifies the exact original horizon-array CHECK from migration 25, then replaces
+`BETWEEN 1 AND 16` with the same explicit lower/upper bounds. PostgreSQL expands
+BETWEEN to a nested Boolean expression; dump/reparse flattens it. This migration
+makes the source/restored catalog images identical without weakening the CHECK,
+normalizing arbitrary SQL text, or changing economic thresholds. Tests compare
+empty, zero, negative, NULL, maximum-length, overlength and bigint-boundary inputs
+before/after the upgrade. An unknown predecessor refuses the whole transaction.
+
+The central automatic runner applies it once and skips its exact checksum on
+repeat startup. No account, policy, monetary event, balance, owner, grant or
+activation is created. Earlier migrations remain immutable.

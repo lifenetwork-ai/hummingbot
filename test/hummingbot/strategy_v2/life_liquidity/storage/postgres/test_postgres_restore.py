@@ -15,7 +15,8 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.backup import Backup
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.restore import PgRestoreQuarantine, RestoreRequest
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.runtime import PgRuntime
 
-LIMITS = BackupLimits(max_tables=512, max_rows=2048, max_row_bytes=2**20, max_total_bytes=16 * 2**20, timeout_ms=10000)
+LIMITS = BackupLimits(max_tables=512, max_rows=2048, max_row_bytes=2**20, max_total_bytes=16 * 2**20, timeout_ms=10000,
+                      max_schema_objects=8192, max_schema_bytes=32 * 2**20)
 
 
 async def isolate(database):

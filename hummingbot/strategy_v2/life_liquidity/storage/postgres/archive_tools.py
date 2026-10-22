@@ -21,6 +21,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.backup import (
     capture_database,
     capture_transaction,
     maintenance_owner,
+    verify_database_image,
 )
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.migrations import DEFAULT_DIRECTORY, migrate
 
@@ -114,13 +115,14 @@ class BackupBundle:
                 value = json.loads(raw)
                 if (encode(value) != raw or set(value) != {'format', 'image', 'archive_sha256', 'archive_bytes'}
                         or value['format'] != 'LIFE_PG_ARCHIVE_V1'
-                        or set(value['image']) != {'format', 'lineage', 'server_major', 'tables'}
-                        or value['image']['format'] != 'LIFE_PG_LOGICAL_V1'):
+                        or type(value['image']) is not dict):
                     raise StorageError('PG_ARCHIVE_MANIFEST_INVALID')
                 image = DatabaseImage.from_json(value['image'])
                 tables = image.tables
                 if len(tables) > limits.max_tables or sum(t.rows for t in tables) > limits.max_rows or sum(t.bytes for t in tables) > limits.max_total_bytes:
                     raise StorageError('PG_ARCHIVE_CAPACITY_EXCEEDED')
+                if image.schema is not None and (sum(c.objects for c in image.schema.classes) > limits.max_schema_objects or sum(c.bytes for c in image.schema.classes) > limits.max_schema_bytes):
+                    raise StorageError('PG_ARCHIVE_SCHEMA_CAPACITY_EXCEEDED')
                 bundle = cls(folder, image, value['archive_sha256'], value['archive_bytes'])
                 digest(bundle.archive_sha256)
                 if type(bundle.archive_bytes) is not int or not 0 < bundle.archive_bytes <= limits.max_total_bytes:
@@ -285,6 +287,5 @@ async def restore_archive(connection, *, tools, bundle, limits):
         # target stays inaccessible to runtime, and cannot be blindly retried.
         await tools.restore(source)
     actual = await capture_database(c, limits=limits)
-    if actual != bundle.image:
-        raise StorageError('PG_ARCHIVE_RESTORE_DATA_PARITY_FAILED')
+    verify_database_image(bundle.image, actual)
     return actual

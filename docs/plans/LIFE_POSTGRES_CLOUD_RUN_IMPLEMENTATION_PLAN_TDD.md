@@ -17,7 +17,7 @@ no release requirement is waived or passed by moving it.
 | PG3 | Closed for selected native/offline scope (`234c3631c`) | Clean stopped File cutover implementation stays PG6; actual account proof in OKX PG9/PG10 |
 | PG4 | Closed for selected offline handoff scope (`4fddc9419`) | Actual provider/key exclusion, deployed IAM and failover in OKX PG9/PG10 |
 | PG5 | Closed for selected offline native recorder/CLI scope | Deployed credentials/TLS remain OKX PG-E1; detached standalone reporting services are outside this worker profile |
-| PG6 | In progress; logical backup/restore quarantine slice | Stopped File/segmented native import, cutover rollback, WAL/PITR, reconciliation/release and capacity qualification remain open |
+| PG6 | In progress; logical and physical target restore plus schema/sequence guards | Stopped File/segmented native import, cutover rollback, post-cut reconciliation/release and retained-history capacity qualification remain open |
 | PG7–PG8 | Open | Image/IaC/signal tests and complete offline acceptance |
 
 Only current phase checklists and this ledger determine progress. Historical
@@ -32,8 +32,8 @@ focused cases, **276** affected native regressions and **3** targeted migration
 cases in separate runs. Restored history/money/holds survive under a new database
 lineage, with every account unarmed and an independent SQL/runtime write barrier.
 There is no quarantine-release API. Complete clean File/segmented import,
-cutover rollback, WAL/PITR, post-cut reconciliation and RPO/RTO/capacity acceptance
-remain open. See [local qualification](#pg6-logical-restore-qualification-2026-10-23).
+cutover rollback, post-cut reconciliation and complete RPO/RTO/capacity acceptance
+remain open. The current physical/PITR and schema increment is qualified separately below. See [local qualification](#pg6-logical-restore-qualification-2026-10-23).
 
 **PG5 CLOSED — selected offline recorder/operational scope (2026-10-23).**
 Migration 118 adds a read-only account/source provenance guard without granting
@@ -3393,7 +3393,9 @@ Dependencies: PG3–PG5.
 - [ ] PG6.4: Keep the source immutable and non-sending. Before any DB-owned orders, reversal can discard staging. After DB-owned orders, rollback requires reconciled export/cutover and a new fenced generation; toggling the backend flag is prohibited.
 - [ ] PG6.5: Exercise backup/PITR restore into an isolated database. Restore is unarmed, has a new controlled lineage, rejects stale grants/epochs, and requires old-credential exclusion plus exchange history reconciliation since the restored cut. No empty history or replayed budget reset.
   - [x] **Logical backup/restore quarantine implementation:** bounded complete table-row manifest and real `pg_dump` on one exported MVCC snapshot, exclusive/immutable archive publication, trusted external digest verification, empty owner-only target and real transactional `pg_restore`. Migration 119 and owner-side maintenance rotate database lineage atomically while retaining account lineage, original ownership audit, all financial/recorder identities, unknown attempts, holds and spent budgets. Every restored account is `UNARMED`/halted; central SQL write scope and native runtime both refuse the restored namespace. Lost-COMMIT readback and caller cancellation retain the original operation, and process death rolls back both data and trigger DDL.
-  - [ ] WAL/base-backup/PITR rehearsal, full restored schema/sequence verification, post-cut exchange reconciliation and independently qualified old-credential exclusion before a new controlled generation. The logical slice has **no quarantine-release/rearm API**. A raw restore or manual marker/backend/owner change cannot count as this gate.
+  - [x] **Restored schema/sequence profile:** V2 logical manifests bind catalog definitions, ACL/default ACL, RLS/policies, internal/user triggers, types/domains, indexes, rules, database locale and sequence ownership. Verify consumed sequence floors without rejecting valid non-MVCC gaps. Reject unmodelled objects/owners and capacity overflow. Migration 120 canonicalizes one audited `BETWEEN` constraint without changing its truth table; no weak predecessor is adopted.
+  - [x] **Real local WAL/PITR rehearsal:** `pg_basebackup` + `pg_verifybackup`, a named WAL restore point and a separate primary recovering archived WAL. HBA excludes original runtime/reporting logins from first startup. The target retains the pre-point preparation/hold and excludes the later native COMMIT, then changes lineage and stays unarmed. Damaged backup verification and missing-target-WAL recovery fail closed.
+  - [ ] Complete post-cut exchange reconciliation and independently qualified old-credential exclusion before a new controlled generation. There is **no quarantine-release/rearm API**. HBA isolation proves local database exclusion only; it is not REST/WS/CAA revocation. A raw restore or manual marker/backend/owner change cannot count as this gate.
 - [ ] PG6.6: Record measured backup restore, import, reconciliation, retained history and settlement/recovery headroom against PG0 RPO/RTO/capacity decisions. Export schema/versioned audit evidence; do not rely on backup existence alone.
   - [x] Record one explicit small-fixture logical backup/restore/quarantine timing, archive bytes and complete table/row counts below. This is a functional rehearsal, not RPO/RTO or retained-history headroom acceptance.
 
@@ -3457,6 +3459,59 @@ about risk epochs/driver `char` decoding; and predecessor-whitespace normalizati
 Those failures were corrected rather than waived. Changed-file hooks and diff
 checks pass. No earlier SQL migration, user `.env`, economic budget, financial
 timeout, exchange/cloud state or repository evidence file was changed/created.
+
+#### PG6 schema and physical recovery increment (2026-10-23)
+
+**These two implementation slices pass; PG6 remains OPEN.** No clean File
+translator, source retirement, import activation, rollback exporter or post-cut
+reconciliation/release is claimed. Earlier logical qualification remains the
+record of its own revision; the following runs qualify the schema/PITR increment.
+
+| Gate | Result | Temporary local output |
+| --- | --- | --- |
+| `--suite pg6` | **38 passed**, no failure/error/skip, 75.33 s | `/tmp/life-pg6-schema-20261023-c4/integration.xml` |
+| `--suite pg6_pitr` | **1 passed**, no failure/error/skip, 11.04 s | `/tmp/life-pg6-pitr-20261023-c5/integration.xml` |
+| Migration selector `portable_markout_constraint or packaged_lineage_is_stable` | **3 passed**, 396 deselected, 7.17 s | `/tmp/life-pg6-migrations-20261023-c6/integration.xml` |
+| `--suite pg6_regression` | **276 passed**, no failure/error/skip, 311.71 s | `/tmp/life-pg6-regression-20261023-c7/integration.xml` |
+
+These case counts are four separate gates, not one full-product aggregate.
+The schema/restore/PITR/migration source stayed unchanged across the final runs;
+the independent PG7 worker increment is not covered by those gates.
+
+The current synthetic image bounds are **8,192 catalog objects / 32 MiB catalog
+bytes**, in addition to the preceding explicit table/data/tool bounds. Catalog
+hashes are framed by object name and exact server deparser output; OIDs and the
+migration owner's spelling are not portable identities. Unknown extension,
+foreign-schema/public objects, standalone composite types, foreign owners and
+unsupported object families are refused rather than silently omitted. The
+supported native sequence profile is owned, increasing-by-one and noncycling;
+its next candidate cannot collide with an existing stored ID or rewind below the
+trusted image. V1 row-only manifests remain decodable for inspection but cannot
+qualify restore without schema evidence. The catalog scan stays owner-side and
+bounded; it is never used as a cached permission proof.
+
+The PITR fixture uses two isolated pinned PostgreSQL 16 containers, **2 CPU /
+1 GiB each**. Explicit **synthetic functional limits**: 120,000 ms for the complete
+rehearsal and 1 GiB for base/WAL/recovered physical data. Developer-owned test
+values permit a small cold functional exercise; they are neither live defaults
+nor PG0/PG-E0 production decisions. Observed base backup plus verification:
+**1,619.673 ms**; valid target boot/parity/quarantine: **3,921.295 ms**; complete
+fixture including both failure cases: **8,253.919 ms**, physical data **320,376 KiB**.
+The controlled point loses **zero committed operations at/before its target** and
+excludes **one later commit**. That deliberately missing later operation proves
+why post-cut history cannot be replaced by the restored wallet. This is not a
+zero-current-time-RPO claim or deployed host/zone/failover evidence. Import time,
+post-cut repair time and 1k/10k retained-history recovery/storage headroom remain
+unqualified.
+
+Red runs in `/tmp/life-pg6-schema-*` exposed catalog alias and PostgreSQL internal
+`char` casts, wrong effective sequence ACL defaults, `BETWEEN` parse-tree
+normalization and internal FK-trigger identity ordering. The new migration keeps
+old applied scripts immutable and refuses unknown predecessor definitions. PITR
+intermediates in `/tmp/life-pg6-pitr-*` exposed an invalid synthetic wire ID,
+container stderr collection and standby/promoted readiness ordering. No original
+failure is discarded, no data/permission comparison is waived and no financial
+or source-age timeout is widened. All artifacts/results remain outside the repo.
 
 ### PG7 — Portable container and Cloud infrastructure definitions
 

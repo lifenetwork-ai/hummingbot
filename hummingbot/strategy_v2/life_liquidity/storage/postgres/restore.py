@@ -15,9 +15,11 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.backup import (
     DatabaseImage,
     capture_transaction,
     maintenance_owner,
+    verify_database_image,
 )
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.migrations import DEFAULT_DIRECTORY, migrate
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.runtime import sql_error
+from hummingbot.strategy_v2.life_liquidity.storage.postgres.schema_image import verify_schema
 
 
 @dataclass(frozen=True)
@@ -110,6 +112,7 @@ class PgRestoreQuarantine:
                 changed = {'life_financial.accounts', 'life_storage.storage_metadata', 'life_storage.restore_history'}
                 if tuple(t for t in actual.tables if t.name not in changed) != tuple(t for t in manifest.tables if t.name not in changed):
                     raise StorageError('PG_RESTORE_DATA_PARITY_FAILED')
+                verify_schema(manifest.schema, actual.schema)
                 expected = json.loads(old['before_accounts'])
                 for row in expected:
                     row.update(database_lineage=str(command.target_lineage), mode='UNARMED', halted=True,
@@ -125,8 +128,7 @@ class PgRestoreQuarantine:
             if await c.fetchval('SELECT EXISTS(SELECT 1 FROM life_storage.restore_history WHERE source_lineage=$1 OR target_lineage=$1)', command.target_lineage):
                 raise StorageError('PG_RESTORE_LINEAGE_REUSE_DENIED')
             actual = await capture_transaction(c, limits=self.limits)
-            if actual != manifest:
-                raise StorageError('PG_RESTORE_DATA_PARITY_FAILED')
+            verify_database_image(manifest, actual)
             await c.execute('''INSERT INTO life_storage.restore_history(operation_id,source_lineage,target_lineage,
                 backup_sha256,manifest_sha256,before_accounts) SELECT $1,$2,$3,$4,$5,
                 COALESCE(jsonb_agg(to_jsonb(a) ORDER BY account_id),'[]'::jsonb) FROM life_financial.accounts a''',
