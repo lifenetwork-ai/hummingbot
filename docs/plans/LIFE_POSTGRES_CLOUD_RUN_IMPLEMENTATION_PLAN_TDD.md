@@ -10238,3 +10238,21 @@ map regressions pass **48 cases**, no failures/skips, 1.28 s
 product regression/coverage or O.8 performance closure. Original serial results
 remain unqualified; native integration requires its disposable database and may
 not be silently skipped or omitted from the complete acceptance.
+
+The serial map now executes product O.8 through `run_postgres --suite product_o8`
+with its own pinned disposable primary and least-privilege fixture roles. The
+original product scopes include native PostgreSQL cases; calling O.8 directly
+without this DB had silently reached those fixtures' missing-DB skip path.
+The wrapper retains the original full scopes and coverage gate, propagates
+`--candidate` explicitly, disables ambient `.env`/auto-migration and always
+cleans up its owned container. Importlib collection handles duplicate parent/
+native module basenames. No native tests are excluded or converted to passes.
+
+The command regression is RED before wiring and GREEN afterward; **38** affected
+validator/map cases pass, no skips, 0.65 s. A real disposable-DB wiring probe
+runs the original native privilege-change case and O.8 candidate case: **2 pass**,
+8282 deselected, no skips, 23.43 s (`/tmp/life-pg8-product-db-20261023-probe`).
+As intended, that selected probe exits nonzero at the missing A01 evidence check
+and emits no completion summary. It proves wiring and refusal of partial results,
+not full O.8/coverage acceptance. Full execution still needs every declared case
+and unchanged performance/coverage criteria.

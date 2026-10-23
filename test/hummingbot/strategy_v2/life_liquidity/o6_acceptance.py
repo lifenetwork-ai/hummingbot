@@ -125,7 +125,8 @@ def run_audit(output, *, manifest_path=MANIFEST, scope="SPOT_OFFLINE_COMPLETE", 
     results = TestResults()
     cov = coverage.Coverage(data_file=str(output / ".coverage"), source=["hummingbot", "controllers"])
     cov.start()
-    exit_code = pytest.main(["-q", "--disable-warnings", *manifest["test_scopes"]], plugins=[results])
+    # Parent and native storage suites can have the same module basename.
+    exit_code = pytest.main(["-q", "--disable-warnings", "--import-mode=importlib", *manifest["test_scopes"]], plugins=[results])
     cov.stop()
     cov.save()
     xml = output / "coverage.xml"

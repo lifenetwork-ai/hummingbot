@@ -75,10 +75,13 @@ def main():
     import asyncpg  # noqa: F401 -- mandatory for this opt-in real-process runner.
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--suite', choices=('all', 'image_native', 'pg3', 'pg4', 'pg5', 'pg6', 'pg6_pitr', 'historical_upgrades', 'pg6_regression', 'pg5_operations', 'ownership', 'managed_service', 'recorder_queries', 'recorder_proofs', 'codecs', 'commit_proofs', 'snapshot_proofs', 'service', 'service_trading', 'service_load', 'release_source', 'foundation', 'spot_producer', 'spot_allocation', 'spot_market_send', 'spot_market', 'joint_history', 'joint_intake', 'quote_composition', 'runner_startup', 'hedge_source', 'r2_integration', 'maker_cancellation', 'hedge_composition', 'r3_control', 'r3_risk', 'recorder', 'capital', 'session', 'lifecycle', 'actions', 'action_prepare', 'action_reconcile', 'action_abandon', 'runner_journal', 'provider_collection', 'quote_arm', 'quote_transport', 'quote_source', 'outbox', 'configuration', 'events', 'positions', 'reporting_application', 'approval_import', 'ack_ingress', 'observation_context', 'financial_ingress', 'financial_collection', 'inventory_settlement', 'markout', 'carry', 'swap', 'swap_accounting', 'swap_fills', 'funding', 'funding_repair', 'funding_cohort', 'swap_repair', 'spot_repair', 'cashflow_repair', 'terminal_repair', 'spot_recovery_paths', 'portfolio', 'swap_terminal', 'shared_release', 'joint_batch', 'joint_repair', 'hedge', 'swap_transport', 'collateral', 'joint_source', 'r1_accounting', 'joint_recovery', 'legacy_applying', 'legacy_joint', 'legacy_imports', 'late_capital', 'worker_financial'), default='all')
+    parser.add_argument('--suite', choices=('all', 'product_o8', 'image_native', 'pg3', 'pg4', 'pg5', 'pg6', 'pg6_pitr', 'historical_upgrades', 'pg6_regression', 'pg5_operations', 'ownership', 'managed_service', 'recorder_queries', 'recorder_proofs', 'codecs', 'commit_proofs', 'snapshot_proofs', 'service', 'service_trading', 'service_load', 'release_source', 'foundation', 'spot_producer', 'spot_allocation', 'spot_market_send', 'spot_market', 'joint_history', 'joint_intake', 'quote_composition', 'runner_startup', 'hedge_source', 'r2_integration', 'maker_cancellation', 'hedge_composition', 'r3_control', 'r3_risk', 'recorder', 'capital', 'session', 'lifecycle', 'actions', 'action_prepare', 'action_reconcile', 'action_abandon', 'runner_journal', 'provider_collection', 'quote_arm', 'quote_transport', 'quote_source', 'outbox', 'configuration', 'events', 'positions', 'reporting_application', 'approval_import', 'ack_ingress', 'observation_context', 'financial_ingress', 'financial_collection', 'inventory_settlement', 'markout', 'carry', 'swap', 'swap_accounting', 'swap_fills', 'funding', 'funding_repair', 'funding_cohort', 'swap_repair', 'spot_repair', 'cashflow_repair', 'terminal_repair', 'spot_recovery_paths', 'portfolio', 'swap_terminal', 'shared_release', 'joint_batch', 'joint_repair', 'hedge', 'swap_transport', 'collateral', 'joint_source', 'r1_accounting', 'joint_recovery', 'legacy_applying', 'legacy_joint', 'legacy_imports', 'late_capital', 'worker_financial'), default='all')
     parser.add_argument('--fail-fast', action='store_true', help='Stop at the first failure while retaining the original log/XML')
     parser.add_argument('--linux-image', help='Immutable locally built image ID; recorder or image_native suites')
+    parser.add_argument('--candidate', action='store_true', help='Run the complete O.8 candidate without claiming closure')
     args = parser.parse_args()
+    if args.candidate and args.suite != 'product_o8' or args.fail_fast and args.suite == 'product_o8':
+        parser.error('--candidate is only for product_o8; product coverage cannot use --fail-fast')
     if args.linux_image and (args.suite not in ('recorder', 'image_native') or not re.fullmatch(r'sha256:[0-9a-f]{64}', args.linux_image)):
         parser.error('--linux-image requires an immutable sha256 image ID and --suite recorder or image_native')
     output = args.output.resolve()
@@ -117,8 +120,15 @@ def main():
             docker('exec', '-u', '0', name, 'chown', 'postgres:postgres', '/pg6', '/pg6/wal')
         (output / 'postgres_version.txt').write_text(docker('exec', name, 'psql', '-U', 'postgres', '-Atc', 'SELECT version()') + '\n')
         port = docker('port', name, '5432/tcp').split(':')[-1]
-        env = {**os.environ, 'LIFE_PG_TEST_DSN': f'postgresql://postgres@127.0.0.1:{port}/life_pg2_test',
+        env = {**os.environ, 'LIFE_ENV_FILE': '', 'LIFE_AUTO_MIGRATE': 'false', 'LIFE_PG_TEST_DSN': f'postgresql://postgres@127.0.0.1:{port}/life_pg2_test',
                'LIFE_PG_TEST_CONTAINER': name, **({'LIFE_PG_TEST_VOLUME': volume} if volume else {})}
+        if args.suite == 'product_o8':
+            command = [sys.executable, '-m', 'test.hummingbot.strategy_v2.life_liquidity.o8_acceptance',
+                       *(['--candidate'] if args.candidate else []), '--output-dir', str(output)]
+            with (output / 'integration.log').open('w') as log:
+                result = subprocess.run(command, env=env, stdout=log, stderr=subprocess.STDOUT)
+            print((output / 'integration.log').read_text())
+            return result.returncode
         selector = Path(__file__).with_name('postgres')
         if args.suite == 'pg6_pitr':
             selector /= 'pitr_cases.py'

@@ -5378,6 +5378,12 @@ clear the restore marker or reuse an old generation to work around those gates.
 
 ## Serial PostgreSQL offline acceptance
 
+The product O.8 stage also uses a fresh disposable PostgreSQL container via
+`run_postgres --suite product_o8`. It retains the original complete product scopes,
+including native database tests, and changed-line coverage. `--candidate` runs
+without asserting closure; selecting a subset for diagnosis cannot qualify the
+product gate. No ambient database or repository `.env` is consumed.
+
 The executable map is
 `test.hummingbot.strategy_v2.life_liquidity.storage.pg_acceptance`. Supply a
 locally built immutable Linux AMD64 image ID and the pinned Terraform executable:

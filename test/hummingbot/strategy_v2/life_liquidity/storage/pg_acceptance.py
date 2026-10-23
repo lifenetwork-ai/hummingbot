@@ -152,7 +152,10 @@ def command(gate, folder, *, image, terraform, candidate=False):
         return [python, '-m', BASE.replace('/', '.') + '.storage.run_worker_image', '--image', image, '--output', str(folder)]
     if gate.kind == 'product':
         # Explicit candidate runs retain all tests but never qualify closure.
-        return [python, '-m', BASE.replace('/', '.') + '.o8_acceptance', *(['--candidate'] if candidate else []), '--output-dir', str(folder)]
+        # The retained product scope includes native PostgreSQL cases. Give
+        # those cases the same disposable primary, never an ambient DSN/skip.
+        return [python, '-m', BASE.replace('/', '.') + '.storage.run_postgres', '--suite', 'product_o8',
+                *(['--candidate'] if candidate else []), '--output', str(folder)]
     if gate.kind == 'terraform':
         return [terraform]
     folder.mkdir()

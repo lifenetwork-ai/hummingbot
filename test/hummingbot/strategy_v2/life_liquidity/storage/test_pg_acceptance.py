@@ -66,8 +66,11 @@ def test_product_candidate_success_cannot_claim_o8_closure(tmp_path):
 
 def test_product_candidate_flag_is_explicit_and_strict_run_can_qualify_original_closure(tmp_path):
     gate = next(g for g in GATES if g.name == 'product_o8')
-    assert '--candidate' not in command(gate, tmp_path, image='unused', terraform='unused')
-    assert '--candidate' in command(gate, tmp_path, image='unused', terraform='unused', candidate=True)
+    strict = command(gate, tmp_path, image='unused', terraform='unused')
+    candidate = command(gate, tmp_path, image='unused', terraform='unused', candidate=True)
+    assert strict[2].endswith('.storage.run_postgres')
+    assert strict[strict.index('--suite') + 1] == 'product_o8'
+    assert '--candidate' not in strict and '--candidate' in candidate
 
 
 def test_two_orchestrators_cannot_overlap_and_old_symlink_is_not_followed(tmp_path):
