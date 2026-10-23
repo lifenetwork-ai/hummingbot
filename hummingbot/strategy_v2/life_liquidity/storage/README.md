@@ -1,5 +1,27 @@
 # LIFE storage contracts
 
+## Clean File source capture for PostgreSQL (PG6)
+
+On an already configured File service, stage the signed financial configuration
+transition and reconcile first. `service.control.stopped_postgres_source` takes
+explicit `max_bytes` and `max_rows`, closes admission, and returns a detached
+`StoppedFileServiceSource`: original core journals/checkpoint, configured
+ancillary journals, SQLite recorder provenance and every referenced immutable
+segment. Nonzero SWAP positions, pending attempts/attribution/claims/holds and
+incomplete facts refuse capture. Retained SPOT inventory and its basis remain
+in the original source, not a new opening wallet.
+
+`validate_stopped_postgres_source` rereads the frozen graph using the original
+still-fresh observation. It never appends a recovery receipt or extends fact
+freshness. Expiry/change requires a new reconciliation and capture. Segment
+coverage, exact bytes and duplicate identity checks are independent of warm
+timestamp caches; unreferenced orphan files are excluded. The old ordinary File
+target importer cannot accept this distinct source type and drop its segments.
+
+This API captures evidence only. It does not retire the old credential, load an
+arbitrary cold segmented service, translate historical financial state into
+native SQL, or grant target authority. Those PG6 gates remain required.
+
 ## PostgreSQL operational reporting (PG5)
 
 **Current selected offline scope is qualified.** See the PostgreSQL plan's current

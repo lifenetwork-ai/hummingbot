@@ -92,12 +92,32 @@ class FileControlApplication:
             raise StorageError('SERVICE_HANDOFF_SOURCE_INVALID')
         return await self._service_source(source, max_bytes, max_rows)
 
-    async def _service_source(self, source, max_bytes, max_rows):
+    async def stopped_postgres_source(self, *, max_bytes, max_rows):
+        """Capture clean ordinary/segmented File ancestry for PG6 staging."""
+        return await self._service_source(None, max_bytes, max_rows, stopped=True)
+
+    async def validate_stopped_postgres_source(self, source, *, max_bytes, max_rows):
+        from hummingbot.strategy_v2.life_liquidity.storage.service_source import StoppedFileServiceSource
+        if type(source) is not StoppedFileServiceSource:
+            self.service.runtime.revoke()
+            raise StorageError('STOPPED_SERVICE_SOURCE_INVALID')
+        return await self._service_source(source, max_bytes, max_rows, stopped=True)
+
+    async def _service_source(self, source, max_bytes, max_rows, *, stopped=False):
         from hummingbot.strategy_v2.life_liquidity.storage.recorder_source import capture_limits
         from hummingbot.strategy_v2.life_liquidity.storage.service_source import FileServiceSourceCapture
         self.service.runtime.revoke()
         capture_limits(max_bytes, max_rows)
-        snapshot = await self.snapshot()
+        # Rechecking a frozen source must not run recovery and append a new
+        # receipt to that same source. Reuse only this application's original
+        # bounded observation; capture verifies its age, cut and projections.
+        # A stale cut needs a new reconciliation/capture, not a freshness reset.
+        if stopped and source is not None:
+            snapshot = self._snapshot
+            if snapshot is None or snapshot.cut != source.base.core.cut:
+                raise StorageError('SERVICE_CONTROL_SOURCE_UNQUALIFIED')
+        else:
+            snapshot = await self.snapshot()
         if self._admitted >= self.service.config.max_pending:
             raise StorageError('SERVICE_CONTROL_BACKPRESSURE')
         self._admitted += 1
@@ -105,7 +125,8 @@ class FileControlApplication:
             async with self._lock, asyncio.timeout(self.service.config.recovery_policy.max_fact_age_ms / 1000):
                 if self._snapshot is not snapshot or self.service._revoked:
                     raise StorageError('SERVICE_CONTROL_SOURCE_UNQUALIFIED')
-                current = await self.store._call(FileServiceSourceCapture(self.service).capture, snapshot, max_bytes, max_rows)
+                capture = FileServiceSourceCapture(self.service)
+                current = await self.store._call(capture.capture_stopped if stopped else capture.capture, snapshot, max_bytes, max_rows)
                 if source is not None and current.content_digest != source.content_digest:
                     raise StorageError('SERVICE_HANDOFF_SOURCE_CHANGED')
                 return current
