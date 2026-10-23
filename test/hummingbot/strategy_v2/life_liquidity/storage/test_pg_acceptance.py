@@ -2,8 +2,11 @@
 import hashlib
 import json
 from test.hummingbot.strategy_v2.life_liquidity.storage.pg_acceptance import (
+    BUDGET_SHA,
+    BUDGETS,
     GATES,
     OPEN_REQUIREMENTS,
+    ROOT,
     command,
     gate_result,
     qualification_lock,
@@ -12,6 +15,11 @@ from test.hummingbot.strategy_v2.life_liquidity.storage.pg_acceptance import (
 )
 
 import pytest
+
+
+def test_frozen_budget_is_the_packaged_versioned_input_available_in_clean_checkouts():
+    assert (ROOT / BUDGETS).is_file()
+    assert hashlib.sha256((ROOT / BUDGETS).read_bytes()).hexdigest() == BUDGET_SHA
 
 
 def test_map_retains_native_file_product_physical_and_artifact_gates():

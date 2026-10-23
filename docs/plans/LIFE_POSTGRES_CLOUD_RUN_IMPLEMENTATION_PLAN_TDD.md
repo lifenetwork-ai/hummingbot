@@ -10079,3 +10079,12 @@ the serial acceptance map retains it as a separate mandatory `linux_native`
 gate. Input/image manifests include exact native service, worker, lifecycle,
 broker and recovery source plus all 120 SQL scripts. No user `.env`, GCP apply,
 real exchange traffic, push or repository evidence file is involved.
+
+The first clean-checkout pipeline preflight (`/tmp/life-pg8-serial-run-s1.log`)
+found an obsolete documentary budget path. No test gate started. The executable
+map now uses the existing versioned `fixtures/offline_inputs/budgets.json`, whose
+SHA is exactly the original frozen budget SHA; no budget content changed. A new
+clean-checkout fixture-presence/hash test fails before the correction and the
+complete map safeguard suite passes **8 cases**, zero failure/skip
+(`/tmp/life-pg8-map-budget-red.log`, `/tmp/life-pg8-map-budget-green.xml`). Source
+hooks pass. The actual long pipeline remains separately required.

@@ -21,7 +21,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[5]
 BASE = 'test/hummingbot/strategy_v2/life_liquidity'
 STORAGE = BASE + '/storage'
-BUDGETS = 'docs/plans/evidence/life_o8_offline_budgets.json'
+BUDGETS = BASE + '/fixtures/offline_inputs/budgets.json'
 BUDGET_SHA = 'e1be70f238efdaad68086e3ae43fdc8ca4447a4c6da6dc36c03260ca7e6be5c3'  # noqa: documentation
 
 
@@ -74,8 +74,7 @@ def eligible(name):
             or name.startswith(('hummingbot/', 'controllers/', 'migrations/life_liquidity/', 'setup/',
                                 'deploy/life_cloud_run/', BASE + '/', 'test/hummingbot/strategy_v2/executors/',
                                 'docs/examples/life_liquidity/'))
-            or name in (BUDGETS, 'docs/plans/evidence/life_o8_acceptance_manifest.json',
-                        'docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md', 'docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md'))
+            or name in ('docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md', 'docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md'))
 
 
 def source_manifest(root):
