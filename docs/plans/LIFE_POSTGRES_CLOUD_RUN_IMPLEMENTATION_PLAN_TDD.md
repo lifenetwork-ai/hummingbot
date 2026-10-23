@@ -10179,3 +10179,42 @@ selecting an optimization. These diagnostics identify the next investigation;
 they do not establish a fix, cache permissions, widen freshness limits or close
 the retained RED source-age/image/performance gates. Focused replays overlapped
 the frozen aggregate and are functional/diagnostic, not isolated headroom runs.
+
+The native hedge source now hands its already verified optimistic cut to the
+original application task exactly once. The handoff is bound to the same command
+object, signed report and ingress epoch; expiry, stop and cross-task/command use
+are refused. The native PLAN still checks current version/digest, money, owner
+and physical COMMIT. No permission verdict or timestamp is cached. This removes
+the application's redundant full snapshot between source capture and PLAN;
+the pre-ARM primary read remains. The new regression fails before the change
+and the complete hedge-source group passes **52 cases**, no failure/error/skip,
+82.77 s (`/tmp/life-pg8-hedge-cut-20261023-full/integration.xml`). It includes a
+real intervening target COMMIT that makes the original cut stale and sends
+nothing. Whole-service/generation qualification is recorded separately below.
+
+The first broader cut-handoff replay retains **35 passes and 1 failure**
+(`/tmp/life-pg8-hedge-cut-20261023-integration`): the original capture-exclusion
+case expired at 1097.303 ms before the removed application snapshot. No source
+limit was widened. The source now batches its four original bounded planning
+readers into one primary admission; their independent history/scope/byte checks
+remain, and later financial commands validate the current original cut. An
+exact-frame comparison and original byte-bound refusal plus both service
+exclusion cases pass (3 cases, 29.07 s, `.../life-pg8-hedge-frames-20261023-green`).
+The final broader hedge-source/application/service, spot-allocation and generation
+handoff replay passes **108 cases**, 3590 deselected, no failure/error/skip,
+335.36 s (`/tmp/life-pg8-hedge-flow-20261023-final/integration.xml`). These are
+functional results, not isolated headroom qualification, and do not erase the
+retained aggregate expiry failures.
+
+The frozen serial candidate (`/tmp/life-pg8-serial-20261023-s3`) is **unqualified**.
+Its source manifest remains unchanged. Native testing was interrupted after its
+PostgreSQL container received signal 2, exited and was destroyed at Docker event
+times 1792721786/1792721789; the initiating actor is unknown. After confirming the
+missing container and repeated connection refusals, pytest received SIGINT.
+The retained native report (2594 tests, 7 failures, 185 errors) is incomplete;
+pre-interruption source-expiry and fixture failures remain separately actionable.
+Docker events and an interruption note are retained under its native output.
+The physical PITR gate passes 1 case, foreground passes 81, and Terraform mock
+infrastructure passes. The former Linux image is also absent, so its image/native
+gates could not qualify. Product O.8 stopped at stale requirement mapping before
+executing tests. None of these missing/incomplete gates is treated as a pass.

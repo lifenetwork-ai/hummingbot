@@ -93,6 +93,7 @@ class PgHedgeSource:
         self._qualified = None
         self._planning = False
         self._plan_task = None
+        self._plan_cut = None
         self._allocating = False
         self._allocation_basis = None
         self._allocation_request = None
@@ -138,6 +139,7 @@ class PgHedgeSource:
             raise StorageError('PG_HEDGE_SOURCE_SDK_SCOPE_CHANGED')
 
     def stop(self):
+        self._plan_cut = None
         if not self._stopped:
             self._stopped, self._capture, self._qualified = True, None, None
             self._allocation_basis = None
@@ -352,6 +354,24 @@ class PgHedgeSource:
         self._check(report, epoch + 2, market)
         return bundle
 
+    async def _frames(self):
+        """Read bounded planning inputs through one primary admission.
+
+        Each original SQL reader retains its own scope, history verification
+        and row/byte bound. These inputs are not permission or a cached cut;
+        later commands still qualify the signed report and current native state.
+        """
+        self._original()
+        value = await self.capital._read('''SELECT jsonb_build_object(
+            'capital',life_financial.shared_capital_frame($1,$2,$3),
+            'carry',life_financial.carry_read($1,$4,$5,NULL),
+            'hedge',life_financial.hedge_read($1,$2,$3,NULL),
+            'swap',life_financial.swap_read($1,$2,$3,NULL))''',
+                                         (self.runtime.config.account_id, self.capital.max_rows, self.capital.max_bytes,
+                                          self.carry.max_rows, self.carry.max_bytes))
+        self._original()
+        return value['capital'], value['carry'], value['hedge'], value['swap']
+
     async def refresh(self, operation_id, *, source_report=None, _allocation=None):
         identifier(operation_id)
         if self._busy or self._planning and self._plan_task is not asyncio.current_task():
@@ -382,11 +402,10 @@ class PgHedgeSource:
                     raise StorageError('PG_HEDGE_SOURCE_ORIGINAL_OPERATION_REQUIRES_RECONCILIATION')
                 with localcontext() as precision:
                     precision.prec = 160
-                    cap, carry = await self.capital.frame(self.binding), await self.carry.frame(self.binding)
+                    cap, carry, hedge, swap = await self._frames()
                     if cap['policy'] is None or carry['policy'] is None:
                         raise StorageError('PG_HEDGE_SOURCE_NATIVE_POLICY_REQUIRED')
-                    hedge = await PgHedgeRepository(self.collector.swap).frame(self.binding)
-                    swap_policy = (await self.collector.swap.frame(self.binding))['policy']
+                    swap_policy = swap['policy']
                     sequences = [0 if cap['snapshot'] is None else cap['snapshot']['sequence']]
                     if carry['bundle'] is not None:
                         sequences.extend(carry['bundle'][k]['sequence'] for k in ('mark', 'index', 'funding', 'terms'))
@@ -563,6 +582,22 @@ class PgHedgeSource:
         identifier(operation_id)
         return 'hedge-source-plan:' + fingerprint([operation_id])
 
+    def _handoff_plan(self, command, report, epoch, cut, market):
+        # This is the original optimistic cut, never a permission verdict.
+        # The native PLAN independently verifies its version/digest and all
+        # financial/ownership invariants, including its physical COMMIT.
+        self._plan_cut = (asyncio.current_task(), command, report, epoch, cut, market)
+        return command
+
+    def take_plan_cut(self, command):
+        """Consume this task's exact capture once, without another snapshot."""
+        captured, self._plan_cut = self._plan_cut, None
+        if captured is None or captured[0] is not asyncio.current_task() or captured[1] is not command:
+            raise StorageError('PG_HEDGE_SOURCE_PLAN_CUT_REQUIRED')
+        _, _, report, epoch, cut, market = captured
+        self._check(report, epoch, market)
+        return cut
+
     async def collect(self, operation_id, *, source_report=None):
         """Build one child from the native decision, with permanent identities.
 
@@ -578,6 +613,7 @@ class PgHedgeSource:
             raise StorageError('PG_HEDGE_SOURCE_BACKPRESSURE')
         self._planning = True
         self._plan_task = asyncio.current_task()
+        self._plan_cut = None
         try:
             self._original()
             repository = PgHedgeRepository(self.collector.swap)
@@ -588,16 +624,16 @@ class PgHedgeSource:
             report, epoch, cut, market, leverage, controller_id = self._qualified
             self._check(report, epoch, market)
             if not result.capital.decision.allowed or not result.carry.decision.allowed:
-                return PlanHedge.capture(operation_id, market)
+                return self._handoff_plan(PlanHedge.capture(operation_id, market), report, epoch, cut, market)
             decision = await repository.plan(PlanHedge.capture(preflight, market), cut=cut, owner=self.owner)
             self._check(report, epoch + 1, market)
-            # No child is proposed for deadband, limits, missing scope or cost.
-            if decision.decision['reason_code'] not in ('HEDGE_URGENT_BOUNDED_MAKER', 'HEDGE_ACTION_READY'):
-                return PlanHedge.capture(operation_id, market)
             current = (await self.financial.observation_cut(self.binding)).cut
             self._check(report, epoch + 1, market)
             if current.checkpoint.revision != cut.checkpoint.revision + 1:
                 raise StorageError('PG_HEDGE_SOURCE_NATIVE_CHANGED')
+            # No child is proposed for deadband, limits, missing scope or cost.
+            if decision.decision['reason_code'] not in ('HEDGE_URGENT_BOUNDED_MAKER', 'HEDGE_ACTION_READY'):
+                return self._handoff_plan(PlanHedge.capture(operation_id, market), report, epoch + 1, current, market)
             key = fingerprint([operation_id])
             wire, intent = 'H' + key[:31], 'hedge:' + key
             # This is the action capture time, not a renewed feed timestamp.
@@ -614,7 +650,7 @@ class PgHedgeSource:
                                  cfg.side.name, cfg.position_action.name, cfg.amount, cfg.price, cfg.leverage)
             child = HedgeChild('hedge-capital:' + key, 'hedge-carry:' + key,
                                PrepareSwap.from_config('hedge-prepare:' + key, wire, cfg), claim)
-            return PlanHedge.capture(operation_id, market, child=child)
+            return self._handoff_plan(PlanHedge.capture(operation_id, market, child=child), report, epoch + 1, current, market)
         except BaseException:
             self.stop()
             raise

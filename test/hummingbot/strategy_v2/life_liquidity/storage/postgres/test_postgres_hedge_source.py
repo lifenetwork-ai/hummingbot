@@ -498,6 +498,120 @@ async def test_native_signed_source_composes_cancellation_plan_and_actual_sdk_se
 
 
 @pytest.mark.asyncio
+async def test_native_hedge_bootstrap_frames_match_original_reads_in_one_admission(database):
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.hedge import PgHedgeRepository
+    t = await sources(database, clean=True, shared_quota=True)
+    try:
+        t.pause()
+        t.app._paused = True
+        expected = (await t.source.capital.frame(t.cfg.binding), await t.source.carry.frame(t.cfg.binding),
+                    await PgHedgeRepository(t.source.collector.swap).frame(t.cfg.binding),
+                    await t.source.collector.swap.frame(t.cfg.binding))
+        before = len(t.financial._runtime.diagnostics)
+        assert await t.source._frames() == expected
+        assert len(t.financial._runtime.diagnostics) == before + 1
+        t.source.carry.max_bytes = 1
+        with pytest.raises(StorageError, match='CARRY_READ_BOUND'):
+            await t.source._frames()
+        assert not t.session.sent
+    finally:
+        await t.financial.close()
+
+
+@pytest.mark.asyncio
+async def test_native_hedge_plan_consumes_original_source_cut_without_snapshot_roundtrip(database, monkeypatch):
+    from unittest.mock import AsyncMock
+    t = await sources(database, clean=True, shared_quota=True)
+    snapshot = AsyncMock(wraps=t.financial.snapshot)
+    monkeypatch.setattr(t.financial, 'snapshot', snapshot)
+    plan = t.repo.plan
+    consumed = []
+
+    async def checked(command, *, cut, owner):
+        if command.operation_id == 'cut-handoff':
+            assert snapshot.await_count == 0
+            consumed.append(cut)
+            with pytest.raises(StorageError, match='PG_HEDGE_SOURCE_PLAN_CUT_REQUIRED'):
+                t.source.take_plan_cut(command)
+        return await plan(command, cut=cut, owner=owner)
+    monkeypatch.setattr(t.repo, 'plan', checked)
+    try:
+        result = await t.app.execute('cut-handoff')
+        assert result.child_state == 'PREPARED' and len(consumed) == 1
+        assert len(t.session.sent) == 1
+        assert await database[0].fetchval('SELECT state FROM life_financial.send_attempts') == 'ACKED'
+    finally:
+        await t.financial.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('fault', ['foreign_task', 'different_command', 'stale', 'ingress', 'stop'])
+async def test_native_hedge_plan_cut_cannot_cross_task_command_freshness_or_scope(database, fault):
+    import asyncio
+    from dataclasses import replace
+    t = await sources(database, clean=True, shared_quota=True)
+    try:
+        t.pause()
+        t.app._paused = True
+        command = await t.source.collect('captured-cut')
+        if fault == 'different_command':
+            command = replace(command)
+        elif fault == 'stale':
+            await asyncio.sleep(1.01)
+        elif fault == 'ingress':
+            t.financial._runtime._ingress_epoch += 1
+        elif fault == 'stop':
+            t.source.stop()
+
+        async def foreign():
+            return t.source.take_plan_cut(command)
+        with pytest.raises(StorageError):
+            if fault == 'foreign_task':
+                await asyncio.create_task(foreign())
+            else:
+                t.source.take_plan_cut(command)
+        assert t.source._plan_cut is None
+        assert not t.session.sent
+        assert not await database[0].fetchval('SELECT count(*) FROM life_financial.send_attempts')
+    finally:
+        await t.financial.close()
+
+
+@pytest.mark.asyncio
+async def test_native_hedge_plan_cut_is_rechecked_by_sql_after_intervening_commit(database, monkeypatch):
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.hedge import UpdateHedgeTarget
+    t = await sources(database, clean=True, shared_quota=True)
+    plan = t.repo.plan
+    changed = []
+
+    async def raced(command, *, cut, owner):
+        changed.append(await t.repo.update_target(UpdateHedgeTarget('intervening-target', 0, D('5')), cut=cut, owner=owner))
+        return await plan(command, cut=cut, owner=owner)
+    monkeypatch.setattr(t.repo, 'plan', raced)
+    try:
+        with pytest.raises(StorageError, match='(STALE|VERSION|CUT)'):
+            await t.app.execute('stale-plan-cut')
+        assert len(changed) == 1 and not t.session.sent
+        assert not await database[0].fetchval('SELECT count(*) FROM life_financial.send_attempts')
+        assert not await t.values[5].claims(t.cfg.binding)
+    finally:
+        await t.financial.close()
+
+
+@pytest.mark.asyncio
+async def test_native_hedge_deadband_consumes_post_preflight_cut_without_child(database):
+    t = await sources(database, clean=True, shared_quota=True, target='5')
+    try:
+        result = await t.app.execute('deadband-cut')
+        assert result.decision['reason_code'] == 'HEDGE_DEADBAND'
+        assert result.child_operation_id is None and t.source._plan_cut is None
+        assert not t.session.sent
+        assert not await database[0].fetchval('SELECT count(*) FROM life_financial.send_attempts')
+    finally:
+        await t.financial.close()
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize('fault', ['stale', 'ingress', 'sdk'])
 async def test_cancellation_source_handoff_cannot_outlive_its_original_freshness_or_scope(database, monkeypatch, fault):
     import asyncio

@@ -210,7 +210,8 @@ class PgHedgeApplication:
                 self._require_ready()
                 if type(command) is not PlanHedge or command.operation_id != operation_id:
                     raise StorageError('PG_HEDGE_SOURCE_COMMAND_MISMATCH')
-                cut = (await self.repository.financial.snapshot(self._binding)).cut
+                cut = ((await self.repository.financial.snapshot(self._binding)).cut if self._native_source is None
+                       else self._native_source.take_plan_cut(command))
                 self._require_ready()
                 result = await self.repository.plan(command, cut=cut, owner=self._owner)
                 self._require_ready()

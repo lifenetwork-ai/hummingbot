@@ -4459,6 +4459,15 @@ SDK order prevents financial application. Cancel/release writes invalidate the
 handoff and require a new collection. Market reads are deferred while known
 SPOT makers still require cancellation or retirement.
 
+The hedge source reads the four bounded native planning frames in one primary
+admission; each original SQL reader retains its scope, history and size checks.
+Its completed capture hands the original optimistic cut to the same application
+task and exact command object once. Stop, expiry, changed ingress and foreign
+task/command use reject that handoff. Native PLAN still validates the current
+version, digest, owner, money and physical COMMIT; the final pre-ARM snapshot
+remains. This removes a redundant application snapshot without caching send
+permission or renewing source timestamps.
+
 For an installed pool, both SDKs have the exact same credential/auth/endpoint
 binding; the signed collection's UID authenticates source capture for that
 binding. No SWAP send-identity cache is copied or renewed. Its final HTTP guard
