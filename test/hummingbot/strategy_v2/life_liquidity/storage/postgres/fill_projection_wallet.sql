@@ -39,13 +39,22 @@ ALTER TABLE life_financial.balances ADD CONSTRAINT prototype_wallet_current
     FOREIGN KEY(account_id,asset,total,reserved,liability,funding_deficit,version)
         REFERENCES fill_projection_spike.wallet_proof(account_id,asset,total,reserved,liability,funding_deficit,version)
         DEFERRABLE INITIALLY DEFERRED;
-ALTER TABLE life_financial.spot_capital_policies
-    ADD COLUMN prototype_base_asset text GENERATED ALWAYS AS ('LIFE') STORED,
-    ADD COLUMN prototype_quote_asset text GENERATED ALWAYS AS ('USDT') STORED;
+-- Constant-asset parents live outside the native policy row. Adding helper
+-- columns there would change to_jsonb(policy), the native body and its cut.
+CREATE TABLE fill_projection_spike.wallet_base_origin (
+    account_id uuid PRIMARY KEY,opening_total life_financial.amount NOT NULL,
+    asset text GENERATED ALWAYS AS ('LIFE') STORED,UNIQUE(account_id,opening_total),
+    FOREIGN KEY(account_id,asset,opening_total) REFERENCES fill_projection_spike.wallet_origin(account_id,asset,opening_total)
+);
+CREATE TABLE fill_projection_spike.wallet_quote_origin (
+    account_id uuid PRIMARY KEY,opening_total life_financial.amount NOT NULL,
+    asset text GENERATED ALWAYS AS ('USDT') STORED,UNIQUE(account_id,opening_total),
+    FOREIGN KEY(account_id,asset,opening_total) REFERENCES fill_projection_spike.wallet_origin(account_id,asset,opening_total)
+);
 ALTER TABLE life_financial.spot_capital_policies ADD CONSTRAINT prototype_opening_base
-    FOREIGN KEY(account_id,prototype_base_asset,opening_base) REFERENCES fill_projection_spike.wallet_origin(account_id,asset,opening_total);
+    FOREIGN KEY(account_id,opening_base) REFERENCES fill_projection_spike.wallet_base_origin(account_id,opening_total);
 ALTER TABLE life_financial.spot_capital_policies ADD CONSTRAINT prototype_opening_quote
-    FOREIGN KEY(account_id,prototype_quote_asset,opening_quote) REFERENCES fill_projection_spike.wallet_origin(account_id,asset,opening_total);
+    FOREIGN KEY(account_id,opening_quote) REFERENCES fill_projection_spike.wallet_quote_origin(account_id,opening_total);
 
 CREATE FUNCTION fill_projection_spike.record_wallet_origin() RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog AS $$
@@ -53,6 +62,8 @@ BEGIN
     IF NEW.reserved<>0 OR NEW.liability<>0 OR EXISTS(SELECT 1 FROM fill_projection_spike.money WHERE account_id=NEW.account_id) THEN
         RAISE EXCEPTION 'PROTOTYPE_WALLET_REQUIRES_FRESH_ORIGIN';END IF;
     INSERT INTO fill_projection_spike.wallet_origin VALUES(NEW.account_id,NEW.asset,NEW.total);
+    IF NEW.asset='LIFE' THEN INSERT INTO fill_projection_spike.wallet_base_origin(account_id,opening_total) VALUES(NEW.account_id,NEW.total);
+    ELSE INSERT INTO fill_projection_spike.wallet_quote_origin(account_id,opening_total) VALUES(NEW.account_id,NEW.total);END IF;
     INSERT INTO fill_projection_spike.money_frontier(account_id,ordinal,base_after,quote_after) VALUES(NEW.account_id,0,0,0) ON CONFLICT DO NOTHING;
     INSERT INTO fill_projection_spike.wallet_proof(account_id,asset,total,reserved,liability,funding_deficit,version,opening_total,money_ordinal,base_after,quote_after)
         VALUES(NEW.account_id,NEW.asset,NEW.total,0,0,0,NEW.version,NEW.total,0,0,0);

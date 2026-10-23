@@ -24,6 +24,26 @@ native transaction. The old unenrolled counterexamples remain negative
 controls. Production enrollment/catalog validation, all-product/restore parity
 and complete-history performance qualification remain in the linked plan.
 
+The five-part follow-up adds atomic installation, reciprocal required holds
+and raw SPOT rows, live-catalog/privilege drift checks, and an explicit
+`install(..., products=True)` monetary-source profile for SWAP, funding and
+cashflows. It retains the unenrolled counterexamples and original product,
+joint/shared-capital and signed recovery flow assertions. The wallet origin
+parents avoid adding fields to native capital-policy JSON; differential tests
+compare the original body bytes and complete cuts. Small real dump/restore
+cases compare all rows, sequences, catalogs and post-restore FK refusals.
+The native backup API deliberately refuses this unknown experimental schema.
+These tests do not enable a production reader or certify a complete combined
+product model. See the [five-part verdict and open obligations](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#five-part-follow-up-and-promotion-boundary).
+
+For nested-plan diagnostics of the original cold-read timeout, use the same
+disposable runner with `LIFE_PG_TEST_AUTO_EXPLAIN=1`, optionally
+`LIFE_PG_TEST_FUNCTION_PROFILE=1`, and
+`PYTEST_ADDOPTS='-k cold_full_state_cancel'`. PostgreSQL plans/buffers go into
+the existing `/tmp` server log; phases/functions go into its JUnit output.
+Instrumentation overhead prevents using this run as a capacity timing verdict.
+No runtime setting, deadline, production migration or `.env` file is changed.
+
 ## Fresh PostgreSQL backup and rollback runbook (PG6)
 
 The selected release starts with PostgreSQL and has no File data to convert

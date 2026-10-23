@@ -119,6 +119,16 @@ def main():
             docker('volume', 'create', '--label', 'life.pg6_test=disposable', volume)
             options = ['-v', volume + ':/pg6']
             server_options = ['postgres', '-c', 'archive_mode=on', '-c', "archive_command=test ! -f /pg6/wal/%f && cp %p /pg6/wal/%f"]
+        if os.environ.get('LIFE_PG_TEST_AUTO_EXPLAIN') == '1':
+            # Diagnostic-only nested SQL plans for the intermittent cold-read
+            # timeout. This is never an acceptance timing profile: EXPLAIN
+            # instrumentation has overhead. Logs stay in the requested /tmp.
+            if not server_options:
+                server_options = ['postgres']
+            for setting in ('shared_preload_libraries=auto_explain', 'auto_explain.log_min_duration=100ms',
+                            'auto_explain.log_nested_statements=on', 'auto_explain.log_analyze=on',
+                            'auto_explain.log_timing=off', 'auto_explain.log_buffers=on', 'auto_explain.log_format=json'):
+                server_options.extend(('-c', setting))
         docker('run', '-d', '--name', name, '--label', 'life.pg2_test=disposable', '--cpus', str(POSTGRES_CPUS), '--memory', str(POSTGRES_MEMORY_BYTES),
                '-e', 'POSTGRES_HOST_AUTH_METHOD=trust', '-e', 'POSTGRES_DB=life_pg2_test', '-p', f'127.0.0.1:{selected_port}:5432', *options, IMAGE, *server_options)
         created = True
@@ -268,7 +278,9 @@ def main():
         if args.suite == 'pg6_capacity':
             selectors = [str(selector / 'restore_capacity_cases.py')]
         if args.suite == 'fill_projection_spike':
-            selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in ('fill_projection', 'projection_economics')]
+            selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in (
+                'fill_projection', 'projection_economics', 'projection_qualification', 'projection_restore',
+                'projection_products', 'projection_cold_read')]
         if args.suite == 'pg6_native':
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in ('restore', 'backup', 'schema_restore', 'fresh_restore', 'restore_recovery', 'restore_import', 'restore_actor', 'restore_matrix', 'history_flow', 'birth_retention', 'snapshot_payload', 'action_history_batch', 'birth_fingerprints', 'recorder_history_batch', 'settlement_history_batch', 'capacity_pool', 'birth_native_view')]
         if args.suite == 'hedge_settlement':

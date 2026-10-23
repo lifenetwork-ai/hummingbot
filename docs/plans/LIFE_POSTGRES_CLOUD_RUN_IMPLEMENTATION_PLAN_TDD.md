@@ -2,6 +2,19 @@
 
 ## Current offline delivery status
 
+**2026-10-24 five-part follow-up:** the disposable candidate adds reciprocal
+hold/raw-row existence, atomic enrollment, live-catalog drift checks and
+SWAP/funding/cashflow monetary-source bindings. A differential test exposed
+native capital-policy metadata leaking into the snapshot/digest; constant-asset
+proof parents now live outside that native row. Source, restore and diagnostic
+qualification is described in the [five-part follow-up](#five-part-follow-up-and-promotion-boundary).
+This is still a test-only candidate, not runtime adoption. Production remains
+134 with full audits. The expanded regression passes **148 tests / 220.31 s**;
+the six-case nested-plan diagnostic also passes, without reproducing the old
+cold-read timeout. The actual 1k source rerun completes 143 orders and then
+fails the original settlement fact/projection guard at physical COMMIT; no
+1k restore is reached and 10k is blocked. **PG6-X1/PG8.7 remain OPEN.**
+
 **2026-10-24 economic-prefix extension:** the test-only fresh-SPOT profile now
 binds original operation/receipt bodies, per-intent fill/fee/loss totals,
 three-window loss and subsidy obligations, reservation calculations, opening
@@ -4809,6 +4822,132 @@ mechanism to a production gate, all of the following remain required:
    owner/lease, economic and final-send checks. Then measure the actual
    0/1k/10k source, complete command/COMMIT/write overhead, bytes and recovery
    under the unchanged PG6/PG8 limits. The current production path is unchanged.
+
+### Five-part follow-up and promotion boundary
+
+The five requested tasks are separate release obligations. Passing the
+disposable candidate checks below does not mark production integration or
+retained-history capacity complete.
+
+1. **Runtime/enrollment prerequisites:** `fill_projection_completeness.sql`
+   requires the principal and every nonzero fee hold from immutable order
+   basis, and requires witnesses for raw SPOT fills/fees. Previously, deleting
+   both a hold and its witness could evade the candidate's value-only FKs;
+   all three hold deletion counterexamples fail as intended once these
+   reciprocal obligations are installed. Zero fee buffers require no fake
+   reservation. The installer now encloses all selected SQL components in
+   one transaction; a deliberately failing final component leaves no base
+   schema, generated columns or reciprocal constraints behind. Existing
+   monetary history is refused without blessing/backfilling it.
+   `projection_contract.py` compares fresh catalogs against an external,
+   trusted-installation reference in a read transaction, including definitions,
+   validation/trigger state, indexes, ACLs, owners and role memberships. It
+   detects dropped/unvalidated constraints, disabled user/internal triggers,
+   changed functions, grants and migration-role escalation. This offline
+   comparison is not a cached permission and does not protect against a DDL
+   race after inspection. Production still needs a pinned installation
+   contract, admission integration and complete source/economic equivalence
+   before replacing any historical audit.
+2. **Additional writers:** the explicit `install(..., products=True)` profile
+   adds `fill_projection_products.sql`. Exact FKs pin original SWAP fills,
+   signed fees and observation hashes to the monetary event; quote delta must
+   equal realized PnL plus signed fee and base delta must be zero. Funding
+   events pin original bill/time/signed-payment/source identity. Cashflow
+   events pin approved amount/asset/time and independent valuation; base/quote
+   deltas and USDT value must match those sources. Reciprocal keys refuse
+   omitted capture and orphan raw rows at COMMIT. Original SWAP open/close,
+   funding debit/credit, deposit, joint application, shared allocation/release
+   and signed recovery flows retain their own assertions. Counterexamples
+   without product enrollment demonstrate why an unchanged money prefix
+   cannot certify changed SWAP fees, funding bills or cashflow valuations.
+   These are monetary-source constraints: position/PnL replay, complete bill
+   bundles, signed approvals, shared claims, portfolio and recovery ancestry
+   still require their original independent full verifiers. The product and
+   fresh-SPOT economic profiles are not a qualified combined financial model.
+3. **Restore/upgrade qualification:** the new selector runs actual
+   `pg_dump`/`pg_restore` round trips of small SPOT, four-family joint and signed
+   cashflow-recovery graphs. It compares every application/proof table row,
+   sequence state, catalog, pure native body and restored FK refusal. Native
+   migration re-entry must leave that image unchanged. The temporary target
+   denies PUBLIC CONNECT and never launches a sender. This raw archive
+   experiment does not constitute restore quarantine/activation. Production
+   `capture_database` correctly refuses the unknown prototype schema; its
+   namespace/manifest/lineage integration, populated upgrade/backfill and
+   physical/PITR qualification remain required before production promotion.
+4. **Actual capacity rerun:** `/tmp/life-pg6-five-task-capacity-a1` uses the
+   original schema-134 native flow, not synthetic prefix rows. There are
+   **two passes / one failure / 716.92 s**. The 0/2-order controls restore to
+   observation in 7,852.686/7,938.494 ms. The 1k source completes **143 orders**
+   before settlement of the next completed pair fails with
+   `PG_SETTLEMENT_FACTS_OR_PROJECTION_INVALID_AT_COMMIT`: SQL execution
+   812.991 ms, physical COMMIT 224.693 ms, total admission 1,052.244 ms.
+   The combined guard reports fact age or an invalid independent projection;
+   these timings alone do not prove which predicate failed. Source construction
+   elapsed 689,120.370 ms; restore was never attempted. The unchanged 1,000-ms
+   statement/fact/quote gates, 2-CPU/1-GiB database, 1-GiB physical source limit
+   and 120-s restore target remain in force. The prior 82-order SQL timeout is
+   retained; different partial stopping points are not a throughput improvement.
+   Per the gate order, 10k remains blocked until complete 1k source and restore
+   qualify. This failed baseline does not measure candidate write overhead.
+5. **Intermittent cold-read timeout:** fresh native/candidate cancel controls
+   retain bounded per-phase measurements in the temporary JUnit output.
+   `LIFE_PG_TEST_AUTO_EXPLAIN=1` optionally enables nested JSON plans with
+   buffers in the disposable server log, without changing a SQL deadline.
+   Its instrumentation has overhead, so that diagnostic profile cannot stand
+   for an acceptance timing. The earlier full-read timeout remains a separate
+   failure from the capacity COMMIT refusal; successful repeats alone do not
+   establish its root cause or a stable latency verdict.
+
+**Snapshot parity correction:** the first differential run exposed
+`prototype_base_asset`/`prototype_quote_asset` in native `capital_policy` JSON.
+The wallet proof now uses separate constant-asset origin parents and the
+original policy columns remain unchanged. The comparison exercises original
+native body bytes and the complete cut with/without a capital policy, before
+and after removing experimental metadata; it strips no body fields. This
+qualifies those small SPOT cases only, not every product/recovery body.
+
+**Qualification results (2026-10-24):**
+
+- The missing-hold Red is retained at
+  `/tmp/life-projection-completeness-red-a1`: three deletion cases fail without
+  the new existence constraints (12.88 s). The initial 12-case enrollment/
+  completeness gate passes in 20.76 s. Those earlier cases precede atomic
+  installation and the other-product extension.
+- `/tmp/life-projection-five-parts-targeted-a1` has 31 passes / three failures
+  (54.14 s): the new pure-body/archive test owner lacked explicit native read
+  scope. The fix imports an owner-side **read-only** test binding, preserving
+  `can_access` and never granting runtime writes. The next six-case gate at
+  `...-targeted-a2` has four passes / two failures (16.29 s), exposing the real
+  capital-policy body leak and a test harness misuse of archive file handles.
+  Neither failure is relabeled as success. After the origin-parent correction
+  and proper binary file handles, those six cases pass in 20.04 s at
+  `...-targeted-a3`.
+- The expanded full regression at
+  `/tmp/life-projection-five-parts-regression-a1` passes **148 tests / 220.31 s**,
+  zero failures/errors/skips and six existing dependency warnings. It comprises
+  32 original observation, 29 base prefix, 42 economic, 17 enrollment/parity,
+  three real archive, 19 product-source and six cold-read cases. The archives
+  retain 2,540,948 / 2,446,751 / 2,444,130 bytes for SPOT/joint/repaired cashflow.
+  Each restored catalog/table/sequence/body matches, migration re-entry changes
+  none of them, and original source edits still fail through restored internal
+  FKs. These are small graph round trips, not 1k/10k, PITR or production restore
+  eligibility.
+- `/tmp/life-projection-cold-explain-a1` passes the **same six cold-read IDs**
+  with strengthened diagnostic assertions, function tracking and nested plans
+  in **12.94 s**. There are 24 measured full-state reads, with per-case maximum
+  SQL execution 58.380–75.271 ms. `hedge_verified` totals 2.975–3.423 ms for 11
+  calls per case. The uninstrumented aggregate's 24 reads have per-case maxima
+  59.668–79.852 ms. These small repeats do not reproduce or explain the earlier
+  1,030-ms read and cannot establish tail percentiles. They overlap the full
+  regression population; do not add six to the unique test count.
+
+**Release decision:** the requested five production obligations remain
+**partially implemented / not closed**. Enrollment, monetary-source and small
+archive prerequisites now have executable coverage, but there is no production
+reader/audit replacement, complete combined-product economic proof, production
+prototype-schema restore integration, successful 1k/10k capacity or explained
+intermittent timeout. Keeping the failed capacity verdict and these explicit
+boundaries is required; green prototype tests must not close PG6/PG8.
 
 **Next PG6-X1 closure sequence (offline):**
 

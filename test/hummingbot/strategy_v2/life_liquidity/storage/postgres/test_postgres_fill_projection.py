@@ -23,19 +23,31 @@ ECONOMICS = Path(__file__).with_name('fill_projection_economics.sql')
 SUBSIDY = Path(__file__).with_name('fill_projection_subsidy.sql')
 WALLET = Path(__file__).with_name('fill_projection_wallet.sql')
 BUDGET_STATE = Path(__file__).with_name('fill_projection_budget_state.sql')
+COMPLETENESS = Path(__file__).with_name('fill_projection_completeness.sql')
+PRODUCTS = Path(__file__).with_name('fill_projection_products.sql')
 
 
-async def install(c, *, sources=True, economics=False, wallet=True):
-    await c.execute(SCHEMA.read_text())
+async def install(c, *, sources=True, economics=False, wallet=True, products=False):
+    scripts = [SCHEMA]
     if sources:
-        await c.execute(SOURCES.read_text())
+        scripts.append(SOURCES)
+    if products:
+        assert sources
+        scripts.append(PRODUCTS)
     if economics:
         assert sources
-        await c.execute(ECONOMICS.read_text())
-        await c.execute(SUBSIDY.read_text())
-        await c.execute(BUDGET_STATE.read_text())
+        scripts.extend((ECONOMICS, SUBSIDY, BUDGET_STATE))
         if wallet:
-            await c.execute(WALLET.read_text())
+            scripts.append(WALLET)
+        scripts.append(COMPLETENESS)
+    # One failed extension must not leave a partially enrolled base schema.
+    # Strip only each trusted file's transaction envelope; PL/pgSQL BEGIN/END
+    # bodies remain unchanged. Runtime never invokes this test installer.
+    async with c.transaction():
+        for path in scripts:
+            sql = path.read_text().strip()
+            assert '\nBEGIN;\n' in sql and sql.endswith('COMMIT;')
+            await c.execute(sql.replace('\nBEGIN;\n', '\n', 1)[:-len('COMMIT;')])
 
 
 async def prefix(c, account):

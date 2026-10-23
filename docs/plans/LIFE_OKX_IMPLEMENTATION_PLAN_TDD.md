@@ -1,5 +1,18 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**Five-part follow-up (2026-10-24):** the candidate now adds missing-hold/raw-row
+existence, atomic installation, catalog/ACL drift checks, other-product cash
+source bindings and small real archive round trips. A native snapshot/digest
+metadata leak was found and corrected in the test-only wallet design. See the
+[qualification and remaining promotion obligations](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#five-part-follow-up-and-promotion-boundary).
+The expanded regression passes **148 tests / 220.31 s**; the same six cold-read
+controls pass with nested plans in 12.94 s. The old timeout is not reproduced
+or explained, and these are not large-history acceptance timings.
+Runtime is still schema 134 with full audits. The actual 1k source rerun stops
+after 143 orders at the settlement COMMIT guard; 1k restore/10k qualification
+remain blocked. **PG6-X1/PG8.7 are open; the five production obligations are
+not all complete.**
+
 **Economic-prefix extension (2026-10-24):** the disposable fresh-SPOT prototype
 now enforces original fill/receipt identity, loss/subsidy window obligations,
 reservation arithmetic, opening-wallet/event totals and materialized budget
