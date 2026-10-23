@@ -51,6 +51,14 @@ migration and from these backup operations.
 
 ### Physical PITR and application rollback
 
+Owner-side `PgRestoreRecoveryContext.challenge(request, manifest=..., account_id=...)`
+can inspect the complete quarantined target and original owner/lease ancestry.
+`preview(...)` additionally computes the actual native cut and proposed
+`RECOVERY_ONLY` command inside an isolated, always-rolled-back transaction.
+Both require the original manifest and connection exclusion. Neither commits
+ownership, clears quarantine, registers an actor or provides trading permission.
+The signed durable recovery import remains required open implementation.
+
 - Physical recovery requires `pg_basebackup`/`pg_verifybackup`, original archived
   WAL and a declared recovery target. Start the isolated target with old runtime
   and reporting logins excluded. A missing target/WAL segment or damaged backup
