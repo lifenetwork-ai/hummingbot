@@ -22,6 +22,27 @@ These results qualify that artifact and protocol, not later edits, clean rebuild
 binary reproducibility, the full PG8 aggregate or deployment. PG6, complete PG7
 telemetry and PG8 remain open.
 
+**Follow-through:** a second builder run from an archived `59b20b36e` tree,
+`--no-cache-filter builder`, rebuilt all Cython extensions and produced the same
+image digest `65ef00c1982f…51`. Dependency layers were reused from their locked
+content; this proves the clean native build/output for that source and compiler
+profile, not a second independent network fetch or cross-platform identity.
+Log: `/tmp/life-worker-locked-rebuild-20261023.log`.
+
+**Bounded telemetry increment:** a separate single read-only connection now
+samples active attempts, reservation/shared/capital claims, exact balances,
+current budget keys and indexed financial/recorded-audit heads. Status handlers
+copy memory only. Failed samples retain their prior age and unavailable status;
+overflow is explicit, and neither telemetry nor cancellation ACK settles funds.
+Audit-signature presence and backup status are explicitly unverified, not health
+certificates. Native tests cover unchanged unknown-order money, read-only SQL,
+scope refusal, no sampler queue, failure freshness and a 10k-checkpoint indexed
+lookup: **5 passed / 8.85 s**. Foreground tests **10 passed / 4.04 s**.
+Terraform adds routed, explicit-threshold alerts and retains zero-allocation
+semantics; see `deploy/life_cloud_run/README.md` for synthetic calibration and
+actual-delivery limitations. Complete independent audit/backup freshness remains
+open under PG6/PG7.8. The locked-image result above precedes this telemetry change.
+
 **Scope split approved on 2026-10-23:** this plan owns offline implementation,
 local PostgreSQL/container/process tests, import/restore rehearsals and locally
 validated deployment definitions. All real deployment/account qualification is

@@ -28,6 +28,13 @@ variables {
   service_config   = { secret = "fixture-config", version = "1" }
   server_ca        = { secret = "fixture-ca", version = "1" }
   worker_env       = { LIFE_SOURCE_FACTORY = "trusted:factory", LIFE_TICK_SECONDS = "0.1", LIFE_STARTUP_TIMEOUT_SECONDS = "120", LIFE_SHUTDOWN_TIMEOUT_SECONDS = "8", LIFE_TELEMETRY_INTERVAL_SECONDS = "5" }
+  # Synthetic offline thresholds; deployment requires operational calibration.
+  monitoring = {
+    notification_channels     = ["projects/offline-fixture/notificationChannels/123"]
+    unknown_attempts          = 1, unresolved_holds = 64, budget_usage_ratio = 0.8
+    event_loop_lag_ms         = 500, telemetry_max_age_ms = 15000, db_phase_ms = 1000
+    heartbeat_absence_seconds = 120, notification_period_seconds = 600
+  }
 }
 run "isolated_definition" {
   command = apply
@@ -102,4 +109,27 @@ run "generation_changes_revision_identity_not_pool_namespace" {
     condition     = google_cloud_run_v2_worker_pool.worker.name == "life-synthetic" && google_service_account.worker.account_id == "life-synthetic-g2-run" && google_cloud_run_v2_worker_pool.worker.template[0].labels["life_generation"] == "g2"
     error_message = "A new generation must use a distinct identity in the same stopped pool, not create a second protected pool."
   }
+}
+
+run "stopped_namespace_has_no_active_alerts" {
+  command = plan
+  assert {
+    condition     = alltrue([for a in values(google_monitoring_alert_policy.worker) : !a.enabled]) && !google_monitoring_alert_policy.heartbeat.enabled
+    error_message = "Intentional zero allocation must not create a missing-worker alert."
+  }
+  assert {
+    condition     = google_monitoring_alert_policy.backup_failure.enabled
+    error_message = "Backups must remain monitored while trading is intentionally stopped."
+  }
+}
+run "reject_unrouted_or_unbounded_monitoring" {
+  command = plan
+  variables {
+    monitoring = {
+      notification_channels     = [], unknown_attempts = 0, unresolved_holds = 0, budget_usage_ratio = 0
+      event_loop_lag_ms         = 0, telemetry_max_age_ms = 0, db_phase_ms = 0
+      heartbeat_absence_seconds = 0, notification_period_seconds = 0
+    }
+  }
+  expect_failures = [var.monitoring]
 }

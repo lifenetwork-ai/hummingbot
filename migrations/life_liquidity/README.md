@@ -1847,3 +1847,12 @@ before/after the upgrade. An unknown predecessor refuses the whole transaction.
 The central automatic runner applies it once and skips its exact checksum on
 repeat startup. No account, policy, monetary event, balance, owner, grant or
 activation is created. Earlier migrations remain immutable.
+
+## 000121 — Bounded recorded-audit monitoring
+
+Adds an `(account_id, through_sequence DESC, checkpoint_id)` index for a one-row
+operational lookup. No grants, monetary records or ownership change. A recorded
+signature's presence is not independent verification. The central runner applies
+the immutable SQL once and skips its matching checksum on repeated startup.
+An actual query-plan test covers 10,000 synthetic retained checkpoints without
+scanning/filtering old rows; those rows are deliberately not accepted audit proof.

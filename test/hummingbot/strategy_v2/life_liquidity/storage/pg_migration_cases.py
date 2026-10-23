@@ -4324,3 +4324,19 @@ async def test_portable_markout_constraint_upgrade_refuses_unknown_predecessor(d
     with pytest.raises(asyncpg.RaiseError, match='UNKNOWN_MARKOUT_PREDECESSOR'):
         await migrate(c, directory, action='up')
     assert not await c.fetchval('SELECT EXISTS(SELECT 1 FROM life_migrations.schema_migrations WHERE version=120)')
+
+
+@pytest.mark.asyncio
+async def test_audit_monitor_index_upgrade_is_money_neutral_and_repeatable(db):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 121:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    before = await c.fetch('SELECT * FROM life_financial.accounts')
+    path = DEFAULT_DIRECTORY / '000121_audit_monitor_index.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    assert (await migrate(c, directory, action='up'))['applied'] == []
+    assert await c.fetch('SELECT * FROM life_financial.accounts') == before
+    assert await c.fetchval("SELECT indisvalid FROM pg_index WHERE indexrelid='life_financial.audit_checkpoint_sequence'::regclass")

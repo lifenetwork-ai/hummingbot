@@ -124,10 +124,38 @@ shutdown or the PG8 aggregate; record their actual gate results separately.
 
 ## Remaining operational work
 
-Lifecycle/DB/local-readiness/event-loop-lag telemetry and bounded local native
-pool-pressure, physical outcome/uncertainty counters and recent phase timings
-are implemented. Unknown counters count historical events, not unresolved funds.
-Complete bounded unknown/hold/budget/audit/backup metrics, calibrated alerts,
-full image tests and all PG8 gates remain open. A status response is never a
-permission to trade. Private probe exposure and actual scrape/log access must be
-verified before deployment; do not publish the status endpoint on a public service.
+Lifecycle/DB/local-readiness/loop-timer-lag telemetry includes native pool
+pressure, physical outcome counters and recent phase timings. The financial
+sampler uses one additional **read-only** connection, outside sender/safety pools,
+with no queued samples and a deadline capped at two seconds. It reads at most
+257 active rows per attempt/hold/claim family, two balances, nine current budget
+keys and indexed financial/audit heads. Counts with `truncated=true` are lower
+bounds; missing budgets are absent, not zero. Status/probe handlers do no SQL.
+Snapshot failure retains old values with their age and `UNAVAILABLE` state.
+
+`monitoring.tf` defines routed alerts for missing/stale telemetry, unknowns,
+holds, budget utilization, DB/loop latency, loss of local eligibility while
+ACTIVE, and unverified integrity/recovery status. All thresholds and notification
+channels are explicit inputs. Worker alerts are disabled for an intentional zero
+allocation; Cloud SQL backup-failure alerts remain enabled. The heartbeat absence
+policy requires an initial time series: deployment must verify an initial STATUS
+and an actual delivered test alert, including never-started-worker detection.
+
+The recorded audit sequence/signature-presence fields are **not verification**;
+the worker reports audit/backup health `UNVERIFIED`. A backup-success log also
+does not prove restore parity or reconcile exchange history. Independent audit
+verification/freshness and backup/recovery evidence still need the PG6/PG8 path;
+do not mark PG7.8 complete from these diagnostic fields alone. The logging filters
+use the documented [worker-pool resource](https://docs.cloud.google.com/monitoring/api/resources#tag_cloud_run_worker_pool)
+and [automated-backup audit fields](https://docs.cloud.google.com/sql/docs/postgres/backup-recovery/view-audit-logs-for-automated-backups).
+Actual log shapes, delivery, IAM and latency require deployed qualification.
+
+Synthetic mock-test calibration: engineering owns the 1-unknown/64-hold triggers,
+0.8 budget warning, 500-ms loop probe, 1,000-ms DB phase, 15-second sample age,
+120-second heartbeat absence and 600-second notification rate limit. They test
+warning before a 1.0 budget limit, truncation detection, and rate-limited
+notification routing with a five-second sample interval. They are not approved
+production thresholds; calibrate against the qualified workload and operational
+response time before deployment. The loop metric is timer overshoot, not a full
+interval maximum or an SLO histogram. Private probes and actual scrape/log access
+must be verified; never publish the status endpoint on a public service.
