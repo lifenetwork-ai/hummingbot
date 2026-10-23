@@ -292,9 +292,7 @@ async def test_restored_staging_preserves_original_bytes_but_cannot_cross_databa
         await admin.close()
 
 
-@pytest.mark.asyncio
-@pytest.mark.parametrize('profile', ['empty', 'paid', 'segmented'])
-async def test_sealed_native_stage_verifies_exact_cold_source_retirement_without_activation(database, tmp_path, profile):
+async def retired_fixture(database, tmp_path, profile):
     from test.hummingbot.strategy_v2.life_liquidity.storage.test_stopped_retirement import prepared
     from test.hummingbot.strategy_v2.life_liquidity.storage.test_target_import import paid_history
     from test.hummingbot.strategy_v2.life_liquidity.test_checkpoint_archive import capacity
@@ -319,17 +317,59 @@ async def test_sealed_native_stage_verifies_exact_cold_source_retirement_without
         await service.store.consume_configuration_handoff(command, approval=approval, facts=facts, cut=cut)
         retired_raw = await service.store.stopped_retirement_checkpoint(service.store.binding)
         await service.close()
-        cold = PgFileStaging(database[0], timeout_ms=10000)
-        sha = hashlib.sha256(retired_raw).hexdigest()
-        report = await cold.verify_retirement(request, retired_raw, expected_sha256=sha)
-        assert report.json()['source_sha256'] == request.source_sha256
-        assert not report.trading_permission
-        assert await database[0].fetchval('SELECT count(*) FROM life_financial.accounts') == 0
-        assert await database[0].fetchval('SELECT count(*) FROM life_financial.activation_grants') == 0
-        with pytest.raises(StorageError, match='CHECKPOINT_DIGEST'):
-            await cold.verify_retirement(request, retired_raw + b' ', expected_sha256=sha)
-        await cold.discard(request)
-        with pytest.raises(StorageError, match='DISCARDED'):
-            await cold.verify_retirement(request, retired_raw, expected_sha256=sha)
+        return request, retired_raw
     finally:
         await service.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('profile', ['empty', 'paid', 'segmented'])
+async def test_sealed_native_stage_verifies_exact_cold_source_retirement_without_activation(database, tmp_path, profile):
+    request, retired_raw = await retired_fixture(database, tmp_path, profile)
+    cold = PgFileStaging(database[0], timeout_ms=10000)
+    sha = hashlib.sha256(retired_raw).hexdigest()
+    report = await cold.verify_retirement(request, retired_raw, expected_sha256=sha)
+    assert report.json()['source_sha256'] == request.source_sha256
+    assert not report.trading_permission
+    assert await database[0].fetchval('SELECT count(*) FROM life_financial.accounts') == 0
+    assert await database[0].fetchval('SELECT count(*) FROM life_financial.activation_grants') == 0
+    with pytest.raises(StorageError, match='CHECKPOINT_DIGEST'):
+        await cold.verify_retirement(request, retired_raw + b' ', expected_sha256=sha)
+    await cold.discard(request)
+    with pytest.raises(StorageError, match='DISCARDED'):
+        await cold.verify_retirement(request, retired_raw, expected_sha256=sha)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('profile', ['empty', 'paid', 'segmented'])
+@pytest.mark.parametrize('outcome', ['success', 'before_commit', 'after_commit'])
+async def test_retirement_record_is_immutable_idempotent_and_retained_after_discard(database, tmp_path, monkeypatch, profile, outcome):
+    import asyncpg
+    request, raw = await retired_fixture(database, tmp_path, profile)
+    sha = hashlib.sha256(raw).hexdigest()
+    writer = PgFileStaging(database[0], timeout_ms=10000)
+    original = writer._commit
+
+    async def lost(tx):
+        if outcome == 'after_commit':
+            await original(tx)
+        raise OSError('synthetic unknown retirement COMMIT')
+    if outcome == 'success':
+        result = await writer.record_retirement(request, raw, expected_sha256=sha)
+        assert not result.replayed and not result.trading_permission
+    else:
+        monkeypatch.setattr(writer, '_commit', lost)
+        with pytest.raises(CommitUnknown):
+            await writer.record_retirement(request, raw, expected_sha256=sha)
+    cold = PgFileStaging(database[0], timeout_ms=10000)
+    result = await cold.record_retirement(request, raw, expected_sha256=sha)
+    assert result.replayed is (outcome != 'before_commit')
+    assert (await cold.retirement(request)).json()['checkpoint_sha256'] == sha
+    assert await database[0].fetchval('SELECT count(*) FROM life_storage.file_import_retirements') == 1
+    assert await database[0].fetchval('SELECT count(*) FROM life_financial.accounts') == 0
+    with pytest.raises(asyncpg.ObjectNotInPrerequisiteStateError, match='LIFE_IMMUTABLE_HISTORY'):
+        await database[0].execute('DELETE FROM life_storage.file_import_retirements')
+    await cold.discard(request)
+    assert await database[0].fetchval('SELECT count(*) FROM life_storage.file_import_retirements') == 1
+    with pytest.raises(StorageError, match='DISCARDED'):
+        await cold.retirement(request)

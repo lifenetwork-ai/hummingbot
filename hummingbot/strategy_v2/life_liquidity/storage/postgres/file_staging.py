@@ -135,6 +135,50 @@ class PgFileStaging:
                                      database_lineage=command.database_lineage, target_manifest_digest=fingerprint(command.json()),
                                      max_bytes=command.max_bytes)
 
+    async def record_retirement(self, command, raw, *, expected_sha256):
+        """Permanently bind the verified source retirement to this sealed stage."""
+        return await self._owned(command, self._record_retirement, raw, expected_sha256)
+
+    async def _record_retirement(self, command, raw, expected_sha256):
+        report = await self._verify_retirement(command, raw, expected_sha256)
+        if len(report.body) > 1048576:
+            raise StorageError('PG_FILE_RETIREMENT_CAPACITY')
+        sha = hashlib.sha256(report.body).hexdigest()
+
+        async def write():
+            row = await self._row(command)
+            if row['state'] != 'SEALED':
+                raise StorageError('PG_FILE_STAGE_INCOMPLETE')
+            old = await self.connection.fetchrow('SELECT * FROM life_storage.file_import_retirements WHERE operation_id=$1', command.operation_id)
+            if old is not None:
+                if (old['checkpoint'] != raw or old['checkpoint_sha256'] != expected_sha256
+                        or old['verification'] != report.body or old['verification_sha256'] != sha):
+                    raise StorageError('PG_FILE_RETIREMENT_CONFLICT')
+            else:
+                await self.connection.execute('''INSERT INTO life_storage.file_import_retirements
+                    (operation_id,checkpoint,checkpoint_sha256,verification,verification_sha256) VALUES($1,$2,$3,$4,$5)''',
+                                              command.operation_id, raw, expected_sha256, report.body, sha)
+            return FileStageReceipt(command.operation_id, 'SOURCE_RETIRED', old is not None)
+        return await self._transaction(command, write, seal=True)
+
+    async def retirement(self, command):
+        return await self._owned(command, self._retirement)
+
+    async def _retirement(self, command):
+        async def read():
+            row = await self._row(command)
+            if row['state'] != 'SEALED':
+                raise StorageError('PG_FILE_STAGE_INCOMPLETE')
+            result = await self.connection.fetchrow('SELECT * FROM life_storage.file_import_retirements WHERE operation_id=$1', command.operation_id)
+            if result is None:
+                raise StorageError('PG_FILE_RETIREMENT_MISSING')
+            return result
+        row = await self._transaction(command, read)
+        report = await self._verify_retirement(command, row['checkpoint'], row['checkpoint_sha256'])
+        if row['verification'] != report.body or hashlib.sha256(report.body).hexdigest() != row['verification_sha256']:
+            raise StorageError('PG_FILE_RETIREMENT_CONFLICT')
+        return report
+
     @staticmethod
     def _decode(command, raw):
         source = unpack_stopped_source(raw, expected_sha256=command.source_sha256,

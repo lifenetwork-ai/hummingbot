@@ -1870,3 +1870,16 @@ These tables hold complete source bytes, not executable financial state. No
 account, wallet, budget, key exclusion or trading grant is initialized. Historical
 target database identity remains immutable across restore; quarantine and lineage
 checks prevent resuming staging against the wrong restored namespace.
+
+## 000123 — Immutable stopped-source retirement record
+
+Adds owner-only `file_import_retirements`, binding a sealed import operation to
+the exact consumed File checkpoint and its reconstructed verification report.
+Both byte bodies have enforced SHA-256 checks; UPDATE/DELETE are refused. The
+runtime/reporting roles and PUBLIC receive no inherited access. Repeated startup
+uses the central migration runner's original checksum ledger.
+
+Recording has an idempotent original-operation retry after an unknown COMMIT.
+Discarding staging retains the permanent retirement audit and cannot reactivate
+the File source. This creates no native account, financial balance or grant;
+native translation, parity and unarmed publication remain separate PG6 gates.

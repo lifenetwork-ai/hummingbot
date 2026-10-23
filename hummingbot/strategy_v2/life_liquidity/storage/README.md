@@ -5661,3 +5661,10 @@ its current staging/lineage and exact financial parity inside its eventual
 unarmed publication transaction. Before-activity staging discard cannot undo a
 consumed File source; that source must remain retired and the retained audit
 history must be used for any separately authorized subsequent migration.
+
+`PgFileStaging.record_retirement` persists that verified checkpoint and report in
+the owner-only immutable retirement table. An uncertain COMMIT is resolved by
+replaying the identical request on a new maintenance instance; it cannot create
+a second record. `retirement(request)` cold-verifies the stored bytes against the
+original sealed source again. Staging discard retains this audit but prevents
+further import use. Neither method constructs native financial authority.

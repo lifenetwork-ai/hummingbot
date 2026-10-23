@@ -2,6 +2,20 @@
 
 ## Current offline delivery status
 
+**2026-10-23 durable stopped-source retirement increment:** migration 123 and
+`PgFileStaging.record_retirement` retain the exact consumed File checkpoint and
+verified target report under owner-only immutable storage. Cold readback repeats
+the full original-source verification. Ordinary, paid and segmented histories,
+lost COMMIT before/after durability, idempotent retries and retained audit after
+discard pass in the 32-case native staging matrix (49.50 s,
+`/tmp/life-pg6-retirement-record-a2`); the targeted upgrade/repeated-run/hostile
+default-ACL case passes (1 case, 401 deselected, 3.69 s,
+`/tmp/life-pg6-retirement-migration-a1`). The earlier nine failures expected the
+wrong asyncpg exception for the correctly enforced immutable-history guard;
+they remain in the original log. No native account or trading grant is created.
+PG6 financial translation/parity, controlled recovery and PG8 aggregate gates
+remain open.
+
 | Current offline scope | Status at this checkpoint |
 | --- | --- |
 | PG0 engineering decisions/fixture profile/cost model | Complete for offline work; see the consolidated PG0 decisions below. Live topology, price and threat-model acceptance remain OKX environment gates. |
