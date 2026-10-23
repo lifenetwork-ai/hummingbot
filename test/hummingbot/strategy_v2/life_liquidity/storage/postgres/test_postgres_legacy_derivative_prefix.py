@@ -115,7 +115,13 @@ async def test_legacy_derivative_prefix_corruption_after_import_denies_cold_proo
 @pytest.mark.asyncio
 @pytest.mark.parametrize('database', [59], indirect=True)
 @pytest.mark.parametrize('product', ['SWAP', 'FUNDING'])
-async def test_actual_59_derivative_prefix_upgrades_without_rewriting_original_money_or_receipt(database, tmp_path, monkeypatch, product):
+async def test_actual_59_derivative_prefix_upgrades_without_rewriting_original_money_or_receipt(database, tmp_path, monkeypatch, product, reference_migrations_82):
+    from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.historical_client import (
+        pin_pre84_client,
+        provision_upgraded_client,
+    )
+    await pin_pre84_client(monkeypatch, database[0])
+
     from hummingbot.strategy_v2.life_liquidity.storage.postgres import migrations, runtime
     from hummingbot.strategy_v2.life_liquidity.storage.postgres.funding import PgFundingRepository
     from hummingbot.strategy_v2.life_liquidity.storage.postgres.swap_fills import PgSwapFillRepository
@@ -133,7 +139,8 @@ async def test_actual_59_derivative_prefix_upgrades_without_rewriting_original_m
         operations = await c.fetchval("SELECT jsonb_agg(to_jsonb(o) ORDER BY operation_id) FROM life_financial.operations o WHERE account_id=$1", cfg.account_id)
         assert not await c.fetchval('SELECT life_financial.legacy_spot_prefix_valid($1,$2::jsonb,$3)', cfg.account_id, body, cut.checkpoint.revision)
         await financial.close()
-        assert (await migrations.migrate(c, action='up'))['applied'] == ['000060_legacy_derivative_prefix.sql', '000061_legacy_parent_prefix.sql', '000062_legacy_unsent_spot.sql', '000063_legacy_spot_ack_prefix.sql', '000064_legacy_repaired_parent_prefix.sql', '000065_legacy_cancel_prefix.sql', '000066_legacy_terminal_prefix.sql', '000067_legacy_settlement_prefix.sql', '000068_legacy_abort_nav_history.sql', '000069_legacy_joint_spot_claims.sql', '000070_repair_view_reuse.sql', '000071_required_ack_completion.sql', '000072_unfilled_swap_prefix.sql', '000073_joint_provider_routes.sql', '000074_joint_source_deadline.sql', '000075_joint_trade_id_sets.sql', '000076_signed_native_control.sql', '000077_reconciled_session_successors.sql', '000078_native_safety.sql', '000079_native_markout_gate.sql', '000080_native_stress.sql', '000081_native_execution_modes.sql', '000082_native_execution_children.sql']
+        assert (await migrations.migrate(c, reference_migrations_82, action='up'))['applied'] == ['000060_legacy_derivative_prefix.sql', '000061_legacy_parent_prefix.sql', '000062_legacy_unsent_spot.sql', '000063_legacy_spot_ack_prefix.sql', '000064_legacy_repaired_parent_prefix.sql', '000065_legacy_cancel_prefix.sql', '000066_legacy_terminal_prefix.sql', '000067_legacy_settlement_prefix.sql', '000068_legacy_abort_nav_history.sql', '000069_legacy_joint_spot_claims.sql', '000070_repair_view_reuse.sql', '000071_required_ack_completion.sql', '000072_unfilled_swap_prefix.sql', '000073_joint_provider_routes.sql', '000074_joint_source_deadline.sql', '000075_joint_trade_id_sets.sql', '000076_signed_native_control.sql', '000077_reconciled_session_successors.sql', '000078_native_safety.sql', '000079_native_markout_gate.sql', '000080_native_stress.sql', '000081_native_execution_modes.sql', '000082_native_execution_children.sql']
+        await provision_upgraded_client(c, values[1].account_id)
         assert await c.fetchval('SELECT life_financial.legacy_spot_prefix_valid($1,$2::jsonb,$3)', cfg.account_id, body, cut.checkpoint.revision)
         assert await c.fetchval("SELECT jsonb_agg(to_jsonb(o) ORDER BY operation_id) FROM life_financial.operations o WHERE account_id=$1", cfg.account_id) == operations
         cold, capital, batch, importer = await restore(cfg, owner, c)

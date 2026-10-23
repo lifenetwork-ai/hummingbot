@@ -19,7 +19,7 @@ no release requirement is waived or passed by moving it.
 | PG5 | Closed for selected offline native recorder/CLI scope | Deployed credentials/TLS remain OKX PG-E1; detached standalone reporting services are outside this worker profile |
 | PG6 | In progress; logical and physical target restore plus schema/sequence guards | Stopped File/segmented native import, cutover rollback, post-cut reconciliation/release and retained-history capacity qualification remain open |
 | PG7 | In progress; foreground host, isolated migration rollout and validated IaC candidate | Linux image/dependency lock, container kill tests, complete metrics/alerts remain open |
-| PG8 | Open; full gate exposed stale historical upgrade fixtures | Complete current-source serial regression, product/performance/coverage acceptance remain required |
+| PG8 | Open; historical upgrade fixture repair qualified separately | Complete current-source serial regression, product/performance/coverage acceptance remain required |
 
 Only current phase checklists and this ledger determine progress. Historical
 “open at this checkpoint” statements describe their recorded revision; they are
@@ -9957,3 +9957,42 @@ including joined cleanup; adding another speculative SQL index cannot discharge
 that failure. The previously observed freshness failures and complete configured
 R2.3/R4/R5 acceptance remain unresolved. All applicable hooks pass for this
 access-path increment, which preserves the original financial/native proofs.
+
+## PG8 retained historical upgrade clients (2026-10-23)
+
+**PG8 remains OPEN.** The first complete native run stopped after **189 passes
+and one failure**, 196.48 s, at an old schema-67 fixture attempting to provision
+schema-84's batch capture function. Remaining cases were not run; that sample
+(`/tmp/life-pg8-native-all-20261023-f1`) is incomplete and RED.
+
+The repaired test-only client asserts the sole missing historical mutating
+entrypoint, pins the explicitly retained migration-82 destination, and enrolls
+new read functions/tables through the migration owner after the upgrade. Runtime
+production admission/provisioning still requires the complete current bundle.
+All original exact money, receipt, cost, NAV/highwater, claim, deduplication and
+cold-recovery assertions remain. The explicit intermediate SQL filename lists
+are retained. These old correctness oracles are not a latency qualification of
+an unsupported schema release.
+
+A separate disposable-database profile disables LLVM JIT and uses generic plans
+for these historical correctness fixtures. It changes neither role defaults nor
+production configuration, SQL/source/financial deadlines or economic budgets.
+The selected **15 original upgrade cases pass**, 264 deselected, 92.92 s, zero
+failure/error/skip (`/tmp/life-pg8-upgrades-20261023-f8/integration.xml`). This
+focused gate does not replace full native, O.8, coverage or scale acceptance.
+
+All attempts remain in `/tmp/life-pg8-upgrades-20261023-f2` through `f8`: f2
+reported 10 failures/1 pass before explicit re-enrollment; f3 passed its original
+11-case selector; the expanded f4/f5 each reported 2 failures/13 passes with
+historical SQL timeouts/source aging. The rejected f6/f7 approach upgraded past
+the oracle's explicit destination and failed all 15 cases (helper/profile bugs,
+then changed snapshot representation/stale original cuts). It was removed;
+no financial comparison was weakened to adopt those snapshots. The complete
+current-release native suite still needs its own serial rerun. Logs stay outside
+the repository; no new evidence file or live/environment grant is created.
+
+After source hooks formatted imports, the same 15-case selector was repeated
+serially: **15 passed**, 264 deselected, zero failure/error/skip, **94.47 s**
+(`/tmp/life-pg8-upgrades-20261023-f9/integration.xml`). Changed-file hooks pass
+(`/tmp/life-pg8-historical-hooks2.log`). The f8/f9 samples are separate runs;
+no aggregate case count or whole-PG8 completion is inferred.

@@ -139,7 +139,13 @@ async def test_mixed_outer_original_claim_corruption_revokes_cold_import_and_ret
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('database', [68], indirect=True)
-async def test_actual_68_outer_spot_upgrade_recovers_original_mixed_money_and_claims(database, tmp_path, monkeypatch):
+async def test_actual_68_outer_spot_upgrade_recovers_original_mixed_money_and_claims(database, tmp_path, monkeypatch, reference_migrations_82):
+    from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.historical_client import (
+        pin_pre84_client,
+        provision_upgraded_client,
+    )
+    await pin_pre84_client(monkeypatch, database[0])
+
     from hummingbot.strategy_v2.life_liquidity.storage.postgres import runtime
     from hummingbot.strategy_v2.life_liquidity.storage.postgres.migrations import migrate
     load, expected = runtime.load_migrations, {}
@@ -153,7 +159,8 @@ async def test_actual_68_outer_spot_upgrade_recovers_original_mixed_money_and_cl
     try:
         before, claims = await financial.snapshot(cfg.binding), await values[5].claims(cfg.binding)
         await financial.close()
-        assert (await migrate(c, action='up'))['applied'] == ['000069_legacy_joint_spot_claims.sql', '000070_repair_view_reuse.sql', '000071_required_ack_completion.sql', '000072_unfilled_swap_prefix.sql', '000073_joint_provider_routes.sql', '000074_joint_source_deadline.sql', '000075_joint_trade_id_sets.sql', '000076_signed_native_control.sql', '000077_reconciled_session_successors.sql', '000078_native_safety.sql', '000079_native_markout_gate.sql', '000080_native_stress.sql', '000081_native_execution_modes.sql', '000082_native_execution_children.sql']
+        assert (await migrate(c, reference_migrations_82, action='up'))['applied'] == ['000069_legacy_joint_spot_claims.sql', '000070_repair_view_reuse.sql', '000071_required_ack_completion.sql', '000072_unfilled_swap_prefix.sql', '000073_joint_provider_routes.sql', '000074_joint_source_deadline.sql', '000075_joint_trade_id_sets.sql', '000076_signed_native_control.sql', '000077_reconciled_session_successors.sql', '000078_native_safety.sql', '000079_native_markout_gate.sql', '000080_native_stress.sql', '000081_native_execution_modes.sql', '000082_native_execution_children.sql']
+        await provision_upgraded_client(c, values[1].account_id)
         cold, capital, batch, importer = await restore(cfg, owner, c)
         after = await cold.snapshot(cfg.binding)
         assert (after.balance, after.budget, after.cut) == (before.balance, before.budget, before.cut)

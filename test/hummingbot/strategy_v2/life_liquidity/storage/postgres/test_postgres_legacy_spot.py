@@ -300,7 +300,13 @@ async def test_unfilled_file_order_still_requires_exact_independent_native_prepa
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('database', [57], indirect=True)
-async def test_existing_57_prefix_upgrades_then_recovers_with_original_money_and_receipts(database, tmp_path, monkeypatch):
+async def test_existing_57_prefix_upgrades_then_recovers_with_original_money_and_receipts(database, tmp_path, monkeypatch, reference_migrations_82):
+    from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.historical_client import (
+        pin_pre84_client,
+        provision_upgraded_client,
+    )
+    await pin_pre84_client(monkeypatch, database[0])
+
     from hummingbot.strategy_v2.life_liquidity.storage.postgres import runtime as runtime_module
     load = runtime_module.load_migrations
     expected = {}
@@ -312,7 +318,8 @@ async def test_existing_57_prefix_upgrades_then_recovers_with_original_money_and
     values, _, command, cut, facts, approval, _, store, source = prepared
     financial = values[0]
     try:
-        assert (await migrate(database[0], action='up'))['applied'] == ['000058_legacy_spot_prefix.sql', '000059_legacy_cashflow_prefix.sql', '000060_legacy_derivative_prefix.sql', '000061_legacy_parent_prefix.sql', '000062_legacy_unsent_spot.sql', '000063_legacy_spot_ack_prefix.sql', '000064_legacy_repaired_parent_prefix.sql', '000065_legacy_cancel_prefix.sql', '000066_legacy_terminal_prefix.sql', '000067_legacy_settlement_prefix.sql', '000068_legacy_abort_nav_history.sql', '000069_legacy_joint_spot_claims.sql', '000070_repair_view_reuse.sql', '000071_required_ack_completion.sql', '000072_unfilled_swap_prefix.sql', '000073_joint_provider_routes.sql', '000074_joint_source_deadline.sql', '000075_joint_trade_id_sets.sql', '000076_signed_native_control.sql', '000077_reconciled_session_successors.sql', '000078_native_safety.sql', '000079_native_markout_gate.sql', '000080_native_stress.sql', '000081_native_execution_modes.sql', '000082_native_execution_children.sql']
+        assert (await migrate(database[0], reference_migrations_82, action='up'))['applied'] == ['000058_legacy_spot_prefix.sql', '000059_legacy_cashflow_prefix.sql', '000060_legacy_derivative_prefix.sql', '000061_legacy_parent_prefix.sql', '000062_legacy_unsent_spot.sql', '000063_legacy_spot_ack_prefix.sql', '000064_legacy_repaired_parent_prefix.sql', '000065_legacy_cancel_prefix.sql', '000066_legacy_terminal_prefix.sql', '000067_legacy_settlement_prefix.sql', '000068_legacy_abort_nav_history.sql', '000069_legacy_joint_spot_claims.sql', '000070_repair_view_reuse.sql', '000071_required_ack_completion.sql', '000072_unfilled_swap_prefix.sql', '000073_joint_provider_routes.sql', '000074_joint_source_deadline.sql', '000075_joint_trade_id_sets.sql', '000076_signed_native_control.sql', '000077_reconciled_session_successors.sql', '000078_native_safety.sql', '000079_native_markout_gate.sql', '000080_native_stress.sql', '000081_native_execution_modes.sql', '000082_native_execution_children.sql']
+        await provision_upgraded_client(database[0], values[1].account_id)
         financial, capital, batch, importer = await restore(values[1], values[2], database[0])
         values = list(values)
         values[0], values[5] = financial, capital
@@ -325,7 +332,13 @@ async def test_existing_57_prefix_upgrades_then_recovers_with_original_money_and
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('database', [58], indirect=True)
-async def test_58_orphan_prefix_refusal_after_59_upgrade_uses_original_predecessor_as_oracle(database, tmp_path, monkeypatch):
+async def test_58_orphan_prefix_refusal_after_59_upgrade_uses_original_predecessor_as_oracle(database, tmp_path, monkeypatch, reference_migrations_82):
+    from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.historical_client import (
+        pin_pre84_client,
+        provision_upgraded_client,
+    )
+    await pin_pre84_client(monkeypatch, database[0])
+
     from hummingbot.strategy_v2.life_liquidity.storage.postgres import runtime as runtime_module
     load = runtime_module.load_migrations
     c = database[0]
@@ -340,7 +353,8 @@ async def test_58_orphan_prefix_refusal_after_59_upgrade_uses_original_predecess
         await c.execute('CREATE SCHEMA prefix_reference')
         await c.execute(old.replace('FUNCTION life_financial.legacy_spot_prefix_valid(', 'FUNCTION prefix_reference.legacy_spot_prefix_valid('))
         await c.execute('REVOKE ALL ON FUNCTION prefix_reference.legacy_spot_prefix_valid(uuid,jsonb,bigint) FROM PUBLIC')
-        assert (await migrate(c, action='up'))['applied'] == ['000059_legacy_cashflow_prefix.sql', '000060_legacy_derivative_prefix.sql', '000061_legacy_parent_prefix.sql', '000062_legacy_unsent_spot.sql', '000063_legacy_spot_ack_prefix.sql', '000064_legacy_repaired_parent_prefix.sql', '000065_legacy_cancel_prefix.sql', '000066_legacy_terminal_prefix.sql', '000067_legacy_settlement_prefix.sql', '000068_legacy_abort_nav_history.sql', '000069_legacy_joint_spot_claims.sql', '000070_repair_view_reuse.sql', '000071_required_ack_completion.sql', '000072_unfilled_swap_prefix.sql', '000073_joint_provider_routes.sql', '000074_joint_source_deadline.sql', '000075_joint_trade_id_sets.sql', '000076_signed_native_control.sql', '000077_reconciled_session_successors.sql', '000078_native_safety.sql', '000079_native_markout_gate.sql', '000080_native_stress.sql', '000081_native_execution_modes.sql', '000082_native_execution_children.sql']
+        assert (await migrate(c, reference_migrations_82, action='up'))['applied'] == ['000059_legacy_cashflow_prefix.sql', '000060_legacy_derivative_prefix.sql', '000061_legacy_parent_prefix.sql', '000062_legacy_unsent_spot.sql', '000063_legacy_spot_ack_prefix.sql', '000064_legacy_repaired_parent_prefix.sql', '000065_legacy_cancel_prefix.sql', '000066_legacy_terminal_prefix.sql', '000067_legacy_settlement_prefix.sql', '000068_legacy_abort_nav_history.sql', '000069_legacy_joint_spot_claims.sql', '000070_repair_view_reuse.sql', '000071_required_ack_completion.sql', '000072_unfilled_swap_prefix.sql', '000073_joint_provider_routes.sql', '000074_joint_source_deadline.sql', '000075_joint_trade_id_sets.sql', '000076_signed_native_control.sql', '000077_reconciled_session_successors.sql', '000078_native_safety.sql', '000079_native_markout_gate.sql', '000080_native_stress.sql', '000081_native_execution_modes.sql', '000082_native_execution_children.sql']
+        await provision_upgraded_client(c, values[1].account_id)
         financial, _, _, importer = await restore(values[1], values[2], c)
         await importer.import_pending(command, source_store=store, approval=approval, cut=cut, facts=facts)
         tx = c.transaction()

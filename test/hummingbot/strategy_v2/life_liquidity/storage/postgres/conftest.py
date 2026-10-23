@@ -34,6 +34,17 @@ def pytest_configure(config):
 
 
 @pytest.fixture
+def reference_migrations_82(tmp_path):
+    """Exact original destination of retained v58-v68 historical upgrades."""
+    directory = tmp_path / 'reference_migrations_82'
+    directory.mkdir()
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) <= 82:
+            (directory / path.name).write_bytes(path.read_bytes())
+    return directory
+
+
+@pytest.fixture
 def reference_migrations_100(tmp_path):
     """Exact target of retained pre-101 differential proofs, not latest schema."""
     directory = tmp_path / 'reference_migrations_100'

@@ -148,7 +148,13 @@ async def test_repaired_parent_root_corruption_denies_cold_import_proof_without_
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('database', [63], indirect=True)
-async def test_actual_63_signed_repaired_parent_upgrades_and_recovers_original_money_without_rewriting_history(database, tmp_path, monkeypatch):
+async def test_actual_63_signed_repaired_parent_upgrades_and_recovers_original_money_without_rewriting_history(database, tmp_path, monkeypatch, reference_migrations_82):
+    from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.historical_client import (
+        pin_pre84_client,
+        provision_upgraded_client,
+    )
+    await pin_pre84_client(monkeypatch, database[0])
+
     from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_legacy_core_cashflows import restore
 
     from hummingbot.strategy_v2.life_liquidity.storage.postgres import runtime
@@ -164,7 +170,8 @@ async def test_actual_63_signed_repaired_parent_upgrades_and_recovers_original_m
         before = await financial.snapshot(cfg.binding)
         rows = await c.fetchval('SELECT jsonb_agg(to_jsonb(o) ORDER BY operation_id) FROM life_financial.operations o WHERE account_id=$1', cfg.account_id)
         await financial.close()
-        assert (await migrate(c, action='up'))['applied'] == ['000064_legacy_repaired_parent_prefix.sql', '000065_legacy_cancel_prefix.sql', '000066_legacy_terminal_prefix.sql', '000067_legacy_settlement_prefix.sql', '000068_legacy_abort_nav_history.sql', '000069_legacy_joint_spot_claims.sql', '000070_repair_view_reuse.sql', '000071_required_ack_completion.sql', '000072_unfilled_swap_prefix.sql', '000073_joint_provider_routes.sql', '000074_joint_source_deadline.sql', '000075_joint_trade_id_sets.sql', '000076_signed_native_control.sql', '000077_reconciled_session_successors.sql', '000078_native_safety.sql', '000079_native_markout_gate.sql', '000080_native_stress.sql', '000081_native_execution_modes.sql', '000082_native_execution_children.sql']
+        assert (await migrate(c, reference_migrations_82, action='up'))['applied'] == ['000064_legacy_repaired_parent_prefix.sql', '000065_legacy_cancel_prefix.sql', '000066_legacy_terminal_prefix.sql', '000067_legacy_settlement_prefix.sql', '000068_legacy_abort_nav_history.sql', '000069_legacy_joint_spot_claims.sql', '000070_repair_view_reuse.sql', '000071_required_ack_completion.sql', '000072_unfilled_swap_prefix.sql', '000073_joint_provider_routes.sql', '000074_joint_source_deadline.sql', '000075_joint_trade_id_sets.sql', '000076_signed_native_control.sql', '000077_reconciled_session_successors.sql', '000078_native_safety.sql', '000079_native_markout_gate.sql', '000080_native_stress.sql', '000081_native_execution_modes.sql', '000082_native_execution_children.sql']
+        await provision_upgraded_client(c, values[1].account_id)
         cold, capital, batch, importer = await restore(cfg, owner, c)
         after = await cold.snapshot(cfg.binding)
         assert (after.balance, after.budget, after.cut) == (before.balance, before.budget, before.cut)
