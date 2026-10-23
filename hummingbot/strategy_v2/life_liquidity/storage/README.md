@@ -1,5 +1,29 @@
 # LIFE storage contracts
 
+## Relational economic import staging (PG6)
+
+`postgres.file_financial.PgFileFinancialStaging` extends the existing owner-side
+artifact staging API. After `stage(request, raw)` seals the source artifact,
+`translate_financial(request, batch_rows=128)` writes bounded, resumable economic
+fact batches. `financial_rows(request)` cold-reconstructs verified expected facts
+from the original source and compares every stored byte/identity plus its seal.
+Always await `close()` before releasing the original maintenance connection.
+
+Migration 124 retains original capital policy/cost-basis, balances, fill fees,
+cashflow/approval IDs, NAVs and loss/subsidy journal period totals. It preserves
+decimal strings without SQL numeric rounding. Both tables are immutable and
+owner-only; hostile default privileges are scrubbed by the numbered migration.
+Lost seal responses resolve by cold readback, and changed/rehashed/missing rows
+cannot become a successful parity verdict. Import bounds apply before writes.
+
+This is import staging, not operational native account initialization. Product
+policies, all terminal/deduplication/receipt roots and recorder ancestry still
+need explicit native mapping/parity before atomic unarmed publication. Current
+maintenance scope also requires an empty target account; post-publication audit
+needs a separately qualified read scope. Neither a seal nor a row grants trading
+permission or bypasses source retirement/exclusion. Run the combined actual-PG
+regression with `run_postgres --suite file_financial --output /tmp/<new-dir>`.
+
 ## Clean File source capture for PostgreSQL (PG6)
 
 On an already configured File service, stage the signed financial configuration

@@ -1,5 +1,20 @@
 # LIFE PostgreSQL migrations
 
+## 000124 — Relational financial import staging
+
+`000124_file_financial_staging.sql` adds owner-only `file_financial_rows` and
+`file_financial_seals`. Rows retain canonical bytes, original fact identities,
+sequence and SHA-256; immutable seals bind the exact ordered manifest, count
+and byte total. The migration scrubs inherited PUBLIC/runtime/reporting table
+privileges and creates no financial account, balance, owner or activation.
+The central numbered runner applies it once and checks its ledger checksum on
+repeated startup. The associated maintenance API resumes bounded batches and
+reconstructs verified original File facts before cold parity readback.
+
+These tables hold import evidence. Mapping all historical product/recorder
+roots into the operational native schema and atomic unarmed publication remain
+PG6.2/PG6.3 work; a financial staging seal grants no trading permission.
+
 ## 000118 — Scoped recorder provenance reads
 
 `000118_recorder_scope.sql` adds a read-only `recorder_scope_verified` function.

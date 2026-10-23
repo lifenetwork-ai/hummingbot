@@ -1,5 +1,13 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**PG6 economic staging increment (2026-10-23):** schema 124 adds resumable
+financial fact rows with original capital/cost-basis, fee, NAV and spent-budget
+history. The combined staging regression passes 41 native cases; two focused
+migration checks pass. Operational native account mapping/parity and unarmed
+publication remain open under PG6.2–PG6.3 in the
+[PostgreSQL plan](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md).
+The earlier green image remains qualification of frozen schema 123.
+
 **Current image functional gate GREEN (2026-10-23):** source `6fed06ce6`
 refreshes signed financial sources and records a new NAV after hedge settlement
 before release. Earlier NAV history and exact retry receipts remain intact;

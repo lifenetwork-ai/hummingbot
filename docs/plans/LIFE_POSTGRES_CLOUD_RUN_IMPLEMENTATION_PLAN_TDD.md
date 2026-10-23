@@ -2,6 +2,37 @@
 
 ## Current offline delivery status
 
+**2026-10-23 PG6 relational economic staging:** migration 124 and
+`PgFileFinancialStaging` add resumable owner-only financial fact rows and an
+immutable ordered parity seal. The original verified accounting policy,
+starting-capital/cost-basis projection, balances, exact fill/fee/cashflow IDs,
+retained NAVs, additional approvals and loss/subsidy period journals/totals are
+translated to canonical byte rows. Decimal strings and original timestamps are
+preserved, with no rounding or wallet rebasing. Batches compare existing rows,
+insert only missing identities and reject changed data; sealing/cold readback
+reconstructs expected facts from the trusted source and compares every row.
+Explicit row/byte/batch bounds apply before writing; indexed batch reads and
+bounded `executemany` avoid one transaction per economic record.
+
+The missing module gives the initial red collection error. The new matrix then
+passes 8 native tests, including ordinary/paid/segmented sources, interruption
+after a committed batch, both lost-seal COMMIT outcomes, rehashed corruption,
+missing rows and changed seals. The combined artifact/retirement/economic
+staging regression passes **41 cases / 62.44 s**
+(`/tmp/life-financial-stage-regression-a1`). Targeted migration upgrade,
+repeat-run, hostile-default-ACL and empty-bootstrap checks pass **2 cases / 6.36
+s**, 401 deselected (`/tmp/life-financial-stage-migration-a1`). No financial
+account or activation grant is created. These are separate focused gates.
+
+**PG6.2/PG6.3 remain OPEN.** This stages verified economic facts relationally;
+it does not yet map all original product policies, operation/terminal/receipt
+tombstones, joint stress/funding roots and recorder ancestry into operational
+native tables. It does not implement native-runtime parity or atomic unarmed
+account publication. Retirement/exclusion must still be revalidated at that
+publication boundary. Runtime cutover, rollback and post-restore reconciliation
+are unchanged. Earlier image results qualify frozen `6fed06ce6`/schema 123;
+schema 124 is not included in that image gate or a new PG8 aggregate.
+
 **2026-10-23 current-image native functional gate GREEN:** frozen source
 `6fed06ce6` builds immutable AMD64 worker
 `sha256:5a129fc7e3bb6a9ff71d4079264b1cc85fd9b1d23d7314a8c1cbcbd145f5dbdc`
@@ -3989,6 +4020,7 @@ Dependencies: PG3–PG5.
 - [ ] PG6.2: Import the clean source into `IMPORTING` staging with resumable batches and stable source operation IDs. Preserve original starting capital/cost basis, retained inventory, cashflows, NAV/highwater, gross loss and subsidy/funding spending, deadlines/epochs, all terminal tombstones, wire/trade/bill/approval/operation identities and deduplication/receipt history. An opening wallet is not a replacement historical basis or a budget reset. The source cannot acquire unresolved sends/holds or new activity between qualification and activation; revalidate the frozen cut. Active File product-state migration requires a separate explicit scope decision.
   - [x] **Resumable complete artifact staging (2026-10-23):** migration 122 adds owner-only import/chunk tables; `PgFileStaging` stores exact bounded artifact bytes under stable source/target identities, resumes committed chunks, detects corrupt/missing data, and seals only the complete trusted outer digest. It preserves ordinary, paid-history and segmented sources byte for byte. Real child-process death, lost seal replies, original-task cancellation/decoder timeout and actual backup/restore quarantine are covered (17 native tests, 24.11 s, `/tmp/life-pg6-staging-20261023-a5`; hostile-default-ACL upgrade/repeated migration: 1 pass, 3.51 s). A discard retains permanent audit tombstones and is refused for an existing target account. This is transport/staging only: no account, monetary row, source retirement or activation grant is created. Native financial translation and parity remain open.
   - [x] **Original-basis capital reconstruction (2026-10-23):** cold `capital_projection` shares File's causal capital replay, expands verified segmented wallet bytes without path I/O, and compares exact wallet totals, trade/transfer identities and fees against the original reconciliation cut. Opening basis, initial-inventory consumption/PnL, net flows, gross execution loss and historical NAV/highwater are retained. Rehashed balance/identity/policy/highwater corruption, late valuation, pre-anchor approval, incomplete facts and capacity overflow are refused. The final projection/capital/archive matrix passes 95 tests in 20.65 s; affected joint/target/maintenance regression passes 82 in 84.96 s; real PostgreSQL staging/projection passes 20 in 37.22 s (`/tmp/life-pg6-capital-20261023-a4.log`, `/tmp/life-pg6-capital-regression-20261023-a3.log`, `/tmp/life-pg6-capital-native-20261023-a1`). Counts are separate, overlapping matrices. This is a capital parity input, not native historical translation, all-product/budget verification, account initialization, credential exclusion or activation; PG6.2/PG6.3 stay open.
+  - [x] **Relational economic facts and cold parity (2026-10-23):** migration 124 stages canonical original financial rows and an immutable manifest under owner-only access. Bounded batches resume without replacing committed facts; loss/subsidy period totals and NAV/cost-basis/fee history remain original. The 41-case combined native regression and two targeted migration cases pass as recorded above. Operational native policy/product/receipt mapping, full all-product parity and atomic unarmed account publication remain open.
 - [ ] PG6.3: Compare exact financial totals, complete identity sets and recovered decisions; activate the imported lineage atomically and **unarmed**. Missing/corrupt source evidence blocks activation; never initialize empty authority to work around an import failure.
 - [ ] PG6.4: Keep the source immutable and non-sending. Before any DB-owned orders, reversal can discard staging. After DB-owned orders, rollback requires reconciled export/cutover and a new fenced generation; toggling the backend flag is prohibited.
 - [ ] PG6.5: Exercise backup/PITR restore into an isolated database. Restore is unarmed, has a new controlled lineage, rejects stale grants/epochs, and requires old-credential exclusion plus exchange history reconciliation since the restored cut. No empty history or replayed budget reset.
