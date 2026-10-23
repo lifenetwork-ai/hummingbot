@@ -54,9 +54,16 @@ class JournalArchive:
                 "life_balance": data["life_balance"], "usdt_balance": data["usdt_balance"]}
 
     def _join(self, state, *, settled_verified=False):
+        return self.join_state(state, kind=self.kind, limits=self.binding['limits'], settled_verified=settled_verified)
+
+    @staticmethod
+    def join_state(state, *, kind, limits=None, settled_verified=False):
+        """Decode a partition without opening a journal or granting authority."""
+        if kind not in ('wal', 'reservations'):
+            raise ValueError('ARCHIVE_JOURNAL_POLICY_INVALID')
         try:
             active, settled = state["active"], state["settled"]
-            if self.kind == "wal":
+            if kind == "wal":
                 if (set(state) != {"active", "settled"}
                         or not isinstance(active, Mapping) or not isinstance(settled, Mapping)
                         or any(key in settled for key in active)
@@ -70,7 +77,7 @@ class JournalArchive:
                     or any(not isinstance(part[key], Mapping) for part in (active, settled) for key in keys)
                     or any(any(k in settled[key] for k in active[key]) for key in keys)):
                 raise ValueError("ARCHIVE_PARTITION_INVALID")
-            data = {"schema_version": 2, "limits": self.binding["limits"],
+            data = {"schema_version": 2, "limits": limits,
                     "life_balance": state["life_balance"], "usdt_balance": state["usdt_balance"],
                     **{key: PartitionMap(active[key], settled[key]) for key in keys}}
             for branch, terminal in ((active, False), (settled, True)):

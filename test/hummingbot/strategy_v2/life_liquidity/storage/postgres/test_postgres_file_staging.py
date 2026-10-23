@@ -92,6 +92,19 @@ async def test_staging_rejects_changed_origin_and_target(database, tmp_path, fau
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('profile', ['empty', 'paid', 'segmented'])
+async def test_cold_staged_capital_projection_retains_original_basis_without_activation(database, tmp_path, profile):
+    from hummingbot.strategy_v2.life_liquidity.storage.stopped_capital import project_stopped_capital
+    raw, source, command = await fixture(database, tmp_path, profile=profile)
+    await PgFileStaging(database[0], timeout_ms=10000).stage(command, raw)
+    projection = await PgFileStaging(database[0], timeout_ms=10000).capital_projection(command)
+    assert projection == project_stopped_capital(source, max_rows=command.max_rows)
+    assert not projection.trading_permission
+    assert await database[0].fetchval('SELECT count(*) FROM life_financial.accounts') == 0
+    assert await database[0].fetchval('SELECT count(*) FROM life_financial.activation_grants') == 0
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize('committed', [False, True])
 async def test_staging_lost_seal_reply_replays_original_bytes(database, tmp_path, monkeypatch, committed):
     raw, _, command = await fixture(database, tmp_path)

@@ -90,9 +90,13 @@ class PgFileStaging:
             return await work(command, *args)
 
     async def _decoded(self, command, raw):
+        return await self._in_thread(self._decode, command, raw)
+
+    @staticmethod
+    async def _in_thread(function, *args, **kwargs):
         # A deadline/caller cancellation cannot release the physical slot while
         # the bounded CPU decoder is still running in its original thread.
-        task = asyncio.create_task(asyncio.to_thread(self._decode, command, raw))
+        task = asyncio.create_task(asyncio.to_thread(function, *args, **kwargs))
         try:
             return await asyncio.shield(task)
         except asyncio.CancelledError:
@@ -109,6 +113,15 @@ class PgFileStaging:
 
     async def discard(self, command):
         return await self._owned(command, self._discard)
+
+    async def capital_projection(self, command):
+        """Reconstruct original capital from a sealed cut; never activate it."""
+        return await self._owned(command, self._capital_projection)
+
+    async def _capital_projection(self, command):
+        from hummingbot.strategy_v2.life_liquidity.storage.stopped_capital import project_stopped_capital
+        source = await self._read(command)
+        return await self._in_thread(project_stopped_capital, source, max_rows=command.max_rows)
 
     @staticmethod
     def _decode(command, raw):

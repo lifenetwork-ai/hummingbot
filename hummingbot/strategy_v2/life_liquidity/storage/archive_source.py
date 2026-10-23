@@ -97,6 +97,29 @@ class ArchiveSource:
                                 root=hashlib.sha256(self.root).hexdigest(),
                                 segments={name: hashlib.sha256(raw).hexdigest() for name, raw in self.segments}))
 
+    def materialize(self):
+        """Detached bounded maintenance image; never open the original paths.
+
+        Construction has verified every referenced byte and duplicate map key.
+        Each call decodes new objects so consumers cannot mutate this source.
+        """
+        manifest = decode(self.root)
+        chunks = dict(self.segments)
+        state = manifest['state']
+        for entry in manifest['archives']:
+            branch = {} if entry['kind'] == 'map' else []
+            for descriptor in entry['segments']:
+                data = decode(chunks[descriptor['sha256'] + '.json'])
+                if entry['kind'] == 'map':
+                    branch.update(data)
+                else:
+                    branch.extend(data)
+            parent = state
+            for key in entry['path'][:-1]:
+                parent = parent[key]
+            parent[entry['path'][-1]] = branch
+        return {'policy': manifest['policy'], 'state': state}
+
 
 def capture_archive(path, archive, *, max_bytes, max_rows):
     if (type(archive) is not CheckpointArchive or any(type(v) is not int or v < 1 for v in (max_bytes, max_rows))):

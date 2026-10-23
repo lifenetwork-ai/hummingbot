@@ -5568,6 +5568,18 @@ qualified empty target; changing backend flags cannot reactivate a discarded
 operation. Quarantined restores preserve chunks but reject the original target
 lineage. Native parity, old-key exclusion and controlled activation remain open.
 
+`capital_projection(request)` reconstructs the original capital from the sealed
+artifact in the bounded maintenance worker. It uses the same causal fill,
+cashflow and settled-joint-cash replay as File storage, then checks the detached
+wallet and original reconciliation identity sets. Ordinary and segmented wallet
+cuts produce the same monetary result without opening their embedded paths.
+Opening basis, remaining initial inventory, realized initial-inventory PnL,
+net cashflows, gross execution loss and the original NAV highwater are retained;
+historical NAV observations are copied verbatim, not repriced at import time.
+This is a capital parity input. It does not translate native SQL history, certify
+all product/budget policies, retire old credentials or create an account/grant.
+The full artifact remains required for those later checks and identity imports.
+
 Run `python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_postgres
 --suite file_staging --output /tmp/<unique-run>` for the real PostgreSQL matrix.
 

@@ -15,7 +15,6 @@ from decimal import Decimal
 from pathlib import Path
 
 from hummingbot.strategy_v2.life_liquidity.account_lock import AccountRiskPoolLock
-from hummingbot.strategy_v2.life_liquidity.accounting import CapitalLedger
 from hummingbot.strategy_v2.life_liquidity.economics import SubsidyBudgetLedger
 from hummingbot.strategy_v2.life_liquidity.loss_budget import LossBudgetLedger
 from hummingbot.strategy_v2.life_liquidity.risk import ReservationLedger, RiskLimits, SpotIntent
@@ -29,6 +28,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.capital import (
     SpotAccountingPolicy,
     SpotCapitalView,
 )
+from hummingbot.strategy_v2.life_liquidity.storage.capital_replay import replay_capital
 from hummingbot.strategy_v2.life_liquidity.storage.configuration_handoff import LegacyConfigurationHandoffAdapter
 from hummingbot.strategy_v2.life_liquidity.storage.contracts import (
     AtomicScope,
@@ -69,7 +69,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.financial import (
 )
 from hummingbot.strategy_v2.life_liquidity.storage.financial_configuration import LegacyFinancialConfigurationAdapter
 from hummingbot.strategy_v2.life_liquidity.storage.handoff import LegacyConfigurationHandoffControlAdapter
-from hummingbot.strategy_v2.life_liquidity.storage.joint_settlement import JointCashEvent, LegacyJointCashAdapter
+from hummingbot.strategy_v2.life_liquidity.storage.joint_settlement import LegacyJointCashAdapter
 from hummingbot.strategy_v2.life_liquidity.storage.legacy_applying import LegacyApplyingAdapter
 from hummingbot.strategy_v2.life_liquidity.storage.pending import LegacyPendingAdapter
 from hummingbot.strategy_v2.life_liquidity.storage.prepare_recovery import LegacyPrepareRecoveryAdapter
@@ -897,52 +897,10 @@ class LegacySpotStore(LegacyApplyingAdapter, LegacyTargetImportAdapter, LegacyCo
 
     def _capital_ledger(self, commands, fills, cashflows, joint_cashflows=None):
         self._require_accounting()
-        policy = self._accounting_policy
-        capital = CapitalLedger(opening_life=policy.opening_base_life, opening_usdt=policy.opening_quote_usdt,
-                                opening_independent_price_usdt=policy.opening_independent_price_usdt)
-        timeline = []
-        for trade_id, data in fills.items():
-            row = SpotFillObservation.from_json(data['fill'])
-            if row.fill_at_ms < int(policy.opened_at.timestamp() * 1000):
-                raise StorageError('SPOT_CAPITAL_PREOPEN_FILL')
-            side = PrepareSpot.from_json(commands[data['prepare_operation_id']]['command']).side
-            timeline.append((row.fill_at_ms, 1, trade_id, (side, row)))
-        for bill_id, data in cashflows.items():
-            row = self._cashflow_from_json(data)
-            if bill_id != row.bill_id:
-                raise StorageError('SPOT_CAPITAL_CASHFLOW_IDENTITY_INVALID')
-            self._validate_cashflow_value(row)
-            timeline.append((row.transfer_at_ms, 0, bill_id, row))
         if joint_cashflows is None:
             joint_cashflows = self._read().resources.get('joint_cashflows', {})
-        for event_id, data in joint_cashflows.items():
-            event = JointCashEvent.from_json(data['event'])
-            if event.event_id != event_id or event.at_ms < int(policy.opened_at.timestamp() * 1000):
-                raise StorageError('JOINT_CASH_EVENT_INVALID')
-            # Native joint wallet ordering is spot fill before settled cash at
-            # equal time. A later settlement cannot finance an earlier fill.
-            timeline.append((event.at_ms, 2, event_id, event))
-        try:
-            # Preserve existing attributor ordering: cashflow before fill at an
-            # equal timestamp; lexical ID within kind. No invented clock order.
-            for _, kind, event_id, event in sorted(timeline, key=lambda item: item[:3]):
-                if kind == 0:
-                    capital.record_asset_cashflow(event_id, event.currency, event.signed_amount,
-                                                  independent_value_usdt=event.independent_price_usdt)
-                elif kind == 1:
-                    side, row = event
-                    fee_cost = -row.signed_fee * (row.independent_price_usdt if row.fee_currency == 'LIFE' else Decimal('1'))
-                    capital.record_fill(event_id, side, row.quantity_base_life, row.price_usdt, fee_cost,
-                                        independent_value_usdt=row.independent_price_usdt,
-                                        fee_currency=row.fee_currency, signed_fee=row.signed_fee)
-                else:
-                    if capital.usdt_balance + event.signed_amount_usdt < 0:
-                        raise ValueError('settled cash exceeds wallet balance')
-                    capital.record_funding(event_id, -event.signed_amount_usdt)
-                    capital.execution_loss_quote += event.execution_loss_usdt
-            return capital
-        except (ValueError, ArithmeticError):
-            raise StorageError('SPOT_CAPITAL_CAUSAL_REPLAY_INVALID') from None
+        return replay_capital(self._accounting_policy, commands, fills, cashflows, joint_cashflows,
+                              validate_cashflow=self._validate_cashflow_value)
 
     def _verify_capital_projection(self, commands, fills, cashflows, joint_cashflows=None):
         native = {bill_id: (row['currency'], Decimal(row['signed_amount'])) for bill_id, row in cashflows.items()}
