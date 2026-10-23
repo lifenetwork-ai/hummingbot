@@ -74,7 +74,7 @@ async def test_packaged_lineage_is_stable_and_not_financial_bootstrap(db):
         format('%I.%I',schemaname,tablename) AS qualified
         FROM pg_tables WHERE schemaname IN ('life_storage','life_financial')''')
     assert {r['tablename'] for r in tables if r['schemaname'] == 'life_storage'} == {
-        'storage_metadata', 'restore_history', 'file_imports', 'file_import_chunks', 'file_import_retirements', 'file_financial_rows', 'file_financial_seals',
+        'storage_metadata', 'restore_history', 'file_imports', 'file_import_chunks', 'file_import_retirements', 'file_financial_rows', 'file_financial_seals', 'file_history_rows', 'file_history_seals',
     }
     assert {'accounts', 'balances', 'activation_grants', 'operations'} <= {
         r['tablename'] for r in tables if r['schemaname'] == 'life_financial'
@@ -4414,6 +4414,26 @@ async def test_file_financial_upgrade_is_repeatable_owner_only_and_empty(db):
     assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
     assert (await migrate(c, directory, action='up'))['applied'] == []
     for table in ('file_financial_rows', 'file_financial_seals'):
+        for role in ('public', 'life_runtime_test', 'life_reporter_test'):
+            for privilege in ('SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'):
+                assert not await c.fetchval('SELECT has_table_privilege($1,$2,$3)', role, 'life_storage.' + table, privilege)
+        assert await c.fetchval('SELECT count(*) FROM life_storage.' + table) == 0
+    assert await c.fetchval('SELECT count(*) FROM life_financial.accounts') == 0
+
+
+@pytest.mark.asyncio
+async def test_file_history_upgrade_is_repeatable_owner_only_and_empty(db):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 125:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    await c.execute('ALTER DEFAULT PRIVILEGES IN SCHEMA life_storage GRANT ALL ON TABLES TO PUBLIC,life_runtime_test,life_reporter_test')
+    path = DEFAULT_DIRECTORY / '000125_file_history_staging.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    assert (await migrate(c, directory, action='up'))['applied'] == []
+    for table in ('file_history_rows', 'file_history_seals'):
         for role in ('public', 'life_runtime_test', 'life_reporter_test'):
             for privilege in ('SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'):
                 assert not await c.fetchval('SELECT has_table_privilege($1,$2,$3)', role, 'life_storage.' + table, privilege)

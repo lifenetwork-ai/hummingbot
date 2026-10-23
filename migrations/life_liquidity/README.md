@@ -1,5 +1,26 @@
 # LIFE PostgreSQL migrations
 
+## 000125 — Complete stopped-history staging
+
+`000125_file_history_staging.sql` adds owner-only immutable `file_history_rows`
+and `file_history_seals`. Indexed source document/path identities retain core
+operations and resources, terminal and receipt history, materialized journals,
+session deadlines, ancillary product policies/state, service configuration and
+SQLite recorder schema/rows. The original artifact still retains exact segment
+and source-file bytes; relational JSON is a canonical logical representation.
+
+The history seal binds the original financial seal, complete ordered row
+manifest, count and byte usage. Batches resume without overwriting identities.
+Cold verification reconstructs every logical document and compares it with the
+trusted artifact, including empty containers and list ordering. Missing or
+rehashed records fail parity. Finite JSON floats in service/reporting metadata
+retain their type; monetary decimal strings are not converted or rounded.
+
+Startup applies this script through the existing numbered checksum ledger.
+Repeated startup is a no-op; the script scrubs inherited PUBLIC/runtime/reporting
+ACLs and creates no account, money, owner, grant or runtime DML privilege. These
+are import evidence tables, not operational native history or account publication.
+
 ## 000124 — Relational financial import staging
 
 `000124_file_financial_staging.sql` adds owner-only `file_financial_rows` and

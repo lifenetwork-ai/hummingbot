@@ -1,5 +1,35 @@
 # LIFE storage contracts
 
+## Complete relational history staging (PG6)
+
+`postgres.file_history.PgFileHistoryStaging` extends economic staging with
+`translate_history(request, batch_rows=128)` and `history_documents(request)`.
+Call `stage` and `translate_financial` first. History translation requires the
+original cold-verified financial seal and the same exact source/target request.
+Always await `close()` before releasing the maintenance connection.
+
+Migration 125 preserves every checkpoint resource and original operation,
+terminal/ACK/deduplication/receipt record, expanded core/ancillary journal,
+session deadline/epoch, configured policy and recorder schema/row. Exact raw
+source bytes remain in artifact staging. The logical rows retain original
+document/path identities and complete record bodies. Canonical source metadata
+may contain finite JSON floats; monetary decimal strings stay strings. Row,
+payload, path, byte and batch bounds refuse overflow before history writes.
+Import row capacity includes structural rows, not only economic events.
+
+Cold parity reconstructs all source documents, compares original values and
+checks the immutable ordered seal against the financial seal. A sealed retry
+does one full verification rather than revisiting each batch; it cannot repair
+or adopt missing/corrupt rows. Lost-COMMIT replies resolve by original readback.
+The combined native regression command is
+`run_postgres --suite file_history --output /tmp/<new-dir>`.
+
+**This does not publish a native account.** Original File bindings, operation
+receipts and session identities cannot be rewritten to look like native
+commands. Operational mapping and independent native accounting/product/budget
+parity must precede atomic unarmed publication. The empty-target maintenance
+scope remains intact; post-publication auditing needs its own guarded read scope.
+
 ## Relational economic import staging (PG6)
 
 `postgres.file_financial.PgFileFinancialStaging` extends the existing owner-side

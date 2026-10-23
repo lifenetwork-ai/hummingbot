@@ -2,6 +2,52 @@
 
 ## Current offline delivery status
 
+**2026-10-23 PG6 complete relational ancestry:** migration 125 and
+`PgFileHistoryStaging` extend the existing economic stage with complete logical
+source documents. These include original checkpoint operations/resources,
+terminal/ACK/deduplication/receipt records, all materialized core/ancillary
+journals, session deadlines/epochs, configured product policies and SQLite
+recorder schema/rows. Exact raw source/segment bytes remain in artifact staging.
+The immutable history seal binds the original financial seal and ordered
+document/path/body manifest. Cold readback independently rebuilds every logical
+document from stored rows and compares it with the trusted source. Empty
+containers, original identity strings, list ordering and finite nonfinancial
+JSON floats are preserved; economic decimal strings are not converted.
+
+Bounded batches resume without overwriting committed identities. Sealed replay
+skips repeated batch SQL but always repeats full scoped parity. Source/target
+scope remains empty-account-only, with no native account, balance, owner, grant
+or runtime write permission. This closes relational preservation/readback of
+complete ancestry, **not operational native translation or PG6.3 publication**.
+The remaining import work is explicit: map original File identities/receipts and
+product roots into the native schema without inventing native command history;
+independently prove native capital/budget/product/recorder parity; then atomically
+publish an unarmed account bound to verified source retirement. No parent phase
+is closed by a staging seal. The frozen schema-123 image remains historical
+qualification and does not qualify migration 125.
+
+**Qualification:** initial missing-module Red is retained at
+`/tmp/life-file-history-red.log`. Development `life-history-regression-a1`
+retains **43 passes / 9 failures**: normalized row counts exceeded the older
+source-only fixture's 128-row capacity. Record-oriented partitioning and an
+explicit 4096-row synthetic import capacity replace that mismatched fixture;
+the actual capacity refusal remains tested. `life-history-matrix-a2` retains
+**2 passes / 9 failures** exposing finite floats in original service/reporting
+JSON; canonical history encoding now preserves those JSON types and still
+rejects nonfinite values, without changing restricted financial encoding.
+The intermediate corrected 11-case matrix passes in 24.85 s. Final combined
+artifact/retirement/financial/history regression
+`run_postgres --suite file_history --output /tmp/life-history-regression-final-a1`
+passes **53 cases / 82.59 s**, zero failures/errors/skips, six existing-category
+warnings. It includes a real child-process exit after a committed history batch,
+cold resume, both lost-seal COMMIT outcomes, independently rehashed terminal
+corruption, missing/extra rows and changed seals. The targeted numbered upgrade,
+repeat startup, hostile-default-ACL and no-bootstrap migration gate passes
+**2 cases / 5.18 s**, 402 deselected, at
+`/tmp/life-history-migration-final-a1`. These are focused offline gates on the
+existing pinned local PostgreSQL profile, not full-image, PG8 scale or deployed
+qualification. Prior failures remain retained; no source/SQL deadline is widened.
+
 **2026-10-23 PG6 relational economic staging:** migration 124 and
 `PgFileFinancialStaging` add resumable owner-only financial fact rows and an
 immutable ordered parity seal. The original verified accounting policy,
@@ -4021,6 +4067,7 @@ Dependencies: PG3–PG5.
   - [x] **Resumable complete artifact staging (2026-10-23):** migration 122 adds owner-only import/chunk tables; `PgFileStaging` stores exact bounded artifact bytes under stable source/target identities, resumes committed chunks, detects corrupt/missing data, and seals only the complete trusted outer digest. It preserves ordinary, paid-history and segmented sources byte for byte. Real child-process death, lost seal replies, original-task cancellation/decoder timeout and actual backup/restore quarantine are covered (17 native tests, 24.11 s, `/tmp/life-pg6-staging-20261023-a5`; hostile-default-ACL upgrade/repeated migration: 1 pass, 3.51 s). A discard retains permanent audit tombstones and is refused for an existing target account. This is transport/staging only: no account, monetary row, source retirement or activation grant is created. Native financial translation and parity remain open.
   - [x] **Original-basis capital reconstruction (2026-10-23):** cold `capital_projection` shares File's causal capital replay, expands verified segmented wallet bytes without path I/O, and compares exact wallet totals, trade/transfer identities and fees against the original reconciliation cut. Opening basis, initial-inventory consumption/PnL, net flows, gross execution loss and historical NAV/highwater are retained. Rehashed balance/identity/policy/highwater corruption, late valuation, pre-anchor approval, incomplete facts and capacity overflow are refused. The final projection/capital/archive matrix passes 95 tests in 20.65 s; affected joint/target/maintenance regression passes 82 in 84.96 s; real PostgreSQL staging/projection passes 20 in 37.22 s (`/tmp/life-pg6-capital-20261023-a4.log`, `/tmp/life-pg6-capital-regression-20261023-a3.log`, `/tmp/life-pg6-capital-native-20261023-a1`). Counts are separate, overlapping matrices. This is a capital parity input, not native historical translation, all-product/budget verification, account initialization, credential exclusion or activation; PG6.2/PG6.3 stay open.
   - [x] **Relational economic facts and cold parity (2026-10-23):** migration 124 stages canonical original financial rows and an immutable manifest under owner-only access. Bounded batches resume without replacing committed facts; loss/subsidy period totals and NAV/cost-basis/fee history remain original. The 41-case combined native regression and two targeted migration cases pass as recorded above. Operational native policy/product/receipt mapping, full all-product parity and atomic unarmed account publication remain open.
+  - [x] **Complete relational ancestry and cold reconstruction (2026-10-23):** migration 125 preserves original operations/resources, terminal/ACK/receipt/tombstone history, session and product roots, expanded journals and recorder schema/rows. Its immutable seal binds the original financial seal; bounded batches retain source identities, and cold reconstruction compares all logical documents with the trusted artifact. No native account or authority is created. Operational native mapping/parity and atomic unarmed publication remain open.
 - [ ] PG6.3: Compare exact financial totals, complete identity sets and recovered decisions; activate the imported lineage atomically and **unarmed**. Missing/corrupt source evidence blocks activation; never initialize empty authority to work around an import failure.
 - [ ] PG6.4: Keep the source immutable and non-sending. Before any DB-owned orders, reversal can discard staging. After DB-owned orders, rollback requires reconciled export/cutover and a new fenced generation; toggling the backend flag is prohibited.
 - [ ] PG6.5: Exercise backup/PITR restore into an isolated database. Restore is unarmed, has a new controlled lineage, rejects stale grants/epochs, and requires old-credential exclusion plus exchange history reconciliation since the restored cut. No empty history or replayed budget reset.

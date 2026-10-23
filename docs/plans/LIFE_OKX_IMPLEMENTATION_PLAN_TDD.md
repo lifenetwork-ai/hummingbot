@@ -1,5 +1,14 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**PG6 ancestry staging increment (2026-10-23):** schema 125 preserves complete
+original terminal/receipt/operation, product/session/journal and recorder
+ancestry under an immutable seal bound to the financial stage. Cold readback
+reconstructs all logical source documents; exact original raw bytes remain in
+artifact staging. Operational native mapping, independent native parity and
+atomic unarmed publication remain open in PG6.2–PG6.3 of the
+[PostgreSQL plan](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md).
+The frozen green schema-123 image does not qualify this new source.
+
 **PG6 economic staging increment (2026-10-23):** schema 124 adds resumable
 financial fact rows with original capital/cost-basis, fee, NAV and spent-budget
 history. The combined staging regression passes 41 native cases; two focused
