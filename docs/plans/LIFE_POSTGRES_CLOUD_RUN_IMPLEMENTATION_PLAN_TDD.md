@@ -74,6 +74,21 @@ their exact original fractional spending. The final budget/capital matrix passes
 reinterpret an old rounded wallet as a different opening basis or change native
 PostgreSQL arithmetic. Full source/target parity is still required for import.
 
+**Frozen-run diagnostic fixture correction (2026-10-23):** the running
+`49983bae2` native aggregate retains three failures in the cold inventory/exit
+corruption tests (market/child/exit). `execution.py` imported a patched
+`sql_error` alias while a prior test fixture was active; its closure retained
+that pytest item. Teardown deleted the item's diagnostic deque, so a later valid
+corruption rejection became an AttributeError and was reported as
+`PG_DATABASE_UNAVAILABLE`. The test-only wrapper now resolves a task-local
+collector and retains no pytest item. It preserves the original exception and
+uses bounded, sanitized codes. Both alias/capture regressions pass; the complete
+affected inventory/exit module passes **51 tests / 82.90 s** (331 unrelated
+cases deselected), including all three original failures, at
+`/tmp/life-pg8-inventory-reason-20261023-a1`. No production exception or financial
+guard was loosened. The original frozen run continues unchanged and its three
+failures remain failures; this affected rerun is not a passing full aggregate.
+
 **2026-10-23 locked LIFE/OKX image increment:** the dedicated
 `deploy/life_cloud_run/Dockerfile` now consumes SHA-256-pinned conda URLs and pip
 wheels, a pinned base digest and signed Debian snapshot. Its complete installed

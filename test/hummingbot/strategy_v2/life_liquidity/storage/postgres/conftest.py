@@ -4,6 +4,7 @@ import os
 import time
 from collections import deque
 from datetime import datetime, timezone
+from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.reason_capture import capture_codes, normalize_codes
 from uuid import uuid4
 
 import pytest
@@ -123,8 +124,21 @@ def pytest_runtest_makereport(item, call):
                 delattr(item, name)
 
 
+@pytest.fixture
+def reason_codes(request, monkeypatch):
+    # Modules may import the patched function once and retain that alias after
+    # this fixture ends. Resolve the current collector at call time instead of
+    # closing over a pytest item whose attributes teardown later deletes.
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres import runtime
+    codes = deque(maxlen=64)
+    request.node._pg_reason_codes = codes
+    monkeypatch.setattr(runtime, 'sql_error', normalize_codes(runtime.sql_error))
+    with capture_codes(codes):
+        yield
+
+
 @pytest_asyncio.fixture
-async def database(request, monkeypatch, tmp_path, migration_template):
+async def database(request, monkeypatch, tmp_path, migration_template, reason_codes):
     dsn = os.environ.get('LIFE_PG_TEST_DSN')
     if not dsn:
         pytest.skip('Requires run_postgres.py disposable database')
@@ -138,18 +152,6 @@ async def database(request, monkeypatch, tmp_path, migration_template):
         original(store, config)
         request.node._pg_diagnostic_runtimes.append(store)
     monkeypatch.setattr(PgRuntime, '__init__', tracked)
-    # SDK failure hints intentionally carry no raw driver exception. Preserve
-    # only the already sanitized application codes for failed-test triage;
-    # never retain driver messages, SQL, parameters or credential data.
-    from hummingbot.strategy_v2.life_liquidity.storage.postgres import runtime
-    original_error = runtime.sql_error
-    request.node._pg_reason_codes = deque(maxlen=64)
-
-    def normalized(error):
-        result = original_error(error)
-        request.node._pg_reason_codes.append(str(result)[:128])
-        return result
-    monkeypatch.setattr(runtime, 'sql_error', normalized)
     from hummingbot.strategy_v2.life_liquidity.storage.postgres.quote_account_source import PgQuoteAccountSource
     original_status = PgQuoteAccountSource._uid_status
     request.node._pg_uid_timings = deque(maxlen=12)
