@@ -10008,3 +10008,33 @@ provider/key exclusion. Pinned Terraform format/validate pass, and the expanded
 mock-only gate passes **9 cases**, zero failure/skip
 (`/tmp/life-pg7-tf-test6.log`, `/tmp/life-pg7-tf-validate4.log`). No cloud apply
 was executed. PG7 remains open for the listed image/monitoring qualifications.
+
+## PG8 serial executable map foundation (2026-10-23)
+
+`test.hummingbot.strategy_v2.life_liquidity.storage.pg_acceptance` maps the File
+contracts, complete native directory, separate physical PITR, foreground,
+immutable Linux image, mock infrastructure and original O.8/coverage runner to
+owners and requirement IDs. It hashes implementation/tests/SQL/input/plan bytes
+and ignored host Cython artifacts around each gate. The original frozen budget
+SHA is mandatory. A per-user physical lock prevents two instances of this runner
+from qualifying concurrently; it cannot prevent unrelated external load.
+
+Source drift stops the run. Each gate is first persisted as incomplete `RUNNING`;
+missing/truncated/empty/skipped/failed XML or a nonzero process cannot qualify.
+Product reports must retain original setup/call/teardown results, counts, their
+content digest and the strict O.8 completion result. Explicit `--candidate`
+permits open product regression and never qualifies its closure. An executable
+remaining-work register retains the existing PG0/PG6/PG7/PG8 requirements; no
+child process success waives these or checks a plan box. Exit 2 remains required
+while they are unresolved. The map never deploys, opens user `.env` or issues
+financial authority. Logs/results remain under the chosen new `/tmp` directory.
+
+TDD: missing-module Red is `/tmp/life-pg8-map-red.log`; malformed-report, lock,
+source/binary change, dotenv/symlink exclusion and false-completion counterexamples
+pass **7 tests**, zero failure/skip, **0.28 s**
+(`/tmp/life-pg8-map-green3.xml`; extended binary-input test also passes in
+`/tmp/life-pg8-map-green4.xml`). An intermediate test-edit NameError remains
+`/tmp/life-pg8-map-green2.log`. Hooks pass in `/tmp/life-pg8-map-hooks3.log`.
+This qualifies the orchestrator's local safeguards, **not its unexecuted full
+long pipeline or PG8.2/PG8 closure**. The reproduction command is in the storage
+README. Complete source-fixed pipeline/acceptance results remain required.

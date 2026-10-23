@@ -5327,3 +5327,36 @@ The test has explicit synthetic 120-second / 1-GiB physical-data limits on two
 not read credentials, revoke an exchange key, reconcile missing post-cut facts,
 release quarantine or establish Cloud SQL PITR/RPO/RTO/retention headroom. Never
 clear the restore marker or reuse an old generation to work around those gates.
+
+## Serial PostgreSQL offline acceptance
+
+The executable map is
+`test.hummingbot.strategy_v2.life_liquidity.storage.pg_acceptance`. Supply a
+locally built immutable Linux AMD64 image ID and the pinned Terraform executable:
+
+```sh
+LIFE_ENV_FILE='' LIFE_AUTO_MIGRATE=false python -m \
+  test.hummingbot.strategy_v2.life_liquidity.storage.pg_acceptance \
+  --output /tmp/life-pg-acceptance-new \
+  --linux-image sha256:REPLACE_WITH_LOCAL_IMAGE_ID \
+  --terraform /absolute/path/to/terraform --candidate
+```
+
+It runs File contracts, the complete native PostgreSQL directory, separate real
+physical PITR, foreground tests, immutable image tests, mock-only infrastructure
+and the original O.8/coverage runner, in that order. Each original gate uses its
+own new temporary result directory. The host must have no other performance
+qualification/build load running; the local lock excludes another instance of
+this orchestrator, not unrelated Docker jobs. No GCP provisioning or exchange
+request is performed. Neither user `.env` nor automatic financial bootstrap is
+used. Source, SQL, test, input and host Cython bytes are hashed before and after
+every gate; changed inputs stop the run. Failed/unfinished/skipped/missing reports
+cannot qualify a gate, and process loss leaves its durable status `RUNNING`.
+
+`--candidate` permits the existing open O.8 regression to run; it cannot qualify
+O.8 closure. Omit it only to invoke that runner's original strict completion
+contract. Exit 2 and `offline_complete=false` remain mandatory while the map's
+explicit PG6/PG7/PG8 implementation or acceptance requirements are unresolved,
+even if every implemented subprocess succeeds. The map is not an evidence-file
+waiver and does not check plan boxes automatically. Individual unit tests of the
+orchestrator do not qualify its complete long pipeline.
