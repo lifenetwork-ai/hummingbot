@@ -7,7 +7,7 @@ Every original resource/journal remains in the source artifact for translation.
 """
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
-from decimal import Decimal
+from decimal import ROUND_HALF_EVEN, Context, Decimal, localcontext
 from pathlib import Path
 
 from hummingbot.strategy_v2.life_liquidity.checkpoint_archive import decode
@@ -48,7 +48,10 @@ def project_stopped_capital(source, *, max_rows):
     if (type(source) is not StoppedFileServiceSource or type(max_rows) is not int or not 0 < max_rows <= 1000000):
         raise StorageError('STOPPED_CAPITAL_REQUEST_INVALID')
     try:
-        return _project(source, max_rows)
+        # Replay the original File arithmetic profile. A maintenance caller's
+        # Decimal settings must not reprice old fills or alter their cost floors.
+        with localcontext(Context(prec=28, rounding=ROUND_HALF_EVEN)):
+            return _project(source, max_rows)
     except StorageError:
         raise
     except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError):
@@ -136,9 +139,14 @@ def _budgets(source, config, resources, max_rows):
             amount = Decimal(row['loss_quote']) if name == 'loss' else SubsidyBudgetLedger._committed(row)
             if not amount.is_finite() or amount < 0:
                 raise StorageError('STOPPED_BUDGET_AMOUNT_INVALID')
-            campaign += amount
-            sessions[row['session_id']] = sessions.get(row['session_id'], Decimal('0')) + amount
-            days[row['day']] = days.get(row['day'], Decimal('0')) + amount
+            # Sum retained rows exactly, without recomputing their historical
+            # amounts. The DTO's 64-digit/exponent bound and one-million-row
+            # ceiling need at most 198 significant digits for these additions.
+            decimal(amount)
+            with localcontext(Context(prec=200, rounding=ROUND_HALF_EVEN)):
+                campaign += amount
+                sessions[row['session_id']] = sessions.get(row['session_id'], Decimal('0')) + amount
+                days[row['day']] = days.get(row['day'], Decimal('0')) + amount
         result[name] = dict(journal=journal, totals=dict(campaign=str(campaign),
                                                          by_session={k: str(v) for k, v in sessions.items()},
                                                          by_day={k: str(v) for k, v in days.items()}))

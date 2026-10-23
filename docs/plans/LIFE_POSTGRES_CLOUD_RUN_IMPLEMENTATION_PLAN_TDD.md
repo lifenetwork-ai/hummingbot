@@ -65,6 +65,15 @@ This completes that detached parity input, not native SQL historical translation
 all-product decision parity or activation. PG6 remains open. The ongoing frozen
 aggregate also predates this addition.
 
+**Decimal replay follow-through:** the importing caller's Decimal context could
+change historical replay (one deterministic red case at precision 2/ROUND_DOWN).
+Cold projection now pins the original File 28-digit/HALF_EVEN arithmetic profile;
+aggregation of retained budget rows separately uses sufficient precision to keep
+their exact original fractional spending. The final budget/capital matrix passes
+**32 tests / 24.73 s** (`/tmp/life-pg6-decimal-green-final.log`). This does not
+reinterpret an old rounded wallet as a different opening basis or change native
+PostgreSQL arithmetic. Full source/target parity is still required for import.
+
 **2026-10-23 locked LIFE/OKX image increment:** the dedicated
 `deploy/life_cloud_run/Dockerfile` now consumes SHA-256-pinned conda URLs and pip
 wheels, a pinned base digest and signed Debian snapshot. Its complete installed

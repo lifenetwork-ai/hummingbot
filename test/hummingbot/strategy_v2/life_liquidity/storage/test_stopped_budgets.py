@@ -93,3 +93,19 @@ async def test_budget_capacity_is_checked_before_aggregation(tmp_path):
     source = recut(source, checkpoint, journals=tuple(sorted(journals.items())))
     with pytest.raises(StorageError, match='STOPPED_BUDGET_CAPACITY_EXCEEDED'):
         project_stopped_capital(source, max_rows=5)
+
+
+@pytest.mark.asyncio
+async def test_budget_totals_do_not_round_away_original_fractional_spending(tmp_path):
+    source, _ = await source_fixture(tmp_path)
+    checkpoint = json.loads(source.base.core.checkpoint_bytes)
+    journals = dict(source.base.core.journal_images)
+    loss = json.loads(journals['loss'])
+    amount = '12345678901234567890123456789.123456789012345678'
+    loss['events']['retained-cost'] = dict(session_id='prior', day='2020-01-01', loss_quote=amount)
+    journals['loss'] = encode(loss)
+    source = recut(source, checkpoint, journals=tuple(sorted(journals.items())))
+    result = project_stopped_capital(source, max_rows=10000).json()['budgets']['loss']
+    assert result['totals']['campaign'] == '12345678901234567890123456789.243456789012345678'
+    assert result['totals']['by_session']['prior'] == amount
+    assert result['totals']['by_day']['2020-01-01'] == amount

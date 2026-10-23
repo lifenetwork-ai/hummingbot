@@ -2,7 +2,7 @@
 import hashlib
 import json
 from dataclasses import replace
-from decimal import Decimal as D
+from decimal import ROUND_DOWN, Decimal as D, localcontext
 from pathlib import Path
 from test.hummingbot.strategy_v2.life_liquidity.storage.test_handoff_authorization import LIMITS, setup
 from test.hummingbot.strategy_v2.life_liquidity.storage.test_target_import import paid_history
@@ -67,6 +67,16 @@ async def test_cold_projection_retains_opening_basis_money_ids_and_observed_high
     # Mutating a returned JSON object never changes the detached projection.
     body['balances']['USDT'] = '0'
     assert projection.json()['balances']['USDT'] != '0'
+
+
+@pytest.mark.asyncio
+async def test_cold_projection_is_independent_of_the_importing_callers_decimal_context(tmp_path):
+    source, _ = await source_fixture(tmp_path)
+    expected = project_stopped_capital(source, max_rows=10000)
+    with localcontext() as context:
+        context.prec = 2
+        context.rounding = ROUND_DOWN
+        assert project_stopped_capital(source, max_rows=10000) == expected
 
 
 @pytest.mark.asyncio
