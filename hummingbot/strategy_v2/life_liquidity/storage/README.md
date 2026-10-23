@@ -3526,6 +3526,14 @@ same matrix is included in `--suite image_native --linux-image sha256:<digest>`;
 host success does not qualify that artifact. All data/endpoints are synthetic;
 the helper must never be pointed at a real account or existing database.
 
+The opt-in generation-handoff flow diagnostic uses
+`LIFE_PG_TEST_FLOW_TRACE=1` and optionally `LIFE_PG_TEST_FUNCTION_PROFILE=1`.
+It retains bounded SPOT/SWAP phases and separate background lease admissions.
+Reported heartbeat overlap is parallel wall time, not CPU or an amount to add
+to sender latency. SQL function self time may include row-lock waits. Paused
+request fault tests include intentional waiting and expected exclusion errors;
+their root duration is not an ordinary successful-send latency qualification.
+
 ## Snapshot body pipeline
 
 Migration 55 gives each of the sixteen snapshot layers an owner-only `spot_body*`

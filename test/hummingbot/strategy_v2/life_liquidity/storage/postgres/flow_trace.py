@@ -36,6 +36,8 @@ class QuoteFlowTrace:
         self.details = deque(maxlen=capacity)
         self.database_spans = deque(maxlen=capacity)
         self.database_dropped = 0
+        self.background_leases = deque(maxlen=capacity)
+        self.background_leases_dropped = 0
         self.revocations = deque(maxlen=16)
         self.dropped = self.details_dropped = 0
         self._origin = perf_counter()
@@ -81,6 +83,7 @@ class QuoteFlowTrace:
         from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot_market import PgSpotMarketSource
         from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot_producer import PgSpotQuoteProducer
         self.wrap(PgLiquidityService, 'quote', 'quote_total', starts_quote=True)
+        self.wrap(PgLiquidityService, 'execute_hedge', 'hedge_total', starts_quote=True)
         self.wrap(PgSpotQuoteProducer, 'propose', 'proposal')
         self.wrap(PgQuoteRunnerJournal, 'preflight_publication', 'publication_preflight')
         self.wrap(PgQuoteAccountSource, 'capture_and_publish_intent_ready', 'capture_publication')
@@ -101,7 +104,11 @@ class QuoteFlowTrace:
         self.wrap(PgQuoteRequestGuard, 'authorize', 'request_authorization')
         self.wrap(PgQuoteRequestGuard, 'acknowledge', 'guarded_ack')
         from hummingbot.strategy_v2.life_liquidity.storage.postgres.hedge_application import PgHedgeApplication
+        from hummingbot.strategy_v2.life_liquidity.storage.postgres.hedge_source import PgHedgeSource
         self.wrap(PgHedgeApplication, 'allocate_spot', 'capital_carry_allocation')
+        self.wrap(PgHedgeApplication, 'execute', 'hedge_execution')
+        self.wrap(PgHedgeSource, 'collect', 'hedge_collection')
+        self.wrap(PgHedgeSource, 'refresh', 'hedge_refresh')
 
         self.quota()
         self.database()
@@ -165,6 +172,12 @@ class QuoteFlowTrace:
                 # timings. PID, arguments, SQL and driver errors are excluded.
                 trace.database_spans.append(DatabaseSpan(
                     quote, value.operation, (instance.started - trace._origin) * 1000,
+                    value.elapsed_ms, value.phases_ms, value.outcome))
+            elif value.operation in ('process_lease_claim', 'process_lease_heartbeat', 'process_lease_lookup'):
+                if len(trace.background_leases) == trace.background_leases.maxlen:
+                    trace.background_leases_dropped += 1
+                trace.background_leases.append(DatabaseSpan(
+                    0, value.operation, (instance.started - trace._origin) * 1000,
                     value.elapsed_ms, value.phases_ms, value.outcome))
             return value
         self._patch.setattr(_Trace, 'finish', finished)
@@ -281,7 +294,19 @@ class QuoteFlowTrace:
             summary = dict(quote=quote, phases=phases, retention_complete=complete,
                            details_complete=self.details_dropped == 0,
                            database_complete=self.database_dropped == 0,
+                           background_lease_complete=self.background_leases_dropped == 0,
                            database_by_operation=self.database_summary(quote))
+            roots = [v for v in group if v.phase in ('quote_total', 'hedge_total')]
+            if self.background_leases_dropped == 0 and len(roots) == 1:
+                # Parallel wall-time overlap is not serial critical-path cost,
+                # SQL CPU time or proof that the heartbeat blocked the sender.
+                start, end = roots[0].started_ms, roots[0].started_ms + roots[0].elapsed_ms
+                overlap = [(v, max(0, min(end, v.started_ms + v.elapsed_ms) - max(start, v.started_ms)))
+                           for v in self.background_leases]
+                overlap = [(v, ms) for v, ms in overlap if ms > 0]
+                summary['background_lease_overlap'] = dict(
+                    count=len(overlap), elapsed_ms=round(sum(v.elapsed_ms for v, _ in overlap), 3),
+                    overlap_ms=round(sum(ms for _, ms in overlap), 3))
             capture = [v for v in group if v.phase == 'db_capture']
             arms = [v for v in group if v.phase == 'db_arm']
             if len(capture) == len(arms) == 1:

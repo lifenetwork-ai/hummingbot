@@ -1,5 +1,6 @@
 """Supported paused actual sender: provider exclusion, native recovery and outage cancel."""
 import asyncio
+import os
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from test.hummingbot.core.web_assistant.connections.test_request_guard import Response
@@ -36,9 +37,13 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot import PgSpotRe
 @pytest.mark.asyncio
 @pytest.mark.parametrize('barrier', ['before_accept', 'after_accept'])
 @pytest.mark.parametrize('product', ['SPOT', 'SWAP'])
-async def test_paused_original_sdk_replacement_exclusion_and_recovery_outage_cancel(database, tmp_path, barrier, product):
+async def test_paused_original_sdk_replacement_exclusion_and_recovery_outage_cancel(database, tmp_path, barrier, product, monkeypatch):
+    from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.flow_trace import QuoteFlowTrace
+    trace = QuoteFlowTrace(monkeypatch).install() if os.environ.get('LIFE_PG_TEST_FLOW_TRACE') == '1' else None
     provider = OfflineGenerationProvider()
     t, service, native, state = await broker_service(database, provider=provider, hedge=product == 'SWAP')
+    if trace is not None:
+        trace.http(t.session)
     broker, source = state.broker, state.client.identity.registration
     entered, release = asyncio.Event(), asyncio.Event()
     task = actor = control_financial = None
@@ -180,6 +185,13 @@ async def test_paused_original_sdk_replacement_exclusion_and_recovery_outage_can
             assert service.runtime._closing and service._close_task.done()
         if control_financial is not None:
             await control_financial.close()
+        if trace is not None:
+            import json
+            from dataclasses import asdict
+            print('bounded_native_generation_flow=' + json.dumps(dict(
+                summaries=trace.summaries(), rows=trace.rows(),
+                background_leases=[asdict(v) for v in trace.background_leases],
+                background_leases_dropped=trace.background_leases_dropped)))
 
 
 @pytest.mark.asyncio

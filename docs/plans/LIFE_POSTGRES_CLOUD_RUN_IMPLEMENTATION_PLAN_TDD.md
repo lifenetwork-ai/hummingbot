@@ -10111,8 +10111,10 @@ and returned the predecessor epoch. It now returns the actual last receipt; a
 deterministic epoch-2/epoch-3 regression fails before the fix and passes after it
 (`/tmp/life-pg8-risk-fixture-red2.log`, `...-green.log`, 1 case, 0.74 s).
 No risk epoch/authority is overwritten and no deadline is extended. The real
-native case and wider gate still require rerunning; the original failure is
-retained, not marked qualified by this fixture-only regression.
+native corruption matrix subsequently passes **3 cases**, 379 deselected,
+12.04 s (`/tmp/life-pg8-execution-fixture-20261023-r1/integration.xml`), including
+the original child fault and unchanged exact-money assertions. The original RED
+aggregate remains retained; the focused repair is not whole-gate qualification.
 
 ## PG7 foreground accepted/unknown financial loss (2026-10-23)
 
@@ -10137,3 +10139,33 @@ is an isolated latency/headroom qualification. The aggregate's two failures were
 already observed before that overlap. Both logs remain retained. The new matrix
 is also a mandatory part of `image_native`; it has not yet qualified an updated
 image. PG7.7, PG7 and PG8 remain open.
+
+## PG8 generation flow and background lease diagnosis (2026-10-23)
+
+The original SWAP/pre-accept handoff case separately passes without any relaxed
+deadline (`/tmp/life-pg8-generation-flow-20261023-g1`, 1 case, 18.70 s); this does
+not erase its 1060.173-ms expired-source failure in the frozen aggregate. Its
+bounded function profile shows 31 `process_lease_command` calls / 883.240 ms
+total. Function self time can include lock waits and is **not** CPU time or proof
+of the cause of source expiry.
+
+The test-only flow tracer now includes native SWAP/hedge phases and a separate
+bounded, fixed-operation background lease ring. Parallel overlap is reported
+separately from per-flow SQL/phase durations; it is never added to serial costs.
+Eviction makes background completeness false and suppresses the interval total;
+heartbeat samples cannot evict financial capture/ARM bounds. Two new tests fail
+before the extension; **18 flow tests pass**, zero failure/skip, 0.09 s.
+
+Opt-in `LIFE_PG_TEST_FLOW_TRACE=1 LIFE_PG_TEST_FUNCTION_PROFILE=1` on the original
+handoff case then passes **1 case**, 75 deselected, 17.40 s (`...-g2`). The trace
+retains 30 background admissions without eviction; 12 overlap the hedge root
+for 590.932 ms. That root includes the test's deliberate paused request and
+expected exclusion refusal, so its 4004.536 ms is not a normal-send SLO. The
+same trace shows two `hedge_command` admissions totaling 513.028 ms and sixteen
+reads totaling 124.150 ms (69.185 ms of primary validation). A heartbeat's
+execute phase reaches 231.298 ms during the financial path; competing account
+row-lock waits must be distinguished from redundant CPU/history work before
+selecting an optimization. These diagnostics identify the next investigation;
+they do not establish a fix, cache permissions, widen freshness limits or close
+the retained RED source-age/image/performance gates. Focused replays overlapped
+the frozen aggregate and are functional/diagnostic, not isolated headroom runs.

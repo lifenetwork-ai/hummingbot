@@ -19,6 +19,39 @@ def test_database_capture_window_excludes_proposal_ack_and_reporting(monkeypatch
     assert len(summary['database_by_operation']) == 6
 
 
+def test_background_lease_overlap_does_not_become_serial_flow_cost(monkeypatch):
+    trace = QuoteFlowTrace(monkeypatch)
+    trace.spans.append(FlowSpan(1, 'hedge_total', 100, 100, 'success'))
+    trace.background_leases.extend([
+        DatabaseSpan(0, 'process_lease_heartbeat', 80, 40, (('execute', 40),), 'success'),
+        DatabaseSpan(0, 'process_lease_heartbeat', 150, 100, (('execute', 100),), 'success'),
+        DatabaseSpan(0, 'process_lease_claim', 0, 50, (), 'success'),
+    ])
+    summary, = trace.summaries()
+    assert summary['background_lease_complete']
+    assert summary['background_lease_overlap'] == dict(count=2, elapsed_ms=140, overlap_ms=70)
+    assert summary['database_by_operation'] == {}
+    assert summary['phases']['hedge_total']['elapsed_ms'] == 100
+
+
+def test_background_lease_ring_is_bounded_and_does_not_evict_financial_flow(monkeypatch):
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.diagnostics import _Trace
+    trace = QuoteFlowTrace(monkeypatch, capacity=2)
+    trace.database()
+    trace.spans.append(FlowSpan(1, 'quote_total', 0, 1000, 'success'))
+    for _ in range(5):
+        sample = _Trace('process_lease_heartbeat', True)
+        sample.backend_pid = 987654
+        sample.finish('success')
+    _Trace('private_arbitrary_operation', True).finish('error')
+    summary, = trace.summaries()
+    assert len(trace.background_leases) == 2 and trace.background_leases_dropped == 3
+    assert not summary['background_lease_complete']
+    assert 'background_lease_overlap' not in summary
+    assert summary['database_complete'] and not trace.database_spans
+    assert '987654' not in repr(trace.background_leases) and 'private' not in repr(trace.background_leases)
+
+
 def test_database_samples_are_bounded_redacted_and_do_not_evict_birth_bounds(monkeypatch):
     from hummingbot.strategy_v2.life_liquidity.storage.postgres.diagnostics import _Trace
     trace = QuoteFlowTrace(monkeypatch, capacity=2)
