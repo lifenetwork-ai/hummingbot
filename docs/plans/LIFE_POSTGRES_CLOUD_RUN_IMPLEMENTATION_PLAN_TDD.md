@@ -10088,3 +10088,16 @@ clean-checkout fixture-presence/hash test fails before the correction and the
 complete map safeguard suite passes **8 cases**, zero failure/skip
 (`/tmp/life-pg8-map-budget-red.log`, `/tmp/life-pg8-map-budget-green.xml`). Source
 hooks pass. The actual long pipeline remains separately required.
+
+## PG8 retained full-run tick fixture failure (2026-10-23)
+
+The frozen `33c14ab5b` serial run's File gate completed **1835 passed,
+1 failed**, zero error/skip, 378.39 s. Its explicit-schedule fixture lacked the
+service's existing `_trading_ready()` method; the production runner correctly
+requires it before starting makers. Update that fixture and retain its original
+completed-task/no-restart assertions. Add a separate unarmed case: diagnostic
+reporting continues, while maker startup is denied. The focused suite passes
+**11 cases**, zero failure/skip, 3.53 s
+(`/tmp/life-pg8-tick-fixture-20261023.log`). This does not replace the retained
+RED full File gate. The native gate continues on the unchanged frozen checkout;
+no aggregate result or phase closure is inferred from this correction.

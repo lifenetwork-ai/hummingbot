@@ -8,14 +8,14 @@ from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.service import PgServiceRunner
 
 
-def runner(*, ready=True):
+def runner(*, ready=True, trading_ready=True):
     report = NS(id='original')
     executor = NS(executor_info=report)
     service = NS(_original=Mock(), revoke=Mock(), _revoked=False, _quote_task=None,
                  hedge=NS(_busy=False), config=NS(id='main'), makers=None,
                  _owned_executors={'original': executor},
                  reporting=NS(enqueue=Mock(), _trading_admission=NS(owns_report=lambda info: info is report)),
-                 start_makers=Mock())
+                 start_makers=Mock(), _trading_ready=Mock(return_value=trading_ready))
     return NS(service=service, _is_stop_triggered=False, market_data_provider=NS(ready=ready),
               executor_orchestrator=NS(active_executors={'main': [executor]})), executor
 
@@ -54,6 +54,16 @@ def test_tick_starts_only_explicit_schedule_and_never_restarts_a_completed_task(
     r.service.makers.task = object()
     PgServiceRunner.on_tick(r)
     r.service.start_makers.assert_called_once()
+
+
+def test_tick_can_report_while_unarmed_but_cannot_start_the_maker_schedule():
+    r, executor = runner(trading_ready=False)
+    r.service.makers = NS(task=None)
+    PgServiceRunner.on_tick(r)
+    r.service.reporting.enqueue.assert_called_once_with(executor.executor_info)
+    r.service._trading_ready.assert_called_once_with()
+    r.service.start_makers.assert_not_called()
+    r.service.revoke.assert_not_called()
 
 
 @pytest.mark.parametrize('fault', ['executor', 'report', 'enqueue'])
