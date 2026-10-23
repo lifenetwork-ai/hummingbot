@@ -5612,3 +5612,52 @@ before reporting completion. Driver self-cancellation marks telemetry unavailabl
 without cancelling the worker sampler. These diagnostic tasks never own sender
 or financial COMMIT capacity; the foreground physical exit deadline still bounds
 a stuck cleanup.
+
+### Permanent stopped File retirement for a PostgreSQL cut
+
+A `STOPPED_FILE_SERVICE_V1` source can now be consumed through the existing
+`ConsumeConfigurationHandoff` command with an explicit
+`postgres_retirement_json`. Its independently signed `StoppedRetirementProof`
+binds the original frozen state, exact complete artifact SHA, target account and
+database lineage, target binding and target manifest digest. The existing
+HANDOFF operator signs the entire command, including the authority public key;
+the authority key must differ from every configured operator key. No private
+key or trading credential belongs in the source/worker configuration.
+
+The offline protocol requires permanent REST/WS/CAA exclusion and completed
+in-flight reconciliation, no unresolved request, distinct retired/replacement
+credential identities, and complete unchanged source facts observed after the
+exclusion assertion. The assertion has an explicit signed expiry and an offline
+maximum validity of 60 seconds. Physical source hashing cannot borrow an earlier
+clock check. Expiry, changed facts/cut/target or either invalid signature leaves
+the source frozen but reversible. A successful consumption is permanent: cold
+readback and idempotent receipt replay remain available after expiry; cancellation,
+retargeting and normal source writes remain denied. These synthetic assertions
+do not establish real exchange credential revocation; qualification of the actual
+credential authority remains an OKX environment gate.
+
+Offline maintenance order:
+
+1. Freeze the complete reconciled source and seal its exact bytes with
+   `PgFileStaging.stage`. Use `fingerprint(FileStageRequest.json())` as the target
+   manifest digest for retirement.
+2. Read `stopped_retirement_context(binding)` on the original File worker. It
+   returns the exact cut and `checked_at` to bind into the independent assertion.
+   Obtain HANDOFF approval for the resulting exact consumption command.
+3. Execute `consume_configuration_handoff`. After a lost reply, reopen and read
+   the original committed result; never invent another target.
+4. Read `stopped_retirement_checkpoint(binding)` after consumption. Pin its outer
+   SHA-256 through the maintenance channel independently of the input bytes.
+5. Call `PgFileStaging.verify_retirement` with that checkpoint and trusted digest.
+   It reads the sealed source and reconstructs both signed control commits,
+   checking every unchanged monetary/journal/identity/recorder state leaf and
+   the exact target. Ordinary, paid-history and segmented sources use the same
+   verification. No embedded source path is opened by the cold verifier.
+
+This produces a detached `VerifiedFileRetirement` with `trading_permission=false`.
+It does not initialize a native account, translate historical SQL rows, persist
+an activation grant or release a restored namespace. Native import must recheck
+its current staging/lineage and exact financial parity inside its eventual
+unarmed publication transaction. Before-activity staging discard cannot undo a
+consumed File source; that source must remain retired and the retained audit
+history must be used for any separately authorized subsequent migration.

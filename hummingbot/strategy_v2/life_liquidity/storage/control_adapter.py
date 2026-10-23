@@ -82,6 +82,19 @@ class LegacyControlAdapter:
                     configuration, ownership = configuration_projection(row['payload'], configuration, ownership, self.binding)
                 elif role == 'HANDOFF':
                     handoff = handoff_projection(row['payload'], handoff, ownership, self.binding, configuration, records)
+                    if row['payload'].get('postgres_retirement_json') is not None:
+                        from hummingbot.strategy_v2.life_liquidity.storage.handoff import (
+                            AuthorizeConfigurationHandoff,
+                            ConsumeConfigurationHandoff,
+                        )
+                        from hummingbot.strategy_v2.life_liquidity.storage.stopped_retirement import (
+                            StoppedRetirementProof,
+                        )
+                        command = ConsumeConfigurationHandoff.from_json(thaw(row['payload']))
+                        grant = AuthorizeConfigurationHandoff.from_json(records[command.handoff_operation_id]['payload'])
+                        StoppedRetirementProof.from_json(command.postgres_retirement_json).verify(
+                            command, grant, self.binding, operator_keys=self._operator_keys.keys.values(),
+                            facts=SpotFinancialRecoveryFacts.from_json(thaw(row['facts'])), cut=FinancialCut.from_json(thaw(row['cut'])))
                 elif role == 'OBSERVE_SESSION':
                     payload = row['payload']
                     if payload['kind'] != 'OBSERVE_SESSION_SUCCESSOR' or payload['owner'] != ownership['token']:
@@ -170,6 +183,11 @@ class LegacyControlAdapter:
                 raise StorageError('OPERATOR_APPROVAL_EXPIRED_AT_COMMIT')
             if self._hashes(self._raw()) != dict(cut.components):
                 raise StorageConflict('CONTROL_NATIVE_CUT_STALE')
+            # Bounded source hashing still performs disk I/O. Its elapsed time
+            # cannot be borrowed from an earlier authority/receipt check.
+            now = utc(self._clock())
+            if not approval.issued_at <= now < approval.expires_at:
+                raise StorageError('OPERATOR_APPROVAL_EXPIRED_AT_COMMIT')
             observation_only = (approval.role == 'OBSERVE_SESSION'
                                 and payload.get('kind') == 'OBSERVE_SESSION_SUCCESSOR'
                                 and ownership == state['ownership'])
@@ -197,6 +215,17 @@ class LegacyControlAdapter:
                 grant = state['resources']['control_operations'][payload['handoff_operation_id']]['payload']
                 if now >= session_record(grant['target_session_json']).expires_at:
                     raise StorageError('HANDOFF_TARGET_EXPIRED_AT_COMMIT')
+                if payload.get('postgres_retirement_json') is not None:
+                    from hummingbot.strategy_v2.life_liquidity.storage.handoff import (
+                        AuthorizeConfigurationHandoff,
+                        ConsumeConfigurationHandoff,
+                    )
+                    from hummingbot.strategy_v2.life_liquidity.storage.stopped_retirement import StoppedRetirementProof
+                    proof_body = StoppedRetirementProof.from_json(payload['postgres_retirement_json']).verify(
+                        ConsumeConfigurationHandoff.from_json(payload), AuthorizeConfigurationHandoff.from_json(grant),
+                        self.binding, operator_keys=self._operator_keys.keys.values(), facts=facts, now=now, cut=cut)
+                    if proof_body['frozen_checked_at'] != state['checked_at']:
+                        raise StorageError('STOPPED_RETIREMENT_CUT_UNQUALIFIED')
             if approval.role == 'IMPORT' and payload['kind'] == 'RETIRE_LEGACY_APPLYING':
                 self._verify_applying_images(applying_source)
                 if (applying_source.cut != cut or applying_source.facts != facts

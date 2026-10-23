@@ -290,3 +290,46 @@ async def test_restored_staging_preserves_original_bytes_but_cannot_cross_databa
             await restored.close()
         await admin.execute(f'DROP DATABASE "{name}" WITH (FORCE)')
         await admin.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('profile', ['empty', 'paid', 'segmented'])
+async def test_sealed_native_stage_verifies_exact_cold_source_retirement_without_activation(database, tmp_path, profile):
+    from test.hummingbot.strategy_v2.life_liquidity.storage.test_stopped_retirement import prepared
+    from test.hummingbot.strategy_v2.life_liquidity.storage.test_target_import import paid_history
+    from test.hummingbot.strategy_v2.life_liquidity.test_checkpoint_archive import capacity
+    service, signer, target_binding, target_session = await setup(tmp_path, joint=profile == 'segmented',
+                                                                  before_stage=paid_history if profile == 'paid' else None)
+    request = None
+    raw = None
+
+    def target(raw_source):
+        nonlocal request, raw
+        raw = raw_source
+        request = FileStageRequest('retired-file-cut', uuid4(), lineage, target_binding,
+                                   hashlib.sha256(raw).hexdigest(), LIMITS['max_bytes'], LIMITS['max_rows'], 4096)
+        return request
+    lineage = UUID(str(await database[0].fetchval('SELECT lineage FROM life_storage.storage_metadata')))
+    try:
+        if profile == 'segmented':
+            await service.store._call(service.joint._recovery.capital.journal.migrate_archive, capacity())
+        command, approval, cut, facts, _ = await prepared(service, signer, target_binding, target_session, target_request_builder=target)
+        writer = PgFileStaging(database[0], timeout_ms=10000)
+        await writer.stage(request, raw)
+        await service.store.consume_configuration_handoff(command, approval=approval, facts=facts, cut=cut)
+        retired_raw = await service.store.stopped_retirement_checkpoint(service.store.binding)
+        await service.close()
+        cold = PgFileStaging(database[0], timeout_ms=10000)
+        sha = hashlib.sha256(retired_raw).hexdigest()
+        report = await cold.verify_retirement(request, retired_raw, expected_sha256=sha)
+        assert report.json()['source_sha256'] == request.source_sha256
+        assert not report.trading_permission
+        assert await database[0].fetchval('SELECT count(*) FROM life_financial.accounts') == 0
+        assert await database[0].fetchval('SELECT count(*) FROM life_financial.activation_grants') == 0
+        with pytest.raises(StorageError, match='CHECKPOINT_DIGEST'):
+            await cold.verify_retirement(request, retired_raw + b' ', expected_sha256=sha)
+        await cold.discard(request)
+        with pytest.raises(StorageError, match='DISCARDED'):
+            await cold.verify_retirement(request, retired_raw, expected_sha256=sha)
+    finally:
+        await service.close()

@@ -120,14 +120,21 @@ class ConsumeConfigurationHandoff:
     owner: OwnerToken
     handoff_operation_id: str
     target_manifest_digest: str
+    postgres_retirement_json: str | None = None
 
     def __post_init__(self):
         identity(self.operation_id, self.expected_sequence, self.owner)
         identifier(self.handoff_operation_id)
         digest(self.target_manifest_digest)
+        if self.postgres_retirement_json is not None:
+            from hummingbot.strategy_v2.life_liquidity.storage.stopped_retirement import StoppedRetirementProof
+            StoppedRetirementProof.from_json(self.postgres_retirement_json)
 
     def json(self):
-        return {'kind': 'CONSUME_CONFIGURATION_HANDOFF', **self.__dict__, 'owner': self.owner.json()}
+        result = {'kind': 'CONSUME_CONFIGURATION_HANDOFF', **self.__dict__, 'owner': self.owner.json()}
+        if self.postgres_retirement_json is None:
+            result.pop('postgres_retirement_json')  # Preserve existing signed File bytes.
+        return result
 
     @classmethod
     def from_json(cls, value):
@@ -196,6 +203,12 @@ def handoff_projection(payload, head, ownership, binding, configuration, records
         command = ConsumeConfigurationHandoff.from_json(payload)
         if head['active_operation_id'] != command.handoff_operation_id:
             raise StorageError('HANDOFF_PENDING_CONFLICT')
+        grant = AuthorizeConfigurationHandoff.from_json(records[command.handoff_operation_id]['payload'])
+        if grant.source_format == 'STOPPED_FILE_SERVICE_V1' and command.postgres_retirement_json is None:
+            raise StorageError('POSTGRES_CUTOVER_CONSUMPTION_REQUIRED')
+        if command.postgres_retirement_json is not None:
+            from hummingbot.strategy_v2.life_liquidity.storage.stopped_retirement import StoppedRetirementProof
+            StoppedRetirementProof.from_json(command.postgres_retirement_json).verify(command, grant, binding)
         active, consumed = command.handoff_operation_id, command.operation_id
     else:
         raise StorageError('HANDOFF_COMMAND_INVALID')
@@ -213,7 +226,8 @@ class LegacyConfigurationHandoffControlAdapter:
         if not getattr(self, '_handoff_frozen', False):
             return
         allowed = ('_read', '_snapshot', '_financial_configuration', '_handoff_state', '_lookup',
-                   '_read_handoff_source', '_authorize_handoff', '_cancel_handoff', '_consume_handoff', '_import_target', '_target_preflight')
+                   '_read_handoff_source', '_authorize_handoff', '_cancel_handoff', '_consume_handoff', '_import_target', '_target_preflight',
+                   '_stopped_retirement_context', '_stopped_retirement_checkpoint')
         if (getattr(function, '__self__', None) is not self
                 or not any(getattr(function, '__func__', None) is getattr(getattr(self, name), '__func__', None) for name in allowed)):
             raise StorageError('CONFIGURATION_HANDOFF_SOURCE_FROZEN')
@@ -307,14 +321,22 @@ class LegacyConfigurationHandoffControlAdapter:
             source = self._read_handoff_source()
             grant = AuthorizeConfigurationHandoff.from_json(meta.resources['control_operations'][command.handoff_operation_id]['payload'])
             if grant.source_format == 'STOPPED_FILE_SERVICE_V1':
-                raise StorageError('POSTGRES_CUTOVER_CONSUMPTION_REQUIRED')
+                if command.postgres_retirement_json is None:
+                    raise StorageError('POSTGRES_CUTOVER_CONSUMPTION_REQUIRED')
+                from hummingbot.strategy_v2.life_liquidity.storage.stopped_retirement import StoppedRetirementProof
+                StoppedRetirementProof.from_json(command.postgres_retirement_json).verify(
+                    command, grant, self.binding, operator_keys=self._operator_keys.keys.values(), facts=facts,
+                    source=source, now=utc(self._clock()), cut=cut)
+                source_core = source.base.core
+            else:
+                source_core = source.core
             if utc(self._clock()) >= session_record(grant.target_session_json).expires_at:
                 raise StorageError('HANDOFF_TARGET_EXPIRED')
             # An external transfer cannot be silently adopted during retirement.
             self._verify_recovery_projection(meta.resources['commands'], meta.resources.get('fills', {}),
                                              meta.resources.get('cashflows', {}), facts)
             if (facts.accepted_wire_ids or facts.runner_wire_ids or facts.liability_base_life != 0
-                    or facts.liability_quote_usdt != 0 or dict(cut.components) != dict(source.core.cut.components)):
+                    or facts.liability_quote_usdt != 0 or dict(cut.components) != dict(source_core.cut.components)):
                 raise StorageError('HANDOFF_CONSUMPTION_FACTS_UNQUALIFIED')
             replay = self._control_commit(command.operation_id, cut, approval, command.json(),
                                           {'mode': 'DRAINING', 'token': command.owner.json()}, facts, {'configuration_handoff': head})
@@ -356,3 +378,32 @@ class LegacyConfigurationHandoffControlAdapter:
     async def frozen_configuration_source(self, binding):
         self._assert_binding(binding)
         return await self._call(self._read_handoff_source)
+
+    def _stopped_retirement_context(self):
+        head = self._handoff_state()
+        if head.active is None or head.active.source_format != 'STOPPED_FILE_SERVICE_V1' or head.consumed is not None:
+            raise StorageError('STOPPED_RETIREMENT_CONTEXT_UNAVAILABLE')
+        cut = self._snapshot().cut
+        with self._state.inspect() as state:
+            if self._cut(state) != cut.checkpoint:
+                raise StorageConflict('STOPPED_RETIREMENT_CUT_UNQUALIFIED')
+            return cut, state['checked_at']
+
+    async def stopped_retirement_context(self, binding):
+        self._assert_binding(binding)
+        return await self._call(self._stopped_retirement_context)
+
+    def _stopped_retirement_checkpoint(self):
+        from hummingbot.strategy_v2.life_liquidity.storage.handoff_artifact import read_bytes
+        head = self._handoff_state()
+        if head.active is None or head.active.source_format != 'STOPPED_FILE_SERVICE_V1' or head.consumed is None:
+            raise StorageError('STOPPED_RETIREMENT_NOT_COMMITTED')
+        raw = read_bytes(self._path, self.limits.max_checkpoint_bytes)
+        state = json.loads(raw)['state']
+        if self._cut(state) != self._read().cut:
+            raise StorageConflict('STOPPED_RETIREMENT_CUT_UNQUALIFIED')
+        return raw
+
+    async def stopped_retirement_checkpoint(self, binding):
+        self._assert_binding(binding)
+        return await self._call(self._stopped_retirement_checkpoint)

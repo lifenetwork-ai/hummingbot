@@ -123,6 +123,18 @@ class PgFileStaging:
         source = await self._read(command)
         return await self._in_thread(project_stopped_capital, source, max_rows=command.max_rows)
 
+    async def verify_retirement(self, command, raw, *, expected_sha256):
+        """Audit the pinned post-consumption File root; never activate a target."""
+        return await self._owned(command, self._verify_retirement, raw, expected_sha256)
+
+    async def _verify_retirement(self, command, raw, expected_sha256):
+        from hummingbot.strategy_v2.life_liquidity.storage.retirement_checkpoint import verify_retirement_checkpoint
+        source = await self._read(command)
+        return await self._in_thread(verify_retirement_checkpoint, source, raw, expected_sha256=expected_sha256,
+                                     target_binding=command.target_binding, target_account_id=command.account_id,
+                                     database_lineage=command.database_lineage, target_manifest_digest=fingerprint(command.json()),
+                                     max_bytes=command.max_bytes)
+
     @staticmethod
     def _decode(command, raw):
         source = unpack_stopped_source(raw, expected_sha256=command.source_sha256,
