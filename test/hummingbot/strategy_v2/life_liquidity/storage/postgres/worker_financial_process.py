@@ -77,17 +77,29 @@ async def launch(**kwargs):
 original_init = worker.WorkerSupervisor.__init__
 
 
+def _reason(error):
+    code = error.code if isinstance(error, StorageError) else None
+    return code if type(code) is str and re.fullmatch(r'[A-Z][A-Z0-9_]{0,95}', code) else None
+
+
 async def diagnostic_launch(**kwargs):
     try:
         return await launch(**kwargs)
     except Exception as error:
         # Test-only startup diagnostics: no exception message, DSN, traceback
         # locals or financial payload is sent to the parent. Do not retry.
-        code = error.code if isinstance(error, StorageError) else None
-        code = code if type(code) is str and re.fullmatch(r'[A-Z][A-Z0-9_]{0,95}', code) else None
+        causes, seen, cause = [], {id(error)}, error.__cause__
+        for _ in range(4):
+            if cause is None or id(cause) in seen:
+                break
+            seen.add(id(cause))
+            code = _reason(cause)
+            if code is not None:
+                causes.append(code)
+            cause = cause.__cause__
         kind = ('StorageError' if isinstance(error, StorageError) else
                 'TimeoutError' if isinstance(error, TimeoutError) else 'OtherError')
-        print(json.dumps(dict(event='FIXTURE_SETUP_FAILED', error_kind=kind, reason_code=code)), flush=True)
+        print(json.dumps(dict(event='FIXTURE_SETUP_FAILED', error_kind=kind, reason_code=_reason(error), cause_codes=causes)), flush=True)
         raise
 
 

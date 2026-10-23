@@ -2,6 +2,38 @@
 
 ## Current offline delivery status
 
+**2026-10-23 current Linux shutdown and scratch qualification:** rebuilding the
+same locked `a1d64b700` production inputs yields immutable image
+`sha256:41d0c594322a3b8b6caa721abaa25efc74380b330cdc872b9f70535f523e1c78`
+(2,142,560,655 bytes). The frozen 82-case native run finishes **79 passed / 3
+failed, 810.35 s** (`/tmp/life-worker-native-a1d64b700-full-a1`). All **6 actual
+foreground signal/loss cases and 8 shutdown cancellation cases pass**, closing
+PG7.7's selected offline image scope. All five native monitor cases also pass.
+The same image separately passes all nine artifact/lock/foreground/signal checks
+in 20.74 s (`/tmp/life-worker-artifact-a1d64b700-a1`). These are not a green
+aggregate or a reproduction of the prior unexplained EOF.
+
+The failures precede their intended process-death boundaries: SPOT send rejects
+`PG_JOINT_SOURCE_REPORT_REVOKED` (recorded report age 1,347.13 ms); SPOT ACK rejects
+`PG_QUOTE_CAPTURE_STALE` (1,156.371 ms against the unchanged 1,000 ms policy);
+SWAP preparation rejects `PG_FINANCIAL_SOURCE_REQUEST_INVALID` at the UID-status
+check. The last log has no sampled UID status/skew, so its cause is not further
+established. Other Docker/host work overlapped this sample, including brief host
+contract checks; there is no resource-isolated latency/headroom claim. The
+original failed results remain intact; no deadline or freshness limit is widened.
+
+New actual SPOT/SWAP service-child tests reach a durable accepted/unknown send
+from a disposable working directory, delete it, and cold-open from PostgreSQL.
+Exact money/claims/attempts survive; reopening performs GETs only and cannot
+replay the send. Both cases pass on host (**37.10 s**) and in the same immutable
+image (**39.84 s**, `/tmp/life-worker-scratch-image-a1`), after two original red
+cases. They qualify service scratch independence, not every standalone worker
+startup path. `worker_restart` is a separate image-capable selector and is now
+included in the future **84-case** `image_native` matrix; that expanded aggregate
+has not passed. Test-only setup diagnostics additionally retain at most four
+explicit stable cause codes, never exception payloads; all five diagnostic
+contracts pass. PG6, the remaining PG7 startup/telemetry gates and PG8 stay open.
+
 **2026-10-23 locked worker runtime reduction:** the dedicated AMD64 worker now
 keeps the build environment separate from its exact runtime Conda subset. Sixteen
 compiler/header/build/lint packages are removed offline after artifact and retained
@@ -3962,15 +3994,16 @@ Dependencies: PG0 decisions; worker code depends on PG1–PG5. Definitions can b
   - [x] **AMD64 artifact functional slice (2026-10-23):** actual repository build, immutable source/SQL/native-driver/Cython check, nonroot foreground/default-command and container signal fixtures pass 7 cases; real PostgreSQL recorder passes 13 cases. The broader native image matrix is RED (60 pass/3 expiry failures); this increment does not close PG7.1/PG7.7 or establish full dependency reproducibility.
   - [x] **Current AMD64 source and native matrix (2026-10-23):** rebuilt immutable image `sha256:411596b60f1afaf0bb9217820acd69e038ee13b95742ef17d7dc7e3eff2bd6cf` passes all 67 native process/recovery/worker-financial cases (520.98 s). The expanded artifact gate verifies 1,469 packaged execution inputs, rejects a stale hedge hash and passes 8 cases (18.76 s); real recorder integration passes 13 (8.02 s). Original RED results remain historical evidence. Dependency reproducibility and whole-product performance remain open.
 - [ ] PG7.2: Validate startup without TTY/prompts/MQTT dependency, schema/account binding before authority construction, and no auto-bootstrap of missing financial state. Ephemeral local files may hold disposable scratch/config/status only.
+  - [x] **Deleted service scratch on current Linux artifact (2026-10-23):** SPOT/SWAP native service children are killed after accepted/unknown sends; their working directory is deleted before cold read-only reopening. Exact financial rows, attempts and claims survive, no sender is restored and no local directory is recreated. Two host cases and two immutable-image cases pass (37.10 s / 39.84 s). Standalone worker startup and the complete startup matrix remain required; this does not close PG7.2.
 - [x] PG7.3: Add infrastructure definitions for Artifact Registry, Cloud SQL PostgreSQL, backup/PITR settings, VPC, IAM, Secret Manager, monitoring and one desired Worker Pool instance per account namespace. **Operator-selected flow: config-enabled startup migration** (`LIFE_AUTO_MIGRATE=true`); package the pinned SQL bundle/driver and await the central runner before application construction, with no manual migration step. Database locking serializes concurrent startup runners; failed migration blocks that startup. Qualify migration/runtime role and secret isolation: removing an inherited DSN does not prevent a colocated process from reading a mounted env file/secret. A separate serialized migration Job is an optional deployment mode (`LIFE_AUTO_MIGRATE=false`), with migration-only identity/secret, one task, parallelism one and automatic retries disabled; await success before worker rollout. Runtime startup validates compatibility and remains unarmed; incompatible schema changes require an explicit drain/upgrade policy in either mode. [Cloud Run Jobs](https://docs.cloud.google.com/run/docs/create-jobs), [job retries](https://docs.cloud.google.com/run/docs/configuring/max-retries).
 - [x] PG7.4: Define same-region worker/primary DB, private-IP/TLS connectivity with Direct VPC egress and bounded pools; test TLS/authentication handling locally. Document the selected Worker Pool authentication/connection method; its actual connectivity is a PG9.2 gate, not inferred from a Service-only example. [Direct VPC](https://docs.cloud.google.com/run/docs/configuring/vpc-direct-vpc), [Cloud SQL connectivity](https://docs.cloud.google.com/sql/docs/postgres/connect-run).
 - [x] PG7.5: Define fixed egress IP via VPC/NAT if required for exchange allowlisting, including every REST/WS write path and an explicit verification procedure. Actual egress/key restrictions are measured in PG9.2/PG9.4. [Static outbound IP](https://docs.cloud.google.com/run/docs/configuring/static-outbound-ip).
 - [x] PG7.6: Define scoped generation identities/secrets, separate migration/runtime/reporting privileges and no old-to-new impersonation path; pin secret/image/config versions. Validate policy definitions and local negative access fixtures; actual deployed access is mandatory in PG9.2/PG9.4. [Worker Pool secrets](https://docs.cloud.google.com/run/docs/configuring/workerpools/secrets).
-- [ ] PG7.7: On SIGTERM close admission first, checkpoint attempted/unknown work, initiate bounded owned cancellations and exit within a configured budget below Cloud Run's 10-second termination window. Forced kill must preserve unknowns; shutdown completion does not imply exchange terminality. [Shutdown contract](https://docs.cloud.google.com/run/docs/container-contract).
+- [x] PG7.7: On SIGTERM close admission first, checkpoint attempted/unknown work, initiate bounded owned cancellations and exit within a configured budget below Cloud Run's 10-second termination window. Forced kill must preserve unknowns; shutdown completion does not imply exchange terminality. [Shutdown contract](https://docs.cloud.google.com/run/docs/container-contract). **Checked for local immutable-image scope only; provider timing and deployed termination remain PG9.**
   - [x] **Native foreground money-loss slice (2026-10-23):** real host worker supervisor, native PostgreSQL/service and real SDK route with fake accepted HTTP work; SPOT/SWAP × SIGTERM/SIGKILL retain original `SEND_UNKNOWN`, wire ID, exact money/budget/claim/hedge state. Cold restart only reads and refuses replay; no false graceful completion. The strengthened four-case run passes in 68.57 s; actual immutable-image execution and wider retained RED matrix remain required.
   - [x] **Native immutable-image unknown-loss matrix (2026-10-23):** all four actual foreground SPOT/SWAP × TERM/KILL cases pass within the 67-case Linux matrix, retaining original money and unresolved risk. This closes image execution of the previous host-only slice.
   - [x] **Generation-bound host shutdown sequencing (2026-10-23):** first synchronous `revoke()` closes admission and schedules one bounded independent cancellation task before the headless loop or cleanup can join blocked SDK/DB work. The trusted native broker exports current committed ACK identities; signed identity reads grant no write authority. Each exact SPOT/SWAP cancellation reauthorizes at the physical request, retains both original rate budgets and bypasses only the collection scheduling mutex. Missing/unknown identities, revoked brokers, context drift or exhausted capacity cannot invent orders or release funds. Native normal/blocked SDK/blocked DB and accepted/unknown tests retain original money/claims; see qualification below.
-  - [ ] Rebuild and qualify the current cancellation sequence in the immutable Linux worker, including the original physical signal/kill matrix. Hosts without a configured generation broker explicitly report cancellation `UNAVAILABLE`; they are not a qualified cancellation profile. Real provider timing remains PG9.
+  - [x] Rebuild and qualify the current cancellation sequence in the immutable Linux worker, including the original physical signal/kill matrix. The current locked `41d0c594…` image passes all six foreground cases and eight cancellation cases in the retained 79-pass/3-fail native run; the three unrelated setup refusals remain open and prevent aggregate closure. Hosts without a configured generation broker explicitly report cancellation `UNAVAILABLE`; they are not a qualified cancellation profile. Real provider timing remains PG9.
 - [ ] PG7.8: Add metrics/alerts for trading eligibility, owner generation, DB/query/pool lag, event-loop lag, unknown attempts, unresolved holds, audit freshness, budget usage and backup/recovery health. Probe/liveness success is separate from permission to trade; a healthy unarmed process must not restart-loop because it awaits manual recovery.
   - [x] **Local DB pressure diagnostics (2026-10-23):** read-only `/status` exports fixed risk/safety pending/pool limits, lifetime outcome/completion/uncertainty/cancellation counters and bounded recent latency/phase windows, without SQL or permission caching. TDD retains caller-cancelled physical work and historical unknowns after ring eviction; 34 focused diagnostic/worker cases pass (10.26 s). This is not the remaining financial metrics, alert calibration or full PG7.8 gate.
 
@@ -3979,8 +4012,9 @@ Dependencies: PG0 decisions; worker code depends on PG1–PG5. Definitions can b
 **Current checked scope:** PG7.1/PG7.3–PG7.6 are qualified by the current
 artifact, mock-definition, rollout/config and actual local TLS results at the
 top of this plan. Historical increments below retain their original verdicts.
-The production SDK shutdown/unknown-loss and full native startup/telemetry
-matrices still gate PG7.2/PG7.7/PG7.8 and phase closure.
+The current-image shutdown/unknown-loss slice also closes offline PG7.7 as
+recorded above. The full native startup/telemetry and aggregate matrices still
+gate PG7.2/PG7.8 and phase closure.
 
 **Done when:** image and IaC validate locally, missing secrets/DB fail closed, ephemeral-directory deletion preserves authoritative state, and container signal/forced-kill tests pass. Cloud deployment is still unproven.
 

@@ -5,6 +5,7 @@ import os
 import sys
 from dataclasses import asdict, fields
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 
 def encoded_config(config):
@@ -25,15 +26,25 @@ def decoded_config(values):
     return PgConfig(**values)
 
 
-async def crash_service(database, phase, *, product='SPOT', provisional_quotes=False):
+async def crash_service(database, phase, *, product='SPOT', provisional_quotes=False, scratch_dir=None):
     """No inherited event loop, driver pool, SDK or financial capability."""
     assert product in ('SPOT', 'SWAP')
     assert type(provisional_quotes) is bool and (not provisional_quotes or product == 'SPOT')
     assert phase in (('capture', 'prepare', 'send', 'ack') if product == 'SPOT'
                      else ('capture', 'prepare', 'send', 'ack', 'terminal', 'settlement', 'release'))
     assert database[2].startswith('postgresql://life_pg2_migrator@127.0.0.1:') and '/life_pg2_' in database[2]
+    environment = None
+    if scratch_dir is not None:
+        scratch_dir = Path(scratch_dir).resolve(strict=True)
+        assert scratch_dir.is_dir()
+        # Changing cwd must not replace the installed source or the mounted
+        # test harness. In the image these remain /home/hummingbot and
+        # /qualification, independently of the disposable working directory.
+        environment = dict(os.environ, PYTHONPATH=os.pathsep.join(str(Path(p or os.getcwd()).resolve()) for p in sys.path),
+                           TMPDIR=str(scratch_dir), LIFE_ENV_FILE='', LIFE_AUTO_MIGRATE='false')
     process = await asyncio.create_subprocess_exec(
         sys.executable, '-m', 'test.hummingbot.strategy_v2.life_liquidity.storage.postgres.service_process',
+        cwd=scratch_dir, env=environment,
         stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     try:
         stdout, stderr = await asyncio.wait_for(process.communicate(json.dumps(dict(
@@ -138,7 +149,7 @@ async def run():
                                   spot_overrides=dict(owner_duration=timedelta(seconds=300), session_duration=timedelta(seconds=360)))
     manifest = dict(config=encoded_config(t.cfg), owner=t.owner.json(), controller=service.config.model_dump_json(),
                     sources=[asdict(r.source) for r in service.reporting.events], phase=data['phase'],
-                    process_id=os.getpid(), account_config=t.config, balance=t.balance, positions=t.positions, product=product)
+                    process_id=os.getpid(), working_directory=os.getcwd(), account_config=t.config, balance=t.balance, positions=t.positions, product=product)
 
     def die():
         print(json.dumps(dict(manifest, orders=t.service_orders)), flush=True)

@@ -1,5 +1,14 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**Current PostgreSQL image qualification (2026-10-23):** locked 2.14 GB AMD64
+worker completes 79/82 native cases. All 14 foreground signal/loss and shutdown
+cancellation cases pass, closing PG7.7's offline image scope. Three source/quote
+validity refusals during fixture setup keep the aggregate red. Two additional
+SPOT/SWAP cases pass after deletion of the original service working directory;
+native money/unknown attempts survive and cold recovery cannot resend. The
+[PostgreSQL plan](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md) retains
+the exact results and remaining PG6/PG7/PG8 work. No deployment is qualified.
+
 **PostgreSQL PG5 CLOSED — selected offline recorder/CLI scope (2026-10-23).**
 Migration 118 adds guarded reporting provenance reads with no runtime table DML.
 Native history/status/export and cold orchestrator reads retain exact decimal,

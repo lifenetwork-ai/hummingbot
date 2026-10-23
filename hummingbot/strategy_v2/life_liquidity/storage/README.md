@@ -3548,14 +3548,30 @@ same matrix is included in `--suite image_native --linux-image sha256:<digest>`;
 host success does not qualify that artifact. All data/endpoints are synthetic;
 the helper must never be pointed at a real account or existing database.
 
-The refreshed 2026-10-23 AMD64 image passes all 67 native image cases, including
+The earlier refreshed 2026-10-23 AMD64 image passed all 67 native image cases, including
 these four foreground cases. Artifact qualification verifies all 1,469 packaged
 execution inputs, not just entrypoints, and rejects an intentionally stale hedge
 fingerprint. The 8 artifact cases and 13 recorder cases pass separately. This
 proves the declared source/artifact and process-loss behavior; it does not prove
 reproducible dependency resolution or complete shutdown cancellation sequencing.
-The service's physical join preserves original work, but initiating bounded
-owned cancels before a blocked join remains explicit offline PG7.7 work.
+The current locked worker additionally qualifies bounded broker-owned cancels
+before blocked SDK/DB joins: all six foreground financial cases and eight
+cancellation cases pass in the frozen `a1d64b700` image's 82-case run. That run
+is **79 passed / 3 failed**: SPOT send/report validity, SPOT ACK/quote expiry and
+SWAP prepare/UID validity refused setup before their intended crash boundaries.
+PG7.7's image slice is qualified, but this is not a green native aggregate or
+evidence that failed source/deadline guards should be relaxed.
+
+`--suite worker_restart --linux-image sha256:<digest>` adds a two-case SPOT/SWAP
+rehearsal: run an actual service child from a disposable directory, reach a
+durable unknown send, delete only that directory, and cold-open from PostgreSQL.
+It verifies exact original money/attempt/claim rows, GET-only recovery and no
+replay or directory recreation. Both cases pass on the current immutable image
+in 39.84 s (`/tmp/life-worker-scratch-image-a1`). This is service-level scratch
+independence, not complete standalone worker startup qualification. The cases
+are now part of the expanded 84-case `image_native` selector; that full expanded
+matrix has not passed. Startup diagnostics retain bounded explicit storage cause
+codes without exception text, credentials or retrying the refused operation.
 
 The opt-in generation-handoff flow diagnostic uses
 `LIFE_PG_TEST_FLOW_TRACE=1` and optionally `LIFE_PG_TEST_FUNCTION_PROFILE=1`.
