@@ -89,6 +89,17 @@ cases deselected), including all three original failures, at
 guard was loosened. The original frozen run continues unchanged and its three
 failures remain failures; this affected rerun is not a passing full aggregate.
 
+**Rollout input qualification (2026-10-23):** the release helper previously
+froze only `*.tf`, missing Terraform JSON definitions and implicitly loaded
+variable files; inherited CLI/workspace/data-directory overrides were also
+unchecked. It now includes those inputs, refuses ambient command/variable/
+workspace overrides before any subprocess and copies one environment for all
+stages. The supported release workspace is explicitly `default`. Initial Red:
+**9 failed / 5 passed**; final recording-port matrix: **16 passed / 0.60 s**
+(`/tmp/life-pg7-rollout-inputs-{red,green}.log`). No Terraform apply, GCP API,
+secret read or exchange request was executed. Deployed identity and fencing
+remain the OKX environment gates.
+
 **2026-10-23 locked LIFE/OKX image increment:** the dedicated
 `deploy/life_cloud_run/Dockerfile` now consumes SHA-256-pinned conda URLs and pip
 wheels, a pinned base digest and signed Debian snapshot. Its complete installed

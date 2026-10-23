@@ -53,13 +53,35 @@ class RolloutConfig:
 
 
 def frozen_inputs(config):
-    paths = sorted(config.module.glob('*.tf')) + [config.module / '.terraform.lock.hcl', config.variables]
+    data = config.module / '.terraform'
+    workspace = data / 'environment'
+    if (data.is_symlink() or workspace.is_symlink()
+            or workspace.exists() and (not workspace.is_file() or workspace.stat().st_size > 256
+                                       or workspace.read_text().strip() != 'default')):
+        raise ValueError('ROLLOUT_WORKSPACE_INVALID')
+    # Terraform also loads JSON definitions and implicit variable files. They
+    # must not bypass the same freeze applied to the explicit var-file.
+    paths = set(config.module.glob('*.tf')) | set(config.module.glob('*.tf.json'))
+    paths.update(config.module.glob('*.auto.tfvars'))
+    paths.update(config.module.glob('*.auto.tfvars.json'))
+    for name in ('terraform.tfvars', 'terraform.tfvars.json'):
+        path = config.module / name
+        if path.exists() or path.is_symlink():
+            paths.add(path)
+    if workspace.exists():
+        paths.add(workspace)
+    paths.update((config.module / '.terraform.lock.hcl', config.variables))
+    paths = sorted(paths)
     if len(paths) < 3 or any(p.is_symlink() or not p.is_file() or p.stat().st_size > 1024 * 1024 for p in paths):
         raise ValueError('ROLLOUT_SOURCE_INVALID')
     return tuple((str(p), hashlib.sha256(p.read_bytes()).hexdigest()) for p in paths)
 
 
 def rollout(config, *, runner=subprocess.run):
+    env = dict(os.environ)
+    if any(k.startswith(('TF_CLI_ARGS', 'TF_VAR_')) or k in ('TF_WORKSPACE', 'TF_DATA_DIR') for k in env):
+        raise ValueError('ROLLOUT_AMBIENT_TERRAFORM_OVERRIDE')
+    env.update(TF_IN_AUTOMATION='1', CHECKPOINT_DISABLE='1')
     frozen = frozen_inputs(config)
     prefix = ('terraform', '-chdir=' + str(config.module), 'apply', '-input=false', '-auto-approve', '-var-file=' + str(config.variables))
     commands = [('DRAIN_WORKER_ALLOCATION', (*prefix, '-var=worker_instances=0'))]
@@ -71,7 +93,7 @@ def rollout(config, *, runner=subprocess.run):
         if frozen_inputs(config) != frozen:
             raise ValueError('ROLLOUT_SOURCE_CHANGED')
         result = runner(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                        timeout=config.timeout_s, check=False)
+                        timeout=config.timeout_s, check=False, env=dict(env))
         if result.returncode:
             raise RuntimeError('ROLLOUT_STAGE_FAILED_' + stage)
         print(json.dumps(dict(component='life_rollout', event=stage, trading_permission=False)), flush=True)

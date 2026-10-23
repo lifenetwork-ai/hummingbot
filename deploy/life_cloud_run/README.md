@@ -82,6 +82,14 @@ provider-lock or variable inputs before the next step. Tests replace subprocess
 execution with a recording port; this command has **not** been run against GCP.
 A disabled migration still requires native startup schema compatibility.
 
+The release helper uses the default Terraform workspace. It refuses inherited
+`TF_CLI_ARGS*`, `TF_VAR_*`, `TF_WORKSPACE` and `TF_DATA_DIR` overrides before any
+command; put reviewed variables in the explicit variable file. It freezes JSON
+Terraform definitions, implicit `terraform.tfvars*`/`*.auto.tfvars*` files and
+the provider lock alongside HCL inputs, checking changes before each stage.
+Each child receives the same copied environment. These local input checks do not
+prove deployed IAM, credential exclusion or completion of a stopped rollout.
+
 This is a stopped-rollout workflow. Reducing desired allocation does not prove
 exchange key exclusion or terminality. Complete native recovery, old-generation
 exclusion and independent signed authority remain mandatory before a worker may
