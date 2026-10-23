@@ -1,5 +1,15 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**Latest fixed-source image repeat (2026-10-23):** expanded native matrix is
+82 passed / 2 failed. The earlier three failures pass here, but SWAP release
+source qualification and a 1,015.069-ms quote against a 1,000-ms limit fail;
+the aggregate remains red. The AMD64 image is emulated on this ARM64 Docker
+daemon. Qualification now records architecture/resource facts and supports
+`--require-native-image` to refuse emulation before test DB creation. This does
+not establish the cause of either failure or change economic limits. See the
+[PostgreSQL plan](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md) for the
+retained runs and remaining work; no new phase is declared complete.
+
 **Current PostgreSQL image qualification (2026-10-23):** locked 2.14 GB AMD64
 worker completes 79/82 native cases. All 14 foreground signal/loss and shutdown
 cancellation cases pass, closing PG7.7's offline image scope. Three source/quote

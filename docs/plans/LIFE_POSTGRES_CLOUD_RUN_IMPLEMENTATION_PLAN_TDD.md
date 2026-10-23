@@ -2,6 +2,43 @@
 
 ## Current offline delivery status
 
+**2026-10-23 fixed-source repeat and explicit execution environment:** the
+expanded matrix on frozen `70e1247f2` and the same `41d0c594…` image finishes
+**82 passed / 2 failed, 759.30 s**
+(`/tmp/life-worker-native-70e1247f2-a1`). All three previously failing cases pass
+in this run, but the aggregate remains **RED**: SWAP process-death at
+`release-TERMINAL` refuses `PG_SHARED_RELEASE_SOURCE_UNQUALIFIED`, and managed
+service activation refuses `PG_QUOTE_CAPTURE_STALE` at **1,015.069 ms**, beyond
+the original **1,000 ms** bound. The release error does not identify which
+source qualification predicate failed; it is not yet proven to be expiry.
+The two runs cannot be combined into a green matrix or a claimed bug fix.
+
+The Docker daemon is Linux **aarch64**, with 8 virtual CPUs and 8,218,251,264
+bytes of memory; the worker is **AMD64 under emulation**, limited to 2 CPUs /
+2 GiB, alongside a 2-CPU / 1-GiB PostgreSQL container. No competing Docker
+containers were observed at this run's start. A midrun worker cgroup sample
+records 54 throttled periods out of 3,781 and 27,653,981 microseconds of aggregate
+throttled time; the database records zero throttled periods. This sample is not
+aligned to a failed assertion, and aggregate throttling is not wall-clock delay
+to add to a quote. Brief host diagnostic contract checks also overlapped the
+run. Emulation/resource sensitivity is an investigation lead, not an established
+cause, native AMD64 headroom proof or justification to change financial limits.
+
+The runner now writes bounded, non-secret `image_environment.json` to its `/tmp`
+output, using the Docker daemon rather than CLI-host architecture. Shared
+constants keep recorded and actual container limits identical. Optional
+`--require-native-image` refuses emulation before creating a test database;
+default functional runs remain permitted and labelled. Ten red-to-green
+contracts pass, and a real Docker preflight returns `NATIVE_IMAGE_REQUIRED`
+without creating a database (`/tmp/life-image-native-preflight-a1`). This changes
+qualification tooling only. Production code, image, time limits and the open
+PG6/PG7/PG8 statuses are unchanged; failed samples remain retained.
+The default labelled-emulation path is also exercised end to end: both native
+SPOT/SWAP scratch-restart cases pass in **43.93 s** with the new runner
+(`/tmp/life-image-profile-functional-a1`), whose profile records zero existing
+containers at start. Final environment contracts pass **10 cases / 0.13 s**.
+These focused results do not replace the failed 84-case run.
+
 **2026-10-23 current Linux shutdown and scratch qualification:** rebuilding the
 same locked `a1d64b700` production inputs yields immutable image
 `sha256:41d0c594322a3b8b6caa721abaa25efc74380b330cdc872b9f70535f523e1c78`

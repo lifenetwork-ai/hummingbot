@@ -172,6 +172,33 @@ bytecode stay outside the build context. Building the locked image successfully
 does not by itself qualify reproducible native binaries, full financial replay,
 shutdown or the PG8 aggregate; record their actual gate results separately.
 
+### Native versus emulated image qualification
+
+`run_postgres --linux-image` writes `image_environment.json` into the selected
+disposable `/tmp` output directory before creating its database. It records only
+the immutable image ID/architecture, Docker daemon architecture/CPU/memory,
+configured worker/database resource limits and the number of containers already
+running. It does not collect environment variables, image secrets or Docker
+registry configuration. The daemon architecture is used because the CLI host can
+connect to a different machine.
+
+An AMD64 worker on an ARM64 Docker daemon is labelled `emulated`. That can test
+packaging and functional behavior, but does not establish native AMD64 latency
+headroom. For a native qualification machine, use:
+
+```sh
+python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_postgres \
+  --suite image_native --linux-image sha256:<immutable-image-id> \
+  --require-native-image --output /tmp/<new-output-directory>
+```
+
+The explicit flag refuses emulation before creating any test database. Omitting
+it still permits the labelled functional run. Both profiles retain the same
+2-CPU/2-GiB worker, 2-CPU/1-GiB database and original economic/source deadlines.
+The starting container count is only an observation: it does not certify CPU
+isolation or absence of competing host/VM work throughout the test. Preserve
+failed runs; a later green subset does not replace aggregate qualification.
+
 ## Remaining operational work
 
 Lifecycle/DB/local-readiness/loop-timer-lag telemetry includes native pool

@@ -8,6 +8,14 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from test.hummingbot.strategy_v2.life_liquidity.storage.image_environment import (
+    POSTGRES_CPUS,
+    POSTGRES_MEMORY_BYTES,
+    WORKER_CPUS,
+    WORKER_MEMORY_BYTES,
+    image_environment,
+    require_native,
+)
 from test.hummingbot.strategy_v2.life_liquidity.storage.image_manifest import execution_manifest
 from test.hummingbot.strategy_v2.life_liquidity.storage.run_migrations import IMAGE, docker
 from uuid import uuid4
@@ -78,16 +86,27 @@ def main():
     parser.add_argument('--suite', choices=('all', 'product_o8', 'image_native', 'pg3', 'pg4', 'pg5', 'pg6', 'pg6_pitr', 'historical_upgrades', 'pg6_regression', 'pg5_operations', 'ownership', 'managed_service', 'recorder_queries', 'recorder_proofs', 'codecs', 'commit_proofs', 'snapshot_proofs', 'service', 'service_trading', 'service_load', 'release_source', 'foundation', 'spot_producer', 'spot_allocation', 'spot_market_send', 'spot_market', 'joint_history', 'joint_intake', 'quote_composition', 'runner_startup', 'hedge_source', 'r2_integration', 'maker_cancellation', 'hedge_composition', 'r3_control', 'r3_risk', 'recorder', 'capital', 'session', 'lifecycle', 'actions', 'action_prepare', 'action_reconcile', 'action_abandon', 'runner_journal', 'provider_collection', 'quote_arm', 'quote_transport', 'quote_source', 'outbox', 'configuration', 'events', 'positions', 'reporting_application', 'approval_import', 'ack_ingress', 'observation_context', 'financial_ingress', 'financial_collection', 'inventory_settlement', 'markout', 'carry', 'swap', 'swap_accounting', 'swap_fills', 'funding', 'funding_repair', 'funding_cohort', 'swap_repair', 'spot_repair', 'cashflow_repair', 'terminal_repair', 'spot_recovery_paths', 'portfolio', 'swap_terminal', 'shared_release', 'joint_batch', 'joint_repair', 'hedge', 'swap_transport', 'collateral', 'joint_source', 'r1_accounting', 'joint_recovery', 'legacy_applying', 'legacy_joint', 'legacy_imports', 'late_capital', 'worker_financial', 'worker_restart', 'monitor', 'integrity_publication', 'file_staging'), default='all')
     parser.add_argument('--fail-fast', action='store_true', help='Stop at the first failure while retaining the original log/XML')
     parser.add_argument('--linux-image', help='Immutable locally built image ID; recorder, worker_financial, worker_restart or image_native suites')
+    parser.add_argument('--require-native-image', action='store_true', help='Refuse a worker image requiring Docker architecture emulation')
     parser.add_argument('--candidate', action='store_true', help='Run the complete O.8 candidate without claiming closure')
     args = parser.parse_args()
     if args.candidate and args.suite != 'product_o8' or args.fail_fast and args.suite == 'product_o8':
         parser.error('--candidate is only for product_o8; product coverage cannot use --fail-fast')
     if args.linux_image and (args.suite not in ('recorder', 'worker_financial', 'worker_restart', 'image_native') or not re.fullmatch(r'sha256:[0-9a-f]{64}', args.linux_image)):
         parser.error('--linux-image requires an immutable sha256 image ID and --suite recorder, worker_financial, worker_restart or image_native')
+    if args.require_native_image and not args.linux_image:
+        parser.error('--require-native-image requires --linux-image')
     output = args.output.resolve()
     if not output.is_relative_to(Path('/tmp').resolve()):
         parser.error('Use /tmp for disposable qualification logs')
     output.mkdir(parents=True, exist_ok=False)
+    if args.linux_image:
+        profile = image_environment(args.linux_image, docker)
+        (output / 'image_environment.json').write_text(json.dumps(profile, sort_keys=True, indent=2) + '\n')
+        if args.require_native_image:
+            try:
+                require_native(profile)
+            except ValueError:
+                parser.error('NATIVE_IMAGE_REQUIRED: use an AMD64 Docker daemon; no test database was created')
     name, created = 'life-pg2-' + uuid4().hex[:12], False
     volume = name + '-pitr' if args.suite == 'pg6_pitr' else None
     # Keep the local endpoint stable across the deliberate container crash.
@@ -100,7 +119,7 @@ def main():
             docker('volume', 'create', '--label', 'life.pg6_test=disposable', volume)
             options = ['-v', volume + ':/pg6']
             server_options = ['postgres', '-c', 'archive_mode=on', '-c', "archive_command=test ! -f /pg6/wal/%f && cp %p /pg6/wal/%f"]
-        docker('run', '-d', '--name', name, '--label', 'life.pg2_test=disposable', '--cpus', '2', '--memory', '1g',
+        docker('run', '-d', '--name', name, '--label', 'life.pg2_test=disposable', '--cpus', str(POSTGRES_CPUS), '--memory', str(POSTGRES_MEMORY_BYTES),
                '-e', 'POSTGRES_HOST_AUTH_METHOD=trust', '-e', 'POSTGRES_DB=life_pg2_test', '-p', f'127.0.0.1:{selected_port}:5432', *options, IMAGE, *server_options)
         created = True
         for _ in range(100):
@@ -382,7 +401,7 @@ def main():
                 root = Path(__file__).resolve().parents[5]
                 (output / 'source_manifest.json').write_text(json.dumps(execution_manifest(root), sort_keys=True))
                 docker_prefix = ['docker', 'run', '--rm', '--network', 'container:' + name,
-                                 '--cpus', '2', '--memory', '2g',
+                                 '--cpus', str(WORKER_CPUS), '--memory', str(WORKER_MEMORY_BYTES),
                                  '-v', str(root / 'test') + ':/qualification/test:ro',
                                  '-v', str(output) + ':/results',
                                  '-e', 'PYTHONPATH=/home/hummingbot:/qualification',
