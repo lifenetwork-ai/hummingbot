@@ -8,13 +8,13 @@ def execution_manifest(root):
     root = Path(root).resolve()
     names = subprocess.check_output(
         ['git', 'ls-files', '--cached', '--others', '--exclude-standard', '-z', '--',
-         'bin', 'hummingbot', 'controllers', 'scripts', 'migrations/life_liquidity'], cwd=root).decode().split('\0')
+         'bin', 'hummingbot', 'controllers', 'scripts', 'migrations/life_liquidity', 'setup/locks'], cwd=root).decode().split('\0')
     result = {}
     for name in sorted(set(filter(None, names))):
         relative = Path(name)
         if any(part.startswith('.env') for part in relative.parts):
             continue
-        if relative.suffix not in ('.py', '.pyx', '.pxd', '.pyi', '.json', '.yaml', '.yml', '.sql') and name != 'bin/hbot':
+        if relative.suffix not in ('.py', '.pyx', '.pxd', '.pyi', '.json', '.yaml', '.yml', '.sql', '.lock') and name != 'bin/hbot':
             continue
         path = root / relative
         if (relative.is_absolute() or '..' in relative.parts or not path.is_file()

@@ -4,6 +4,7 @@ import json
 import platform
 import sys
 from pathlib import Path
+from test.hummingbot.strategy_v2.life_liquidity.storage.dependency_manifest import verify_dependency_locks
 from test.hummingbot.strategy_v2.life_liquidity.storage.image_manifest import verify_execution_manifest
 
 
@@ -31,6 +32,7 @@ def main():
     expected = json.loads(Path(sys.argv[1]).read_text())
     root = Path('/home/hummingbot')
     verify_execution_manifest(root, expected)
+    verify_dependency_locks(root, '/opt/life-locks')
     assert not (root / '.env').exists()
     assert {migration.name for migration in load_migrations(root / 'migrations/life_liquidity')} == {
         Path(name).name for name in expected if name.startswith('migrations/life_liquidity/') and name.endswith('.sql')}

@@ -96,13 +96,31 @@ resource identity, not actual old-instance/key exclusion.
 
 ## Container target
 
-Build `Dockerfile` with `--target life-worker --build-arg LIFE_POSTGRES=true` and
-an explicit Linux platform. It runs UID/GID 10001, the foreground worker as the
-entry point, and no TTY or shell. Runtime config/secrets are mounted/injected;
-`.env`, host extensions and bytecode stay outside the build context. The ordinary
-Docker image default remains the existing `release` command. Linux AMD64 build,
-full dependency reproducibility and container signal/kill acceptance are not yet
-qualified by these source definitions or the host process tests.
+Build the dedicated LIFE/OKX profile from the repository root:
+
+```sh
+docker build --platform linux/amd64 -f deploy/life_cloud_run/Dockerfile \
+  --target life-worker --build-arg HUMMINGBOT_BUILD_JOBS=2 -t life-worker:local .
+```
+
+This profile pins the base digest, signed Debian snapshot, explicit conda package
+URLs/hashes and pip wheel versions/hashes in `setup/locks/`. No Python dependency
+solver runs during this build. `pip check` must pass for the entire installed
+Python dependency graph. The artifact gate also compares packaged locks and
+installed pip versions before exercising the original native modules. Resolved
+exports inside an image are diagnostics, not substitutes for these build inputs.
+
+The profile deliberately excludes optional `bip-utils`, `pandas-ta` and
+`eip712-structs`: they belong to other connector/indicator paths and their prior
+resolved dependency sets were inconsistent. This is **not** a general Hummingbot
+image or qualification of arbitrary connectors/controllers. The repository's
+ordinary root Dockerfile and its default `release` command remain separate.
+
+Runtime uses UID/GID 10001, a direct foreground Python entry point and no TTY or
+shell. Runtime config/secrets are mounted/injected; `.env`, host extensions and
+bytecode stay outside the build context. Building the locked image successfully
+does not by itself qualify reproducible native binaries, full financial replay,
+shutdown or the PG8 aggregate; record their actual gate results separately.
 
 ## Remaining operational work
 

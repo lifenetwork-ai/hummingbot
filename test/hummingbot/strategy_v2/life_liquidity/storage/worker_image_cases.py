@@ -51,9 +51,11 @@ async def test_image_is_linux_amd64_nonroot_and_contains_exact_native_source_and
 import asyncpg,psycopg
 from hummingbot.core import clock
 from test.hummingbot.strategy_v2.life_liquidity.storage.image_manifest import verify_execution_manifest
+from test.hummingbot.strategy_v2.life_liquidity.storage.dependency_manifest import verify_dependency_locks
 assert os.getuid()==10001 and platform.machine()=='x86_64' and clock.__file__.endswith('.so')
 expected=json.load(open('/manifest/source_manifest.json'))
 verify_execution_manifest('/home/hummingbot',expected)
+verify_dependency_locks('/home/hummingbot','/opt/life-locks')
 print(json.dumps({'verified_files':len(expected)}))
 '''
     code, body, error = await docker('run', '--rm', *security(), '-v', str(tmp_path) + ':/manifest:ro',

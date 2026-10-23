@@ -2,6 +2,26 @@
 
 ## Current offline delivery status
 
+**2026-10-23 locked LIFE/OKX image increment:** the dedicated
+`deploy/life_cloud_run/Dockerfile` now consumes SHA-256-pinned conda URLs and pip
+wheels, a pinned base digest and signed Debian snapshot. Its complete installed
+Python dependency graph passes `pip check`. The prior resolved environment had
+conflicting optional connector/indicator dependencies; this dedicated profile
+excludes `bip-utils`, `pandas-ta`, `eip712-structs` and pins compatible
+cryptography/cffi. It does not qualify arbitrary Hummingbot connectors.
+Image `sha256:65ef00c1982fd6b138ffbcc63562268e77e4c75f1ec2f72b1398621cbdfe9b51`
+contains production source at `2e64c9b61` plus the locked build inputs: artifact
+gate **8 passed / 19.54 s**, native Linux AMD64 matrix **77 passed / 677.54 s**,
+lock/manifest validators **12 passed / 0.25 s**. The native matrix includes
+first-revoke cancellation and actual SIGTERM during blocked SDK work with an
+original committed SPOT/SWAP ACK; exact cancellation is observed while all native
+holds/accounting remain unchanged. Accepted-but-unacknowledged sends retain
+unknown state and cannot invent a cancellation identity. Raw results are under
+`/tmp/life-pg7-locked-{artifact,native}-20261023`.
+These results qualify that artifact and protocol, not later edits, clean rebuild
+binary reproducibility, the full PG8 aggregate or deployment. PG6, complete PG7
+telemetry and PG8 remain open.
+
 **Scope split approved on 2026-10-23:** this plan owns offline implementation,
 local PostgreSQL/container/process tests, import/restore rehearsals and locally
 validated deployment definitions. All real deployment/account qualification is
