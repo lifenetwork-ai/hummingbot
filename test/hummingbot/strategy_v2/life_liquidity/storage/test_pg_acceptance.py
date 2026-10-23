@@ -25,9 +25,17 @@ def test_frozen_budget_is_the_packaged_versioned_input_available_in_clean_checko
 def test_map_retains_native_file_product_physical_and_artifact_gates():
     names = [g.name for g in GATES]
     assert len(names) == len(set(names))
-    assert set(names) == {'file_contracts', 'native', 'physical_pitr', 'foreground', 'linux_image', 'linux_native', 'infrastructure', 'product_o8'}
+    assert set(names) == {'migrations', 'file_contracts', 'native', 'physical_pitr', 'foreground', 'linux_image', 'linux_native', 'infrastructure', 'product_o8'}
     assert all(g.owner and g.requirements for g in GATES)
     assert {'PG6.1', 'PG6.2', 'PG6.3', 'PG6.4', 'PG6.5', 'PG6.6', 'PG7.1', 'PG7.8', 'PG8.3', 'PG8.4', 'PG8.6'} <= set(OPEN_REQUIREMENTS)
+
+
+def test_migrations_run_all_upgrade_cases_on_the_isolated_database_runner(tmp_path):
+    gate = next(g for g in GATES if g.name == 'migrations')
+    argv = command(gate, tmp_path, image='unused', terraform='unused')
+    assert argv[1:] == ['-m', 'test.hummingbot.strategy_v2.life_liquidity.storage.run_migrations', '--output', str(tmp_path)]
+    rows = {g.name: {'qualified': True} for g in GATES if g.name != 'migrations'}
+    assert not verdict(rows, source_unchanged=True, remaining={})
 
 
 def test_zero_exit_with_missing_truncated_or_skipped_xml_is_not_qualification(tmp_path):

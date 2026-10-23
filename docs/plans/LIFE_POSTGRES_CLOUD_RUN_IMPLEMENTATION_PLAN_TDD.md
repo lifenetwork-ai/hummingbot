@@ -2,6 +2,16 @@
 
 ## Current offline delivery status
 
+**2026-10-23 complete migration gate:** the serial acceptance map now also runs
+`run_migrations` without selectors before File/native qualification. Native
+fixtures applying the latest schema did not execute the separate predecessor,
+drift, repeated-run and hostile-default-ACL matrix in `pg_migration_cases.py`.
+The orchestration regression is red (2 failed / 7 passed), then green (9 passed,
+0.09 s); an absent migration gate cannot produce a complete verdict. The older
+fixed baseline is retained unchanged and does not satisfy this newly explicit
+full-migration gate. Full execution is queued with the next frozen source; this
+unit result is not a claim that every migration case has passed.
+
 **2026-10-23 retained-fixture corrections:** the fixed baseline run exposed old
 ACK/FILL/SWAP expiry assertions that predated migration 91's persistent cut.
 Current tests assert fresh then expired carry readiness, unchanged persistent

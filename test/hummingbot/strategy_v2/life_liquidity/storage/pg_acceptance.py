@@ -35,6 +35,7 @@ class Gate:
 
 
 GATES = (
+    Gate('migrations', 'storage/schema', ('PG2', 'PG6', 'PG8.2', 'PG8.6'), 'migrations'),
     Gate('file_contracts', 'storage', ('PG1', 'PG8.1', 'PG8.6'), 'pytest', (STORAGE, '--ignore=' + STORAGE + '/postgres')),
     Gate('native', 'storage', ('PG2', 'PG3', 'PG4', 'PG5', 'PG6.5', 'PG8.1', 'PG8.2'), 'postgres', ('all',)),
     Gate('physical_pitr', 'storage', ('PG6.5', 'PG8.2'), 'postgres', ('pg6_pitr',)),
@@ -144,6 +145,8 @@ def verdict(rows, *, source_unchanged, remaining):
 
 def command(gate, folder, *, image, terraform, candidate=False):
     python = sys.executable
+    if gate.kind == 'migrations':
+        return [python, '-m', BASE.replace('/', '.') + '.storage.run_migrations', '--output', str(folder)]
     if gate.kind in ('postgres', 'postgres_image'):
         return [python, '-m', BASE.replace('/', '.') + '.storage.run_postgres', '--suite', gate.selectors[0],
                 *(['--linux-image', image] if gate.kind == 'postgres_image' else []), '--output', str(folder)]
