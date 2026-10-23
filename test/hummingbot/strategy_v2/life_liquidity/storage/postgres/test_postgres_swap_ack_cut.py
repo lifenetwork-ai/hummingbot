@@ -24,19 +24,23 @@ async def test_original_swap_ack_survives_carry_expiry_after_observation_cut_wit
             value = await original(binding)
             cuts.append(value)
             if len(cuts) == 1:
+                assert await database[0].fetchval('SELECT life_financial.carry_current_ready($1)', cfg.account_id)
                 cutoff = min(source.account.snapshot.observed_at_ms, source.mark.observed_at_ms,
                              source.index.observed_at_ms, source.funding.observed_at_ms, source.terms.observed_at_ms) + 4000
                 now_ms = await database[0].fetchval('SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint')
+                assert now_ms < cutoff, ('carry expired before the tested boundary', now_ms, cutoff, value.observed_at)
                 await asyncio.sleep(max(0, (cutoff - now_ms) / 1000) + .1)
                 after_expiry = await financial.snapshot(binding)
                 assert after_expiry.cut.checkpoint.revision == value.cut.checkpoint.revision
-                assert after_expiry.cut.checkpoint.state_digest != value.cut.checkpoint.state_digest
+                assert after_expiry.cut.checkpoint.state_digest == value.cut.checkpoint.state_digest
+                assert after_expiry.recovery_required
+                assert not await database[0].fetchval('SELECT life_financial.carry_current_ready($1)', cfg.account_id)
             return value
 
         monkeypatch.setattr(financial, 'observation_cut', cross_original_source_expiry)
         receipt = await repo.acknowledge(command.operation_id, exchange_order_id='987654321', owner=owner)
         assert receipt.state == 'ACKED' and not receipt.trading_permission
-        assert len(cuts) == 2
+        assert len(cuts) == 1
         assert values[7][0] == source
         after = await financial.snapshot(cfg.binding)
         assert (after.balance, after.budget) == (before.balance, before.budget)

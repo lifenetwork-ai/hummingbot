@@ -41,20 +41,26 @@ async def test_received_original_survives_same_version_carry_expiry_without_refr
             value = await capture(binding)
             cuts.append(value)
             if len(cuts) == 1:
+                assert await database[0].fetchval('SELECT life_financial.carry_current_ready($1)', cfg.account_id)
                 deadline = min(original_source.account.snapshot.observed_at_ms, original_source.mark.observed_at_ms,
                                original_source.index.observed_at_ms, original_source.funding.observed_at_ms,
                                original_source.terms.observed_at_ms) + 4000
                 now = await database[0].fetchval('SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint')
+                assert now < deadline, ('carry expired before the tested boundary', now, deadline, value.observed_at)
                 await asyncio.sleep(max(0, (deadline - now) / 1000) + .1)
                 current = await financial.snapshot(binding)
                 assert current.cut.checkpoint.revision == value.cut.checkpoint.revision
-                assert current.cut.checkpoint.state_digest != value.cut.checkpoint.state_digest
+                # Migration 91 deliberately excludes time-derived readiness
+                # from the persistent cut; expiry changes permission, not truth.
+                assert current.cut.checkpoint.state_digest == value.cut.checkpoint.state_digest
+                assert current.recovery_required
+                assert not await database[0].fetchval('SELECT life_financial.carry_current_ready($1)', cfg.account_id)
             return value
 
         monkeypatch.setattr(financial, 'observation_cut', cross_original_expiry)
         receipt = await financial.apply_received(command, owner=owner)
         assert receipt.state == ('ACKED' if kind == 'ACK' else 'APPLIED')
-        assert len(cuts) == 2 and feed[0] == original_source
+        assert len(cuts) == 1 and feed[0] == original_source
         after = await financial.snapshot(cfg.binding)
         if kind == 'ACK':
             assert (after.balance, after.budget) == (before.balance, before.budget)

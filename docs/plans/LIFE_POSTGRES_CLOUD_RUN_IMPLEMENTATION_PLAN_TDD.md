@@ -2,6 +2,22 @@
 
 ## Current offline delivery status
 
+**2026-10-23 retained-fixture corrections:** the fixed baseline run exposed old
+ACK/FILL/SWAP expiry assertions that predated migration 91's persistent cut.
+Current tests assert fresh then expired carry readiness, unchanged persistent
+digest/version, original provider data and exactly one monetary application;
+the expiry policy remains 4,000 ms. Recovery can already be required for an
+unresolved armed order, so it is not used as a proxy for carry freshness.
+The schema-104 release-audit fixture now captures the genuine predecessor
+function, upgrades, and only then constructs the current service. Both audit
+algorithms inspect identical retained releases and reject subsequent corruption;
+this is differential current-data coverage, not a historical service bootstrap.
+The focused received-observation/release matrix passes **37 cases**, 3,726
+deselected, in 114.28 s (`/tmp/life-pg8-retained-fixtures-a1`). Separately, the
+diagnostic-context fix passes all eight inventory/markout corruption/bound cases
+in 16.45 s (`/tmp/life-pg8-reason-regression-a1`). Original baseline failures are
+retained. Neither focused run closes the aggregate or changes production guards.
+
 **2026-10-23 durable stopped-source retirement increment:** migration 123 and
 `PgFileStaging.record_retirement` retain the exact consumed File checkpoint and
 verified target report under owner-only immutable storage. Cold readback repeats

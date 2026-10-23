@@ -7,38 +7,38 @@ from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_s
 
 import pytest
 
-from hummingbot.strategy_v2.life_liquidity.storage.postgres import runtime as runtime_module
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.migrations import migrate
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('database', [104], indirect=True)
-async def test_release_audit_checks_terminal_history_once_and_rechecks_next_statement(database, monkeypatch):
+async def test_release_audit_checks_terminal_history_once_and_rechecks_next_statement(database):
     c = database[0]
-    load = runtime_module.load_migrations
-    with monkeypatch.context() as patch:
-        patch.setattr(runtime_module, 'load_migrations', lambda path: tuple(m for m in load(path) if m.version <= 104))
-        t, service = await configured(
-            database, provisional_quotes=True, maker_cycle=True,
-            model_change=lambda b: b.update(maker_schedule=dict(
-                schedule_id='synthetic-release-audit', levels=[0], refresh_interval_ms=1, max_cycles=1),
-                quote_schedule_timeout_ms=60000),
-            spot_overrides=dict(owner_duration=timedelta(seconds=300), session_duration=timedelta(seconds=360)))
-        stream, _ = await cancellation_feed(t)
-        try:
-            await service.start_makers()
-            assert service.makers.completed_cycles == 1
-            assert await c.fetchval('SELECT count(*) FROM life_financial.shared_claim_releases') == 2
-        finally:
-            try:
-                await service.close()
-            finally:
-                stream.cancel()
-                await asyncio.gather(stream, return_exceptions=True)
-    await c.execute('INSERT INTO life_financial.access_bindings VALUES(current_user,$1,true)', t.cfg.account_id)
+    # Capture the actual predecessor audit at schema 104, then upgrade before
+    # constructing the current service (which requires later ownership tables).
+    # This compares both algorithms on identical current retained releases;
+    # it is not a claim that the current service runs on an old schema.
     original = await c.fetchval("SELECT pg_get_functiondef('life_financial.shared_release_verified(uuid)'::regprocedure)")
     await c.execute(original.replace('life_financial.shared_release_verified(', 'life_financial.test_release_reference('))
     await migrate(c, action='up')
+    t, service = await configured(
+        database, provisional_quotes=True, maker_cycle=True,
+        model_change=lambda b: b.update(maker_schedule=dict(
+            schedule_id='synthetic-release-audit', levels=[0], refresh_interval_ms=1, max_cycles=1),
+            quote_schedule_timeout_ms=60000),
+        spot_overrides=dict(owner_duration=timedelta(seconds=300), session_duration=timedelta(seconds=360)))
+    stream, _ = await cancellation_feed(t)
+    try:
+        await service.start_makers()
+        assert service.makers.completed_cycles == 1
+        assert await c.fetchval('SELECT count(*) FROM life_financial.shared_claim_releases') == 2
+    finally:
+        try:
+            await service.close()
+        finally:
+            stream.cancel()
+            await asyncio.gather(stream, return_exceptions=True)
+    await c.execute('INSERT INTO life_financial.access_bindings VALUES(current_user,$1,true)', t.cfg.account_id)
     await c.execute('CREATE SEQUENCE life_financial.test_terminal_count MINVALUE 0 START 0')
     definition = await c.fetchval("SELECT pg_get_functiondef('life_financial.spot_lifecycle_verified(uuid)'::regprocedure)")
     source = await c.fetchval("SELECT prosrc FROM pg_proc WHERE oid='life_financial.spot_lifecycle_verified(uuid)'::regprocedure")
