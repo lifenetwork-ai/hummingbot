@@ -18,7 +18,8 @@ no release requirement is waived or passed by moving it.
 | PG4 | Closed for selected offline handoff scope (`4fddc9419`) | Actual provider/key exclusion, deployed IAM and failover in OKX PG9/PG10 |
 | PG5 | Closed for selected offline native recorder/CLI scope | Deployed credentials/TLS remain OKX PG-E1; detached standalone reporting services are outside this worker profile |
 | PG6 | In progress; logical and physical target restore plus schema/sequence guards | Stopped File/segmented native import, cutover rollback, post-cut reconciliation/release and retained-history capacity qualification remain open |
-| PG7–PG8 | Open | Image/IaC/signal tests and complete offline acceptance |
+| PG7 | In progress; foreground host, isolated migration rollout and validated IaC candidate | Linux image/dependency lock, container kill tests, complete metrics/alerts remain open |
+| PG8 | Open; full gate exposed stale historical upgrade fixtures | Complete current-source serial regression, product/performance/coverage acceptance remain required |
 
 Only current phase checklists and this ledger determine progress. Historical
 “open at this checkpoint” statements describe their recorded revision; they are
@@ -3519,6 +3520,7 @@ Dependencies: PG0 decisions; worker code depends on PG1–PG5. Definitions can b
 
 - [ ] PG7.1: Build a pinned Linux image from this repository with PostgreSQL dependencies; run foreground, receive signals directly, emit structured stdout/stderr, and keep credentials outside image layers/arguments/logs. Do not use the destructive current `make build` target.
   - [x] Full Linux ARM64 artifact built and source/import/recorder compatibility tested in PG2. Release architecture, complete dependency locking, foreground/default-command and signal behavior remain open; the compatibility image is not a deployed worker qualification.
+  - [x] **Foreground/definition candidate:** the opt-in `life-worker` Docker target, `postgres/worker.py`, bounded read-only probes and JSON stdout are implemented. Host signal/deadline tests and mock-only infrastructure/release checks pass below. Actual Linux AMD64/dependency reproducibility, container kill, complete metric/alert and deployed qualification remain open.
 - [ ] PG7.2: Validate startup without TTY/prompts/MQTT dependency, schema/account binding before authority construction, and no auto-bootstrap of missing financial state. Ephemeral local files may hold disposable scratch/config/status only.
 - [ ] PG7.3: Add infrastructure definitions for Artifact Registry, Cloud SQL PostgreSQL, backup/PITR settings, VPC, IAM, Secret Manager, monitoring and one desired Worker Pool instance per account namespace. **Operator-selected flow: config-enabled startup migration** (`LIFE_AUTO_MIGRATE=true`); package the pinned SQL bundle/driver and await the central runner before application construction, with no manual migration step. Database locking serializes concurrent startup runners; failed migration blocks that startup. Qualify migration/runtime role and secret isolation: removing an inherited DSN does not prevent a colocated process from reading a mounted env file/secret. A separate serialized migration Job is an optional deployment mode (`LIFE_AUTO_MIGRATE=false`), with migration-only identity/secret, one task, parallelism one and automatic retries disabled; await success before worker rollout. Runtime startup validates compatibility and remains unarmed; incompatible schema changes require an explicit drain/upgrade policy in either mode. [Cloud Run Jobs](https://docs.cloud.google.com/run/docs/create-jobs), [job retries](https://docs.cloud.google.com/run/docs/configuring/max-retries).
 - [ ] PG7.4: Define same-region worker/primary DB, private-IP/TLS connectivity with Direct VPC egress and bounded pools; test TLS/authentication handling locally. Document the selected Worker Pool authentication/connection method; its actual connectivity is a PG9.2 gate, not inferred from a Service-only example. [Direct VPC](https://docs.cloud.google.com/run/docs/configuring/vpc-direct-vpc), [Cloud SQL connectivity](https://docs.cloud.google.com/sql/docs/postgres/connect-run).
@@ -3528,6 +3530,60 @@ Dependencies: PG0 decisions; worker code depends on PG1–PG5. Definitions can b
 - [ ] PG7.8: Add metrics/alerts for trading eligibility, owner generation, DB/query/pool lag, event-loop lag, unknown attempts, unresolved holds, audit freshness, budget usage and backup/recovery health. Probe/liveness success is separate from permission to trade; a healthy unarmed process must not restart-loop because it awaits manual recovery.
 
 **Done when:** image and IaC validate locally, missing secrets/DB fail closed, ephemeral-directory deletion preserves authoritative state, and container signal/forced-kill tests pass. Cloud deployment is still unproven.
+
+#### PG7 foreground and infrastructure candidate (2026-10-23)
+
+**PG7 remains OPEN.** `--target life-worker --build-arg LIFE_POSTGRES=true`
+selects a nonroot foreground target while the ordinary Docker default stays
+unchanged. Injected environment is explicit, no repository `.env` is opened,
+and the existing native headless launcher still owns numbered migration,
+account/schema qualification and original SDK/persistence lifetimes. No account,
+opening capital, policy or activation is bootstrapped by this increment.
+
+| Gate | Result | Local output |
+| --- | --- | --- |
+| Initial worker/probe/release + native/file headless/startup/runner regression | **80 passed**, zero failure/error/skip, 35.54 s | `/tmp/life-pg7-host-20261023-e1.xml` |
+| Complete current-source rerun, including late physical cleanup after launcher failure | **81 passed**, zero failure/error/skip, 33.84 s | `/tmp/life-pg7-host-20261023-e2.xml` |
+| Pinned Terraform `validate` | valid | `/tmp/life-pg7-tf-validate3.log` |
+| Mock-only Terraform resource/input isolation | **8 passed**, zero failure/skip | `/tmp/life-pg7-tf-test5.log` |
+
+Five current child-process cases cover graceful SIGTERM, physically bounded
+blocked cleanup, original cleanup surviving a failed launcher, startup timeout
+and secret-bearing failure redaction. Repeated signals cannot extend the first
+deadline. The foreground process also avoids Python atexit's unbounded executor
+join after failed cleanup; reusable repositories retain their normal join rules. HTTP probes stay live when unarmed; startup
+waits for the service binding, and there is no activation endpoint. A shutdown
+timeout retains original cleanup until process exit; it never certifies terminal
+orders, refunds holds or releases a running COMMIT task. These host cases are not
+yet the actual Linux image/container signal gate. Minimal telemetry reports
+lifecycle, DB/local readiness, loop lag and uptime; complete native economic,
+unknown/hold, audit, backup and calibrated alert coverage remains open.
+
+`deploy/life_cloud_run` pins Terraform **1.11.4** and signed Google provider
+**7.9.0**. It defines same-region private PostgreSQL16 with bounded disk,
+backup/PITR inputs, Direct VPC all-traffic/static NAT, certified PSA DNS + verified
+TLS, digest-pinned image, numeric secret versions and explicit 0/1 manual
+allocation. Tests use only `mock_provider "google"`; their mock apply creates no
+cloud resources or network/exchange proof. Actual IAM, TLS, DNS, billing/quota,
+keys, egress and managed PITR remain OKX PG-E1/PG-E2/PG9.
+
+The Cloud helper honors deployer `LIFE_AUTO_MIGRATE`: stop worker allocation,
+await the dedicated one-task/no-retry migration Job, then start one **unarmed**
+worker. Runtime receives neither schema-owner secret nor migration execution /
+impersonation permission. Its internal auto-migration is false; the automatic
+release still requires no manual SQL command. Local trusted startup retains the
+existing in-process mode. Input drift or any failed/ambiguous step blocks start.
+This helper has only been executed against a recording subprocess test port,
+never GCP. Desired count zero and a completed rollout cannot substitute for key
+exclusion, reconciliation or signed financial authority; rollback after native
+orders remains PG6's controlled cutover contract.
+
+Initial Red was the absent worker module; mock-definition failures exposed
+required explicit IAM project fields and nonsemantic generated mock values.
+Those failures remain under `/tmp/life-pg7-*`. Source hooks pass; user `.env`,
+actual cloud/exchange state and earlier SQL migrations remain untouched. No
+repository evidence file was created. Linux build/signal, complete monitoring,
+full dependency reproducibility and PG8 gates remain required.
 
 ### PG8 — Complete PostgreSQL offline acceptance and performance
 

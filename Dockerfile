@@ -105,3 +105,16 @@ SHELL [ "/bin/bash", "-lc" ]
 # Set the default command to run when starting the container
 
 CMD conda activate hummingbot && ./bin/hummingbot_quickstart.py 2>> ./logs/errors.log
+
+# Opt-in native foreground worker. Keep the ordinary image default below.
+FROM release AS life-worker
+RUN python -c "import asyncpg, psycopg" && \
+    groupadd --gid 10001 life && \
+    useradd --uid 10001 --gid 10001 --no-create-home --home-dir /tmp --shell /usr/sbin/nologin life
+ENV LIFE_ENV_FILE="" PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
+USER 10001:10001
+ENTRYPOINT ["python", "-m", "hummingbot.strategy_v2.life_liquidity.storage.postgres.worker"]
+CMD []
+
+# Preserve `docker build .` and --target release semantics for existing users.
+FROM release AS default
