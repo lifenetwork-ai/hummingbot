@@ -1,7 +1,9 @@
 """Opt-in disposable PostgreSQL only; never consume the repository .env."""
 import json
 import os
+import time
 from collections import deque
+from datetime import datetime, timezone
 from uuid import uuid4
 
 import pytest
@@ -24,7 +26,7 @@ class _ImmediateNativeFailures:
                 terminal.write_sep('!', 'PostgreSQL failure: ' + report.nodeid)
                 terminal.write_line(str(report.longrepr))
                 for name, body in report.sections:
-                    if name in ('PostgreSQL bounded physical diagnostics', 'PostgreSQL normalized reason codes'):
+                    if name in ('PostgreSQL bounded physical diagnostics', 'PostgreSQL normalized reason codes', 'PostgreSQL UID freshness timings'):
                         terminal.write_sep('-', name)
                         terminal.write_line(body)
 
@@ -107,6 +109,18 @@ def pytest_runtest_makereport(item, call):
         codes = getattr(item, '_pg_reason_codes', ())
         if codes:
             report.sections.append(('PostgreSQL normalized reason codes', '\n'.join(codes)))
+        timings = getattr(item, '_pg_uid_timings', ())
+        if timings:
+            encoded = json.dumps(list(timings))
+            report.sections.append(('PostgreSQL UID freshness timings', encoded))
+            item.user_properties.append(('life_pg_uid_timings', encoded))
+            report.user_properties = list(item.user_properties)
+    if report.when == 'teardown':
+        # Pytest retains collected items until session end. Do not retain every
+        # closed runtime/pool/source graph through these diagnostic references.
+        for name in ('_pg_diagnostic_runtimes', '_pg_reason_codes', '_pg_uid_timings'):
+            if hasattr(item, name):
+                delattr(item, name)
 
 
 @pytest_asyncio.fixture
@@ -136,6 +150,28 @@ async def database(request, monkeypatch, tmp_path, migration_template):
         request.node._pg_reason_codes.append(str(result)[:128])
         return result
     monkeypatch.setattr(runtime, 'sql_error', normalized)
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres.quote_account_source import PgQuoteAccountSource
+    original_fresh = PgQuoteAccountSource._uid_fresh
+    request.node._pg_uid_timings = deque(maxlen=12)
+
+    def timed_uid(source):
+        fresh = original_fresh(source)
+        if not fresh and source._uid_at is not None:
+            try:
+                # Do not call an injected clock twice: some clock fault tests
+                # deliberately advance on every read. This is an approximate
+                # real-wall sample, explicitly not the source-clock verdict.
+                age = (datetime.now(timezone.utc) - source._uid_at).total_seconds() * 1000
+                elapsed = (time.monotonic() - source._uid_monotonic) * 1000
+                request.node._pg_uid_timings.append(dict(wall_age_ms=round(age, 3), elapsed_ms=round(elapsed, 3),
+                                                         wall_skew_ms=round(abs(age - elapsed), 3),
+                                                         max_age_ms=source.max_uid_age_ms,
+                                                         max_skew_ms=source.max_clock_skew_ms))
+            except Exception:
+                # Diagnostic failure must not change the original verdict.
+                pass
+        return fresh
+    monkeypatch.setattr(PgQuoteAccountSource, '_uid_fresh', timed_uid)
     assert dsn.startswith('postgresql://postgres@127.0.0.1:') and dsn.endswith('/life_pg2_test')
     admin = await asyncpg.connect(dsn)
     name = 'life_pg2_' + uuid4().hex
