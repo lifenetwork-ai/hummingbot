@@ -2,6 +2,32 @@
 
 ## Current offline delivery status
 
+**2026-10-23 stopped NAV validation:** eight red corruption cases showed that
+cold capital projection accepted invalid retained NAV totals, inventory PnL,
+net flows, loss, drawdown, nonfinite values, future observations or a missing
+commit revision. Projection now checks the original committed NAV order, exact
+measurement shape, times and highwater/drawdown arithmetic. For observations
+whose full money fingerprint matches the recovered wallet, it independently
+recomputes every measurement using the original price and previous highwater.
+Older money cuts remain verbatim: a before-fill NAV is never repriced using the
+closing wallet. One complete money hash plus a bounded ordered NAV pass avoids
+replaying or hashing all trades for every NAV row. Capital/budget regression:
+**41 passed / 35.41 s** (`/tmp/life-pg6-nav-regression-a2.log`); actual PostgreSQL
+cold staged projection: **3 passed / 10.81 s**, 29 unrelated cases deselected
+(`/tmp/life-pg6-nav-native-a1`). These are functional checks, not latency gates.
+Complete historical-prefix proof, native financial translation and unarmed
+publication remain open under PG6.2/PG6.3.
+
+**Frozen aggregate follow-up:** `fecc42566` File contracts completed **1,987
+passed / 1 failed**. The failure occurred while constructing the source fixture
+for `test_rehashed_budget_corruption_is_rejected[loss_amount]`: its original
+1,000 ms capture deadline expired before the corruption assertion. The
+capital/budget rerun above passes with that deadline unchanged, but does not
+establish the cause of the earlier timeout or replace the failed aggregate.
+Other functional checks overlapped this sample; no performance acceptance is
+claimed. The original report remains in the frozen run's `file_contracts`
+directory; native and later gates continue separately on that frozen revision.
+
 **2026-10-23 current artifact and definition qualification:** immutable AMD64
 image `sha256:adc32af4528a99c4c3f6ff581ed21f819fd2bcb0525c3586fd87893dc584415b`
 built from `fecc42566` passes **9 image cases / 24.24 s**, including installed

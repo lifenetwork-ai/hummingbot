@@ -80,6 +80,49 @@ async def test_cold_projection_is_independent_of_the_importing_callers_decimal_c
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('fault', ['nav', 'inventory_pnl', 'net_flow', 'loss', 'drawdown', 'future', 'revision', 'nan'])
+async def test_rehashed_nav_corruption_cannot_enter_the_capital_import_projection(tmp_path, fault):
+    source, _ = await source_fixture(tmp_path)
+    checkpoint = json.loads(source.base.core.checkpoint_bytes)
+    row = checkpoint['state']['resources']['nav_operations']['nav1']
+    if fault == 'future':
+        row['command']['observed_at'] = '2099-01-01T00:00:00+00:00'
+    elif fault == 'revision':
+        del checkpoint['state']['operations']['nav:nav1']
+    else:
+        name = {'nav': 'nav_usdt', 'inventory_pnl': 'starting_inventory_pnl_usdt',
+                'net_flow': 'net_cashflows_usdt', 'loss': 'execution_loss_usdt',
+                'drawdown': 'drawdown_bps', 'nan': 'starting_inventory_pnl_usdt'}[fault]
+        row['measurement'][name] = 'NaN' if fault == 'nan' else '999'
+    with pytest.raises(StorageError):
+        project_stopped_capital(recut(source, checkpoint), max_rows=10000)
+
+
+@pytest.mark.asyncio
+async def test_historical_nav_uses_its_original_money_cut_and_retains_prior_highwater(tmp_path):
+    from test.hummingbot.strategy_v2.life_liquidity.storage.test_spot_capital_contracts import nav
+
+    async def history(service):
+        store, binding, owner = service.store, service.store.binding, service.config.owner
+        await store.observe_nav(replace(nav(), operation_id='before-fill', independent_price_usdt=D('2')),
+                                cut=(await store.snapshot(binding)).cut, owner=owner)
+        await paid_history(service)
+        await store.observe_nav(replace(nav(), operation_id='after-fill', independent_price_usdt=D('3')),
+                                cut=(await store.snapshot(binding)).cut, owner=owner)
+
+    service, _, _, _ = await setup(tmp_path, before_stage=history)
+    try:
+        source = await service.control.stopped_postgres_source(**LIMITS)
+    finally:
+        await service.close()
+    result = project_stopped_capital(source, max_rows=10000).json()
+    assert result['nav_history']['before-fill']['measurement']['nav_usdt'] == '20'
+    assert D(result['nav_history']['nav1']['measurement']['highwater_usdt']) == D('20')
+    assert D(result['capital']['highwater_usdt']) == D('26.98')
+    assert result['nav_history'] == json.loads(source.base.core.checkpoint_bytes)['state']['resources']['nav_operations']
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize('fault', ['balance', 'missing_trade', 'liability', 'scope', 'capacity'])
 async def test_projection_refuses_incomplete_reconciliation_and_capacity(tmp_path, fault):
     source, _ = await source_fixture(tmp_path)

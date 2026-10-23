@@ -5,6 +5,7 @@ Its source must come from the trusted frozen artifact decoder. It never opens
 embedded paths, advances session time, rebases capital or creates permission.
 Every original resource/journal remains in the source artifact for translation.
 """
+from copy import copy
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from decimal import ROUND_HALF_EVEN, Context, Decimal, localcontext
@@ -14,9 +15,9 @@ from hummingbot.strategy_v2.life_liquidity.checkpoint_archive import decode
 from hummingbot.strategy_v2.life_liquidity.economics import SubsidyBudgetLedger
 from hummingbot.strategy_v2.life_liquidity.journal_archive import JournalArchive
 from hummingbot.strategy_v2.life_liquidity.risk import ReservationLedger
-from hummingbot.strategy_v2.life_liquidity.storage.capital import ApprovedSpotCashflow
+from hummingbot.strategy_v2.life_liquidity.storage.capital import ApprovedSpotCashflow, ObserveSpotNAV, signed_decimal
 from hummingbot.strategy_v2.life_liquidity.storage.capital_replay import replay_capital
-from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError, encode, fingerprint
+from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError, digest, encode, fingerprint
 from hummingbot.strategy_v2.life_liquidity.storage.financial import PrepareSpot, SpotFillObservation, decimal
 from hummingbot.strategy_v2.life_liquidity.storage.joint_settlement import JointCashEvent
 from hummingbot.strategy_v2.life_liquidity.storage.service_config import FileServiceConfig
@@ -224,22 +225,8 @@ def _project(source, max_rows):
                                                     fill.price_usdt, fill.fee_currency, fill.signed_fee)):
             raise StorageError('STOPPED_CAPITAL_FILL_MISMATCH')
 
-    # Historical NAV observations are retained verbatim. A later wallet cannot
-    # recompute a prior observation; use the original monotonically retained
-    # highwater, never a new measurement at the import clock/price.
     nav = monetary['nav_operations']
-    header = resources.get('capital', {})
-    highwater = capital.highwater_quote
-    if nav:
-        if header.get('latest_operation_id') not in nav:
-            raise StorageError('STOPPED_CAPITAL_NAV_INCOMPLETE')
-        values = [decimal(Decimal(row['measurement']['highwater_usdt']), positive=True) for row in nav.values()]
-        highwater = decimal(Decimal(header['highwater_usdt']), positive=True)
-        if (highwater != max(values) or highwater < capital.highwater_quote
-                or highwater != Decimal(nav[header['latest_operation_id']]['measurement']['highwater_usdt'])):
-            raise StorageError('STOPPED_CAPITAL_HIGHWATER_MISMATCH')
-    elif header:
-        raise StorageError('STOPPED_CAPITAL_NAV_INCOMPLETE')
+    highwater = _verify_nav_history(checkpoint['state'], capital, facts, config.fill_policy.max_reference_skew_ms)
     body = dict(format='LIFE_STOPPED_CAPITAL_V1', source_digest=source.content_digest,
                 source_facts_sha256=fingerprint(facts.json()), accounting_policy=config.accounting_policy.json(),
                 balances={'LIFE': str(capital.life_balance), 'USDT': str(capital.usdt_balance)},
@@ -251,3 +238,68 @@ def _project(source, max_rows):
                 joint_cash_ids=sorted(monetary['joint_cashflows']), nav_history=nav,
                 budgets=_budget_projection(source, config, resources, max_rows))
     return StoppedCapitalProjection(encode(body))
+
+
+def _verify_nav_history(state, capital, facts, max_reference_skew_ms):
+    """Validate retained NAV without revaluing older cuts at the closing wallet.
+
+    Only a matching complete financial fingerprint permits a monetary replay.
+    Older cuts keep their original measurements; their shape, timing, committed
+    order and highwater/drawdown arithmetic are still checked. This is not proof
+    of every historical money prefix, which complete import parity still needs.
+    """
+    resources = state['resources']
+    nav, header = resources.get('nav_operations', {}), resources.get('capital', {})
+    if not nav:
+        if header:
+            raise StorageError('STOPPED_CAPITAL_NAV_INCOMPLETE')
+        return capital.highwater_quote
+    mapping = dict(nav_usdt='nav_quote', adjusted_nav_usdt='adjusted_nav_quote', highwater_usdt='highwater_quote',
+                   drawdown_bps='drawdown_bps', execution_loss_usdt='execution_loss_quote',
+                   starting_inventory_pnl_usdt='starting_inventory_pnl_quote')
+    money = {name: resources.get(name, {}) for name in ('fills', 'cashflows')}
+    if resources.get('joint_cashflows'):
+        money['joint_cashflows'] = resources['joint_cashflows']
+    current_fingerprint = fingerprint(money)
+    ordered = []
+    for key, row in nav.items():
+        revision = state['operations'].get('nav:' + key, {}).get('revision')
+        if (type(revision) is not int or not 0 < revision <= state['revision']
+                or set(row) != {'command', 'fingerprint', 'financial_fingerprint', 'measurement'}
+                or set(row['measurement']) != set(mapping) | {'net_cashflows_usdt'}):
+            raise StorageError('STOPPED_CAPITAL_NAV_INCOMPLETE')
+        digest(row['fingerprint'])
+        digest(row['financial_fingerprint'])
+        command = ObserveSpotNAV(**{**row['command'], 'independent_price_usdt': Decimal(row['command']['independent_price_usdt']),
+                                    'observed_at': datetime.fromisoformat(row['command']['observed_at'])})
+        observed_ms = int(command.observed_at.timestamp() * 1000)
+        if (command.operation_id != key or command.observed_at > facts.observed_at
+                or command.reference_observed_at_ms > observed_ms
+                or observed_ms - command.value_at_ms > max_reference_skew_ms):
+            raise StorageError('STOPPED_CAPITAL_NAV_TIME_INVALID')
+        values = {name: signed_decimal(Decimal(value)) for name, value in row['measurement'].items()}
+        ordered.append((revision, key, row, command, values))
+    ordered.sort(key=lambda item: item[0])
+    if len({item[0] for item in ordered}) != len(ordered) or header.get('latest_operation_id') != ordered[-1][1]:
+        raise StorageError('STOPPED_CAPITAL_NAV_INCOMPLETE')
+    previous, times, replay = capital.highwater_quote, None, copy(capital)
+    for _, _, row, command, values in ordered:
+        current_times = (command.observed_at, command.value_at_ms, command.reference_observed_at_ms)
+        highwater = max(previous, values['adjusted_nav_usdt'])
+        drawdown = max(Decimal('0'), highwater - values['adjusted_nav_usdt']) / highwater * Decimal('10000')
+        if (times is not None and any(now < old for now, old in zip(current_times, times))
+                or values['nav_usdt'] < 0 or values['execution_loss_usdt'] < 0
+                or values['adjusted_nav_usdt'] != values['nav_usdt'] - values['net_cashflows_usdt']
+                or values['highwater_usdt'] != highwater or values['drawdown_bps'] != drawdown):
+            raise StorageError('STOPPED_CAPITAL_NAV_MEASUREMENT_INVALID')
+        if row['financial_fingerprint'] == current_fingerprint:
+            replay.highwater_quote = previous
+            measured = replay.measure(command.independent_price_usdt, source_kind=command.source_kind)
+            expected = {name: getattr(measured, native) for name, native in mapping.items()}
+            expected['net_cashflows_usdt'] = replay.net_cashflows_quote
+            if values != expected:
+                raise StorageError('STOPPED_CAPITAL_NAV_MONEY_MISMATCH')
+        previous, times = highwater, current_times
+    if decimal(Decimal(header['highwater_usdt']), positive=True) != previous:
+        raise StorageError('STOPPED_CAPITAL_HIGHWATER_MISMATCH')
+    return previous
