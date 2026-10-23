@@ -76,6 +76,30 @@ async def test_default_foreground_entrypoint_without_configuration_exits_closed_
 
 
 @pytest.mark.asyncio
+async def test_image_verifies_independent_integrity_receipts_and_joins_diagnostic_io():
+    # Execute against the installed Linux code and pinned crypto dependency.
+    # Only test inputs are mounted; no host production modules or private keys
+    # are injected into the worker image. This never contacts an exchange/DB.
+    program = '''import xml.etree.ElementTree as ET
+import pytest
+code=pytest.main(['-q','-p','no:cacheprovider','--import-mode=importlib',
+ '/qualification/test/hummingbot/strategy_v2/life_liquidity/storage/test_integrity_receipts.py',
+ '--junitxml=/tmp/integrity.xml'])
+assert code==0
+root=ET.parse('/tmp/integrity.xml').getroot()
+suites=[root] if root.tag=='testsuite' else list(root.findall('testsuite'))
+assert sum(int(s.get('tests','0')) for s in suites)==7
+assert all(int(s.get(k,'0'))==0 for s in suites for k in ('failures','errors','skipped'))
+print('LIFE_IMAGE_INTEGRITY_QUALIFIED')
+'''
+    _, body, _ = await docker('run', '--rm', *security(),
+                              '-v', str(ROOT / 'test') + ':/qualification/test:ro', '-e', 'PYTHONPATH=/qualification',
+                              '-e', 'LIFE_ENV_FILE=', '-e', 'LIFE_AUTO_MIGRATE=false',
+                              '--entrypoint', 'python', os.environ['LIFE_PG_WORKER_IMAGE'], '-c', program, timeout=60)
+    assert 'LIFE_IMAGE_INTEGRITY_QUALIFIED' in body
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize('mode,expected', [('clean', 0), ('blocked', 2), ('failed', 1), ('startup_blocked', 2), ('late_cleanup', 2)])
 async def test_real_container_signal_and_exit_deadline_with_injected_nontrading_launcher(mode, expected):
     image, name = os.environ['LIFE_PG_WORKER_IMAGE'], 'life-pg7-' + uuid4().hex[:12]

@@ -245,7 +245,8 @@ def main():
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in ('restore', 'backup', 'schema_restore', 'file_staging')]
         if args.suite == 'image_native':
             selectors = [str(selector / ('test_postgres_' + n + '.py')) for n in (
-                'service_process', 'service_swap_process', 'provisional_process', 'managed_service', 'process_handoff', 'recovery_actor', 'worker_financial', 'shutdown_cancellation')]
+                'service_process', 'service_swap_process', 'provisional_process', 'managed_service', 'process_handoff',
+                'recovery_actor', 'worker_financial', 'shutdown_cancellation', 'monitor')]
         if args.suite in ('worker_financial', 'monitor', 'integrity_publication', 'file_staging'):
             selectors = [str(selector / ('test_postgres_' + args.suite + '.py'))]
         if args.suite == 'historical_upgrades':

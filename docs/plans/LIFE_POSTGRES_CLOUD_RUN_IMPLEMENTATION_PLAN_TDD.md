@@ -25,6 +25,18 @@ widened. This identifies and corrects a reproducible race; the earlier changing-
 worktree failure has no numeric age sample and is not retroactively certified.
 Frozen aggregate/image qualification remains required.
 
+**2026-10-23 fixed-source acceptance in progress:** detached checkout
+`49983bae2` built image
+`sha256:76028366f4e65b7d0b366696dc790501069de8aaf7283eb14cfdee9f59a447aa`.
+The serial map at `/tmp/life-pg8-frozen-49983bae2` has passed all **1,889 File
+contract cases** and is running the native matrix. It is not yet an aggregate
+pass and does not cover subsequent capital-projection edits. A separate
+network-isolated Linux image check executes all seven integrity-receipt tests
+against the installed code/crypto library: one enclosing image case passes in
+3.08 s (`/tmp/life-pg7-linux-integrity-20261023.log`). The image gate now retains
+that case; `image_native` additionally includes the native monitor matrix.
+The current-artifact complete image/native map remains required.
+
 **2026-10-23 locked LIFE/OKX image increment:** the dedicated
 `deploy/life_cloud_run/Dockerfile` now consumes SHA-256-pinned conda URLs and pip
 wheels, a pinned base digest and signed Debian snapshot. Its complete installed
