@@ -9996,3 +9996,15 @@ serially: **15 passed**, 264 deselected, zero failure/error/skip, **94.47 s**
 (`/tmp/life-pg8-upgrades-20261023-f9/integration.xml`). Changed-file hooks pass
 (`/tmp/life-pg8-historical-hooks2.log`). The f8/f9 samples are separate runs;
 no aggregate case count or whole-PG8 completion is inferred.
+
+## PG7 stable stopped pool namespace (2026-10-23)
+
+Review found that embedding the generation in a deletion-protected worker pool
+name would create a second pool or block the replacement. The pool now retains
+its account namespace while each revision labels its generation and uses the
+separate generation service account. The release's initial zero-allocation
+stage remains mandatory; neither resource identity nor desired zero proves
+provider/key exclusion. Pinned Terraform format/validate pass, and the expanded
+mock-only gate passes **9 cases**, zero failure/skip
+(`/tmp/life-pg7-tf-test6.log`, `/tmp/life-pg7-tf-validate4.log`). No cloud apply
+was executed. PG7 remains open for the listed image/monitoring qualifications.

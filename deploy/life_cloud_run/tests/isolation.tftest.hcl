@@ -94,3 +94,12 @@ run "reject_runtime_migration_env_override" {
   variables { worker_env = { LIFE_MIGRATION_DSN = "never-put-credentials-in-tf" } }
   expect_failures = [var.worker_env]
 }
+
+run "generation_changes_revision_identity_not_pool_namespace" {
+  command = plan
+  variables { generation = "g2" }
+  assert {
+    condition     = google_cloud_run_v2_worker_pool.worker.name == "life-synthetic" && google_service_account.worker.account_id == "life-synthetic-g2-run" && google_cloud_run_v2_worker_pool.worker.template[0].labels["life_generation"] == "g2"
+    error_message = "A new generation must use a distinct identity in the same stopped pool, not create a second protected pool."
+  }
+}

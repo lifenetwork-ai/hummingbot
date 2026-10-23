@@ -64,7 +64,7 @@ resource "google_cloud_run_v2_job" "migration" {
   depends_on = [google_secret_manager_secret_iam_member.migration, google_compute_router_nat.worker]
 }
 resource "google_cloud_run_v2_worker_pool" "worker" {
-  name                = "${local.prefix}-${var.generation}"
+  name                = local.prefix
   location            = var.region
   launch_stage        = "BETA"
   deletion_protection = true
@@ -73,6 +73,7 @@ resource "google_cloud_run_v2_worker_pool" "worker" {
     manual_instance_count = var.worker_instances
   }
   template {
+    labels          = { life_generation = var.generation }
     service_account = google_service_account.worker.email
     vpc_access {
       egress = "ALL_TRAFFIC"

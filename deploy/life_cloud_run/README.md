@@ -88,6 +88,12 @@ exclusion and independent signed authority remain mandatory before a worker may
 send. A rollback after native orders cannot be implemented by this helper or by
 changing a Terraform flag; PG6 requires a reconciled controlled cutover.
 
+The pool's resource name stays fixed for the account namespace. Generation
+changes update its revision label and use a distinct generation service account;
+they do not create another protected pool next to the predecessor. The first
+release stage still sets allocation to zero. The generation-change mock verifies
+resource identity, not actual old-instance/key exclusion.
+
 ## Container target
 
 Build `Dockerfile` with `--target life-worker --build-arg LIFE_POSTGRES=true` and
