@@ -1,5 +1,91 @@
 # LIFE storage contracts
 
+## Fresh PostgreSQL backup and rollback runbook (PG6)
+
+The selected release starts with PostgreSQL and has no File data to convert
+(user confirmation, 2026-10-23). Never use migrations or an import failure to
+create an opening wallet, erase spending or grant authority. Existing explicit
+owner-approved native account/policy provisioning remains separate from schema
+migration and from these backup operations.
+
+### Create a logical backup
+
+1. Use a dedicated primary connection as the audited schema owner and explicit
+   `BackupLimits`. Runtime/reporting credentials are refused. Do not load the
+   worker's ambient configuration or pass a password/DSN in tool arguments.
+2. Configure matching PostgreSQL tools through `PgArchiveTools`; supply secrets
+   through the child environment/passfile and require TLS outside the local
+   test profile. `PgLogicalBackup(connection, tools=tools, limits=limits).create`
+   exports one MVCC snapshot, captures complete row/catalog/sequence manifests,
+   and uses that same snapshot for the custom-format dump. Concurrent later
+   commits are outside the selected cut, not silently included or discarded.
+3. Use a new exclusive destination. Record the returned bundle's content digest
+   in an independently trusted channel. A copied manifest's self-reported hash
+   is insufficient. Await the original operation and `close()` before releasing
+   its connection, including after caller cancellation or deadline.
+4. Preserve the complete bundle and source database. A partial/orphan output,
+   capacity overflow, corruption or overwrite refusal is not a valid backup.
+
+### Restore and keep the target non-sending
+
+1. Create a separate, empty owner-controlled database. Exclude runtime/reporting
+   connections from its first start; never restore over the running primary.
+   Supply the trusted external digest to `BackupBundle.open`, then call
+   `restore_archive`. Tool execution is transactional; verify all rows, schema,
+   ACLs and consumed sequence floors, not just the dump's exit status.
+2. With only the original maintenance connection present, set the target's
+   database connection admission to false. Reject other sessions and prepared
+   transactions. Construct one stable `RestoreRequest` with a new database
+   lineage and the original backup/manifest identities.
+3. Call `PgRestoreQuarantine.quarantine(request, manifest=bundle.image)`. All
+   accounts become `UNARMED`/halted, current owner/session fields are cleared,
+   and the risk epoch advances. Original ownership remains immutable audit.
+   Economic state, spent budgets, terminal IDs, unknown attempts, reservations,
+   recorder rows and account lineage stay unchanged. Physical kill rolls back
+   trigger DDL too. Resolve a lost COMMIT reply using the same request/readback;
+   do not invent a new operation, lineage or opening balance to retry.
+4. **Stop here.** There is no quarantine-release/rearm API. A successful restore,
+   new image, database flag change, copied owner token or backend toggle cannot
+   grant permission to trade. This runbook produces a verified non-sending
+   recovery target, not an operational failover.
+
+### Physical PITR and application rollback
+
+- Physical recovery requires `pg_basebackup`/`pg_verifybackup`, original archived
+  WAL and a declared recovery target. Start the isolated target with old runtime
+  and reporting logins excluded. A missing target/WAL segment or damaged backup
+  must fail; do not substitute the latest available cut. Apply the same complete
+  target verification and quarantine before considering any later release.
+- Before native account activity, a failed application rollout may be stopped
+  and retried against the same compatible schema. Migrations are forward only;
+  an older incompatible image must fail startup. Never seed another account to
+  work around startup failure.
+- After DB-owned orders, stop new admission and retain the original database,
+  all unknown outcomes and holds. Reopening a File backend or returning to a
+  pre-trade backup is prohibited. Known later accepted operations must be
+  reconciled explicitly; a backup only proves zero missing committed operations
+  at or before its selected cut.
+- Trading from a restored target additionally needs implemented controlled
+  release/new-generation registration, complete post-cut exchange accounting
+  and independently qualified REST/WS/CAA/in-flight exclusion of the old
+  credentials. This is open recovery-extension work (`PG6-R1`) and a live gate
+  under OKX `PG-E2`; permanent quarantine is the current enforced behavior.
+
+### Offline qualification
+
+`run_postgres --suite pg6_native --output /tmp/<new-dir>` covers real logical
+backup/restore, catalog/sequence integrity, exact native paid accounting and
+unknown holds, isolation, corruption, physical process death and lost COMMITs.
+`--suite pg6_pitr` runs actual base-backup/WAL recovery in its own disposable
+volume. `--suite pg6` also includes optional File staging/history regressions;
+passing those does not implement operational File cutover.
+
+The synthetic local profile is PostgreSQL 16, 2 CPU/1 GiB, 512 tables,
+2,048 rows, 1 MiB/row, 16 MiB data/archive, 10-s manifest deadline and 30-s tool
+deadline. These are bounded functional fixtures, not live defaults or proof of
+0/1k/10k settled-history headroom. That complete performance gate remains PG8;
+deployed failure-domain and wall-clock RPO/RTO qualification remains OKX PG-E2.
+
 ## Complete relational history staging (PG6)
 
 `postgres.file_history.PgFileHistoryStaging` extends economic staging with

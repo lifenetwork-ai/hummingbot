@@ -2,6 +2,19 @@
 
 ## Current offline delivery status
 
+**2026-10-23 PG-D08 — fresh-native backup milestone complete; PG6 remains OPEN.**
+The user confirms there is no live File history/capital to migrate. The current
+release starts in PostgreSQL, so File cutover is an unfinished optional branch
+(`PG6-F1–F4`). Native backup/restore-to-quarantine passes 40 cases and one actual
+physical PITR rehearsal; three additional populated import-history/rollback
+cases pass. These results close only the `PG6-N1–N6` sub-checklist below.
+Controlled restored-target release/new generation and post-cut accounting remain
+**required open implementation** (`PG6-R1`), even without File migration.
+`PG6-X1` retains the unchanged recovery/headroom gate shared with PG8. These
+requirements are not waived or moved into environment-only testing to close the
+phase. A restored target cannot trade. Actual provider/failure-domain/RPO/RTO
+proof additionally remains OKX PG-E2. No complete PG6 closure is claimed.
+
 **2026-10-23 PG6 complete relational ancestry:** migration 125 and
 `PgFileHistoryStaging` extend the existing economic stage with complete logical
 source documents. These include original checkpoint operations/resources,
@@ -384,7 +397,7 @@ remain open.
 | --- | --- |
 | PG0 engineering decisions/fixture profile/cost model | Complete for offline work; see the consolidated PG0 decisions below. Live topology, price and threat-model acceptance remain OKX environment gates. |
 | PG1–PG5 selected fresh-native implementation | Previously closed scoped matrices. The changing-worktree diagnostic run was stopped after 2,336 passes and one UID freshness failure; its three focused variants pass separately. This is not an aggregate acceptance result. A frozen-source rerun remains required. |
-| PG6 clean File import, rollback, post-restore reconciliation | Open implementation. Logical/physical restore quarantine is implemented, but cannot release itself. |
+| PG6 recovery and optional File branch | Native PG6-N backup/quarantine sub-checklist is complete, but required PG6-R1 restore-to-trading and PG6-X1 capacity remain open. File cutover PG6-F is optional for the no-File-data profile. |
 | PG7 locked image, shutdown, infrastructure, telemetry | Current locked artifact and all 84 native functional cases qualified. Standalone startup/complete telemetry scope and wider aggregate qualification remain open. |
 | PG8 / O.8 aggregate, retained-history performance and coverage | Open. Focused green tests do not close the complete acceptance map. |
 
@@ -594,17 +607,17 @@ no release requirement is waived or passed by moving it.
 | PG3 | Closed for selected native/offline scope (`234c3631c`) | Clean stopped File cutover implementation stays PG6; actual account proof in OKX PG9/PG10 |
 | PG4 | Closed for selected offline handoff scope (`4fddc9419`) | Actual provider/key exclusion, deployed IAM and failover in OKX PG9/PG10 |
 | PG5 | Closed for selected offline native recorder/CLI scope | Deployed credentials/TLS remain OKX PG-E1; detached standalone reporting services are outside this worker profile |
-| PG6 | In progress; logical and physical target restore plus schema/sequence guards | Stopped File/segmented native import, cutover rollback, post-cut reconciliation/release and retained-history capacity qualification remain open |
+| PG6 | Open; native backup/restore-to-quarantine sub-checklist PG6-N is complete | PG6-R1 restored-target recovery/release implementation and PG6-X1 recovery headroom still block full phase closure. File cutover is optional PG6-F for the confirmed no-File-data profile; actual environment proof stays OKX PG-E2. |
 | PG7 | In progress; locked AMD64 native matrix 77/77, artifact 8/8 and reproducible builder digest | Requalify current telemetry/integrity source in the image and complete aggregate acceptance |
 | PG8 | Open; historical upgrade fixture repair qualified separately | Complete current-source serial regression, product/performance/coverage acceptance remain required |
 
 Only current phase checklists and this ledger determine progress. Historical
 “open at this checkpoint” statements describe their recorded revision; they are
 not unchecked current tasks and must not be changed to passing without proof.
-PG6–PG8 and O.8 still need their own acceptance; closing PG1–PG5 locally does not
-claim the whole product is offline complete or ready for demo/live execution.
+PG6–PG8 and O.8 still need their full acceptance. Completing the native backup
+sub-checklist does not close PG6 or make the product ready for demo/live execution.
 
-**PG6 IN PROGRESS — logical backup/restore quarantine (2026-10-23).**
+**Historical PG6 checkpoint before PG-D08 — logical backup/restore quarantine (2026-10-23).**
 The owner-side exported-snapshot backup and isolated restore path pass **21**
 focused cases, **276** affected native regressions and **3** targeted migration
 cases in separate runs. Restored history/money/holds survive under a new database
@@ -1841,6 +1854,7 @@ These are engineering assumptions adopted for offline implementation under the c
 | PG-D05 | File tests retain the existing `PolicyState` verification model. Proposed PostgreSQL integrity relies on restricted runtime writes, constraints, append-only financial identities and independently qualified cold replay/audit. A colocated checksum/row version cannot attest privileged historical mutation. | PG0.2 live trust decision and PG3.6 audit/anchor proof stay open. No existing mandatory historical verification test is removed. |
 | PG-D06 | Owner facts have process/generation/session UUIDs, epoch, explicit UTC validity and mode. Synthetic ACTIVE fixtures may be created only in `OFFLINE_SIMULATION`; default creation is unarmed. Snapshot/owner data is not an activation grant. | Real account lock/lease/grant issuance, new-process unarmed startup, operator rearm and exchange credential exclusion remain PG1/PG4/PG9 work. |
 | PG-D07 | One dedicated file worker owns `PolicyState`. Explicit admission/capacity limits, immutable DTOs and operation readback cover queued/cancelled/ambiguous writes. Synthetic test values: 2 admitted operations, 1 MiB checkpoint, 16 retained operation IDs; engineering-owned fixture capacities, not calibrated live values. | File-lock/disk latency is host-dependent. Production queue/watchdog/shutdown bounds, numeric DB pool/retry values, economics and live calibration remain PG0/PG1.3/PG7/PG8. |
+| PG-D08 | 2026-10-23 user confirms no live File history/capital exists. Use fresh-native PostgreSQL; operational File cutover is optional and unfinished. Native backup-to-quarantine sub-checklist is complete, but restore-to-trading is still required for full PG6 closure. | 40 native cases + physical PITR pass. PG6 remains OPEN for required PG6-R1 implementation and PG6-X1 recovery/headroom qualification; no phase closure by relabeling missing work. OKX PG-E2 additionally owns deployed proof. |
 
 ### PG1 — Backend contracts and asynchronous integration seams
 
@@ -4054,37 +4068,117 @@ provider qualification remain in OKX PG-E/PG9/PG10; PG6–PG8/O.8 remain open.
 
 
 
-### PG6 — Import, backups, restoration and rollback
+### PG6 — Fresh PostgreSQL backup, restoration and rollback
 
-Dependencies: PG3–PG5.
+Dependencies: PG3–PG5. **PG6 OPEN; backup-to-quarantine sub-checklist complete (PG-D08, 2026-10-23).**
 
-- [ ] PG6.1: Add offline import for complete **stopped, reconciled** legacy/segmented File cuts plus SQLite recorder provenance. Fence the old writer and sending credentials, acquire account ownership, validate every source digest/policy/binding and freeze an immutable source manifest. Require complete exchange/account/runner reconciliation: no live regular/algo order, unknown send/ACK/fill/fee/bill, pending monetary or recorder attribution, active executor, outstanding financial/shared/hedge/carry claim or unsettled hold; SWAP positions must be closed. Retained SPOT inventory requires its original exact quantity and cost basis. Reject an active/interrupted File product checkpoint; do not force-release claims to make it clean.
-  - [x] **Configured clean source capture with referenced segments (2026-10-23):** `stopped_postgres_source` reuses the original configured File service's account worker, financial projection checks, complete recorder provenance and quiescence checks. It includes exact referenced segment bytes under explicit total-byte/row bounds, checks hashes/coverage/duplicate identities, rereads the graph and refuses missing/corrupt/symlinked segments. Unreferenced orphan files are not adopted. A separate source type prevents the ordinary File target importer from ignoring segments. Frozen revalidation uses the original still-fresh observation and does not call recovery to append a new receipt; expired or changed cuts require new reconciliation/capture. The 72-case affected File/source/target matrix passes in 44.67 s (`/tmp/life-pg6-stopped-source-20261023-a5.log`); the original two failing fixture/revalidation samples are retained. This is capture on an already configured, admission-closed service, not a standalone cold segmented-service loader, durable old-key retirement, PostgreSQL historical translation or activation. PG6.1 remains open for those remaining guarantees.
+The user confirms the bot has not traded live and has no File data or capital
+history to migrate. The current release therefore starts natively in PostgreSQL.
+Operational File cutover (`PG6-F1–F4`) is optional and remains unfinished.
+This does not remove native disaster-recovery requirements: producing a verified
+**non-sending recovery target** is complete, but using that target through a
+controlled replacement actor/new generation (`PG6-R1`) is not implemented.
+Recovery/headroom qualification (`PG6-X1`, shared with PG8) also remains open.
+Neither is deferred merely because the File source is empty. Native account/
+policy provisioning stays explicit and separate from migration; no new
+bootstrap, production authority or complete-phase closure is introduced here.
+
+#### PG6-N — Complete native backup-to-quarantine sub-checklist
+
+- [x] PG6-N1: Capture complete bounded native database/catalog/sequence manifests and a real logical archive from the same exported MVCC cut. Refuse runtime/reporting principals, incompatible schema, capacity overflow, corrupt/untrusted bundles and overwrite/adoption of partial output.
+- [x] PG6-N2: Restore into a separate empty owner-controlled target using a real transactional tool; independently verify every retained table, original monetary/identity/recorder row, schema/ACL and consumed sequence floor. Never replace history with opening balances or reset spent budgets.
+- [x] PG6-N3: Quarantine atomically under a new controlled database lineage. Clear executable owner/session state, preserve original ownership audit and financial history, advance the risk epoch and retain an independent SQL/runtime write barrier. Physical kill, cancelled work and unknown COMMIT replies cannot create readiness or leave trigger DDL disabled.
+- [x] PG6-N4: Rehearse exact recovery after a paid terminal order and with an unresolved native send. Retain the original fee, incurred loss/subsidy, permanent IDs, reservations and unknown outcome; keep the source unchanged and the target unarmed. The rollback runbook forbids backend toggles, down migrations, pre-trade wallet restoration and implicit rearm.
+- [x] PG6-N5: Run real base-backup verification and archived-WAL recovery to a named cut in a separate isolated primary. Preserve all committed operations at/before that cut, identify later excluded commits explicitly, and reject a damaged backup or missing target WAL. Apply the same non-sending quarantine.
+- [x] PG6-N6: Record current-schema functional backup/restore/quarantine timing, bytes, table/row counts and the cut-specific RPO result; publish the bounded rollback/restore runbook in the existing storage README. Keep retained-history/settlement headroom and live failure-domain/RPO/RTO qualification explicitly open as PG6-X1/PG8 and OKX PG-E2.
+
+**Current qualification (schema 125):**
+
+- `run_postgres --suite pg6_native --output /tmp/life-pg6-native-final-a1`:
+  **40 passed / 91.84 s**, zero failures/errors/skips, four existing-category
+  warnings. This includes actual dump/restore, schema/sequence/ACL parity,
+  isolation/corruption, process death, original-task ownership and lost-COMMIT
+  cases, plus both new native monetary rehearsals.
+- `run_postgres --suite pg6_pitr --output /tmp/life-pg6-pitr-schema125-final-a1`:
+  **1 passed / 13.61 s**, zero failures/errors/skips, four existing-category
+  warnings. Actual base backup takes 1,765.715 ms, restore/quarantine 3,660.845 ms,
+  total physical rehearsal 8,759.237 ms; retained physical data 321,608 KiB.
+  Zero pre-cut committed operations are lost, one later commit is excluded,
+  and both damaged-backup and missing-WAL refusals pass. This is not a
+  zero-current-time-RPO claim; post-cut reconciliation is still required.
+- Additional optional import-history qualification:
+  `/tmp/life-pg6-populated-restore-a1`: **3 passed / 22.17 s**, 91 deselected.
+  Actual paid/segmented staged history survives dump/restore with exact seals
+  and immutable rows; restored old-target use is denied. Discard retains all
+  original rows and permanent tombstones. These cases do not implement native
+  File cutover or discharge `PG6-F1–F4`.
+- The earlier full original selector on schema 125 passes **71 cases / 126.16 s**
+  at `/tmp/life-pg6-schema125-regression-a1`. It precedes the new tests and is
+  retained as a separate baseline, not added to the 40-case gate.
+
+| Native functional fixture | Backup ms | Restore + exact verify ms | Quarantine ms | Archive bytes | Tables / rows |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Paid terminal: 6 LIFE / 8.98 USDT, fee -0.02 USDT, loss/subsidy 0.12 USDT | 1,366.687 | 3,024.588 | 963.585 | 2,337,926 | 161 / 174 |
+| SEND_UNKNOWN: 2.2 USDT remains reserved | 1,221.032 | 2,877.248 | 960.872 | 2,335,709 | 161 / 155 |
+
+These are explicitly synthetic, small functional profiles on local PostgreSQL
+16, 2 CPU/1 GiB per container. Original 512-table / 2,048-row / 1-MiB-row /
+16-MiB-data/archive limits, 10-s manifest and 30-s tool deadlines are unchanged.
+No 0/1k/10k retained-history headroom, native-AMD64 worker qualification, managed
+Cloud SQL restore, deployed RPO/RTO or actual exchange key exclusion is claimed.
+No new SQL migration, production authority, `.env` change or repository evidence
+file is introduced. Logs and test properties remain in `/tmp`.
+
+**Done for PG6-N only:** native backup/restore/PITR produces an
+exact, quarantined, non-sending target with a passing rollback safety rehearsal.
+**Not done:** operational File import or running a restored worker again. There
+is no quarantine-release/rearm API; `PG6-R1` is open implementation, not merely
+an external-environment test. Full PG6 closure requires its implementation and qualification; it is not
+an optional future feature or an environment-only test. Its provider and
+failure-domain proof additionally belongs to OKX PG-E2.
+
+#### PG6-F — Optional stopped File cutover (not implemented completely)
+
+The prior File-to-native extension remains tracked with its original substance.
+Its transport, retirement and ancestry staging increments are retained. None is
+an operational native account import, and none grants permission to trade.
+
+- [ ] PG6-F1: Add offline import for complete **stopped, reconciled** legacy/segmented File cuts plus SQLite recorder provenance. Fence the old writer and sending credentials, acquire account ownership, validate every source digest/policy/binding and freeze an immutable source manifest. Require complete exchange/account/runner reconciliation: no live regular/algo order, unknown send/ACK/fill/fee/bill, pending monetary or recorder attribution, active executor, outstanding financial/shared/hedge/carry claim or unsettled hold; SWAP positions must be closed. Retained SPOT inventory requires its original exact quantity and cost basis. Reject an active/interrupted File product checkpoint; do not force-release claims to make it clean.
+  - [x] **Configured clean source capture with referenced segments (2026-10-23):** `stopped_postgres_source` reuses the original configured File service's account worker, financial projection checks, complete recorder provenance and quiescence checks. It includes exact referenced segment bytes under explicit total-byte/row bounds, checks hashes/coverage/duplicate identities, rereads the graph and refuses missing/corrupt/symlinked segments. Unreferenced orphan files are not adopted. A separate source type prevents the ordinary File target importer from ignoring segments. Frozen revalidation uses the original still-fresh observation and does not call recovery to append a new receipt; expired or changed cuts require new reconciliation/capture. The 72-case affected File/source/target matrix passes in 44.67 s (`/tmp/life-pg6-stopped-source-20261023-a5.log`); the original two failing fixture/revalidation samples are retained. This is capture on an already configured, admission-closed service, not a standalone cold segmented-service loader, durable old-key retirement, PostgreSQL historical translation or activation. PG6-F1 remains open for those remaining guarantees.
   - [x] **Cold complete source artifact (2026-10-23):** bounded ordinary/segmented graph serialization, outer trusted SHA-256 over every byte including reconciliation facts, exclusive fsynced publication and exact idempotent readback. Decoding does not open embedded source paths or restart the old service. A real killed publisher leaves only an unadopted temporary inode; cold retry produces the original complete image. The 19-case artifact/capture/archive matrix passes in 9.66 s (`/tmp/life-pg6-stopped-artifact-20261023-a2.log`). This closes cold transport of captured bytes, not old-key retirement, financial translation or native activation.
   - [x] **Signed durable source freeze (2026-10-23):** the explicit `STOPPED_FILE_SERVICE_V1` handoff format binds complete ordinary/segmented artifacts and the original reconciliation observation, freezes the old File writer, and preserves monetary/session state. Original File-only signed commands retain identical JSON bytes. Cold readback resolves lost-before/lost-after commit outcomes; File-only consumption and target validation reject the PostgreSQL format. The affected authorization/consumption/target/artifact/source matrix passes 86 tests in 68.48 s (`/tmp/life-pg6-freeze-regression-20261023-a2.log`). Independent old-credential exclusion, native staging and consumption/activation remain open.
-  - [x] **Permanent source consumption and detached target verification (2026-10-23):** independent bounded credential-exclusion proof and HANDOFF approval bind the complete source, exact frozen state and target manifest/account/database. The authority and operator keys are distinct. Lost physical commits resolve by cold readback; expiry during source hashing, changed facts, other targets and invalid signatures cannot retire the source. After consumption it cannot be cancelled or retargeted. `PgFileStaging.verify_retirement` reconstructs both signed File commits against its sealed source, checks unchanged financial/journal/identity/recorder state and returns no trading authority. File/control matrix: 122 passes; native staging matrix: 23 passes (see current delivery note). Native historical translation and ownership publication remain PG6.2/PG6.3 requirements; this is an offline exclusion protocol, not actual credential revocation evidence.
-- [ ] PG6.2: Import the clean source into `IMPORTING` staging with resumable batches and stable source operation IDs. Preserve original starting capital/cost basis, retained inventory, cashflows, NAV/highwater, gross loss and subsidy/funding spending, deadlines/epochs, all terminal tombstones, wire/trade/bill/approval/operation identities and deduplication/receipt history. An opening wallet is not a replacement historical basis or a budget reset. The source cannot acquire unresolved sends/holds or new activity between qualification and activation; revalidate the frozen cut. Active File product-state migration requires a separate explicit scope decision.
+  - [x] **Permanent source consumption and detached target verification (2026-10-23):** independent bounded credential-exclusion proof and HANDOFF approval bind the complete source, exact frozen state and target manifest/account/database. The authority and operator keys are distinct. Lost physical commits resolve by cold readback; expiry during source hashing, changed facts, other targets and invalid signatures cannot retire the source. After consumption it cannot be cancelled or retargeted. `PgFileStaging.verify_retirement` reconstructs both signed File commits against its sealed source, checks unchanged financial/journal/identity/recorder state and returns no trading authority. File/control matrix: 122 passes; native staging matrix: 23 passes (see current delivery note). Native historical translation and ownership publication remain PG6-F2/PG6-F3 requirements; this is an offline exclusion protocol, not actual credential revocation evidence.
+- [ ] PG6-F2: Import the clean source into `IMPORTING` staging with resumable batches and stable source operation IDs. Preserve original starting capital/cost basis, retained inventory, cashflows, NAV/highwater, gross loss and subsidy/funding spending, deadlines/epochs, all terminal tombstones, wire/trade/bill/approval/operation identities and deduplication/receipt history. An opening wallet is not a replacement historical basis or a budget reset. The source cannot acquire unresolved sends/holds or new activity between qualification and activation; revalidate the frozen cut. Active File product-state migration requires a separate explicit scope decision.
   - [x] **Resumable complete artifact staging (2026-10-23):** migration 122 adds owner-only import/chunk tables; `PgFileStaging` stores exact bounded artifact bytes under stable source/target identities, resumes committed chunks, detects corrupt/missing data, and seals only the complete trusted outer digest. It preserves ordinary, paid-history and segmented sources byte for byte. Real child-process death, lost seal replies, original-task cancellation/decoder timeout and actual backup/restore quarantine are covered (17 native tests, 24.11 s, `/tmp/life-pg6-staging-20261023-a5`; hostile-default-ACL upgrade/repeated migration: 1 pass, 3.51 s). A discard retains permanent audit tombstones and is refused for an existing target account. This is transport/staging only: no account, monetary row, source retirement or activation grant is created. Native financial translation and parity remain open.
-  - [x] **Original-basis capital reconstruction (2026-10-23):** cold `capital_projection` shares File's causal capital replay, expands verified segmented wallet bytes without path I/O, and compares exact wallet totals, trade/transfer identities and fees against the original reconciliation cut. Opening basis, initial-inventory consumption/PnL, net flows, gross execution loss and historical NAV/highwater are retained. Rehashed balance/identity/policy/highwater corruption, late valuation, pre-anchor approval, incomplete facts and capacity overflow are refused. The final projection/capital/archive matrix passes 95 tests in 20.65 s; affected joint/target/maintenance regression passes 82 in 84.96 s; real PostgreSQL staging/projection passes 20 in 37.22 s (`/tmp/life-pg6-capital-20261023-a4.log`, `/tmp/life-pg6-capital-regression-20261023-a3.log`, `/tmp/life-pg6-capital-native-20261023-a1`). Counts are separate, overlapping matrices. This is a capital parity input, not native historical translation, all-product/budget verification, account initialization, credential exclusion or activation; PG6.2/PG6.3 stay open.
+  - [x] **Original-basis capital reconstruction (2026-10-23):** cold `capital_projection` shares File's causal capital replay, expands verified segmented wallet bytes without path I/O, and compares exact wallet totals, trade/transfer identities and fees against the original reconciliation cut. Opening basis, initial-inventory consumption/PnL, net flows, gross execution loss and historical NAV/highwater are retained. Rehashed balance/identity/policy/highwater corruption, late valuation, pre-anchor approval, incomplete facts and capacity overflow are refused. The final projection/capital/archive matrix passes 95 tests in 20.65 s; affected joint/target/maintenance regression passes 82 in 84.96 s; real PostgreSQL staging/projection passes 20 in 37.22 s (`/tmp/life-pg6-capital-20261023-a4.log`, `/tmp/life-pg6-capital-regression-20261023-a3.log`, `/tmp/life-pg6-capital-native-20261023-a1`). Counts are separate, overlapping matrices. This is a capital parity input, not native historical translation, all-product/budget verification, account initialization, credential exclusion or activation; PG6-F2/PG6-F3 stay open.
   - [x] **Relational economic facts and cold parity (2026-10-23):** migration 124 stages canonical original financial rows and an immutable manifest under owner-only access. Bounded batches resume without replacing committed facts; loss/subsidy period totals and NAV/cost-basis/fee history remain original. The 41-case combined native regression and two targeted migration cases pass as recorded above. Operational native policy/product/receipt mapping, full all-product parity and atomic unarmed account publication remain open.
   - [x] **Complete relational ancestry and cold reconstruction (2026-10-23):** migration 125 preserves original operations/resources, terminal/ACK/receipt/tombstone history, session and product roots, expanded journals and recorder schema/rows. Its immutable seal binds the original financial seal; bounded batches retain source identities, and cold reconstruction compares all logical documents with the trusted artifact. No native account or authority is created. Operational native mapping/parity and atomic unarmed publication remain open.
-- [ ] PG6.3: Compare exact financial totals, complete identity sets and recovered decisions; activate the imported lineage atomically and **unarmed**. Missing/corrupt source evidence blocks activation; never initialize empty authority to work around an import failure.
-- [ ] PG6.4: Keep the source immutable and non-sending. Before any DB-owned orders, reversal can discard staging. After DB-owned orders, rollback requires reconciled export/cutover and a new fenced generation; toggling the backend flag is prohibited.
-- [ ] PG6.5: Exercise backup/PITR restore into an isolated database. Restore is unarmed, has a new controlled lineage, rejects stale grants/epochs, and requires old-credential exclusion plus exchange history reconciliation since the restored cut. No empty history or replayed budget reset.
+- [ ] PG6-F3: Compare exact financial totals, complete identity sets and recovered decisions; activate the imported lineage atomically and **unarmed**. Missing/corrupt source evidence blocks activation; never initialize empty authority to work around an import failure.
+- [ ] PG6-F4: Keep the source immutable and non-sending. Before any DB-owned orders, reversal can discard staging. After DB-owned orders, rollback requires reconciled export/cutover and a new fenced generation; toggling the backend flag is prohibited.
+
+#### PG6-R — Required restored-target recovery/release (open implementation)
+
+- [ ] PG6-R1: Implement and qualify controlled release of a quarantined restore into a replacement observation actor and eventually a separately authorized new trading generation. Reconcile every post-cut accepted request, ACK, fill, fee and bill using complete original identities; retain unknown outcomes/holds until qualified. Independently prove old REST/WS/CAA/in-flight credential exclusion. Cold readback, expired grants, manually edited markers or backend flags must not rearm; no empty history or replayed budget reset. This implementation is absent, even though the non-sending restore/quarantine slice passes.
   - [x] **Logical backup/restore quarantine implementation:** bounded complete table-row manifest and real `pg_dump` on one exported MVCC snapshot, exclusive/immutable archive publication, trusted external digest verification, empty owner-only target and real transactional `pg_restore`. Migration 119 and owner-side maintenance rotate database lineage atomically while retaining account lineage, original ownership audit, all financial/recorder identities, unknown attempts, holds and spent budgets. Every restored account is `UNARMED`/halted; central SQL write scope and native runtime both refuse the restored namespace. Lost-COMMIT readback and caller cancellation retain the original operation, and process death rolls back both data and trigger DDL.
   - [x] **Restored schema/sequence profile:** V2 logical manifests bind catalog definitions, ACL/default ACL, RLS/policies, internal/user triggers, types/domains, indexes, rules, database locale and sequence ownership. Verify consumed sequence floors without rejecting valid non-MVCC gaps. Reject unmodelled objects/owners and capacity overflow. Migration 120 canonicalizes one audited `BETWEEN` constraint without changing its truth table; no weak predecessor is adopted.
   - [x] **Real local WAL/PITR rehearsal:** `pg_basebackup` + `pg_verifybackup`, a named WAL restore point and a separate primary recovering archived WAL. HBA excludes original runtime/reporting logins from first startup. The target retains the pre-point preparation/hold and excludes the later native COMMIT, then changes lineage and stays unarmed. Damaged backup verification and missing-target-WAL recovery fail closed.
+  - [ ] R1.1: Add a durable restore-recovery challenge/import bound to the exact restore audit, target database/account, original logical owner and independently pinned operator/credential authorities. Refuse wrong/expired/cold-replayed context; keep connection exclusion through physical COMMIT.
+  - [ ] R1.2: Bridge restored ownership/control-history ancestry into RECOVERY_ONLY without enabling the old process, resetting money or fabricating an ACTIVE grant. Register a distinct private replacement observation actor through the original guarded lease/credential workflow; do not clear the quarantine marker as a standalone operation.
+  - [ ] R1.3: Apply and verify complete original post-cut ACK/fill/fee/bill/recorder outcomes using native recovery kernels. Only after exact reconciliation may a separate fresh signed session/generation activation be considered; old deadlines, grants and capability secrets cannot rearm.
+  - [ ] R1.4: Qualify actual isolated restore → observation actor → native accounting → cold restart and separately authorized generation, including pending/late truth, corruption, physical kill, both lost-COMMIT outcomes and expired/foreign authority. Preserve all holds/spending on every failure.
   - [ ] Complete post-cut exchange reconciliation and independently qualified old-credential exclusion before a new controlled generation. There is **no quarantine-release/rearm API**. HBA isolation proves local database exclusion only; it is not REST/WS/CAA revocation. A raw restore or manual marker/backend/owner change cannot count as this gate.
-- [ ] PG6.6: Record measured backup restore, import, reconciliation, retained history and settlement/recovery headroom against PG0 RPO/RTO/capacity decisions. Export schema/versioned audit evidence; do not rely on backup existence alone.
+#### PG6-X — Required retained-history recovery capacity (open, shared with PG8)
+
+- [ ] PG6-X1: Record measured backup restore, import, reconciliation, retained history and settlement/recovery headroom against PG0 RPO/RTO/capacity decisions. Export schema/versioned audit evidence; do not rely on backup existence alone.
   - [x] Record one explicit small-fixture logical backup/restore/quarantine timing, archive bytes and complete table/row counts below. This is a functional rehearsal, not RPO/RTO or retained-history headroom acceptance.
 
-**Red tests:** `test_postgres_import.py`, `test_postgres_restore.py`, `test_postgres_cutover_rollback.py` with killed/resumed importer and fresh processes.
+**Optional/extended acceptance selectors:** `test_postgres_import.py`, `test_postgres_restore.py`, `test_postgres_cutover_rollback.py` with killed/resumed importer and fresh processes.
 
-**Done when:** both clean stopped source formats import exactly, non-quiescent sources are rejected, repeated import is idempotent, restorations cannot rearm, and the rollback runbook has a passing rehearsal.
+**File extension done when:** both clean stopped source formats import exactly, non-quiescent sources are rejected, repeated import is idempotent, restorations cannot rearm, and the rollback runbook has a passing rehearsal.
 
 #### PG6 logical restore qualification (2026-10-23)
 
-**Verdict: this logical slice passes; PG6 remains OPEN.** Owner-side APIs are
+**Historical expanded-scope verdict before PG-D08: this logical slice passes; full import/release scope remains OPEN.** Owner-side APIs are
 separate from worker startup. No File financial translator, source retirement,
 import activation, rollback exporter, quarantine release or WAL/PITR is claimed.
 The manifest verifies complete application table rows; independent full restored
@@ -4141,7 +4235,7 @@ timeout, exchange/cloud state or repository evidence file was changed/created.
 
 #### PG6 schema and physical recovery increment (2026-10-23)
 
-**These two implementation slices pass; PG6 remains OPEN.** No clean File
+**Historical expanded-scope verdict before PG-D08: these two slices pass; full import/release scope remains OPEN.** No clean File
 translator, source retirement, import activation, rollback exporter or post-cut
 reconciliation/release is claimed. Earlier logical qualification remains the
 record of its own revision; the following runs qualify the schema/PITR increment.
@@ -4271,7 +4365,8 @@ existing in-process mode. Input drift or any failed/ambiguous step blocks start.
 This helper has only been executed against a recording subprocess test port,
 never GCP. Desired count zero and a completed rollout cannot substitute for key
 exclusion, reconciliation or signed financial authority; rollback after native
-orders remains PG6's controlled cutover contract.
+orders must preserve the original database/history and remain non-sending.
+Restore-to-trading implementation remains open as PG6-R1.
 
 Initial Red was the absent worker module; mock-definition failures exposed
 required explicit IAM project fields and nonsemantic generated mock values.
@@ -4290,6 +4385,7 @@ Dependencies: PG1–PG7 local work; no cloud/OKX credentials required.
 - [ ] PG8.4: Measure bounded query/row/byte counts, active versus total history, transaction latency, DB CPU/I/O/storage/WAL, worker RSS, connection count and cancellation delay. Run timeouts and pool contention with adverse concurrent work; no hidden full-history materialization on each permission check.
 - [ ] PG8.5: Record complete repeated-run results on a declared resource profile, with profiling separate from latency gates and no overlapping measurements. Retain every failed/interrupted sample; do not widen ceilings or select only successful runs.
 - [ ] PG8.6: Require constraint/invariant parity, full regression and the existing pinned coverage/completion gates plus new PG gates. Keep old evidence immutable. A new backend does not silently waive a failing mandatory legacy variant; changing supported scope requires a separately reviewed, versioned decision and acceptance map.
+- [ ] PG8.7 (PG6-X1): Qualify recovery at 0/1k/10k complete settled history, 1 GiB physical-data cap and the unchanged proposed 120-s full restore/reconciliation target. Measure import if optional File cutover is selected, backup/restore, post-cut reconciliation and concurrent settlement/recovery headroom. Small functional PG6 timings do not satisfy this gate; live calibrated RPO/RTO remains OKX PG-E2.
 
 **Done when:** the declared product's existing offline gate and the new PostgreSQL gate both close with complete evidence. A passing PG-only suite cannot close O.8.4/O.8.7 by itself. Further cloud network performance remains PG9.
 
@@ -4318,8 +4414,8 @@ permission.
 | PC05 Paused stale sender resumes | Successor stays unarmed until external exclusion; lease-only failure retained | PG4/PG9 |
 | PC06 Replacement secret/identity access | Old identity cannot obtain replacement write authority | PG4/PG7/PG9 |
 | PC07 DB outage/pool saturation | No normal trading; bounded proven cancellation and unresolved holds remain | PG2/PG4/PG8 |
-| PC08 Legacy/segmented import | Exact complete identity/financial parity; activation unarmed | PG6 |
-| PC09 Backup/PITR restore | New controlled lineage, no stale grant/rearm, history reconciled | PG6/PG9 |
+| PC08 Optional legacy/segmented import | Exact complete identity/financial parity; activation unarmed; not required for the no-File-data PG-D08 profile | PG6-F |
+| PC09 Backup/PITR restore | New controlled lineage, no stale grant/rearm, exact history retained in quarantine; restore-to-trading stays open | PG6 / PG6-R1 / OKX PG-E2 |
 | PC10 Growth to 10k history | Unchanged O.8 budgets pass; complete query/resource evidence | PG8/PG9 |
 | PC11 SIGTERM then forced kill | Admission closes, unknown state survives, restart unarmed | PG7/PG9 |
 | PC12 Recorder missing/foreign/delayed row | Recovery incomplete; no premature release or dropped executor | PG5 |

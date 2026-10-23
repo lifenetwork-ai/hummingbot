@@ -1,5 +1,19 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**2026-10-23 fresh PostgreSQL recovery status (PG-D08):** the user confirms
+there is no live File history or capital to migrate. Native backup/restore to
+quarantine passes **40 tests** and **one actual physical PITR rehearsal** on
+schema 125; three populated File-stage restore/discard cases pass separately.
+The PostgreSQL plan marks this backup sub-checklist `PG6-N` complete.
+
+**PG6 as a whole remains OPEN.** File cutover is optional and unfinished
+(`PG6-F1–F4`), but restored-target replacement recovery/new generation and post-cut
+accounting (`PG6-R1`) remain required open implementation even for fresh
+PostgreSQL. Recovery/headroom (`PG6-X1`/PG8) is also unqualified. Current restored
+targets stay unarmed and quarantined; there is no release/rearm API. Actual
+provider/failure-domain/RPO/RTO proof additionally remains PG-E2. These remaining
+implementation gates are not replaced by environment tests or phase relabeling.
+
 **PG6 ancestry staging increment (2026-10-23):** schema 125 preserves complete
 original terminal/receipt/operation, product/session/journal and recorder
 ancestry under an immutable seal bound to the financial stage. Cold readback
@@ -2119,6 +2133,12 @@ passing local PostgreSQL test or fake credential provider cannot satisfy it.
   and explicit RPO/RTO. Preserve unresolved attempts, held capital and original
   spending after restoration; require new controlled lineage and unarmed startup.
   Same-volume local process restart does not establish zero loss or HA.
+  The local PG6-N sub-checklist qualifies recovery only into a non-sending
+  quarantine. Before demonstrating resumed trading/failover, implement and
+  qualify the PostgreSQL plan's open PG6-R1 controlled release/recovery workflow,
+  then prove post-cut accounting and old REST/WS/CAA/in-flight credential
+  exclusion in the selected environment. Neither HBA isolation nor manual
+  clearing of restore/account flags substitutes for this implementation or proof.
 
 ### PG9 — Cloud sandbox, VM comparison and OKX demo
 
