@@ -2,6 +2,29 @@
 
 ## Current offline delivery status
 
+**2026-10-23 current-image native functional gate GREEN:** frozen source
+`6fed06ce6` builds immutable AMD64 worker
+`sha256:5a129fc7e3bb6a9ff71d4079264b1cc85fd9b1d23d7314a8c1cbcbd145f5dbdc`
+with the dedicated locked Dockerfile. Exact artifact/lock/foreground/signal
+qualification passes **9 cases / 21.74 s**
+(`/tmp/life-release-artifact-6fed-a1`). The complete uninstrumented
+`image_native` matrix passes **84 cases / 734.91 s**, with zero failures,
+errors or skips (`/tmp/life-release-native-6fed-a1`). It includes the previously
+failing managed activation and SWAP release/cold-restart paths, original
+unknown-send preservation, generation handoff, cancellation and native monitors.
+The separate host red-to-green settlement matrix below remains **8 passes**;
+these are distinct gates, not one combined test count.
+
+The production correction refreshes signed sources and appends a new NAV before
+release; prior financial/NAV history, replay identity and original expiry checks
+remain intact. Prior failed aggregate samples stay retained. The image is
+**2,142,562,666 bytes** and runs under AMD64 emulation on the recorded ARM64
+daemon, with no existing containers at test start and unchanged resource limits.
+This closes this current-image functional gate, not native-AMD64 latency
+headroom, retained-history/O.8 acceptance, the complete PG7 startup/telemetry
+scope or PG6 import/rollback/post-restore implementation. No cloud/exchange
+deployment or trading was performed.
+
 **2026-10-23 SWAP release source correction — host qualification:** adding a
 controlled **5.1-second delay after committed hedge settlement** reproduces
 `PG_SHARED_RELEASE_SOURCE_UNQUALIFIED` on both canceled/unfilled and partially
@@ -25,8 +48,9 @@ expiry still refuses release, retains the capital claim, and records settlement
 and fees exactly once. Successful retries preserve all committed NAV rows and
 original wallet/loss totals. This costs one extra signed source refresh and NAV
 per successful first settlement; original quota, source/transaction deadlines
-and history capacity limits remain enforced. Current-image and complete native
-qualification are pending; this host matrix does not close PG7/PG8.
+and history capacity limits remain enforced. The subsequently completed
+current-image native qualification is recorded above; this host matrix alone
+does not close PG7/PG8.
 
 **2026-10-23 measured quote and SWAP settlement paths:** the opt-in
 `image_flows` diagnostic runs only the managed-activation quote and SWAP
@@ -284,7 +308,7 @@ remain open.
 | PG0 engineering decisions/fixture profile/cost model | Complete for offline work; see the consolidated PG0 decisions below. Live topology, price and threat-model acceptance remain OKX environment gates. |
 | PG1–PG5 selected fresh-native implementation | Previously closed scoped matrices. The changing-worktree diagnostic run was stopped after 2,336 passes and one UID freshness failure; its three focused variants pass separately. This is not an aggregate acceptance result. A frozen-source rerun remains required. |
 | PG6 clean File import, rollback, post-restore reconciliation | Open implementation. Logical/physical restore quarantine is implemented, but cannot release itself. |
-| PG7 locked image, shutdown, infrastructure, telemetry | Locked artifact/shutdown qualified; bounded metrics and independently signed audit/backup/restore diagnostics implemented. Current-source image and aggregate qualification remain open. |
+| PG7 locked image, shutdown, infrastructure, telemetry | Current locked artifact and all 84 native functional cases qualified. Standalone startup/complete telemetry scope and wider aggregate qualification remain open. |
 | PG8 / O.8 aggregate, retained-history performance and coverage | Open. Focused green tests do not close the complete acceptance map. |
 
 **2026-10-23 UID boundary correction:** a deterministic original SDK-chain test

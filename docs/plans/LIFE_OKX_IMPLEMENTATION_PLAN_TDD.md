@@ -1,5 +1,15 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**Current image functional gate GREEN (2026-10-23):** source `6fed06ce6`
+refreshes signed financial sources and records a new NAV after hedge settlement
+before release. Earlier NAV history and exact retry receipts remain intact;
+expiry of the new source still retains the claim. The TDD matrix passes 8 native
+host cases; the rebuilt immutable image passes 9 artifact checks and all
+**84 uninstrumented native functional cases** (734.91 s). Original failed runs
+remain retained. See the [PostgreSQL plan](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md)
+for image identity, environment and exact scope. PG6, the remaining PG7 scope
+and PG8/O.8 remain open; this is not deployed or native-AMD64 headroom proof.
+
 **Latest fixed-source image repeat (2026-10-23):** expanded native matrix is
 82 passed / 2 failed. The earlier three failures pass here, but SWAP release
 source qualification and a 1,015.069-ms quote against a 1,000-ms limit fail;
