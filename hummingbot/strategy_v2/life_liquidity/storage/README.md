@@ -5343,7 +5343,7 @@ LIFE_ENV_FILE='' LIFE_AUTO_MIGRATE=false python -m \
 ```
 
 It runs File contracts, the complete native PostgreSQL directory, separate real
-physical PITR, foreground tests, immutable image tests, mock-only infrastructure
+physical PITR, foreground tests, immutable image and Linux native process/recovery tests, mock-only infrastructure
 and the original O.8/coverage runner, in that order. Each original gate uses its
 own new temporary result directory. The host must have no other performance
 qualification/build load running; the local lock excludes another instance of

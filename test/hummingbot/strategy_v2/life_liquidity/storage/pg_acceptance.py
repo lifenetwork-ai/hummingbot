@@ -42,6 +42,7 @@ GATES = (
         'test_worker_supervisor.py', 'test_cloud_rollout.py', 'test_postgres_headless.py',
         'test_headless_service.py', 'test_service_startup.py', 'test_service_runner.py'))),
     Gate('linux_image', 'worker', ('PG7.1', 'PG7.2', 'PG7.7'), 'image'),
+    Gate('linux_native', 'worker/storage', ('PG7.1', 'PG7.7', 'PG8.1'), 'postgres_image', ('image_native',)),
     Gate('infrastructure', 'deployment definitions', ('PG7.3', 'PG7.4', 'PG7.5', 'PG7.6'), 'terraform'),
     Gate('product_o8', 'strategy', ('PG8.3', 'PG8.5', 'PG8.6', 'O.8'), 'product'),
 )
@@ -145,8 +146,9 @@ def verdict(rows, *, source_unchanged, remaining):
 
 def command(gate, folder, *, image, terraform, candidate=False):
     python = sys.executable
-    if gate.kind == 'postgres':
-        return [python, '-m', BASE.replace('/', '.') + '.storage.run_postgres', '--suite', gate.selectors[0], '--output', str(folder)]
+    if gate.kind in ('postgres', 'postgres_image'):
+        return [python, '-m', BASE.replace('/', '.') + '.storage.run_postgres', '--suite', gate.selectors[0],
+                *(['--linux-image', image] if gate.kind == 'postgres_image' else []), '--output', str(folder)]
     if gate.kind == 'image':
         return [python, '-m', BASE.replace('/', '.') + '.storage.run_worker_image', '--image', image, '--output', str(folder)]
     if gate.kind == 'product':

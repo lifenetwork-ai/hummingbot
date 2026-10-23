@@ -17,7 +17,7 @@ import pytest
 def test_map_retains_native_file_product_physical_and_artifact_gates():
     names = [g.name for g in GATES]
     assert len(names) == len(set(names))
-    assert set(names) == {'file_contracts', 'native', 'physical_pitr', 'foreground', 'linux_image', 'infrastructure', 'product_o8'}
+    assert set(names) == {'file_contracts', 'native', 'physical_pitr', 'foreground', 'linux_image', 'linux_native', 'infrastructure', 'product_o8'}
     assert all(g.owner and g.requirements for g in GATES)
     assert {'PG6.1', 'PG6.2', 'PG6.3', 'PG6.4', 'PG6.5', 'PG6.6', 'PG7.1', 'PG7.8', 'PG8.3', 'PG8.4', 'PG8.6'} <= set(OPEN_REQUIREMENTS)
 

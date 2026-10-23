@@ -18,7 +18,7 @@ no release requirement is waived or passed by moving it.
 | PG4 | Closed for selected offline handoff scope (`4fddc9419`) | Actual provider/key exclusion, deployed IAM and failover in OKX PG9/PG10 |
 | PG5 | Closed for selected offline native recorder/CLI scope | Deployed credentials/TLS remain OKX PG-E1; detached standalone reporting services are outside this worker profile |
 | PG6 | In progress; logical and physical target restore plus schema/sequence guards | Stopped File/segmented native import, cutover rollback, post-cut reconciliation/release and retained-history capacity qualification remain open |
-| PG7 | In progress; foreground host, isolated migration rollout and validated IaC candidate | Linux image/dependency lock, container kill tests, complete metrics/alerts remain open |
+| PG7 | In progress; AMD64 image/signal/recorder slices qualified | Wider native image gate RED (expiry); dependency lock, complete forced-loss and metrics/alerts remain open |
 | PG8 | Open; historical upgrade fixture repair qualified separately | Complete current-source serial regression, product/performance/coverage acceptance remain required |
 
 Only current phase checklists and this ledger determine progress. Historical
@@ -3521,6 +3521,7 @@ Dependencies: PG0 decisions; worker code depends on PG1–PG5. Definitions can b
 - [ ] PG7.1: Build a pinned Linux image from this repository with PostgreSQL dependencies; run foreground, receive signals directly, emit structured stdout/stderr, and keep credentials outside image layers/arguments/logs. Do not use the destructive current `make build` target.
   - [x] Full Linux ARM64 artifact built and source/import/recorder compatibility tested in PG2. Release architecture, complete dependency locking, foreground/default-command and signal behavior remain open; the compatibility image is not a deployed worker qualification.
   - [x] **Foreground/definition candidate:** the opt-in `life-worker` Docker target, `postgres/worker.py`, bounded read-only probes and JSON stdout are implemented. Host signal/deadline tests and mock-only infrastructure/release checks pass below. Actual Linux AMD64/dependency reproducibility, container kill, complete metric/alert and deployed qualification remain open.
+  - [x] **AMD64 artifact functional slice (2026-10-23):** actual repository build, immutable source/SQL/native-driver/Cython check, nonroot foreground/default-command and container signal fixtures pass 7 cases; real PostgreSQL recorder passes 13 cases. The broader native image matrix is RED (60 pass/3 expiry failures); this increment does not close PG7.1/PG7.7 or establish full dependency reproducibility.
 - [ ] PG7.2: Validate startup without TTY/prompts/MQTT dependency, schema/account binding before authority construction, and no auto-bootstrap of missing financial state. Ephemeral local files may hold disposable scratch/config/status only.
 - [ ] PG7.3: Add infrastructure definitions for Artifact Registry, Cloud SQL PostgreSQL, backup/PITR settings, VPC, IAM, Secret Manager, monitoring and one desired Worker Pool instance per account namespace. **Operator-selected flow: config-enabled startup migration** (`LIFE_AUTO_MIGRATE=true`); package the pinned SQL bundle/driver and await the central runner before application construction, with no manual migration step. Database locking serializes concurrent startup runners; failed migration blocks that startup. Qualify migration/runtime role and secret isolation: removing an inherited DSN does not prevent a colocated process from reading a mounted env file/secret. A separate serialized migration Job is an optional deployment mode (`LIFE_AUTO_MIGRATE=false`), with migration-only identity/secret, one task, parallelism one and automatic retries disabled; await success before worker rollout. Runtime startup validates compatibility and remains unarmed; incompatible schema changes require an explicit drain/upgrade policy in either mode. [Cloud Run Jobs](https://docs.cloud.google.com/run/docs/create-jobs), [job retries](https://docs.cloud.google.com/run/docs/configuring/max-retries).
 - [ ] PG7.4: Define same-region worker/primary DB, private-IP/TLS connectivity with Direct VPC egress and bounded pools; test TLS/authentication handling locally. Document the selected Worker Pool authentication/connection method; its actual connectivity is a PG9.2 gate, not inferred from a Service-only example. [Direct VPC](https://docs.cloud.google.com/run/docs/configuring/vpc-direct-vpc), [Cloud SQL connectivity](https://docs.cloud.google.com/sql/docs/postgres/connect-run).
@@ -10038,3 +10039,43 @@ pass **7 tests**, zero failure/skip, **0.28 s**
 This qualifies the orchestrator's local safeguards, **not its unexecuted full
 long pipeline or PG8.2/PG8 closure**. The reproduction command is in the storage
 README. Complete source-fixed pipeline/acceptance results remain required.
+
+## PG7 AMD64 artifact and retained native expiry failures (2026-10-23)
+
+**PG7 remains OPEN.** The actual AMD64 build found that the final-stage login
+shell selected base Python for the driver import, despite driver installation
+in the Hummingbot environment. The guard now names that interpreter explicitly;
+the exec-form runtime entrypoint already uses the declared Hummingbot PATH.
+Original ordinary Docker default/release behavior is unchanged. The failed build
+is `/tmp/life-pg7-linux-build-20261023.log`; corrected candidate build is
+`/tmp/life-pg7-linux-build-20261023-b2.log`.
+
+Candidate artifact `sha256:3fa41baeb601964cc16e988f1b5195372e0c61ca55deb7851e6243e628ae3a09`
+contains Linux x86_64 Python 3.13.15, asyncpg 0.31.0, psycopg 3.2.9 and SQLAlchemy
+2.1.1. It is a real built image, not a host-source overlay. Only test helpers are
+mounted read-only for qualification; application/SQL/native code comes from the
+image. This is a candidate tag/metadata, not a deployed release.
+
+| Separate local gate | Outcome | Retained output |
+| --- | --- | --- |
+| Immutable image / nonroot / default fail-closed / five actual container signal cases | **7 passed**, zero failure/error/skip, 13.98 s | `/tmp/life-pg7-image-20261023-c1/integration.xml` |
+| Real primary recorder contract on the image | **13 passed**, zero failure/error/skip, 7.99 s | `/tmp/life-pg7-image-recorder-20261023-d1/integration.xml` |
+| Wider image process death / managed lifecycle / handoff / recovery actor | **60 passed, 3 failed**, 452.76 s | `/tmp/life-pg7-image-native-20261023-d2/integration.xml` |
+
+The wider matrix runs AMD64 emulation on the ARM64 local host, with image 2 CPU /
+2 GiB and PostgreSQL 2 CPU / 1 GiB. A SWAP send source report is 1173.647 ms old;
+a managed-service source report is 1089.643 ms old and its UID is stale; a signed
+handoff expires at physical COMMIT. These are genuine refusals under unchanged
+1000-ms source/authority limits. The requested boundaries were not reached;
+therefore these three crash/handoff outcomes are unqualified. No expired proof,
+lease, owner, budget, source age or SQL limit was extended to make them pass.
+The passing narrower gates do not waive this RED matrix or prove production
+hardware latency. Native/release-profile separation and wider qualification
+remain explicit work, not a silently removed test.
+
+`run_worker_image` requires an immutable local image ID and new `/tmp` output.
+`run_postgres --suite image_native --linux-image <ID>` exposes the wider matrix;
+the serial acceptance map retains it as a separate mandatory `linux_native`
+gate. Input/image manifests include exact native service, worker, lifecycle,
+broker and recovery source plus all 120 SQL scripts. No user `.env`, GCP apply,
+real exchange traffic, push or repository evidence file is involved.
