@@ -12,9 +12,15 @@ PG6–PG8 and O.8 remain open. The real environment/account gates below remain o
 **PG7 artifact progress (2026-10-23):** the refreshed AMD64 image passes all
 67 native process/recovery/unknown-loss cases; its complete packaged-source and
 signal gate passes 8 cases, recorder integration 13. PG7 still needs dependency
-locking, owned shutdown cancellation sequencing and complete metrics/alerts.
+locking, current shutdown image qualification and complete metrics/alerts.
 The PostgreSQL plan records the exact image and separate test outputs; these
 results do not close PG6, PG8/O.8 or deployed qualification.
+
+**PG7 shutdown host increment (2026-10-23):** first revoke now starts bounded
+broker-qualified exact SPOT/SWAP cancellations before blocked SDK/DB cleanup.
+Original rate limits, unknown sends and financial holds remain intact. Host
+native/generation regression and accepted/unknown cases pass as recorded in the
+PostgreSQL plan; the changed image and full acceptance still require qualification.
 
 **Environment checklist ownership (2026-10-23):** PostgreSQL deployment,
 actual identity/TLS/durability, OKX demo and production gates now live in

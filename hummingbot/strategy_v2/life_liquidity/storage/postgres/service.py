@@ -355,6 +355,8 @@ class PgLiquidityService:
         service._process_owner = owner
         service.runtime = service.financial = service.reporting = service.events = service.runner = service.hedge = None
         service._close_task = None
+        service._shutdown_cancel_task = None
+        service._shutdown_cancellation = dict(status='NOT_STARTED', identified=0, acknowledged=0, unresolved=0)
         service.native_trading, service._native_trading = native_trading, native_trading
         service.provisional_quotes = service._provisional_quotes = provisional_quotes
         service.quote_application = service.quote_source = service.producer = None
@@ -1072,6 +1074,10 @@ class PgLiquidityService:
             journal = getattr(self, 'journal', None)
             if journal is not None:
                 journal.revoke()
+            # Signal handlers revoke synchronously even when the headless loop
+            # cannot yet leave a blocked cycle and call close(). Schedule the
+            # independent cancellation attempt at that first stop boundary.
+            self._shutdown_cancel_task = asyncio.create_task(self._cancel_owned_on_shutdown())
 
     async def close(self):
         self.revoke()
@@ -1096,9 +1102,52 @@ class PgLiquidityService:
             raise StorageError('PG_SERVICE_CLOSE_NOT_STARTED')
         await asyncio.shield(task)
 
+    @property
+    def shutdown_cancellation(self):
+        """Bounded diagnostic counts, never exchange terminality or permission."""
+        return dict(self._shutdown_cancellation)
+
+    async def _cancel_owned_on_shutdown(self):
+        access = self._original_generation_access
+        report = self._shutdown_cancellation
+        report['status'] = 'RUNNING'
+        if access is None:
+            report['status'] = 'UNAVAILABLE'
+            return
+        tasks = []
+        try:
+            async with asyncio.timeout(self._limits.shutdown_timeout_ms / 1000):
+                entries = await access.cancellation_identities(max_cancels=self._limits.max_cancels)
+                report['identified'] = report['unresolved'] = len(entries)
+
+                async def cancel(entry):
+                    connector = dict(self._connectors)['okx' if entry.product == 'SPOT' else 'okx_perpetual']
+                    async with asyncio.timeout(self._limits.request_timeout_ms / 1000):
+                        await access.cancel_exact(connector, entry)
+                    report['acknowledged'] += 1
+                    report['unresolved'] -= 1
+
+                # Each exact request can start independently of another stuck
+                # request; the existing rate limits still serialize capacity.
+                tasks = [asyncio.create_task(cancel(entry)) for entry in entries]
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+                report['status'] = 'ATTEMPTED' if all(not isinstance(v, BaseException) for v in results) else 'INCOMPLETE'
+        except BaseException:
+            report['status'] = 'INCOMPLETE'
+        finally:
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
+            if tasks:
+                await asyncio.gather(*tasks, return_exceptions=True)
+
     async def _close(self):
         failures = []
         controller_id = json.loads(self._config_json)['id']
+        # Start independently before any join of original HTTP/COMMIT work.
+        # This task cannot settle money, release reservations or cancel COMMIT.
+        if self._shutdown_cancel_task is None:
+            self._shutdown_cancel_task = asyncio.create_task(self._cancel_owned_on_shutdown())
 
         async def join(work):
             try:
@@ -1160,6 +1209,7 @@ class PgLiquidityService:
             event_task = None if self.events is None else self.events._task
             if event_task is not None:
                 await join(asyncio.shield(asyncio.gather(event_task, return_exceptions=True)))
+        await join(asyncio.shield(self._shutdown_cancel_task))
         if self.financial is not None:
             await join(self.financial.close())
         elif self.runtime is not None:

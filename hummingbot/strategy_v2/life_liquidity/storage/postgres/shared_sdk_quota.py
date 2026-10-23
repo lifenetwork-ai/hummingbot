@@ -146,7 +146,7 @@ class _QuotaView:
                 owner.assert_binding()
                 yield
             return
-        async with owner._access():
+        async with owner._request_access(route):
             owner.assert_binding()
             async with self._base_execute(limit_id):
                 owner.assert_binding()
@@ -249,6 +249,7 @@ class PgSharedSdkQuota:
             quota._lease_task = None
             quota._spot_cycle = None
             quota._spot_cycle_token = ContextVar('life_sdk_spot_cycle', default=None)
+            quota._emergency = ContextVar('life_sdk_emergency_cancel', default=None)
             quota._shared = AsyncThrottler([RateLimit(path, limit, interval, weight)
                                            for path, (limit, interval, weight) in sorted(groups.items())])
             quota._shared_shape = _ProfilePin(quota._shared)
@@ -266,6 +267,38 @@ class PgSharedSdkQuota:
             base.add_rate_limits = view._add_hook
             base.set_rate_limits = view._set_hook
         return quota
+
+    @asynccontextmanager
+    async def emergency_cancellation(self, client, connector):
+        from hummingbot.strategy_v2.life_liquidity.storage.generation_access import GenerationClient
+        self.assert_binding()
+        if (type(client) is not GenerationClient or self.for_connector(connector) is not self
+                or connector._web_assistants_factory._generation_access.current is not client
+                or client.local_ready() is not False or not client._uid_verified):
+            raise StorageError('PG_SHARED_QUOTA_CANCEL_CONTEXT_INVALID')
+        client._original()
+        entry = (asyncio.current_task(), client, connector)
+        token = self._emergency.set(entry)
+        try:
+            yield
+        finally:
+            self._emergency.reset(token)
+
+    @asynccontextmanager
+    async def _request_access(self, route):
+        entry = self._emergency.get()
+        if entry is not None:
+            task, client, connector = entry
+            self.assert_binding()
+            client._original()
+            if (task is not asyncio.current_task() or client.local_ready() is not False
+                    or connector._web_assistants_factory._generation_access.current is not client
+                    or route not in ('/api/v5/trade/cancel-order', '/api/v5/public/time')):
+                raise StorageError('PG_SHARED_QUOTA_CANCEL_CONTEXT_INVALID')
+            yield  # Scheduling only. _slot still acquires both rate budgets.
+        else:
+            async with self._access():
+                yield
 
     @asynccontextmanager
     async def _access(self):

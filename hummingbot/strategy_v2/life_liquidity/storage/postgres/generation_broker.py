@@ -112,3 +112,9 @@ class PgGenerationBrokerControl:
                 broker.bind_head(registration, UUID(str(row['grant_id'])), row['lease_epoch'])
                 if enable_active:
                     broker.enable(registration, mode='ACTIVE', expires_at=registration.identity.owner.expires_at)
+        if not row['recovery']:
+            from hummingbot.strategy_v2.life_liquidity.storage.postgres.cancellation_manifest import (
+                PgCancellationManifestRepository,
+            )
+            broker.bind_cancellation_source(registration, PgCancellationManifestRepository(
+                control.financial, max_rows=64, max_bytes=1048576))

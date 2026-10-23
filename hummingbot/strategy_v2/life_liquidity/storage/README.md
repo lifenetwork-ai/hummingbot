@@ -5423,3 +5423,23 @@ explicit PG6/PG7/PG8 implementation or acceptance requirements are unresolved,
 even if every implemented subprocess succeeds. The map is not an evidence-file
 waiver and does not check plan boxes automatically. Individual unit tests of the
 orchestrator do not qualify its complete long pipeline.
+
+### Generation-bound shutdown cancellation
+
+The first service `revoke()` closes local admission and starts one bounded
+cancellation task immediately, before a blocked headless cycle can return to
+`close()`. Trusted `PgGenerationBrokerControl.sync()` installs the native ACK
+identity source. The worker can read its bounded signed list but cannot pin a
+manifest through RPC. Every exact cancellation still passes the current broker
+guard, original SDK and shared rate limits. Only collection scheduling is bypassed
+for the same authenticated task with locally closed admission; create/amend or
+unrelated account requests cannot use that lane.
+
+Cancellation ACKs do not settle orders, release holds or restart trading. Sends
+without committed ACK identity remain unknown. Missing generation access is
+reported as `UNAVAILABLE`; export/RPC/request failure is `INCOMPLETE`. The
+`shutdown_cancellation` status counts only cancellation attempts (its `unresolved`
+count is unacknowledged cancellations, not total unknown funds). No status field
+is financial authority. Native host tests cover normal stop and blocked SDK/DB
+joins for both products; the current immutable image and full PG8 gate remain
+required after code changes.

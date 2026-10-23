@@ -3531,7 +3531,8 @@ Dependencies: PG0 decisions; worker code depends on PG1–PG5. Definitions can b
 - [ ] PG7.7: On SIGTERM close admission first, checkpoint attempted/unknown work, initiate bounded owned cancellations and exit within a configured budget below Cloud Run's 10-second termination window. Forced kill must preserve unknowns; shutdown completion does not imply exchange terminality. [Shutdown contract](https://docs.cloud.google.com/run/docs/container-contract).
   - [x] **Native foreground money-loss slice (2026-10-23):** real host worker supervisor, native PostgreSQL/service and real SDK route with fake accepted HTTP work; SPOT/SWAP × SIGTERM/SIGKILL retain original `SEND_UNKNOWN`, wire ID, exact money/budget/claim/hedge state. Cold restart only reads and refuses replay; no false graceful completion. The strengthened four-case run passes in 68.57 s; actual immutable-image execution and wider retained RED matrix remain required.
   - [x] **Native immutable-image unknown-loss matrix (2026-10-23):** all four actual foreground SPOT/SWAP × TERM/KILL cases pass within the 67-case Linux matrix, retaining original money and unresolved risk. This closes image execution of the previous host-only slice.
-  - [ ] **Remaining shutdown cancellation sequencing:** initiate bounded owned cancellation independently before joining blocked original quote/SDK/COMMIT work. Current `PgLiquidityService._close()` joins original work; the unknown-loss matrix proves retention and physical exit, not initiation of cancellation while that work is stuck. Require actual owned SPOT/SWAP order, blocked-send/DB and normal-stop tests with no release/replay/terminality inference. Real provider cancellation timing remains PG9; this implementation/test gap stays offline here.
+  - [x] **Generation-bound host shutdown sequencing (2026-10-23):** first synchronous `revoke()` closes admission and schedules one bounded independent cancellation task before the headless loop or cleanup can join blocked SDK/DB work. The trusted native broker exports current committed ACK identities; signed identity reads grant no write authority. Each exact SPOT/SWAP cancellation reauthorizes at the physical request, retains both original rate budgets and bypasses only the collection scheduling mutex. Missing/unknown identities, revoked brokers, context drift or exhausted capacity cannot invent orders or release funds. Native normal/blocked SDK/blocked DB and accepted/unknown tests retain original money/claims; see qualification below.
+  - [ ] Rebuild and qualify the current cancellation sequence in the immutable Linux worker, including the original physical signal/kill matrix. Hosts without a configured generation broker explicitly report cancellation `UNAVAILABLE`; they are not a qualified cancellation profile. Real provider timing remains PG9.
 - [ ] PG7.8: Add metrics/alerts for trading eligibility, owner generation, DB/query/pool lag, event-loop lag, unknown attempts, unresolved holds, audit freshness, budget usage and backup/recovery health. Probe/liveness success is separate from permission to trade; a healthy unarmed process must not restart-loop because it awaits manual recovery.
   - [x] **Local DB pressure diagnostics (2026-10-23):** read-only `/status` exports fixed risk/safety pending/pool limits, lifetime outcome/completion/uncertainty/cancellation counters and bounded recent latency/phase windows, without SQL or permission caching. TDD retains caller-cancelled physical work and historical unknowns after ring eviction; 34 focused diagnostic/worker cases pass (10.26 s). This is not the remaining financial metrics, alert calibration or full PG7.8 gate.
 
@@ -10292,3 +10293,44 @@ PG7 remains open: the resolved dependency exports are not build-consumed locks;
 financial metrics/alerts and shutdown cancellation sequencing remain required.
 The cancellation gap is explicit in PG7.7, rather than hidden behind successful
 unknown-retention/process-exit tests. PG6 and PG8/O.8 are unchanged and open.
+
+## PG7 independent shutdown cancellation (2026-10-23)
+
+The first stop now schedules exact cancellation from `revoke()` itself. Waiting
+until `_close()` was insufficient: a blocked headless cycle might never enter
+cleanup before the worker's hard deadline. Repeated revoke/close calls retain
+one task. Physical financial work, late ACKs and COMMIT retain their original
+cleanup ownership. Cancellation cannot update financial state or report exchange
+terminality; `/status` reports only bounded attempt counts, separately from
+database readiness and trading permission. Its `unresolved` field counts
+unacknowledged cancellation requests, not all unknown sends or financial holds.
+
+`PgGenerationBrokerControl.sync()` binds a typed native identity exporter on the
+trusted control side. The runtime can request a bounded signed identity list,
+but cannot supply/export/adopt a manifest through that RPC. Export uses the
+primary safety pool and original owner, account and lineage. Final cancellation
+still checks the current broker and exact instrument/client/exchange IDs.
+Accepted sends lacking committed ACK identity stay unknown and retained. A
+missing exporter/manifest or unavailable DB is an incomplete cancellation attempt,
+never an empty financial state. Source refresh does not fall back silently.
+
+The emergency scheduling lane accepts only the original task, installed
+authenticated generation client with locally closed admission, cancellation and
+its auxiliary clock request. It retains both original SDK/shared rate budgets;
+new orders, unrelated account requests, inherited child-task contexts, foreign
+product SDKs and revoked identities are refused before HTTP.
+
+TDD starts with three failures (missing identity RPC and blocked SPOT/SWAP
+cancellation). Final broker/SDK/quota/worker/map regressions pass **82 cases**,
+19.43 s (`/tmp/life-pg7-shutdown-unit-final-20261023.log`). Native run `a1`
+retains four passes and two test-fixture errors (missing explicit `safety=False`);
+`a2` passes 21 cases in 214.71 s. After moving initiation to first revoke, `a3`
+passes 35 cases and retains one fixture wait failure: a fixed five-second test
+wait was shorter than the existing imported 30-second quote scheduling window.
+The fixture now waits on that original configured window; no production financial,
+source, SQL, cancellation or scheduling limit changes. Both accepted/unknown
+cases pass in `a4` (29.90 s). These are separate functional runs, with original
+results under `/tmp/life-pg7-shutdown-native-20261023-a*/integration.xml`, not a
+single frozen full-product performance result. Current source still needs Linux
+artifact qualification and the complete PG8 acceptance. No cloud/exchange action
+or repository evidence report was created.

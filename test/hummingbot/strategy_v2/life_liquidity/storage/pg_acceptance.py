@@ -58,7 +58,7 @@ OPEN_REQUIREMENTS = {
     'PG6.5': 'Post-cut reconciliation, independently signed exclusion and controlled new generation after quarantine.',
     'PG6.6': 'Import/reconciliation and 1k/10k retained-history capacity and recovery headroom.',
     'PG7.1': 'Complete build-consumed dependency locking and reproducible Linux artifact rebuild.',
-    'PG7.7': 'Bounded owned shutdown cancellation before blocked physical joins, with full financial cancellation sequencing tests.',
+    'PG7.7': 'Current immutable-image qualification of first-revoke exact cancellation and the physical signal/unknown-loss matrix.',
     'PG7.8': 'Complete bounded native metrics and calibrated local alert fixtures.',
     'PG8.3': 'Every mandatory O.8 outcome plus native PostgreSQL 0/1k/10k sender/watchdog variants.',
     'PG8.4': 'Resource/query/byte/WAL measurements and adverse pool/concurrency headroom.',

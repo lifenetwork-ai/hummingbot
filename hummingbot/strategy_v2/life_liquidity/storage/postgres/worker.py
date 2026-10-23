@@ -83,16 +83,17 @@ class WorkerSupervisor:
 
     def status(self):
         reason, database_healthy, ready = 'STATUS_CURRENT', False, False
-        metrics = None
+        metrics = cancellation = None
         try:
             runtime = None if self.service is None else self.service.runtime
             database_healthy = bool(runtime and runtime.healthy)
             ready = bool(self.service and not self.stop.is_set() and self.service._trading_ready())
             metrics = None if runtime is None else getattr(runtime, 'operational_metrics', None)
+            cancellation = None if self.service is None else getattr(self.service, 'shutdown_cancellation', None)
         except Exception:
-            reason, database_healthy, ready, metrics = 'STATUS_UNAVAILABLE', False, False, None
+            reason, database_healthy, ready, metrics, cancellation = 'STATUS_UNAVAILABLE', False, False, None, None
         return dict(started=self.started, stopping=self.stop.is_set(), database_healthy=database_healthy, reason_code=reason,
-                    local_trading_ready=ready, database_metrics=metrics,
+                    local_trading_ready=ready, database_metrics=metrics, shutdown_cancellation=cancellation,
                     trading_permission=False, loop_lag_ms=round(self.loop_lag_ms, 3),
                     uptime_seconds=round(monotonic() - self._started_at, 3))
 

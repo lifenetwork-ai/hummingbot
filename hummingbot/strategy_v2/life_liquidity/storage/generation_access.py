@@ -1,7 +1,7 @@
 """Offline control-plane broker and signed, process-private runtime clients.
 
-The broker/provider live outside worker memory. Only FETCH/AUTHORIZE RPCs are
-runtime-callable. An application permit cannot revoke a cached exchange key:
+The broker/provider live outside worker memory. Runtime RPCs can read credentials,
+read pinned cancellation identities and authorize individual requests. An application permit cannot revoke a cached exchange key:
 provider exclusion and its accepted-request drain precede successor delivery.
 No DEMO/PRODUCTION profile is accepted by this implementation.
 """
@@ -10,6 +10,7 @@ import hashlib
 import json
 import os
 import time
+from contextlib import nullcontext
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
@@ -93,7 +94,7 @@ class BrokerIdentity:
         return self
 
     def call(self, action, payload):
-        if self._pid != os.getpid() or action not in ('FETCH', 'AUTHORIZE', 'WS_READ') or type(payload) is not dict:
+        if self._pid != os.getpid() or action not in ('FETCH', 'AUTHORIZE', 'WS_READ', 'CANCEL_MANIFEST') or type(payload) is not dict:
             raise StorageError('GENERATION_PRIVATE_IDENTITY_INVALID')
         self._sequence += 1
         call = BrokerCall(self.registration.client_id, self._sequence, action, json.loads(encode(payload)), b'')
@@ -204,6 +205,21 @@ class GenerationBroker:
         # The trusted DB exporter/control host owns this call; it is not an RPC.
         entry['manifest'] = manifest
 
+    def bind_cancellation_source(self, registration, repository):
+        from hummingbot.strategy_v2.life_liquidity.storage.postgres.cancellation_manifest import (
+            PgCancellationManifestRepository,
+        )
+        entry = self._entry(registration)
+        if (type(repository) is not PgCancellationManifestRepository or entry['kind'] != 'TRADING'
+                or self._current != registration.client_id
+                or repository.runtime.config.binding != self.binding
+                or repository.runtime.config.database_lineage != self.database_lineage
+                or repository.runtime.config.account_id != self._account_id):
+            raise StorageError('GENERATION_CANCEL_SOURCE_INVALID')
+        # Trusted control assembly only; neither repository nor owner is supplied
+        # by the runtime RPC. Recovery actors retain explicitly pinned manifests.
+        entry['cancellation_source'] = repository
+
     async def begin_exclusion(self, registration):
         entry = self._entry(registration)
         if self._current != registration.client_id or entry['mode'] not in ('ACTIVE', 'UNARMED', 'RECOVERY_ONLY') or self.provider is None:
@@ -247,7 +263,7 @@ class GenerationBroker:
         entry['expires_at'] = certificate.target.owner.expires_at
 
     async def dispatch(self, call):
-        if type(call) is not BrokerCall or call.action not in ('FETCH', 'AUTHORIZE', 'WS_READ') or len(encode(call.body())) > 131072:
+        if type(call) is not BrokerCall or call.action not in ('FETCH', 'AUTHORIZE', 'WS_READ', 'CANCEL_MANIFEST') or len(encode(call.body())) > 131072:
             raise StorageError('GENERATION_RPC_INVALID')
         entry = self._generations.get(call.client_id)
         if entry is None:
@@ -266,6 +282,24 @@ class GenerationBroker:
             if call.payload != {'resource': entry['registration'].identity.credential_resource}:
                 raise StorageError('GENERATION_SECRET_ACCESS_DENIED')
             result = dict(api_key=entry['credentials'].api_key, secret=entry['credentials'].secret, passphrase=entry['credentials'].passphrase, account_uid=self.binding.account_uid)
+        elif call.action == 'CANCEL_MANIFEST':
+            if (set(call.payload) != {'max_cancels'} or type(call.payload['max_cancels']) is not int
+                    or not 0 < call.payload['max_cancels'] <= 64):
+                raise StorageError('GENERATION_CANCEL_BOUND_INVALID')
+            repository = entry.get('cancellation_source')
+            if repository is not None:
+                fresh = await repository.capture(source_owner=entry['registration'].identity.owner)
+                self.pin_manifest(entry['registration'], fresh)
+                if datetime.now(timezone.utc) >= entry['expires_at']:
+                    raise StorageError('GENERATION_NOT_CURRENT')
+            manifest = entry['manifest']
+            if manifest is None:
+                raise StorageError('GENERATION_CANCEL_MANIFEST_REQUIRED')
+            if len(manifest.identities) > call.payload['max_cancels']:
+                raise StorageError('GENERATION_CANCEL_BOUND_EXCEEDED')
+            # This is only a signed identity read. Every subsequent exact
+            # request still reauthorizes against the current broker manifest.
+            result = dict(identities=[v.json() for v in manifest.identities])
         elif call.action == 'WS_READ':
             if set(call.payload) != {'op', 'channels', 'key_hash'} or call.payload['op'] not in ('login', 'subscribe', 'unsubscribe'):
                 raise StorageError('GENERATION_WS_WRITE_DENIED')
@@ -373,14 +407,38 @@ class GenerationClient:
             self.stop()
             raise
 
+    async def cancellation_identities(self, *, max_cancels):
+        from hummingbot.strategy_v2.life_liquidity.storage.cancellation_manifest import CancellationIdentity
+        if type(max_cancels) is not int or not 0 < max_cancels <= 64:
+            raise StorageError('GENERATION_CANCEL_BOUND_INVALID')
+        result = await self._call('CANCEL_MANIFEST', dict(max_cancels=max_cancels))
+        if (type(result) is not dict or set(result) != {'identities'} or type(result['identities']) is not list
+                or len(result['identities']) > max_cancels):
+            raise StorageError('GENERATION_CANCEL_REPLY_INVALID')
+        try:
+            identities = tuple(CancellationIdentity.parse(v) for v in result['identities'])
+        except (TypeError, ValueError, KeyError):
+            raise StorageError('GENERATION_CANCEL_REPLY_INVALID') from None
+        if len({v.wire_id for v in identities}) != len(identities):
+            raise StorageError('GENERATION_CANCEL_REPLY_INVALID')
+        return identities
+
     async def cancel_exact(self, connector, identity):
         from hummingbot.strategy_v2.life_liquidity.storage.cancellation_manifest import CancellationIdentity
         if type(identity) is not CancellationIdentity:
             raise StorageError('GENERATION_CANCEL_IDENTITY_INVALID')
-        if not self._uid_verified or connector._web_assistants_factory._generation_access.current is not self:
+        if (not self._uid_verified or connector._web_assistants_factory._generation_access.current is not self
+                or connector.name != ('okx' if identity.product == 'SPOT' else 'okx_perpetual')):
             raise StorageError('GENERATION_SDK_BINDING_REQUIRED')
-        response = await connector._api_post('/api/v5/trade/cancel-order', data=dict(instId=identity.instrument,
-                                                                                     clOrdId=identity.wire_id, ordId=identity.exchange_order_id), is_auth_required=True)
+        from hummingbot.strategy_v2.life_liquidity.storage.postgres.shared_sdk_quota import PgSharedSdkQuota
+        quota = PgSharedSdkQuota.for_connector(connector)
+        # Revoked local trading must not queue an exact cancellation behind
+        # the original blocked HTTP collection. SDK/shared rate limits and the
+        # broker's final exact-request guard still apply without modification.
+        lane = quota.emergency_cancellation(self, connector) if quota is not None and self.local_ready() is False else nullcontext()
+        async with lane:
+            response = await connector._api_post('/api/v5/trade/cancel-order', data=dict(instId=identity.instrument,
+                                                                                         clOrdId=identity.wire_id, ordId=identity.exchange_order_id), is_auth_required=True)
         rows = response.get('data') if type(response) is dict else None
         if (type(response) is not dict or response.get('code') != '0' or type(rows) is not list or len(rows) != 1
                 or type(rows[0]) is not dict or rows[0].get('sCode') not in ('0', '51400', '51401')
