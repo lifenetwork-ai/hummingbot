@@ -10,6 +10,21 @@
 | PG7 locked image, shutdown, infrastructure, telemetry | Locked artifact/shutdown qualified; bounded metrics and independently signed audit/backup/restore diagnostics implemented. Current-source image and aggregate qualification remain open. |
 | PG8 / O.8 aggregate, retained-history performance and coverage | Open. Focused green tests do not close the complete acceptance map. |
 
+**2026-10-23 UID boundary correction:** a deterministic original SDK-chain test
+reproduces UID expiry between the pre-read cache check and the unsent request
+guard. The guard now distinguishes consistent elapsed-time expiry from clock
+skew. A fixed-route GET rejected by that exact guard before HTTP may refresh UID
+and construct one new signed request, once, inside the original collection
+deadline. The first request is never sent; successful capture still has one
+wire-page sequence. Clock faults, received/unknown outcomes and order sends are
+not retried. Both asynchronous authorization and final synchronous check are
+tested, including repeated expiry and expiry after response. The affected
+financial/quote/hedge matrix passes 127 tests in 140.77 s
+(`/tmp/life-pg8-uid-regression-20261023-a2`). No age/clock/deadline threshold was
+widened. This identifies and corrects a reproducible race; the earlier changing-
+worktree failure has no numeric age sample and is not retroactively certified.
+Frozen aggregate/image qualification remains required.
+
 **2026-10-23 locked LIFE/OKX image increment:** the dedicated
 `deploy/life_cloud_run/Dockerfile` now consumes SHA-256-pinned conda URLs and pip
 wheels, a pinned base digest and signed Debian snapshot. Its complete installed

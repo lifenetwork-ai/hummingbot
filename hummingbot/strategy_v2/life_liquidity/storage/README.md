@@ -5570,3 +5570,13 @@ lineage. Native parity, old-key exclusion and controlled activation remain open.
 
 Run `python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_postgres
 --suite file_staging --output /tmp/<unique-run>` for the real PostgreSQL matrix.
+
+### UID expiry at the private-read boundary
+
+A cached UID may expire while the SDK waits to send a private GET. If the exact
+original guard rejects consistent age expiry before HTTP, the account reader
+can refresh UID and construct one new signed GET. This does not reuse the old
+request/guard, extend collection time, return the rejected request as a captured
+page or retry any order. Repeated expiry, clock skew, changed credentials/routes,
+received responses and unknown HTTP outcomes still fail closed. Quote and SWAP
+send authorization retain their original one-shot semantics.

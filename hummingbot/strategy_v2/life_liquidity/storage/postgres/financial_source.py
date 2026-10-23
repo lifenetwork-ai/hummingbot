@@ -31,16 +31,27 @@ class _CollectionCapture:
     attempted: bool = False
 
 
+class _UidReadExpired(StorageError):
+    """The original GET guard refused before the HTTP send boundary."""
+
+
 class _FinancialReadGuard:
     def __init__(self, reader, path, params):
         self.reader, self.params = reader, tuple(params.items())
         self.url = reader.source._domain.rstrip('/') + path
         self.request, self.started, self.checked, self.consumed = None, False, False, False
+        self.uid_expired = False
 
     def _validate(self, request):
         self.reader._original()
         self.reader.source._request(request, RESTMethod.GET, self.url, params=self.params)
-        if request.data is not None or not self.reader.source._uid_fresh():
+        if request.data is not None:
+            raise StorageError('PG_FINANCIAL_SOURCE_REQUEST_INVALID')
+        status = self.reader.source._uid_status()
+        if status == 'EXPIRED':
+            self.uid_expired = True
+            raise _UidReadExpired('PG_FINANCIAL_SOURCE_UID_EXPIRED')
+        if status != 'FRESH':
             raise StorageError('PG_FINANCIAL_SOURCE_REQUEST_INVALID')
 
     async def authorize(self, request):
@@ -395,9 +406,21 @@ class PgSpotAccountReader:
         sequence, collection_id = self._reads, self.collection_id
         await self.source._uid()
         self._original()
-        guard = _FinancialReadGuard(self, path, params)
-        result = await self.source._connector._api_get(path_url=path, params=params, is_auth_required=True,
-                                                       request_send_guard=guard)
+        for attempt in range(2):
+            guard = _FinancialReadGuard(self, path, params)
+            try:
+                result = await self.source._connector._api_get(path_url=path, params=params, is_auth_required=True,
+                                                               request_send_guard=guard)
+                break
+            except _UidReadExpired:
+                if attempt or not guard.uid_expired or guard.consumed:
+                    raise
+                # Only this exact guard's proven unsent GET is retried once.
+                # The old request/authentication is discarded. Clock faults,
+                # received/unknown HTTP outcomes and all order sends are excluded.
+                # The enclosing collection deadline and wire-page cap remain.
+                await self.source._uid(force=True)
+                self._original()
         if not guard.consumed:
             raise StorageError('PG_FINANCIAL_SOURCE_TRANSPORT_UNQUALIFIED')
         try:

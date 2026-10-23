@@ -301,12 +301,17 @@ class PgQuoteAccountSource:
         return value.policy
 
     def _uid_fresh(self):
+        return self._uid_status() == 'FRESH'
+
+    def _uid_status(self):
+        """One clock sample distinguishes normal expiry from a clock fault."""
         if self._uid_at is None:
-            return False
+            return 'UNAVAILABLE'
         age = (utc(self.journal.clock()) - self._uid_at).total_seconds() * 1000
         elapsed = (time.monotonic() - self._uid_monotonic) * 1000
-        return (0 <= age <= self.max_uid_age_ms and 0 <= elapsed <= self.max_uid_age_ms
-                and abs(age - elapsed) <= self.max_clock_skew_ms)
+        if not (age >= 0 and elapsed >= 0 and abs(age - elapsed) <= self.max_clock_skew_ms):
+            return 'CLOCK_UNQUALIFIED'
+        return 'FRESH' if age <= self.max_uid_age_ms and elapsed <= self.max_uid_age_ms else 'EXPIRED'
 
     async def _uid(self, *, force=False, configuration=False):
         if type(configuration) is not bool or configuration and force is not True:

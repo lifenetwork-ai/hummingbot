@@ -27,6 +27,68 @@ def private_http(t):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('boundary', ['authorize', 'check'])
+@pytest.mark.parametrize('fault', ['expired_once', 'expired_twice', 'clock_jump', 'expired_after_send'])
+async def test_uid_expiry_at_read_boundary_retries_only_one_proven_unsent_get(database, monkeypatch, fault, boundary):
+    from datetime import timedelta
+    t = await transport(database)
+    requests = private_http(t)
+    reader = PgSpotAccountReader(await source(t), max_reads=1, max_bytes=1048576, timeout_ms=1000)
+    attempts = []
+    original_auth, original_http = t.assistant._authenticate, t.session.request
+
+    def expired():
+        reader.source._uid_at -= timedelta(milliseconds=1001)
+        if fault != 'clock_jump':
+            reader.source._uid_monotonic -= 1.001
+
+    async def auth(request):
+        result = await original_auth(request)
+        if request.url.endswith('/bills-archive'):
+            attempts.append(request)
+            if boundary == 'authorize' and fault != 'expired_after_send' and (len(attempts) == 1 or fault == 'expired_twice'):
+                expired()
+        return result
+
+    if boundary == 'check':
+        from hummingbot.strategy_v2.life_liquidity.storage.postgres.financial_source import _FinancialReadGuard
+        original_authorize = _FinancialReadGuard.authorize
+
+        async def authorized(guard, request):
+            result = await original_authorize(guard, request)
+            if (request.url.endswith('/bills-archive') and fault != 'expired_after_send'
+                    and (len(attempts) == 1 or fault == 'expired_twice')):
+                expired()
+            return result
+        monkeypatch.setattr(_FinancialReadGuard, 'authorize', authorized)
+
+    async def http(**kwargs):
+        result = await original_http(**kwargs)
+        if kwargs['url'].endswith('/bills-archive') and fault == 'expired_after_send':
+            expired()
+        return result
+    t.assistant._authenticate, t.session.request = auth, http
+    try:
+        async def read():
+            async with reader.collection():
+                return await reader.get_account_bills_page()
+        if fault == 'expired_once':
+            assert await read() == {'code': '0', 'data': []}
+            assert len(attempts) == 2 and attempts[0] is not attempts[1]
+            assert len([r for r in requests if r['url'].endswith('/bills-archive')]) == 1
+            assert len([r for r in requests if r['url'].endswith('/account/config')]) == 3
+        else:
+            with pytest.raises(StorageError):
+                await read()
+            assert len(attempts) == (2 if fault == 'expired_twice' else 1)
+            assert len([r for r in requests if r['url'].endswith('/bills-archive')]) == (1 if fault == 'expired_after_send' else 0)
+        assert not t.session.sent
+        assert await database[0].fetchval('SELECT count(*) FROM life_financial.fills') == 0
+    finally:
+        await t.close()
+
+
+@pytest.mark.asyncio
 async def test_signed_query_reads_retain_original_credentials_and_force_uid_at_both_collection_edges(database):
     t = await transport(database)
     requests = private_http(t)
