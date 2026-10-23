@@ -39,6 +39,13 @@ variables {
 run "isolated_definition" {
   command = apply
   assert {
+    condition = output.life_rollout_identity == {
+      project          = var.project_id, region = var.region, migration_job = "life-synthetic-migrate",
+      worker_instances = 0, migration_image = var.image, worker_image = var.image
+    }
+    error_message = "The release helper must receive the exact public stopped-worker and migration identity."
+  }
+  assert {
     condition     = google_cloud_run_v2_worker_pool.worker.scaling[0].manual_instance_count == 0 && google_cloud_run_v2_worker_pool.worker.scaling[0].scaling_mode == "MANUAL"
     error_message = "An offline profile must not allocate a worker or autoscale."
   }

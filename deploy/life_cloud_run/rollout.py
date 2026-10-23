@@ -12,6 +12,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -77,6 +78,30 @@ def frozen_inputs(config):
     return tuple((str(p), hashlib.sha256(p.read_bytes()).hexdigest()) for p in paths)
 
 
+def verify_rollout_identity(config, runner, env):
+    """Read only the public release identity from the just-applied state."""
+    command = ('terraform', '-chdir=' + str(config.module), 'output', '-json', 'life_rollout_identity')
+    with tempfile.TemporaryFile() as output:
+        result = runner(command, stdin=subprocess.DEVNULL, stdout=output, stderr=subprocess.DEVNULL,
+                        timeout=config.timeout_s, check=False, env=dict(env))
+        if result.returncode:
+            raise RuntimeError('ROLLOUT_IDENTITY_READ_FAILED')
+        if output.seek(0, 2) > 8192:
+            raise ValueError('ROLLOUT_IDENTITY_TOO_LARGE')
+        output.seek(0)
+        try:
+            body = json.loads(output.read(8193))
+            if (type(body) is not dict or set(body) != {
+                    'project', 'region', 'migration_job', 'worker_instances', 'migration_image', 'worker_image'}
+                    or (body['project'], body['region'], body['migration_job']) != (config.project, config.region, config.migration_job)
+                    or type(body['worker_instances']) is not int or body['worker_instances'] != 0
+                    or body['migration_image'] != body['worker_image'] or type(body['worker_image']) is not str
+                    or re.fullmatch(r'[a-z0-9.-]+-docker.pkg.dev/[^ ]+@sha256:[0-9a-f]{64}', body['worker_image']) is None):
+                raise ValueError()
+        except (ValueError, TypeError, KeyError, UnicodeError):
+            raise ValueError('ROLLOUT_IDENTITY_UNQUALIFIED') from None
+
+
 def rollout(config, *, runner=subprocess.run):
     env = dict(os.environ)
     if any(k.startswith(('TF_CLI_ARGS', 'TF_VAR_')) or k in ('TF_WORKSPACE', 'TF_DATA_DIR') for k in env):
@@ -97,6 +122,10 @@ def rollout(config, *, runner=subprocess.run):
         if result.returncode:
             raise RuntimeError('ROLLOUT_STAGE_FAILED_' + stage)
         print(json.dumps(dict(component='life_rollout', event=stage, trading_permission=False)), flush=True)
+        if stage == 'DRAIN_WORKER_ALLOCATION':
+            if frozen_inputs(config) != frozen:
+                raise ValueError('ROLLOUT_SOURCE_CHANGED')
+            verify_rollout_identity(config, runner, env)
 
 
 def main():

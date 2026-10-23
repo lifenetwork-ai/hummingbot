@@ -75,12 +75,19 @@ Two automatic execution modes remain available:
 
 The explicit release helper is `python -m deploy.life_cloud_run.rollout --env-file
 /path/to/release.env`. It uses a **deployer** identity and executes: apply the
-pinned definition with zero worker allocation; await the migration Job when
-configured; apply one unarmed worker allocation. It never runs from a worker,
+pinned definition with zero worker allocation; verify its public release identity;
+await the migration Job when configured; apply one unarmed worker allocation. It never runs from a worker,
 uses no shell, stops on a failed/ambiguous step, and rejects changed Terraform,
 provider-lock or variable inputs before the next step. Tests replace subprocess
 execution with a recording port; this command has **not** been run against GCP.
 A disabled migration still requires native startup schema compatibility.
+
+The bounded `life_rollout_identity` output must match the selected project,
+region and migration Job, report zero worker allocation, and bind both workloads
+to the same immutable Artifact Registry image digest. An absent/invalid output,
+different Job or image, active allocation, or failed identity read stops before
+Job execution or worker start. Only this public output is read; command output
+is not logged, and secret values are not exported by the identity output.
 
 The release helper uses the default Terraform workspace. It refuses inherited
 `TF_CLI_ARGS*`, `TF_VAR_*`, `TF_WORKSPACE` and `TF_DATA_DIR` overrides before any

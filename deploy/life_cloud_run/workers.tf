@@ -160,3 +160,14 @@ output "worker_pool" { value = google_cloud_run_v2_worker_pool.worker.name }
 output "egress_ip" { value = google_compute_address.egress.address }
 output "database_private_ip" { value = google_sql_database_instance.primary.private_ip_address }
 output "database_dns_names" { value = google_sql_database_instance.primary.dns_names }
+output "life_rollout_identity" {
+  description = "Public stopped-release identity checked before migration execution. No credentials."
+  value = {
+    project          = var.project_id
+    region           = var.region
+    migration_job    = google_cloud_run_v2_job.migration.name
+    worker_instances = google_cloud_run_v2_worker_pool.worker.scaling[0].manual_instance_count
+    migration_image  = google_cloud_run_v2_job.migration.template[0].template[0].containers[0].image
+    worker_image     = google_cloud_run_v2_worker_pool.worker.template[0].containers[0].image
+  }
+}

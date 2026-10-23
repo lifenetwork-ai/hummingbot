@@ -100,6 +100,19 @@ stages. The supported release workspace is explicitly `default`. Initial Red:
 secret read or exchange request was executed. Deployed identity and fencing
 remain the OKX environment gates.
 
+**Rollout target binding follow-through (2026-10-23):** the helper now checks
+the just-applied public `life_rollout_identity` before executing a migration Job
+or starting a worker. Project/region/Job must match the selected release, worker
+allocation must be zero, and both workloads must use the same pinned image.
+This prevents a correctly ordered helper from running a separately configured
+unrelated Job. Missing/malformed/oversized output, unknown command outcomes,
+active allocation and floating/different images fail closed. Initial Red:
+**10 failed**; final recording-port matrix **26 passed / 0.51 s**
+(`/tmp/life-pg7-rollout-identity-{red,green-a1}.log`). Terraform's actual pinned
+CLI/provider mock matrix passes **11 cases**, including the exact public output
+shape (`/tmp/life-pg7-rollout-identity-terraform.log`). No GCP request or credential
+read was performed. The release helper was not executed against a real project.
+
 **2026-10-23 permanent stopped-source retirement:** an independently signed
 exclusion assertion plus the existing HANDOFF operator approval now consumes one
 exact frozen File source for one PostgreSQL manifest/account/database lineage.
