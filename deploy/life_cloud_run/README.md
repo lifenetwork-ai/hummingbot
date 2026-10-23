@@ -114,9 +114,14 @@ resource identity, not actual old-instance/key exclusion.
 Build the dedicated LIFE/OKX profile from the repository root:
 
 ```sh
+make life-worker-build
+# Equivalent Docker command:
 docker build --platform linux/amd64 -f deploy/life_cloud_run/Dockerfile \
   --target life-worker --build-arg HUMMINGBOT_BUILD_JOBS=2 -t life-worker:local .
 ```
+
+The Make target accepts `LIFE_WORKER_IMAGE` and `LIFE_WORKER_BUILD_JOBS`; it
+does not clean the checkout, load `.env`, start a container or push an image.
 
 This profile pins the base digest, signed Debian snapshot, explicit conda package
 URLs/hashes and pip wheel versions/hashes in `setup/locks/`. No Python dependency
@@ -124,6 +129,36 @@ solver runs during this build. `pip check` must pass for the entire installed
 Python dependency graph. The artifact gate also compares packaged locks and
 installed pip versions before exercising the original native modules. Resolved
 exports inside an image are diagnostics, not substitutes for these build inputs.
+
+The builder consumes `life-worker-linux-64.conda.lock`; the final worker consumes
+its reviewed `life-worker-linux-64.runtime.conda.lock` subset. The intermediate
+`runtime-dependencies` stage removes 16 compiler/header/build/lint packages using
+Conda's offline exact-removal mode. `setup/life_runtime_dependencies.py` first
+checks that every installed build artifact matches the lock and that no retained
+native dependency would be removed. Original pinned pip wheels supply the mixed
+`cffi`/`cryptography` dependencies. Versions of retained packages do not change;
+`pip check` runs after removal. The final image copies only the resulting prefix,
+so deleted toolchain bytes do not remain in its layers. Build tools remain in
+the builder/cache, not in the deployed worker.
+
+The image gate verifies the exact installed runtime Conda artifact set, original
+pip versions and both lock inputs; it also refuses compiler executables/sysroot
+in the worker. Build and runtime exports have separate names. This conservative
+profile retains runtime numerical libraries and the existing container test
+harness. It does not claim a minimal general-purpose Hummingbot dependency set.
+Docker build cache is separate from image size and is not automatically pruned.
+
+Local AMD64 measurement (2026-10-23, Docker's uncompressed image `Size`):
+
+| Worker artifact | Bytes | Decimal GB |
+| --- | ---: | ---: |
+| Rebuilt original profile at `fecc42566` | 3,967,061,411 | 3.97 |
+| Locked runtime subset | 2,142,560,655 | 2.14 |
+
+The reduction is **46.0%**. The environment shrinks from 3,294 MiB to
+1,542 MiB; application code/extensions occupy about 23 MiB. Registry transfer
+size and shared host build-cache usage are different measurements. This change
+applies to this dedicated Dockerfile, not the ordinary root Dockerfile.
 
 The profile deliberately excludes optional `bip-utils`, `pandas-ta` and
 `eip712-structs`: they belong to other connector/indicator paths and their prior

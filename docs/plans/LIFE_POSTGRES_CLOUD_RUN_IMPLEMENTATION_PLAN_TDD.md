@@ -2,6 +2,50 @@
 
 ## Current offline delivery status
 
+**2026-10-23 locked worker runtime reduction:** the dedicated AMD64 worker now
+keeps the build environment separate from its exact runtime Conda subset. Sixteen
+compiler/header/build/lint packages are removed offline after artifact and retained
+dependency validation; pinned runtime versions and the compiled application stay
+unchanged. The rebuilt original profile at `fecc42566` is **3,967,061,411 bytes**;
+the new image is **2,142,560,655 bytes**, a **46.0%** reduction in Docker's
+uncompressed image size. This is not the general-purpose root Dockerfile or a
+measurement of registry transfer/build-cache bytes. `make life-worker-build`
+selects the dedicated profile.
+
+Runtime-lock/manifest contracts pass **25 cases / 0.39 s**. Immutable image
+`sha256:458b50edda13796794eb9c57105fd13efd63b24d0511b3efd66ac336cde026ce`
+passes **9 container cases / 23.08 s**, including installed artifact/dependency
+verification, absence of compiler executables and nonroot foreground/signal
+behavior (`/tmp/life-worker-slim-image-20261023-a1`). These are focused packaging
+gates; PG6 financial cutover and PG7/PG8 aggregate qualification remain open.
+
+The full focused Linux `image_native` run on that image completed **81 passed /
+1 failed, 697.86 s** (`/tmp/life-worker-slim-native-20261023-a1`). The failed
+`SIGTERM-SPOT` fixture exited before reaching its original accepted-send boundary;
+the old harness did not preserve a launch reason. This is not a green native
+image verdict or an established dependency-removal regression. A test-only
+wrapper now emits bounded failure kinds/stable storage codes without exception
+payloads, and the parent reports them before EOF. Its four red cases then pass
+(0.84 s). The runner accepts a separate `worker_financial --linux-image` diagnostic
+subset; it cannot replace the full native gate. No financial freshness or
+shutdown deadline has been increased, and no failed run is overwritten.
+
+The diagnostic subset subsequently passes **6 cases / 116.90 s** on the same
+immutable image (`/tmp/life-worker-slim-financial-20261023-a2`), including the
+previously failed SPOT/SIGTERM case. Combined local lock/manifest/diagnostic
+contracts pass **29 cases / 0.76 s**. The original startup failure is not
+reproduced or explained by that rerun; the complete 82-case native result remains
+failed and still requires qualification before aggregate closure.
+
+**2026-10-23 frozen aggregate interrupted by local environment loss:** the
+native run's PostgreSQL endpoint `127.0.0.1:52855` began refusing connections,
+and the original immutable image was absent from the current Docker daemon.
+The run was stopped; logs and `/tmp/life-pg8-resume-fecc42566-20261023T082016Z/environment-interruption.json`
+are retained. There is no completed native/aggregate result and no inference
+that these connection errors are product failures. The two earlier completed
+failed gates remain failed. A healthy disposable environment and a new frozen
+artifact are required for the replacement full map; no old result is overwritten.
+
 **2026-10-23 complete retained NAV prefix verification:** five new red cases
 showed that changing a financial fingerprint could bypass monetary validation,
 and that older NAV measurements/publication provenance were not fully checked.
@@ -30,7 +74,7 @@ capital/budget reruns pass with that deadline unchanged, but do not
 establish the cause of the earlier timeout or replace the failed aggregate.
 Other functional checks overlapped this sample; no performance acceptance is
 claimed. The original report remains in the frozen run's `file_contracts`
-directory; native and later gates continue separately on that frozen revision.
+directory; the later native run was interrupted as recorded above.
 
 **2026-10-23 current artifact and definition qualification:** immutable AMD64
 image `sha256:adc32af4528a99c4c3f6ff581ed21f819fd2bcb0525c3586fd87893dc584415b`
@@ -56,7 +100,7 @@ except the two schema metadata rows. It passes separately (**1 passed, 401
 deselected, 3.61 s**, `/tmp/life-pg8-bootstrap-regression-a1`). This is not a
 single green 402-case run. The original failure is retained under
 `/tmp/life-pg8-resume-fecc42566-20261023T082016Z/acceptance/migrations`;
-the same immutable-source pipeline continues with the other gates.
+the later native stage was interrupted by environment loss as recorded above.
 
 **2026-10-23 complete migration gate:** the serial acceptance map now also runs
 `run_migrations` without selectors before File/native qualification. Native

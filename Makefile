@@ -103,6 +103,13 @@ deploy:
 down:
 	docker compose --profile gateway down
 
+# Locked LIFE/OKX runtime profile; the ordinary build target remains separate.
+LIFE_WORKER_IMAGE ?= life-worker:local
+LIFE_WORKER_BUILD_JOBS ?= 2
+.PHONY: life-worker-build
+life-worker-build:
+	docker build --platform linux/amd64 -f deploy/life_cloud_run/Dockerfile --target life-worker --build-arg HUMMINGBOT_BUILD_JOBS=$(LIFE_WORKER_BUILD_JOBS) -t $(LIFE_WORKER_IMAGE) .
+
 # Separate schema task; LIFE_MIGRATION_DSN belongs in the environment, never ARGS.
 LIFE_MIGRATION_ARGS ?=
 life-migrate:

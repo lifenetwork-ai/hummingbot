@@ -47,7 +47,7 @@ async def test_image_is_linux_amd64_nonroot_and_contains_exact_native_source_and
     if stale_hedge:
         expected['hummingbot/strategy_v2/life_liquidity/storage/postgres/hedge_source.py'] = '0' * 64
     (tmp_path / 'source_manifest.json').write_text(json.dumps(expected, sort_keys=True))
-    program = '''import json,os,platform
+    program = '''import json,os,platform,shutil
 import asyncpg,psycopg
 from hummingbot.core import clock
 from test.hummingbot.strategy_v2.life_liquidity.storage.image_manifest import verify_execution_manifest
@@ -56,6 +56,8 @@ assert os.getuid()==10001 and platform.machine()=='x86_64' and clock.__file__.en
 expected=json.load(open('/manifest/source_manifest.json'))
 verify_execution_manifest('/home/hummingbot',expected)
 verify_dependency_locks('/home/hummingbot','/opt/life-locks')
+assert all(shutil.which(name) is None for name in ('rustc','cargo','gcc','g++','cython'))
+assert not os.path.exists('/opt/conda/envs/hummingbot/x86_64-conda-linux-gnu/sysroot/usr/include/stdio.h')
 print(json.dumps({'verified_files':len(expected)}))
 '''
     code, body, error = await docker('run', '--rm', *security(), '-v', str(tmp_path) + ':/manifest:ro',

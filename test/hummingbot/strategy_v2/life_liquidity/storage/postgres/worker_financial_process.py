@@ -7,11 +7,13 @@ Never call this helper with a non-disposable database or real exchange client.
 import asyncio
 import json
 import os
+import re
 import sys
 from dataclasses import asdict
 from datetime import timedelta
 from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.service_process import encoded_config
 
+from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError
 from hummingbot.strategy_v2.life_liquidity.storage.postgres import worker
 
 
@@ -75,8 +77,22 @@ async def launch(**kwargs):
 original_init = worker.WorkerSupervisor.__init__
 
 
+async def diagnostic_launch(**kwargs):
+    try:
+        return await launch(**kwargs)
+    except Exception as error:
+        # Test-only startup diagnostics: no exception message, DSN, traceback
+        # locals or financial payload is sent to the parent. Do not retry.
+        code = error.code if isinstance(error, StorageError) else None
+        code = code if type(code) is str and re.fullmatch(r'[A-Z][A-Z0-9_]{0,95}', code) else None
+        kind = ('StorageError' if isinstance(error, StorageError) else
+                'TimeoutError' if isinstance(error, TimeoutError) else 'OtherError')
+        print(json.dumps(dict(event='FIXTURE_SETUP_FAILED', error_kind=kind, reason_code=code)), flush=True)
+        raise
+
+
 def install(self, config):
-    original_init(self, config, launch=launch)
+    original_init(self, config, launch=diagnostic_launch)
 
 
 if __name__ == '__main__':

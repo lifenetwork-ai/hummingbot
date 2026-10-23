@@ -38,6 +38,7 @@ async def test_actual_worker_loss_cannot_refund_or_replay_an_accepted_unknown_se
                 assert line, 'worker failed before the original financial boundary'
                 lines.append(line)
                 entry = json.loads(line)
+                assert entry['event'] != 'FIXTURE_SETUP_FAILED', entry
                 if entry['event'] == 'FIXTURE_ACCEPTED_UNKNOWN':
                     manifest = entry['manifest']
                     break
