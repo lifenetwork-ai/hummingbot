@@ -4576,6 +4576,9 @@ async def test_birth_retention_upgrade_refuses_unknown_capacity_predecessor_with
     (129, '000129_batched_action_finality.sql', ('life_financial.spot_actions_verified(uuid)',)),
     (130, '000130_generated_birth_fingerprints.sql', (
         'life_financial.quote_birth_before_retirement_verified(uuid)', 'life_financial.quote_birth_verified(uuid)')),
+    (131, '000131_recorder_history_batch.sql', ('life_financial.recorder_executor_only_integrity(uuid)',)),
+    (132, '000132_settlement_history_batch.sql', (
+        'life_financial.spot_inventory_evidence(uuid,jsonb)', 'life_financial.spot_inventory_settlements_verified(uuid)')),
 ])
 async def test_retained_audit_upgrade_preserves_function_identity_acl_and_repeat_startup(db, version, filename, signatures):
     c, _, directory = db
@@ -4606,6 +4609,10 @@ async def test_retained_audit_upgrade_preserves_function_identity_acl_and_repeat
      'ACTION_FINALITY_UNKNOWN_PREDECESSOR'),
     (130, '000130_generated_birth_fingerprints.sql', 'life_financial.canonical_json_v1(jsonb)',
      'BIRTH_DIGEST_UNKNOWN_PREDECESSOR'),
+    (131, '000131_recorder_history_batch.sql', 'life_financial.recorder_executor_origin(uuid,jsonb,jsonb)',
+     'RECORDER_BATCH_UNKNOWN_PREDECESSOR'),
+    (132, '000132_settlement_history_batch.sql', 'life_financial.spot_inventory_evidence(uuid,jsonb)',
+     'SETTLEMENT_BATCH_UNKNOWN_PREDECESSOR'),
 ])
 async def test_retained_audit_upgrade_refuses_changed_proof_kernel_atomically(db, version, filename, signature, reason):
     c, _, directory = db

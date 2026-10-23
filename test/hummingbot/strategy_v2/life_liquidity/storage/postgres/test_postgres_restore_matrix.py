@@ -1,5 +1,6 @@
 """Restored native bills, pending recorder, derivatives and expired sessions."""
 import asyncio
+import json
 from dataclasses import asdict, replace
 from datetime import timedelta
 from decimal import Decimal as D
@@ -138,7 +139,7 @@ async def test_restored_pending_recorder_and_late_bill_fill_fee_apply_once_witho
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('retained_nav', [False, True])
-async def test_restored_swap_unknown_ack_fill_fee_and_paid_funding_use_original_account_and_holds(database, tmp_path, monkeypatch, retained_nav):
+async def test_restored_swap_unknown_ack_fill_fee_and_paid_funding_use_original_account_and_holds(database, tmp_path, monkeypatch, retained_nav, request):
     from test.hummingbot.strategy_v2.life_liquidity.storage.postgres import (
         test_postgres_shared_capital as shared_fixture,
     )
@@ -182,12 +183,47 @@ async def test_restored_swap_unknown_ack_fill_fee_and_paid_funding_use_original_
         assert (await f.balance(cfg.binding)).total_quote_usdt == D('9.99')
         b = products[7][0]
         now = await r.c.fetchval('SELECT clock_timestamp()')
+        if retained_nav:
+            # Deliberately cross the original synthetic schedule in one real
+            # archive case. Capture sequence 2 AFTER this bounded wait; never
+            # renew the timestamp of a previously captured/published fact.
+            wait_ms = b.funding.settlement_ms - int(now.timestamp() * 1000)
+            assert wait_ms <= 10000
+            if wait_ms >= 0:
+                await asyncio.sleep((wait_ms + 20) / 1000)
+            now = await r.c.fetchval('SELECT clock_timestamp()')
         at = int(now.timestamp() * 1000)
         snapshot = replace(b.account.snapshot, sequence=2, observed_at_ms=at, spot_cash_quote=D('9.89'), collateral_quote=D('9.89'), short_base=D('1'))
         bundle = replace(b, account=replace(b.account, snapshot=snapshot, included_funding_bill_ids=('777',)),
                          mark=replace(b.mark, sequence=2, observed_at_ms=at), index=replace(b.index, sequence=2, observed_at_ms=at),
                          funding=replace(b.funding, sequence=2, observed_at_ms=at, coverage_through_ms=at, payments=(FundingPayment('777', at, D('-.1')),)),
                          terms=replace(b.terms, sequence=2, observed_at_ms=at))
+        # This is a NEW post-restore provider observation (sequence 2), not a
+        # re-dating of retained sequence 1. Bootstrap's first settlement is
+        # only ten seconds away and can pass during dump/restore. Advance along
+        # the ORIGINAL cadence; keep the old bundle, paid bills and coverage.
+        period = b.funding.next_settlement_ms - b.funding.settlement_ms
+        assert period > 0
+        steps = max(0, (at - b.funding.settlement_ms) // period + 1)
+        if retained_nav:
+            assert steps >= 1
+        bundle = replace(bundle, funding=replace(bundle.funding,
+                                                 settlement_ms=b.funding.settlement_ms + steps * period,
+                                                 next_settlement_ms=b.funding.next_settlement_ms + steps * period))
+        request.node.user_properties.append(('post_restore_funding_schedule', json.dumps(dict(
+            capture_ms=at, original_settlement_ms=b.funding.settlement_ms,
+            original_next_settlement_ms=b.funding.next_settlement_ms,
+            current_settlement_ms=bundle.funding.settlement_ms, cadence_ms=period, advanced_periods=steps))))
+        # Prove the production rejection, not just the fixture's arithmetic:
+        # a freshly observed stream with an expired schedule is still denied.
+        body = ApplyFunding('probe', bundle).json()['bundle']
+        expired = {**body, 'funding': {**body['funding'], 'settlement_ms': at - 1}}
+        reason_sql = '''SELECT life_financial.carry_bundle_reason($1::jsonb,$2::jsonb,$3::jsonb,
+            NULL,$3::jsonb#>'{account,snapshot}',$4,64)'''
+        policy_json = json.dumps(asdict(products[6]), default=str)
+        capital_json = json.dumps(asdict(products[3]), default=str)
+        assert await r.c.fetchval(reason_sql, policy_json, capital_json, json.dumps(expired), at) == 'CARRY_FUNDING_OR_TERMS_UNQUALIFIED'
+        assert await r.c.fetchval(reason_sql, policy_json, capital_json, json.dumps(body), at) == 'CARRY_QUALIFIED'
         funding = PgFundingRepository(swap)
         command = ApplyFunding('post-cut-paid-funding', bundle)
         cut = (await f.observation_cut(cfg.binding)).cut

@@ -161,10 +161,16 @@ async def seed_completed(database, f, cfg, owner, lease, count, progress, *, mod
 @pytest.mark.parametrize('count', [0, 2, 1000, 10000], ids=['h0', 'sanity2', 'h1k', 'h10k'])
 async def test_complete_settled_native_history_restore_capacity(database, tmp_path, request, count):
     values, private, verifier = await source(database, managed_options=dict(owner_duration_ms=1800000,
-                                                                            spot_options=dict(session_duration=timedelta(hours=1))), spot_quote_producer=RETENTION_MODEL)
+                                                                            spot_options=dict(session_duration=timedelta(hours=1), safety_size=2)), spot_quote_producer=RETENTION_MODEL)
     f, cfg, owner, _, lease, *_, keys = values
+    # PgLiquidityService already refuses fewer than two safety connections.
+    # The old repository-only helper default (one) is not an eligible service
+    # profile: a long audit can starve the original heartbeat before SQL starts.
+    assert cfg.safety_size == 2 and cfg.max_size == 2
     progress = dict(requested_orders=count, completed_orders=0, measured_restore_complete=False,
-                    retention_mode=HISTORY_RETENTION['mode'])
+                    retention_mode=HISTORY_RETENTION['mode'], safety_pool_limit=cfg.safety_size,
+                    risk_pool_limit=cfg.max_size, acquire_timeout_ms=cfg.acquire_timeout_ms,
+                    statement_timeout_ms=cfg.statement_timeout_ms)
     seed_start = perf_counter()
     try:
         await seed_completed(database, f, cfg, owner, lease, count, progress, model=RETENTION_MODEL, retention=HISTORY_RETENTION)

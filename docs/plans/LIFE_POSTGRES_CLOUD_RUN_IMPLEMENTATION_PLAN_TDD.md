@@ -4200,6 +4200,101 @@ not qualified by this offline single-account run.
 #### PG6-X — Required retained-history recovery capacity (open, shared with PG8)
 
 - [ ] PG6-X1: Record measured backup restore, import, reconciliation, retained history and settlement/recovery headroom against PG0 RPO/RTO/capacity decisions. Export schema/versioned audit evidence; do not rely on backup existence alone.
+  - [x] **Joined recorder/settlement history (131–132):** recorder origins and
+    latest applied native heads are read in the original STABLE cut. Every
+    payload retains original structural/numeric checks; provisional or pending
+    reports without a native descriptor retain the complete original birth
+    validator. Original operation/receipt/sequence/transition/prefix predicates
+    remain. Member provenance and original campaign/UTC-day/session subsidy
+    windows are joined in batches; every cycle still reconstructs fresh
+    evidence with unchanged ordered arithmetic/canonical bytes. No table,
+    default, grant, ownership/cache/clock change or history omission is added;
+    independent post-write COMMIT verification stays intact.
+    TDD Red observes recorder origin/row counts (8,12) on both paths and
+    settlement relation scans (76,76). Green reduces those to (0,8) and 31
+    scans on the four-order fixture. Five differential cases pass in 30.19 s
+    (`/tmp/life-pg6-batch-core-a2`), covering empty, settled, provisional and
+    pending histories, self-rehashed origin corruption, monetary/receipt/reservation
+    corruption and exact fee/rebate/decimal-scale/error parity. Eight migration
+    cases pass in 17.54 s (`/tmp/life-pg6-131-132-migrations-a1`), including
+    overlapping 129/130 cases; complete final regression is recorded below.
+    The first recorder Green attempt fails closed because of an ambiguous
+    PL/pgSQL variable; the qualified query explicitly names its CTE fields.
+    A serial 32-order whole-flow diagnostic builds in **48,685.335 ms**
+    (`/tmp/life-pg6-profile-batched-history-a2`, one pass in 55.21 s), versus
+    51,402.933 ms before this increment: **5.3%** lower in separate single
+    samples. Recorder-row conversions fall 45,680 → 30,368; state calls (647),
+    recorder audits (954), settlement audits (1,192) and fresh evidence calls
+    (8,992) are unchanged. Recorder total time is 10,369.247 ms and settlement
+    total time 5,089.728 ms; nested times overlap and must not be added. The
+    earlier prototype sample builds in 49,165.732 ms; its log is retained at
+    `/tmp/life-pg6-profile-batched-history-a1`. Reduced lookup counts do not
+    establish constant work or 1k/10k eligibility; PG6-X1/PG8.7 stay open.
+    The first batched 1k attempt completes **121 orders** in 493,747.915 ms
+    before restore; the run fails in 500.79 s
+    (`/tmp/life-pg6-capacity-1k-batched-history-a1`). Heartbeat acquisition takes
+    1,001.385 ms without obtaining a backend or attempting COMMIT, then terminal
+    confirmation fails with `PG_PROCESS_LEASE_EXPIRED_OR_UNQUALIFIED`. This is
+    not the earlier `spot_observe` SQL timeout and not a recovery verdict.
+    Diagnosis finds that the repository fixture used `safety_size=1`, while
+    the configured `PgLiquidityService.open` already rejects values below 2.
+    The capacity fixture now explicitly uses that existing service floor of
+    **2 safety / 2 risk connections** and records both limits and unchanged
+    1,000-ms acquire/statement deadlines in its temporary result. The legacy
+    32-order diagnostic keeps its original one-slot profile for comparability.
+    This explicit correction adds one possible DB connection, not CPU/RAM,
+    clock, quote-age, 1-GiB or 120-s allowance; results from the two profiles
+    must not be presented as identical-resource throughput comparisons.
+    Two pool-contention cases pass in 12.91 s
+    (`/tmp/life-pg6-capacity-pool-floor-a1`): occupying an actual pool holder
+    makes the one-slot heartbeat time out without a backend/COMMIT and fences
+    readiness, while the two-slot heartbeat commits once without changing
+    money or deadlines. Four final migration cases pass in 13.86 s
+    (`/tmp/life-pg6-batch-migrations-final-a1`). The corrected-profile capacity
+    run then fails after **83 completed orders**, source build 264,475.818 ms,
+    complete run 272.85 s (`/tmp/life-pg6-capacity-1k-service-floor-a1`). Native
+    `quote_birth_prepare` rejects `PG_QUOTE_CAPTURE_STALE` at physical COMMIT:
+    559.187 ms execute, 83.522 ms COMMIT, 663.939 ms total, acquire 0.032 ms.
+    The quote-age budget also includes work since original birth before this
+    transaction; that earlier work is not separately timed by this diagnostic.
+    No heartbeat-acquisition failure is recorded in this sample. Source never
+    reaches backup/restore. This profile differs by one safety connection from
+    the 121-order sample; the completed-order counts are not a same-resource
+    throughput comparison. CPU/RAM, monetary, age and recovery limits remain
+    unchanged. PG6-X1/PG8.7 and the 1k/10k recovery verdict remain open.
+    The first combined batch regression has **283 passes and one failure in
+    727.03 s** (`/tmp/life-pg6-batched-history-regression-a1`): post-restore paid
+    funding returns `CARRY_FUNDING_OR_TERMS_UNQUALIFIED`. Its synthetic bootstrap
+    settlement is only ten seconds in the future; the fixture refreshed stream
+    observation time after restore but retained that old schedule. Exact times
+    were not retained in the failed sample, so the original cause is not
+    conclusively established. A native negative probe proves the production
+    validator still rejects an expired schedule even on a newly observed
+    stream. The positive fixture now advances only the NEW sequence-2 schedule
+    along its original four-hour cadence, preserving sequence 1, paid bill 777,
+    original coverage, fees, holds and budget limits. The retained-NAV branch
+    deliberately crosses the old boundary BEFORE capturing the new response.
+    Two initial isolated cases pass in 27.94 s
+    (`/tmp/life-pg6-restored-funding-schedule-a1`); both happened to be before
+    rollover, so that run alone does not qualify the new forced-boundary branch.
+    The final combined native backup/recovery, recorder outbox/events/
+    configuration/positions, inventory settlement, differential history and
+    capacity-pool matrix passes **286 tests in 741.87 s**, zero
+    failures/errors/skips and six existing dependency warnings
+    (`/tmp/life-pg6-batched-history-regression-final-a1`). Its recorded schedule
+    observations exercise both zero and one advanced period; the forced case
+    captures sequence 2 **23 ms after** the original settlement and advances
+    to the original next four-hour event. The expired-schedule negative probe
+    and exact original bill/fee/hold/budget assertions also pass. The earlier
+    failed aggregate remains retained. This functional verdict does not clear
+    the corrected-profile 83-order quote-age failure, 1k/10k source construction
+    or the unmeasured full recovery/capacity gate.
+    Current two-slot 0/2-order controls pass in 39.36 s
+    (`/tmp/life-pg6-capacity-service-floor-controls-a1`): measured
+    backup-to-observation/snapshot takes 12,531.286/13,466.428 ms; physical source
+    sizes are 25,213,975/25,852,951 bytes. The result records complete recovery
+    and original member/recorder/monetary parity for both fixtures. These small
+    controls do not replace the failed 1k source or qualify 10k history.
   - [x] **Same-snapshot history proof reuse (migration 127):** the red test
     observes two settlement audits for one full snapshot. The new path uses one
     when the base snapshot already proves a reconciled action's full lifecycle;

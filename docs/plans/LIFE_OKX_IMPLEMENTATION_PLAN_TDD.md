@@ -1,5 +1,29 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**Offline history batching (schema 132):** recorder origin/applied-head and
+settlement member/subsidy-window joins preserve original rows, exact proof
+bytes and independent COMMIT checks. Five differential cases pass. The serial
+32-order legacy diagnostic improves from 51,402.933 to 48,685.335 ms (separate
+single samples, not a latency acceptance result). The next legacy-profile 1k
+attempt completes 121 orders before heartbeat acquisition times out and the
+lease becomes unqualified; it never reaches restore
+(`/tmp/life-pg6-capacity-1k-batched-history-a1`). Diagnosis identifies the
+repository fixture's one-slot safety pool versus the configured service's
+existing minimum of two. The capacity profile now explicitly records **2
+safety / 2 risk connections**, preserving the 1,000-ms acquire/statement limits,
+2 CPU/1 GiB test DB and 120-s recovery target. That corrected profile fails after
+**83 completed orders**: `quote_birth_prepare` rejects a stale capture at
+physical COMMIT, before restore (`/tmp/life-pg6-capacity-1k-service-floor-a1`,
+272.85 s). Its total transaction time is 663.939 ms; quote age additionally
+includes preceding birth/snapshot work. Pool profiles differ, so order counts
+are not a same-resource throughput comparison. After a funding-fixture schedule
+correction, complete native recovery/recorder/settlement regression passes
+**286 tests in 741.87 s**, zero failures/errors/skips
+(`/tmp/life-pg6-batched-history-regression-final-a1`), including an actual
+post-restore funding rollover. **PG6-X1/PG8.7 remain open.** See the
+[PostgreSQL plan](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md) for the
+retained failed samples and exact scope; no image or deployed gate is closed.
+
 **2026-10-23 fresh PostgreSQL recovery status (PG-D08):** the user confirms
 there is no live File history or capital to migrate. Native backup/restore to
 quarantine passes **40 tests** and **one actual physical PITR rehearsal** on

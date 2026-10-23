@@ -1,5 +1,26 @@
 # LIFE PostgreSQL migrations
 
+## 000131–000132 — Recorder origins and settlement windows
+
+131 joins executor payloads, original descriptors, wire provenance and latest
+applied native recorder rows in the same STABLE invocation. Each retained
+payload still passes the original structural/numeric row conversion. That
+conversion is reused for its applied-head comparison. Missing native
+descriptors retain the original complete provisional-birth origin validator;
+no birth, receipt, ownership or send permission is synthesized. Original
+sequence/transition, stage/apply receipt and prefix-completeness checks remain.
+
+132 joins settlement member inputs and batches original member/campaign/day/
+session subsidy-release/spend checks. Ordered fill arithmetic and canonical
+proof construction remain the original implementation, including exact decimal
+text scale, signed LIFE/USDT fees and UTC budget windows. Fresh evidence is
+reconstructed for every cycle; a persisted evidence field cannot attest itself.
+
+Both migrations pin their predecessor proof kernels, preserve function OIDs
+and ACLs, add no table/default/grant, and retain independent physical-COMMIT
+audits. These changes reduce repeated lookups; they do not make complete
+retained-history verification constant time or discharge PG6-X1/PG8.7.
+
 ## 000128–000130 — Bounded retained history and deterministic audit work
 
 128 adds **no default account policy**. An owner must explicitly provision

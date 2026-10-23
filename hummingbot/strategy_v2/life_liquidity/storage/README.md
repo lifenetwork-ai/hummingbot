@@ -210,6 +210,38 @@ The combined native recovery/retention and recorder/inventory regression passes
 279 tests in 659.28 s (`/tmp/life-pg6-history-final-a1`), zero failures/errors/skips.
 This functional result does not discharge the retained-history gate below.
 
+Migrations 131–132 additionally join recorder origins/applied heads and
+settlement member/subsidy-window validation within the original STABLE cut.
+All recorder payloads retain structural/numeric validation; provisional records
+without a native descriptor still use the original complete birth proof. All
+settlement cycles reconstruct fresh evidence with the original ordered decimal
+arithmetic and canonical proof bytes. No saved Boolean grants readiness, no
+history is omitted and no clock/budget/cap changes. The four-order differential
+fixture reduces recorder origin calls 8 → 0 and row conversions 12 → 8;
+settlement's backend-local relation scans fall 76 → 31. These are work counts,
+not proof of the 1k/10k latency gate. Complete-history work still grows with
+retained history; PG6-X1/PG8.7 remain open pending measured qualification.
+
+The capacity source now explicitly matches the configured service's existing
+two-slot safety-pool minimum (risk pool remains two). It records pool limits
+and unchanged 1,000-ms acquire/statement timeouts. The legacy one-slot run stops
+after 121 orders when heartbeat acquisition times out. Two actual-holder
+contention tests confirm that behavior and verify a heartbeat can commit on the
+second connection without changing money or deadlines. The corrected service
+profile still fails after 83 orders at `quote_birth_prepare` COMMIT with
+`PG_QUOTE_CAPTURE_STALE` (`/tmp/life-pg6-capacity-1k-service-floor-a1`, 272.85 s).
+This transaction takes 663.939 ms including 559.187 ms SQL and 83.522 ms COMMIT;
+the original quote age also includes preceding birth/snapshot work. The two
+profiles are not equal-resource throughput comparisons. This is source-build
+failure, not a restore timing; 1k/10k qualification remains open.
+
+The complete current functional regression passes **286 tests in 741.87 s**
+(`/tmp/life-pg6-batched-history-regression-final-a1`), including an actual
+post-restore funding schedule rollover. A new sequence-2 response follows the
+original cadence and preserves old sequence-1 facts, paid bill, fee and hold
+history. An expired schedule remains rejected. This correction changes neither
+freshness limits nor retained facts, and does not discharge the capacity gate.
+
 The new explicit-retention 1k run fails after **114 completed orders** in
 `spot_observe`: SQL takes 1,003.831 ms and exceeds the unchanged 1,000-ms
 timeout. It rolls back without COMMIT, before restore is measured
