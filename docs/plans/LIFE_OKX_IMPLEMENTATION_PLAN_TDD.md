@@ -1,5 +1,19 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**Economic-prefix extension (2026-10-24):** the disposable fresh-SPOT prototype
+now enforces original fill/receipt identity, loss/subsidy window obligations,
+reservation arithmetic, opening-wallet/event totals and materialized budget
+endpoints. Leaf constraints reject rewinds behind retained events, including
+coordinated changes to projection and native current rows. Qualification and
+the completed prototype checklist are maintained in the
+[PostgreSQL plan](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#fresh-spot-economic-extension-of-the-prototype).
+Runtime continues to use full audits under production schema 134; production
+enrollment, other products, restore parity and actual 1k/10k source capacity
+remain required. **PG6-X1/PG8.7 remain open.**
+The expanded aggregate passes **103 cases in 145.83 s**. A preceding aggregate
+has one full-audit snapshot timeout before preparation; it is retained in the
+PostgreSQL plan and remains unexplained. No stable-latency verdict is claimed.
+
 **Offline fill-prefix design experiment (2026-10-24):** a disposable PostgreSQL
 prototype now binds cumulative money/budget prefixes to original events and
 SPOT fill/fee sources using arithmetic constraints and composite foreign keys.

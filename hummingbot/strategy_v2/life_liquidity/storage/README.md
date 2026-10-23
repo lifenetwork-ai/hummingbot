@@ -15,6 +15,15 @@ See the [prototype scope and promotion requirements](../../../../docs/plans/LIFE
 The 1k/10k synthetic index samples prove neither full-flow latency nor recovery
 capacity. Actual PG6-X1/PG8.7 remain open, and production schema remains 134.
 
+The same disposable selector also exercises `projection_economics` with an
+explicit fresh-account, zero-liability SPOT enrollment. It binds original
+operation/receipt/basis, per-intent fill progress, loss/subsidy obligations,
+principal/fee holds, wallet totals and budget endpoints. Leaf constraints
+prevent rollback to an older valid prefix. Missing capture rolls back the
+native transaction. The old unenrolled counterexamples remain negative
+controls. Production enrollment/catalog validation, all-product/restore parity
+and complete-history performance qualification remain in the linked plan.
+
 ## Fresh PostgreSQL backup and rollback runbook (PG6)
 
 The selected release starts with PostgreSQL and has no File data to convert

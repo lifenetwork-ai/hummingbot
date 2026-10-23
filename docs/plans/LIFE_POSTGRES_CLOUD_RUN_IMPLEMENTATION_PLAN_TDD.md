@@ -2,6 +2,18 @@
 
 ## Current offline delivery status
 
+**2026-10-24 economic-prefix extension:** the test-only fresh-SPOT profile now
+binds original operation/receipt bodies, per-intent fill/fee/loss totals,
+three-window loss and subsidy obligations, reservation calculations, opening
+wallet totals and current materialized budget endpoints. Constrained leaf
+pointers prevent coordinated projection rollback behind retained events.
+The native writer and all existing full audits remain in place. This closes
+the implemented prototype components listed below, not production enrollment
+or PG6-X1/PG8.7. Production migration bundle remains 134.
+The expanded aggregate passes **103 cases in 145.83 s**; the preceding run's
+one 1,000-ms full-state-read timeout is retained and remains unexplained.
+See qualification below; no stable-latency or runtime promotion is asserted.
+
 **2026-10-24 constrained fill-prefix prototype:** the disposable
 `fill_projection_spike` test selector exercises transactionally appended
 money/budget prefixes and exact SPOT fill/fee source bindings. Native balances
@@ -4652,7 +4664,7 @@ The genuine native coverage uses original BUY/SELL fills, LIFE/USDT fees,
 rebates, gross loss beyond limits, retry/readback, concurrency and the existing
 two-order recorder/terminal/inventory-settlement flow.
 
-**Prototype qualification (2026-10-24):** initial Red fails on the absent SQL
+**Initial prototype qualification (2026-10-24):** initial Red fails on the absent SQL
 experiment (`/tmp/life-fill-projection-red-a1`); the events-only six-case
 experiment demonstrates the uncovered-fee counterexample, then exact source
 bindings and expanded cases are added. Final **61 tests pass in 90.86 s**,
@@ -4660,7 +4672,8 @@ zero failures/errors/skips, six existing dependency warnings, in one invocation
 combining 29 prototype cases with the original 32 observation cases
 (`/tmp/life-fill-projection-final-a1`). Include the original file with
 `PYTEST_ADDOPTS=test/hummingbot/strategy_v2/life_liquidity/storage/postgres/test_postgres_spot_observations.py`
-to reproduce that combined selector. Fault cases cover missing capture for
+to reproduce that earlier combined selector at its original commit. The
+selector now also includes the economic extension below. Fault cases cover missing capture for
 each of money/fill-source/budget, changed source rows, invalid prefix
 arithmetic/NULL ancestry, removed tails, unknown COMMIT and cold retry, and
 competing original-cut fills. A synthetic window test separates UTC-day,
@@ -4673,19 +4686,121 @@ are **0.020/0.017 ms** for money/budget at 1k and **0.033/0.025 ms** at 10k.
 These are warm indexed-query samples, not percentiles, original command
 latency, end-to-end improvement or a recovery result. The large synthetic
 append statements retain a 1,000-ms statement timeout. Native commands retain
-their original gates; no actual 1k/10k command/restore rerun is claimed.
+their original gates; no actual 1k/10k command/restore rerun is claimed. These
+timings predate the economic extension and do not measure its write overhead.
+
+### Fresh-SPOT economic extension of the prototype
+
+All extension SQL remains under `test/`; `install(..., economics=True)`
+enrolls it before the disposable native account and history are created.
+The default existing prefix tests keep the earlier profile. Neither profile
+is loaded by service startup or migrations.
+
+- [x] **Original records:** `fill_projection_economics.sql` reuses the native
+  generated command fingerprint and adds deterministic receipt/preparation
+  hashes. Composite foreign keys bind immutable witnesses to original
+  operations and order basis. APPLIED SPOT_FILL receipts must match the exact
+  declared fill snapshot, cumulative quantity, gross loss, identity and version.
+- [x] **Per-intent totals:** a zero-origin prefix accounts every new fill,
+  positive paid fees and gross execution loss once. Rebate cannot refund prior
+  paid fees/loss. Native accounting progress and the indexed prefix head agree
+  at COMMIT. Each child requires the exact predecessor's successor pointer;
+  the head must point to a leaf. Rewinding both mutable heads/progress behind
+  retained fills therefore fails, even with USER triggers disabled.
+- [x] **Loss obligations:** each new fill requires its exact LOSS/SPEND event
+  in campaign, UTC fill-day and original session windows. Missing any one of
+  these events fails inside the original command, before physical COMMIT.
+- [x] **Subsidy obligations:** `fill_projection_subsidy.sql` requires exact
+  triplets for preparation commitments, positive gross-loss floor changes,
+  proven zero-fill abort/terminal releases, and settlement member release/spend.
+  Preparation-day and fill-day remain distinct. Floor amounts derive from the
+  before/after immutable loss prefixes; rebates cannot reset prior spending.
+  Settlement amounts remain bound to original native settlement members; the
+  existing full NAV/settlement-evidence calculation still verifies those amounts.
+- [x] **Reservations:** principal and fee amounts/remaining values derive from
+  immutable original quantity/price/fee buffers and cumulative filled/paid
+  amounts. Reservation state is linked to native attempt state. Original
+  holds, including SEND_UNKNOWN and cancellation, remain until the native
+  lifecycle completes. Skipped publication leaves unsatisfied foreign keys.
+- [x] **Wallet endpoint:** `fill_projection_wallet.sql` starts from the trusted
+  owner-provisioned fresh balance and binds later totals to the original event
+  prefix. Later native opening-capital policies must agree with that origin.
+  Both asset rows reference the current leaf and original versions; no prefix
+  rollback can erase retained money. Original active holds are reconciled in
+  the same command. This narrow profile supports zero liabilities only.
+- [x] **Budget endpoint:** `fill_projection_budget_state.sql` gives each budget
+  window a zero origin and binds committed/incurred/limit/version to its current
+  event-prefix leaf. A separate indexed dirty-window set limits work to touched
+  windows. Old inactive windows cannot be silently reduced or reset either.
+- [x] **Query dependencies:** operation-to-order and intent-to-hold indexes
+  avoid new account-history scans in finalizers and deferred FK lookups. Dirty
+  intent/window and active-hold limits are explicitly experimental refusal
+  bounds (64/384/384), not live defaults or changed acceptance thresholds.
+
+The old events-only fee counterexample remains, and a second test runs the
+economic profile **without wallet enrollment** to prove why a cash-delta prefix
+cannot certify a wallet. With wallet enrollment, the corresponding unjournaled
+native-balance changes are rejected. These negative controls do not authorize
+using an incompletely enrolled prefix in the runtime.
+
+The extension exercises original native preparation/ACK/fill/fee/rebate,
+before/after lost-COMMIT cold retry, fee funding deficits with another order's
+holds, unknown cancellation, zero-fill abort/terminal for both sides, late
+accounting after expiry and a complete recorder/terminal/inventory settlement
+pair. Explicit fault injection changes/removes loss/floor/receipt publication
+or disables individual capture triggers. No source timestamp is renewed, no
+stored receipt/history is copied to manufacture a capacity workload and no
+original full audit is skipped.
+
+**Economic qualification (2026-10-24):** the initial absent-file Red and the
+subsequent generated-expression immutability failure are retained at
+`/tmp/life-projection-economics-red-a1` and
+`/tmp/life-projection-economics-a1`. The implementation reuses the native
+qualified canonical command fingerprint rather than adding another command
+hash. The final aggregate at `/tmp/life-projection-economics-final-a2` passes
+**103 cases / 145.83 s**, zero failures/errors/skips and six existing dependency
+warnings: 29 earlier prefix cases, 42 economic-extension cases and the original
+32 observation cases. These counts overlap the earlier smaller gates and are
+not additional independent test populations.
+
+The preceding aggregate (`/tmp/life-projection-economics-final-a1`) has
+**102 passed / 1 failed / 153.97 s**. Its cancel scenario times out during the
+first `spot_state` read before preparation, with SQL execution 1,030.070 ms,
+acquisition 0.087 ms and no attempted COMMIT. The server records the deepest
+context as `hedge_verified`, inside the existing full-audit stack. This locates
+the timeout; it does not establish a root cause or exclude planning/resource
+effects of the extension. The same cancel case passes separately with function/
+flow diagnostics (7.53 s) and without them (7.37 s), followed by the complete
+103-case pass. Neither timeout settings nor resources changed. The old failure
+is not erased, and these runs establish no percentile/stable-latency verdict.
+The two isolated outputs are `/tmp/life-projection-cancel-profile-a1` and
+`/tmp/life-projection-cancel-repeat-a2`.
+
+Refusal cases additionally require the exact `PG_CONSTRAINT_REJECTED` code;
+an unrelated timeout must not count as proof of a successful integrity guard.
+After strengthening these test assertions, the **11 affected refusal cases**
+pass in **19.50 s** at `/tmp/life-projection-refusals-final-a1`. They are a
+subset of the 103 current IDs, not another 11 distinct cases; no production
+SQL or prototype implementation changed after the passing aggregate.
+The source/receipt/hold/wallet/budget constraints remain test-only. In
+particular, the experiment adds metadata columns to some native tables, so
+exact production snapshot/body/digest parity and schema-contract versioning
+must be explicitly qualified before adoption. No unchanged-body claim is made
+for this experimental schema.
 
 **Promotion decision: retain as a test-only prototype.** Before applying the
 mechanism to a production gate, all of the following remain required:
 
-1. Close causal proof from the original operation/receipt to every budget
-   spend, floor, release and settlement. Exact event capture protects retained
-   values but does not prove that every required event was emitted initially.
-   Cover orphan/extra fills/fees as well as the qualified sources already bound.
-2. Bind opening basis, current balances, reservations, liabilities, unknown
-   holds and their complete ancestry. A cumulative cash delta is not available
-   capital or permission to trade. Specify SWAP/funding/cashflow/portfolio and
-   recorder interactions before claiming account-wide equivalence.
+1. Extend the implemented fresh-SPOT obligations to every enabled writer and
+   interrupted/recovery format. Orphan/extra raw rows, source deletion and the
+   complete historical terminal/cancel/settlement evidence must be covered,
+   including simultaneous partial operations. Captured native settlement
+   members alone do not replace the full independent settlement/NAV proof.
+2. Qualify approved opening provisioning, nonzero liabilities and all
+   SWAP/funding/cashflow/portfolio/shared-capital and recorder interactions.
+   Prove exact original body/digest, budget-limit policy ancestry and current
+   authority/fact parity before claiming account-wide equivalence. The current
+   zero-liability SPOT prototype is not such a complete financial snapshot.
 3. Qualify constraint/privilege enrollment, allowed source payload sizes,
    restore/upgrade ordering, dropped-trigger/constraint refusal and exact
    populated history backfill. The prototype intentionally requires empty

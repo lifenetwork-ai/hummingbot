@@ -268,7 +268,7 @@ def main():
         if args.suite == 'pg6_capacity':
             selectors = [str(selector / 'restore_capacity_cases.py')]
         if args.suite == 'fill_projection_spike':
-            selectors = [str(selector / 'test_postgres_fill_projection.py')]
+            selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in ('fill_projection', 'projection_economics')]
         if args.suite == 'pg6_native':
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in ('restore', 'backup', 'schema_restore', 'fresh_restore', 'restore_recovery', 'restore_import', 'restore_actor', 'restore_matrix', 'history_flow', 'birth_retention', 'snapshot_payload', 'action_history_batch', 'birth_fingerprints', 'recorder_history_batch', 'settlement_history_batch', 'capacity_pool', 'birth_native_view')]
         if args.suite == 'hedge_settlement':

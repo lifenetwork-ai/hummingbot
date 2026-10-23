@@ -19,12 +19,23 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot import PgSpotRe
 
 SCHEMA = Path(__file__).with_name('fill_projection_spike.sql')
 SOURCES = Path(__file__).with_name('fill_projection_sources.sql')
+ECONOMICS = Path(__file__).with_name('fill_projection_economics.sql')
+SUBSIDY = Path(__file__).with_name('fill_projection_subsidy.sql')
+WALLET = Path(__file__).with_name('fill_projection_wallet.sql')
+BUDGET_STATE = Path(__file__).with_name('fill_projection_budget_state.sql')
 
 
-async def install(c, *, sources=True):
+async def install(c, *, sources=True, economics=False, wallet=True):
     await c.execute(SCHEMA.read_text())
     if sources:
         await c.execute(SOURCES.read_text())
+    if economics:
+        assert sources
+        await c.execute(ECONOMICS.read_text())
+        await c.execute(SUBSIDY.read_text())
+        await c.execute(BUDGET_STATE.read_text())
+        if wallet:
+            await c.execute(WALLET.read_text())
 
 
 async def prefix(c, account):
@@ -40,10 +51,10 @@ async def budgets(c, account):
             ORDER BY ordinal DESC LIMIT 1) p ON true WHERE b.account_id=$1 ORDER BY b.family,b.scope,b.window_key''', account)
 
 
-async def ready(database, *, sources=True, side='BUY'):
+async def ready(database, *, sources=True, economics=False, wallet=True, side='BUY'):
     # Bootstrap the witness before any event. Existing balances/budget buckets
     # remain the sole production projections; the prototype adds no authority.
-    await install(database[0], sources=sources)
+    await install(database[0], sources=sources, economics=economics, wallet=wallet)
     repo, cfg, owner = await spot(database)
     try:
         await database[0].execute('INSERT INTO life_financial.spot_fill_policies VALUES($1,$2,1000,4096)', cfg.account_id, cfg.binding.policy_hash)
