@@ -3528,6 +3528,7 @@ Dependencies: PG0 decisions; worker code depends on PG1–PG5. Definitions can b
 - [ ] PG7.5: Define fixed egress IP via VPC/NAT if required for exchange allowlisting, including every REST/WS write path and an explicit verification procedure. Actual egress/key restrictions are measured in PG9.2/PG9.4. [Static outbound IP](https://docs.cloud.google.com/run/docs/configuring/static-outbound-ip).
 - [ ] PG7.6: Define scoped generation identities/secrets, separate migration/runtime/reporting privileges and no old-to-new impersonation path; pin secret/image/config versions. Validate policy definitions and local negative access fixtures; actual deployed access is mandatory in PG9.2/PG9.4. [Worker Pool secrets](https://docs.cloud.google.com/run/docs/configuring/workerpools/secrets).
 - [ ] PG7.7: On SIGTERM close admission first, checkpoint attempted/unknown work, initiate bounded owned cancellations and exit within a configured budget below Cloud Run's 10-second termination window. Forced kill must preserve unknowns; shutdown completion does not imply exchange terminality. [Shutdown contract](https://docs.cloud.google.com/run/docs/container-contract).
+  - [x] **Native foreground money-loss slice (2026-10-23):** real host worker supervisor, native PostgreSQL/service and real SDK route with fake accepted HTTP work; SPOT/SWAP × SIGTERM/SIGKILL retain original `SEND_UNKNOWN`, wire ID, exact money/budget/claim/hedge state. Cold restart only reads and refuses replay; no false graceful completion. The strengthened four-case run passes in 68.57 s; actual immutable-image execution and wider retained RED matrix remain required.
 - [ ] PG7.8: Add metrics/alerts for trading eligibility, owner generation, DB/query/pool lag, event-loop lag, unknown attempts, unresolved holds, audit freshness, budget usage and backup/recovery health. Probe/liveness success is separate from permission to trade; a healthy unarmed process must not restart-loop because it awaits manual recovery.
   - [x] **Local DB pressure diagnostics (2026-10-23):** read-only `/status` exports fixed risk/safety pending/pool limits, lifetime outcome/completion/uncertainty/cancellation counters and bounded recent latency/phase windows, without SQL or permission caching. TDD retains caller-cancelled physical work and historical unknowns after ring eviction; 34 focused diagnostic/worker cases pass (10.26 s). This is not the remaining financial metrics, alert calibration or full PG7.8 gate.
 
@@ -10112,3 +10113,27 @@ deterministic epoch-2/epoch-3 regression fails before the fix and passes after i
 No risk epoch/authority is overwritten and no deadline is extended. The real
 native case and wider gate still require rerunning; the original failure is
 retained, not marked qualified by this fixture-only regression.
+
+## PG7 foreground accepted/unknown financial loss (2026-10-23)
+
+`run_postgres --suite worker_financial` starts the actual `worker.main()` process,
+supervisor, signal handlers and hard exit deadline. Its test-only launch port
+constructs the real configured native service, SDKs and PostgreSQL runtime; only
+exchange HTTP is fake. The parent sends SIGTERM or SIGKILL after the original
+exchange accepts one SPOT/SWAP order without returning its ACK. It independently
+reads the primary before loss and after process death/cold reopen: the same
+wire/product stays `SEND_UNKNOWN`, the original shared claim remains, and exact
+balances, reservations, budget events, action/SWAP/hedge histories are unchanged.
+Cold direct quote/hedge replay is refused and all recovery HTTP is GET-only.
+No `STOPPED`/financial-close completion is emitted for the blocked original work.
+
+The initial four cases pass in 67.35 s (`/tmp/life-pg7-worker-financial-20261023-w1`);
+the strengthened stable-source four cases pass in **68.57 s**, no failure/error/
+skip (`...-w2/integration.xml`). The test uses an explicit synthetic 0.4-second
+supervisor budget and 300/360-second fixture owner/session horizons; original
+financial source age, SQL/COMMIT, risk and budget checks are unchanged. These
+focused functional runs overlapped the retained frozen native aggregate; neither
+is an isolated latency/headroom qualification. The aggregate's two failures were
+already observed before that overlap. Both logs remain retained. The new matrix
+is also a mandatory part of `image_native`; it has not yet qualified an updated
+image. PG7.7, PG7 and PG8 remain open.

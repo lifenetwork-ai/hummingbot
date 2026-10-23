@@ -3513,6 +3513,19 @@ exception text. It cannot refresh authority, heal health or trigger a restart.
 Financial hold/budget/audit/backup metrics and calibrated alert fixtures remain
 part of PG7.8; these pool diagnostics alone do not close that requirement.
 
+### Foreground native financial loss rehearsal
+
+Run `python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_postgres
+--suite worker_financial --output /tmp/<new-directory>` with the existing opt-in
+test environment. The four disposable cases run actual worker signal handling
+and the real native financial service with fake exchange HTTP: SPOT/SWAP ×
+SIGTERM/SIGKILL after exchange acceptance without ACK. They require exact
+original wire/unknown/hold/budget/claim state after death and cold reopening,
+GET-only recovery, denied resubmission and no false graceful-stop event. The
+same matrix is included in `--suite image_native --linux-image sha256:<digest>`;
+host success does not qualify that artifact. All data/endpoints are synthetic;
+the helper must never be pointed at a real account or existing database.
+
 ## Snapshot body pipeline
 
 Migration 55 gives each of the sixteen snapshot layers an owner-only `spot_body*`

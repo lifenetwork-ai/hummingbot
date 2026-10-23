@@ -106,7 +106,9 @@ qualified by these source definitions or the host process tests.
 
 ## Remaining operational work
 
-Only minimal lifecycle/DB/local-readiness/event-loop-lag telemetry is implemented.
+Lifecycle/DB/local-readiness/event-loop-lag telemetry and bounded local native
+pool-pressure, physical outcome/uncertainty counters and recent phase timings
+are implemented. Unknown counters count historical events, not unresolved funds.
 Complete bounded unknown/hold/budget/audit/backup metrics, calibrated alerts,
 full image tests and all PG8 gates remain open. A status response is never a
 permission to trade. Private probe exposure and actual scrape/log access must be
