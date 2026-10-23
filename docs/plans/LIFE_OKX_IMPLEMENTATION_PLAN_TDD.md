@@ -9,6 +9,15 @@ fall back to SQLite or grant financial authority. The current-source matrix is
 migration test**; see [PG5 qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg5-offline-operational-qualification-2026-10-23).
 PG6–PG8 and O.8 remain open. The real environment/account gates below remain open.
 
+**Current PG7 offline checkpoint (2026-10-23):** locked AMD64 image qualification
+passes 9 cases, Terraform mocks 11, rollout/config contracts 41, and actual local
+TLS/recorder validation 1. PG7.1 and PG7.3–PG7.6 are now checked in the
+[PostgreSQL plan](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md).
+PG6 import/recovery, the remaining PG7 integration gates and PG8/O.8 remain open.
+The frozen full migration run produced 401 passes and one stale table-count
+assertion; its correction passes separately. No aggregate green or deployment
+is claimed. The following artifact entries describe earlier revisions.
+
 **PG7 artifact progress (2026-10-23):** the refreshed AMD64 image passes all
 67 native process/recovery/unknown-loss cases; its complete packaged-source and
 signal gate passes 8 cases, recorder integration 13. PG7 still needs dependency

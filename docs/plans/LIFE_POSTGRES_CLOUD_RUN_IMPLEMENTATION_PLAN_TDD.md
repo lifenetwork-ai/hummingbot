@@ -2,6 +2,32 @@
 
 ## Current offline delivery status
 
+**2026-10-23 current artifact and definition qualification:** immutable AMD64
+image `sha256:adc32af4528a99c4c3f6ff581ed21f819fd2bcb0525c3586fd87893dc584415b`
+built from `fecc42566` passes **9 image cases / 24.24 s**, including installed
+source/dependency-lock verification, nonroot foreground/signal cases and the
+12 nested integrity/physical-I/O cases. The mock Terraform definitions pass
+**11 cases**, rollout/runtime-config contracts pass **41 cases / 0.82 s**, and
+actual local PostgreSQL TLS/recorder peer validation passes **1 case / 9.38 s**.
+These close PG7.1 and the offline definition/local-connection scope of
+PG7.3–PG7.6. PG7.2, PG7.7, PG7.8 and aggregate PG7/PG8 qualification remain
+open; real IAM, routing, certificates and cloud/exchange behavior remain in
+the OKX environment plan. No deployment was performed.
+Outputs: `/tmp/life-pg7-current-image-fecc-a1`,
+`/tmp/life-pg7-current-tf-fecc-a1.log`,
+`/tmp/life-pg7-definition-contracts-a1.xml`, `/tmp/life-pg7-local-tls-a1`.
+
+**2026-10-23 full migration result and correction:** the frozen `fecc42566`
+matrix completed **401 passed / 1 failed, 624.48 s**. Its only failure was the
+old assertion that `life_storage` has two tables; migrations 122/123 correctly
+make five. The corrected test verifies the exact storage table set, stable
+lineage across repeated `up`, and that every financial/storage table is empty
+except the two schema metadata rows. It passes separately (**1 passed, 401
+deselected, 3.61 s**, `/tmp/life-pg8-bootstrap-regression-a1`). This is not a
+single green 402-case run. The original failure is retained under
+`/tmp/life-pg8-resume-fecc42566-20261023T082016Z/acceptance/migrations`;
+the same immutable-source pipeline continues with the other gates.
+
 **2026-10-23 complete migration gate:** the serial acceptance map now also runs
 `run_migrations` without selectors before File/native qualification. Native
 fixtures applying the latest schema did not execute the separate predecessor,
@@ -9,8 +35,8 @@ drift, repeated-run and hostile-default-ACL matrix in `pg_migration_cases.py`.
 The orchestration regression is red (2 failed / 7 passed), then green (9 passed,
 0.09 s); an absent migration gate cannot produce a complete verdict. The older
 fixed baseline is retained unchanged and does not satisfy this newly explicit
-full-migration gate. Full execution is queued with the next frozen source; this
-unit result is not a claim that every migration case has passed.
+full-migration gate. Full execution and the resulting correction are recorded above; this
+unit result alone is not a claim that every migration case has passed.
 
 **2026-10-23 retained-fixture corrections:** the fixed baseline run exposed old
 ACK/FILL/SWAP expiry assertions that predated migration 91's persistent cut.
@@ -69,8 +95,9 @@ Frozen aggregate/image qualification remains required.
 `49983bae2` built image
 `sha256:76028366f4e65b7d0b366696dc790501069de8aaf7283eb14cfdee9f59a447aa`.
 The serial map at `/tmp/life-pg8-frozen-49983bae2` has passed all **1,889 File
-contract cases** and is running the native matrix. It is not yet an aggregate
-pass and does not cover subsequent capital-projection edits. A separate
+contract cases** before its native process was lost without a final report. That interrupted
+run is not an aggregate pass and does not cover subsequent capital-projection
+edits; the replacement run is identified above. A separate
 network-isolated Linux image check executes all seven integrity-receipt tests
 against the installed code/crypto library: one enclosing image case passes in
 3.08 s (`/tmp/life-pg7-linux-integrity-20261023.log`). The image gate now retains
@@ -3855,16 +3882,16 @@ or source-age timeout is widened. All artifacts/results remain outside the repo.
 
 Dependencies: PG0 decisions; worker code depends on PG1–PG5. Definitions can be prepared offline; provisioning belongs to PG9.
 
-- [ ] PG7.1: Build a pinned Linux image from this repository with PostgreSQL dependencies; run foreground, receive signals directly, emit structured stdout/stderr, and keep credentials outside image layers/arguments/logs. Do not use the destructive current `make build` target.
+- [x] PG7.1: Build a pinned Linux image from this repository with PostgreSQL dependencies; run foreground, receive signals directly, emit structured stdout/stderr, and keep credentials outside image layers/arguments/logs. Do not use the destructive current `make build` target.
   - [x] Full Linux ARM64 artifact built and source/import/recorder compatibility tested in PG2. Release architecture, complete dependency locking, foreground/default-command and signal behavior remain open; the compatibility image is not a deployed worker qualification.
   - [x] **Foreground/definition candidate:** the opt-in `life-worker` Docker target, `postgres/worker.py`, bounded read-only probes and JSON stdout are implemented. Host signal/deadline tests and mock-only infrastructure/release checks pass below. Actual Linux AMD64/dependency reproducibility, container kill, complete metric/alert and deployed qualification remain open.
   - [x] **AMD64 artifact functional slice (2026-10-23):** actual repository build, immutable source/SQL/native-driver/Cython check, nonroot foreground/default-command and container signal fixtures pass 7 cases; real PostgreSQL recorder passes 13 cases. The broader native image matrix is RED (60 pass/3 expiry failures); this increment does not close PG7.1/PG7.7 or establish full dependency reproducibility.
   - [x] **Current AMD64 source and native matrix (2026-10-23):** rebuilt immutable image `sha256:411596b60f1afaf0bb9217820acd69e038ee13b95742ef17d7dc7e3eff2bd6cf` passes all 67 native process/recovery/worker-financial cases (520.98 s). The expanded artifact gate verifies 1,469 packaged execution inputs, rejects a stale hedge hash and passes 8 cases (18.76 s); real recorder integration passes 13 (8.02 s). Original RED results remain historical evidence. Dependency reproducibility and whole-product performance remain open.
 - [ ] PG7.2: Validate startup without TTY/prompts/MQTT dependency, schema/account binding before authority construction, and no auto-bootstrap of missing financial state. Ephemeral local files may hold disposable scratch/config/status only.
-- [ ] PG7.3: Add infrastructure definitions for Artifact Registry, Cloud SQL PostgreSQL, backup/PITR settings, VPC, IAM, Secret Manager, monitoring and one desired Worker Pool instance per account namespace. **Operator-selected flow: config-enabled startup migration** (`LIFE_AUTO_MIGRATE=true`); package the pinned SQL bundle/driver and await the central runner before application construction, with no manual migration step. Database locking serializes concurrent startup runners; failed migration blocks that startup. Qualify migration/runtime role and secret isolation: removing an inherited DSN does not prevent a colocated process from reading a mounted env file/secret. A separate serialized migration Job is an optional deployment mode (`LIFE_AUTO_MIGRATE=false`), with migration-only identity/secret, one task, parallelism one and automatic retries disabled; await success before worker rollout. Runtime startup validates compatibility and remains unarmed; incompatible schema changes require an explicit drain/upgrade policy in either mode. [Cloud Run Jobs](https://docs.cloud.google.com/run/docs/create-jobs), [job retries](https://docs.cloud.google.com/run/docs/configuring/max-retries).
-- [ ] PG7.4: Define same-region worker/primary DB, private-IP/TLS connectivity with Direct VPC egress and bounded pools; test TLS/authentication handling locally. Document the selected Worker Pool authentication/connection method; its actual connectivity is a PG9.2 gate, not inferred from a Service-only example. [Direct VPC](https://docs.cloud.google.com/run/docs/configuring/vpc-direct-vpc), [Cloud SQL connectivity](https://docs.cloud.google.com/sql/docs/postgres/connect-run).
-- [ ] PG7.5: Define fixed egress IP via VPC/NAT if required for exchange allowlisting, including every REST/WS write path and an explicit verification procedure. Actual egress/key restrictions are measured in PG9.2/PG9.4. [Static outbound IP](https://docs.cloud.google.com/run/docs/configuring/static-outbound-ip).
-- [ ] PG7.6: Define scoped generation identities/secrets, separate migration/runtime/reporting privileges and no old-to-new impersonation path; pin secret/image/config versions. Validate policy definitions and local negative access fixtures; actual deployed access is mandatory in PG9.2/PG9.4. [Worker Pool secrets](https://docs.cloud.google.com/run/docs/configuring/workerpools/secrets).
+- [x] PG7.3: Add infrastructure definitions for Artifact Registry, Cloud SQL PostgreSQL, backup/PITR settings, VPC, IAM, Secret Manager, monitoring and one desired Worker Pool instance per account namespace. **Operator-selected flow: config-enabled startup migration** (`LIFE_AUTO_MIGRATE=true`); package the pinned SQL bundle/driver and await the central runner before application construction, with no manual migration step. Database locking serializes concurrent startup runners; failed migration blocks that startup. Qualify migration/runtime role and secret isolation: removing an inherited DSN does not prevent a colocated process from reading a mounted env file/secret. A separate serialized migration Job is an optional deployment mode (`LIFE_AUTO_MIGRATE=false`), with migration-only identity/secret, one task, parallelism one and automatic retries disabled; await success before worker rollout. Runtime startup validates compatibility and remains unarmed; incompatible schema changes require an explicit drain/upgrade policy in either mode. [Cloud Run Jobs](https://docs.cloud.google.com/run/docs/create-jobs), [job retries](https://docs.cloud.google.com/run/docs/configuring/max-retries).
+- [x] PG7.4: Define same-region worker/primary DB, private-IP/TLS connectivity with Direct VPC egress and bounded pools; test TLS/authentication handling locally. Document the selected Worker Pool authentication/connection method; its actual connectivity is a PG9.2 gate, not inferred from a Service-only example. [Direct VPC](https://docs.cloud.google.com/run/docs/configuring/vpc-direct-vpc), [Cloud SQL connectivity](https://docs.cloud.google.com/sql/docs/postgres/connect-run).
+- [x] PG7.5: Define fixed egress IP via VPC/NAT if required for exchange allowlisting, including every REST/WS write path and an explicit verification procedure. Actual egress/key restrictions are measured in PG9.2/PG9.4. [Static outbound IP](https://docs.cloud.google.com/run/docs/configuring/static-outbound-ip).
+- [x] PG7.6: Define scoped generation identities/secrets, separate migration/runtime/reporting privileges and no old-to-new impersonation path; pin secret/image/config versions. Validate policy definitions and local negative access fixtures; actual deployed access is mandatory in PG9.2/PG9.4. [Worker Pool secrets](https://docs.cloud.google.com/run/docs/configuring/workerpools/secrets).
 - [ ] PG7.7: On SIGTERM close admission first, checkpoint attempted/unknown work, initiate bounded owned cancellations and exit within a configured budget below Cloud Run's 10-second termination window. Forced kill must preserve unknowns; shutdown completion does not imply exchange terminality. [Shutdown contract](https://docs.cloud.google.com/run/docs/container-contract).
   - [x] **Native foreground money-loss slice (2026-10-23):** real host worker supervisor, native PostgreSQL/service and real SDK route with fake accepted HTTP work; SPOT/SWAP × SIGTERM/SIGKILL retain original `SEND_UNKNOWN`, wire ID, exact money/budget/claim/hedge state. Cold restart only reads and refuses replay; no false graceful completion. The strengthened four-case run passes in 68.57 s; actual immutable-image execution and wider retained RED matrix remain required.
   - [x] **Native immutable-image unknown-loss matrix (2026-10-23):** all four actual foreground SPOT/SWAP × TERM/KILL cases pass within the 67-case Linux matrix, retaining original money and unresolved risk. This closes image execution of the previous host-only slice.
@@ -3874,6 +3901,12 @@ Dependencies: PG0 decisions; worker code depends on PG1–PG5. Definitions can b
   - [x] **Local DB pressure diagnostics (2026-10-23):** read-only `/status` exports fixed risk/safety pending/pool limits, lifetime outcome/completion/uncertainty/cancellation counters and bounded recent latency/phase windows, without SQL or permission caching. TDD retains caller-cancelled physical work and historical unknowns after ring eviction; 34 focused diagnostic/worker cases pass (10.26 s). This is not the remaining financial metrics, alert calibration or full PG7.8 gate.
 
   - [x] **Independent freshness diagnostics (2026-10-23):** signed account/lineage/binding-bound AUDIT/BACKUP/RESTORE receipts, public-key verification and explicit age limits, no authority or automatic rearm. Native original-basis audit and full image share MVCC; backup and quarantine use actual tools. Bounded worker polling retains physical work on timeout/cancellation, and memory-only status cannot refresh an expired observation. Recovery health is included in the Terraform integrity alert. See the focused qualification above; the current immutable image and aggregate remain required.
+
+**Current checked scope:** PG7.1/PG7.3–PG7.6 are qualified by the current
+artifact, mock-definition, rollout/config and actual local TLS results at the
+top of this plan. Historical increments below retain their original verdicts.
+The production SDK shutdown/unknown-loss and full native startup/telemetry
+matrices still gate PG7.2/PG7.7/PG7.8 and phase closure.
 
 **Done when:** image and IaC validate locally, missing secrets/DB fail closed, ephemeral-directory deletion preserves authoritative state, and container signal/forced-kill tests pass. Cloud deployment is still unproven.
 

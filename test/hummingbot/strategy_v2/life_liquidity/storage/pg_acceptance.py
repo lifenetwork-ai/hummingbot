@@ -57,7 +57,6 @@ OPEN_REQUIREMENTS = {
     'PG6.4': 'Before-activity discard and reconciled post-activity controlled rollback rehearsal.',
     'PG6.5': 'Post-cut reconciliation, independently signed exclusion and controlled new generation after quarantine.',
     'PG6.6': 'Import/reconciliation and 1k/10k retained-history capacity and recovery headroom.',
-    'PG7.1': 'Requalify the current source artifact after the locked, reproducible build increment.',
     'PG7.7': 'Current immutable-image qualification of first-revoke exact cancellation and the physical signal/unknown-loss matrix.',
     'PG7.8': 'Current immutable-image and aggregate qualification of independently signed audit/backup/restore diagnostics and bounded metrics.',
     'PG8.3': 'Every mandatory O.8 outcome plus native PostgreSQL 0/1k/10k sender/watchdog variants.',

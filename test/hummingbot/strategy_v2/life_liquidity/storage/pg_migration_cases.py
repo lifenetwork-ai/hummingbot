@@ -70,8 +70,23 @@ async def test_packaged_lineage_is_stable_and_not_financial_bootstrap(db):
     before = await c.fetchrow('SELECT * FROM life_storage.storage_metadata')
     await migrate(c, action='up')
     assert before == await c.fetchrow('SELECT * FROM life_storage.storage_metadata')
-    assert await c.fetchval("SELECT count(*) FROM pg_tables WHERE schemaname='life_storage'") == 2
-    assert await c.fetchval('SELECT count(*) FROM life_storage.restore_history') == 0
+    tables = await c.fetch('''SELECT schemaname,tablename,
+        format('%I.%I',schemaname,tablename) AS qualified
+        FROM pg_tables WHERE schemaname IN ('life_storage','life_financial')''')
+    assert {r['tablename'] for r in tables if r['schemaname'] == 'life_storage'} == {
+        'storage_metadata', 'restore_history', 'file_imports', 'file_import_chunks', 'file_import_retirements',
+    }
+    assert {'accounts', 'balances', 'activation_grants', 'operations'} <= {
+        r['tablename'] for r in tables if r['schemaname'] == 'life_financial'
+    }
+    # Migrations may register schema metadata, but never seed financial state,
+    # import evidence, ownership, grants or recorder history. Enumerating every
+    # table catches new accidental bootstrap paths as the schema grows.
+    for row in tables:
+        expected = int((row['schemaname'], row['tablename']) in {
+            ('life_storage', 'storage_metadata'), ('life_financial', 'schema_contract'),
+        })
+        assert await c.fetchval('SELECT count(*) FROM ' + row['qualified']) == expected, row['qualified']
     assert DEFAULT_DIRECTORY.is_dir()
 
 
