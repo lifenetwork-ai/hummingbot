@@ -3526,6 +3526,15 @@ same matrix is included in `--suite image_native --linux-image sha256:<digest>`;
 host success does not qualify that artifact. All data/endpoints are synthetic;
 the helper must never be pointed at a real account or existing database.
 
+The refreshed 2026-10-23 AMD64 image passes all 67 native image cases, including
+these four foreground cases. Artifact qualification verifies all 1,469 packaged
+execution inputs, not just entrypoints, and rejects an intentionally stale hedge
+fingerprint. The 8 artifact cases and 13 recorder cases pass separately. This
+proves the declared source/artifact and process-loss behavior; it does not prove
+reproducible dependency resolution or complete shutdown cancellation sequencing.
+The service's physical join preserves original work, but initiating bounded
+owned cancels before a blocked join remains explicit offline PG7.7 work.
+
 The opt-in generation-handoff flow diagnostic uses
 `LIFE_PG_TEST_FLOW_TRACE=1` and optionally `LIFE_PG_TEST_FUNCTION_PROFILE=1`.
 It retains bounded SPOT/SWAP phases and separate background lease admissions.

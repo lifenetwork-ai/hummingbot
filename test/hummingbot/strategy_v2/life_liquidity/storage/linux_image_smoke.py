@@ -1,10 +1,10 @@
 """Run inside the built artifact, with only test code mounted from the host."""
-import hashlib
 import importlib
 import json
 import platform
 import sys
 from pathlib import Path
+from test.hummingbot.strategy_v2.life_liquidity.storage.image_manifest import verify_execution_manifest
 
 
 def main():
@@ -28,9 +28,9 @@ def main():
                  'hummingbot.core.event.event_forwarder',
                  'hummingbot.strategy_v2.life_liquidity.storage.headless'):
         assert importlib.import_module(name).__file__.startswith('/home/hummingbot/')
-    expected = json.loads(sys.argv[1])
+    expected = json.loads(Path(sys.argv[1]).read_text())
     root = Path('/home/hummingbot')
-    assert all(hashlib.sha256((root / name).read_bytes()).hexdigest() == digest for name, digest in expected.items())
+    verify_execution_manifest(root, expected)
     assert not (root / '.env').exists()
     assert {migration.name for migration in load_migrations(root / 'migrations/life_liquidity')} == {
         Path(name).name for name in expected if name.startswith('migrations/life_liquidity/') and name.endswith('.sql')}

@@ -18,7 +18,7 @@ no release requirement is waived or passed by moving it.
 | PG4 | Closed for selected offline handoff scope (`4fddc9419`) | Actual provider/key exclusion, deployed IAM and failover in OKX PG9/PG10 |
 | PG5 | Closed for selected offline native recorder/CLI scope | Deployed credentials/TLS remain OKX PG-E1; detached standalone reporting services are outside this worker profile |
 | PG6 | In progress; logical and physical target restore plus schema/sequence guards | Stopped File/segmented native import, cutover rollback, post-cut reconciliation/release and retained-history capacity qualification remain open |
-| PG7 | In progress; AMD64 image/signal/recorder slices qualified | Wider native image gate RED (expiry); dependency lock, complete forced-loss and metrics/alerts remain open |
+| PG7 | In progress; current AMD64 native matrix 67/67, artifact 8/8 and recorder 13/13 | Build-consumed dependency lock, owned shutdown cancellation sequencing and complete metrics/alerts remain open |
 | PG8 | Open; historical upgrade fixture repair qualified separately | Complete current-source serial regression, product/performance/coverage acceptance remain required |
 
 Only current phase checklists and this ledger determine progress. Historical
@@ -3522,6 +3522,7 @@ Dependencies: PG0 decisions; worker code depends on PG1–PG5. Definitions can b
   - [x] Full Linux ARM64 artifact built and source/import/recorder compatibility tested in PG2. Release architecture, complete dependency locking, foreground/default-command and signal behavior remain open; the compatibility image is not a deployed worker qualification.
   - [x] **Foreground/definition candidate:** the opt-in `life-worker` Docker target, `postgres/worker.py`, bounded read-only probes and JSON stdout are implemented. Host signal/deadline tests and mock-only infrastructure/release checks pass below. Actual Linux AMD64/dependency reproducibility, container kill, complete metric/alert and deployed qualification remain open.
   - [x] **AMD64 artifact functional slice (2026-10-23):** actual repository build, immutable source/SQL/native-driver/Cython check, nonroot foreground/default-command and container signal fixtures pass 7 cases; real PostgreSQL recorder passes 13 cases. The broader native image matrix is RED (60 pass/3 expiry failures); this increment does not close PG7.1/PG7.7 or establish full dependency reproducibility.
+  - [x] **Current AMD64 source and native matrix (2026-10-23):** rebuilt immutable image `sha256:411596b60f1afaf0bb9217820acd69e038ee13b95742ef17d7dc7e3eff2bd6cf` passes all 67 native process/recovery/worker-financial cases (520.98 s). The expanded artifact gate verifies 1,469 packaged execution inputs, rejects a stale hedge hash and passes 8 cases (18.76 s); real recorder integration passes 13 (8.02 s). Original RED results remain historical evidence. Dependency reproducibility and whole-product performance remain open.
 - [ ] PG7.2: Validate startup without TTY/prompts/MQTT dependency, schema/account binding before authority construction, and no auto-bootstrap of missing financial state. Ephemeral local files may hold disposable scratch/config/status only.
 - [ ] PG7.3: Add infrastructure definitions for Artifact Registry, Cloud SQL PostgreSQL, backup/PITR settings, VPC, IAM, Secret Manager, monitoring and one desired Worker Pool instance per account namespace. **Operator-selected flow: config-enabled startup migration** (`LIFE_AUTO_MIGRATE=true`); package the pinned SQL bundle/driver and await the central runner before application construction, with no manual migration step. Database locking serializes concurrent startup runners; failed migration blocks that startup. Qualify migration/runtime role and secret isolation: removing an inherited DSN does not prevent a colocated process from reading a mounted env file/secret. A separate serialized migration Job is an optional deployment mode (`LIFE_AUTO_MIGRATE=false`), with migration-only identity/secret, one task, parallelism one and automatic retries disabled; await success before worker rollout. Runtime startup validates compatibility and remains unarmed; incompatible schema changes require an explicit drain/upgrade policy in either mode. [Cloud Run Jobs](https://docs.cloud.google.com/run/docs/create-jobs), [job retries](https://docs.cloud.google.com/run/docs/configuring/max-retries).
 - [ ] PG7.4: Define same-region worker/primary DB, private-IP/TLS connectivity with Direct VPC egress and bounded pools; test TLS/authentication handling locally. Document the selected Worker Pool authentication/connection method; its actual connectivity is a PG9.2 gate, not inferred from a Service-only example. [Direct VPC](https://docs.cloud.google.com/run/docs/configuring/vpc-direct-vpc), [Cloud SQL connectivity](https://docs.cloud.google.com/sql/docs/postgres/connect-run).
@@ -3529,6 +3530,8 @@ Dependencies: PG0 decisions; worker code depends on PG1–PG5. Definitions can b
 - [ ] PG7.6: Define scoped generation identities/secrets, separate migration/runtime/reporting privileges and no old-to-new impersonation path; pin secret/image/config versions. Validate policy definitions and local negative access fixtures; actual deployed access is mandatory in PG9.2/PG9.4. [Worker Pool secrets](https://docs.cloud.google.com/run/docs/configuring/workerpools/secrets).
 - [ ] PG7.7: On SIGTERM close admission first, checkpoint attempted/unknown work, initiate bounded owned cancellations and exit within a configured budget below Cloud Run's 10-second termination window. Forced kill must preserve unknowns; shutdown completion does not imply exchange terminality. [Shutdown contract](https://docs.cloud.google.com/run/docs/container-contract).
   - [x] **Native foreground money-loss slice (2026-10-23):** real host worker supervisor, native PostgreSQL/service and real SDK route with fake accepted HTTP work; SPOT/SWAP × SIGTERM/SIGKILL retain original `SEND_UNKNOWN`, wire ID, exact money/budget/claim/hedge state. Cold restart only reads and refuses replay; no false graceful completion. The strengthened four-case run passes in 68.57 s; actual immutable-image execution and wider retained RED matrix remain required.
+  - [x] **Native immutable-image unknown-loss matrix (2026-10-23):** all four actual foreground SPOT/SWAP × TERM/KILL cases pass within the 67-case Linux matrix, retaining original money and unresolved risk. This closes image execution of the previous host-only slice.
+  - [ ] **Remaining shutdown cancellation sequencing:** initiate bounded owned cancellation independently before joining blocked original quote/SDK/COMMIT work. Current `PgLiquidityService._close()` joins original work; the unknown-loss matrix proves retention and physical exit, not initiation of cancellation while that work is stuck. Require actual owned SPOT/SWAP order, blocked-send/DB and normal-stop tests with no release/replay/terminality inference. Real provider cancellation timing remains PG9; this implementation/test gap stays offline here.
 - [ ] PG7.8: Add metrics/alerts for trading eligibility, owner generation, DB/query/pool lag, event-loop lag, unknown attempts, unresolved holds, audit freshness, budget usage and backup/recovery health. Probe/liveness success is separate from permission to trade; a healthy unarmed process must not restart-loop because it awaits manual recovery.
   - [x] **Local DB pressure diagnostics (2026-10-23):** read-only `/status` exports fixed risk/safety pending/pool limits, lifetime outcome/completion/uncertainty/cancellation counters and bounded recent latency/phase windows, without SQL or permission caching. TDD retains caller-cancelled physical work and historical unknowns after ring eviction; 34 focused diagnostic/worker cases pass (10.26 s). This is not the remaining financial metrics, alert calibration or full PG7.8 gate.
 
@@ -10256,3 +10259,36 @@ As intended, that selected probe exits nonzero at the missing A01 evidence check
 and emits no completion summary. It proves wiring and refusal of partial results,
 not full O.8/coverage acceptance. Full execution still needs every declared case
 and unchanged performance/coverage criteria.
+
+## PG7 refreshed Linux artifact qualification (2026-10-23)
+
+The rebuilt AMD64 artifact is
+`sha256:411596b60f1afaf0bb9217820acd69e038ee13b95742ef17d7dc7e3eff2bd6cf`,
+with production execution source at `04c7d0bca`. Later changes in this increment
+are test tooling/documentation only. Its first foreground slice passes 7 cases
+(15.99 s); the actual native image matrix passes **67 cases**, no failure/error/
+skip, 520.98 s (`/tmp/life-pg7-native-image-20261023-hedge/integration.xml`).
+That matrix includes the previously RED process scenarios and the four actual
+worker accepted/unknown TERM/KILL cases. It ran after the build and host probes
+finished, with the original source-age/SQL/financial checks and 2-CPU/2-GiB
+container limits. AMD64 is emulated on this ARM64 host; this is functional
+artifact acceptance, not deployment or PG8 scale/headroom calibration.
+
+Artifact source identity now covers **1,469** packaged Python/Cython/interface,
+config, SQL and CLI inputs, including nested hedge/financial/connector modules,
+instead of a representative entrypoint list. The expected manifest is passed as
+a file under the disposable output/mount, avoiding command-line size limits.
+No host production source or compiled extension is mounted; secrets and host
+binaries are excluded. Missing/changed/symlinked inputs are refused. The native
+smoke still verifies installed drivers, architecture and actual Cython imports.
+The artifact gate includes a deliberate stale-hedge fingerprint refusal; all
+**8 cases pass**, 18.76 s (`/tmp/life-pg7-worker-image-20261023-full-source`).
+The recorder runner also consumes this full manifest and passes **13 native
+cases**, 8.02 s (`/tmp/life-pg7-image-recorder-20261023-full-source`). Manifest
+and map unit regressions pass 13 cases, 0.13 s. These separate results are not a
+single frozen full-product aggregate.
+
+PG7 remains open: the resolved dependency exports are not build-consumed locks;
+financial metrics/alerts and shutdown cancellation sequencing remain required.
+The cancellation gap is explicit in PG7.7, rather than hidden behind successful
+unknown-retention/process-exit tests. PG6 and PG8/O.8 are unchanged and open.

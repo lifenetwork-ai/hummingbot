@@ -4,10 +4,10 @@ The injected test launcher owns no exchange or database. These cases qualify
 the image/foreground boundary, not financial crash recovery or live permission.
 """
 import asyncio
-import hashlib
 import json
 import os
 from pathlib import Path
+from test.hummingbot.strategy_v2.life_liquidity.storage.image_manifest import execution_manifest
 from time import monotonic
 from uuid import uuid4
 
@@ -35,24 +35,35 @@ def security():
 
 
 @pytest.mark.asyncio
-async def test_image_is_linux_amd64_nonroot_and_contains_exact_native_source_and_drivers():
+@pytest.mark.parametrize('stale_hedge', [False, True])
+async def test_image_is_linux_amd64_nonroot_and_contains_exact_native_source_and_drivers(tmp_path, stale_hedge):
     image = os.environ['LIFE_PG_WORKER_IMAGE']
     _, metadata, _ = await docker('image', 'inspect', image)
     meta, = json.loads(metadata)
     assert meta['Id'] == image and meta['Os'] == 'linux' and meta['Architecture'] == 'amd64'
     assert meta['Config']['User'] == '10001:10001'
     assert meta['Config']['Entrypoint'] == ['python', '-m', 'hummingbot.strategy_v2.life_liquidity.storage.postgres.worker']
-    files = ['hummingbot/strategy_v2/life_liquidity/storage/postgres/' + name for name in ('worker.py', 'runtime.py', 'service.py', 'migrations.py')]
-    files += ['migrations/life_liquidity/' + p.name for p in sorted((ROOT / 'migrations/life_liquidity').glob('*.sql'))]
-    program = '''import hashlib,json,os,platform
+    expected = execution_manifest(ROOT)
+    if stale_hedge:
+        expected['hummingbot/strategy_v2/life_liquidity/storage/postgres/hedge_source.py'] = '0' * 64
+    (tmp_path / 'source_manifest.json').write_text(json.dumps(expected, sort_keys=True))
+    program = '''import json,os,platform
 import asyncpg,psycopg
 from hummingbot.core import clock
+from test.hummingbot.strategy_v2.life_liquidity.storage.image_manifest import verify_execution_manifest
 assert os.getuid()==10001 and platform.machine()=='x86_64' and clock.__file__.endswith('.so')
-files=json.loads(__import__('sys').argv[1])
-print(json.dumps({p:hashlib.sha256(open(p,'rb').read()).hexdigest() for p in files},sort_keys=True))
+expected=json.load(open('/manifest/source_manifest.json'))
+verify_execution_manifest('/home/hummingbot',expected)
+print(json.dumps({'verified_files':len(expected)}))
 '''
-    _, body, _ = await docker('run', '--rm', *security(), '--entrypoint', 'python', image, '-c', program, json.dumps(files))
-    assert json.loads(body) == {p: hashlib.sha256((ROOT / p).read_bytes()).hexdigest() for p in files}
+    code, body, error = await docker('run', '--rm', *security(), '-v', str(tmp_path) + ':/manifest:ro',
+                                     '-v', str(ROOT / 'test') + ':/qualification/test:ro', '-e', 'PYTHONPATH=/qualification',
+                                     '--entrypoint', 'python', image, '-c', program, check=False)
+    if stale_hedge:
+        assert code == 1 and 'IMAGE_SOURCE_MISMATCH:hummingbot/strategy_v2/life_liquidity/storage/postgres/hedge_source.py' in error
+    else:
+        assert code == 0, error
+        assert json.loads(body) == {'verified_files': len(expected)}
 
 
 @pytest.mark.asyncio

@@ -9,6 +9,13 @@ fall back to SQLite or grant financial authority. The current-source matrix is
 migration test**; see [PG5 qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg5-offline-operational-qualification-2026-10-23).
 PG6–PG8 and O.8 remain open. The real environment/account gates below remain open.
 
+**PG7 artifact progress (2026-10-23):** the refreshed AMD64 image passes all
+67 native process/recovery/unknown-loss cases; its complete packaged-source and
+signal gate passes 8 cases, recorder integration 13. PG7 still needs dependency
+locking, owned shutdown cancellation sequencing and complete metrics/alerts.
+The PostgreSQL plan records the exact image and separate test outputs; these
+results do not close PG6, PG8/O.8 or deployed qualification.
+
 **Environment checklist ownership (2026-10-23):** PostgreSQL deployment,
 actual identity/TLS/durability, OKX demo and production gates now live in
 [PostgreSQL environment qualification](#postgresql-environment-qualification)

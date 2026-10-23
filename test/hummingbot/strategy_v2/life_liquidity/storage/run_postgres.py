@@ -1,6 +1,5 @@
 """PG2 real-process qualification in a new disposable local DB; no .env reads."""
 import argparse
-import hashlib
 import json
 import os
 import re
@@ -9,6 +8,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from test.hummingbot.strategy_v2.life_liquidity.storage.image_manifest import execution_manifest
 from test.hummingbot.strategy_v2.life_liquidity.storage.run_migrations import IMAGE, docker
 from uuid import uuid4
 
@@ -379,20 +379,7 @@ def main():
         with (output / 'integration.log').open('w') as log:
             if args.linux_image:
                 root = Path(__file__).resolve().parents[5]
-                manifest_paths = list((root / 'migrations/life_liquidity').glob('*.sql'))
-                manifest_paths += [root / name for name in (
-                    'hummingbot/model/sql_connection_manager.py', 'hummingbot/model/postgres_recorder.py',
-                    'hummingbot/strategy_v2/life_liquidity/storage/postgres/spot.py',
-                    'hummingbot/strategy_v2/life_liquidity/storage/postgres/runtime.py',
-                    'hummingbot/strategy_v2/life_liquidity/storage/postgres/worker.py',
-                    'hummingbot/strategy_v2/life_liquidity/storage/postgres/service.py',
-                    'hummingbot/strategy_v2/life_liquidity/storage/postgres/headless.py',
-                    'hummingbot/strategy_v2/life_liquidity/storage/postgres/ownership.py',
-                    'hummingbot/strategy_v2/life_liquidity/storage/postgres/recovery_actor.py',
-                    'hummingbot/strategy_v2/life_liquidity/storage/generation_access.py',
-                    'hummingbot/core/clock.pyx',
-                    'controllers/generic/life_liquidity.py')]
-                manifest = {str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest() for path in manifest_paths}
+                (output / 'source_manifest.json').write_text(json.dumps(execution_manifest(root), sort_keys=True))
                 docker_prefix = ['docker', 'run', '--rm', '--network', 'container:' + name,
                                  '--cpus', '2', '--memory', '2g',
                                  '-v', str(root / 'test') + ':/qualification/test:ro',
@@ -401,7 +388,7 @@ def main():
                                  '-e', 'LIFE_PG_TEST_DSN=postgresql://postgres@127.0.0.1:5432/life_pg2_test',
                                  '--entrypoint', 'python', args.linux_image]
                 smoke = subprocess.run(docker_prefix + ['-m',
-                                                        'test.hummingbot.strategy_v2.life_liquidity.storage.linux_image_smoke', json.dumps(manifest)],
+                                                        'test.hummingbot.strategy_v2.life_liquidity.storage.linux_image_smoke', '/results/source_manifest.json'],
                                        stdout=log, stderr=subprocess.STDOUT)
                 if smoke.returncode:
                     print('Linux image import/package smoke failed; see integration.log')
