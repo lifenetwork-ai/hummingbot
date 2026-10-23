@@ -19,11 +19,52 @@ LIMITS = BackupLimits(max_tables=512, max_rows=2048, max_row_bytes=2**20, max_to
                       max_schema_objects=8192, max_schema_bytes=32 * 2**20)
 
 
-async def isolate(database):
+async def isolate(database, *, drain=False):
     admin = await asyncpg.connect(database[1].rsplit('/', 1)[0] + '/life_pg2_test')
     name = database[1].rsplit('/', 1)[1]
-    await admin.execute(f'ALTER DATABASE "{name}" ALLOW_CONNECTIONS false')
-    await admin.close()
+    try:
+        await admin.execute(f'ALTER DATABASE "{name}" ALLOW_CONNECTIONS false')
+        if drain:
+            # Positive fixtures require observed server-side drain, not merely
+            # the client's pool.close acknowledgement. Admission stays fenced.
+            # Never terminate/ignore another backend or retry quarantine.
+            rows = []
+            try:
+                async with asyncio.timeout(1):
+                    while True:
+                        rows = await admin.fetch('''SELECT pid,backend_type,usename,state FROM pg_stat_activity
+                            WHERE datname=$1 AND pid<>$2''', name, database[0].get_server_pid())
+                        if not rows:
+                            break
+                        await asyncio.sleep(.01)
+            except TimeoutError:
+                raise AssertionError('RESTORE_FIXTURE_BACKENDS_NOT_DRAINED: ' + json.dumps([dict(r) for r in rows])) from None
+    finally:
+        await admin.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('closes', [True, False])
+async def test_positive_restore_fixture_requires_actual_backend_drain_without_killing_foreign_sessions(database, closes):
+    other = await asyncpg.connect(database[2])
+
+    async def exit_backend():
+        await asyncio.sleep(.05)
+        await other.close()
+    closing = asyncio.create_task(exit_backend()) if closes else None
+    try:
+        if closes:
+            await isolate(database, drain=True)
+            assert other.is_closed()
+        else:
+            with pytest.raises(AssertionError, match='RESTORE_FIXTURE_BACKENDS_NOT_DRAINED'):
+                await isolate(database, drain=True)
+            assert not other.is_closed()
+        assert not await database[0].fetchval('SELECT datallowconn FROM pg_database WHERE datname=current_database()')
+    finally:
+        if closing is not None:
+            await closing
+        await other.close()
 
 
 async def captured(database):

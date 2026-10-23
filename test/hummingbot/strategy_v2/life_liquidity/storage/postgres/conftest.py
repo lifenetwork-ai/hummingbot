@@ -216,7 +216,12 @@ async def database(request, monkeypatch, tmp_path, migration_template, reason_co
                     round(self_time::numeric,3) AS self_ms FROM pg_stat_user_functions
                     WHERE schemaname='life_financial' AND calls>0 ORDER BY self_time DESC LIMIT 30''')
                 import json
-                print('bounded_native_function_profile=' + json.dumps([dict(r) for r in rows], default=str))
+                payload = json.dumps([dict(r) for r in rows], default=str)
+                # Passing-test stdout is normally hidden by pytest. Preserve
+                # this bounded, opt-in profile in the existing /tmp JUnit
+                # result too; it contains function names/counts, not queries.
+                request.node.user_properties.append(('bounded_native_function_profile', payload))
+                print('bounded_native_function_profile=' + payload)
             finally:
                 await profile.close()
         await admin.execute(f'DROP DATABASE "{name}" WITH (FORCE)')

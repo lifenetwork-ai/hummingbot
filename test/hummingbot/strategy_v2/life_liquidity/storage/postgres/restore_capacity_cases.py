@@ -43,17 +43,25 @@ from hummingbot.strategy_v2.models.executors_info import ExecutorInfo
 CAPACITY = BackupLimits(max_tables=512, max_rows=1000000, max_row_bytes=2**20,
                         max_total_bytes=2**30, timeout_ms=120000, max_schema_objects=8192, max_schema_bytes=32 * 2**20)
 MODEL = {'synthetic_retained_history': True}
+HISTORY_RETENTION = dict(mode='SETTLED_NATIVE_V1', max_retained_tickets=10000,
+                         max_retained_body_bytes=128 * 2**20)
+RETENTION_MODEL = {**MODEL, 'birth_retention': HISTORY_RETENTION}
 
 
-async def seed_completed(database, f, cfg, owner, lease, count, progress):
+async def seed_completed(database, f, cfg, owner, lease, count, progress, *, model=MODEL, hot_tickets=4096, retention=None):
     c = database[0]
     await c.execute("INSERT INTO life_financial.spot_capital_policies VALUES($1,$2,5,10,1,$3,'100',100000)", cfg.account_id, cfg.binding.policy_hash, owner.valid_from)
     await c.execute('INSERT INTO life_financial.spot_fill_policies VALUES($1,$2,1000,10000)', cfg.account_id, cfg.binding.policy_hash)
     await c.execute('INSERT INTO life_financial.spot_settlement_policies VALUES($1,$2,1000)', cfg.account_id, cfg.binding.policy_hash)
     await c.execute("INSERT INTO life_financial.spot_action_policies VALUES($1,$2,'controller1',8,65536,1000)", cfg.account_id, cfg.binding.policy_hash)
     await c.execute("INSERT INTO life_financial.spot_quote_admission_policies VALUES($1,$2,'liquidity_service',0,0,.01,.01,.01,1000,1000,1000,1000)", cfg.account_id, cfg.binding.policy_hash)
-    await c.execute('INSERT INTO life_financial.quote_birth_policies VALUES($1,$2,4096,16777216)', cfg.account_id, cfg.binding.policy_hash)
-    maximum = await c.fetchval('SELECT max_tickets FROM life_financial.quote_birth_policies WHERE account_id=$1', cfg.account_id)
+    await c.execute('INSERT INTO life_financial.quote_birth_policies VALUES($1,$2,$3,16777216)', cfg.account_id, cfg.binding.policy_hash, hot_tickets)
+    if retention is not None:
+        await c.execute('INSERT INTO life_financial.quote_birth_retention_policies VALUES($1,$2,$3,$4,$5)', cfg.account_id,
+                        cfg.binding.policy_hash, fingerprint(model), retention['max_retained_tickets'], retention['max_retained_body_bytes'])
+        maximum = retention['max_retained_tickets']
+    else:
+        maximum = await c.fetchval('SELECT max_tickets FROM life_financial.quote_birth_policies WHERE account_id=$1', cfg.account_id)
     assert count <= maximum, (
         f'PG6_X1_SOURCE_PROFILE_UNSUPPORTED: {count} retained provisional births exceed '
         f'the original {maximum}-ticket account policy. This is not a restore timing result.')
@@ -68,8 +76,12 @@ async def seed_completed(database, f, cfg, owner, lease, count, progress):
         while not stop.is_set():
             await lease.heartbeat('capacity-heartbeat:' + str(n))
             n += 1
-            await asyncio.sleep(.25)
+            try:
+                await asyncio.wait_for(stop.wait(), timeout=.25)
+            except TimeoutError:
+                pass
     heartbeat = asyncio.create_task(heartbeats())
+    failed = False
     try:
         for n in range(count):
             if heartbeat.done():
@@ -80,7 +92,7 @@ async def seed_completed(database, f, cfg, owner, lease, count, progress):
             at = await c.fetchval('SELECT clock_timestamp()')
             intent = PgSpotQuoteIntent(key, 'controller1', owner, 1, TradeType[side], 0, D('1'), D('1'))
             wire = intent.wire_id
-            ticket = await births.issue('birth:' + key, intent, model_hash=fingerprint(MODEL), expected_version=snapshot.cut.checkpoint.revision)
+            ticket = await births.issue('birth:' + key, intent, model_hash=fingerprint(model), expected_version=snapshot.cut.checkpoint.revision)
             action = ticket.action
             executor = OrderExecutorConfig.model_validate_json(action.payload_json)
             # Production provisional capture is born after preflight. Original
@@ -131,10 +143,17 @@ async def seed_completed(database, f, cfg, owner, lease, count, progress):
                     SettleSpotInventory('settlement:' + key, 'cycle:' + key, tuple(pair)), facts=facts, cut=snapshot.cut, owner=owner)
                 pair.clear()
             progress['completed_orders'] = n + 1
+    except BaseException:
+        failed = True
+        raise
     finally:
         stop.set()
-        heartbeat.cancel()
-        await asyncio.gather(heartbeat, return_exceptions=True)
+        # Drain the original physical heartbeat. Cancelling its caller can
+        # correctly fence the runtime on an unknown COMMIT, which would make
+        # later maintenance on this otherwise valid source unqualified.
+        result, = await asyncio.gather(heartbeat, return_exceptions=True)
+        if not failed and isinstance(result, BaseException):
+            raise result
 
 
 @pytest.mark.asyncio
@@ -142,12 +161,13 @@ async def seed_completed(database, f, cfg, owner, lease, count, progress):
 @pytest.mark.parametrize('count', [0, 2, 1000, 10000], ids=['h0', 'sanity2', 'h1k', 'h10k'])
 async def test_complete_settled_native_history_restore_capacity(database, tmp_path, request, count):
     values, private, verifier = await source(database, managed_options=dict(owner_duration_ms=1800000,
-                                                                            spot_options=dict(session_duration=timedelta(hours=1))), spot_quote_producer=MODEL)
+                                                                            spot_options=dict(session_duration=timedelta(hours=1))), spot_quote_producer=RETENTION_MODEL)
     f, cfg, owner, _, lease, *_, keys = values
-    progress = dict(requested_orders=count, completed_orders=0, measured_restore_complete=False)
+    progress = dict(requested_orders=count, completed_orders=0, measured_restore_complete=False,
+                    retention_mode=HISTORY_RETENTION['mode'])
     seed_start = perf_counter()
     try:
-        await seed_completed(database, f, cfg, owner, lease, count, progress)
+        await seed_completed(database, f, cfg, owner, lease, count, progress, model=RETENTION_MODEL, retention=HISTORY_RETENTION)
         progress['source_build_ms'] = round((perf_counter() - seed_start) * 1000, 3)
         assert await database[0].fetchval('SELECT count(*) FROM life_financial.fills') == count
         assert await database[0].fetchval('SELECT count(*) FROM life_financial.spot_inventory_settlements') == count // 2

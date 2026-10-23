@@ -28,7 +28,7 @@ async def quarantined(database):
     await f.close()
     manifest = await captured(database)
     command = request(manifest)
-    await isolate(database)
+    await isolate(database, drain=True)
     await PgRestoreQuarantine(database[0], limits=LIMITS).quarantine(command, manifest=manifest)
     return cfg, owner, manifest, command, verifier
 

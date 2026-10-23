@@ -1,5 +1,43 @@
 # LIFE PostgreSQL migrations
 
+## 000128–000130 — Bounded retained history and deterministic audit work
+
+128 adds **no default account policy**. An owner must explicitly provision
+`quote_birth_retention_policies`, bound to the exact producer model and financial
+policy, and configure matching `birth_retention` values. Original total-history
+caps remain unchanged for existing configurations. Opt-in separates hot
+metadata caps from explicit retained count/byte caps; only retired or fully
+settled/reconciled tickets with final applied recorder state and no held claim
+qualify as cold. Every original row, ID and financial check remains retained.
+This is capacity accounting, not sender authority or automatic archival.
+
+129 replaces per-action closure queries with one account-wide relation; exact
+original terminal/abort operations, reservation state and finite closure times
+are still required. 130 adds STORED GENERATED canonical body fingerprints to
+births/retirements. These are deterministic current-row digests, recomputed on
+UPDATE even with user triggers disabled, not saved integrity/permission verdicts.
+Original structural/source/identity/policy verifiers and COMMIT checks remain.
+
+Both audit upgrades pin predecessor kernels and preserve existing function
+OIDs/ACLs. Four real migration tests cover repeat startup and atomic refusal of
+changed predecessors. The 10k retained profile is not latency qualification:
+the current 1k flow still times out before restore, as recorded in PG6-X1.
+
+## 000127 — Reuse history proofs within one snapshot
+
+Keeps complete lifecycle, settlement and recorder verification while removing
+duplicate audits within the same STABLE MVCC invocation. A valid base snapshot
+with a reconciled action already includes lifecycle verification. Settlement
+deferred guards retain their complete lifecycle check, which also includes
+settlement. Recorder stage/apply reuse the recorder result from the full fresh
+state/cut query; replay and post-write COMMIT audits remain independent.
+
+The new `recorder_cut_verified` helper is private, including under hostile
+default privileges. It computes its own full snapshot and accepts no supplied
+proof Boolean. The migration pins complete predecessor definitions, preserves
+existing function OIDs/ACLs and changes no financial rows, policy caps or source
+clocks. Repeated startup uses the original checksum ledger and is a no-op.
+
 ## 000126 — Signed restored-account observation recovery
 
 Adds owner-only immutable `restore_recovery_imports`, linked to the exact restore

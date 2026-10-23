@@ -35,8 +35,17 @@ async def prepared(database):
     await f.close()
     manifest = await captured(database)
     command = request(manifest)
-    await isolate(database)
-    await PgRestoreQuarantine(database[0], limits=LIMITS).quarantine(command, manifest=manifest)
+    await isolate(database, drain=True)
+    try:
+        await PgRestoreQuarantine(database[0], limits=LIMITS).quarantine(command, manifest=manifest)
+    except StorageError as error:
+        if str(error) == 'PG_RESTORE_TARGET_NOT_ISOLATED':
+            # Bounded diagnostics only: no query text, connection secrets,
+            # retries or relaxed production isolation predicate.
+            rows = await database[0].fetch('''SELECT pid,backend_type,usename,state FROM pg_stat_activity
+                WHERE datid=(SELECT oid FROM pg_database WHERE datname=current_database()) AND pid<>pg_backend_pid()''')
+            print('restore_isolation_backends=' + json.dumps([dict(r) for r in rows]))
+        raise
     target_cfg = replace(cfg, database_lineage=command.target_lineage, principal='life_pg2_reporter',
                          dsn=cfg.dsn.replace('life_pg2_runtime@', 'life_pg2_reporter@'))
     now = await database[0].fetchval('SELECT clock_timestamp()')

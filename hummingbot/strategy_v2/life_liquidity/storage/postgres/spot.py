@@ -102,17 +102,26 @@ class PgSpotRepository:
         self._binding(binding)
 
         async def read(c):
+            # Verify/hash the complete retained state exactly once on the
+            # primary. Only the SpotSnapshot DTO's fields cross the wire;
+            # historical action/birth/product arrays still affect its cut and
+            # independent integrity flags, but Python does not consume them.
+            query = """WITH current_state AS MATERIALIZED (SELECT life_financial.spot_state($1) AS v)
+                SELECT jsonb_build_object('account',v->'account','session',v->'session','policy',v->'policy',
+                    'balances',v->'balances','budgets',v->'budgets','session_lifecycle',v->'session_lifecycle',
+                    'digest',v->'digest','observed_at',v->'observed_at','unverified',v->'unverified',
+                    'recovery_required',v->'recovery_required')"""
             if any(m.version == 82 for m in self._runtime._bundle):
                 import asyncpg
                 try:
                     # Both STABLE projections consume this one primary MVCC cut;
                     # quote capacity excludes EXIT holds and original spending.
-                    return await c.fetchval("""SELECT v||jsonb_build_object('execution_quote_budget',
+                    return await c.fetchval(query + """||jsonb_build_object('execution_quote_budget',
                         CASE WHEN life_financial.execution_enabled($1) THEN life_financial.execution_quote_budget_frame($1) ELSE NULL END)
-                        FROM (SELECT life_financial.spot_state($1) AS v) original""", self._runtime.config.account_id)
+                        FROM current_state""", self._runtime.config.account_id)
                 except asyncpg.RaiseError as error:
                     raise sql_error(error) from None
-            return await c.fetchval('SELECT life_financial.spot_state($1)', self._runtime.config.account_id)
+            return await c.fetchval(query + ' FROM current_state', self._runtime.config.account_id)
         value = await self._runtime._admit(read, safety=True, operation='spot_state')
         try:
             # Schema allows 38 integer + 18 fractional digits. Never use the

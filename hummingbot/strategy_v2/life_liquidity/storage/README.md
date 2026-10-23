@@ -166,11 +166,11 @@ Use `PYTEST_ADDOPTS='-k diagnostic_profile'` with
 `LIFE_PG_TEST_FUNCTION_PROFILE=1` only for the separate 32-order diagnostic;
 profiled timings are not latency acceptance.
 
-The current 1k source fails at its 86th provisional preparation: physical
+The original 1k source fails at its 86th provisional preparation: physical
 COMMIT correctly refuses the expired quote, after 85 completed orders
 (`/tmp/life-pg6-capacity-1k-a6`). Thus restore has not been measured at 1k.
 Profiling confirms repeated full-history recorder/settlement validation across
-the command flow. The all-provisional profile also cannot retain 10k original
+the command flow. The original all-provisional profile cannot retain 10k original
 tickets under the original 4,096-ticket account policy; it refuses this before
 building history. Keep PG6-X1/PG8.7 open until a supported complete-history
 profile and measured recovery pass. Do not increase freshness limits, bypass
@@ -179,6 +179,44 @@ The current control run (`/tmp/life-pg6-capacity-controls-a1`) has **2 passes
 and 1 failure**: zero/two-order backup-to-observation/snapshot controls take
 8,590.848/8,213.697 ms, and the 10k profile refuses before construction. That
 result is deliberately recorded as an unqualified capacity gate.
+
+Migration 127 reduces duplicate history audits inside one fresh STABLE
+invocation. Standalone/replay and physical-COMMIT verification remain
+independent. The serial 32-order diagnostic improves from 68,316.103 ms to
+54,923.121 ms (one profiled sample each); settlement-verifier calls decrease
+from 2,204 to 1,192 and recorder-integrity calls from 1,082 to 954
+(`/tmp/life-pg6-capacity-profile-same-cut-a1`). This is diagnostic progress,
+not retained-history capacity acceptance. New partial-proof helpers are not
+public runtime/reporting APIs and cannot replace private ownership or rearm.
+
+Migration 128 provides an explicit owner-side `quote_birth_retention_policies`
+record plus an exact matching producer `birth_retention` configuration:
+`{"mode":"SETTLED_NATIVE_V1","max_retained_tickets":10000,
+"max_retained_body_bytes":134217728}` in the synthetic capacity workload.
+There is no implicit selection or policy seed. Without this opt-in the original
+ticket/byte limits still bound the complete history. With it, original limits
+bound hot metadata and explicit retained limits bound all bodies. Cold metadata
+requires retirement or final native settlement/recorder application with no
+held claim. No original history/identity row is removed or exempted from audits.
+Historical reads grant no sender and old intent IDs cannot be reused.
+
+Migration 129 batches action closure reads. Migration 130 uses GENERATED
+current-body digests, recomputed by PostgreSQL on updates, while retaining all
+original structural and causal checks. `SpotSnapshot` transports only its DTO
+fields after the complete server audit/digest; ignored history arrays remain
+part of that cut. A six-order fixture transports 3,111 instead of 12,151 bytes.
+These changes do not cache readiness or replace physical-COMMIT verification.
+The combined native recovery/retention and recorder/inventory regression passes
+279 tests in 659.28 s (`/tmp/life-pg6-history-final-a1`), zero failures/errors/skips.
+This functional result does not discharge the retained-history gate below.
+
+The new explicit-retention 1k run fails after **114 completed orders** in
+`spot_observe`: SQL takes 1,003.831 ms and exceeds the unchanged 1,000-ms
+timeout. It rolls back without COMMIT, before restore is measured
+(`/tmp/life-pg6-capacity-1k-retained-a1`, 497.91 s). Supporting the 10k retained
+count does not qualify its latency. PG6-X1/PG8.7 and the 120-s full recovery
+gate remain open. Source build time is recorded separately, never subtracted
+from a failed quote or presented as a restore result.
 
 ## Complete relational history staging (PG6)
 

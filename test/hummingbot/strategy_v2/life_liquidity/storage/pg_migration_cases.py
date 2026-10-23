@@ -4479,3 +4479,146 @@ async def test_restore_recovery_upgrade_refuses_unknown_access_predecessor(db):
     with pytest.raises(asyncpg.RaiseError, match='RESTORE_RECOVERY_UNKNOWN_ACCESS_PREDECESSOR'):
         await migrate(c, directory, action='up')
     assert await c.fetchval("SELECT to_regclass('life_storage.restore_recovery_imports')") is None
+
+
+@pytest.mark.asyncio
+async def test_same_cut_history_upgrade_preserves_oids_acl_and_refuses_new_authority(db):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 127:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    signatures = (
+        'life_financial.spot_body_v13(uuid)',
+        'life_financial.spot_inventory_commit_guard(uuid,jsonb)',
+        'life_financial.spot_inventory_projection_guard()',
+        'life_financial.recorder_stage_executor(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,text,jsonb)',
+        'life_financial.recorder_apply_executor(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.identity)',
+    )
+    oids = [await c.fetchval('SELECT to_regprocedure($1)::oid', s) for s in signatures]
+    await c.execute('''GRANT EXECUTE ON FUNCTION life_financial.spot_inventory_commit_guard(uuid,jsonb) TO life_runtime_test;
+        ALTER DEFAULT PRIVILEGES IN SCHEMA life_financial GRANT EXECUTE ON FUNCTIONS TO PUBLIC,life_runtime_test,life_reporter_test''')
+    path = DEFAULT_DIRECTORY / '000127_same_cut_history_proofs.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    assert (await migrate(c, directory, action='up'))['applied'] == []
+    assert [await c.fetchval('SELECT to_regprocedure($1)::oid', s) for s in signatures] == oids
+    assert await c.fetchval("SELECT has_function_privilege('life_runtime_test','life_financial.spot_inventory_commit_guard(uuid,jsonb)','EXECUTE')")
+    for role in ('public', 'life_runtime_test', 'life_reporter_test'):
+        assert not await c.fetchval("SELECT has_function_privilege($1,'life_financial.recorder_cut_verified(uuid,life_financial.digest)','EXECUTE')", role)
+    assert await c.fetchval('SELECT count(*) FROM life_financial.accounts') == 0
+    assert await c.fetchval('SELECT count(*) FROM life_financial.operations') == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('name', ['spot_lifecycle_verified', 'spot_body_v7', 'recorder_apply_executor'])
+async def test_same_cut_history_upgrade_refuses_unknown_proof_predecessor_atomically(db, name):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 127:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    original = await c.fetchval("SELECT prosrc FROM pg_proc WHERE oid='life_financial.spot_body_v13(uuid)'::regprocedure")
+    definition = await c.fetchval("SELECT pg_get_functiondef(oid) FROM pg_proc WHERE pronamespace='life_financial'::regnamespace AND proname=$1", name)
+    await c.execute(definition.replace('BEGIN', 'BEGIN /* unqualified predecessor */', 1))
+    path = DEFAULT_DIRECTORY / '000127_same_cut_history_proofs.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    with pytest.raises(asyncpg.RaiseError, match='HISTORY_FLOW_UNKNOWN_PREDECESSOR'):
+        await migrate(c, directory, action='up')
+    assert await c.fetchval("SELECT to_regprocedure('life_financial.recorder_cut_verified(uuid,life_financial.digest)')") is None
+    assert await c.fetchval("SELECT prosrc FROM pg_proc WHERE oid='life_financial.spot_body_v13(uuid)'::regprocedure") == original
+
+
+@pytest.mark.asyncio
+async def test_birth_retention_upgrade_is_opt_in_private_empty_and_repeatable(db):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 128:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    signatures = ('life_financial.quote_birth_issue(uuid,jsonb,jsonb,bigint,jsonb)',
+                  'life_financial.quote_birth_before_retirement_verified(uuid)', 'life_financial.spot_body(uuid)')
+    oids = [await c.fetchval('SELECT to_regprocedure($1)::oid', s) for s in signatures]
+    await c.execute('''ALTER DEFAULT PRIVILEGES IN SCHEMA life_financial GRANT ALL ON TABLES TO PUBLIC,life_runtime_test,life_reporter_test;
+        ALTER DEFAULT PRIVILEGES IN SCHEMA life_financial GRANT EXECUTE ON FUNCTIONS TO PUBLIC,life_runtime_test,life_reporter_test''')
+    path = DEFAULT_DIRECTORY / '000128_settled_birth_retention.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    assert (await migrate(c, directory, action='up'))['applied'] == []
+    assert [await c.fetchval('SELECT to_regprocedure($1)::oid', s) for s in signatures] == oids
+    for role in ('public', 'life_runtime_test', 'life_reporter_test'):
+        for privilege in ('SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'TRIGGER'):
+            assert not await c.fetchval("SELECT has_table_privilege($1,'life_financial.quote_birth_retention_policies',$2)", role, privilege)
+        for signature in ('life_financial.quote_birth_cold_tickets(uuid)',
+                          'life_financial.quote_birth_capacity_valid(uuid,bigint,bigint,bigint)'):
+            assert not await c.fetchval("SELECT has_function_privilege($1,$2,'EXECUTE')", role, signature)
+    assert await c.fetchval('SELECT count(*) FROM life_financial.quote_birth_retention_policies') == 0
+    assert await c.fetchval('SELECT count(*) FROM life_financial.accounts') == 0
+
+
+@pytest.mark.asyncio
+async def test_birth_retention_upgrade_refuses_unknown_capacity_predecessor_without_partial_ddl(db):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 128:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    await c.execute("CREATE OR REPLACE FUNCTION life_financial.quote_birth_before_retirement_verified(p_account uuid) RETURNS boolean LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog AS 'BEGIN RETURN true; END;'")
+    path = DEFAULT_DIRECTORY / '000128_settled_birth_retention.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    with pytest.raises(asyncpg.RaiseError, match='BIRTH_RETENTION_UNKNOWN_PREDECESSOR'):
+        await migrate(c, directory, action='up')
+    assert await c.fetchval("SELECT to_regclass('life_financial.quote_birth_retention_policies')") is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('version,filename,signatures', [
+    (129, '000129_batched_action_finality.sql', ('life_financial.spot_actions_verified(uuid)',)),
+    (130, '000130_generated_birth_fingerprints.sql', (
+        'life_financial.quote_birth_before_retirement_verified(uuid)', 'life_financial.quote_birth_verified(uuid)')),
+])
+async def test_retained_audit_upgrade_preserves_function_identity_acl_and_repeat_startup(db, version, filename, signatures):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < version:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    oids = [await c.fetchval('SELECT to_regprocedure($1)::oid', s) for s in signatures]
+    for signature in signatures:
+        await c.execute('GRANT EXECUTE ON FUNCTION ' + signature + ' TO life_runtime_test')
+    (directory / filename).write_bytes((DEFAULT_DIRECTORY / filename).read_bytes())
+    assert (await migrate(c, directory, action='up'))['applied'] == [filename]
+    assert (await migrate(c, directory, action='up'))['applied'] == []
+    assert [await c.fetchval('SELECT to_regprocedure($1)::oid', s) for s in signatures] == oids
+    for signature in signatures:
+        assert await c.fetchval("SELECT has_function_privilege('life_runtime_test',$1,'EXECUTE')", signature)
+    if version == 130:
+        for table in ('quote_births', 'quote_birth_retirements'):
+            assert await c.fetchval('''SELECT attgenerated FROM pg_attribute WHERE attrelid=$1::regclass
+                AND attname='canonical_body_fingerprint' ''', 'life_financial.' + table) == b's'
+    assert await c.fetchval('SELECT count(*) FROM life_financial.accounts') == 0
+    assert await c.fetchval('SELECT count(*) FROM life_financial.operations') == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('version,filename,signature,reason', [
+    (129, '000129_batched_action_finality.sql', 'life_financial.spot_action_closed_at(uuid,life_financial.identity)',
+     'ACTION_FINALITY_UNKNOWN_PREDECESSOR'),
+    (130, '000130_generated_birth_fingerprints.sql', 'life_financial.canonical_json_v1(jsonb)',
+     'BIRTH_DIGEST_UNKNOWN_PREDECESSOR'),
+])
+async def test_retained_audit_upgrade_refuses_changed_proof_kernel_atomically(db, version, filename, signature, reason):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < version:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    definition = await c.fetchval('SELECT pg_get_functiondef(to_regprocedure($1))', signature)
+    await c.execute(definition.replace('AS $function$', 'AS $function$ /* unqualified predecessor */', 1))
+    (directory / filename).write_bytes((DEFAULT_DIRECTORY / filename).read_bytes())
+    with pytest.raises(asyncpg.RaiseError, match=reason):
+        await migrate(c, directory, action='up')
+    assert await c.fetchval('SELECT max(version) FROM life_migrations.schema_migrations') == version - 1
+    if version == 130:
+        assert not await c.fetchval('''SELECT EXISTS(SELECT 1 FROM pg_attribute
+            WHERE attrelid='life_financial.quote_births'::regclass AND attname='canonical_body_fingerprint')''')

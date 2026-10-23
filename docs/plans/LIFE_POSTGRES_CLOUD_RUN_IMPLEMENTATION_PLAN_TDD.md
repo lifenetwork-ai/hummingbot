@@ -4200,6 +4200,28 @@ not qualified by this offline single-account run.
 #### PG6-X — Required retained-history recovery capacity (open, shared with PG8)
 
 - [ ] PG6-X1: Record measured backup restore, import, reconciliation, retained history and settlement/recovery headroom against PG0 RPO/RTO/capacity decisions. Export schema/versioned audit evidence; do not rely on backup existence alone.
+  - [x] **Same-snapshot history proof reuse (migration 127):** the red test
+    observes two settlement audits for one full snapshot. The new path uses one
+    when the base snapshot already proves a reconciled action's full lifecycle;
+    empty/active/corrupt/NULL states retain the original full path. Settlement
+    COMMIT guards keep their independent fresh lifecycle audit, including the
+    settlement predicate. All eight native recorder stage/apply kernels consume
+    the original recorder result from a fresh full state/cut in one private
+    STABLE helper; replay and post-write constraints still re-audit. Whole body
+    JSON matches the pre-upgrade wrappers for empty, unsettled and settled
+    flows, including injected monetary/recorder/action corruption. Four real
+    migration tests pass in 8.71 s, covering repeat startup, preserved OID/ACL,
+    hostile defaults and atomic refusal of three unknown proof predecessors
+    (`/tmp/life-pg6-same-cut-migration-a1`). The initial native-runner invocation
+    of migration cases has four setup errors because it supplies the other
+    runner's DSN; its log is retained as a harness error, not a migration pass.
+    Serial 32-order profiling takes **54,923.121 ms**, compared with the prior
+    68,316.103-ms diagnostic (one sample each, **19.6%** lower). Settlement
+    verifier calls fall **2,204 → 1,192**, recorder integrity **1,082 → 954**,
+    and executor-row conversions **51,824 → 45,680**. Full state calls remain
+    647; no cache, history omission or freshness/cap change is used
+    (`/tmp/life-pg6-capacity-profile-same-cut-a1`). This does not qualify 1k/10k
+    source construction or the 120-s restore target.
   - [x] Record one explicit small-fixture logical backup/restore/quarantine timing, archive bytes and complete table/row counts below. This is a functional rehearsal, not RPO/RTO or retained-history headroom acceptance.
   - [x] **Reproducible capacity workload and diagnostics:** opt-in
     `run_postgres --suite pg6_capacity` constructs native provisional quote
@@ -4218,7 +4240,74 @@ not qualified by this offline single-account run.
     unsupported-profile refusal before any source order. Its full result is
     **2 passed / 1 failed / 2 deselected in 29.28 s**, not a passing capacity
     gate. Full outer timeout also encloses fixture cleanup.
-  - [ ] **Retained-history qualification is blocked before restore:** the
+  - [x] **Explicit settled-ticket retention (128):** an immutable owner-provisioned
+    `SETTLED_NATIVE_V1` policy must match the whole configured producer model,
+    current financial policy and explicit retained count/byte limits. Original
+    ticket caps remain total-history caps without this opt-in. With it they
+    bound active metadata separately from retained history; no row is deleted
+    or omitted from auditing/backup. Only retired tickets or fully terminal,
+    settled, reconciled tickets with applied final recorder state and no held
+    claim qualify as cold. Original duplicate IDs still deny reuse. The
+    synthetic capacity workload explicitly selects 10,000 retained tickets and
+    128 MiB of bodies; these are qualification values, not live defaults.
+  - [x] **Compact transport and batched deterministic checks (129–130):**
+    `SpotSnapshot` transports only DTO fields after the same complete SQL
+    audit/digest. A six-order fixture reduces wire JSON from 12,151 to 3,111
+    bytes with identical DTO/cut and corruption rejection. Action closure uses
+    one account-wide relation rather than one standalone query per reconciled
+    action (four-order count 4 → 0). Generated birth/retirement body digests
+    replace recursive re-encoding of old bodies; PostgreSQL recomputes them on
+    updates, including owner-injected corruption with user triggers disabled.
+    Structural/origin/policy checks still reject corrupted, rehashed bodies.
+    The retention/payload/birth matrix passes 53 tests in 66.71 s, action batch
+    passes three in 18.34 s, fingerprint proof passes one in 11.97 s. Four
+    migration 129/130 tests pass in 10.07 s, including repeat startup, preserved
+    OID/ACL and atomic refusal of modified predecessor kernels. These are
+    separate, overlapping runs, not a combined acceptance result. The serial
+    32-order legacy-profile diagnostic now builds in 52,404.069 ms
+    (`/tmp/life-pg6-profile-130-a1`, one pass in 59.21 s). Compared with the
+    54,923.121-ms migration-127 sample, the additional changes reduce this
+    single-sample build time by only 4.6%; this is not sufficient evidence of
+    1k/10k eligibility. Passing-test captured SQL profiling stdout was not
+    retained by that runner invocation; do not infer function counts from it.
+    A serial repeat with bounded profile properties retained in the existing
+    temporary JUnit output passes in 57.82 s, source build 51,402.933 ms
+    (`/tmp/life-pg6-profile-retained-output-a1`). It records 647 full state
+    calls, 954 recorder-integrity calls, 45,680 recorder-row conversions,
+    1,192 settlement audits and 8,992 evidence reconstructions. Those counts
+    are unchanged from the migration-127 sample; canonical calls decrease
+    147,712 → 84,752. Recorder integrity consumes 6,014.991 ms self time,
+    access checks 5,886.786 ms, birth verification 3,874.231 ms, recorder row
+    conversion 3,650.977 ms and settlement verification 3,410.178 ms. Nested
+    total times overlap and must not be added. This supports targeting the
+    remaining repeated recorder/settlement work, not claiming hashing alone
+    solved the complete-flow cost. It is a profiled diagnostic, not latency
+    acceptance.
+  - [ ] **Retained-history qualification is still blocked before restore:** the
+    current explicit-retention 1k source completes **114 orders** and then
+    `spot_observe` times out during SQL execution at 1,003.831 ms (1,055.172 ms
+    total). It rolls back without attempting COMMIT and returns
+    `PG_DATABASE_UNAVAILABLE`. Source construction takes 491,080.639 ms; the
+    complete run fails in 497.91 s (`/tmp/life-pg6-capacity-1k-retained-a1`).
+    The unchanged 1,000-ms command limit is not extended. Restore is never
+    reached, so neither the 120-s RTO nor 1k/10k headroom is qualified.
+    The preceding native/reporting regression has 264 passes and one setup
+    failure: quarantine correctly refuses a target with another backend.
+    Positive fixtures now fence admission and wait for actual backend drain;
+    persistent foreign backends still fail and are not killed. Three focused
+    isolation/expiry tests pass. The original transient backend type was not
+    captured, so its cause remains unproven. The final clean combined native
+    backup/recovery/retention plus recorder outbox/event/configuration/position
+    and inventory-settlement regression passes **279 tests in 659.28 s**, zero
+    failures/errors/skips, six existing dependency warnings
+    (`/tmp/life-pg6-history-final-a1`). This qualifies the functional increment,
+    not the failed retained-history capacity gate.
+    The current explicit-retention 0/2-order controls also pass, two cases in
+    25.86 s (`/tmp/life-pg6-retention-controls-a1`). Full backup-to-observation
+    times are 8,568.993/7,431.489 ms; physical source sizes are
+    25,213,975/25,852,951 bytes. Both preserve all settlement members and report
+    completed recovery. They do not substitute for 1k/10k qualification.
+    Earlier baseline: the
     1k-order provisional profile completes **85 orders** and then rejects
     preparation at physical COMMIT with `PG_QUOTE_CAPTURE_STALE`
     (`/tmp/life-pg6-capacity-1k-a6`, 375.34 s). That command spends 543.863 ms
@@ -4231,11 +4320,32 @@ not qualified by this offline single-account run.
     These are complete-flow diagnostic counts, not unprofiled latency budgets.
     Repeated full-history validation is the measured next engineering issue;
     indexes or cross-command permission caches have not been shown to solve it.
-    The current all-provisional source policy also retains at most 4,096
-    tickets/account, so this profile refuses 10k before construction. Supporting
-    10k requires a qualified retained-history protocol/profile; do not silently
+    The original all-provisional source policy retains at most 4,096
+    tickets/account and refuses 10k before construction. Migration 128's explicit
+    retention profile removes that capacity mismatch while retaining all rows;
+    its 10k flow has not yet passed. Do not silently
     increase that policy cap, relax quote/COMMIT freshness, or replace complete
     settled history with empty backups. PG6-X1/PG8.7 remain unchecked.
+
+**Next PG6-X1 closure sequence (offline):**
+
+1. Retain the bounded SQL profile in the existing temporary JUnit output even
+   for passing diagnostic cases. Measure the complete native flow, not an
+   isolated verifier; separate command count, repeated scans, row conversion,
+   SQL execution/COMMIT time and wire bytes. Do not overlap timed runs.
+2. Batch the remaining recorder-origin/row and inventory-evidence validations
+   only after the flow profile identifies their cost. Compare complete old/new
+   cuts, original money/IDs/receipts and corruption refusals. Independent fresh
+   post-write COMMIT checks stay required; a saved readiness Boolean is not an
+   optimization. Small-sample speedups do not establish bounded total-history
+   work or satisfy PG8.4.
+3. Repeat the actual 1k source under unchanged command/fact/quote limits. If it
+   fails, retain the exact operation/phase and stop before presenting a restore
+   result. After it passes, run the full restore/reconciliation gate, then the
+   10k source and recovery gate. Keep the 1-GiB/120-s limits and all history.
+4. Commit only the qualified increment, update both plans with actual verdicts,
+   and rebuild/requalify the immutable image once the source gate is green.
+   PG6-X1/PG8.7 stay open until complete-history recovery qualifies.
 
 **Optional/extended acceptance selectors:** `test_postgres_import.py`, `test_postgres_restore.py`, `test_postgres_cutover_rollback.py` with killed/resumed importer and fresh processes.
 

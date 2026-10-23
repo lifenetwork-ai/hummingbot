@@ -17,11 +17,21 @@ seven additional actual-archive cases now pass for original bills/recorder,
 cold observation restart, SWAP/funding, retained NAV, hedge claims and both
 expired-session policies (`/tmp/life-pg6-matrix-a6`, 83.93 s). The PostgreSQL
 plan records the complete combined functional qualification separately.
-Recovery/headroom (`PG6-X1`/PG8) is still unqualified: the 1k-order source
-fails quote freshness at physical COMMIT after 85 completed orders, before
-restore is measured. The current all-provisional policy also cannot retain
-10k tickets under its 4,096-ticket cap. These are offline engineering gates;
-neither is moved to demo/live or cleared by the seven functional cases. Raw restored
+Recovery/headroom (`PG6-X1`/PG8) is still unqualified. The original 1k-order
+source fails quote freshness at physical COMMIT after 85 completed orders.
+With migrations 127–130, compact snapshot transport and explicit settled-ticket
+retention, the new source completes **114 orders** before `spot_observe` SQL
+exceeds its unchanged 1,000-ms timeout (`/tmp/life-pg6-capacity-1k-retained-a1`,
+497.91 s). Neither run reaches restore; the different failure points do not
+establish a throughput improvement. The original 4,096-ticket total cap remains
+unchanged unless an owner explicitly provisions the matching bounded retention
+policy/model; that opt-in preserves every original ticket, identity and monetary
+row. Supporting a 10k retention profile does not qualify 10k performance.
+These are offline engineering gates; neither is moved to demo/live or cleared
+by the functional cases. The new combined native recovery/retention and
+recorder/inventory regression passes **279 tests in 659.28 s**
+(`/tmp/life-pg6-history-final-a1`), zero failures/errors/skips; capacity remains
+separately red. Raw restored
 targets stay unarmed and quarantined. Actual
 provider/failure-domain/RPO/RTO proof additionally remains PG-E2. These remaining
 implementation gates are not replaced by environment tests or phase relabeling.
