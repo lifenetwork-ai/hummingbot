@@ -2,6 +2,32 @@
 
 ## Current offline delivery status
 
+**2026-10-23 SWAP release source correction — host qualification:** adding a
+controlled **5.1-second delay after committed hedge settlement** reproduces
+`PG_SHARED_RELEASE_SOURCE_UNQUALIFIED` on both canceled/unfilled and partially
+filled hedges: original code gives **2 passed / 2 failed, 102.11 s**
+(`/tmp/life-hedge-release-red-a1`). This tests the unchanged 5,000-ms portfolio
+source window with an actual native database and signed fake provider chain.
+
+`settle_hedge` now obtains new signed account/market/carry facts and records a
+separate `service-hedge-release-nav` measurement after terminal settlement and
+before the final release reconciliation. Earlier NAV rows/timestamps remain
+unchanged. Stable source/NAV stage IDs retain original operation identities;
+an interrupted committed refresh requires explicit reconciliation rather than
+silently renewing that operation. A completed release retry uses the original
+receipt path and creates no new NAV or payment. SQL and process-local release
+fences still validate the new source at their original boundaries.
+
+The expanded native host matrix passes **8 cases / 231.20 s**
+(`/tmp/life-hedge-release-green-a1`): canceled/partial-fill hedges, ordinary/
+delayed settlement, and deliberate expiry of the new release NAV. New-source
+expiry still refuses release, retains the capital claim, and records settlement
+and fees exactly once. Successful retries preserve all committed NAV rows and
+original wallet/loss totals. This costs one extra signed source refresh and NAV
+per successful first settlement; original quota, source/transaction deadlines
+and history capacity limits remain enforced. Current-image and complete native
+qualification are pending; this host matrix does not close PG7/PG8.
+
 **2026-10-23 measured quote and SWAP settlement paths:** the opt-in
 `image_flows` diagnostic runs only the managed-activation quote and SWAP
 `release-TERMINAL` cases on the installed immutable image. Bounded process-local

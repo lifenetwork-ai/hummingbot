@@ -738,6 +738,16 @@ class PgLiquidityService:
                 result = await self.hedge.settle(command)
                 if result.state != 'TERMINAL':
                     raise StorageError('PG_SERVICE_HEDGE_SETTLEMENT_REQUIRED')
+                # Terminal confirmation and settlement can outlive the NAV's
+                # original source window. Obtain new signed carry/account and
+                # market facts for release, retaining the earlier measurement
+                # and its timestamps as history. Stable stage IDs make an
+                # interrupted refresh require explicit reconciliation; they
+                # cannot silently renew a previously committed observation.
+                await self.hedge.observe_sources('service-hedge-release-source:' + key)
+                await portfolio.measure(MeasurePortfolio('service-hedge-release-nav:' + key),
+                                        cut=(await self.financial.observation_cut(self.config.storage_binding)).cut,
+                                        owner=self.journal.owner)
                 await release.retire_claim(release_id, intent_id, terminal_id)
                 return result
         except BaseException:

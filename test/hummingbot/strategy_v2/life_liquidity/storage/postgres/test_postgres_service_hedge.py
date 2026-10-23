@@ -68,10 +68,32 @@ async def test_configured_direct_hedge_has_no_cycle_ownership_or_send_authority(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('partial_fill', [False, True])
-async def test_configured_hedge_terminal_settlement_and_release_require_signed_original_order(database, partial_fill):
+@pytest.mark.parametrize('delay_after_settlement', [False, True])
+@pytest.mark.parametrize('expire_release_sources', [False, True])
+async def test_configured_hedge_terminal_settlement_and_release_require_signed_original_order(database, partial_fill, delay_after_settlement, expire_release_sources, monkeypatch):
     values = {}
     t, service = await configured(database, hedge_policy=policy(), independent_fill_value=lambda product, trade, at: values[trade])
     stream = None
+    retained_nav = []
+    original_settle = service.hedge.settle
+
+    async def settled(command):
+        result = await original_settle(command)
+        if delay_after_settlement and not result.replayed:
+            retained_nav.extend(await database[0].fetch('SELECT * FROM life_financial.portfolio_observations ORDER BY operation_id'))
+            await asyncio.sleep(5.1)  # Original portfolio source policy is 5000 ms.
+        return result
+    monkeypatch.setattr(service.hedge, 'settle', settled)
+    if expire_release_sources:
+        from hummingbot.strategy_v2.life_liquidity.storage.postgres.portfolio import PgPortfolioRepository
+        original_measure = PgPortfolioRepository.measure
+
+        async def measured(repository, command, **kwargs):
+            result = await original_measure(repository, command, **kwargs)
+            if command.operation_id.startswith('service-hedge-release-nav:'):
+                await asyncio.sleep(5.1)
+            return result
+        monkeypatch.setattr(PgPortfolioRepository, 'measure', measured)
     try:
         before = await service.financial.balance(t.cfg.binding)
         await service.execute_hedge('to-close')
@@ -126,6 +148,16 @@ async def test_configured_hedge_terminal_settlement_and_release_require_signed_o
         async with asyncio.timeout(5):
             while order['clOrdId'] in t.swap_connector._order_tracker.active_orders:
                 await asyncio.sleep(.001)
+        if expire_release_sources:
+            with pytest.raises(StorageError, match='PG_SHARED_RELEASE_SOURCE_UNQUALIFIED'):
+                await service.settle_hedge('close-once', 'to-close')
+            assert await database[0].fetchval('SELECT count(*) FROM life_financial.hedge_settlements') == 1
+            assert await database[0].fetchval('SELECT count(*) FROM life_financial.shared_claim_releases') == 0
+            assert len(await service.source.capital.claims(t.cfg.binding)) == 1
+            after = await service.financial.balance(t.cfg.binding)
+            assert after.total_base_life == before.total_base_life
+            assert after.total_quote_usdt == before.total_quote_usdt - (D('.001') if partial_fill else D('0'))
+            return
         result = await service.settle_hedge('close-once', 'to-close')
         assert result.state == 'TERMINAL'
         assert not await service.source.capital.claims(t.cfg.binding)
@@ -136,7 +168,13 @@ async def test_configured_hedge_terminal_settlement_and_release_require_signed_o
         cost = D('.001') if partial_fill else D('0')
         assert await database[0].fetchval('SELECT actual_cost_quote FROM life_financial.hedge_settlements') == cost
         assert (await service.financial.snapshot(t.cfg.binding)).budget.session_execution_loss_usdt == cost
+        committed_nav = await database[0].fetch('SELECT * FROM life_financial.portfolio_observations ORDER BY operation_id')
         assert (await service.settle_hedge('close-once', 'to-close')).replayed
+        assert await database[0].fetch('SELECT * FROM life_financial.portfolio_observations ORDER BY operation_id') == committed_nav
+        if delay_after_settlement:
+            after_nav = {r['operation_id']: r for r in await database[0].fetch('SELECT * FROM life_financial.portfolio_observations')}
+            assert retained_nav and all(after_nav[r['operation_id']] == r for r in retained_nav)
+            assert len(after_nav) > len(retained_nav)
         assert len([r for r in t.requests if r['method'] == 'POST']) == 1
         assert service.runtime.healthy
     finally:
