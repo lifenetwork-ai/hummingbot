@@ -31,6 +31,7 @@ class PgFinancialMonitor:
         self._pool, self._busy, self._closed = None, False, False
         self._sampled_at, self._snapshot = None, None
         self._state = 'NOT_SAMPLED'
+        self._task = None
 
     def status(self):
         result = {} if self._snapshot is None else copy.deepcopy(self._snapshot)
@@ -44,27 +45,46 @@ class PgFinancialMonitor:
         import asyncpg
         cfg = self.config
         ssl = await asyncio.to_thread(_ssl_context, cfg.dsn, cfg.local_insecure, cfg.ssl_ca_file)
+        if self._closed:
+            raise ValueError('FINANCIAL_TELEMETRY_CLOSED')
         self._pool = await asyncpg.create_pool(
             cfg.dsn, ssl=ssl, min_size=1, max_size=1, timeout=self.timeout_ms / 1000,
             command_timeout=self.timeout_ms / 1000,
             server_settings={'application_name': 'life_financial_monitor', 'default_transaction_read_only': 'on',
                              'statement_timeout': str(self.timeout_ms), 'idle_in_transaction_session_timeout': str(self.timeout_ms)})
+        if self._closed:
+            self._pool.terminate()
+            self._pool = None
+            raise ValueError('FINANCIAL_TELEMETRY_CLOSED')
+
+    async def _collect(self):
+        if self._closed:
+            raise ValueError('FINANCIAL_TELEMETRY_CLOSED')
+        if self._pool is None:
+            await self._open()
+        if self._closed:
+            raise ValueError('FINANCIAL_TELEMETRY_CLOSED')
+        async with self._pool.acquire() as c:
+            async with c.transaction(isolation='repeatable_read', readonly=True):
+                return await self._read(c)
 
     async def sample(self):
-        if self._closed or self._busy:
+        if self._closed or self._busy or self._task is not None and not self._task.done():
             return
         self._busy = True
         try:
-            async with asyncio.timeout(self.timeout_ms / 1000):
-                if self._pool is None:
-                    await self._open()
-                async with self._pool.acquire() as c:
-                    async with c.transaction(isolation='repeatable_read', readonly=True):
-                        snapshot = await self._read(c)
+            # A deadline bounds the caller, not the physical TLS thread or
+            # driver IO. Retain that task until joined; never queue a second
+            # sample or publish a result that arrived after its caller expired.
+            self._task = asyncio.create_task(self._collect())
+            self._task.add_done_callback(lambda task: None if task.cancelled() else task.exception())
+            snapshot = await asyncio.wait_for(asyncio.shield(self._task), self.timeout_ms / 1000)
+            if not self._closed:
                 self._snapshot, self._sampled_at, self._state = snapshot, monotonic(), 'CURRENT'
         except asyncio.CancelledError:
             self._state = 'UNAVAILABLE'
-            raise
+            if asyncio.current_task().cancelling() or not self._task.cancelled():
+                raise
         except Exception:
             # Retain the prior snapshot with its original age and failed state;
             # never emit a DSN, SQL, exception payload or false zero on failure.
@@ -145,3 +165,11 @@ class PgFinancialMonitor:
             # cannot cancel a financial COMMIT or release sender capacity.
             self._pool.terminate()
             self._pool = None
+        if self._task is not None:
+            try:
+                await asyncio.shield(self._task)
+            except asyncio.CancelledError:
+                if asyncio.current_task().cancelling() or not self._task.cancelled():
+                    raise
+            except Exception:
+                pass

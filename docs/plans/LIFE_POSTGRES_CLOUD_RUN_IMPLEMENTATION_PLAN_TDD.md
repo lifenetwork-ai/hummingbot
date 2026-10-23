@@ -37,6 +37,20 @@ against the installed code/crypto library: one enclosing image case passes in
 that case; `image_native` additionally includes the native monitor matrix.
 The current-artifact complete image/native map remains required.
 
+**2026-10-23 diagnostic lifecycle correction:** review found that a timeout
+during `to_thread` TLS setup could release the monitor's busy flag while the
+original thread remained active. Repeated samples could start additional threads,
+and close could return before late pool creation. The monitor now retains one
+physical collection task, discards late results and joins it during close;
+driver self-cancellation does not stop the telemetry loop. Three original red
+cases fail against the prior implementation. The expanded lifecycle, integrity
+and supervisor matrix passes **22 tests / 4.00 s**, and the actual PostgreSQL
+monitor matrix passes **5 tests / 7.92 s** (`/tmp/life-pg7-monitor-lifecycle-*`).
+The Linux diagnostic gate now includes the five lifecycle cases alongside the
+seven integrity cases; qualification on a rebuilt image remains required.
+The running `49983bae2` aggregate predates this correction and must remain
+labelled as qualification of that immutable baseline.
+
 **2026-10-23 locked LIFE/OKX image increment:** the dedicated
 `deploy/life_cloud_run/Dockerfile` now consumes SHA-256-pinned conda URLs and pip
 wheels, a pinned base digest and signed Debian snapshot. Its complete installed

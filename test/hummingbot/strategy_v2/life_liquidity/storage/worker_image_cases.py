@@ -84,11 +84,12 @@ async def test_image_verifies_independent_integrity_receipts_and_joins_diagnosti
 import pytest
 code=pytest.main(['-q','-p','no:cacheprovider','--import-mode=importlib',
  '/qualification/test/hummingbot/strategy_v2/life_liquidity/storage/test_integrity_receipts.py',
+ '/qualification/test/hummingbot/strategy_v2/life_liquidity/storage/test_financial_monitor_lifecycle.py',
  '--junitxml=/tmp/integrity.xml'])
 assert code==0
 root=ET.parse('/tmp/integrity.xml').getroot()
 suites=[root] if root.tag=='testsuite' else list(root.findall('testsuite'))
-assert sum(int(s.get('tests','0')) for s in suites)==7
+assert sum(int(s.get('tests','0')) for s in suites)==12
 assert all(int(s.get(k,'0'))==0 for s in suites for k in ('failures','errors','skipped'))
 print('LIFE_IMAGE_INTEGRITY_QUALIFIED')
 '''

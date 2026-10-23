@@ -5592,3 +5592,14 @@ request/guard, extend collection time, return the rejected request as a captured
 page or retry any order. Repeated expiry, clock skew, changed credentials/routes,
 received responses and unknown HTTP outcomes still fail closed. Quote and SWAP
 send authorization retain their original one-shot semantics.
+
+### Diagnostic physical task ownership
+
+The financial monitor retains one original collection task across caller
+timeout/cancellation, including TLS-file loading in a thread and pool startup.
+Later samples cannot queue behind it; its late result cannot become fresh
+telemetry. Closing prevents late pool creation and joins the original work
+before reporting completion. Driver self-cancellation marks telemetry unavailable
+without cancelling the worker sampler. These diagnostic tasks never own sender
+or financial COMMIT capacity; the foreground physical exit deadline still bounds
+a stuck cleanup.
