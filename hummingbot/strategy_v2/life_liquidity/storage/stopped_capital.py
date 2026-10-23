@@ -6,16 +6,19 @@ embedded paths, advances session time, rebases capital or creates permission.
 Every original resource/journal remains in the source artifact for translation.
 """
 from dataclasses import dataclass, field
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 
 from hummingbot.strategy_v2.life_liquidity.checkpoint_archive import decode
+from hummingbot.strategy_v2.life_liquidity.economics import SubsidyBudgetLedger
 from hummingbot.strategy_v2.life_liquidity.journal_archive import JournalArchive
 from hummingbot.strategy_v2.life_liquidity.risk import ReservationLedger
 from hummingbot.strategy_v2.life_liquidity.storage.capital import ApprovedSpotCashflow
 from hummingbot.strategy_v2.life_liquidity.storage.capital_replay import replay_capital
 from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError, encode, fingerprint
 from hummingbot.strategy_v2.life_liquidity.storage.financial import PrepareSpot, SpotFillObservation, decimal
+from hummingbot.strategy_v2.life_liquidity.storage.joint_settlement import JointCashEvent
 from hummingbot.strategy_v2.life_liquidity.storage.service_config import FileServiceConfig
 from hummingbot.strategy_v2.life_liquidity.storage.service_source import StoppedFileServiceSource
 
@@ -50,6 +53,96 @@ def project_stopped_capital(source, *, max_rows):
         raise
     except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError):
         raise StorageError('STOPPED_CAPITAL_UNVERIFIED') from None
+
+
+def _budget_projection(source, config, resources, max_rows):
+    """Preserve every period and original hold, without settling at import time."""
+    try:
+        return _budgets(source, config, resources, max_rows)
+    except StorageError:
+        raise
+    except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError):
+        raise StorageError('STOPPED_BUDGET_UNVERIFIED') from None
+
+
+def _budgets(source, config, resources, max_rows):
+    prepared = {row['command']['intent_id']: PrepareSpot.from_json(row['command'])
+                for row in resources.get('commands', {}).values()}
+    if len(prepared) != len(resources.get('commands', {})):
+        raise StorageError('STOPPED_BUDGET_INTENT_CONFLICT')
+    floors, expected_loss = {}, {}
+    for key, row in resources.get('fills', {}).items():
+        fill = SpotFillObservation.from_json(row['fill'])
+        order = prepared[row['intent_id']]
+        amount = fill.loss(order.side)
+        floors[order.intent_id] = floors.get(order.intent_id, Decimal('0')) + amount
+        expected_loss['fill:' + key] = dict(session_id=order.session_id,
+                                            day=datetime.fromtimestamp(fill.fill_at_ms / 1000, timezone.utc).date().isoformat(),
+                                            loss_quote=str(amount))
+    for row in resources.get('joint_cashflows', {}).values():
+        event = JointCashEvent.from_json(row['event'])
+        if event.session_id is not None:
+            key = 'swap:' + event.event_id.split(':')[3]
+            value = dict(session_id=event.session_id,
+                         day=datetime.fromtimestamp(event.at_ms / 1000, timezone.utc).date().isoformat(),
+                         loss_quote=str(event.execution_loss_usdt))
+            if key in expected_loss:
+                raise StorageError('STOPPED_BUDGET_LOSS_ID_CONFLICT')
+            expected_loss[key] = value
+    result, total_rows = {}, 0
+    for name, policy, scope in (('loss', config.loss_policy, None), ('subsidy', config.subsidy_policy, 'QUOTE'),
+                                ('exit_subsidy', None if config.exit is None else config.exit.budget, 'EXIT')):
+        if policy is None:
+            if any(order.budget_scope == scope for order in prepared.values()) or name in dict(source.base.core.journal_images):
+                raise StorageError('STOPPED_BUDGET_POLICY_MISSING')
+            result[name] = None
+            continue
+        journal = _journal(source, name)
+        branch = 'events' if name == 'loss' else 'entries'
+        expected_policy = {k: v for k, v in policy.json().items() if k != 'campaign_id'}
+        if (set(journal) != {'schema_version', 'campaign_id', 'policy', branch} or journal['schema_version'] != 2
+                or journal['campaign_id'] != policy.campaign_id or journal['policy'] != expected_policy
+                or type(journal[branch]) is not dict):
+            raise StorageError('STOPPED_BUDGET_POLICY_MISMATCH')
+        rows = journal[branch]
+        total_rows += len(rows)
+        if total_rows > max_rows:
+            raise StorageError('STOPPED_BUDGET_CAPACITY_EXCEEDED')
+        if name == 'loss':
+            for key, expected in expected_loss.items():
+                actual = rows.get(key)
+                if (actual is None or set(actual) != set(expected)
+                        or (actual['session_id'], actual['day'], Decimal(actual['loss_quote'])) !=
+                        (expected['session_id'], expected['day'], Decimal(expected['loss_quote']))):
+                    raise StorageError('STOPPED_BUDGET_LOSS_MISMATCH')
+            if any(key.startswith(('fill:', 'swap:')) and key not in expected_loss for key in rows):
+                raise StorageError('STOPPED_BUDGET_LOSS_ID_CONFLICT')
+        else:
+            SubsidyBudgetLedger._validated_entries(rows)
+            if set(rows) != {key for key, order in prepared.items() if order.budget_scope == scope}:
+                raise StorageError('STOPPED_BUDGET_INTENT_CONFLICT')
+            for key, row in rows.items():
+                order = prepared[key]
+                if (row['session_id'] != order.session_id or Decimal(row['reserved']) != order.subsidy_quote_usdt
+                        or Decimal(row.get('fill_floor', '0')) != floors.get(key, Decimal('0'))):
+                    raise StorageError('STOPPED_BUDGET_FILL_FLOOR_MISMATCH')
+        campaign, sessions, days = Decimal('0'), {}, {}
+        for key, row in rows.items():
+            if (type(key) is not str or not key or type(row['session_id']) is not str or not row['session_id']
+                    or date.fromisoformat(row['day']).isoformat() != row['day']
+                    or date.fromisoformat(row['day']) > source.base.core.facts.observed_at.date()
+                    or name == 'loss' and set(row) != {'session_id', 'day', 'loss_quote'}):
+                raise StorageError('STOPPED_BUDGET_ENTRY_INVALID')
+            amount = Decimal(row['loss_quote']) if name == 'loss' else SubsidyBudgetLedger._committed(row)
+            if not amount.is_finite() or amount < 0:
+                raise StorageError('STOPPED_BUDGET_AMOUNT_INVALID')
+            campaign += amount
+            sessions[row['session_id']] = sessions.get(row['session_id'], Decimal('0')) + amount
+            days[row['day']] = days.get(row['day'], Decimal('0')) + amount
+        result[name] = dict(journal=journal, totals=dict(campaign=str(campaign),
+                                                         by_session={k: str(v) for k, v in sessions.items()},
+                                                         by_day={k: str(v) for k, v in days.items()}))
+    return result
 
 
 def _project(source, max_rows):
@@ -147,5 +240,6 @@ def _project(source, max_rows):
                              net_cashflows_usdt=str(capital.net_cashflows_quote), execution_loss_usdt=str(capital.execution_loss_quote),
                              highwater_usdt=str(highwater)),
                 trade_ids=sorted(monetary['fills']), cashflow_ids=sorted(monetary['cashflows']),
-                joint_cash_ids=sorted(monetary['joint_cashflows']), nav_history=nav)
+                joint_cash_ids=sorted(monetary['joint_cashflows']), nav_history=nav,
+                budgets=_budget_projection(source, config, resources, max_rows))
     return StoppedCapitalProjection(encode(body))

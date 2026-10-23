@@ -51,6 +51,20 @@ seven integrity cases; qualification on a rebuilt image remains required.
 The running `49983bae2` aggregate predates this correction and must remain
 labelled as qualification of that immutable baseline.
 
+**2026-10-23 stopped-source budget preservation:** cold capital projection now
+also preserves the complete loss, quote-subsidy and optional exit-subsidy journals,
+including original campaign policies, per-day/per-session totals and unsettled
+inventory cost floors. It checks fill/SWAP loss attribution and does not settle
+an original inventory hold at the import clock. Missing losses, changed periods,
+negative costs, missing/foreign intents, reduced fill floors and changed policy
+limits are refused. The initial 13 red cases failed; the final capital/budget
+matrix passes **30 tests / 23.44 s**, and cold PostgreSQL staging projection passes
+**3 tests / 8.59 s** (17 unrelated cases deselected), under
+`/tmp/life-pg6-budgets-*` and `/tmp/life-pg6-budget-native-20261023-a1`.
+This completes that detached parity input, not native SQL historical translation,
+all-product decision parity or activation. PG6 remains open. The ongoing frozen
+aggregate also predates this addition.
+
 **2026-10-23 locked LIFE/OKX image increment:** the dedicated
 `deploy/life_cloud_run/Dockerfile` now consumes SHA-256-pinned conda URLs and pip
 wheels, a pinned base digest and signed Debian snapshot. Its complete installed

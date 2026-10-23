@@ -98,6 +98,10 @@ async def test_cold_staged_capital_projection_retains_original_basis_without_act
     raw, source, command = await fixture(database, tmp_path, profile=profile)
     await PgFileStaging(database[0], timeout_ms=10000).stage(command, raw)
     projection = await PgFileStaging(database[0], timeout_ms=10000).capital_projection(command)
+    if profile == 'paid':
+        from decimal import Decimal
+        for name in ('subsidy', 'loss'):
+            assert Decimal(projection.json()['budgets'][name]['totals']['campaign']) == Decimal('.12')
     assert projection == project_stopped_capital(source, max_rows=command.max_rows)
     assert not projection.trading_permission
     assert await database[0].fetchval('SELECT count(*) FROM life_financial.accounts') == 0

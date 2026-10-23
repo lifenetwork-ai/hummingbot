@@ -5580,6 +5580,15 @@ This is a capital parity input. It does not translate native SQL history, certif
 all product/budget policies, retire old credentials or create an account/grant.
 The full artifact remains required for those later checks and identity imports.
 
+The projection includes original loss, quote-subsidy and optional exit-subsidy
+journals with campaign/day/session totals. Policy/campaign identity, all SPOT
+intent membership, fill floors and mandatory SPOT/SWAP loss events are checked.
+An unresolved inventory cost allocation keeps its original `actual=null` and
+committed maximum of reserve/fill floor; import never fabricates a settlement.
+Additional retained non-fill costs and historical period keys remain intact.
+These detached journals are parity inputs; native SQL translation, product
+settlement proof and controlled activation still require separate implementation.
+
 Run `python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_postgres
 --suite file_staging --output /tmp/<unique-run>` for the real PostgreSQL matrix.
 
