@@ -2,6 +2,14 @@
 
 ## Current offline delivery status
 
+| Current offline scope | Status at this checkpoint |
+| --- | --- |
+| PG0 engineering decisions/fixture profile/cost model | Complete for offline work; see the consolidated PG0 decisions below. Live topology, price and threat-model acceptance remain OKX environment gates. |
+| PG1–PG5 selected fresh-native implementation | Previously closed scoped matrices; full regression is being rerun on `a946380cd`. |
+| PG6 clean File import, rollback, post-restore reconciliation | Open implementation. Logical/physical restore quarantine is implemented, but cannot release itself. |
+| PG7 locked image, shutdown, infrastructure, telemetry | Locked artifact/shutdown qualified; read-only telemetry/alert definitions added. Current-source image rerun and independent audit/backup freshness remain open. |
+| PG8 / O.8 aggregate, retained-history performance and coverage | Open. Focused green tests do not close the complete acceptance map. |
+
 **2026-10-23 locked LIFE/OKX image increment:** the dedicated
 `deploy/life_cloud_run/Dockerfile` now consumes SHA-256-pinned conda URLs and pip
 wheels, a pinned base digest and signed Debian snapshot. Its complete installed
@@ -52,14 +60,14 @@ no release requirement is waived or passed by moving it.
 
 | Phase | Current offline verdict | Remaining ownership |
 | --- | --- | --- |
-| PG0 | Open design/fixture/decision items | Offline design/fixture values here; real topology/calibration/economics in OKX PG-E0 |
+| PG0 | Closed offline engineering decisions; consolidated profile below | Real topology/calibration/economics and threat-model acceptance in OKX PG-E0 |
 | PG1 | Closed for declared file-service scope | No current PG1 implementation backlog; dated checkpoints are historical |
 | PG2 | Closed for pinned local schema/runtime/durability scope | Deployed identity/TLS in OKX PG-E1; actual failure domain in OKX PG-E2 |
 | PG3 | Closed for selected native/offline scope (`234c3631c`) | Clean stopped File cutover implementation stays PG6; actual account proof in OKX PG9/PG10 |
 | PG4 | Closed for selected offline handoff scope (`4fddc9419`) | Actual provider/key exclusion, deployed IAM and failover in OKX PG9/PG10 |
 | PG5 | Closed for selected offline native recorder/CLI scope | Deployed credentials/TLS remain OKX PG-E1; detached standalone reporting services are outside this worker profile |
 | PG6 | In progress; logical and physical target restore plus schema/sequence guards | Stopped File/segmented native import, cutover rollback, post-cut reconciliation/release and retained-history capacity qualification remain open |
-| PG7 | In progress; current AMD64 native matrix 67/67, artifact 8/8 and recorder 13/13 | Build-consumed dependency lock, owned shutdown cancellation sequencing and complete metrics/alerts remain open |
+| PG7 | In progress; locked AMD64 native matrix 77/77, artifact 8/8 and reproducible builder digest | Requalify current telemetry source in the image; independent audit/backup freshness remains open |
 | PG8 | Open; historical upgrade fixture repair qualified separately | Complete current-source serial regression, product/performance/coverage acceptance remain required |
 
 Only current phase checklists and this ledger determine progress. Historical
@@ -1186,18 +1194,111 @@ References to live decisions in historical checkpoints are not additional PG0 ta
 
 Dependencies: none; can proceed while existing O.8 work continues offline.
 
-- [ ] PG0.1: Freeze declared spot/SWAP/inventory scope, source baseline and open O.8 failures; identify affected A23/A24/A28/A30/A33/A35/A36/A39 contracts.
-- [ ] PG0.2: Approve storage/integrity trust model, database transaction/isolation policy, backend-neutral bindings and the manual cold-handoff protocol. Record the external-send fencing limitation explicitly.
-- [ ] PG0.3: After the minimum PG0.2/PG0.4 decisions and explicitly synthetic PG0.5 fixture values, spike the actual V2 tick/filter/dispatch → OrderExecutor → awaited database authorization → post-throttler OKX check, plus recorder paths against real PostgreSQL. Prove bounded queue/backpressure, stable action identity, cancellation scheduling, expiry/stop during DB waits and no delayed background sends after stop. The spike is disposable and has no live authority.
+- [x] PG0.1: Freeze declared spot/SWAP/inventory scope, source baseline and open O.8 failures; identify affected A23/A24/A28/A30/A33/A35/A36/A39 contracts.
+- [x] PG0.2: Approve storage/integrity trust model, database transaction/isolation policy, backend-neutral bindings and the manual cold-handoff protocol. Record the external-send fencing limitation explicitly.
+- [x] PG0.3: After the minimum PG0.2/PG0.4 decisions and explicitly synthetic PG0.5 fixture values, spike the actual V2 tick/filter/dispatch → OrderExecutor → awaited database authorization → post-throttler OKX check, plus recorder paths against real PostgreSQL. Prove bounded queue/backpressure, stable action identity, cancellation scheduling, expiry/stop during DB waits and no delayed background sends after stop. The spike is disposable and has no live authority.
   - [x] **Local spot transaction/index experiment (2026-10-12):** real PostgreSQL account-row serialization, current counters, durable attempt/hold/events, scoped identity uniqueness and partial active index; runtime event-update/delete denial; concurrent allocation, retry conflicts, lost replies/ACKs and retained unknown holds. Actual V2 filter → OrderExecutor hook → synthetic bounded async adapter → RESTConnection is exercised with a fake transport/throttle and a spike watchdog. The [code and reproduction](../../test/hummingbot/strategy_v2/life_liquidity/postgres_spike/README.md) and [evidence](LIFE_POSTGRES_SPIKE_EVIDENCE_2026-10-12.md) record 27 functional + 3 scale passes, constant 18 authority SQL statements/10 returned rows per successful send at 0/1k/10k, and passing frozen latency limits in this reduced workload. No full file/PG financial equivalence or O.8 closure is claimed.
   - [x] **Offline spot runner/connector/recorder mechanism (2026-10-12):** actual tick/queue/listener/filter/orchestrator/executor control, OKX protected scheduling/create/tracking/authentication/throttler and REST boundary now carry an optional awaited final check followed by the synchronous local fence. A transactional `READY` operation, actual SQLite recorder projection, fresh metadata reads and `APPLIED` publication gate arm/send. Bounded admission, stop/create priority, late recorder completion, missing/wrong recorder, unknown ACK/cold objects and cancellation during another DB wait pass in the synthetic coordinator. The [assembly evidence](LIFE_POSTGRES_ASSEMBLY_EVIDENCE_2026-10-12.md) records 282 regressions and 13 functional + three enlarged scale passes, with constant 24 PG statements/14 rows per send and corresponding terminal histories in both stores. This closes the stated mechanism only.
-  - [ ] **Remaining PG0.3 release assembly:** approved PG0 trust/ownership/packaging inputs; real LIFE controller and backend-neutral ports with production watchdog/config/session lifecycle; all declared enabled product/retry routes; complete recorder repair/outbox crash/restart proof and financial equivalence. The experimental coordinator, synthetic market/account facts and in-memory HTTP session grant no production authority. The awaited DB gate plus final local fence does not establish an atomic DB/send boundary or exclude an old credential-bearing sender.
-- [ ] PG0.4: Select and pin a Cloud SQL-supported PostgreSQL major, migration tool and driver compatible with the existing Python/SQLAlchemy runtime; test dependency resolution and Linux image build.
+  - [x] **PG0.3 offline configured assembly:** superseded by the PG1–PG5 configured-service closure, actual V2/executor/SDK/recorder paths, the PG4 broker/lease fixtures and the 77-case Linux native matrix. This closes feasibility for the declared offline assembly; whole-product O.8/performance equivalence remains PG8, and real source/credential exclusion remains OKX environment qualification. No synthetic observation or final local check grants production authority.
+- [x] PG0.4: Select and pin a Cloud SQL-supported PostgreSQL major, migration tool and driver compatible with the existing Python/SQLAlchemy runtime; test dependency resolution and Linux image build.
   - [x] **Local migration foundation (2026-10-12):** central versioned SQL runner using optional `asyncpg==0.31.0`; tested on pinned PostgreSQL 16.15 and the current Python 3.13 environment. The [migration guide](../../migrations/life_liquidity/README.md) records command, role, transaction and retry contracts. It follows the separate command/scripts pattern reviewed in local `life-wallet-backend`; adds a checksum ledger and concurrent-run lock instead of re-executing every file. No full SQLAlchemy dependency/image or Cloud SQL connectivity qualification is claimed.
-- [ ] PG0.5: Record numeric offline test values, proposed deployment parameters and rationale for pool size/overflow, query/lock/transaction timeouts, retry caps, lease/heartbeat, observation age, shutdown budget, DB storage/headroom, RPO/RTO and audit lag. Record units, owner and calibration method; synthetic values are not live defaults.
-- [ ] PG0.6: Prepare a dated VM-versus-Worker-Pool design/cost comparison with labeled estimates and unresolved environment inputs. Implement local prerequisite decisions only; actual region/key/egress/demo checks, measured economics and the deployment go/no-go are owned by OKX PG-E0/PG9.6–PG9.7.
+- [x] PG0.5: Record numeric offline test values, proposed deployment parameters and rationale for pool size/overflow, query/lock/transaction timeouts, retry caps, lease/heartbeat, observation age, shutdown budget, DB storage/headroom, RPO/RTO and audit lag. Record units, owner and calibration method; synthetic values are not live defaults.
+- [x] PG0.6: Prepare a dated VM-versus-Worker-Pool design/cost comparison with labeled estimates and unresolved environment inputs. Implement local prerequisite decisions only; actual region/key/egress/demo checks, measured economics and the deployment go/no-go are owned by OKX PG-E0/PG9.6–PG9.7.
 
 **Done when:** decisions and runnable spike results exist, unresolved live inputs are listed, and no implicit live defaults or unsupported fencing claim remains. This does not enable trading.
+
+### PG0 consolidated offline decisions (2026-10-23)
+
+These decisions are adopted for **offline engineering** under the operator's
+instruction to complete the offline PostgreSQL/Cloud Run work. They do not
+approve live financial thresholds, relax existing O.8 cases or certify deployed
+privilege/key exclusion. They supersede historical feasibility assumptions below.
+PG6, PG7.8 and PG8 remain implementation/qualification work, not hidden PG0 tasks.
+
+**Scope and frozen baseline:** production/test/migration baseline `a946380cd`,
+PostgreSQL migration bundle through 121, fresh native PostgreSQL SPOT/SWAP,
+shared capital, hedge/carry, inventory/exit and recorder operations supported by
+`PgLiquidityService`. File cutover is stopped and fully reconciled only; retain
+SPOT inventory's original cost basis and close SWAP positions. Active/interrupted
+File product migration is excluded by the operator's explicit scope decision.
+O.8.4 and O.8.7 remain open, as do the native full-flow resource/parity gates.
+The earlier full-run financial capture/prepare expiry samples remain failures;
+a focused green run or a new backend cannot waive them.
+
+| Acceptance contract | PostgreSQL delivery / remaining gate |
+| --- | --- |
+| A23 final-send/retry authorization | Original immutable action, awaited durable arm, post-throttle one-use local check; SDK request retry never repeats an unknown send. Whole-product variants remain PG8. |
+| A24/A36 safety scheduling and outage exposure | Separate bounded safety capacity, independent first-revoke exact cancellation, actual SDK/DB blockage and physical SIGTERM/KILL tests; no unknown-ID cancellation or refund. |
+| A28 loss accounting | Gross loss/subsidy/funding history and signed observation application survive native restart; File import must preserve original spending in PG6. |
+| A30/A33 capital/stress | Original shared SPOT/SWAP collateral/claims and independent stress limits; no duplicated wallet or restart reset. Retained-history performance remains PG8. |
+| A35/A39 persistence/single sender | Permanent identities, durable unknowns, native process grants and independently signed old-generation exclusion; real REST/WS exclusion remains OKX PG-E. |
+
+**Trust and transaction decisions:** the schema/migration owner and offline
+control process are trusted maintenance identities, distinct from the runtime.
+RLS, typed constraints, immutable history, exact original-command proofs and
+current primary checks protect against stale writers, malformed/unauthorized
+application changes and inconsistent projections. They do **not** detect an
+owner coherently rewriting all matching history and its colocated hashes before
+every send. Independent audit/backup anchors remain separate evidence; the
+monitor reports unverified rather than certifying a local signature blob. Live
+acceptance of this threat boundary and independent-anchor operation remains
+OKX PG-E0; no stronger tamper-proof guarantee is asserted here.
+
+Commands serialize on the account row with original versions/epochs and deferred
+COMMIT checks. Snapshot/read phases use their explicitly implemented MVCC
+transactions; serializable maintenance/import retries are bounded and retain the
+same operation identity. Neither advisory locks nor database leases fence a
+paused exchange sender. Keep manual cold handoff: close admission, independently
+exclude the old write credential, recover with a separately scoped generation,
+then explicitly rearm. No automatic takeover, backend fallback or rollback flag.
+
+**Pinned implementation:** PostgreSQL **16.15**, test image
+`postgres@sha256:e17e86066e5ef83e0952a9347f5c792b7ece00972e2aa787a6986f471b3dd3d5`;
+central checksum/advisory-lock numbered SQL runner; asyncpg **0.31.0**,
+psycopg **3.2.9**, SQLAlchemy **2.1.1**, Python **3.13.15** in the dedicated
+Linux AMD64 lock profile. The locked image and repeated clean builder digest
+are recorded above. Subsequent production changes require renewed artifact
+qualification. Cloud SQL version/region availability is still a deployed gate.
+
+| Offline numeric profile or target | Owner, units and calibration |
+| --- | --- |
+| Generic native runtime: risk pool min 1/max 2, max pending 4; safety pool 1/max pending 2; configured dual-product service requires at least 2 safety slots | Storage engineering; connections/tasks. No overflow pool. Exercise actual bounded contention and preserve original COMMIT capacity. The financial monitor adds at most one read-only connection; include broker/control/tool connections separately in deployment sizing. |
+| Acquire/statement 1,000 ms; whole functional transaction 6,000 ms; idle transaction 4,000 ms; shutdown 2,000 ms; retry count 2, base 10 ms | Storage engineering; current `helpers.py` synthetic functional profile. Fault tests explicitly select smaller deadlines. These are not the 1,000-ms whole-flow performance ceiling or implicit live defaults. |
+| Lease 4,000 ms / heartbeat 250 ms; registrations 8; SDK/source age 1,000 ms / skew 100 ms | Runtime engineering; managed/service fixture inputs. Test stopped heartbeat, late DB responses and process/key mismatch. No lease duration proves exchange exclusion. |
+| Service SDK read 1,000 ms, collection 4,000 ms, cycle/cleanup 5,000 ms; foreground deployment candidate shutdown 8 s; signal fault fixture 0.4 s | Runtime engineering; original configured windows. Qualification must close admission first and initiate cancellation before joins. Hard stop is below the 10-s platform contract. |
+| Baseline local DB 2 CPU / 1 GiB; Cloud definition mock worker 2 CPU / 2 GiB, DB 2 vCPU / 7.5 GiB, disk 20 GiB initial / 40 GiB ceiling | Infrastructure engineering; explicit synthetic resource profiles, not equivalent performance or a production sizing recommendation. Measure CPU/RSS/WAL/I/O and total connections in PG8. |
+| Logical small fixture: 512 tables, 2,048 rows, 1 MiB/row, 16 MiB total/archive; 10-s scan / 30-s tool deadline | Storage engineering; existing measured PG6 functional rehearsal. Capacity overflow refuses partial output; retain original limits in regression. |
+| Large-history qualification target: 0/1k/10k settled entries, 1 GiB physical-data cap, 120-s full restore/reconciliation target | Storage engineering; proposed offline headroom target only. PG6.6 must measure import, restore and post-cut reconciliation; current small-fixture timings do not satisfy it. |
+| RPO: zero missing committed operations at/before the selected cut; every later accepted operation must be reconciled explicitly | Recovery engineering; operation identities, not a zero-current-time-RPO claim. A missing post-cut fill/bill denies release/rearm. Live wall-clock RPO/RTO remains PG-E0. |
+| Independent-audit freshness target 60 s, 0 unexplained identity/projection differences | Integrity engineering; synthetic acceptance target. Missing/unverified anchor is unknown; PG6/PG7 must implement and exercise its publisher/verifier before claiming this target. |
+| O.8 limits unchanged: poll 2,000 ms, proposal/filter/send 1,000 ms, loop lag 500 ms, cancel start 250 ms | Strategy engineering; pinned budget SHA in PG8. Profiling is separate; no overlapping acceptance loads or cherry-picked successful runs. |
+
+**VM versus Worker Pool estimate, 2026-10-23:** preserve both deployment
+candidates. For an always-on account, compare `730 × hourly_compute + DB +
+network + storage/logs/build + operational_labor` in USD/month. Worker pools
+charge for allocated instance runtime and have dedicated pricing, so do not
+assume request-based scale-to-zero savings ([Cloud Run pricing](https://cloud.google.com/run/pricing)).
+A running VM also incurs compute cost; persistent disk and other services remain
+separate ([Compute pricing](https://cloud.google.com/products/compute/pricing/general-purpose)).
+
+For an explicitly **hypothetical**, nondiscounted sensitivity example, assign VM
+compute USD 0.08/hour and Worker Pool compute USD 0.10/hour, with equal DB/network/
+other costs USD 180/month. Totals are USD **238.40** and **253.00**: a USD **14.60**
+compute difference, before labor. These are invented modeling inputs, **not Google
+price quotes**. If operational work differs by one hour/month at an assumed USD
+30/hour, that changes the comparison more than this compute difference. Replace
+all four inputs with regional quotes and measured operations before choosing.
+
+| Candidate | Offline design trade-off | Required environment evidence |
+| --- | --- | --- |
+| VM + managed PostgreSQL | Direct process/debug access; operator owns OS patching, lifecycle and failover. Persistent local disk still cannot authorize a restored sender. | Same-region latency, patch/restart rehearsal, static egress, credential exclusion, measured total cost. |
+| Worker Pool + managed PostgreSQL | Immutable foreground artifact and managed lifecycle; requires explicit cold replacement, private DB/TLS, generation isolation and physical shutdown handling. Desired instance count is not a financial fence. | Region/provider support, actual private routing/TLS/IAM, logs/alerts, delayed-request exclusion, restart/failover and measured total cost. |
+
+Offline decision: implement the portable foreground worker and Worker Pool
+candidate, retain the VM as the comparison baseline. No cloud resource is
+provisioned and neither option is approved for live trading. Unresolved regional
+prices, key behavior, operational staffing and actual RPO/RTO go to existing
+OKX PG-E0/PG9.6–PG9.7, not to new offline defaults.
 
 ### Offline technical decisions for PG1 (2026-10-12)
 

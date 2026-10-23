@@ -50,16 +50,15 @@ GATES = (
 # These are implementation/qualification gaps, not environment approvals. Keep
 # them here until corresponding implementations AND executable gates exist.
 OPEN_REQUIREMENTS = {
-    'PG0': 'Remaining offline design/fixture/cost comparison decisions in the plan.',
     'PG6.1': 'Complete stopped legacy/segmented File graph and recorder cut with old-writer/key fence.',
     'PG6.2': 'Resumable native historical import, original basis and all permanent identities.',
     'PG6.3': 'Exact financial/identity/decision parity and atomic unarmed activation.',
     'PG6.4': 'Before-activity discard and reconciled post-activity controlled rollback rehearsal.',
     'PG6.5': 'Post-cut reconciliation, independently signed exclusion and controlled new generation after quarantine.',
     'PG6.6': 'Import/reconciliation and 1k/10k retained-history capacity and recovery headroom.',
-    'PG7.1': 'Complete build-consumed dependency locking and reproducible Linux artifact rebuild.',
+    'PG7.1': 'Requalify the current source artifact after the locked, reproducible build increment.',
     'PG7.7': 'Current immutable-image qualification of first-revoke exact cancellation and the physical signal/unknown-loss matrix.',
-    'PG7.8': 'Complete bounded native metrics and calibrated local alert fixtures.',
+    'PG7.8': 'Independent audit/backup freshness publication and verification; bounded native metrics/alert definitions are implemented.',
     'PG8.3': 'Every mandatory O.8 outcome plus native PostgreSQL 0/1k/10k sender/watchdog variants.',
     'PG8.4': 'Resource/query/byte/WAL measurements and adverse pool/concurrency headroom.',
     'PG8.6': 'Complete existing coverage/completion acceptance and all new PG gates.',
