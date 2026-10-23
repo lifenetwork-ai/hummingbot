@@ -10142,6 +10142,16 @@ image. PG7.7, PG7 and PG8 remain open.
 
 ## PG8 generation flow and background lease diagnosis (2026-10-23)
 
+The retained aggregate also exposes two legacy arithmetic fixtures that omit
+`journal_images`, now required for original funding/WAL verification. Their
+arithmetic profiles now retain the source's exact immutable journal images;
+production verification and the original money/hold refusal assertions are
+unchanged. The two real PostgreSQL cases pass (435 deselected, 6.77 s,
+`/tmp/life-pg8-legacy-fixture-20261023-l2/integration.xml`). The first targeted
+invocation selected no tests because its `-k` expression was incorrectly quoted;
+that log is retained as `...-l1.log`. These focused results do not replace the
+original aggregate failures or close PG8.
+
 The original SWAP/pre-accept handoff case separately passes without any relaxed
 deadline (`/tmp/life-pg8-generation-flow-20261023-g1`, 1 case, 18.70 s); this does
 not erase its 1060.173-ms expired-source failure in the frozen aggregate. Its

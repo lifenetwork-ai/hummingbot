@@ -31,7 +31,8 @@ def arithmetic_profile(source, state, operations):
                                     for name, raw in sorted(row['before_native'].items())]
         row['fingerprint'] = fingerprint({'command': row['command'], 'cut': row['cut'], 'owner': row['owner']})
     return SimpleNamespace(checkpoint_bytes=json.dumps(state).encode(), original_operations=operations, cut=source.cut,
-                           ancillary_images=(), core_pending_operation_ids=source.core_pending_operation_ids, facts=source.facts)
+                           ancillary_images=(), journal_images=source.journal_images,
+                           core_pending_operation_ids=source.core_pending_operation_ids, facts=source.facts)
 
 
 async def recover_case(database, tmp_path, monkeypatch, stage, side, fee_currency, cashflow=None, spot_prefix=False, book_native_prefix=False,
