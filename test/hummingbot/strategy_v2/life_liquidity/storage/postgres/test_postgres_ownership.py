@@ -24,12 +24,12 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.runtime import PgRun
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot import PgSpotRepository
 
 
-async def managed(database, *, lease_ms=2000, register=True, configuration_extra=None, handoff_role=False, owner_duration_ms=20000):
+async def managed(database, *, lease_ms=2000, register=True, configuration_extra=None, handoff_role=False, owner_duration_ms=20000, spot_options=None, observe_session_role=False):
     from hummingbot.strategy_v2.life_liquidity.storage.postgres.control import PgControlRepository
-    roles = ('ACTIVATE', 'DRAIN', 'REVOKE', 'RECOVER') + (('HANDOFF',) if handoff_role else ())
+    roles = ('ACTIVATE', 'DRAIN', 'REVOKE', 'RECOVER') + (('HANDOFF',) if handoff_role else ()) + (('OBSERVE_SESSION',) if observe_session_role else ())
     keys = OperatorKeys({'operator': b'x' * 32}, {'operator': frozenset(roles)})
     policy = dict(lease_duration_ms=lease_ms, max_registrations=8)
-    financial, cfg, old = await spot(database, configuration_body=lambda _: {
+    financial, cfg, old = await spot(database, **(spot_options or {}), configuration_body=lambda _: {
         'operator_verifier': keys.verifier().policy(), 'process_lease': policy, **(configuration_extra or {})})
     c = database[0]
     await c.execute('INSERT INTO life_financial.access_bindings VALUES(current_user,$1,true)', cfg.account_id)

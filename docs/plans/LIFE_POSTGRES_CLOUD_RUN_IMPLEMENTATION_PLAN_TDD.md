@@ -11,8 +11,13 @@ cases pass. These results close only the `PG6-N1–N6` sub-checklist below.
 Migration 126 now implements a separately signed, owner-side bridge for one
 complete managed account into `RECOVERY_ONLY`; a real archive restore exercises
 a private observation actor, late spot fills/fees, settlement and a distinct
-signed trading generation. The complete post-cut accounting/recovery matrix
-remains **required open work** (`PG6-R1`), even without File migration.
+signed trading generation. The expanded archive-to-actor matrix now passes
+seven cases covering original bills/recorder, cold actor restart, SWAP/funding,
+retained portfolio NAV, in-flight hedge claims and both session-expiry policies
+(`/tmp/life-pg6-matrix-a6`, 83.93 s). The complete combined native gate passes
+**77 tests in 352.44 s**, zero failures/errors/skips
+(`/tmp/life-pg6-restored-products-final-a1`). This closes the offline
+single-managed-account recovery checklist `PG6-R1.1–R1.4` below.
 `PG6-X1` retains the unchanged recovery/headroom gate shared with PG8. These
 requirements are not waived or moved into environment-only testing to close the
 phase. A raw restored target cannot trade. Actual provider/failure-domain/RPO/RTO
@@ -400,7 +405,7 @@ remain open.
 | --- | --- |
 | PG0 engineering decisions/fixture profile/cost model | Complete for offline work; see the consolidated PG0 decisions below. Live topology, price and threat-model acceptance remain OKX environment gates. |
 | PG1–PG5 selected fresh-native implementation | Previously closed scoped matrices. The changing-worktree diagnostic run was stopped after 2,336 passes and one UID freshness failure; its three focused variants pass separately. This is not an aggregate acceptance result. A frozen-source rerun remains required. |
-| PG6 recovery and optional File branch | Native PG6-N backup/quarantine sub-checklist is complete, but required PG6-R1 restore-to-trading and PG6-X1 capacity remain open. File cutover PG6-F is optional for the no-File-data profile. |
+| PG6 recovery and optional File branch | Native PG6-N backup/quarantine and PG6-R1 signed single-account offline recovery pass their combined 77-case gate. PG6-X1 retained-history capacity remains open. File cutover PG6-F is optional for the no-File-data profile. |
 | PG7 locked image, shutdown, infrastructure, telemetry | Current locked artifact and all 84 native functional cases qualified. Standalone startup/complete telemetry scope and wider aggregate qualification remain open. |
 | PG8 / O.8 aggregate, retained-history performance and coverage | Open. Focused green tests do not close the complete acceptance map. |
 
@@ -610,7 +615,7 @@ no release requirement is waived or passed by moving it.
 | PG3 | Closed for selected native/offline scope (`234c3631c`) | Clean stopped File cutover implementation stays PG6; actual account proof in OKX PG9/PG10 |
 | PG4 | Closed for selected offline handoff scope (`4fddc9419`) | Actual provider/key exclusion, deployed IAM and failover in OKX PG9/PG10 |
 | PG5 | Closed for selected offline native recorder/CLI scope | Deployed credentials/TLS remain OKX PG-E1; detached standalone reporting services are outside this worker profile |
-| PG6 | Open; native backup/restore-to-quarantine sub-checklist PG6-N is complete | PG6-R1 restored-target recovery/release implementation and PG6-X1 recovery headroom still block full phase closure. File cutover is optional PG6-F for the confirmed no-File-data profile; actual environment proof stays OKX PG-E2. |
+| PG6 | Open; PG6-N backup/quarantine and PG6-R1 single-account offline recovery are complete (77-case native gate) | PG6-X1 retained-history recovery headroom still blocks full phase closure. File cutover is optional PG6-F for the confirmed no-File-data profile; actual environment proof stays OKX PG-E2. |
 | PG7 | In progress; locked AMD64 native matrix 77/77, artifact 8/8 and reproducible builder digest | Requalify current telemetry/integrity source in the image and complete aggregate acceptance |
 | PG8 | Open; historical upgrade fixture repair qualified separately | Complete current-source serial regression, product/performance/coverage acceptance remain required |
 
@@ -1857,7 +1862,7 @@ These are engineering assumptions adopted for offline implementation under the c
 | PG-D05 | File tests retain the existing `PolicyState` verification model. Proposed PostgreSQL integrity relies on restricted runtime writes, constraints, append-only financial identities and independently qualified cold replay/audit. A colocated checksum/row version cannot attest privileged historical mutation. | PG0.2 live trust decision and PG3.6 audit/anchor proof stay open. No existing mandatory historical verification test is removed. |
 | PG-D06 | Owner facts have process/generation/session UUIDs, epoch, explicit UTC validity and mode. Synthetic ACTIVE fixtures may be created only in `OFFLINE_SIMULATION`; default creation is unarmed. Snapshot/owner data is not an activation grant. | Real account lock/lease/grant issuance, new-process unarmed startup, operator rearm and exchange credential exclusion remain PG1/PG4/PG9 work. |
 | PG-D07 | One dedicated file worker owns `PolicyState`. Explicit admission/capacity limits, immutable DTOs and operation readback cover queued/cancelled/ambiguous writes. Synthetic test values: 2 admitted operations, 1 MiB checkpoint, 16 retained operation IDs; engineering-owned fixture capacities, not calibrated live values. | File-lock/disk latency is host-dependent. Production queue/watchdog/shutdown bounds, numeric DB pool/retry values, economics and live calibration remain PG0/PG1.3/PG7/PG8. |
-| PG-D08 | 2026-10-23 user confirms no live File history/capital exists. Use fresh-native PostgreSQL; operational File cutover is optional and unfinished. Native backup-to-quarantine sub-checklist is complete, but restore-to-trading is still required for full PG6 closure. | 40 native cases + physical PITR pass. PG6 remains OPEN for required PG6-R1 implementation and PG6-X1 recovery/headroom qualification; no phase closure by relabeling missing work. OKX PG-E2 additionally owns deployed proof. |
+| PG-D08 | 2026-10-23 user confirms no live File history/capital exists. Use fresh-native PostgreSQL; operational File cutover is optional and unfinished. Native backup/quarantine and signed single-account offline observation recovery/new-generation qualification are complete. | The combined native gate passes 77 cases; actual physical PITR passes separately. PG6 remains OPEN for PG6-X1 retained-history recovery/headroom qualification; no phase closure by relabeling missing work. OKX PG-E2 additionally owns deployed proof. |
 
 ### PG1 — Backend contracts and asynchronous integration seams
 
@@ -4073,7 +4078,7 @@ provider qualification remain in OKX PG-E/PG9/PG10; PG6–PG8/O.8 remain open.
 
 ### PG6 — Fresh PostgreSQL backup, restoration and rollback
 
-Dependencies: PG3–PG5. **PG6 OPEN; backup-to-quarantine sub-checklist complete (PG-D08, 2026-10-23).**
+Dependencies: PG3–PG5. **PG6 OPEN; native backup/quarantine and single-account offline recovery complete; retained-history capacity remains open (PG-D08, 2026-10-23).**
 
 The user confirms the bot has not traded live and has no File data or capital
 history to migrate. The current release therefore starts natively in PostgreSQL.
@@ -4081,8 +4086,9 @@ Operational File cutover (`PG6-F1–F4`) is optional and remains unfinished.
 This does not remove native disaster-recovery requirements: producing a verified
 **non-sending recovery target** is complete, but using that target through a
 controlled replacement actor/new generation now has a bounded single-account
-spot implementation. Complete restored-product, bill/recorder and expired-session
-qualification (`PG6-R1`) remains open.
+spot implementation. The expanded restored-product, bill/recorder and
+expired-session matrix passes seven cases; its complete combined qualification
+is recorded in `PG6-R1` below.
 Recovery/headroom qualification (`PG6-X1`, shared with PG8) also remains open.
 Neither is deferred merely because the File source is empty. Native account/
 policy provisioning stays explicit and separate from migration; no new
@@ -4136,10 +4142,10 @@ file is introduced. Logs and test properties remain in `/tmp`.
 
 **Done for PG6-N only:** native backup/restore/PITR produces an
 exact, quarantined, non-sending target with a passing rollback safety rehearsal.
-**Not done:** operational File import or complete restored-worker qualification.
+**Separate qualification:** operational File import remains optional and open.
 The signed single-account restore bridge is implemented separately below;
-`PG6-R1` still needs its complete matrix, not merely
-an external-environment test. Full PG6 closure requires implementation and qualification; it is not
+`PG6-R1` now has a passing complete native matrix for its declared offline
+single-account profile. Full PG6 closure still requires PG6-X1 retained-history qualification; it is not
 an optional future feature or an environment-only test. Its provider and
 failure-domain proof additionally belongs to OKX PG-E2.
 
@@ -4162,9 +4168,9 @@ an operational native account import, and none grants permission to trade.
 - [ ] PG6-F3: Compare exact financial totals, complete identity sets and recovered decisions; activate the imported lineage atomically and **unarmed**. Missing/corrupt source evidence blocks activation; never initialize empty authority to work around an import failure.
 - [ ] PG6-F4: Keep the source immutable and non-sending. Before any DB-owned orders, reversal can discard staging. After DB-owned orders, rollback requires reconciled export/cutover and a new fenced generation; toggling the backend flag is prohibited.
 
-#### PG6-R — Required restored-target recovery/release (open implementation)
+#### PG6-R — Restored-target recovery/release (single-account offline qualification complete)
 
-- [ ] PG6-R1: Implement and qualify controlled release of a quarantined restore into a replacement observation actor and eventually a separately authorized new trading generation. Reconcile every post-cut accepted request, ACK, fill, fee and bill using complete original identities; retain unknown outcomes/holds until qualified. Independently prove old REST/WS/CAA/in-flight credential exclusion. Cold readback, expired grants, manually edited markers or backend flags must not rearm; no empty history or replayed budget reset. The bounded single-account spot bridge below is implemented; complete recovery qualification remains open.
+- [x] PG6-R1 (single managed account, offline): Implement and qualify controlled release of a quarantined restore into a replacement observation actor and eventually a separately authorized new trading generation. Reconcile original post-cut accepted request, ACK, fill, fee, bill and recorder identities; retain unknown outcomes/holds until qualified. Require independently pinned operator and credential assertions. Cold readback, expired grants, manually edited markers or backend flags cannot rearm; no empty history or replayed budget reset. The complete 77-case native matrix passes. Actual old REST/WS/CAA/in-flight credential-exclusion proof remains the separately recorded OKX PG-E2 environment gate; the offline assertion is never treated as that proof.
   - [x] **Logical backup/restore quarantine implementation:** bounded complete table-row manifest and real `pg_dump` on one exported MVCC snapshot, exclusive/immutable archive publication, trusted external digest verification, empty owner-only target and real transactional `pg_restore`. Migration 119 and owner-side maintenance rotate database lineage atomically while retaining account lineage, original ownership audit, all financial/recorder identities, unknown attempts, holds and spent budgets. Every restored account is `UNARMED`/halted; central SQL write scope and native runtime both refuse the restored namespace. Lost-COMMIT readback and caller cancellation retain the original operation, and process death rolls back both data and trigger DDL.
   - [x] **Restored schema/sequence profile:** V2 logical manifests bind catalog definitions, ACL/default ACL, RLS/policies, internal/user triggers, types/domains, indexes, rules, database locale and sequence ownership. Verify consumed sequence floors without rejecting valid non-MVCC gaps. Reject unmodelled objects/owners and capacity overflow. Migration 120 canonicalizes one audited `BETWEEN` constraint without changing its truth table; no weak predecessor is adopted.
   - [x] **Real local WAL/PITR rehearsal:** `pg_basebackup` + `pg_verifybackup`, a named WAL restore point and a separate primary recovering archived WAL. HBA excludes original runtime/reporting logins from first startup. The target retains the pre-point preparation/hold and excludes the later native COMMIT, then changes lineage and stays unarmed. Damaged backup verification and missing-target-WAL recovery fail closed.
@@ -4172,15 +4178,64 @@ an operational native account import, and none grants permission to trade.
     - [x] **Verified context and rollback-only native preview (2026-10-23):** `PgRestoreRecoveryContext` verifies the complete quarantined manifest/audit and original owner/lease ancestry, pins configured public operator/credential policies, and calculates the actual native financial cut in an isolated transaction that always rolls back. It issues no grant and commits no marker/owner change. The current native matrix passes **52 tests in 155.82 s** (`/tmp/life-restore-recovery-native-regression-a1`), including wrong scope, changed money/audit, runtime-principal denial, cancellation/backpressure, injected failure and real child-process death after tentative ownership reconstruction. Signed durable import, replacement actor and post-cut accounting remain open; this does not close R1.1 or PG6.
   - [x] R1.2 (single managed account, offline): Bridge restored ownership/control-history ancestry into RECOVERY_ONLY without enabling the old process, resetting money or fabricating an ACTIVE grant. Register a distinct private replacement observation actor through the original guarded lease/credential workflow; do not clear the quarantine marker as a standalone operation.
     - [x] **Signed single-account bridge (migration 126):** exact original control ancestry is audited cryptographically and bridged by a new native `RECOVER` record. A separate `HANDOFF` approval binds the complete verified restore context, target principal/registration and independently pinned offline credential-exclusion assertion. Account/owner reconstruction, permission rotation, immutable import audit and namespace barrier consume in one isolated transaction; original money, spending and grants do not reset. Deferred SQL checks repeat isolation, fact/approval/certificate time and native ownership at physical COMMIT. No process capability or lease is created by import/readback. The original recovery issuer and private actor then register/claim epoch 2; a distinct signed ACTIVE generation and private handoff are required for epoch 3. This release refuses multi-account restores and unsupported/unmanaged ancestry rather than partially unlocking a namespace.
-  - [ ] R1.3: Apply and verify complete original post-cut ACK/fill/fee/bill/recorder outcomes using native recovery kernels. Only after exact reconciliation may a separate fresh signed session/generation activation be considered; old deadlines, grants and capability secrets cannot rearm.
-    - [x] **Real spot archive-to-new-generation rehearsal:** dump one managed paired-order source, restore into a separate DB and lineage, import signed recovery, retain original unknown holds, apply late original ACKs/fills/fees, confirm both terminal identities and settle inventory. Original loss/subsidy remains spent and the source stays unchanged. Recovery mode refuses new risk; only a subsequent native signed ACTIVE command, independent predecessor exclusion, private registration and epoch-3 claim permits a new order. Bills/recorder, non-spot retained products, expired-session/fresh-campaign paths and retained-history capacity still need the restored-target matrix; component tests are not substituted for that integration.
-  - [ ] R1.4: Qualify actual isolated restore → observation actor → native accounting → cold restart and separately authorized generation, including pending/late truth, corruption, physical kill, both lost-COMMIT outcomes and expired/foreign authority. Preserve all holds/spending on every failure.
+  - [x] R1.3 (single managed account, offline): Apply and verify original post-cut ACK/fill/fee/bill/recorder outcomes using native recovery kernels. Only after exact reconciliation may a separate fresh signed session/generation activation be considered; old deadlines, grants and capability secrets cannot rearm.
+    - [x] **Real spot archive-to-new-generation rehearsal:** dump one managed paired-order source, restore into a separate DB and lineage, import signed recovery, retain original unknown holds, apply late original ACKs/fills/fees, confirm both terminal identities and settle inventory. Original loss/subsidy remains spent and the source stays unchanged. Recovery mode refuses new risk; only a subsequent native signed ACTIVE command, independent predecessor exclusion, private registration and epoch-3 claim permits a new order. The restored-product/session integration below supplies the additional actual-archive bill/recorder, non-spot and expired-session cases; retained-history capacity remains PG6-X1.
+    - [x] **Restored-product/session integration:** seven actual archive cases pass in 83.93 s (`/tmp/life-pg6-matrix-a6`). Original USDT and LIFE bill approvals, pending recorder projection, one-time fill/fee/bill application, terminal finality and a cold epoch-3 observation restart preserve balances and gross spending. SWAP unknown/ACKed orders retain original fees, paid funding and optional NAV/highwater; an in-flight hedge retains its original cost decision and shared claim. An expired pause-policy session stays paused. A configured market-reference successor begins at the original deadline, keeps its configured duration and remains observation-only until separately signed activation/private registration. Source databases remain unchanged. No restored event is rebound to a new order or campaign to make it apply.
+  - [x] R1.4 (single managed account, offline): Qualify actual isolated restore → observation actor → native accounting → cold restart and separately authorized generation, including pending/late truth, corruption, physical kill, both lost-COMMIT outcomes and expired/foreign authority. Preserve all holds/spending on every failure.
     - [x] **Current bounded bridge qualification (2026-10-23):** **68 native tests pass in 253.79 s** (`/tmp/life-restore-import-native-final-a1`), including actual archive-to-epoch-3 spot recovery, wrong/foreign scope, invalid operator/credential evidence, stale facts, original-task cancellation/backpressure, real backend termination after tentative audit/permission writes, both lost-COMMIT outcomes, and manual-marker denial. PostgreSQL sequence floors may advance across aborted inserts; every monetary/history/ACL row and schema definition remains unchanged on rollback. Three additional boundary tests pass in **15.78 s** (`/tmp/life-restore-import-boundary-a1`): the outer HANDOFF expiry is independently enforced at COMMIT, credential authority cannot reuse an operator key, and the successful bridge still passes. One case overlaps the 68-case run. Current migration checks pass **3 tests in 7.43 s** (`/tmp/life-restore-import-migration-a2`): repeated upgrade, hostile default ACLs/OID preservation/no seeds, unknown predecessor refusal and the complete packaged table set. Actual schema-126 physical PITR passes **1 test in 11.97 s** (`/tmp/life-restore-import-pitr-a1`). These are separate functional runs, not the remaining complete restored-product/session matrix or PG8 capacity/image acceptance. The prior release image is not qualification of migration 126/current source.
   - [ ] Complete post-cut exchange reconciliation and independently qualified old-credential exclusion before a new controlled generation. The owner-side bridge accepts only the explicit `OFFLINE_FAKE_V1` provider protocol; it is not external credential-revocation evidence or live permission. HBA isolation proves local database exclusion only; it is not REST/WS/CAA revocation. A raw restore or manual marker/backend/owner change cannot count as this gate.
+    This is the OKX PG-E2 environment gate, not an offline phase-closure substitute.
+
+**Combined offline exit:** `run_postgres --suite pg6_native` passes **77 tests
+in 352.44 s** (`/tmp/life-pg6-restored-products-final-a1`), zero failures,
+errors or skips, six existing dependency deprecation warnings. The selector
+includes all backup/restore, context/import, corruption/isolation/kill/lost-COMMIT,
+original spot-to-new-generation and expanded restored-product/session cases.
+Historical results above are retained as dated increments, not summed into this
+aggregate. No schema, runtime authority, fixture freshness budget or repository
+evidence artifact is changed by this qualification. PG6-X1 still blocks PG6;
+multi-account release, actual provider proof and the current AMD64 image are
+not qualified by this offline single-account run.
+
 #### PG6-X — Required retained-history recovery capacity (open, shared with PG8)
 
 - [ ] PG6-X1: Record measured backup restore, import, reconciliation, retained history and settlement/recovery headroom against PG0 RPO/RTO/capacity decisions. Export schema/versioned audit evidence; do not rely on backup existence alone.
   - [x] Record one explicit small-fixture logical backup/restore/quarantine timing, archive bytes and complete table/row counts below. This is a functional rehearsal, not RPO/RTO or retained-history headroom acceptance.
+  - [x] **Reproducible capacity workload and diagnostics:** opt-in
+    `run_postgres --suite pg6_capacity` constructs native provisional quote
+    preparation, recorder projections, original arm/fill/terminal commands and
+    two-sided inventory settlement. It copies no receipt, disables no trigger,
+    re-dates no quote and retains all original monetary/identity rows. The
+    outer measured backup → restore → verify/quarantine → signed recovery →
+    observation/snapshot/cleanup deadline remains **120 s**, with a **1 GiB**
+    physical-source cap. The source builder is timed separately; a failed
+    builder is never reported as a restore timing. Zero/two-order cases are
+    functional controls, not substitutes for 1k/10k qualification.
+    Current controls at `/tmp/life-pg6-capacity-controls-a1` pass at **0 and 2
+    completed orders**: backup-to-observation/snapshot takes 8,590.848 ms and
+    8,213.697 ms, respectively; source physical sizes are 25,099,287 and
+    25,738,263 bytes. The same run reports **one failure**, the explicit 10k
+    unsupported-profile refusal before any source order. Its full result is
+    **2 passed / 1 failed / 2 deselected in 29.28 s**, not a passing capacity
+    gate. Full outer timeout also encloses fixture cleanup.
+  - [ ] **Retained-history qualification is blocked before restore:** the
+    1k-order provisional profile completes **85 orders** and then rejects
+    preparation at physical COMMIT with `PG_QUOTE_CAPTURE_STALE`
+    (`/tmp/life-pg6-capacity-1k-a6`, 375.34 s). That command spends 543.863 ms
+    executing SQL and 158.589 ms committing, in addition to the preceding
+    post-birth snapshot/fact work. No 120-s restore verdict can be inferred.
+    A separate 32-order diagnostic completes in 68,316.103 ms and records
+    647 `spot_state` calls, 1,082 recorder-integrity calls, 51,824 executor-row
+    conversions and 2,204 settlement-verifier calls
+    (`/tmp/life-pg6-capacity-profile-a1`, function profiling enabled).
+    These are complete-flow diagnostic counts, not unprofiled latency budgets.
+    Repeated full-history validation is the measured next engineering issue;
+    indexes or cross-command permission caches have not been shown to solve it.
+    The current all-provisional source policy also retains at most 4,096
+    tickets/account, so this profile refuses 10k before construction. Supporting
+    10k requires a qualified retained-history protocol/profile; do not silently
+    increase that policy cap, relax quote/COMMIT freshness, or replace complete
+    settled history with empty backups. PG6-X1/PG8.7 remain unchecked.
 
 **Optional/extended acceptance selectors:** `test_postgres_import.py`, `test_postgres_restore.py`, `test_postgres_cutover_rollback.py` with killed/resumed importer and fresh processes.
 
@@ -4376,7 +4431,8 @@ This helper has only been executed against a recording subprocess test port,
 never GCP. Desired count zero and a completed rollout cannot substitute for key
 exclusion, reconciliation or signed financial authority; rollback after native
 orders must preserve the original database/history and remain non-sending.
-Restore-to-trading implementation remains open as PG6-R1.
+Single-account offline restore-to-trading qualification is recorded under
+PG6-R1; retained-history recovery remains open under PG6-X1.
 
 Initial Red was the absent worker module; mock-definition failures exposed
 required explicit IAM project fields and nonsemantic generated mock values.
@@ -4425,7 +4481,7 @@ permission.
 | PC06 Replacement secret/identity access | Old identity cannot obtain replacement write authority | PG4/PG7/PG9 |
 | PC07 DB outage/pool saturation | No normal trading; bounded proven cancellation and unresolved holds remain | PG2/PG4/PG8 |
 | PC08 Optional legacy/segmented import | Exact complete identity/financial parity; activation unarmed; not required for the no-File-data PG-D08 profile | PG6-F |
-| PC09 Backup/PITR restore | New controlled lineage, no stale grant/rearm, exact history retained in quarantine; restore-to-trading stays open | PG6 / PG6-R1 / OKX PG-E2 |
+| PC09 Backup/PITR restore | New controlled lineage, no stale grant/rearm and exact history; single-account offline recovery passes, retained-history capacity and actual provider proof remain open | PG6 / PG6-X1 / OKX PG-E2 |
 | PC10 Growth to 10k history | Unchanged O.8 budgets pass; complete query/resource evidence | PG8/PG9 |
 | PC11 SIGTERM then forced kill | Admission closes, unknown state survives, restart unarmed | PG7/PG9 |
 | PC12 Recorder missing/foreign/delayed row | Recovery incomplete; no premature release or dropped executor | PG5 |

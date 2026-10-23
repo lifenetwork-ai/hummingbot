@@ -8,12 +8,20 @@ The PostgreSQL plan marks this backup sub-checklist `PG6-N` complete.
 
 **PG6 as a whole remains OPEN.** File cutover is optional and unfinished
 (`PG6-F1–F4`), but restored-target replacement recovery/new generation and post-cut
-accounting (`PG6-R1`) remain required open implementation even for fresh
-PostgreSQL. Migration 126 now provides a bounded, separately signed single-account
+accounting (`PG6-R1`) now pass the combined **77-case / 352.44-s** native
+offline gate (`/tmp/life-pg6-restored-products-final-a1`). Migration 126 provides
+a bounded, separately signed single-account
 bridge into observation-only recovery. A real archive rehearsal follows late
 spot fills/fees and settlement with a distinct signed private trading generation;
-complete restored-product/bill/recorder and expired-session qualification remains
-open. Recovery/headroom (`PG6-X1`/PG8) is also unqualified. Raw restored
+seven additional actual-archive cases now pass for original bills/recorder,
+cold observation restart, SWAP/funding, retained NAV, hedge claims and both
+expired-session policies (`/tmp/life-pg6-matrix-a6`, 83.93 s). The PostgreSQL
+plan records the complete combined functional qualification separately.
+Recovery/headroom (`PG6-X1`/PG8) is still unqualified: the 1k-order source
+fails quote freshness at physical COMMIT after 85 completed orders, before
+restore is measured. The current all-provisional policy also cannot retain
+10k tickets under its 4,096-ticket cap. These are offline engineering gates;
+neither is moved to demo/live or cleared by the seven functional cases. Raw restored
 targets stay unarmed and quarantined. Actual
 provider/failure-domain/RPO/RTO proof additionally remains PG-E2. These remaining
 implementation gates are not replaced by environment tests or phase relabeling.
@@ -2138,9 +2146,10 @@ passing local PostgreSQL test or fake credential provider cannot satisfy it.
   spending after restoration; require new controlled lineage and unarmed startup.
   Same-volume local process restart does not establish zero loss or HA.
   The local PG6-N sub-checklist qualifies recovery only into a non-sending
-  quarantine. Before demonstrating resumed trading/failover, implement and
-  qualify the PostgreSQL plan's open PG6-R1 controlled release/recovery workflow,
-  then prove post-cut accounting and old REST/WS/CAA/in-flight credential
+  quarantine. The PG6-R1 signed single-account controlled release/recovery
+  workflow now passes its 77-case offline gate. Before demonstrating resumed
+  trading/failover, also qualify retained-history recovery (PG6-X1) and prove
+  post-cut accounting and old REST/WS/CAA/in-flight credential
   exclusion in the selected environment. Neither HBA isolation nor manual
   clearing of restore/account flags substitutes for this implementation or proof.
 

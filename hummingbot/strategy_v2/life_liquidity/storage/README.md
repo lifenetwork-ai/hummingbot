@@ -95,10 +95,17 @@ unmanaged sources are refused. It accepts only the separately pinned
 6. Trading additionally requires exact clean reconciliation, a separately signed
    native ACTIVE command and new private generation/handoff. Restore does not
    extend the original session; an expired session requires a qualified fresh
-   session/campaign workflow. The current real archive rehearsal covers paired
-   spot fills/fees/terminal settlement and epoch-3 activation within the original
-   session. Complete bills/recorder/non-spot/expired-session and capacity
-  qualification remains PG6-R1/PG6-X1; this protocol does not close full PG6.
+   session/campaign workflow. Real archive rehearsals cover paired spot
+   fills/fees/terminal settlement and epoch-3 activation within the original
+   session. Additional restored-target cases exercise original USDT/LIFE bills,
+   pending recorder projection and fees, deduplication after a cold observation
+   actor restart, SWAP late fills and paid funding, retained portfolio NAV,
+   in-flight hedge cost/claims, and both expired-session policies. The pause
+   policy stays paused. The switch policy creates its configured successor
+   at the original expiry and still requires a separately signed ACTIVE owner
+   and private generation. It never restarts the expired session's clock.
+   Retained-history capacity remains PG6-X1; these functional cases alone do
+   not close full PG6.
 
 ### Physical PITR and application rollback
 
@@ -119,8 +126,9 @@ unmanaged sources are refused. It accepts only the separately pinned
 - Trading from a restored target additionally needs implemented controlled
   release/new-generation registration, complete post-cut exchange accounting
   and independently qualified REST/WS/CAA/in-flight exclusion of the old
-  credentials. This is open recovery-extension work (`PG6-R1`) and a live gate
-  under OKX `PG-E2`; raw restores remain quarantined until explicit signed import.
+  credentials. Actual provider proof is a live gate under OKX `PG-E2`; the
+  offline signed assertion is not that proof. Raw restores remain quarantined
+  until explicit signed import.
 
 ### Offline qualification
 
@@ -129,8 +137,14 @@ backup/restore, catalog/sequence integrity, exact native paid accounting and
 unknown holds, isolation, corruption, physical process death and lost COMMITs.
 It also includes the bounded signed import and real paired spot archive →
 observation actor → settlement → new signed private generation flow. The
-schema-126 run passes 68 native cases; three additional boundary cases (one
-overlapping) verify independent outer approval expiry and authority separation.
+seven additional matrix cases pass in 83.93 s at
+`/tmp/life-pg6-matrix-a6`. The preceding schema-126 run passes 68 native cases;
+three additional boundary cases (one overlapping) verify independent outer
+approval expiry and authority separation. These separate runs are not summed
+as one aggregate. The combined current-source selector passes **77 cases in
+352.44 s**, zero failures/errors/skips, at
+`/tmp/life-pg6-restored-products-final-a1`. This closes PG6-R1's declared
+single-account offline qualification; PG6-X1 remains open.
 `--suite pg6_pitr` runs actual base-backup/WAL recovery in its own disposable
 volume. `--suite pg6` also includes optional File staging/history regressions;
 passing those does not implement operational File cutover.
@@ -140,6 +154,31 @@ The synthetic local profile is PostgreSQL 16, 2 CPU/1 GiB, 512 tables,
 deadline. These are bounded functional fixtures, not live defaults or proof of
 0/1k/10k settled-history headroom. That complete performance gate remains PG8;
 deployed failure-domain and wall-clock RPO/RTO qualification remains OKX PG-E2.
+
+### Retained-history gate (open)
+
+Run the explicit `--suite pg6_capacity` selector separately. The 0/2-order
+controls and 1k/10k targets construct actual native quote, recorder, fill,
+terminal and settlement commands. Test XML records source construction time
+separately from the unchanged 120-s full backup/restore/recovery deadline and
+1-GiB physical-data cap. No quote is re-dated and no history/receipt is copied.
+Use `PYTEST_ADDOPTS='-k diagnostic_profile'` with
+`LIFE_PG_TEST_FUNCTION_PROFILE=1` only for the separate 32-order diagnostic;
+profiled timings are not latency acceptance.
+
+The current 1k source fails at its 86th provisional preparation: physical
+COMMIT correctly refuses the expired quote, after 85 completed orders
+(`/tmp/life-pg6-capacity-1k-a6`). Thus restore has not been measured at 1k.
+Profiling confirms repeated full-history recorder/settlement validation across
+the command flow. The all-provisional profile also cannot retain 10k original
+tickets under the original 4,096-ticket account policy; it refuses this before
+building history. Keep PG6-X1/PG8.7 open until a supported complete-history
+profile and measured recovery pass. Do not increase freshness limits, bypass
+validation or claim that a small backup qualifies retained-history recovery.
+The current control run (`/tmp/life-pg6-capacity-controls-a1`) has **2 passes
+and 1 failure**: zero/two-order backup-to-observation/snapshot controls take
+8,590.848/8,213.697 ms, and the 10k profile refuses before construction. That
+result is deliberately recorded as an unqualified capacity gate.
 
 ## Complete relational history staging (PG6)
 
