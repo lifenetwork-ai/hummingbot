@@ -155,3 +155,19 @@ def test_unavailable_readiness_does_not_disclose_source_exceptions(capsys):
     assert state['reason_code'] == 'STATUS_UNAVAILABLE'
     assert not state['local_trading_ready'] and not state['database_healthy']
     assert 'synthetic-status-credential' not in str(state) + str(capsys.readouterr())
+
+
+def test_status_exports_only_bounded_local_database_metrics_without_borrowing_a_connection():
+    from test.hummingbot.strategy_v2.life_liquidity.storage.test_postgres_diagnostics import runtime
+    store, _ = runtime()
+    store._pools.clear()
+    supervisor = WorkerSupervisor(config())
+    supervisor.service = SimpleNamespace(runtime=store, _trading_ready=lambda: False)
+    state = supervisor.status()
+    assert state['database_metrics']['completed_total'] == 0
+    assert state['database_metrics']['elapsed_p95_ms'] is None
+    assert not state['database_metrics']['trading_permission']
+    assert not state['local_trading_ready'] and state['database_healthy']
+    assert 'private-test-password' not in str(state)
+    state['database_metrics']['outcomes_total']['error'] = 99
+    assert supervisor.status()['database_metrics']['outcomes_total']['error'] == 0

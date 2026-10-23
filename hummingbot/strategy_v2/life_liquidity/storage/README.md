@@ -3495,6 +3495,24 @@ acquisition, validation, execute, guard, COMMIT, receipt parsing, retry/rollback
 and release remain distinguishable. Existing capacity, deadline, shielded caller
 cancellation, unhealthy-runtime and unknown-COMMIT behavior is unchanged.
 
+`PgRuntime.operational_metrics` and the foreground worker's `/status` JSON
+`database_metrics` expose bounded local pool pressure and physical timings
+without acquiring a connection. Risk/safety pending gauges include original
+work after its caller cancels; they fall only at physical completion. Fixed
+outcome, completion, caller-cancellation, timeout and query-cancellation counters
+last for the runtime's lifetime, independently of the 128-sample ring. A process
+restart resets them. Exporters must detect restarts before computing deltas.
+
+`elapsed_p95_ms`, `elapsed_max_ms` and fixed `phase_max_ms` describe only the
+latest <=128 admissions; empty latency windows are `null`, not zero latency.
+These are diagnostic windows, not a lifetime percentile or calibrated SLO.
+`commit_unknown_total` counts historical uncertainty events; it does **not**
+represent the number of unresolved orders, current reserved funds or permission
+to release a hold. The snapshot contains no SQL, DSN, IDs, operation labels or
+exception text. It cannot refresh authority, heal health or trigger a restart.
+Financial hold/budget/audit/backup metrics and calibrated alert fixtures remain
+part of PG7.8; these pool diagnostics alone do not close that requirement.
+
 ## Snapshot body pipeline
 
 Migration 55 gives each of the sixteen snapshot layers an owner-only `spot_body*`

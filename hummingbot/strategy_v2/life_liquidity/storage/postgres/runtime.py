@@ -158,6 +158,9 @@ class PgRuntime:
         self._lease_ready = False
         self._lease_deadline = 0.0
         self._diagnostics = deque(maxlen=128)
+        self._outcomes = dict.fromkeys(('success', 'error', 'unqualified', 'backpressure',
+                                       'commit_unknown', 'confirmed_after_release_error'), 0)
+        self._completed_total = self._caller_cancelled_total = self._timeout_total = self._query_cancelled_total = 0
 
     @property
     def diagnostics(self):
@@ -167,6 +170,43 @@ class PgRuntime:
         the command path. Exporters can poll outside the financial boundary.
         """
         return tuple(self._diagnostics)
+
+    def _record_diagnostic(self, sample, *, completed=False):
+        # Fixed cardinality, no callback/IO/sort on financial admission. Count
+        # physical completion, never caller return/cancellation as completion.
+        self._diagnostics.append(sample)
+        self._outcomes[sample.outcome] += 1
+        self._completed_total += completed
+        self._caller_cancelled_total += sample.caller_cancelled
+        self._timeout_total += sample.error_kind == 'timeout'
+        self._query_cancelled_total += sample.sqlstate == '57014'
+
+    @property
+    def operational_metrics(self):
+        """Process-local diagnostics only; no SQL, identifiers or authority.
+
+        Totals last for this runtime's lifetime, including after ring eviction.
+        Latencies cover only the latest <=128 admissions, NOT a SLO histogram.
+        Unknown totals are historical events, never current unresolved funds.
+        Export outside the financial boundary; every returned object is copied.
+        """
+        samples = tuple(self._diagnostics)
+        elapsed = sorted(s.elapsed_ms for s in samples)
+        phases = dict.fromkeys(('admit', 'acquire', 'validate', 'execute', 'begin', 'guard',
+                                'commit', 'parse', 'rollback', 'retry_wait', 'release'), 0.0)
+        for sample in samples:
+            for name, duration in sample.phases_ms:
+                if name in phases:
+                    phases[name] = max(phases[name], duration)
+        return dict(healthy=self.healthy, closing=self._closing,
+                    risk_pending=self._counts[False], safety_pending=self._counts[True],
+                    risk_pending_limit=self.config.max_pending, safety_pending_limit=self.config.safety_max_pending,
+                    risk_pool_limit=self.config.max_size, safety_pool_limit=self.config.safety_size,
+                    completed_total=self._completed_total, outcomes_total=dict(self._outcomes),
+                    commit_unknown_total=self._outcomes['commit_unknown'], caller_cancelled_total=self._caller_cancelled_total,
+                    timeout_total=self._timeout_total, query_cancelled_total=self._query_cancelled_total,
+                    window_samples=len(samples), elapsed_p95_ms=elapsed[(95 * len(elapsed) + 99) // 100 - 1] if elapsed else None,
+                    elapsed_max_ms=elapsed[-1] if elapsed else None, phase_max_ms=phases, trading_permission=False)
 
     @property
     def healthy(self):
@@ -342,11 +382,11 @@ class PgRuntime:
         cfg = self.config
         trace = _Trace(operation, safety)
         if self._closing or not safety and (not self.healthy or self._process_capability is not None and not self.lease_ready):
-            self._diagnostics.append(trace.finish('unqualified'))
+            self._record_diagnostic(trace.finish('unqualified'))
             raise StorageUnavailable('PG_CLOSED_OR_UNQUALIFIED')
         maximum = cfg.safety_max_pending if safety else cfg.max_pending
         if self._counts[safety] >= maximum:
-            self._diagnostics.append(trace.finish('backpressure'))
+            self._record_diagnostic(trace.finish('backpressure'))
             raise StorageUnavailable('PG_BACKPRESSURE')
         self._counts[safety] += 1
 
@@ -412,7 +452,7 @@ class PgRuntime:
                 if deadline.expired() and trace.error_kind == 'cancelled':
                     trace.error_kind = 'timeout'
                 self._counts[safety] -= 1
-                self._diagnostics.append(trace.finish(outcome))
+                self._record_diagnostic(trace.finish(outcome), completed=True)
                 _current_trace.reset(token)
         task = asyncio.create_task(physical())
         self._tasks.add(task)
