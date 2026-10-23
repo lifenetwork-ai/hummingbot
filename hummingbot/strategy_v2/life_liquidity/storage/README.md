@@ -5576,7 +5576,23 @@ wallet and original reconciliation identity sets. Ordinary and segmented wallet
 cuts produce the same monetary result without opening their embedded paths.
 Opening basis, remaining initial inventory, realized initial-inventory PnL,
 net cashflows, gross execution loss and the original NAV highwater are retained;
-historical NAV observations are copied verbatim, not repriced at import time.
+historical NAV observations are copied verbatim after recomputing them against
+their original committed money prefixes and original independent prices.
+`fill-done`, `cash-done` and `joint-done` revisions determine when an economic
+identity first entered File. An earlier exchange timestamp on a later received
+observation cannot change an already committed NAV. Unknown financial digests,
+missing publications, altered command fingerprints or changed first cashflow
+receipts fail verification. Repeated bills/cumulative fill observations cannot
+apply money twice. NAVs sharing a money cut reuse one hash and causal replay.
+
+`capital_projection(request, max_replay_rows=...)` optionally sets the explicit
+offline prefix-replay work budget; omission uses `request.max_rows`. The unit is
+the sum of economic rows in distinct NAV cuts replayed (an empty cut costs one),
+with a maximum of 1,000,000. Capacity overflow fails with
+`STOPPED_CAPITAL_HISTORY_WORK_EXCEEDED`; it never skips an old NAV or accepts
+only the closing wallet. This is a maintenance bound, not a trading threshold.
+Large histories with many distinct cuts still need import capacity qualification.
+
 This is a capital parity input. It does not translate native SQL history, certify
 all product/budget policies, retire old credentials or create an account/grant.
 The full artifact remains required for those later checks and identity imports.

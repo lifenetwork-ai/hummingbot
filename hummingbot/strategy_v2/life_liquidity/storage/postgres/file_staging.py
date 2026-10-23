@@ -114,14 +114,14 @@ class PgFileStaging:
     async def discard(self, command):
         return await self._owned(command, self._discard)
 
-    async def capital_projection(self, command):
+    async def capital_projection(self, command, *, max_replay_rows=None):
         """Reconstruct original capital from a sealed cut; never activate it."""
-        return await self._owned(command, self._capital_projection)
+        return await self._owned(command, self._capital_projection, max_replay_rows)
 
-    async def _capital_projection(self, command):
+    async def _capital_projection(self, command, max_replay_rows):
         from hummingbot.strategy_v2.life_liquidity.storage.stopped_capital import project_stopped_capital
         source = await self._read(command)
-        return await self._in_thread(project_stopped_capital, source, max_rows=command.max_rows)
+        return await self._in_thread(project_stopped_capital, source, max_rows=command.max_rows, max_replay_rows=max_replay_rows)
 
     async def verify_retirement(self, command, raw, *, expected_sha256):
         """Audit the pinned post-consumption File root; never activate a target."""

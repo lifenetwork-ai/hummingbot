@@ -2,27 +2,31 @@
 
 ## Current offline delivery status
 
-**2026-10-23 stopped NAV validation:** eight red corruption cases showed that
-cold capital projection accepted invalid retained NAV totals, inventory PnL,
-net flows, loss, drawdown, nonfinite values, future observations or a missing
-commit revision. Projection now checks the original committed NAV order, exact
-measurement shape, times and highwater/drawdown arithmetic. For observations
-whose full money fingerprint matches the recovered wallet, it independently
-recomputes every measurement using the original price and previous highwater.
-Older money cuts remain verbatim: a before-fill NAV is never repriced using the
-closing wallet. One complete money hash plus a bounded ordered NAV pass avoids
-replaying or hashing all trades for every NAV row. Capital/budget regression:
-**41 passed / 35.41 s** (`/tmp/life-pg6-nav-regression-a2.log`); actual PostgreSQL
-cold staged projection: **3 passed / 10.81 s**, 29 unrelated cases deselected
-(`/tmp/life-pg6-nav-native-a1`). These are functional checks, not latency gates.
-Complete historical-prefix proof, native financial translation and unarmed
-publication remain open under PG6.2/PG6.3.
+**2026-10-23 complete retained NAV prefix verification:** five new red cases
+showed that changing a financial fingerprint could bypass monetary validation,
+and that older NAV measurements/publication provenance were not fully checked.
+Cold projection now derives the exact money prefix from original `fill-done`,
+`cash-done` and `joint-done` commits and recomputes every retained NAV at its
+original independent price. Late exchange observations cannot rewrite an earlier
+NAV. Cumulative fills, duplicate bills, first receipts, settled SWAP fees and
+command fingerprints retain their original identities. NAVs sharing a money cut
+reuse one hash/replay. An explicit offline replay-row work bound rejects excess
+work instead of skipping history; large distinct-prefix capacity is unqualified.
+
+The final capital/budget/publication matrix passes **50 cases / 39.85 s**
+(`/tmp/life-pg6-history-regression-final.log`). The actual PostgreSQL staging
+matrix passes **33 cases / 52.43 s**, including refusal of a sealed, rehashed
+artifact with corrupt NAV (`/tmp/life-pg6-history-native-a1`). These are separate
+functional gates, not aggregate/performance qualification. Native financial
+translation, exact all-product parity, atomic unarmed publication, rollback and
+post-restore reconciliation remain required under PG6.2–PG6.6. No account or
+activation grant is created by this projection.
 
 **Frozen aggregate follow-up:** `fecc42566` File contracts completed **1,987
 passed / 1 failed**. The failure occurred while constructing the source fixture
 for `test_rehashed_budget_corruption_is_rejected[loss_amount]`: its original
 1,000 ms capture deadline expired before the corruption assertion. The
-capital/budget rerun above passes with that deadline unchanged, but does not
+capital/budget reruns pass with that deadline unchanged, but do not
 establish the cause of the earlier timeout or replace the failed aggregate.
 Other functional checks overlapped this sample; no performance acceptance is
 claimed. The original report remains in the frozen run's `file_contracts`

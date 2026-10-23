@@ -373,3 +373,22 @@ async def test_retirement_record_is_immutable_idempotent_and_retained_after_disc
     assert await database[0].fetchval('SELECT count(*) FROM life_storage.file_import_retirements') == 1
     with pytest.raises(StorageError, match='DISCARDED'):
         await cold.retirement(request)
+
+
+@pytest.mark.asyncio
+async def test_sealed_artifact_cannot_turn_changed_nav_digest_into_financial_parity(database, tmp_path):
+    from test.hummingbot.strategy_v2.life_liquidity.storage.test_stopped_capital import recut
+    raw, source, command = await fixture(database, tmp_path, profile='paid')
+    checkpoint = json.loads(source.base.core.checkpoint_bytes)
+    nav = checkpoint['state']['resources']['nav_operations']['nav1']
+    nav['financial_fingerprint'] = 'f' * 64
+    nav['measurement']['starting_inventory_pnl_usdt'] = '999'
+    corrupted = recut(source, checkpoint)
+    raw = pack_stopped_source(corrupted, **LIMITS)
+    command = replace(command, source_sha256=hashlib.sha256(raw).hexdigest())
+    writer = PgFileStaging(database[0], timeout_ms=10000)
+    await writer.stage(command, raw)
+    with pytest.raises(StorageError, match='STOPPED_CAPITAL_NAV_MONEY_MISMATCH'):
+        await PgFileStaging(database[0], timeout_ms=10000).capital_projection(command)
+    assert await database[0].fetchval('SELECT count(*) FROM life_financial.accounts') == 0
+    assert await database[0].fetchval('SELECT count(*) FROM life_financial.activation_grants') == 0

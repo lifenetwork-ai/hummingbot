@@ -99,6 +99,49 @@ async def test_rehashed_nav_corruption_cannot_enter_the_capital_import_projectio
 
 
 @pytest.mark.asyncio
+async def test_changed_nav_money_digest_cannot_bypass_measurement_verification(tmp_path):
+    source, _ = await source_fixture(tmp_path)
+    checkpoint = json.loads(source.base.core.checkpoint_bytes)
+    row = checkpoint['state']['resources']['nav_operations']['nav1']
+    row['financial_fingerprint'] = 'f' * 64
+    row['measurement']['starting_inventory_pnl_usdt'] = '999'
+    with pytest.raises(StorageError, match='STOPPED_CAPITAL_NAV'):
+        project_stopped_capital(recut(source, checkpoint), max_rows=10000)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('fault', ['measurement', 'digest', 'publication', 'fill_command'])
+async def test_older_nav_is_verified_against_its_committed_money_prefix(tmp_path, fault):
+    from test.hummingbot.strategy_v2.life_liquidity.storage.test_spot_capital_contracts import nav
+
+    async def history(service):
+        store, owner = service.store, service.config.owner
+        await store.observe_nav(replace(nav(), operation_id='before-fill', independent_price_usdt=D('2')),
+                                cut=(await store.snapshot(store.binding)).cut, owner=owner)
+        await paid_history(service)
+
+    service, _, _, _ = await setup(tmp_path, before_stage=history)
+    try:
+        source = await service.control.stopped_postgres_source(**LIMITS)
+    finally:
+        await service.close()
+    checkpoint = json.loads(source.base.core.checkpoint_bytes)
+    state = checkpoint['state']
+    if fault == 'measurement':
+        state['resources']['nav_operations']['before-fill']['measurement']['starting_inventory_pnl_usdt'] = '999'
+    elif fault == 'digest':
+        state['resources']['nav_operations']['before-fill']['financial_fingerprint'] = 'f' * 64
+    elif fault == 'publication':
+        key = next(k for k in state['operations'] if k.startswith('fill-done:'))
+        del state['operations'][key]
+    else:
+        row = next(iter(state['resources']['fill_operations'].values()))
+        row['command']['fills'][0]['price_usdt'] = '999'
+    with pytest.raises(StorageError):
+        project_stopped_capital(recut(source, checkpoint), max_rows=10000)
+
+
+@pytest.mark.asyncio
 async def test_historical_nav_uses_its_original_money_cut_and_retains_prior_highwater(tmp_path):
     from test.hummingbot.strategy_v2.life_liquidity.storage.test_spot_capital_contracts import nav
 

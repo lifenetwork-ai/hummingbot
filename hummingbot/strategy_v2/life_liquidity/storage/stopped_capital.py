@@ -45,14 +45,17 @@ def _journal(source, name):
     return {'schema_version': 2, 'policy': image['policy'], **image['state']}
 
 
-def project_stopped_capital(source, *, max_rows):
+def project_stopped_capital(source, *, max_rows, max_replay_rows=None):
+    max_replay_rows = max_rows if max_replay_rows is None else max_replay_rows
+    if (type(max_replay_rows) is not int or not 0 < max_replay_rows <= 1000000):
+        raise StorageError('STOPPED_CAPITAL_REQUEST_INVALID')
     if (type(source) is not StoppedFileServiceSource or type(max_rows) is not int or not 0 < max_rows <= 1000000):
         raise StorageError('STOPPED_CAPITAL_REQUEST_INVALID')
     try:
         # Replay the original File arithmetic profile. A maintenance caller's
         # Decimal settings must not reprice old fills or alter their cost floors.
         with localcontext(Context(prec=28, rounding=ROUND_HALF_EVEN)):
-            return _project(source, max_rows)
+            return _project(source, max_rows, max_replay_rows)
     except StorageError:
         raise
     except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError):
@@ -154,7 +157,7 @@ def _budgets(source, config, resources, max_rows):
     return result
 
 
-def _project(source, max_rows):
+def _project(source, max_rows, max_replay_rows):
     core = source.base.core
     config = FileServiceConfig.model_validate_json(source.base.service_json)
     checkpoint = decode(core.checkpoint_bytes)
@@ -226,7 +229,11 @@ def _project(source, max_rows):
             raise StorageError('STOPPED_CAPITAL_FILL_MISMATCH')
 
     nav = monetary['nav_operations']
-    highwater = _verify_nav_history(checkpoint['state'], capital, facts, config.fill_policy.max_reference_skew_ms)
+    from hummingbot.strategy_v2.life_liquidity.storage.stopped_history import StoppedMoneyHistory
+    history = StoppedMoneyHistory(
+        checkpoint['state'], policy=config.accounting_policy, validate_cashflow=validate_cashflow,
+        max_rows=max_rows, max_replay_rows=max_replay_rows)
+    highwater = _verify_nav_history(checkpoint['state'], capital, facts, config.fill_policy.max_reference_skew_ms, history)
     body = dict(format='LIFE_STOPPED_CAPITAL_V1', source_digest=source.content_digest,
                 source_facts_sha256=fingerprint(facts.json()), accounting_policy=config.accounting_policy.json(),
                 balances={'LIFE': str(capital.life_balance), 'USDT': str(capital.usdt_balance)},
@@ -240,14 +247,8 @@ def _project(source, max_rows):
     return StoppedCapitalProjection(encode(body))
 
 
-def _verify_nav_history(state, capital, facts, max_reference_skew_ms):
-    """Validate retained NAV without revaluing older cuts at the closing wallet.
-
-    Only a matching complete financial fingerprint permits a monetary replay.
-    Older cuts keep their original measurements; their shape, timing, committed
-    order and highwater/drawdown arithmetic are still checked. This is not proof
-    of every historical money prefix, which complete import parity still needs.
-    """
+def _verify_nav_history(state, capital, facts, max_reference_skew_ms, history):
+    """Recompute every retained NAV against its original committed money cut."""
     resources = state['resources']
     nav, header = resources.get('nav_operations', {}), resources.get('capital', {})
     if not nav:
@@ -257,10 +258,6 @@ def _verify_nav_history(state, capital, facts, max_reference_skew_ms):
     mapping = dict(nav_usdt='nav_quote', adjusted_nav_usdt='adjusted_nav_quote', highwater_usdt='highwater_quote',
                    drawdown_bps='drawdown_bps', execution_loss_usdt='execution_loss_quote',
                    starting_inventory_pnl_usdt='starting_inventory_pnl_quote')
-    money = {name: resources.get(name, {}) for name in ('fills', 'cashflows')}
-    if resources.get('joint_cashflows'):
-        money['joint_cashflows'] = resources['joint_cashflows']
-    current_fingerprint = fingerprint(money)
     ordered = []
     for key, row in nav.items():
         revision = state['operations'].get('nav:' + key, {}).get('revision')
@@ -282,8 +279,8 @@ def _verify_nav_history(state, capital, facts, max_reference_skew_ms):
     ordered.sort(key=lambda item: item[0])
     if len({item[0] for item in ordered}) != len(ordered) or header.get('latest_operation_id') != ordered[-1][1]:
         raise StorageError('STOPPED_CAPITAL_NAV_INCOMPLETE')
-    previous, times, replay = capital.highwater_quote, None, copy(capital)
-    for _, _, row, command, values in ordered:
+    previous, times = capital.highwater_quote, None
+    for revision, _, row, command, values in ordered:
         current_times = (command.observed_at, command.value_at_ms, command.reference_observed_at_ms)
         highwater = max(previous, values['adjusted_nav_usdt'])
         drawdown = max(Decimal('0'), highwater - values['adjusted_nav_usdt']) / highwater * Decimal('10000')
@@ -292,13 +289,16 @@ def _verify_nav_history(state, capital, facts, max_reference_skew_ms):
                 or values['adjusted_nav_usdt'] != values['nav_usdt'] - values['net_cashflows_usdt']
                 or values['highwater_usdt'] != highwater or values['drawdown_bps'] != drawdown):
             raise StorageError('STOPPED_CAPITAL_NAV_MEASUREMENT_INVALID')
-        if row['financial_fingerprint'] == current_fingerprint:
-            replay.highwater_quote = previous
-            measured = replay.measure(command.independent_price_usdt, source_kind=command.source_kind)
-            expected = {name: getattr(measured, native) for name, native in mapping.items()}
-            expected['net_cashflows_usdt'] = replay.net_cashflows_quote
-            if values != expected:
-                raise StorageError('STOPPED_CAPITAL_NAV_MONEY_MISMATCH')
+        money_digest, original = history.before(revision)
+        if row['financial_fingerprint'] != money_digest:
+            raise StorageError('STOPPED_CAPITAL_NAV_MONEY_MISMATCH')
+        replay = copy(original)
+        replay.highwater_quote = previous
+        measured = replay.measure(command.independent_price_usdt, source_kind=command.source_kind)
+        expected = {name: getattr(measured, native) for name, native in mapping.items()}
+        expected['net_cashflows_usdt'] = replay.net_cashflows_quote
+        if values != expected:
+            raise StorageError('STOPPED_CAPITAL_NAV_MONEY_MISMATCH')
         previous, times = highwater, current_times
     if decimal(Decimal(header['highwater_usdt']), positive=True) != previous:
         raise StorageError('STOPPED_CAPITAL_HIGHWATER_MISMATCH')

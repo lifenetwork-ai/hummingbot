@@ -9,6 +9,13 @@ fall back to SQLite or grant financial authority. The current-source matrix is
 migration test**; see [PG5 qualification](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#pg5-offline-operational-qualification-2026-10-23).
 PG6–PG8 and O.8 remain open. The real environment/account gates below remain open.
 
+**Current PG6 import verification (2026-10-23):** retained NAV now verifies
+against original committed fill/cashflow/joint-cash prefixes; changed digests
+cannot bypass monetary checks. The capital/history matrix passes 50 cases and
+the separate native staging matrix 33. Native File financial translation,
+unarmed publication, rollback/recovery and the aggregate remain open in the
+[PostgreSQL plan](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md).
+
 **Current PG7 offline checkpoint (2026-10-23):** locked AMD64 image qualification
 passes 9 cases, Terraform mocks 11, rollout/config contracts 41, and actual local
 TLS/recorder validation 1. PG7.1 and PG7.3–PG7.6 are now checked in the
