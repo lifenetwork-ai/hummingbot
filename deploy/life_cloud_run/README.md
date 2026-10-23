@@ -199,6 +199,15 @@ The starting container count is only an observation: it does not certify CPU
 isolation or absence of competing host/VM work throughout the test. Preserve
 failed runs; a later green subset does not replace aggregate qualification.
 
+For bounded investigation of the two retained quote/SWAP failures, select
+`--suite image_flows` with the same immutable image and a new `/tmp` output.
+This enables process-local flow spans in the parent and real service child,
+including active `in_flight` spans at the intentional crash boundary. Its two
+selected cases are a diagnostic subset, never the full acceptance matrix;
+instrumentation can change timing. Local quote ordinals and fixed phase names
+carry no request bodies or financial identities. The ordinary `image_native`
+selector leaves this tracing disabled.
+
 ## Remaining operational work
 
 Lifecycle/DB/local-readiness/loop-timer-lag telemetry includes native pool

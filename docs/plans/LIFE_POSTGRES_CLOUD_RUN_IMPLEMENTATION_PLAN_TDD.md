@@ -2,6 +2,48 @@
 
 ## Current offline delivery status
 
+**2026-10-23 measured quote and SWAP settlement paths:** the opt-in
+`image_flows` diagnostic runs only the managed-activation quote and SWAP
+`release-TERMINAL` cases on the installed immutable image. Bounded process-local
+monotonic spans cover reconciliation, SQL/COMMIT, quota waits and shared release
+in both pytest and the actual service child. Active spans at the intentional
+`os._exit` boundary are explicitly `in_flight`; they are never reported as
+completed work. Diagnostics carry no request bodies or business identities.
+The normal acceptance selectors do not enable this instrumentation.
+
+First diagnostic: **1 passed / 1 failed, 54.19 s**
+(`/tmp/life-flow-two-paths-a1`). The SWAP child reaches the actual committed
+release boundary; cold reopening then fails
+`PG_FINANCIAL_SOURCE_CONFIGURATION_EXPIRED`. This is a different failure from
+the original SQL release refusal. Its detailed-span ring drops 81 entries, so
+that sample is incomplete. The final bounded 4,096-entry diagnostic passes
+**2 cases / 52.60 s** with zero span drops
+(`/tmp/life-flow-two-paths-a2`); it does not replace the failed 84-case aggregate.
+
+Measured managed quote: **11,493.752 ms** total, including **5 reconciliations /
+4,532.087 ms**; quota waiting totals **64.789 ms**. The original quote's capture
+to ARM-start interval is bounded by **414.822–467.011 ms**, excluding ARM
+execution and the later physical HTTP boundary. The 1,000-ms quote-age policy
+does not apply to the whole 11.49-second workflow. Nested spans overlap and
+must not be summed. At the SWAP release crash boundary settlement has been
+in flight **11,171.777 ms**, including three reconciliations totalling
+**4,046.856 ms**; the shared-release call has been in flight **82.247 ms**.
+
+Code review identifies a specific next investigation: `settle_hedge` measures
+NAV after `observe_sources`, then separately confirms terminality, settles and
+reconciles again before releasing. SQL rechecks the original carry/NAV source
+timestamps against the imported **5,000-ms** portfolio age limit. A fresh final
+account report does not renew those original timestamps. The measured repeated
+collections can consume that age allowance; the failed sample still lacks the
+exact rejected predicate/source age, so this is not a proven root cause or a
+production fix. Any future composition change must retain original cuts,
+terminality, all monetary identities and both Python/SQL source fences. No
+timeout or economic limit changes in this increment.
+The flow/diagnostic/environment contracts pass **33 cases / 0.16 s**, including
+disabled hooks, preserved original exceptions, bounded in-flight state and
+cleanup of instrumentation. Diagnostic runs use the development test harness;
+they are not frozen-source acceptance or uninstrumented latency measurements.
+
 **2026-10-23 fixed-source repeat and explicit execution environment:** the
 expanded matrix on frozen `70e1247f2` and the same `41d0c594…` image finishes
 **82 passed / 2 failed, 759.30 s**

@@ -56,6 +56,10 @@ async def crash_service(database, phase, *, product='SPOT', provisional_quotes=F
         await process.wait()
         raise
     assert process.returncode == 73, stderr.decode()
+    if os.environ.get('LIFE_PG_PROCESS_FLOW_TRACE') == '1':
+        for line in stderr.decode().splitlines():
+            if line.startswith('bounded_process_flow='):
+                print(line, file=sys.stderr, flush=True)
     return json.loads(stdout.decode().splitlines()[-1])
 
 
@@ -124,7 +128,7 @@ def cold_service_context(manifest, *, independent_fill_value=None):
     return SimpleNamespace(config=config, calls=calls, connectors=connectors, reopen=reopen)
 
 
-async def run():
+async def run(trace=None):
     from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_service_trading import configured
 
     import asyncpg
@@ -152,6 +156,9 @@ async def run():
                     process_id=os.getpid(), working_directory=os.getcwd(), account_config=t.config, balance=t.balance, positions=t.positions, product=product)
 
     def die():
+        if trace is not None:
+            from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.flow_diagnostic import report
+            report(trace, boundary='CRASH_BOUNDARY')
         print(json.dumps(dict(manifest, orders=t.service_orders)), flush=True)
         os._exit(73)
 
@@ -218,4 +225,6 @@ async def run():
 
 
 if __name__ == '__main__':
-    asyncio.run(run())
+    from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.flow_diagnostic import diagnostic_flow
+    with diagnostic_flow() as trace:
+        asyncio.run(run(trace))

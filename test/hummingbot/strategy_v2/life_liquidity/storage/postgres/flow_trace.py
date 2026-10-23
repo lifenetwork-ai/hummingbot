@@ -44,6 +44,7 @@ class QuoteFlowTrace:
         self._quote = ContextVar('test_quote_flow', default=0)
         self._next = 0
         self._patch = monkeypatch
+        self.inflight, self.inflight_dropped = {}, 0
 
     def wrap(self, cls, name, phase, *, starts_quote=False):
         original = getattr(cls, name)
@@ -60,12 +61,18 @@ class QuoteFlowTrace:
                 token = trace._quote.set(trace._next)
             quote = trace._quote.get()
             start, outcome = perf_counter(), 'success'
+            key = object()
+            if len(trace.inflight) < trace.spans.maxlen:
+                trace.inflight[key] = (quote, label, start)
+            else:
+                trace.inflight_dropped += 1
             try:
                 return await original(instance, *args, **kwargs)
             except BaseException as error:
                 outcome = 'cancelled' if isinstance(error, asyncio.CancelledError) else 'error'
                 raise
             finally:
+                trace.inflight.pop(key, None)
                 elapsed = (perf_counter() - start) * 1000
                 if len(trace.spans) == trace.spans.maxlen:
                     trace.dropped += 1
@@ -84,6 +91,10 @@ class QuoteFlowTrace:
         from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot_producer import PgSpotQuoteProducer
         self.wrap(PgLiquidityService, 'quote', 'quote_total', starts_quote=True)
         self.wrap(PgLiquidityService, 'execute_hedge', 'hedge_total', starts_quote=True)
+        self.wrap(PgLiquidityService, 'settle_hedge', 'settlement_total', starts_quote=True)
+        self.wrap(PgJointAccountReconciler, 'collect', 'account_reconciliation')
+        from hummingbot.strategy_v2.life_liquidity.storage.postgres.shared_release import PgSharedReleaseRepository
+        self.wrap(PgSharedReleaseRepository, 'release', 'shared_claim_release')
         self.wrap(PgSpotQuoteProducer, 'propose', 'proposal')
         self.wrap(PgQuoteRunnerJournal, 'preflight_publication', 'publication_preflight')
         self.wrap(PgQuoteAccountSource, 'capture_and_publish_intent_ready', 'capture_publication')
@@ -259,6 +270,11 @@ class QuoteFlowTrace:
                     trace.details.append(value)
         self._patch.setattr(session, 'request', tracked)
 
+    def active_rows(self):
+        now = perf_counter()
+        return [(quote, phase, round((start - self._origin) * 1000, 3), round((now - start) * 1000, 3), 'in_flight')
+                for quote, phase, start in self.inflight.values()]
+
     def rows(self):
         # Fixed phase labels and local quote ordinals only; no business IDs,
         # request parameters/bodies, SQL or raw exceptions leave the helper.
@@ -296,7 +312,7 @@ class QuoteFlowTrace:
                            database_complete=self.database_dropped == 0,
                            background_lease_complete=self.background_leases_dropped == 0,
                            database_by_operation=self.database_summary(quote))
-            roots = [v for v in group if v.phase in ('quote_total', 'hedge_total')]
+            roots = [v for v in group if v.phase in ('quote_total', 'hedge_total', 'settlement_total')]
             if self.background_leases_dropped == 0 and len(roots) == 1:
                 # Parallel wall-time overlap is not serial critical-path cost,
                 # SQL CPU time or proof that the heartbeat blocked the sender.

@@ -83,16 +83,16 @@ def main():
     import asyncpg  # noqa: F401 -- mandatory for this opt-in real-process runner.
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--suite', choices=('all', 'product_o8', 'image_native', 'pg3', 'pg4', 'pg5', 'pg6', 'pg6_pitr', 'historical_upgrades', 'pg6_regression', 'pg5_operations', 'ownership', 'managed_service', 'recorder_queries', 'recorder_proofs', 'codecs', 'commit_proofs', 'snapshot_proofs', 'service', 'service_trading', 'service_load', 'release_source', 'foundation', 'spot_producer', 'spot_allocation', 'spot_market_send', 'spot_market', 'joint_history', 'joint_intake', 'quote_composition', 'runner_startup', 'hedge_source', 'r2_integration', 'maker_cancellation', 'hedge_composition', 'r3_control', 'r3_risk', 'recorder', 'capital', 'session', 'lifecycle', 'actions', 'action_prepare', 'action_reconcile', 'action_abandon', 'runner_journal', 'provider_collection', 'quote_arm', 'quote_transport', 'quote_source', 'outbox', 'configuration', 'events', 'positions', 'reporting_application', 'approval_import', 'ack_ingress', 'observation_context', 'financial_ingress', 'financial_collection', 'inventory_settlement', 'markout', 'carry', 'swap', 'swap_accounting', 'swap_fills', 'funding', 'funding_repair', 'funding_cohort', 'swap_repair', 'spot_repair', 'cashflow_repair', 'terminal_repair', 'spot_recovery_paths', 'portfolio', 'swap_terminal', 'shared_release', 'joint_batch', 'joint_repair', 'hedge', 'swap_transport', 'collateral', 'joint_source', 'r1_accounting', 'joint_recovery', 'legacy_applying', 'legacy_joint', 'legacy_imports', 'late_capital', 'worker_financial', 'worker_restart', 'monitor', 'integrity_publication', 'file_staging'), default='all')
+    parser.add_argument('--suite', choices=('all', 'product_o8', 'image_native', 'image_flows', 'pg3', 'pg4', 'pg5', 'pg6', 'pg6_pitr', 'historical_upgrades', 'pg6_regression', 'pg5_operations', 'ownership', 'managed_service', 'recorder_queries', 'recorder_proofs', 'codecs', 'commit_proofs', 'snapshot_proofs', 'service', 'service_trading', 'service_load', 'release_source', 'foundation', 'spot_producer', 'spot_allocation', 'spot_market_send', 'spot_market', 'joint_history', 'joint_intake', 'quote_composition', 'runner_startup', 'hedge_source', 'r2_integration', 'maker_cancellation', 'hedge_composition', 'r3_control', 'r3_risk', 'recorder', 'capital', 'session', 'lifecycle', 'actions', 'action_prepare', 'action_reconcile', 'action_abandon', 'runner_journal', 'provider_collection', 'quote_arm', 'quote_transport', 'quote_source', 'outbox', 'configuration', 'events', 'positions', 'reporting_application', 'approval_import', 'ack_ingress', 'observation_context', 'financial_ingress', 'financial_collection', 'inventory_settlement', 'markout', 'carry', 'swap', 'swap_accounting', 'swap_fills', 'funding', 'funding_repair', 'funding_cohort', 'swap_repair', 'spot_repair', 'cashflow_repair', 'terminal_repair', 'spot_recovery_paths', 'portfolio', 'swap_terminal', 'shared_release', 'joint_batch', 'joint_repair', 'hedge', 'swap_transport', 'collateral', 'joint_source', 'r1_accounting', 'joint_recovery', 'legacy_applying', 'legacy_joint', 'legacy_imports', 'late_capital', 'worker_financial', 'worker_restart', 'monitor', 'integrity_publication', 'file_staging'), default='all')
     parser.add_argument('--fail-fast', action='store_true', help='Stop at the first failure while retaining the original log/XML')
-    parser.add_argument('--linux-image', help='Immutable locally built image ID; recorder, worker_financial, worker_restart or image_native suites')
+    parser.add_argument('--linux-image', help='Immutable locally built image ID; recorder, worker_financial, worker_restart, image_native or image_flows suites')
     parser.add_argument('--require-native-image', action='store_true', help='Refuse a worker image requiring Docker architecture emulation')
     parser.add_argument('--candidate', action='store_true', help='Run the complete O.8 candidate without claiming closure')
     args = parser.parse_args()
     if args.candidate and args.suite != 'product_o8' or args.fail_fast and args.suite == 'product_o8':
         parser.error('--candidate is only for product_o8; product coverage cannot use --fail-fast')
-    if args.linux_image and (args.suite not in ('recorder', 'worker_financial', 'worker_restart', 'image_native') or not re.fullmatch(r'sha256:[0-9a-f]{64}', args.linux_image)):
-        parser.error('--linux-image requires an immutable sha256 image ID and --suite recorder, worker_financial, worker_restart or image_native')
+    if args.linux_image and (args.suite not in ('recorder', 'worker_financial', 'worker_restart', 'image_native', 'image_flows') or not re.fullmatch(r'sha256:[0-9a-f]{64}', args.linux_image)):
+        parser.error('--linux-image requires an immutable sha256 image ID and --suite recorder, worker_financial, worker_restart, image_native or image_flows')
     if args.require_native_image and not args.linux_image:
         parser.error('--require-native-image requires --linux-image')
     output = args.output.resolve()
@@ -148,6 +148,8 @@ def main():
                 result = subprocess.run(command, env=env, stdout=log, stderr=subprocess.STDOUT)
             print((output / 'integration.log').read_text())
             return result.returncode
+        if args.suite == 'image_flows':
+            env['LIFE_PG_PROCESS_FLOW_TRACE'] = '1'
         selector = Path(__file__).with_name('postgres')
         if args.suite == 'pg6_pitr':
             selector /= 'pitr_cases.py'
@@ -262,6 +264,9 @@ def main():
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in PG3_SUITES[args.suite]]
         if args.suite == 'pg6':
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in ('restore', 'backup', 'schema_restore', 'file_staging')]
+        if args.suite == 'image_flows':
+            selectors = [str(selector / 'test_postgres_managed_service.py') + '::test_managed_service_starts_unarmed_and_requires_explicit_original_process_activation',
+                         str(selector / 'test_postgres_service_swap_process.py') + '::test_configured_swap_process_death_and_signed_cold_readback_never_restore_sender[release-TERMINAL]']
         if args.suite == 'image_native':
             selectors = [str(selector / ('test_postgres_' + n + '.py')) for n in (
                 'service_process', 'service_swap_process', 'provisional_process', 'managed_service', 'process_handoff',
@@ -385,6 +390,8 @@ def main():
                 'spot_observations', 'received_observations', 'lifecycle', 'observation_context', 'inventory_settlement', 'financial_ingress', 'financial_commands')]
         command = [sys.executable, '-m', 'pytest', '-q', *selectors,
                    '--junitxml=' + str(output / 'integration.xml')]
+        if args.suite == 'image_flows':
+            command.append('-s')
         if args.suite == 'financial_collection':
             command.extend(['-k', 'financial_source or financial_observer'])
         if args.suite == 'pg4':
@@ -407,13 +414,15 @@ def main():
                                  '-e', 'PYTHONPATH=/home/hummingbot:/qualification',
                                  '-e', 'LIFE_PG_TEST_DSN=postgresql://postgres@127.0.0.1:5432/life_pg2_test',
                                  '--entrypoint', 'python', args.linux_image]
+                if args.suite == 'image_flows':
+                    docker_prefix[2:2] = ['-e', 'LIFE_PG_PROCESS_FLOW_TRACE=1']
                 smoke = subprocess.run(docker_prefix + ['-m',
                                                         'test.hummingbot.strategy_v2.life_liquidity.storage.linux_image_smoke', '/results/source_manifest.json'],
                                        stdout=log, stderr=subprocess.STDOUT)
                 if smoke.returncode:
                     print('Linux image import/package smoke failed; see integration.log')
                     return smoke.returncode
-                command = docker_prefix + ['-m', 'pytest', '-q', *('/qualification/' + str(Path(p).relative_to(root)) for p in selectors),
+                command = docker_prefix + ['-m', 'pytest', '-q', *(['-s'] if args.suite == 'image_flows' else []), *('/qualification/' + str(Path(p).relative_to(root)) for p in selectors),
                                            '--junitxml=/results/integration.xml', '-o', 'cache_dir=/tmp/pytest-cache']
             if args.fail_fast:
                 command.append('-x')

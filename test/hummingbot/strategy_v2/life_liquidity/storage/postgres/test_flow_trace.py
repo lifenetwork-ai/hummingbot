@@ -9,6 +9,29 @@ from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.flow_trace impo
 import pytest
 
 
+@pytest.mark.asyncio
+async def test_live_crash_snapshot_marks_inflight_work_without_claiming_completion(monkeypatch):
+    entered, release = asyncio.Event(), asyncio.Event()
+
+    class Work:
+        async def run(self):
+            entered.set()
+            await release.wait()
+    trace = QuoteFlowTrace(monkeypatch, capacity=1)
+    trace.wrap(Work, 'run', 'settlement_total', starts_quote=True)
+    task = asyncio.create_task(Work().run())
+    try:
+        await entered.wait()
+        row, = trace.active_rows()
+        assert row[0] == 1 and row[1] == 'settlement_total' and row[-1] == 'in_flight'
+        assert not trace.rows() and not trace.summaries()
+    finally:
+        release.set()
+        await task
+    assert not trace.active_rows()
+    assert trace.rows()[0][-1] == 'success'
+
+
 def test_database_capture_window_excludes_proposal_ack_and_reporting(monkeypatch):
     trace = QuoteFlowTrace(monkeypatch)
     trace.spans.extend([FlowSpan(1, 'db_capture', 100, 10, 'success'), FlowSpan(1, 'db_arm', 500, 100, 'success')])

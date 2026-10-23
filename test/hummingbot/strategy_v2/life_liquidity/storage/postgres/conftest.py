@@ -14,6 +14,13 @@ from hummingbot.strategy_v2.life_liquidity.storage.postgres.migrations import DE
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.runtime import PgRuntime
 
 
+@pytest.fixture(autouse=True)
+def process_flow_diagnostic():
+    from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.flow_diagnostic import diagnostic_flow
+    with diagnostic_flow():
+        yield
+
+
 class _ImmediateNativeFailures:
     def __init__(self, config):
         self.config = config
