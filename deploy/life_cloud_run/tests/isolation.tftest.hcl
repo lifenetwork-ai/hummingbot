@@ -121,6 +121,10 @@ run "stopped_namespace_has_no_active_alerts" {
     condition     = google_monitoring_alert_policy.backup_failure.enabled
     error_message = "Backups must remain monitored while trading is intentionally stopped."
   }
+  assert {
+    condition     = strcontains(google_monitoring_alert_policy.worker["integrity"].conditions[0].condition_matched_log[0].filter, "jsonPayload.financial_metrics.recovery_health!=\"VERIFIED\"")
+    error_message = "A fresh backup does not replace independent restore qualification."
+  }
 }
 run "reject_unrouted_or_unbounded_monitoring" {
   command = plan

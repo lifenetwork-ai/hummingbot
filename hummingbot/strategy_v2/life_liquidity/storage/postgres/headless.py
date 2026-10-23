@@ -29,6 +29,7 @@ from hummingbot.strategy_v2.life_liquidity.storage.headless_connectors import (
     HeadlessOkxExchange,
     HeadlessOkxPerpetualDerivative,
 )
+from hummingbot.strategy_v2.life_liquidity.storage.integrity_receipts import IntegrityMonitor
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.config import load_config
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.managed_process import PgManagedProcessConfig
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.migrations import auto_migrate
@@ -81,6 +82,7 @@ class PgHeadlessInputs:
     independent_cashflow_value: Callable
     register_process: Callable | None = None
     generation_access_factory: Callable | None = None
+    integrity_monitor: IntegrityMonitor | None = None
 
     def __post_init__(self):
         if (type(self.connectors) is not dict or set(self.connectors) != {'okx', 'okx_perpetual'}
@@ -89,7 +91,8 @@ class PgHeadlessInputs:
                 or getattr(self.market_data_provider, 'connectors', None) != self.connectors
                 or any(not callable(v) for v in (self.clock, self.independent_fill_value, self.independent_cashflow_value))
                 or self.register_process is not None and not callable(self.register_process)
-                or self.generation_access_factory is not None and not callable(self.generation_access_factory)):
+                or self.generation_access_factory is not None and not callable(self.generation_access_factory)
+                or self.integrity_monitor is not None and type(self.integrity_monitor) is not IntegrityMonitor):
             raise StorageError('PG_HEADLESS_INPUTS_INVALID')
         object.__setattr__(self, 'connectors', dict(self.connectors))
 
@@ -130,6 +133,11 @@ async def launch(*, config_path, factory_spec, stop, tick_seconds, startup_timeo
                 inputs = await source_stack.enter_async_context(inputs)
             if type(inputs) is not PgHeadlessInputs:
                 raise StorageError('PG_HEADLESS_FACTORY_RESULT_INVALID')
+            monitor = inputs.integrity_monitor
+            if monitor is not None and (monitor.policy.account_id != runtime_config.account_id
+                                        or monitor.policy.database_lineage != runtime_config.database_lineage
+                                        or monitor.policy.binding != runtime_config.binding):
+                raise StorageError('PG_HEADLESS_INTEGRITY_SCOPE_INVALID')
             service = await PgLiquidityService.open(
                 config.controller, runtime_config=runtime_config, owner=config.owner, sources=config.sources,
                 limits=config.limits, connectors=inputs.connectors, market_data_provider=inputs.market_data_provider,
@@ -139,6 +147,7 @@ async def launch(*, config_path, factory_spec, stop, tick_seconds, startup_timeo
                 managed_process=config.managed_process, register_process=inputs.register_process,
                 generation_access_factory=inputs.generation_access_factory,
                 _startup_owner=starting)
+            service._integrity_monitor = monitor
             host = PgServiceHost(service, inputs, tick_seconds=tick_seconds, shutdown_timeout_s=shutdown_timeout_s,
                                  source_stack=source_stack)
         if on_started is not None:

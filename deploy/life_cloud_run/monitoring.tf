@@ -28,7 +28,7 @@ locals {
     budget      = "jsonPayload.financial_metrics.budget_usage_ratio_max>=${var.monitoring.budget_usage_ratio}"
     latency     = "(jsonPayload.loop_lag_ms>=${var.monitoring.event_loop_lag_ms} OR jsonPayload.database_metrics.phase_max_ms.acquire>=${var.monitoring.db_phase_ms} OR jsonPayload.database_metrics.phase_max_ms.execute>=${var.monitoring.db_phase_ms} OR jsonPayload.database_metrics.phase_max_ms.commit>=${var.monitoring.db_phase_ms})"
     eligibility = "(jsonPayload.financial_metrics.mode=\"ACTIVE\" AND jsonPayload.local_trading_ready=false)"
-    integrity   = "(jsonPayload.financial_metrics.audit_health!=\"VERIFIED\" OR jsonPayload.financial_metrics.backup_health!=\"VERIFIED\" OR jsonPayload.financial_metrics.restore_quarantined=true)"
+    integrity   = "(jsonPayload.financial_metrics.audit_health!=\"VERIFIED\" OR jsonPayload.financial_metrics.backup_health!=\"VERIFIED\" OR jsonPayload.financial_metrics.recovery_health!=\"VERIFIED\" OR jsonPayload.financial_metrics.restore_quarantined=true)"
   }
 }
 

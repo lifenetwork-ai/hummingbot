@@ -233,6 +233,7 @@ async def test_native_prehost_failure_retains_factory_and_network_until_owned_cl
         def __init__(self):
             self.register_process = None
             self.generation_access_factory = None
+            self.integrity_monitor = None
             self.connectors = {m: SimpleNamespace(stop_network=lambda: events.append('network-close'),
                                                   join_network_shutdown=AsyncMock()) for m in ('okx', 'okx_perpetual')}
             self.market_data_provider = object()
@@ -315,6 +316,7 @@ async def test_native_launcher_awaits_migrations_and_joins_owned_sources_after_s
         def __init__(self):
             self.register_process = AsyncMock()
             self.generation_access_factory = AsyncMock()
+            self.integrity_monitor = None
             self.connectors = {'okx': SimpleNamespace(stop_network=lambda: events.append('network-stop'),
                                                       join_network_shutdown=AsyncMock())}
             self.market_data_provider = object()

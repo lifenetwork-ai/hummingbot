@@ -67,6 +67,7 @@ class WorkerSupervisor:
         self._sampling, self._stop_waiter, self._deadline = None, None, None
         self._started_at = monotonic()
         self._financial_monitor = None
+        self._integrity_monitor = None
 
     def request_stop(self):
         if self.service is not None:
@@ -84,6 +85,14 @@ class WorkerSupervisor:
             self._financial_monitor = PgFinancialMonitor(
                 runtime_config, max_rows=min(service.limits.max_rows, 256),
                 timeout_ms=min(runtime_config.statement_timeout_ms, 2000))
+            from hummingbot.strategy_v2.life_liquidity.storage.integrity_receipts import IntegrityMonitor
+            monitor = getattr(service, '_integrity_monitor', None)
+            if monitor is not None:
+                if (type(monitor) is not IntegrityMonitor or monitor.policy.account_id != runtime_config.account_id
+                        or monitor.policy.database_lineage != runtime_config.database_lineage
+                        or monitor.policy.binding != runtime_config.binding):
+                    raise ValueError('WORKER_INTEGRITY_SCOPE_INVALID')
+                self._integrity_monitor = monitor
         if self.stop.is_set():
             service.revoke()
         self.ready.set()
@@ -100,9 +109,13 @@ class WorkerSupervisor:
             cancellation = None if self.service is None else getattr(self.service, 'shutdown_cancellation', None)
         except Exception:
             reason, database_healthy, ready, metrics, cancellation = 'STATUS_UNAVAILABLE', False, False, None, None
+        financial = None if self._financial_monitor is None else self._financial_monitor.status()
+        integrity = None if self._integrity_monitor is None else self._integrity_monitor.status()
+        if financial is not None and integrity is not None:
+            financial.update({key: integrity[key] for key in ('audit_health', 'backup_health', 'recovery_health')})
         return dict(started=self.started, stopping=self.stop.is_set(), database_healthy=database_healthy, reason_code=reason,
                     local_trading_ready=ready, database_metrics=metrics, shutdown_cancellation=cancellation,
-                    financial_metrics=None if self._financial_monitor is None else self._financial_monitor.status(),
+                    financial_metrics=financial, integrity_metrics=integrity,
                     trading_permission=False, loop_lag_ms=round(self.loop_lag_ms, 3),
                     uptime_seconds=round(monotonic() - self._started_at, 3))
 
@@ -122,6 +135,8 @@ class WorkerSupervisor:
             self.loop_lag_ms = max(0.0, (monotonic() - before - delay) * 1000)
             if self._financial_monitor is not None and not self.stop.is_set():
                 await self._financial_monitor.sample()
+            if self._integrity_monitor is not None and not self.stop.is_set():
+                await self._integrity_monitor.sample()
             event('STATUS', **self.status())
 
     async def _client(self, reader, writer):
@@ -188,7 +203,6 @@ class WorkerSupervisor:
             else:
                 async with asyncio.timeout(self.config.shutdown_timeout_s):
                     await asyncio.shield(self.service_task)
-            event('STOPPED', trading_permission=False)
         finally:
             self.request_stop()
             self.server.close()
@@ -198,8 +212,11 @@ class WorkerSupervisor:
             await asyncio.gather(self._sampling, self._stop_waiter, startup, *self._clients, return_exceptions=True)
             if self._financial_monitor is not None:
                 await self._financial_monitor.close()
+            if self._integrity_monitor is not None:
+                await self._integrity_monitor.close()
             # A timed-out original service_task is deliberately not cancelled,
             # refunded, or replaced. The foreground process must terminate.
+        event('STOPPED', trading_permission=False)
 
     def arm_exit_deadline(self):
         if self._deadline is not None:

@@ -5465,3 +5465,51 @@ count is unacknowledged cancellations, not total unknown funds). No status field
 is financial authority. Native host tests cover normal stop and blocked SDK/DB
 joins for both products; the current immutable image and full PG8 gate remain
 required after code changes.
+
+### Independent audit, backup and restore diagnostics
+
+`PgIntegrityPublisher` is an offline maintenance API, separate from worker
+startup. The maintenance process owns the private Ed25519 key and a dedicated
+schema-owner connection. `audit(reader=...)` additionally requires a reporting
+connection with read-only account access. It verifies the selected account's
+original capital basis and native snapshot, and captures a bounded complete
+database image on the **same exported MVCC snapshot**. No access binding is
+created by an audit. Missing original basis, inconsistent balances/history,
+wrong namespace or exceeded limits produce no success receipt. This follows
+the declared trusted-schema-owner model; it does not detect a coherent malicious
+rewrite of all original evidence before an audit.
+
+`backup(...)` uses real exported-snapshot `pg_dump` and verifies the published
+archive bytes. `restored(...)` requires that exact signed backup and real
+restored/quarantined parity. Its receipt proves the selected restore rehearsal,
+not the restorability of later backups, post-cut reconciliation, old exchange-key
+exclusion or rearm. The original restore marker stays set and the target stays
+unarmed. All three receipt kinds bind publisher, account, database lineage,
+complete storage binding, observation time, result and artifact digest.
+
+The trusted source factory can inject an `IntegrityMonitor` through
+`PgHeadlessInputs.integrity_monitor`. Only the public key and explicit age limits
+belong in the worker; never inject the maintenance connection/private key.
+The monitor accepts at most three receipts with one physical poll in flight.
+Timeout/cancellation retains that poll until joined; a late result cannot refresh
+health. `/status` reads memory and checks receipt age, without DB access or
+trading authority. Missing/invalid/stale evidence is `UNVERIFIED`, including when
+no independent provider is configured. Terraform alert definitions include
+audit, backup and recovery health. `STOPPED` waits for monitor cleanup too.
+
+`publish_receipt` writes an exclusive immutable local artifact;
+`FileIntegrityProvider` reads explicitly selected bounded files for offline
+rehearsal. It does not select “latest” by mtime or overwrite old evidence. A
+production publisher/delivery adapter must be qualified separately with its IAM,
+clock and retention policy; mount access alone is not proof. This initial receipt
+protocol is explicitly `OFFLINE_SIMULATION`, with no live threshold defaults.
+
+```sh
+python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_postgres \
+  --suite integrity_publication --output /tmp/life-integrity-new-run
+```
+
+The focused real-PG matrix includes exact monetary preservation, read-only
+principal enforcement, missing/corrupt basis refusal, concurrent source writes,
+real dump/restore, retained holds and owned cancellation. It is separate from
+the complete frozen-source PG8/image/performance gate.

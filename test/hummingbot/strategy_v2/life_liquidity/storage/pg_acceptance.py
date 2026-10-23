@@ -58,7 +58,7 @@ OPEN_REQUIREMENTS = {
     'PG6.6': 'Import/reconciliation and 1k/10k retained-history capacity and recovery headroom.',
     'PG7.1': 'Requalify the current source artifact after the locked, reproducible build increment.',
     'PG7.7': 'Current immutable-image qualification of first-revoke exact cancellation and the physical signal/unknown-loss matrix.',
-    'PG7.8': 'Independent audit/backup freshness publication and verification; bounded native metrics/alert definitions are implemented.',
+    'PG7.8': 'Current immutable-image and aggregate qualification of independently signed audit/backup/restore diagnostics and bounded metrics.',
     'PG8.3': 'Every mandatory O.8 outcome plus native PostgreSQL 0/1k/10k sender/watchdog variants.',
     'PG8.4': 'Resource/query/byte/WAL measurements and adverse pool/concurrency headroom.',
     'PG8.6': 'Complete existing coverage/completion acceptance and all new PG gates.',

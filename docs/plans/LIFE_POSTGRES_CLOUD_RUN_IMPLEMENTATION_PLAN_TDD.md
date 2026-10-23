@@ -5,9 +5,9 @@
 | Current offline scope | Status at this checkpoint |
 | --- | --- |
 | PG0 engineering decisions/fixture profile/cost model | Complete for offline work; see the consolidated PG0 decisions below. Live topology, price and threat-model acceptance remain OKX environment gates. |
-| PG1–PG5 selected fresh-native implementation | Previously closed scoped matrices; full regression is being rerun on `a946380cd`. |
+| PG1–PG5 selected fresh-native implementation | Previously closed scoped matrices; the long diagnostic regression began at `a946380cd`. Later edits require a frozen-source acceptance rerun. |
 | PG6 clean File import, rollback, post-restore reconciliation | Open implementation. Logical/physical restore quarantine is implemented, but cannot release itself. |
-| PG7 locked image, shutdown, infrastructure, telemetry | Locked artifact/shutdown qualified; read-only telemetry/alert definitions added. Current-source image rerun and independent audit/backup freshness remain open. |
+| PG7 locked image, shutdown, infrastructure, telemetry | Locked artifact/shutdown qualified; bounded metrics and independently signed audit/backup/restore diagnostics implemented. Current-source image and aggregate qualification remain open. |
 | PG8 / O.8 aggregate, retained-history performance and coverage | Open. Focused green tests do not close the complete acceptance map. |
 
 **2026-10-23 locked LIFE/OKX image increment:** the dedicated
@@ -51,6 +51,31 @@ semantics; see `deploy/life_cloud_run/README.md` for synthetic calibration and
 actual-delivery limitations. Complete independent audit/backup freshness remains
 open under PG6/PG7.8. The locked-image result above precedes this telemetry change.
 
+**Independent diagnostic publication increment (2026-10-23):** maintenance
+publishes Ed25519 audit/backup/restore receipts for one exact offline account,
+File binding and database lineage. The worker holds only the public key and
+explicit freshness limits. Native audit requires the original capital basis and
+replays it; missing basis cannot make a mutable wallet auditable. The reporting
+principal and owner image scan share one exported MVCC snapshot. Real backup
+bytes and restored/quarantined parity are separate attestations; neither proves
+post-cut reconciliation, exchange credential exclusion or permission to trade.
+Failed/late/rolled-back publication cannot refresh health; status rechecks age.
+First worker revoke still precedes joins; `STOPPED` is now emitted only after
+original monitoring work also joins.
+
+Focused qualification: **10 native cases / 23.63 s**
+(`/tmp/life-pg7-integrity-native-20261023-a4`), **39 public-key/worker/headless
+cases / 9.72 s** (`/tmp/life-pg7-integrity-worker-20261023-a4.log`) and **11
+Terraform mocks** (`/tmp/life-pg7-integrity-tf-20261023.log`). Native cases include
+real dump/restore, wrong/read-write principal, missing basis, corrupted balances,
+concurrent source commit, namespace/freshness refusal and owned cancellation.
+Original RED samples remain in `/tmp/life-pg7-integrity-*`. The dedicated signer
+is not injected into the worker. Local immutable file delivery is a rehearsal
+provider; production delivery/IAM/clock/calibration belong to OKX qualification.
+These focused runs overlap the long diagnostic regression and do not constitute
+performance or complete current-source acceptance. PG6 import/release, current
+image and PG8/O.8 remain open.
+
 **Scope split approved on 2026-10-23:** this plan owns offline implementation,
 local PostgreSQL/container/process tests, import/restore rehearsals and locally
 validated deployment definitions. All real deployment/account qualification is
@@ -67,7 +92,7 @@ no release requirement is waived or passed by moving it.
 | PG4 | Closed for selected offline handoff scope (`4fddc9419`) | Actual provider/key exclusion, deployed IAM and failover in OKX PG9/PG10 |
 | PG5 | Closed for selected offline native recorder/CLI scope | Deployed credentials/TLS remain OKX PG-E1; detached standalone reporting services are outside this worker profile |
 | PG6 | In progress; logical and physical target restore plus schema/sequence guards | Stopped File/segmented native import, cutover rollback, post-cut reconciliation/release and retained-history capacity qualification remain open |
-| PG7 | In progress; locked AMD64 native matrix 77/77, artifact 8/8 and reproducible builder digest | Requalify current telemetry source in the image; independent audit/backup freshness remains open |
+| PG7 | In progress; locked AMD64 native matrix 77/77, artifact 8/8 and reproducible builder digest | Requalify current telemetry/integrity source in the image and complete aggregate acceptance |
 | PG8 | Open; historical upgrade fixture repair qualified separately | Complete current-source serial regression, product/performance/coverage acceptance remain required |
 
 Only current phase checklists and this ledger determine progress. Historical
@@ -3678,6 +3703,8 @@ Dependencies: PG0 decisions; worker code depends on PG1–PG5. Definitions can b
   - [ ] Rebuild and qualify the current cancellation sequence in the immutable Linux worker, including the original physical signal/kill matrix. Hosts without a configured generation broker explicitly report cancellation `UNAVAILABLE`; they are not a qualified cancellation profile. Real provider timing remains PG9.
 - [ ] PG7.8: Add metrics/alerts for trading eligibility, owner generation, DB/query/pool lag, event-loop lag, unknown attempts, unresolved holds, audit freshness, budget usage and backup/recovery health. Probe/liveness success is separate from permission to trade; a healthy unarmed process must not restart-loop because it awaits manual recovery.
   - [x] **Local DB pressure diagnostics (2026-10-23):** read-only `/status` exports fixed risk/safety pending/pool limits, lifetime outcome/completion/uncertainty/cancellation counters and bounded recent latency/phase windows, without SQL or permission caching. TDD retains caller-cancelled physical work and historical unknowns after ring eviction; 34 focused diagnostic/worker cases pass (10.26 s). This is not the remaining financial metrics, alert calibration or full PG7.8 gate.
+
+  - [x] **Independent freshness diagnostics (2026-10-23):** signed account/lineage/binding-bound AUDIT/BACKUP/RESTORE receipts, public-key verification and explicit age limits, no authority or automatic rearm. Native original-basis audit and full image share MVCC; backup and quarantine use actual tools. Bounded worker polling retains physical work on timeout/cancellation, and memory-only status cannot refresh an expired observation. Recovery health is included in the Terraform integrity alert. See the focused qualification above; the current immutable image and aggregate remain required.
 
 **Done when:** image and IaC validate locally, missing secrets/DB fail closed, ephemeral-directory deletion preserves authoritative state, and container signal/forced-kill tests pass. Cloud deployment is still unproven.
 

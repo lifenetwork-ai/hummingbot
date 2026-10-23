@@ -37,7 +37,7 @@ class PgFinancialMonitor:
         result.update(state=self._state, trading_permission=False,
                       sample_age_ms=None if self._sampled_at is None else round((monotonic() - self._sampled_at) * 1000, 3),
                       reason_code='FINANCIAL_TELEMETRY_CURRENT' if self._state == 'CURRENT' else 'FINANCIAL_TELEMETRY_UNAVAILABLE',
-                      audit_health='UNVERIFIED', backup_health='UNVERIFIED')
+                      audit_health='UNVERIFIED', backup_health='UNVERIFIED', recovery_health='UNVERIFIED')
         return result
 
     async def _open(self):
