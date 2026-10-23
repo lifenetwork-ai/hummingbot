@@ -94,6 +94,9 @@ class ImportConfigurationTarget:
 def validate_manifest(manifest, grant, source):
     from hummingbot.strategy_v2.life_liquidity.config import StrategyConfig
     from hummingbot.strategy_v2.life_liquidity.storage.service_config import FileServiceConfig
+    from hummingbot.strategy_v2.life_liquidity.storage.service_source import FileServiceSource
+    if grant.source_format != 'FILE_SERVICE_SCOPED' or type(source) is not FileServiceSource:
+        raise StorageError('POSTGRES_CUTOVER_CONSUMPTION_REQUIRED')
     original = FileServiceConfig.model_validate_json(source.service_json)
     target, session = manifest.config, session_record(grant.target_session_json)
     validate_target(grant, source.core.pending, source.core.cut.checkpoint.binding)

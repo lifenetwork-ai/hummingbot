@@ -55,12 +55,14 @@ class AuthorizeConfigurationHandoff:
     target_session_json: str
     max_bytes: int
     max_rows: int
+    source_format: str = 'FILE_SERVICE_SCOPED'
 
     def __post_init__(self):
         identity(self.operation_id, self.expected_sequence, self.owner)
         identifier(self.pending_operation_id)
         digest(self.source_digest)
-        if type(self.target_binding) is not StateBinding or any(type(v) is not int or v < 1 for v in (self.max_bytes, self.max_rows)):
+        if (type(self.target_binding) is not StateBinding or any(type(v) is not int or v < 1 for v in (self.max_bytes, self.max_rows))
+                or self.source_format not in ('FILE_SERVICE_SCOPED', 'STOPPED_FILE_SERVICE_V1')):
             raise StorageError('HANDOFF_COMMAND_INVALID')
         source, target = session_record(self.source_session_json), session_record(self.target_session_json)
         if ((source.session_id, source.epoch) != (str(self.owner.session_id), self.owner.epoch)
@@ -71,8 +73,11 @@ class AuthorizeConfigurationHandoff:
         object.__setattr__(self, 'target_session_json', encode(target.to_dict()).decode())
 
     def json(self):
-        return {'kind': 'AUTHORIZE_CONFIGURATION_HANDOFF', **self.__dict__,
-                'owner': self.owner.json(), 'target_binding': self.target_binding.json()}
+        result = {'kind': 'AUTHORIZE_CONFIGURATION_HANDOFF', **self.__dict__,
+                  'owner': self.owner.json(), 'target_binding': self.target_binding.json()}
+        if self.source_format == 'FILE_SERVICE_SCOPED':
+            result.pop('source_format')  # Preserve previously signed bytes.
+        return result
 
     @classmethod
     def from_json(cls, value):
@@ -261,17 +266,18 @@ class LegacyConfigurationHandoffControlAdapter:
             head = handoff_projection(command.json(), meta.resources.get('configuration_handoff', empty_handoff_head()),
                                       {'mode': meta.ownership.mode.value, 'token': meta.ownership.token.json()}, self.binding,
                                       meta.resources['financial_configuration'], meta.resources['control_operations'])
-            source = capture.capture(ControlSnapshot(self.binding, cut, facts), command.max_bytes, command.max_rows)
+            collect = capture.capture_stopped if command.source_format == 'STOPPED_FILE_SERVICE_V1' else capture.capture
+            source = collect(ControlSnapshot(self.binding, cut, facts), command.max_bytes, command.max_rows)
             journal = self._sessions.load()
             current = journal.successor or journal.primary
             if source.content_digest != command.source_digest or encode(current.to_dict()).decode() != command.source_session_json:
                 raise StorageConflict('SERVICE_HANDOFF_SOURCE_CHANGED')
             if utc(self._clock()) >= session_record(command.target_session_json).expires_at:
                 raise StorageError('HANDOFF_TARGET_EXPIRED')
-            capture.assert_quiescent(source, facts)
+            capture.assert_quiescent(source.base if command.source_format == 'STOPPED_FILE_SERVICE_V1' else source, facts)
             artifact = persist_source(self, command, approval, source)
             # Recollect after filesystem publication, before changing authority.
-            verified = capture.capture(ControlSnapshot(self.binding, cut, facts), command.max_bytes, command.max_rows)
+            verified = collect(ControlSnapshot(self.binding, cut, facts), command.max_bytes, command.max_rows)
             if verified.content_digest != command.source_digest:
                 raise StorageConflict('SERVICE_HANDOFF_SOURCE_CHANGED')
             replay = self._control_commit(command.operation_id, cut, approval, command.json(),
@@ -300,6 +306,8 @@ class LegacyConfigurationHandoffControlAdapter:
                                       meta.resources['financial_configuration'], meta.resources['control_operations'])
             source = self._read_handoff_source()
             grant = AuthorizeConfigurationHandoff.from_json(meta.resources['control_operations'][command.handoff_operation_id]['payload'])
+            if grant.source_format == 'STOPPED_FILE_SERVICE_V1':
+                raise StorageError('POSTGRES_CUTOVER_CONSUMPTION_REQUIRED')
             if utc(self._clock()) >= session_record(grant.target_session_json).expires_at:
                 raise StorageError('HANDOFF_TARGET_EXPIRED')
             # An external transfer cannot be silently adopted during retirement.

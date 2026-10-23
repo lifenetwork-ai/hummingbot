@@ -20,7 +20,8 @@ class FileControlApplication:
         from hummingbot.strategy_v2.life_liquidity.storage.service_source import FileServiceSourceCapture
         self.store._handoff_capture = FileServiceSourceCapture(service)
 
-    async def propose_configuration_handoff(self, *, operation_id, target_binding, target_session_json, max_bytes, max_rows):
+    async def propose_configuration_handoff(self, *, operation_id, target_binding, target_session_json, max_bytes, max_rows,
+                                            source_format='FILE_SERVICE_SCOPED'):
         from hummingbot.strategy_v2.life_liquidity.storage.contracts import StateBinding, encode, identifier
         from hummingbot.strategy_v2.life_liquidity.storage.handoff import (
             AuthorizeConfigurationHandoff,
@@ -29,27 +30,30 @@ class FileControlApplication:
         )
         self.service.runtime.revoke()
         identifier(operation_id)
-        if len(operation_id) > 96 or type(target_binding) is not StateBinding:
+        if (len(operation_id) > 96 or type(target_binding) is not StateBinding
+                or source_format not in ('FILE_SERVICE_SCOPED', 'STOPPED_FILE_SERVICE_V1')):
             raise StorageError('HANDOFF_COMMAND_INVALID')
         session_record(target_session_json)
-        source = await self.financial_configuration_service_source(max_bytes=max_bytes, max_rows=max_rows)
+        collect = self.stopped_postgres_source if source_format == 'STOPPED_FILE_SERVICE_V1' else self.financial_configuration_service_source
+        source = await collect(max_bytes=max_bytes, max_rows=max_rows)
+        core = source.base.core if source_format == 'STOPPED_FILE_SERVICE_V1' else source.core
         snapshot = self._snapshot
         if self._admitted >= self.service.config.max_pending:
             raise StorageError('SERVICE_CONTROL_BACKPRESSURE')
         self._admitted += 1
         try:
             async with self._lock, asyncio.timeout(self.service.config.recovery_policy.max_fact_age_ms / 1000):
-                if snapshot is None or self._snapshot is not snapshot or snapshot.cut != source.core.cut or self.service._revoked:
+                if snapshot is None or self._snapshot is not snapshot or snapshot.cut != core.cut or self.service._revoked:
                     raise StorageError('SERVICE_CONTROL_SOURCE_UNQUALIFIED')
 
                 def proposal():
                     state = self.store._handoff_state()
                     journal = self.store._sessions.load()
                     command = AuthorizeConfigurationHandoff(operation_id, state.sequence, self.service.spot.owner,
-                                                            source.core.pending.operation_id, source.content_digest,
+                                                            core.pending.operation_id, source.content_digest,
                                                             encode((journal.successor or journal.primary).to_dict()).decode(),
-                                                            target_binding, target_session_json, max_bytes, max_rows)
-                    validate_target(command, source.core.pending, self.store.binding)
+                                                            target_binding, target_session_json, max_bytes, max_rows, source_format)
+                    validate_target(command, core.pending, self.store.binding)
                     return command
                 command = await self.store._call(proposal)
                 return command, snapshot

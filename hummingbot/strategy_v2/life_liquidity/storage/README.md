@@ -5531,3 +5531,16 @@ source paths or restarting the old service. These synchronous maintenance calls
 belong off the event loop. They do not retire the old writer/key, translate native
 financial history, reconcile a later cut or activate PostgreSQL. Those gates
 remain PG6 requirements.
+
+The signed handoff command accepts `source_format='STOPPED_FILE_SERVICE_V1'`
+for this complete graph. Its durable authorization freezes the original File
+writer and binds the artifact digest, original observation and target session.
+Cold maintenance readback resolves a lost commit response from the original
+control record; balances, deadlines and budgets remain unchanged. The default
+`FILE_SERVICE_SCOPED` command keeps its original signed JSON bytes.
+
+Both the File-only consumption path and File target validator explicitly refuse
+the stopped PostgreSQL format. Native financial parity and independently verified
+old-key exclusion must precede a separate PostgreSQL consumption/activation path.
+The local source freeze alone proves neither credential retirement nor readiness
+to trade on PostgreSQL.

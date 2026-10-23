@@ -83,7 +83,12 @@ def persist_source(store, command, approval, source):
     if not folder.exists():
         folder.mkdir(mode=0o700)
         sync_dir(folder.parent)
-    name, raw = artifact_name(command, approval.body()), pack_source(source)
+    if command.source_format == 'STOPPED_FILE_SERVICE_V1':
+        from hummingbot.strategy_v2.life_liquidity.storage.stopped_artifact import pack_stopped_source
+        raw = pack_stopped_source(source, max_bytes=command.max_bytes, max_rows=command.max_rows)
+    else:
+        raw = pack_source(source)
+    name = artifact_name(command, approval.body())
     if len(raw) > bound(command):
         raise StorageUnavailable('HANDOFF_ARTIFACT_CAPACITY_EXCEEDED')
     destination = folder / name
@@ -126,8 +131,16 @@ def load_source(store, command, descriptor):
     raw = read_bytes(folder / descriptor['name'], bound(command))
     if hashlib.sha256(raw).hexdigest() != descriptor['sha256']:
         raise StorageUnavailable('HANDOFF_ARTIFACT_INVALID')
-    source = unpack_source(raw)
-    if (pack_source(source) != raw or source.content_digest != command.source_digest or source.core.cut.json() != thaw(record['cut'])
-            or source.core.facts.json() != thaw(record['facts'])):
+    if command.source_format == 'STOPPED_FILE_SERVICE_V1':
+        from hummingbot.strategy_v2.life_liquidity.storage.stopped_artifact import unpack_stopped_source
+        source = unpack_stopped_source(raw, expected_sha256=descriptor['sha256'], max_bytes=command.max_bytes, max_rows=command.max_rows)
+        core = source.base.core
+    else:
+        source = unpack_source(raw)
+        core = source.core
+        if pack_source(source) != raw:
+            raise StorageUnavailable('HANDOFF_ARTIFACT_ORIGIN_INVALID')
+    if (source.content_digest != command.source_digest or core.cut.json() != thaw(record['cut'])
+            or core.facts.json() != thaw(record['facts'])):
         raise StorageUnavailable('HANDOFF_ARTIFACT_ORIGIN_INVALID')
     return source
