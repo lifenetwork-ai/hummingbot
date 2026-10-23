@@ -428,7 +428,16 @@
         "test/hummingbot/strategy_v2/life_liquidity/test_hedge_wal_scope.py",
         "test/hummingbot/strategy_v2/life_liquidity/test_spot_journal_proof.py",
         "test/hummingbot/strategy_v2/life_liquidity/test_active_reservation_admission.py",
-        "test/hummingbot/strategy_v2/life_liquidity/test_attribution_financial_proof.py"
+        "test/hummingbot/strategy_v2/life_liquidity/test_attribution_financial_proof.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_checkpoint_byte_proof.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_capital_permission_read.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_telemetry_reservation_lookup.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_reservation_membership.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_sender_joint_admission.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_capital_snapshot_scope.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_joint_receipt_scope.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_immutable_history_identity.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_joint_capital_scope.py"
       ]
     },
     "A25": {
@@ -655,7 +664,16 @@
         "test/hummingbot/strategy_v2/life_liquidity/test_hedge_wal_scope.py",
         "test/hummingbot/strategy_v2/life_liquidity/test_spot_journal_proof.py",
         "test/hummingbot/strategy_v2/life_liquidity/test_active_reservation_admission.py",
-        "test/hummingbot/strategy_v2/life_liquidity/test_attribution_financial_proof.py"
+        "test/hummingbot/strategy_v2/life_liquidity/test_attribution_financial_proof.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_checkpoint_byte_proof.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_capital_permission_read.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_telemetry_reservation_lookup.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_reservation_membership.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_sender_joint_admission.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_capital_snapshot_scope.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_joint_receipt_scope.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_immutable_history_identity.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_joint_capital_scope.py"
       ]
     },
     "A36": {
@@ -692,7 +710,16 @@
         "test/hummingbot/strategy_v2/life_liquidity/test_hedge_wal_scope.py",
         "test/hummingbot/strategy_v2/life_liquidity/test_spot_journal_proof.py",
         "test/hummingbot/strategy_v2/life_liquidity/test_active_reservation_admission.py",
-        "test/hummingbot/strategy_v2/life_liquidity/test_attribution_financial_proof.py"
+        "test/hummingbot/strategy_v2/life_liquidity/test_attribution_financial_proof.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_checkpoint_byte_proof.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_capital_permission_read.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_telemetry_reservation_lookup.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_reservation_membership.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_sender_joint_admission.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_capital_snapshot_scope.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_joint_receipt_scope.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_immutable_history_identity.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_joint_capital_scope.py"
       ]
     },
     "A37": {
@@ -2989,7 +3016,16 @@
         "test/hummingbot/strategy_v2/life_liquidity/test_hedge_wal_scope.py",
         "test/hummingbot/strategy_v2/life_liquidity/test_spot_journal_proof.py",
         "test/hummingbot/strategy_v2/life_liquidity/test_active_reservation_admission.py",
-        "test/hummingbot/strategy_v2/life_liquidity/test_attribution_financial_proof.py"
+        "test/hummingbot/strategy_v2/life_liquidity/test_attribution_financial_proof.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_checkpoint_byte_proof.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_capital_permission_read.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_telemetry_reservation_lookup.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_reservation_membership.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_sender_joint_admission.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_capital_snapshot_scope.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_joint_receipt_scope.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_immutable_history_identity.py",
+        "test/hummingbot/strategy_v2/life_liquidity/test_joint_capital_scope.py"
       ]
     },
     "O.8.5": {

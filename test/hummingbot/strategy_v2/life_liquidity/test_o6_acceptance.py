@@ -7,6 +7,27 @@ from test.hummingbot.strategy_v2.life_liquidity import o6_acceptance as audit
 import pytest
 
 
+def test_requirement_parent_cannot_leak_across_plan_sections(tmp_path, monkeypatch):
+    plan = tmp_path / 'plan.md'
+    plan.write_text('''## 6. Roadmap
+- [ ] P9.13: Canary plan
+  - [ ] Original child
+### PostgreSQL environment qualification
+- [ ] PG-E0: Select topology
+  - [ ] Environment child
+### Another product phase
+- [x] P9.14: Implemented parent
+  - [ ] Unfinished child
+## 7. Required Acceptance Matrix
+- [ ] A01: Not a P requirement
+''')
+    monkeypatch.setattr(audit, 'PLAN', plan)
+    rows = audit.open_requirements()
+    assert {r['text'] for r in rows.values()} == {
+        'P9.13: Canary plan', 'Original child', 'Unfinished child'}
+    assert {r['parent'] for r in rows.values()} == {'P9.13', 'P9.14'}
+
+
 def test_unknown_deferral_stage_cannot_close_spot_gate():
     manifest = json.loads(audit.MANIFEST.read_text())
     manifest["cases"]["A13"]["remaining"] = ["demo-later"]

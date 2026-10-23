@@ -34,6 +34,10 @@ def open_requirements():
     for line in PLAN.read_text().splitlines():
         if line.startswith("## 7."):
             break
+        # A new section cannot inherit the previous product requirement.
+        # PG environment gates have their own ownership and acceptance map.
+        if re.match(r"^#{1,6} ", line):
+            parent = None
         match = re.match(r"^- \[[ x]\] (P\d+\.\d+):", line)
         if match:
             parent = match[1]

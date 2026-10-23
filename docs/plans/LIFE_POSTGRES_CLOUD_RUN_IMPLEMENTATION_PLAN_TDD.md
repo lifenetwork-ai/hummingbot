@@ -10218,3 +10218,23 @@ The physical PITR gate passes 1 case, foreground passes 81, and Terraform mock
 infrastructure passes. The former Linux image is also absent, so its image/native
 gates could not qualify. Product O.8 stopped at stale requirement mapping before
 executing tests. None of these missing/incomplete gates is treated as a pass.
+
+## PG8 product manifest section ownership (2026-10-23)
+
+The product preflight failure was a parser scope error: a new Markdown heading
+kept the preceding `P9.13` parent, misclassifying the fourteen PG environment
+items as anonymous canary children. The parser now resets its parent at section
+boundaries while retaining unchecked children of checked P parents. A synthetic
+cross-section regression fails before the fix and passes after it. No actual
+P requirement or PG environment gate is deleted or marked complete.
+
+The versioned O.8 candidate now explicitly maps its nine already mandatory
+optimization suites into O.8.4 and A24/A35/A36. All original baseline selectors,
+budget hashes, coverage bases, open statuses and remaining work are retained.
+The unit-test-only auto-completion fixture is removed: the tests now validate
+the same real candidate consumed by the CLI. O.6/O.7/O.8 and serial acceptance
+map regressions pass **48 cases**, no failures/skips, 1.28 s
+(`/tmp/life-pg8-manifest-scope-green.log`). This repairs preflight only, not full
+product regression/coverage or O.8 performance closure. Original serial results
+remain unqualified; native integration requires its disposable database and may
+not be silently skipped or omitted from the complete acceptance.
