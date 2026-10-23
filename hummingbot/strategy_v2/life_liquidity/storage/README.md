@@ -1,5 +1,20 @@
 # LIFE storage contracts
 
+## Experimental fill-prefix proof (offline only)
+
+`run_postgres.py --suite fill_projection_spike --output /tmp/life-fill-projection`
+installs test-only SQL in a disposable database. It appends monetary and
+per-window budget prefixes in the original command transaction, binds exact
+native SPOT fill/fee sources, and uses internal foreign keys plus arithmetic
+constraints to reject tested history edits and missing capture. Production
+balances/budgets already update incrementally; this experiment targets the
+cost of proving their history. It grants no runtime access and replaces no
+native audit. The SQL files under `test/` are not deployable migrations.
+
+See the [prototype scope and promotion requirements](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#bounded-state-prototype-enforce-a-monetary-prefix-at-write-time).
+The 1k/10k synthetic index samples prove neither full-flow latency nor recovery
+capacity. Actual PG6-X1/PG8.7 remain open, and production schema remains 134.
+
 ## Fresh PostgreSQL backup and rollback runbook (PG6)
 
 The selected release starts with PostgreSQL and has no File data to convert

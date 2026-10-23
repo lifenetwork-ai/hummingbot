@@ -2,6 +2,20 @@
 
 ## Current offline delivery status
 
+**2026-10-24 constrained fill-prefix prototype:** the disposable
+`fill_projection_spike` test selector exercises transactionally appended
+money/budget prefixes and exact SPOT fill/fee source bindings. Native balances
+and budget buckets already update incrementally; repeated historical
+verification is the remaining problem. Composite foreign keys and arithmetic
+constraints reject tested old-row edits even with USER triggers disabled;
+reverse foreign keys reject omitted capture at COMMIT. This is an experimental
+schema under `test/`, with no production migration, runtime read permission or
+replacement for `spot_state`. The production schema remains 134 and
+**PG6-X1/PG8.7 remain OPEN**. See the bounded-state prototype section below for
+scope, counterexample and the promotion requirements. Its 29 cases plus the
+32 original observation cases pass together: **61 passed, 90.86 s**, no
+failures/errors/skips (`/tmp/life-fill-projection-final-a1`).
+
 **2026-10-24 quote flow optimization (schema 134):** migrations 133–134 move
 full preflight before the one original birth timestamp, return an optimistic
 post-birth cut on the original live receipt, share the fresh pre-write native
@@ -4553,8 +4567,10 @@ not qualified by this offline single-account run.
   control or partial source never substitutes for that missing verdict.
 
 The proposed next architecture separates bounded active financial state from
-retained settled history. It is **not implemented or qualified** by these flow
-changes. Before introducing a projection/checkpoint optimization:
+retained settled history. The full production architecture is **not implemented
+or qualified** by these flow changes. The disposable prefix experiment below
+implements a narrower write-enforced monetary proof. Before replacing an
+existing runtime audit with a projection/checkpoint optimization:
 
 1. Specify the exact active-state algebra: available capital, fees/liabilities,
    every campaign/UTC-day/session loss/subsidy window, unknown holds, pending
@@ -4577,6 +4593,107 @@ changes. Before introducing a projection/checkpoint optimization:
    paid funding, cashflows, UTC rollover, lost COMMIT and corruption. Measure
    complete 0/1k/10k flows under unchanged resources and deadlines. Do not claim
    history-independent cost while any hot path still traverses full history.
+
+### Bounded-state prototype: enforce a monetary prefix at write time
+
+The existing `spot_observe` already applies fill deltas to `balances`,
+`spot_accounting_progress` and `budget_buckets` in its transaction. Another
+mutable summary table alone would duplicate those projections and leave the
+original history-integrity problem unchanged. The prototype instead tests
+whether PostgreSQL's maintained constraints can prove a narrow prefix without
+replaying that prefix on each read.
+
+Implementation lives only in
+`test/hummingbot/strategy_v2/life_liquidity/storage/postgres/`:
+
+- `fill_projection_spike.sql` installs ordered money and per-window budget
+  witnesses on empty source history. Each row's before totals reference the
+  exact previous row's after totals; CHECK constraints enforce delta arithmetic
+  and the zero origin. Ordinals cannot have gaps or a NULL-parent bypass.
+- Exact composite source keys bind each witness to every original monetary
+  event/budget-event column. Reverse, deferred foreign keys require every
+  committed source event to have its witness. Capture, original financial
+  writes and constraint checks share the native transaction. Skipping a capture
+  trigger rolls the transaction back; it cannot leave a stale published prefix.
+- `fill_projection_sources.sql` binds original SPOT fill facts, signed fees,
+  independent valuation, intent/side and loss arithmetic to the original
+  monetary event. The retained events-only counterexample proves why this
+  second layer is necessary: an unchanged event total alone cannot detect a
+  changed source fee.
+- Heads are selected through indexed `(account, ordinal)` or
+  `(account, family, scope, window, ordinal)` keys. Prefix lookup returns one
+  row and has B-tree lookup cost; history storage still grows. The test helper
+  which compares **all** budget windows is a parity audit, not a bounded runtime
+  read. A future hot read must request explicitly bounded active windows.
+
+The tested integrity boundary trusts validated PostgreSQL constraints and
+normal internal-trigger execution. PostgreSQL 16's
+[ALTER TABLE documentation](https://www.postgresql.org/docs/16/sql-altertable.html)
+specifies that `DISABLE TRIGGER USER` excludes internal constraint triggers.
+This prototype therefore rejects tested mutations before they can commit;
+it does not certify a superuser bypass, dropped/unvalidated constraint,
+coherent multi-table rewrite or storage corruption. No background-audit delay
+is substituted for immediate rejection. Runtime/reporting have no access to
+the prototype's schema, functions or tables. Original native audits and COMMIT
+checks continue to execute for every real command exercised by the tests.
+
+Run only against the disposable local PostgreSQL runner:
+
+```sh
+python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_postgres \
+  --suite fill_projection_spike --output /tmp/life-fill-projection
+```
+
+The 0/1k/10k prefix experiments insert explicitly synthetic index-only events,
+without native approvals, commands, receipts, hold or recovery ancestry. They
+test index plans and prefix arithmetic only. They are **not** completed PG6
+source histories and do not supersede the last 82-order capacity failure.
+The genuine native coverage uses original BUY/SELL fills, LIFE/USDT fees,
+rebates, gross loss beyond limits, retry/readback, concurrency and the existing
+two-order recorder/terminal/inventory-settlement flow.
+
+**Prototype qualification (2026-10-24):** initial Red fails on the absent SQL
+experiment (`/tmp/life-fill-projection-red-a1`); the events-only six-case
+experiment demonstrates the uncovered-fee counterexample, then exact source
+bindings and expanded cases are added. Final **61 tests pass in 90.86 s**,
+zero failures/errors/skips, six existing dependency warnings, in one invocation
+combining 29 prototype cases with the original 32 observation cases
+(`/tmp/life-fill-projection-final-a1`). Include the original file with
+`PYTEST_ADDOPTS=test/hummingbot/strategy_v2/life_liquidity/storage/postgres/test_postgres_spot_observations.py`
+to reproduce that combined selector. Fault cases cover missing capture for
+each of money/fill-source/budget, changed source rows, invalid prefix
+arithmetic/NULL ancestry, removed tails, unknown COMMIT and cold retry, and
+competing original-cut fills. A synthetic window test separates UTC-day,
+session and campaign keys without changing original observation timestamps.
+
+Under the runner's unchanged 2-CPU/1-GiB PostgreSQL profile, the isolated head
+queries use index scans returning **one row / three buffer hits** at both
+1k and 10k synthetic rows. The individual `EXPLAIN ANALYZE` execution samples
+are **0.020/0.017 ms** for money/budget at 1k and **0.033/0.025 ms** at 10k.
+These are warm indexed-query samples, not percentiles, original command
+latency, end-to-end improvement or a recovery result. The large synthetic
+append statements retain a 1,000-ms statement timeout. Native commands retain
+their original gates; no actual 1k/10k command/restore rerun is claimed.
+
+**Promotion decision: retain as a test-only prototype.** Before applying the
+mechanism to a production gate, all of the following remain required:
+
+1. Close causal proof from the original operation/receipt to every budget
+   spend, floor, release and settlement. Exact event capture protects retained
+   values but does not prove that every required event was emitted initially.
+   Cover orphan/extra fills/fees as well as the qualified sources already bound.
+2. Bind opening basis, current balances, reservations, liabilities, unknown
+   holds and their complete ancestry. A cumulative cash delta is not available
+   capital or permission to trade. Specify SWAP/funding/cashflow/portfolio and
+   recorder interactions before claiming account-wide equivalence.
+3. Qualify constraint/privilege enrollment, allowed source payload sizes,
+   restore/upgrade ordering, dropped-trigger/constraint refusal and exact
+   populated history backfill. The prototype intentionally requires empty
+   events and changes no deployed migration or integrity policy.
+4. Replace only the proven replay component; retain current authority/facts,
+   owner/lease, economic and final-send checks. Then measure the actual
+   0/1k/10k source, complete command/COMMIT/write overhead, bytes and recovery
+   under the unchanged PG6/PG8 limits. The current production path is unchanged.
 
 **Next PG6-X1 closure sequence (offline):**
 

@@ -1,5 +1,18 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**Offline fill-prefix design experiment (2026-10-24):** a disposable PostgreSQL
+prototype now binds cumulative money/budget prefixes to original events and
+SPOT fill/fee sources using arithmetic constraints and composite foreign keys.
+It exercises genuine native fills/settlement alongside explicit index-only
+synthetic histories. This tests a possible replacement for repeated replay;
+it is not installed by migrations or used by the runtime. Production remains
+on schema 134 with full audits. See the [PostgreSQL plan's prototype and
+promotion requirements](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#bounded-state-prototype-enforce-a-monetary-prefix-at-write-time).
+**PG6-X1/PG8.7 remain open**; synthetic 1k/10k prefix queries are not complete
+native source/recovery qualification.
+The combined prototype/original-observation regression passes **61 tests in
+90.86 s**, with no failures/errors/skips (`/tmp/life-fill-projection-final-a1`).
+
 **Offline flow optimization (schema 134):** original birth receipts can propose
 their post-birth cut without a separate post-birth snapshot. Full preflight
 happens before the original ticket timestamp; PREPARE independently audits
@@ -21,7 +34,7 @@ The current 0/2-order recovery controls pass, but the 1k source completes only
 while applying an original fill, without attempting COMMIT or reaching restore
 (`/tmp/life-pg6-flow-capacity-final-a1`). **PG6-X1/PG8.7 remain open**; the
 PostgreSQL plan owns current capacity verdicts
-and the unimplemented bounded-state/checkpoint design. No image/deployed gate
+and the bounded-state prototype's unfinished production design. No image/deployed gate
 is closed by this increment.
 
 **Offline history batching (schema 132):** recorder origin/applied-head and
