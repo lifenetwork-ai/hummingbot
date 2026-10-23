@@ -5513,3 +5513,21 @@ The focused real-PG matrix includes exact monetary preservation, read-only
 principal enforcement, missing/corrupt basis refusal, concurrent source writes,
 real dump/restore, retained holds and owned cancellation. It is separate from
 the complete frozen-source PG8/image/performance gate.
+
+### Cold stopped-File artifacts
+
+`storage.stopped_artifact` packages the full `StoppedFileServiceSource`, including
+every referenced segment and scoped SQLite recorder provenance. Packing and cold
+decoding require explicit logical-byte/record bounds; the outer SHA-256 must come
+from the original trusted publication. This outer digest also binds the complete
+reconciliation facts, which are not all part of the older core cut fingerprint.
+Do not replace it with the artifact's self-declared source digest.
+
+Publication fsyncs a temporary inode and links it exclusively into place. Retrying
+identical bytes is idempotent; different/partial/symlinked destinations fail.
+A killed publisher may leave an orphan temporary file, never an adopted partial
+final image. Cold read reconstructs the immutable graph without opening embedded
+source paths or restarting the old service. These synchronous maintenance calls
+belong off the event loop. They do not retire the old writer/key, translate native
+financial history, reconcile a later cut or activate PostgreSQL. Those gates
+remain PG6 requirements.
