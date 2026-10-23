@@ -9,8 +9,12 @@ The PostgreSQL plan marks this backup sub-checklist `PG6-N` complete.
 **PG6 as a whole remains OPEN.** File cutover is optional and unfinished
 (`PG6-F1–F4`), but restored-target replacement recovery/new generation and post-cut
 accounting (`PG6-R1`) remain required open implementation even for fresh
-PostgreSQL. Recovery/headroom (`PG6-X1`/PG8) is also unqualified. Current restored
-targets stay unarmed and quarantined; there is no release/rearm API. Actual
+PostgreSQL. Migration 126 now provides a bounded, separately signed single-account
+bridge into observation-only recovery. A real archive rehearsal follows late
+spot fills/fees and settlement with a distinct signed private trading generation;
+complete restored-product/bill/recorder and expired-session qualification remains
+open. Recovery/headroom (`PG6-X1`/PG8) is also unqualified. Raw restored
+targets stay unarmed and quarantined. Actual
 provider/failure-domain/RPO/RTO proof additionally remains PG-E2. These remaining
 implementation gates are not replaced by environment tests or phase relabeling.
 

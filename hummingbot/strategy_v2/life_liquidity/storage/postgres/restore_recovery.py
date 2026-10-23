@@ -169,6 +169,9 @@ class PgRestoreRecoveryContext(PgRestoreQuarantine):
         return json.loads(value)
 
     async def _preview(self, context):
+        return await self._tentative(context)
+
+    async def _tentative(self, context, consume=None):
         c, body = self.connection, context.json()
         if body['source_owner'] is None:
             raise StorageError('PG_RESTORE_RECOVERY_LOGICAL_OWNER_REQUIRED')
@@ -190,7 +193,8 @@ class PgRestoreRecoveryContext(PgRestoreQuarantine):
             # These two changes exist only in this isolated transaction. They
             # let the original native projection verify its historical owner
             # chain and compute the cut a future signed RECOVER must bind.
-            # There is deliberately no COMMIT path, grant or external SDK call.
+            # Public preview always rolls this reconstruction back. Only the
+            # explicit signed importer can consume it in the same transaction.
             await c.execute('UPDATE life_storage.storage_metadata SET restore_operation_id=NULL')
             await c.execute('''UPDATE life_financial.accounts SET mode=$2,halted=$3,owner_process=$4,owner_generation=$5,
                 owner_epoch=$6,current_session=$7,owner_since=$8,owner_until=$9 WHERE account_id=$1''',
@@ -206,9 +210,10 @@ class PgRestoreRecoveryContext(PgRestoreQuarantine):
             cut = FinancialCut(StateCut(binding, version, version, (ResourceVersion('account', version),), state_digest),
                                (('postgres_account', state_digest),))
             operation_id = 'restore-rec:' + fingerprint({'restore': body['restore'], 'account_id': body['account_id']})
-            return RestoreRecoveryPreview(context, cut, OwnerTransition(operation_id, OwnerMode.RECOVERY_ONLY, owner))
+            preview = RestoreRecoveryPreview(context, cut, OwnerTransition(operation_id, OwnerMode.RECOVERY_ONLY, owner))
+            return preview if consume is None else await consume(preview, tx)
         finally:
-            # No normal, failure or cancellation path commits the tentative
-            # reconstruction. A disconnected backend also aborts the tx.
+            # Preview and every uncommitted import path abort reconstruction.
+            # A disconnected backend also aborts the transaction.
             if not c.is_closed() and c.is_in_transaction():
                 await tx.rollback()

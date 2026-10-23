@@ -1,5 +1,21 @@
 # LIFE PostgreSQL migrations
 
+## 000126 — Signed restored-account observation recovery
+
+Adds owner-only immutable `restore_recovery_imports`, linked to the exact restore
+audit and original native RECOVER operation. A deferred constraint trigger checks
+physical target isolation, configured authorities, current RECOVERY_ONLY owner,
+risk epoch and approval/certificate/fact freshness again at COMMIT.
+
+The original `can_access` function OID/ACL is preserved. A restored namespace
+needs a committed import origin for that account; clearing the global marker
+alone cannot admit an old runtime. Only an isolated schema owner can inspect
+native state while preparing the signed bridge. The current importer refuses
+multi-account/unmanaged restores and issues no activation or private lease.
+Hostile default table/function privileges are removed. The ordinary checksum
+ledger makes repeated migration runs a no-op; there are no account or monetary
+seeds and no down migration.
+
 ## 000125 — Complete stopped-history staging
 
 `000125_file_history_staging.sql` adds owner-only immutable `file_history_rows`

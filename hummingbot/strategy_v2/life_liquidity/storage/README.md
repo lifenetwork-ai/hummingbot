@@ -44,12 +44,12 @@ migration and from these backup operations.
    recorder rows and account lineage stay unchanged. Physical kill rolls back
    trigger DDL too. Resolve a lost COMMIT reply using the same request/readback;
    do not invent a new operation, lineage or opening balance to retry.
-4. **Stop here.** There is no quarantine-release/rearm API. A successful restore,
+4. **Stop here unless the separate signed recovery protocol below is used.** A successful restore,
    new image, database flag change, copied owner token or backend toggle cannot
    grant permission to trade. This runbook produces a verified non-sending
    recovery target, not an operational failover.
 
-### Physical PITR and application rollback
+### Inspect recovery context
 
 Owner-side `PgRestoreRecoveryContext.challenge(request, manifest=..., account_id=...)`
 can inspect the complete quarantined target and original owner/lease ancestry.
@@ -57,7 +57,50 @@ can inspect the complete quarantined target and original owner/lease ancestry.
 `RECOVERY_ONLY` command inside an isolated, always-rolled-back transaction.
 Both require the original manifest and connection exclusion. Neither commits
 ownership, clears quarantine, registers an actor or provides trading permission.
-The signed durable recovery import remains required open implementation.
+### Signed observation recovery (bounded single-account offline profile)
+
+`PgRestoreRecoveryImporter(connection, limits=..., operator_verifier=...,
+credential_verifier=...)` provides explicit owner-side `import_recovery` and
+`lookup` operations. It does not run automatically on worker startup.
+This profile requires exactly one complete managed account, original logical
+owner/control/lease ancestry and a newly isolated target. Multi-account or
+unmanaged sources are refused. It accepts only the separately pinned
+`OFFLINE_FAKE_V1` credential assertion; actual provider qualification is open.
+
+1. Keep connection admission excluded. Pass the same trusted original manifest,
+   restore request and account ID, plus a proposed **new** principal/process
+   registration and independent credential-exclusion certificate. The role must
+   already exist and satisfy least privilege. Import creates no login or account.
+2. Supply an async `authorize(preview)` callback returning a fresh
+   `(SpotFinancialRecoveryFacts, RECOVER approval, HANDOFF approval)` tuple.
+   Sign `preview.command.json()` for RECOVER, and
+   `importer.request(preview, registration, certificate)` for HANDOFF; both bind
+   the exact `preview.cut` and facts. Collect fresh facts after manifest/GRANT
+   work; existing fact-age limits and session deadlines are not extended.
+3. The importer verifies all original control signatures and authority policies,
+   then atomically appends a native RECOVERY_ONLY record, rotates permitted
+   principals, consumes the namespace barrier and writes immutable restore audit.
+   The old logical owner/session remains for original late financial provenance.
+   Money, spent budgets, original grants and unresolved holds stay original.
+   Deferred SQL guards recheck physical isolation and approval/certificate/fact
+   freshness at COMMIT. Caller cancellation retains the original physical slot.
+4. Resolve an unknown COMMIT with explicit `lookup` on the same identity and
+   external manifest. A result has `trading_permission=False`; it cannot restore
+   a private capability. Re-submission of an already imported target is refused.
+5. Only after successful import may the operator admit the new database role.
+   Use the original `PgRecoveryGrantIssuer`/`PgRecoveryActor` workflow with fresh
+   signed exclusion and private registration. Its epoch-2 observation lease is
+   separate from import. Apply complete original post-cut ACK/fill/fee/bill truth
+   and retain unresolved holds. No new-risk order is permitted in RECOVERY_ONLY.
+6. Trading additionally requires exact clean reconciliation, a separately signed
+   native ACTIVE command and new private generation/handoff. Restore does not
+   extend the original session; an expired session requires a qualified fresh
+   session/campaign workflow. The current real archive rehearsal covers paired
+   spot fills/fees/terminal settlement and epoch-3 activation within the original
+   session. Complete bills/recorder/non-spot/expired-session and capacity
+  qualification remains PG6-R1/PG6-X1; this protocol does not close full PG6.
+
+### Physical PITR and application rollback
 
 - Physical recovery requires `pg_basebackup`/`pg_verifybackup`, original archived
   WAL and a declared recovery target. Start the isolated target with old runtime
@@ -77,13 +120,17 @@ The signed durable recovery import remains required open implementation.
   release/new-generation registration, complete post-cut exchange accounting
   and independently qualified REST/WS/CAA/in-flight exclusion of the old
   credentials. This is open recovery-extension work (`PG6-R1`) and a live gate
-  under OKX `PG-E2`; permanent quarantine is the current enforced behavior.
+  under OKX `PG-E2`; raw restores remain quarantined until explicit signed import.
 
 ### Offline qualification
 
 `run_postgres --suite pg6_native --output /tmp/<new-dir>` covers real logical
 backup/restore, catalog/sequence integrity, exact native paid accounting and
 unknown holds, isolation, corruption, physical process death and lost COMMITs.
+It also includes the bounded signed import and real paired spot archive →
+observation actor → settlement → new signed private generation flow. The
+schema-126 run passes 68 native cases; three additional boundary cases (one
+overlapping) verify independent outer approval expiry and authority separation.
 `--suite pg6_pitr` runs actual base-backup/WAL recovery in its own disposable
 volume. `--suite pg6` also includes optional File staging/history regressions;
 passing those does not implement operational File cutover.
@@ -5511,8 +5558,9 @@ encryption, retention, object-store permissions and disaster recovery separately
 6. On unknown COMMIT, reestablish the same isolated maintenance context and
    replay the **same request**. Readback verifies original request and retained
    monetary/account parity. It cannot renew grants, reset budgets or rearm.
-7. Keep the target unavailable to writers. There is no release/rearm API in this
-   slice. Post-cut exchange history, old REST/WS/CAA credential exclusion and a new
+7. Keep the target unavailable to writers unless using the separate bounded
+   signed observation-recovery protocol at the start of this README.
+   Post-cut exchange history, old REST/WS/CAA credential exclusion and a new
    controlled generation are still required.
    Database health, a successful dump or row parity cannot substitute for them.
 
