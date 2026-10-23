@@ -51,7 +51,7 @@ GATES = (
 # them here until corresponding implementations AND executable gates exist.
 OPEN_REQUIREMENTS = {
     'PG6.1': 'Complete stopped legacy/segmented File graph and recorder cut with old-writer/key fence.',
-    'PG6.2': 'Resumable native historical import, original basis and all permanent identities.',
+    'PG6.2': 'Native financial translation from sealed resumable File staging, original basis and all permanent identities.',
     'PG6.3': 'Exact financial/identity/decision parity and atomic unarmed activation.',
     'PG6.4': 'Before-activity discard and reconciled post-activity controlled rollback rehearsal.',
     'PG6.5': 'Post-cut reconciliation, independently signed exclusion and controlled new generation after quarantine.',

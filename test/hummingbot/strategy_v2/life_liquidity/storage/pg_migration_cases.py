@@ -4340,3 +4340,26 @@ async def test_audit_monitor_index_upgrade_is_money_neutral_and_repeatable(db):
     assert (await migrate(c, directory, action='up'))['applied'] == []
     assert await c.fetch('SELECT * FROM life_financial.accounts') == before
     assert await c.fetchval("SELECT indisvalid FROM pg_index WHERE indexrelid='life_financial.audit_checkpoint_sequence'::regclass")
+
+
+@pytest.mark.asyncio
+async def test_file_import_staging_upgrade_is_empty_repeatable_and_owner_only(db):
+    c, _, directory = db
+    for path in DEFAULT_DIRECTORY.glob('*.sql'):
+        if int(path.name.split('_', 1)[0]) < 122:
+            (directory / path.name).write_bytes(path.read_bytes())
+    await migrate(c, directory, action='up')
+    before = await c.fetch('SELECT * FROM life_financial.accounts')
+    await c.execute('ALTER DEFAULT PRIVILEGES IN SCHEMA life_storage GRANT ALL ON TABLES TO PUBLIC,life_runtime_test,life_reporter_test')
+    await c.execute('ALTER DEFAULT PRIVILEGES IN SCHEMA life_storage GRANT EXECUTE ON FUNCTIONS TO PUBLIC,life_runtime_test,life_reporter_test')
+    path = DEFAULT_DIRECTORY / '000122_file_import_staging.sql'
+    (directory / path.name).write_bytes(path.read_bytes())
+    assert (await migrate(c, directory, action='up'))['applied'] == [path.name]
+    assert (await migrate(c, directory, action='up'))['applied'] == []
+    assert await c.fetch('SELECT * FROM life_financial.accounts') == before
+    for role in ('public', 'life_runtime_test', 'life_reporter_test'):
+        for table in ('file_imports', 'file_import_chunks'):
+            for privilege in ('SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'):
+                assert not await c.fetchval('SELECT has_table_privilege($1,$2,$3)', role, 'life_storage.' + table, privilege)
+        assert not await c.fetchval("SELECT has_function_privilege($1,'life_storage.file_import_transition()','EXECUTE')", role)
+    assert await c.fetchval('SELECT count(*) FROM life_storage.file_imports') == 0

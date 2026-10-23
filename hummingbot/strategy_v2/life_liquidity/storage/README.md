@@ -5544,3 +5544,29 @@ the stopped PostgreSQL format. Native financial parity and independently verifie
 old-key exclusion must precede a separate PostgreSQL consumption/activation path.
 The local source freeze alone proves neither credential retirement nor readiness
 to trade on PostgreSQL.
+
+### PostgreSQL artifact staging
+
+`postgres.file_staging.PgFileStaging` uses a dedicated schema-owner maintenance
+connection and explicit deadline. `FileStageRequest` binds the target account,
+database lineage, full storage namespace, trusted source artifact SHA-256 and
+byte/record/chunk limits. Only offline namespaces are accepted.
+
+`stage(request, raw)` validates the complete artifact off the event loop, then
+commits bounded immutable chunks individually. Restart repeats only identical
+chunks; a conflicting source/account/operation is refused. `SEALED` requires a
+complete ordered readback with exact byte count and outer digest. `read(request)`
+decodes that exact graph without opening old source paths. No source wallets,
+budgets or identities are rewritten, and no financial account/grant is created.
+This is not the native monetary translation or a cutover authorization.
+
+Caller cancellation and decoder deadline retain the original physical task;
+`close()` joins it. A lost seal response requires exact operation readback.
+`discard(request)` is permitted only before the target account exists and retains
+the permanent source/operation tombstone. A new attempt uses a separately
+qualified empty target; changing backend flags cannot reactivate a discarded
+operation. Quarantined restores preserve chunks but reject the original target
+lineage. Native parity, old-key exclusion and controlled activation remain open.
+
+Run `python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_postgres
+--suite file_staging --output /tmp/<unique-run>` for the real PostgreSQL matrix.

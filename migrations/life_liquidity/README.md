@@ -1856,3 +1856,17 @@ signature's presence is not independent verification. The central runner applies
 the immutable SQL once and skips its matching checksum on repeated startup.
 An actual query-plan test covers 10,000 synthetic retained checkpoints without
 scanning/filtering old rows; those rows are deliberately not accepted audit proof.
+
+## 000122 — Stopped File artifact staging
+
+Adds owner-only `file_imports` and immutable `file_import_chunks`. The request
+binds the original trusted artifact digest, target database/account/scope and
+explicit transport capacities. `IMPORTING` can become `SEALED` or `DISCARDED`;
+discarded identities cannot be reused. Every chunk retains its byte digest.
+The automatic migration runner applies this once and skips its exact checksum on
+repeat startup. Hostile runtime/reporting default ACLs are explicitly revoked.
+
+These tables hold complete source bytes, not executable financial state. No
+account, wallet, budget, key exclusion or trading grant is initialized. Historical
+target database identity remains immutable across restore; quarantine and lineage
+checks prevent resuming staging against the wrong restored namespace.
