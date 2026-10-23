@@ -10102,3 +10102,13 @@ reporting continues, while maker startup is denied. The focused suite passes
 (`/tmp/life-pg8-tick-fixture-20261023.log`). This does not replace the retained
 RED full File gate. The native gate continues on the unchanged frozen checkout;
 no aggregate result or phase closure is inferred from this correction.
+
+The same retained native run also fails inventory/exit corruption setup at
+`PG_RISK_EPOCH_CHANGED`, before injecting corruption. `mode_store` performs a
+new NAV/risk observation after signed mode selection but discarded that receipt
+and returned the predecessor epoch. It now returns the actual last receipt; a
+deterministic epoch-2/epoch-3 regression fails before the fix and passes after it
+(`/tmp/life-pg8-risk-fixture-red2.log`, `...-green.log`, 1 case, 0.74 s).
+No risk epoch/authority is overwritten and no deadline is extended. The real
+native case and wider gate still require rerunning; the original failure is
+retained, not marked qualified by this fixture-only regression.

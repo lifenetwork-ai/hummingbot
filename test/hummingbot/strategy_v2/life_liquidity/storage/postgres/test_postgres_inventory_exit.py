@@ -25,8 +25,8 @@ async def mode_store(database, mode='INVENTORY', *, inventory_side='BUY', deadli
     values = await execution_store(database, execution_terms=terms)
     repo, cfg, owner, risk, ready, keys, body = values
     await choose_mode(database, repo, cfg, owner, keys, body, mode=mode)
-    await refresh(database, repo, cfg, owner, risk, 'mode-nav')
-    return values
+    ready = await refresh(database, repo, cfg, owner, risk, 'mode-nav')
+    return repo, cfg, owner, risk, ready, keys, body
 
 
 async def market(database, repo, cfg, owner, *, operation='market1', **changes):
