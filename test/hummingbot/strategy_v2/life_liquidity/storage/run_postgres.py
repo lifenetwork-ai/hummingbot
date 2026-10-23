@@ -264,11 +264,11 @@ def main():
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in PG3_SUITES[args.suite]]
         if args.suite == 'pg6':
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in (
-                'restore', 'backup', 'schema_restore', 'fresh_restore', 'restore_recovery', 'restore_import', 'restore_actor', 'restore_matrix', 'history_flow', 'birth_retention', 'snapshot_payload', 'action_history_batch', 'birth_fingerprints', 'recorder_history_batch', 'settlement_history_batch', 'capacity_pool', 'file_staging', 'file_financial', 'file_history', 'file_history_restore')]
+                'restore', 'backup', 'schema_restore', 'fresh_restore', 'restore_recovery', 'restore_import', 'restore_actor', 'restore_matrix', 'history_flow', 'birth_retention', 'snapshot_payload', 'action_history_batch', 'birth_fingerprints', 'recorder_history_batch', 'settlement_history_batch', 'capacity_pool', 'birth_native_view', 'file_staging', 'file_financial', 'file_history', 'file_history_restore')]
         if args.suite == 'pg6_capacity':
             selectors = [str(selector / 'restore_capacity_cases.py')]
         if args.suite == 'pg6_native':
-            selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in ('restore', 'backup', 'schema_restore', 'fresh_restore', 'restore_recovery', 'restore_import', 'restore_actor', 'restore_matrix', 'history_flow', 'birth_retention', 'snapshot_payload', 'action_history_batch', 'birth_fingerprints', 'recorder_history_batch', 'settlement_history_batch', 'capacity_pool')]
+            selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in ('restore', 'backup', 'schema_restore', 'fresh_restore', 'restore_recovery', 'restore_import', 'restore_actor', 'restore_matrix', 'history_flow', 'birth_retention', 'snapshot_payload', 'action_history_batch', 'birth_fingerprints', 'recorder_history_batch', 'settlement_history_batch', 'capacity_pool', 'birth_native_view')]
         if args.suite == 'hedge_settlement':
             selectors = [str(selector / 'test_postgres_service_hedge.py') + '::test_configured_hedge_terminal_settlement_and_release_require_signed_original_order']
         if args.suite == 'image_flows':

@@ -23,7 +23,10 @@ from hummingbot.strategy_v2.life_liquidity.carry_monitor import FundingPayment
 from hummingbot.strategy_v2.life_liquidity.storage.contracts import OwnerMode, OwnerToken, StorageError
 from hummingbot.strategy_v2.life_liquidity.storage.control_plane import OwnerTransition
 from hummingbot.strategy_v2.life_liquidity.storage.generation_exclusion import CredentialExclusionVerifier
-from hummingbot.strategy_v2.life_liquidity.storage.postgres.control import ReconcileSessionSuccessor
+from hummingbot.strategy_v2.life_liquidity.storage.postgres.control import (
+    PgControlRepository,
+    ReconcileSessionSuccessor,
+)
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.events import PgEventRepository
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.funding import ApplyFunding, PgFundingRepository
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.ownership import PgProcessLease
@@ -296,11 +299,59 @@ async def test_restored_inflight_hedge_retains_original_cost_plan_and_claim_whil
         assert await capital.claims(cfg.binding) == claims
 
 
+def expiry_bootstrap_probe(database, monkeypatch, request):
+    """Exercise a real bootstrap delay without changing clocks or deadlines."""
+    original = PgControlRepository.transition_owner
+    samples = []
+
+    async def observe(control, command, **options):
+        if command.operation_id == 'lease-activate':
+            deadline = await database[0].fetchval('SELECT expires_at FROM life_financial.sessions WHERE account_id=$1 AND session_id=$2',
+                                                  control.runtime.config.account_id, command.token.session_id)
+            sample = dict(owner_span_ms=(command.token.expires_at - command.token.valid_from).total_seconds() * 1000,
+                          original_session_contains_owner=command.token.expires_at <= deadline,
+                          owner_end_before_session_ms=round((deadline - command.token.expires_at).total_seconds() * 1000, 3))
+            samples.append(sample)
+            request.node.user_properties.append(('expiry_bootstrap', json.dumps(sample)))
+        try:
+            result = await original(control, command, **options)
+        except StorageError:
+            # The deliberate negative activation must not leak its old pool.
+            if command.operation_id == 'lease-activate':
+                await control.financial.close()
+            raise
+        if command.operation_id == 'lease-drain':
+            remaining = await database[0].fetchval('''SELECT extract(epoch FROM expires_at-clock_timestamp())
+                FROM life_financial.sessions WHERE account_id=$1''', control.runtime.config.account_id)
+            # Reach a real point with at most 4.8 seconds left in the original
+            # six-second session. A newly minted five-second owner cannot fit.
+            await asyncio.sleep(max(0, float(remaining) - 4.8))
+        return result
+    monkeypatch.setattr(PgControlRepository, 'transition_owner', observe)
+    return samples
+
+
+@pytest.mark.asyncio
+async def test_expiry_fixture_rejects_owner_that_outlives_original_session_after_real_bootstrap_delay(database, monkeypatch, request):
+    samples = expiry_bootstrap_probe(database, monkeypatch, request)
+    with pytest.raises(StorageError, match='PG_CONTROL_ACTIVATION_UNQUALIFIED'):
+        await source(database, managed_options=dict(owner_duration_ms=5000, observe_session_role=True,
+                                                    spot_options=dict(session_duration=timedelta(seconds=6))))
+    assert len(samples) == 1 and not samples[0]['original_session_contains_owner']
+    assert samples[0]['owner_end_before_session_ms'] < 0
+    assert await database[0].fetchval("SELECT count(*) FROM life_financial.operations WHERE operation_id='lease-activate'") == 0
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize('on_expiry', ['pause_quotes', 'switch_to_market_reference'])
-async def test_expired_original_session_restores_for_observation_only_and_never_renews_its_deadline(database, tmp_path, on_expiry):
-    values, private, verifier = await source(database, managed_options=dict(owner_duration_ms=5000, observe_session_role=True,
+async def test_expired_original_session_restores_for_observation_only_and_never_renews_its_deadline(database, tmp_path, on_expiry, monkeypatch, request):
+    samples = expiry_bootstrap_probe(database, monkeypatch, request)
+    # The owner must fit inside the original six-second session even after
+    # bootstrap work. Shorten this synthetic owner; never extend the session,
+    # source-fact limits or restore deadline to manufacture a positive case.
+    values, private, verifier = await source(database, managed_options=dict(owner_duration_ms=2000, observe_session_role=True,
                                              spot_options=dict(session_duration=timedelta(seconds=6), on_expiry=on_expiry)))
+    assert len(samples) == 1 and samples[0]['original_session_contains_owner']
     f, cfg, owner, *_, keys = values
     deadline = (await f.session(cfg.binding)).expires_at
     # Backup includes the original expiry policy/deadline. No test changes a

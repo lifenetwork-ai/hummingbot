@@ -1,5 +1,29 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**Offline flow optimization (schema 134):** original birth receipts can propose
+their post-birth cut without a separate post-birth snapshot. Full preflight
+happens before the original ticket timestamp; PREPARE independently audits
+actual state and compares that cut. One fresh pre-write state now covers birth
+provenance and financial preconditions. Signed control is verified once per
+state read instead of four times; later statements and physical-COMMIT guards
+remain independent. Eighteen targeted cases and four migration cases pass.
+Broader runner/recovery verification covers 220 distinct passing current test
+IDs across the original 218-pass/one-failure run and three focused expiry-
+fixture cases after shortening its synthetic owner (not a full passing run).
+The serial schema-132/134 32-order diagnostic pair builds in
+53,232.412/49,412.908 ms (**7.18%** lower in this one pair, not a latency
+acceptance result). Birth-history audits decrease 775 → 711 and control audits
+3,060 → 1,695; full state reads remain **647**. Last-order birth-to-facts time
+is 105.010/23.589 ms; this is one sample, not a percentile or large-history
+guarantee. Retained-history work is still unbounded by active order count.
+The current 0/2-order recovery controls pass, but the 1k source completes only
+**82 orders** before `spot_observe` exceeds the unchanged 1,000-ms SQL deadline,
+while applying an original fill, without attempting COMMIT or reaching restore
+(`/tmp/life-pg6-flow-capacity-final-a1`). **PG6-X1/PG8.7 remain open**; the
+PostgreSQL plan owns current capacity verdicts
+and the unimplemented bounded-state/checkpoint design. No image/deployed gate
+is closed by this increment.
+
 **Offline history batching (schema 132):** recorder origin/applied-head and
 settlement member/subsidy-window joins preserve original rows, exact proof
 bytes and independent COMMIT checks. Five differential cases pass. The serial

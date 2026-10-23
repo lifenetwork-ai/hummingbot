@@ -1,5 +1,30 @@
 # LIFE PostgreSQL migrations
 
+## 000133–000134 — Fresh quote preflight and shared state proofs
+
+133 obtains the complete native preflight before issuing the ticket's one
+original timestamp. Its receipt may propose a post-birth cut, computed from
+the unchanged financial body and the new ticket metadata with the original
+cut hash domain. This is an optimistic version token, not a verification or
+send grant: preparation independently audits the actual state and compares
+the digest. A wrong or interveningly stale proposal fails closed. Historical
+readback exposes no proposal; an explicit source cut retains precedence.
+Older schemas retain their original snapshot path.
+
+Within original birth preparation, one fresh full state now supplies both birth
+provenance and monetary preconditions. The from-view core is owner-only, even
+under hostile default privileges; no runtime/reporting/PUBLIC caller can supply
+an audit result. The generic core, full retained rows, exact money/receipts,
+source clocks and independent post-write/physical-COMMIT audits remain intact.
+
+134 computes the original signed-control verifier once per STABLE `spot_state`
+call and shares it with its three aggregate flags. Its exact old body/digest
+and corruption decisions are retained. The next SQL statement and all deferred
+guards still verify afresh. Both upgrades pin predecessor definitions, preserve
+existing OIDs/ACLs and use the original checksum-ledger startup mechanism.
+No table, account, grant, policy cap, timeout or cached readiness is introduced.
+These changes do not make retained-history work constant or close PG6-X1.
+
 ## 000131–000132 — Recorder origins and settlement windows
 
 131 joins executor payloads, original descriptors, wire provenance and latest

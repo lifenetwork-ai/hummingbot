@@ -5,18 +5,21 @@ and publishes its action/history atomically. Neither returned DTO permits HTTP.
 The configured service does not select this protocol until separately qualified.
 """
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import asyncpg
 
 from hummingbot.strategy_v2.life_liquidity.storage.action_preparation import PrepareQuoteAction
 from hummingbot.strategy_v2.life_liquidity.storage.actions import RunnerActionFacts, SpotQuoteAction
 from hummingbot.strategy_v2.life_liquidity.storage.contracts import (
+    ResourceVersion,
+    StateCut,
     StorageError,
     StorageUnavailable,
     fingerprint,
     identifier,
 )
+from hummingbot.strategy_v2.life_liquidity.storage.financial import FinancialCut
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.runtime import sql_error
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot import PgSpotRepository
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.spot_intent import PgSpotQuoteIntent
@@ -29,6 +32,7 @@ class QuoteBirth:
     born_at_ms: int
     body_json: str
     historical: bool
+    preparation_cut: FinancialCut | None = field(default=None, repr=False, compare=False)
     trading_permission: bool = field(default=False, init=False)
 
 
@@ -88,6 +92,17 @@ class PgQuoteBirthRepository:
             if (ticket.ticket_id != ticket_id or ticket.action.json() | {'payload_json': request['template']['payload_json']}
                     != request['template']):
                 raise StorageUnavailable('PG_BIRTH_RECEIPT_INVALID')
+            if any(m.version == 133 for m in self.runtime._bundle):
+                try:
+                    proposal = value['preparation_cut']
+                    if (type(proposal) is not dict or set(proposal) != {'version', 'digest'}
+                            or type(proposal['version']) is not int or proposal['version'] != expected_version):
+                        raise ValueError
+                    checkpoint = StateCut(cfg.binding, expected_version, expected_version,
+                                          (ResourceVersion('account', expected_version),), proposal['digest'])
+                    ticket = replace(ticket, preparation_cut=FinancialCut(checkpoint, (('postgres_account', proposal['digest']),)))
+                except (KeyError, TypeError, ValueError, StorageError):
+                    raise StorageUnavailable('PG_BIRTH_RECEIPT_INVALID') from None
             return ticket
         ticket = await self.runtime._transaction(
             'SELECT life_financial.quote_birth_issue($1,$2,$3,$4,$5)',

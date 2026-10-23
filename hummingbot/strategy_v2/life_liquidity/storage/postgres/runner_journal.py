@@ -366,8 +366,14 @@ class PgQuoteRunnerJournal:
             # An owning native source may already hold the exact verified cut
             # paired with these facts. It is an optimistic token, not authority:
             # SQL must reject any intervening change instead of silently using
-            # a newer unrelated snapshot. Legacy callers still capture here.
-            cut = (await self.repository.snapshot(self.binding)).cut if _source_cut is None else _source_cut
+            # a newer unrelated snapshot. An original provisional birth may
+            # propose its post-birth cut without another snapshot. SQL still
+            # audits the current state and rejects any stale/wrong proposal.
+            cut = _source_cut
+            if cut is None and provisional:
+                cut = entry.birth.preparation_cut
+            if cut is None:
+                cut = (await self.repository.snapshot(self.binding)).cut
             if not (entry.accepted or provisional) or not self.local_runner_create_fence(action):
                 raise StorageError('RUNNER_ACCEPTANCE_REQUIRED')
             # One physical attempt. Failures require exact operation readback,

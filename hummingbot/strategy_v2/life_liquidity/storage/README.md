@@ -157,6 +157,38 @@ deployed failure-domain and wall-clock RPO/RTO qualification remains OKX PG-E2.
 
 ### Retained-history gate (open)
 
+Schema 133 moves full quote preflight before the original birth timestamp and
+returns an optimistic post-birth cut on the original live ticket only. The
+runner may use it instead of a separate post-birth snapshot when no original
+source cut was supplied. PREPARE still reads the full current state and rejects
+a wrong/stale digest; it shares that fresh state between birth provenance and
+the private monetary core. Cold readback, unknown COMMIT and expired captures
+cannot reconstruct acceptance. Schema 134 shares the signed-control proof only
+inside a single STABLE state read; later statements and deferred guards remain
+independent. Neither optimization grants permission or omits retained history.
+
+The capacity source observes new runner facts after its cut preflight, matching
+the production journal's existing reconciliation order. It never re-dates a
+published quote or an earlier source observation. The unchanged 1,000-ms
+fact/command/quote limits, 2 CPU/1 GiB DB, 1-GiB source cap and 120-s complete
+restore/reconciliation target remain the acceptance criteria.
+
+Current schema-134 results: 18 targeted flow/corruption cases and four migration
+cases pass. The serial actual schema-132/134 32-order pair builds in
+53,232.412/49,412.908 ms (7.18% in one pair, not latency acceptance). Birth
+audits fall 775 → 711 and control audits 3,060 → 1,695, but full state reads
+remain 647. The current capacity selector has two passing 0/2-order restore
+controls (8,259.650/8,102.453 ms) and one failed 1k source: after 82 completed
+orders, `spot_observe` exceeds the unchanged SQL deadline without COMMIT.
+Restore is not reached at 1k and 10k is not run
+(`/tmp/life-pg6-flow-capacity-final-a1`). PG6-X1/PG8.7 remain open.
+Broader runner/recovery coverage has 220 distinct passing current test IDs
+across the initial 218-pass/one-failure run and three focused corrected expiry
+cases (one overlapping pass). The fixture now shortens the synthetic owner,
+preserves the original session deadline and explicitly exercises a real
+bootstrap delay. This is partitioned coverage, not a full passing invocation;
+the PostgreSQL plan retains the failure and exact verification scope.
+
 Run the explicit `--suite pg6_capacity` selector separately. The 0/2-order
 controls and 1k/10k targets construct actual native quote, recorder, fill,
 terminal and settlement commands. Test XML records source construction time

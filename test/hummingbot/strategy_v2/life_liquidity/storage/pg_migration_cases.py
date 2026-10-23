@@ -4579,6 +4579,11 @@ async def test_birth_retention_upgrade_refuses_unknown_capacity_predecessor_with
     (131, '000131_recorder_history_batch.sql', ('life_financial.recorder_executor_only_integrity(uuid)',)),
     (132, '000132_settlement_history_batch.sql', (
         'life_financial.spot_inventory_evidence(uuid,jsonb)', 'life_financial.spot_inventory_settlements_verified(uuid)')),
+    (133, '000133_birth_prewrite_native_view.sql', (
+        'life_financial.quote_birth_issue(uuid,jsonb,jsonb,bigint,jsonb)',
+        'life_financial.quote_birth_prepare(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb)',
+        'life_financial.spot_prepare_action_core(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb,jsonb)')),
+    (134, '000134_snapshot_control_proof.sql', ('life_financial.spot_state(uuid)', 'life_financial.control_verified(uuid)')),
 ])
 async def test_retained_audit_upgrade_preserves_function_identity_acl_and_repeat_startup(db, version, filename, signatures):
     c, _, directory = db
@@ -4599,6 +4604,11 @@ async def test_retained_audit_upgrade_preserves_function_identity_acl_and_repeat
         for table in ('quote_births', 'quote_birth_retirements'):
             assert await c.fetchval('''SELECT attgenerated FROM pg_attribute WHERE attrelid=$1::regclass
                 AND attname='canonical_body_fingerprint' ''', 'life_financial.' + table) == b's'
+    if version == 133:
+        private = 'life_financial.spot_prepare_birth_from_view(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb,jsonb,jsonb)'
+        assert not await c.fetchval("SELECT has_function_privilege('life_runtime_test',$1,'EXECUTE')", private)
+        assert not await c.fetchval('''SELECT EXISTS(SELECT 1 FROM pg_proc p
+            CROSS JOIN LATERAL aclexplode(p.proacl) x WHERE p.oid=$1::regprocedure AND x.grantee=0)''', private)
     assert await c.fetchval('SELECT count(*) FROM life_financial.accounts') == 0
     assert await c.fetchval('SELECT count(*) FROM life_financial.operations') == 0
 
@@ -4613,6 +4623,10 @@ async def test_retained_audit_upgrade_preserves_function_identity_acl_and_repeat
      'RECORDER_BATCH_UNKNOWN_PREDECESSOR'),
     (132, '000132_settlement_history_batch.sql', 'life_financial.spot_inventory_evidence(uuid,jsonb)',
      'SETTLEMENT_BATCH_UNKNOWN_PREDECESSOR'),
+    (133, '000133_birth_prewrite_native_view.sql', 'life_financial.spot_prepare_action_core(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb,jsonb)',
+     'BIRTH_VIEW_UNKNOWN_PREDECESSOR'),
+    (134, '000134_snapshot_control_proof.sql', 'life_financial.control_verified(uuid)',
+     'CONTROL_VIEW_UNKNOWN_PREDECESSOR'),
 ])
 async def test_retained_audit_upgrade_refuses_changed_proof_kernel_atomically(db, version, filename, signature, reason):
     c, _, directory = db
@@ -4629,3 +4643,6 @@ async def test_retained_audit_upgrade_refuses_changed_proof_kernel_atomically(db
     if version == 130:
         assert not await c.fetchval('''SELECT EXISTS(SELECT 1 FROM pg_attribute
             WHERE attrelid='life_financial.quote_births'::regclass AND attname='canonical_body_fingerprint')''')
+    if version == 133:
+        assert await c.fetchval('SELECT to_regprocedure($1)',
+                                'life_financial.spot_prepare_birth_from_view(uuid,jsonb,jsonb,bigint,life_financial.digest,life_financial.digest,jsonb,jsonb,jsonb)') is None

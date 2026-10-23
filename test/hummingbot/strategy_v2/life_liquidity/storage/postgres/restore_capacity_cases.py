@@ -92,19 +92,30 @@ async def seed_completed(database, f, cfg, owner, lease, count, progress, *, mod
             at = await c.fetchval('SELECT clock_timestamp()')
             intent = PgSpotQuoteIntent(key, 'controller1', owner, 1, TradeType[side], 0, D('1'), D('1'))
             wire = intent.wire_id
+            birth_started = perf_counter()
             ticket = await births.issue('birth:' + key, intent, model_hash=fingerprint(model), expected_version=snapshot.cut.checkpoint.revision)
+            birth_elapsed_ms = (perf_counter() - birth_started) * 1000
             action = ticket.action
             executor = OrderExecutorConfig.model_validate_json(action.payload_json)
             # Production provisional capture is born after preflight. Original
             # acceptance/preparation commits together; no old quote is re-dated.
-            cut = (await f.snapshot(cfg.binding)).cut
+            cut = ticket.preparation_cut
+            if cut is None:  # Exact historical schemas retain their old path.
+                cut = (await f.snapshot(cfg.binding)).cut
             at = await c.fetchval('SELECT clock_timestamp()')
+            progress['last_birth'] = dict(order_index=n, issue_round_trip_ms=round(birth_elapsed_ms, 3),
+                                          post_birth_snapshot=ticket.preparation_cut is None,
+                                          birth_to_facts_ms=round(at.timestamp() * 1000 - ticket.born_at_ms, 3))
             admission = QuoteAdmissionFacts(cfg.binding, at, at, at, at, D('1'), D('1'), D('.99'), D('1.01'),
                                             D('0'), D('0'), D('0'), D('0'), D('0'), False, 'independent_market')
             prepared = order(owner, operation_id='prepare:' + key, intent_id=key, client_order_id=wire, quantity_base=D('1'), side=side,
                              subsidy_quote_usdt=D('0'), fee_buffer_quote_usdt=D('0'), fee_buffer_base_life=D('0'))
             dispatch = RunnerActionFacts(cfg.binding, at, 'controller1', (key,), True)
-            await births.prepare(ticket, PrepareQuoteAction(action, prepared, admission), dispatch, cut=cut, owner=owner)
+            preparing = perf_counter()
+            try:
+                await births.prepare(ticket, PrepareQuoteAction(action, prepared, admission), dispatch, cut=cut, owner=owner)
+            finally:
+                progress['last_birth']['prepare_round_trip_ms'] = round((perf_counter() - preparing) * 1000, 3)
             info = ExecutorInfo(id=key, timestamp=executor.timestamp, type='order_executor', controller_id='controller1', config=executor,
                                 status=RunnableStatus.NOT_STARTED, net_pnl_pct=D('0'), net_pnl_quote=D('0'), cum_fees_quote=D('0'),
                                 filled_amount_quote=D('0'), is_active=False, is_trading=False,
@@ -125,10 +136,13 @@ async def seed_completed(database, f, cfg, owner, lease, count, progress, *, mod
             terminal = TerminalSpot('terminal:' + key, prepared.operation_id, key, wire, 'LIFE-USDT', side,
                                     str(owner.session_id), owner.epoch, str(100000 + n), facts)
             await f.confirm_terminal(terminal, cut=snapshot.cut, owner=owner)
+            # Read preflight first, then observe the current empty runner scope.
+            # This is a new observation, not a refreshed timestamp on old facts.
+            reconcile_cut = (await f.snapshot(cfg.binding)).cut
             at = await c.fetchval('SELECT clock_timestamp()')
             facts = RunnerActionFacts(cfg.binding, at, 'controller1', (), True)
             await f.transition_quote_action(TransitionQuoteAction('reconcile:' + key, action, 'PREPARED', 'RECONCILED', facts),
-                                            cut=(await f.snapshot(cfg.binding)).cut, owner=owner)
+                                            cut=reconcile_cut, owner=owner)
             info.status = RunnableStatus.TERMINATED
             info.filled_amount_quote = D('1')
             info.custom_info['recovery_order_ids'] = [wire]
@@ -204,23 +218,32 @@ async def test_complete_settled_native_history_restore_capacity(database, tmp_pa
 
 @pytest.mark.asyncio
 @pytest.mark.timeout(300)
+@pytest.mark.parametrize('database', [132, 134], indirect=True, ids=['schema132', 'schema134'])
 async def test_retained_source_diagnostic_profile(database, request):
     """Profile the genuine command flow separately from the capacity gate.
 
     Enable LIFE_PG_TEST_FUNCTION_PROFILE=1 and select this case explicitly.
     Thirty-two source orders are a diagnostic sample, never 1k/10k acceptance.
     """
-    values, _, _ = await source(database, managed_options=dict(owner_duration_ms=300000,
-                                                               spot_options=dict(session_duration=timedelta(minutes=10))),
-                                spot_quote_producer=MODEL)
-    f, cfg, owner, _, lease, *_ = values
-    progress = dict(requested_orders=32, completed_orders=0)
-    started = perf_counter()
-    try:
-        await seed_completed(database, f, cfg, owner, lease, 32, progress)
-        assert progress['completed_orders'] == 32
-    finally:
-        progress['source_build_elapsed_ms'] = round((perf_counter() - started) * 1000, 3)
-        request.node.user_properties.append(('life_pg6_diagnostic', json.dumps(progress)))
-        print('life_pg6_diagnostic=' + json.dumps(progress), flush=True)
-        await f.close()
+    from unittest.mock import patch
+
+    from hummingbot.strategy_v2.life_liquidity.storage.postgres import runtime
+    schema = await database[0].fetchval('SELECT max(version) FROM life_migrations.schema_migrations')
+    load = runtime.load_migrations
+    # The actual preceding schema and candidate run serially with genuine
+    # commands, original clocks/holds and identical legacy-profile resources.
+    with patch.object(runtime, 'load_migrations', lambda path: tuple(m for m in load(path) if m.version <= schema)):
+        values, _, _ = await source(database, managed_options=dict(owner_duration_ms=300000,
+                                                                   spot_options=dict(session_duration=timedelta(minutes=10))),
+                                    spot_quote_producer=MODEL)
+        f, cfg, owner, _, lease, *_ = values
+        progress = dict(schema=schema, requested_orders=32, completed_orders=0)
+        started = perf_counter()
+        try:
+            await seed_completed(database, f, cfg, owner, lease, 32, progress)
+            assert progress['completed_orders'] == 32
+        finally:
+            progress['source_build_elapsed_ms'] = round((perf_counter() - started) * 1000, 3)
+            request.node.user_properties.append(('life_pg6_diagnostic', json.dumps(progress)))
+            print('life_pg6_diagnostic=' + json.dumps(progress), flush=True)
+            await f.close()

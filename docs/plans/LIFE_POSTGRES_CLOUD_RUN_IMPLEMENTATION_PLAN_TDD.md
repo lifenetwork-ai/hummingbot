@@ -2,6 +2,24 @@
 
 ## Current offline delivery status
 
+**2026-10-24 quote flow optimization (schema 134):** migrations 133–134 move
+full preflight before the one original birth timestamp, return an optimistic
+post-birth cut on the original live receipt, share the fresh pre-write native
+state inside preparation, and share signed-control verification within each
+state read. No prior verdict replaces independent current/COMMIT checks. The
+18-case targeted gate passes in 44.29 s; four migration identity/ACL/repeat/
+atomic-refusal cases pass in 10.91 s. Broader verification covers 220 distinct
+passing current test IDs across the original 218-pass/one-failure run and a
+three-pass expiry-fixture correction; this is not one full passing invocation.
+The serial schema-132/134 32-order pair
+builds in 53,232.412/49,412.908 ms (7.18% lower in one pair). These are
+diagnostic samples, not retained-history or image eligibility. **PG6 remains
+OPEN**: current 0/2-order restore controls pass, but the 1k source stops after
+82 completed orders when `spot_observe` exceeds the unchanged 1,000-ms SQL
+deadline, before COMMIT/restore (`/tmp/life-pg6-flow-capacity-final-a1`).
+See PG6-X1 for exact unchanged gates and the separate bounded-state
+design; no checkpoint/projection shortcut is implemented.
+
 **2026-10-23 PG-D08 — fresh-native backup milestone complete; PG6 remains OPEN.**
 The user confirms there is no live File history/capital to migrate. The current
 release starts in PostgreSQL, so File cutover is an unfinished optional branch
@@ -4200,6 +4218,84 @@ not qualified by this offline single-account run.
 #### PG6-X — Required retained-history recovery capacity (open, shared with PG8)
 
 - [ ] PG6-X1: Record measured backup restore, import, reconciliation, retained history and settlement/recovery headroom against PG0 RPO/RTO/capacity decisions. Export schema/versioned audit evidence; do not rely on backup existence alone.
+  - [x] **Quote-age/pre-write/control flow (133–134):** full preflight occurs
+    before the original ticket's birth. An optimistic post-birth proposal uses
+    the original cut domain and known metadata delta. Original native source
+    cuts retain precedence; cold readback exposes no proposal. PREPARE still
+    reads actual full state and compares its digest, sharing only this fresh
+    in-call view between birth provenance and monetary preconditions. The
+    from-view helper is owner-only. Generic preparation and all post-write/
+    physical-COMMIT verifiers remain original. Signed control is verified once
+    inside each STABLE state call, never cached between calls.
+    TDD Red observes two pre-write birth audits and four snapshot control
+    audits. Green observes one of each, with exact original receipts, commands,
+    identities, decimal values, reservations and rejection-code parity. Tests
+    cover settled/retired/sorted ticket history, original runner publication
+    without a redundant snapshot, malformed committed replies fenced as
+    unknown, no cold rearm, expired quotes and post-write source corruption.
+    Eighteen cases pass in 44.29 s (`/tmp/life-pg6-birth-control-core-final-a1`).
+    Four migration cases pass in 10.91 s
+    (`/tmp/life-pg6-flow-migrations-final-a1`); existing OIDs/ACLs and startup
+    idempotency remain intact, with atomic refusal of unknown predecessors.
+    The initial schema-133 unpaired diagnostic builds 32 orders in 53,018.545
+    ms (`/tmp/life-pg6-birth-view-profile-a1`), slower than the historical
+    schema-132 sample; it is retained and is not reported as a speedup.
+    A subsequent serial **actual schema-132/134 pair** passes two cases in
+    115.92 s (`/tmp/life-pg6-flow-profile-pair-a1`), with identical one-safety/
+    two-risk legacy diagnostic resources. Source build is
+    **53,232.412 → 49,412.908 ms (7.18%)** in this one pair. Birth-history audits
+    decrease **775 → 711**, control audits **3,060 → 1,695**; state reads remain
+    **647**. Last-order birth-to-facts time is **105.010 → 23.589 ms** while the
+    issue round trip increases 60.603 → 100.099 ms, confirming work moved before
+    birth. These individual timing samples are not percentiles or proof of
+    history-independent cost. Nested function totals overlap.
+    Before the control optimization and reconciliation-observation ordering
+    correction, schema 133's service-floor 1k attempt completes **98 orders**
+    in 351,301.241 ms and fails in 359.08 s
+    (`/tmp/life-pg6-birth-view-capacity-1k-a1`). PREPARE succeeds; reconciliation
+    refuses `PG_ACTION_RUNNER_FACTS_STALE` during SQL execution (1,000.755 ms),
+    with no COMMIT attempted. That order's birth-to-facts time is 70.980 ms and
+    preparation round trip is 423.100 ms. Restore is never reached. The source
+    now reads its reconciliation cut before making a new runner observation,
+    matching the production journal's existing order; no issued fact is
+    re-dated. This earlier failed source is not a schema-134 capacity verdict.
+    The current schema-134 selector reports **2 passed / 1 failed** in 287.05 s
+    (`/tmp/life-pg6-flow-capacity-final-a1`). Zero/two-order complete restore to
+    observation takes **8,259.650/8,102.453 ms**, with source physical sizes
+    **25,230,359/25,869,335 bytes**. The 1k source completes **82 orders** in
+    258,770.052 ms, then `spot_observe` times out while applying the next
+    original `SPOT_FILL`, during SQL execution at
+    **1,003.984 ms** (**1,033.866 ms** total). Admission/acquisition is not the
+    failure; no COMMIT is attempted. That order's birth-to-facts time is
+    64.409 ms and PREPARE round trip is 400.049 ms. Restore is not reached at
+    1k; 10k is not run. The paired 32-order improvement does not establish
+    retained-history headroom; neither this phase nor PG8.7 is closed.
+    Broader original birth/retirement, awaited runner, real provisional SDK,
+    revocation/owner/cold-process and native backup/product-recovery coverage
+    initially reports **218 passed / 1 failed**, 1,051.23 s
+    (`/tmp/life-pg6-flow-regression-a1`). The failure occurs before restore,
+    during the short expired-session fixture's source activation. That fixture
+    mints a five-second owner inside an original six-second session, leaving
+    less than one second for preceding bootstrap work. The original failed
+    sample did not capture the exact failing predicate/clock bounds.
+    A controlled **real wait**, until at most 4.8 seconds remain in the original
+    session, reproduces that static containment defect: five-second owner ends
+    about 203 ms after the session. The negative case passes and both old
+    positive fixtures fail (10.84 s, `/tmp/life-pg6-expiry-bootstrap-red-a1`).
+    The positive fixture now requests a **shorter two-second synthetic owner**,
+    leaving the original six-second session and all runtime limits unchanged.
+    It asserts containment, waits for that original deadline, and still proves
+    observation-only restore/no renewal for both expiry policies. Three focused
+    cases pass in **38.73 s** (`/tmp/life-pg6-expiry-bootstrap-green-a1`): the old
+    five-second owner remains refused; both two-second owners end about
+    2,796 ms before the session. No signed deadline/fact is rewritten.
+    Production code is unchanged from the broader run; only these expiry
+    fixtures and a new negative case change. Actual current selector collection
+    has **220 IDs**; the initial 218 passing IDs plus three focused passes have
+    one overlap and exactly cover all 220, with no missing/unexpected IDs
+    (`/tmp/life-pg6-flow-partition-coverage.json`). The initial failed result is
+    retained. This is partitioned functional verification, not a single full
+    passing run, retained-history eligibility or image/deployed qualification.
   - [x] **Joined recorder/settlement history (131–132):** recorder origins and
     latest applied native heads are read in the original STABLE cut. Every
     payload retains original structural/numeric checks; provisional or pending
@@ -4422,18 +4518,79 @@ not qualified by this offline single-account run.
     increase that policy cap, relax quote/COMMIT freshness, or replace complete
     settled history with empty backups. PG6-X1/PG8.7 remain unchecked.
 
+**PG6-X1 flow changes and bounded-state design (2026-10-24):**
+
+- [x] Keep a proposal cut distinct from an integrity proof. Migration 133 reads
+  the full native preflight before the ticket's original birth timestamp and
+  proposes the exact post-birth digest using only the new metadata delta. The
+  digest uses the original `life-persistent-cut-v2:` domain and exclusions.
+  PREPARE independently reads actual state and compares that cut. No old
+  verdict, regenerated timestamp, budget reset or implicit retry is accepted.
+  Original live tickets may carry this proposal; cold readback cannot recreate
+  it. Explicit source/fact cuts retain precedence. Historical schemas retain
+  their original separate-snapshot path.
+- [x] Share the fresh pre-write state only within original birth preparation.
+  Its birth provenance result and monetary core consume the same server-built
+  view under the account lock. The private from-view helper is inaccessible to
+  runtime/reporting/PUBLIC. Generic preparation and all independent post-write
+  and physical-COMMIT verifiers retain their original implementations. A
+  snapshot from another command cannot supply this proof.
+- [x] Qualify the local proof/cut changes with migration repeat/refusal tests,
+  exact old/new financial rows/receipts and rejection codes, original runner
+  publication, malformed post-COMMIT replies and expiry/corruption after
+  pre-write verification. Eighteen targeted cases and four migration cases pass.
+- [x] Check complete original runner/revocation and native product/recovery
+  coverage. The initial broader run has 218 passes and one setup failure;
+  controlled bootstrap reproduction and the corrected expiry fixtures pass
+  three focused cases. Their union covers all 220 current collected IDs,
+  without treating the initial failure as a passing full invocation.
+- [x] Record a serial actual schema-132/134 32-order diagnostic pair and repeat
+  the actual service-floor 0/2/1k source/recovery selector, retaining its failed
+  1k result. Reduced quote-age exposure alone is not a throughput/recovery
+  verdict. Full state reads remain 647 in each 32-order diagnostic.
+- [ ] Qualify complete retained-history recovery at 1k and 10k. The current
+  1k `spot_observe` execution timeout blocks restore; a successful small
+  control or partial source never substitutes for that missing verdict.
+
+The proposed next architecture separates bounded active financial state from
+retained settled history. It is **not implemented or qualified** by these flow
+changes. Before introducing a projection/checkpoint optimization:
+
+1. Specify the exact active-state algebra: available capital, fees/liabilities,
+   every campaign/UTC-day/session loss/subsidy window, unknown holds, pending
+   recorder/financial effects and cross-product claims. Update these values,
+   original journal entries, deduplication IDs, receipts and revision in one
+   account transaction. Historical rows/decimal encodings remain retained.
+2. Prove checkpoint provenance and mutation detection. Current negative tests
+   disable USER triggers and change old rows; the next read must still refuse.
+   A cached digest, materialized view or `verified=true` field does not establish
+   that those source rows remain unchanged. An authenticated/enforced ancestry
+   mechanism must satisfy those cases before full scans can be replaced.
+   Moving corruption detection to a background audit would change the current
+   contract and is not authorized by this optimization.
+3. Keep startup/restore in observation-only mode until complete source history,
+   checkpoint ancestry and all financial projections independently reconcile.
+   Recheck current primary/lease/owner/stop/epoch, fresh market facts and economic
+   sufficiency at each risk boundary. Neither checkpoint nor cache grants send.
+4. Use one genuine event stream to compare old full replay and the candidate
+   projection, including duplicate delivery, cancellation, late fills/fees,
+   paid funding, cashflows, UTC rollover, lost COMMIT and corruption. Measure
+   complete 0/1k/10k flows under unchanged resources and deadlines. Do not claim
+   history-independent cost while any hot path still traverses full history.
+
 **Next PG6-X1 closure sequence (offline):**
 
 1. Retain the bounded SQL profile in the existing temporary JUnit output even
    for passing diagnostic cases. Measure the complete native flow, not an
    isolated verifier; separate command count, repeated scans, row conversion,
    SQL execution/COMMIT time and wire bytes. Do not overlap timed runs.
-2. Batch the remaining recorder-origin/row and inventory-evidence validations
-   only after the flow profile identifies their cost. Compare complete old/new
-   cuts, original money/IDs/receipts and corruption refusals. Independent fresh
-   post-write COMMIT checks stay required; a saved readiness Boolean is not an
-   optimization. Small-sample speedups do not establish bounded total-history
-   work or satisfy PG8.4.
+2. Use the complete flow profile to distinguish repeated audits from the cost
+   of one complete audit. Recorder/settlement joins and in-call birth/control
+   reuse are implemented; state still traverses retained history. Before
+   replacing that work, qualify the bounded-state/checkpoint design above
+   against complete old/new cuts, money/IDs/receipts and corruption refusals.
+   Independent fresh post-write COMMIT checks stay required; a saved readiness
+   Boolean is not an optimization. Small-sample speedups do not satisfy PG8.4.
 3. Repeat the actual 1k source under unchanged command/fact/quote limits. If it
    fails, retain the exact operation/phase and stop before presenting a restore
    result. After it passes, run the full restore/reconciliation gate, then the
