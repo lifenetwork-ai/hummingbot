@@ -1,309 +1,251 @@
-# LIFE / OKX: Lean Market-Making Implementation Plan
+# LIFE / OKX: Market-Making MVP Plan
 
-Updated: 2026-10-25 (Asia/Ho_Chi_Minh). Source baseline: `2d1dc0b7b`.
+Updated: 2026-10-25 (Asia/Ho_Chi_Minh). Runtime baseline: `2d1dc0b7b`.
+Status: planning; the LIFE scenarios and admin API are not implemented yet.
+The [previous audit](LIFE_OKX_IMPLEMENTATION_AUDIT.md) covers historical scope;
+this document is the current delivery checklist.
 
-This plan replaces the previous broad LIFE architecture with the requested MVP:
-reuse Hummingbot to run three configurable market-making scenarios, select them
-through an authenticated admin API, and provide the data needed by a frontend.
-It is a specification, not a claim that these features are already implemented.
+## 1. Required behavior
 
-The [previous audit](LIFE_OKX_IMPLEMENTATION_AUDIT.md) remains historical evidence
-about the old scope and reusable components. Its P0–P9/A01–A39 numbering is
-superseded by the phases below. The previous full plan remains in Git history.
+Run the existing Hummingbot MM engine with three selectable reference profiles:
 
-## 1. Product scope
+| Scenario | Reference behavior |
+|---|---|
+| `follow_market` | Follow the percentage change of a selected pair such as BTC-USDT or ETH-USDT |
+| `sideways` | Quote around a saved LIFE anchor using configured spread and quote bounds |
+| `follow_token` | Follow a configured token that the operator selects because it is trending |
 
-One logical bot trades LIFE-USDT using one existing MM engine. The scenarios
-change the reference used to calculate bid/ask quotes. They do not guarantee
-that the market price follows a chosen chart.
+The two follow scenarios share one calculation. YAML lists the selectable pairs;
+each profile follows one pair. These modes control the bot's quotes, not the
+resulting market price.
 
-| Scenario | Behavior | Configuration |
-|---|---|---|
-| `follow_market` | Follow normalized percentage changes in a selected reference pair or configured basket, such as BTC-USDT and ETH-USDT | Named YAML profile with reference pairs, optional weights and sensitivity |
-| `sideways` | Quote around a stable LIFE anchor with configured spreads and inventory limits | Named YAML profile with anchor policy and quote bounds |
-| `follow_token` | Follow a specific token selected by the operator because it is trending | Named YAML profile using the same follow calculation with one reference pair |
+Admin API selects `market_mode: spot | perpetual | both`, profile and duration.
+`both` runs spot and perpetual concurrently with the **same scenario and clock**,
+using separate market budgets/limits. Random mode selects a scenario/profile at
+step boundaries until a finite overall deadline; it keeps the chosen market mode.
 
-`random` is a selection policy over these three scenarios, not a fourth pricing
-engine. Select one eligible profile per step, run it for its configured duration,
-and select again at the next boundary until the overall session ends.
+Use one service/container, the existing V2 runner, and one shared MM controller
+implementation instantiated for each enabled connector (`okx`, `okx_perpetual`).
+Reusing V2 covers both markets without adding a separate V1 implementation.
 
-MVP assumptions to keep implementation small:
+## 2. Existing code to extend
 
-- Initial delivery targets OKX **spot LIFE-USDT**. Perpetual quoting and joint
-  hedging are deferred; the existing generic perpetual connector remains available.
-- The operator chooses the trending token from the packaged YAML catalogue.
-  Automatic market-wide trend discovery/ranking is deferred.
-- API requests select existing profiles and permitted runtime fields. YAML files
-  are uploaded with the code/image; editing the catalogue requires a deployment.
-- A normal session has one profile and a finite duration. A random session has a
-  finite overall duration and a finite step duration. Default selection is uniform
-  across enabled scenarios, then uniform across their eligible profiles.
-- Basic Auth protects all admin reads and writes. FE integration starts with
-  polling, without requiring WebSockets or a separate API service.
+| Component | Work |
+|---|---|
+| [V2 MM base](../../hummingbot/strategy_v2/controllers/market_making_controller_base.py) and [PMM simple](../../controllers/market_making/pmm_simple.py) | Reuse quote levels, sizing, refresh and executor actions; supply the reference through `update_processed_data()` |
+| [V2 runner](../../scripts/v2_with_controllers.py) and existing executors | Load one or two instances; reuse lifecycle, order tracking, position holding and recovery |
+| [OKX spot](../../hummingbot/connector/exchange/okx/okx_exchange.py) / [perpetual](../../hummingbot/connector/derivative/okx_perpetual/okx_perpetual_derivative.py) | Reuse books, balances, orders, positions and funding records; fix only the required connector gaps below |
+| [aiohttp service](../../hummingbot/cli/service.py) | Add admin routes and independent session/deadline handling on the existing port/owner loop |
+| [Control store](../../hummingbot/model/bot_state_store.py), [send guard](../../hummingbot/core/order_submission_guard.py) and recorder | Reuse versioned commands, owner fencing, HALT, database transactions and order/fill persistence |
+| Existing YAML/env loaders, SQL runner and offline simulator | Add profiles, minimal current-session/command state and focused tests |
 
-## 2. Reuse first
+New behavior is limited to reference profiles, timed/random sessions and admin
+adapters. Keep current state and retry receipts in PostgreSQL using existing
+models/connections and simple idempotent snake_case SQL. Keep configuration in YAML.
+No session-history subsystem or order-to-session attribution is required.
 
-| Existing component | Reuse | Small addition needed |
-|---|---|---|
-| [Pure market making](../../hummingbot/strategy/pure_market_making/pure_market_making.pyx) and its [startup/configuration](../../hummingbot/strategy/pure_market_making/start.py) | Maker orders, quote levels, refresh/cancel, inventory skew, tick/lot handling | Reference-price delegate and a session adapter |
-| [V2 MM base](../../hummingbot/strategy_v2/controllers/market_making_controller_base.py) | Alternative extension point: `update_processed_data()` supplies `reference_price` | Use only if a small integration test demonstrates it needs less adaptation than PMM |
-| [OKX spot connector](../../hummingbot/connector/exchange/okx/okx_exchange.py) | Market data, balances, placement/cancel, tracking and fees recorded on fills | Verify listing/tradable state and freshness before quoting |
-| [Existing service](../../hummingbot/cli/service.py) | aiohttp server, startup, health, shutdown and owner loop | Admin routes, Basic Auth and session deadline checks |
-| [BotStateStore](../../hummingbot/model/bot_state_store.py) | Versioned control requests, PostgreSQL connection and owner-published state | Transactional command receipt and current/session-history state |
-| [Ownership/send guard](../../hummingbot/core/order_submission_guard.py) and existing recorder | One authorized sender, control-version checks, durable orders/fills and HALT | Check active session/deadline/reference eligibility through the existing send boundary |
-| Existing YAML/env loaders, SQL runner and offline simulator | Configuration, secrets, idempotent migration and end-to-end tests | LIFE profiles, session/API tests and LIFE market fixtures |
+## 3. YAML profiles
 
-Prefer the existing spot PMM engine; prove the price-delegate integration first.
-Its delegate interface is a Cython extension type, so this is an integration task,
-not an assumption that any Python object can be assigned. Choose **one** engine
-and document that decision before extending the strategy. Do not build both paths.
-If V2 is selected, explicitly configure maker entry, exit and inventory behavior:
-its example defaults can issue market exits and automatic market rebalances.
+Package `deploy/cloudrun/conf/life_mm_profiles.yaml` as
+`conf/life_mm_profiles.yaml`. Reuse existing controller configuration models for
+spread, order size, refresh, inventory/exposure limits and perpetual settings.
+The API selects deployed IDs and validated runtime fields; it does not edit YAML.
 
-New logic should be limited to profile validation/reference calculation,
-session/random selection, and admin API adapters. Follow-market and follow-token
-share one calculation. No new trading engine, generic workflow framework, message
-broker, scheduler service, credential store, migration framework or Redis is needed.
-
-## 3. YAML profiles and pricing
-
-Use one packaged catalogue, proposed path
-`deploy/cloudrun/conf/life_mm_profiles.yaml`, copied to
-`conf/life_mm_profiles.yaml` in the image. Reuse the existing strategy YAML for
-ordinary MM settings. A small validated profile model supplies scenario settings
-without duplicating the entire PMM configuration schema.
-
-Illustrative catalogue, **not yet runnable**; named token pairs and numbers below
-are examples, not trading recommendations:
+Illustrative profile fragment, not yet runnable:
 
 ```yaml
-version: 1
-connector: okx
-trading_pair: LIFE-USDT
 profiles:
-  market_btc_eth:
+  market_btc:
     scenario: follow_market
-    references:
-      - {pair: BTC-USDT, weight: "0.5"}
-      - {pair: ETH-USDT, weight: "0.5"}
-    sensitivity: "1"
+    reference_pair: BTC-USDT
+  market_eth:
+    scenario: follow_market
+    reference_pair: ETH-USDT
   sideways_default:
     scenario: sideways
     anchor: session_start_mid
   trend_eth:
     scenario: follow_token
-    references:
-      - {pair: ETH-USDT, weight: "1"}
-    sensitivity: "1"
+    reference_pair: ETH-USDT
 random:
   scenarios: [follow_market, sideways, follow_token]
   step_duration_seconds: 600
 ```
 
-The catalogue also defines permitted/default session durations, maximum duration,
-profile eligibility and quote/reference limits. API responses expose these fields
-so FE does not duplicate validation constants. Validate positive weights summing
-to one, supported pairs, positive finite numbers and required fields per mode.
+The complete YAML also supplies market/controller settings, permitted/default
+runtime durations and per-market limits. Return these through `/profiles` so FE
+uses the same validation rules. Credentials stay in `.env`/injected secrets.
 
-For follow profiles, the initial model is:
+Follow calculation: `reference = LIFE_anchor × source_price / source_anchor`.
+Use Decimal; save each enabled market's LIFE anchor and the source anchor before
+quoting. Sideways uses its saved LIFE anchor. Source prices come from the existing
+market-data provider. Absolute BTC/ETH prices must never become LIFE quotes.
 
-`reference(t) = LIFE_anchor × (1 + sensitivity × Σ weight_i × (source_i(t) / source_i_anchor − 1))`
+Use a fresh market midpoint for the anchor, or an explicit configured initial
+anchor if no usable LIFE midpoint exists. Missing/stale data, non-positive prices
+or quote-bound violations block new quotes and cancel outstanding quotes.
 
-Persist the LIFE and source anchors when the step starts. Never use the absolute
-BTC/ETH price as a LIFE quote. Use Decimal and validate the resulting price before
-passing it into the existing engine. A stable sideways reference uses the saved
-LIFE anchor. Quote bounds and inventory controls restrict the bot's own orders.
+## 4. Spot, perpetual and both
 
-Capture an anchor from valid available LIFE market data, or require an explicit
-operator-configured initial anchor when the market has no usable history. Missing
-or stale data and invalid/non-positive prices stop new quotes and trigger quote
-cancellation; do not silently change the selected reference. Bound divergence from
-an available LIFE market reference and the configured quote range.
+- Validate each requested instrument is listed and tradable. Reject an unavailable
+  perpetual market; do not silently turn `both` into `spot`.
+- Reuse maker execution explicitly. V2 sample defaults include LIMIT entries,
+  market exits and automatic market rebalancing; configure the intended MM policy
+  instead of inheriting these defaults. Session duration is separate from an
+  executor's position `time_limit`.
+- Initial perpetual account settings are **CROSS + HEDGE**, with explicit leverage
+  and position caps in YAML. Expose supported settings to FE and reject unsupported
+  account modes. Do not inherit the example leverage of 20. Changing account mode
+  with open orders/positions is outside these scenario controls. Confirm account
+  mode and leverage were applied successfully before allowing quotes.
+- Fix perpetual base quantity using Decimal contract counts and existing contract
+  metadata. The current `notionalUsd / avgPx` plus rounding calculation is wrong
+  for fractional amounts and fails at zero entry price. Test REST and WS updates.
+- Use separate spot inventory/order and perpetual position/margin caps; bound
+  long and short/gross exposure, not only their net difference. In `both`,
+  validate the combined declared budgets and available collateral so both sides
+  cannot allocate the entire shared balance. Reuse tracked orders/positions and
+  available balances; test fills/in-flight orders against these caps.
+- `both` starts only when both markets are ready. Failure of either required feed
+  or market blocks/cancels quotes on both while preserving the session deadline.
+  Report the failing market in status; the operator may switch to `spot` explicitly.
+- Stop, expiry and switch cancel/reconcile active quotes and preserve actual spot
+  inventory and perpetual positions through existing position-hold/recovery paths.
+  Use `keep_position=True` for executor transitions; the default can issue market
+  closes. They do not automatically flatten positions. FE continues showing held exposure,
+  including on a disabled market; configured loss/exposure checks include it when
+  accepting a later session. Reconcile stale held exposure before new trading or
+  reject startup. Existing risk HALT remains authoritative.
 
-## 4. Sessions, duration and random selection
+## 5. Timed and random sessions
 
-- Session states: `starting`, `running`, `paused`, `stopping`, `stopped`, `expired`,
-  `halted`. These describe application state, not only HTTP request acceptance.
-- Save session ID, profile/catalogue hash, start/expiry UTC timestamps, selected
-  random step, step deadline, anchors and control version before permitting quotes.
-- A requested duration starts when the session first becomes eligible to quote.
-  Restart, pause, reconnect and downtime **do not reset or extend** an existing
-  deadline. Expose `requested_at`, `started_at`, `expires_at` and remaining seconds.
-- Pause cancels quotes while the clock keeps running. Resume is allowed only
-  before expiry with valid data and without an unresolved recovery HALT.
-- A duration update is measured from the original `started_at`. Reducing it past
-  the current time expires the session; it cannot revive a completed session.
-- Switching profile stops/cancels/reconciles old quotes before starting a new
-  session and anchor set. Inventory and fills remain in the existing account/ledger.
-- Stop/expiry cancels bot-owned quotes and retains inventory. It does not imply an
-  automatic market liquidation. Deadline checking runs even when market data is
-  unready, and the final send guard blocks queued/retried orders after expiry.
-- Random selection happens only at step boundaries. Persist a draw/selected profile
-  and deadline once; restart resumes that selection rather than drawing again.
-  Align step windows to the original session start; each ends no later than the
-  overall deadline. After pause/downtime, skip elapsed windows without catch-up
-  orders. Reuse a saved current-window selection; otherwise draw/persist once for
-  the current window. Late eligibility never extends that window's end.
-- If no configured profile is eligible, disable quoting, report `blocked_reason`
-  and retry eligibility while the clock continues. This is distinct from an
-  operator pause, which requires explicit resume. An already selected profile's
-  data failure blocks its quotes without redrawing inside the same window.
-  Random selection, start and resume must not clear an existing recovery HALT.
+Only three commands are needed: **start, switch, stop**. Start/switch specify the
+market mode, fixed/random selection and duration. A different duration is an
+explicit switch to a new session; pause/resume and in-place duration editing are
+not part of the MVP.
 
-Use the existing owner loop and database transaction machinery. Add only narrow
-command/session records needed for retry safety and FE history, with snake_case
-names and simple idempotent SQL through the existing runner. Keep strategies and
-profile catalogues in YAML. Reuse original local file-mode behavior; this new
-admin/session MVP targets the existing PostgreSQL foreground service.
+- Persist current session ID, configuration hash, market mode, selected profile,
+  anchors, start/expiry, current random step and control version before new orders.
+- Duration starts when the selected markets are ready. Once started, downtime and
+  reconnects do not reset anchors or extend the deadline.
+- Switch cancels/reconciles prior quotes before starting the new selection. Stop
+  or expiry revokes new sends, including queued executor retries, and cancels quotes.
+  Run these checks independently of market-data readiness; the final send guard
+  also rejects an old step/profile generation within the same session.
+- Random chooses uniformly among configured scenarios, then among profiles within
+  that scenario. Use fixed step windows anchored to session start and capped by
+  the overall end; each draw is persisted once. Both markets use the same draw.
+  Capture new market/source anchors once per new step, after prior quotes are
+  cancelled/reconciled; preserve those anchors across restarts within that step.
+- On restart, retain a saved current-window draw; skip elapsed windows without
+  catch-up orders. Missing data blocks the selected profile's quotes rather than
+  causing a redraw. Retry readiness within its window without extending deadlines.
+- Ordinary start/switch/random selection cannot clear a recovery HALT or discard
+  fills, open positions or unresolved exchange effects.
 
-## 5. Admin API and frontend contract
+## 6. Basic-authenticated admin API
 
-Mount `/api/v1/admin` on the existing aiohttp service and port. The bot and admin
-API run in the same container. Current source exposes only health endpoints;
-these admin endpoints and session controls still require implementation.
+Mount `/api/v1/admin` on the existing aiohttp server. All admin reads, writes and
+schema access require Basic Auth. Keep existing minimal health probes separate.
 
-### Authentication and environment
+Proposed env settings: `ADMIN_API_ENABLED=false`, `ADMIN_API_USERNAME`,
+`ADMIN_API_PASSWORD` (no usable credential defaults), `ADMIN_CORS_ORIGINS` (empty
+by default). Reuse dotenv/Cloud Run secrets and centralized defaults; no `LIFE_`
+prefix. Enabling the API requires credentials. Use constant-time checks, HTTPS in
+deployment, `401`/`WWW-Authenticate` for bad credentials and redact auth from logs.
+FE sends operator-supplied credentials per request and keeps them out of its build.
+Allow only configured cross-origin FE origins/headers; actual requests remain
+authenticated after preflight. FE can poll; no new login/token service is needed.
 
-- Use HTTP Basic Auth for **every admin endpoint**, including read endpoints and
-  the API schema. Reuse `.env` locally and injected environment/Cloud Run secrets.
-- Proposed settings: `ADMIN_API_ENABLED=false`, `ADMIN_API_USERNAME` and
-  `ADMIN_API_PASSWORD` with no usable credential defaults, and
-  `ADMIN_CORS_ORIGINS` empty by default. Centralize non-secret defaults in
-  `hummingbot/client/config/defaults.py`; no `LIFE_` prefix.
-- Enabling the API requires valid non-empty credentials. Invalid/missing Basic
-  credentials return `401` with `WWW-Authenticate`; use constant-time credential
-  comparison. Do not include credentials/Authorization headers in logs or JSON.
-- Use HTTPS for deployed requests. Keep `/startup`, `/live`, `/ready` available
-  for existing platform probes with their existing minimal responses.
-- FE supplies Basic credentials per request after operator login. Never bake the
-  password into the frontend build; retain it in memory for the current UI session.
-  No JWT, user-account database or separate login/token service is required.
-- For cross-origin FE, allow only configured origins, methods and headers
-  (`Authorization`, `Content-Type`, `Idempotency-Key`). Handle preflight without
-  returning admin data; actual requests remain authenticated.
+Paths below are relative to `/api/v1/admin`:
 
-### Endpoints
-
-Paths below are relative to `/api/v1/admin`.
-
-| Method / path | FE purpose |
+| Method / path | Purpose |
 |---|---|
-| `GET /status` | Desired/actual state, active session/profile, reference price/freshness, deadline/time remaining, control/ack versions, snapshot age and recovery reason |
-| `GET /profiles` | Packaged profiles, reference pairs, scenario/default/allowed fields, catalogue hash and random selection options |
-| `POST /commands` | `start`, `switch`, `pause`, `resume`, `stop`, `update_duration`; validated action-specific payload |
-| `GET /commands/{id}` | Command state: `accepted`, `applying`, `succeeded`, `failed`, `superseded`; effective version/session and sanitized error |
-| `GET /sessions/current` | Current session and random step, selected profile, start/expiry and terminal outcome; `null` when absent |
-| `GET /sessions` and `GET /sessions/{id}` | Paginated session history and details |
-| `GET /orders` | Bot-owned open/history orders, bounded pagination and status/session filters |
-| `GET /fills` | Recorded fills/fees with time/session filters and bounded pagination |
-| `GET /balances` | Owner-published total/available LIFE and USDT balances, snapshot timestamp/staleness |
-| `GET /performance` | Existing fill-based PnL, fees and volume, with valuation method, timestamp and unavailable fields explicitly marked |
-| `GET /openapi.json` | Documented request/response/error schemas and examples for FE integration |
+| `GET /profiles` | Available scenarios/pairs, market modes, validated settings, defaults and limits |
+| `GET /status` | Requested/actual state, per-market readiness, current session/random step, references, expiry/time left, versions, staleness and HALT reason |
+| `POST /commands` | Start/switch/stop with validated market mode, selection and duration |
+| `GET /commands/{id}` | Accepted/applying/succeeded/failed/superseded result and effective version/session |
+| `GET /orders` | Existing bot-owned open/history orders, filtered by market/pair/time |
+| `GET /fills` | Existing fills/fees filtered by market/pair/time |
+| `GET /balances` | Total/available balances with snapshot freshness |
+| `GET /positions` | Actual perpetual positions, leverage/margin data available from the connector, and freshness; visible after quoting stops |
+| `GET /performance` | Existing per-market PnL, fees, volume and funding data where available, labeled with valuation basis/time |
+| `GET /openapi.json` | Small request/response/error contract with FE examples |
 
-Spot inventory is exposed through balances; do not introduce a perpetual positions
-API for this MVP. Reuse existing ORM/history and performance calculations, with
-structured data functions instead of shelling out to CLI commands. Preserve
-Decimal strings. Recorded-fill PnL is not a claim of current capital NAV.
+Reuse ORM/snapshots/performance helpers; do not shell out to CLI or promise new
+per-scenario accounting. Monetary values are Decimal strings, timestamps UTC and
+history reads have bounded pagination. Mark unavailable/stale data explicitly.
 
-An illustrative start request:
+Example command body, with Basic Auth and `Idempotency-Key` headers:
 
-```http
-POST /api/v1/admin/commands
-Authorization: Basic <operator-credentials>
-Idempotency-Key: <client-generated-request-id>
-Content-Type: application/json
-
+```json
 {
   "action": "start",
   "expected_version": 12,
+  "market_mode": "both",
   "selection": "fixed",
-  "profile_id": "market_btc_eth",
+  "profile_id": "market_btc",
   "duration_seconds": 3600
 }
 ```
 
-For `selection: random`, submit allowed scenario/profile IDs, overall
-`duration_seconds` and `step_duration_seconds`; do not accept arbitrary exchange
-pairs, file paths or code through the API. Start requires no active session;
-`switch` explicitly replaces the active session. Commands targeting an existing
-session include `session_id` to prevent an old FE tab from controlling a new run.
+Random requests use configured scenario/profile IDs, overall `duration_seconds`
+and `step_duration_seconds`. Switch/stop identify the current session. Start
+requires no active session. Reject arbitrary paths, unknown profiles and unsupported
+market/account settings.
 
-Command behavior:
+Reuse control-version CAS and add a small durable idempotency receipt in the same
+transaction. Check matching retries before CAS. A matching retry returns its
+original command without resetting time;
+a reused key with different data or stale version returns `409`. Return `202` on
+acceptance, then let the existing owner apply the request. Completion requires the
+actual requested state: the existing acknowledged version alone is not success.
+Publish validation (`422`), not-found (`404`) and unavailable (`503`) errors in the
+API schema. No second command worker/service is required.
 
-1. Authenticate and validate; atomically persist the command receipt and versioned
-   intent using the existing control-store transaction. Return `202` with command
-   ID, control version and status URL. Do not start another engine in the handler.
-2. Require `expected_version` and `Idempotency-Key`. Same key/payload returns the
-   original receipt without resetting duration; reused key with different payload
-   or a conflicting version returns `409`. Check matching retries before CAS.
-3. The current owner applies the command. `acknowledged_version` currently means
-   the owner observed the request; success also requires the requested state to
-   finish applying. Report failures and superseding commands explicitly.
-4. FE polls command/status endpoints. Define stable error codes, field validation
-   errors (`422`), not-found (`404`) and unavailable runtime/storage (`503`).
-   Responses use UTC timestamps, Decimal strings and bounded cursor pagination.
-5. Return unavailable/stale balances or performance as such, never silently zero.
-   Retain command/session identity on recorded orders so session filtering includes
-   late fills and fills arriving after a scenario switch.
+## 7. Implementation checklist
 
-No manual raw-order, arbitrary config-write or automatic clear-HALT endpoint is
-needed for scenario control. Keep existing operator recovery authoritative.
+Complete phases in order, update evidence here and commit each finished phase.
 
-## 6. Implementation phases and checklists
+### P1 — Reuse V2 for both markets and three profiles
 
-Complete phases in order; update this plan and commit each finished phase.
+- [ ] Add the packaged profile catalogue using existing config models/loaders; validate supported pairs, market modes, durations and limits.
+- [ ] Extend one V2 MM controller with normalized follow/fixed-anchor reference logic; reuse quote/executor lifecycle for spot and perpetual instances.
+- [ ] Fix required perpetual quantity handling; explicitly configure maker execution, position holding, leverage and supported CROSS/HEDGE settings.
+- [ ] Verify listing/freshness checks, inventory/exposure caps and combined budgets for `both`, including held positions and in-flight orders.
+- [ ] Test both connectors, reference units/anchors, invalid inputs and original V2 behavior using focused regressions.
 
-### P0 — Prove the smallest integration
+### P2 — Current session and random selection
 
-- [ ] Verify PMM price-delegate/reference update and cancellation hooks with a focused contract test; choose PMM or V2, one path only, based on actual integration effort.
-- [ ] Record chosen engine, profile schema and runtime command/state contract. Preserve existing maker/inventory behavior and identify only required shared-code changes.
-- [ ] Confirm the MVP assumptions: spot first, manually selected trend token, finite random sessions, pause does not extend time. Record any user changes before dependent implementation.
+- [ ] Persist minimal current-session state using existing PostgreSQL/migration/control machinery.
+- [ ] Implement start/switch/stop, independent expiry handling and final-send session checks without replacing ownership/HALT/recovery.
+- [ ] Add persisted random draws/windows shared by both markets; preserve deadlines across restart.
+- [ ] Test fake-clock expiry, market-mode switches, cancel/fill races, restart/downtime, stale feeds and both-market readiness failures.
 
-### P1 — Profiles and the three reference modes
+### P3 — Admin API for FE
 
-- [ ] Add one validated packaged YAML catalogue and reuse existing strategy/env loaders/defaults. Provide examples for market follow, sideways and token follow.
-- [ ] Implement one normalized follow calculation plus fixed-anchor sideways; reuse connector market data and existing quote generation.
-- [ ] Verify listing/tradable state, stale/missing reference handling, positive price, spread/size/inventory limits and post-only execution.
-- [ ] Test basket weights/units, single-token equivalence, fixed anchors, invalid inputs and unchanged original PMM behavior.
+- [ ] Add Basic Auth/env validation and routes to the existing aiohttp server, retaining health probes and explicit CORS where needed.
+- [ ] Add versioned/idempotent command receipts and observable completion through the existing owner loop.
+- [ ] Expose profile/status and existing order/fill/balance/position/performance data, with bounded reads and freshness.
+- [ ] Publish the API schema/examples; test auth, malformed input, retries, conflicting versions, failures, decimal output and all three market-mode selections.
 
-### P2 — Durable sessions and random selection
+### P4 — Offline acceptance
 
-- [ ] Add minimal session persistence through existing PostgreSQL models/migrations; keep existing ownership, recorder and HALT behavior.
-- [ ] Implement start/switch/pause/resume/stop/duration update, independent deadline checks and final-send expiry validation.
-- [ ] Add random selection at step boundaries; persist selection/anchors/deadline before quoting and preserve overall end across restart.
-- [ ] Test with a fake clock/fixed random seed: pause/expiry, shortening duration, restart during a step, downtime across boundaries, cancel/fill races and no eligible profile.
+- [ ] Extend the existing simulator with LIFE spot/SWAP and configured reference pairs; exercise the actual V2/OKX/PostgreSQL service.
+- [ ] Verify all three scenarios on spot and perpetual; verify `both`, random selection, API mode switches, expiry and restart without losing held exposure or deadlines.
+- [ ] Exercise the FE HTTP workflow: catalogue/status, Basic Auth commands, completion polling, stop and order/fill/balance/position/performance reads.
+- [ ] Run relevant existing regression and deployment-image E2E gates; document YAML/env setup, API use and recovery, update evidence and commit. Cloud Run staging is not required.
 
-### P3 — Basic-authenticated admin API
+## 8. Scope kept out
 
-- [ ] Extend the current aiohttp server with Basic Auth and validated env settings; preserve health endpoints and configure explicit cross-origin FE access when needed.
-- [ ] Expose profiles/status, versioned commands and command completion using the existing control/owner path. Persist idempotency receipts atomically with control changes.
-- [ ] Implement paginated session/order/fill reads, balance snapshots and existing performance outputs, with session attribution and freshness.
-- [ ] Publish an OpenAPI contract and request/response examples covering every FE operation and validation/error state.
-- [ ] Test wrong/missing auth, secret redaction, preflight, stale versions, concurrent commands, duplicate retries, superseded commands, paused/expired/HALT states and decimal serialization.
+Weighted baskets/sensitivity tuning, automatic trend discovery, automatic
+spot/perpetual hedging, TWAP inventory execution, pause/resume, live duration
+editing, a separate session-history/per-session PnL subsystem, general economics/
+reservation frameworks, Redis, WebSockets, user/RBAC management and writable YAML
+APIs are outside this implementation. Current session state in `/status` is enough
+for FE control; existing order/fill history remains available.
 
-### P4 — Offline acceptance and operator documentation
-
-- [ ] Extend the existing simulator with LIFE spot and reference pairs; run the actual existing strategy/OKX connector/PG service with the new profile adapter.
-- [ ] Verify each scenario and a finite random session end to end, including a mid-session API switch, expiry, restart and preservation of anchors/deadlines/fills.
-- [ ] Exercise FE workflow through real HTTP Basic Auth: read catalogue/status, submit command, poll completion, pause/resume/stop and inspect orders/fills/balances/performance.
-- [ ] Recheck existing ownership/HALT, listing rejection, stale feed, DB failure and shutdown behavior; use targeted regressions plus the established deployment-image E2E gates.
-- [ ] Document setup, YAML deployment, Basic Auth/secret configuration, API examples and recovery. Update evidence and commit; Cloud Run staging is not required.
-
-## 7. Deferred scope and completion criteria
-
-Defer perpetual/spot hedge coordination, TWAP inventory execution, automatic trend
-screening, a general reservation/economics/NAV framework, Redis, a second service,
-WebSockets, a user/RBAC system and editable configuration storage. A measured need
-or an explicit new requirement can bring an item back into scope.
-
-Keep the already implemented ownership, recovery, persistence and final-send
-protections. Small essential additions remain: tradable instrument validation,
-fresh usable references, bounded inventory/quote size, post-only quotes, session
-expiry/cancel and authenticated versioned control. Simplifying the plan does not
-justify bypassing these existing contracts.
-
-Completion means the three profile behaviors, timed/random sessions and admin API
-work through the existing engine, are exercised offline with real PostgreSQL and
-are documented sufficiently for FE integration. It does not mean guaranteed
-profit or a guaranteed market price path. No live orders or cloud deployment are
-part of updating this plan.
+Completion means the three scenarios, timed/random sessions and authenticated FE
+controls work on **spot, perpetual and both**, using the existing engine and
+verified offline. Existing ownership, persistence, recovery and risk protections
+remain required.

@@ -1,7 +1,7 @@
 # LIFE/OKX implementation audit after the PostgreSQL port
 
 Historical scope note (2026-10-25): the current [LIFE/OKX plan](LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md)
-now defines a smaller spot MM/session/admin API MVP. The P0–P9/A01–A39 mappings
+now defines a smaller spot/perpetual MM/session/admin API MVP. The P0–P9/A01–A39 mappings
 below describe the previous scope, not the current delivery checklist. Source
 findings remain useful when reusing the corresponding components.
 
