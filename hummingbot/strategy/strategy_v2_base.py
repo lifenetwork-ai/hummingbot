@@ -82,6 +82,8 @@ class StrategyV2ConfigBase(BaseClientModel):
             "prompt_on_new": True,
         }
     )
+    # Typed host-generated effective configs; YAML remains the deployed defaults.
+    controller_config_overrides: Optional[List[dict]] = Field(default=None, min_length=1)
 
     @field_validator("controllers_config", mode="before")
     @classmethod
@@ -98,12 +100,17 @@ class StrategyV2ConfigBase(BaseClientModel):
     def load_controller_configs(self):
         from hummingbot.client.config.runtime_config import postgres_requested
         loaded_configs = []
-        for config_path in self.controllers_config:
-            full_path = os.path.join(settings.CONTROLLERS_CONF_DIR_PATH, config_path)
-            with open(full_path, 'r') as file:
-                config_data = yaml.safe_load(file)
+        if self.controller_config_overrides is not None:
+            entries = [("effective runtime configuration", data) for data in self.controller_config_overrides]
+        else:
+            entries = []
+            for config_path in self.controllers_config:
+                full_path = os.path.join(settings.CONTROLLERS_CONF_DIR_PATH, config_path)
+                with open(full_path, 'r') as file:
+                    entries.append((config_path, yaml.safe_load(file)))
+        for config_path, config_data in entries:
 
-            if postgres_requested():
+            if postgres_requested() or self.controller_config_overrides is not None:
                 controller_id = config_data.get("id")
                 if (not isinstance(controller_id, str) or not controller_id.strip()
                         or any(config.id == controller_id for config in loaded_configs)):

@@ -1,8 +1,8 @@
 # LIFE / OKX: Market-Making MVP Plan
 
 Updated: 2026-10-25 (Asia/Ho_Chi_Minh). Runtime baseline: `2d1dc0b7b`.
-Status: P1 controller/configuration foundation implemented and locally tested;
-P2 session/service integration and P3 admin API remain open.
+Status: P1 controller/configuration and P2 session/service integration implemented
+and locally tested; P3 admin API and subsequent acceptance phases remain open.
 The [previous audit](LIFE_OKX_IMPLEMENTATION_AUDIT.md) covers historical scope;
 this document is the current delivery checklist.
 
@@ -426,16 +426,22 @@ P1 evidence: [implementation progress](../implementation/LIFE_OKX_PROGRESS.md).
 510 targeted new/regression tests pass locally. Empty listing books require an
 explicit initial anchor and a fresh snapshot; partial fills survive quote refresh.
 The catalogue validates both-market selection/budgets; actual session admission,
-shared readiness, restart/expiry and final-send integration are P2 work, followed
+shared readiness, restart/expiry and final-send integration are delivered in P2, followed
 by image E2E, load and Demo gates. P1 does not establish a running admin-controlled
 LIFE service or price-path guarantees.
 
 ### P2 — Current session and random selection
 
-- [ ] **Red:** fake-clock expiry, step/profile revocation, market-mode switches, cancel/fill races, random draws, persisted basket/anchor/feed recovery, restart/downtime and both-market readiness failures.
-- [ ] Persist current-session/basket/anchor state using existing PostgreSQL/migration/control machinery; implement start/switch/stop and independent expiry/final-send checks.
-- [ ] Persist random draws/windows shared by both markets; preserve selected weights, anchors and deadlines across restart.
-- [ ] **Green/refactor:** real-PG CAS/replay/recovery tests and existing ownership/HALT regressions pass; record evidence and commit.
+- [x] **Red:** fake-clock expiry, step/profile revocation, market-mode switches, cancel/fill races, random draws, persisted basket/anchor/feed recovery, restart/downtime and both-market readiness failures.
+- [x] Persist current-session/basket/anchor state using existing PostgreSQL/migration/control machinery; implement start/switch/stop and independent expiry/final-send checks.
+- [x] Persist random draws/windows shared by both markets; preserve selected weights, anchors and deadlines across restart.
+- [x] **Green/refactor:** real-PG CAS/replay/recovery tests and existing ownership/HALT regressions pass; record evidence and commit.
+
+P2 evidence: [implementation progress](../implementation/LIFE_OKX_PROGRESS.md#p2--current-session-and-random-selection).
+1,178 unit/regression tests and all 82 disposable-PostgreSQL tests pass. Session
+control is available as internal service/store behavior; its authenticated HTTP
+commands, durable retry receipts and FE completion states are P3, not yet exposed.
+The actual image/simulator matrix and Demo transport/account acceptance remain P4–P6.
 
 ### P3 — Admin API for FE
 

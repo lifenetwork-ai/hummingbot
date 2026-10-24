@@ -45,6 +45,8 @@ class BotOwnership:
         self.transport_tasks = {}
         self.account_lock = asyncio.Lock()
         self.account_token = None
+        self.mm_ready_check = None
+        self.intent_scopes = {}
 
     def try_acquire(self) -> bool:
         if self.lost:
@@ -99,7 +101,8 @@ class BotOwnership:
             raise OwnershipLost("The bot ownership session is unavailable.")
         try:
             row = connection.execute(text("""
-                SELECT b.*, pg_backend_pid() AS backend_pid FROM public.bot_state b
+                SELECT b.*, pg_backend_pid() AS backend_pid,
+                    EXTRACT(EPOCH FROM clock_timestamp()) AS database_now FROM public.bot_state b
                 WHERE bot_id=:bot_id AND owner_uuid=:owner AND owner_generation=:generation
                 AND EXISTS (SELECT 1 FROM pg_locks WHERE locktype='advisory' AND granted
                     AND pid=pg_backend_pid() AND classid=:namespace AND objid=:key AND objsubid=2)
@@ -156,6 +159,7 @@ class BotOwnership:
         ids = {order_id for order_id, _ in pending}
         self.active_intents.intersection_update(ids)
         self.sent_intents.intersection_update(ids)
+        self.intent_scopes = {key: value for key, value in self.intent_scopes.items() if key in ids}
         for order_id, market in pending:
             connector = next((value for value in self.connectors.values() if value.display_name == market), None)
             tracked = connector.in_flight_orders.get(order_id) if connector is not None else None
@@ -164,7 +168,10 @@ class BotOwnership:
                 raise SubmissionBlocked("Unresolved order submission requires reconciliation.")
 
     def before_order(self, connector, order):
-        self.check_owner(new_risk=True)
+        from hummingbot.core.order_submission_guard import current_session_scope
+        row = self.check_owner(new_risk=True)
+        scope = current_session_scope()
+        self._check_mm_authority(row, scope)
         if connector.name not in SUPPORTED_CONNECTORS:
             raise SubmissionBlocked("This connector has not been verified for the PostgreSQL service.")
         from hummingbot.connector.markets_recorder import MarketsRecorder
@@ -175,6 +182,7 @@ class BotOwnership:
         self._check_intents(recorder)
         recorder.record_order_intent(connector, order)
         self.active_intents.add(order.client_order_id)
+        self.intent_scopes[order.client_order_id] = scope
         try:
             task = asyncio.current_task()
         except RuntimeError:
@@ -195,6 +203,7 @@ class BotOwnership:
                 recorder = MarketsRecorder._shared_instance
                 recorder.reject_unsent_order(connector, order.client_order_id)
                 self.active_intents.discard(order.client_order_id)
+                self.intent_scopes.pop(order.client_order_id, None)
             except Exception:
                 self.require_recovery("An unsent order intent could not be resolved durably.")
 
@@ -224,12 +233,13 @@ class BotOwnership:
 
     async def authorize_rest(self, request):
         path = urlparse(request.url).path
-        self.check_owner(new_risk=path == ORDER_PATH)
+        row = self.check_owner(new_risk=path == ORDER_PATH)
         if path in CANCEL_PATHS:
             return None
         if path == ORDER_PATH:
             data = json.loads(request.data or "{}")
             client_id = data.get("clOrdId")
+            self._check_mm_authority(row, self.intent_scopes.get(client_id))
             from hummingbot.connector.markets_recorder import MarketsRecorder
             recorder = MarketsRecorder._shared_instance
             if recorder is None:
@@ -246,6 +256,9 @@ class BotOwnership:
                 expiry = int(now * 1000) + 5000
                 if "expTime" in headers:
                     expiry = min(expiry, int(headers["expTime"]))
+                if row["config_type"] == "mm-session":
+                    mm = row["mm_session"]
+                    expiry = min(expiry, int(min(mm["expires_at"], mm["step_expires_at"]) * 1000))
             except (ValueError, TypeError):
                 raise SubmissionBlocked("Order request expiration header is invalid.") from None
             headers["expTime"] = str(expiry)
@@ -269,6 +282,18 @@ class BotOwnership:
         except BaseException:
             self.account_lock.release()
             raise
+
+    def _check_mm_authority(self, row, scope):
+        if row["config_type"] != "mm-session":
+            if scope is not None:
+                raise SubmissionBlocked("A previous MM executor cannot submit in another strategy.")
+            return
+        from hummingbot.core.mm_session import session_permits
+        if (scope is None or not session_permits(row["mm_session"] or {}, session_id=scope[0], generation=scope[1],
+                                                 now=float(row["database_now"]))):
+            raise SubmissionBlocked("MM session/step authority expired or changed.")
+        if self.mm_ready_check is None or not self.mm_ready_check():
+            raise SubmissionBlocked("MM markets/data/exposure are not jointly ready.")
 
     async def finish_account_mutation(self, token, response):
         try:

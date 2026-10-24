@@ -77,7 +77,7 @@ class MMProfilesConfig(BaseModel):
         return duration_seconds
 
     def controller_configs(self, profile_id: str, market_mode: MarketMode,
-                           supported_pairs: Dict[str, Set[str]],
+                           supported_pairs: Optional[Dict[str, Set[str]]],
                            references: Optional[List[ReferencePair]] = None,
                            available_quote: Optional[Decimal] = None):
         """Select defaults or API references against full, tradable instrument metadata."""
@@ -97,9 +97,10 @@ class MMProfilesConfig(BaseModel):
                 "references": profile.references if references is None else references,
                 "runtime_config_managed": True,
             })
-            if config.trading_pair not in supported_pairs.get(config.connector_name, set()):
+            if supported_pairs is not None and config.trading_pair not in supported_pairs.get(config.connector_name, set()):
                 raise ValueError(f"Trading pair unavailable on {config.connector_name}")
-            if any(ref.pair not in supported_pairs.get(self.reference_connector, set()) for ref in config.references):
+            if supported_pairs is not None and any(
+                    ref.pair not in supported_pairs.get(self.reference_connector, set()) for ref in config.references):
                 raise ValueError("reference_pair_unavailable")
             configs.append(config)
         declared = sum(config.total_amount_quote for config in configs)

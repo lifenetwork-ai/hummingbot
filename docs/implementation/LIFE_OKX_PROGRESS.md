@@ -82,11 +82,92 @@ warnings and an unawaited AsyncMock warning; the focused new suites have no
 RuntimeWarning. These results cover unit/regression behavior, not image, load or
 exchange acceptance.
 
-## Next — P2
+## P2 — Current session and random selection
 
-Persist the current session, effective basket, anchors, deadlines and random draws
-through the existing PostgreSQL owner/control machinery. Connect the catalogue
-to the existing V2 service lifecycle; admission must use observed collateral,
-joint readiness for `both`, recovery/HALT and final-send checks. Session clocks,
-API-managed selection and anchors must survive restart without extending time.
-Real PostgreSQL CAS/replay/recovery evidence is required before completing P2.
+Implemented locally after P1 commit `952eb5d49`. HTTP command admission/receipts
+remain P3; the image/simulator matrix and Demo acceptance remain later gates.
+
+### Reuse map
+
+| Existing component | Gap and smallest extension |
+|---|---|
+| `bot_state`, SQL runner and `BotStateStore` | One nullable `mm_session` JSONB column via replayable `008_add_mm_session.sql`; transactional control CAS and owner/generation-fenced current-session updates |
+| V2 runner's existing config loader | Accept host-generated effective controller dictionaries through the same module/model discovery, without writing YAML or creating another runner |
+| `ServiceHost` observer/start/stop lifecycle | Apply session control and random-step changes through existing core shutdown/reconciliation/start; observe expiry independently of market readiness |
+| `BotOwnership` and final REST gate | Bind executor session/generation to connector tasks with ContextVar; reject missing/expired/superseded authority before intent and again after throttling/auth, while allowing cancellation |
+| Existing order `expTime` | Clamp its deadline to the session/step boundary as well as the existing transport limit |
+| P1 controller and `MarketDataProvider` | Restore saved anchors; withhold executor creation until all selected markets' readiness/anchors are committed; reuse public trading-rule fetch for public-only reference connectors |
+
+`MMSession` stores the effective request, configuration hash/snapshot, chosen
+profile, current random window/generation, anchors and deadline. It is current
+operational state, not a session journal or editable database configuration store.
+Deployed YAML still supplies defaults for a new request. The hash covers both
+those defaults and the effective API request, including basket and duration.
+
+The first clock starts only after joint admission. Random steps keep that overall
+deadline, draw uniformly by scenario then profile, retain the current draw on
+restart and skip elapsed windows without catch-up orders. Old executor retries
+retain their original scope, even if the owner's control version is unchanged.
+Real database time is used for activation and final authorization. Session/step
+transitions retain the existing recovery HALT and owner fencing.
+
+The service restores anchors before starting the current controller generation.
+A new step captures each market's LIFE anchor and one shared benchmark basket
+only after old-core cleanup and joint readiness. PostgreSQL records that capture
+before local controllers are admitted. One stale market blocks/cancels both;
+readiness recovery retains the saved clock and anchors. Shared collateral is
+selected conservatively from observed adapters and never added twice.
+
+### Red evidence
+
+- Eight fake-clock/state failures preceded session selection, activation and
+  random-window implementation; a later failing hash assertion caught omission
+  of the effective request from the configuration hash.
+- Four real-PG failures preceded session control persistence/CAS and migration
+  replay behavior. Follow-up cases cover concurrent starts, owner transfer and
+  stale generation/owner updates.
+- Two real-PG final-gate failures reproduced acceptance of an old random step and
+  expired authority; cancellation remains permitted after revocation.
+- Executor retry context initially reached both connector tasks as `None` rather
+  than the original session/generation.
+- Controller tests reproduced quoting before PG session admission and recapturing
+  anchors after restoration; effective-runner loading initially produced no
+  controllers; four service tests initially failed joint readiness/admission.
+- Public-only reference connectors do not run the private trading-rule polling
+  loop; a failing startup assertion preceded reusing the existing public metadata
+  request for that path.
+
+### Green evidence
+
+**1,178 unit/regression tests, 2 subtests passed**:
+
+```sh
+python -m pytest -q --disable-warnings --tb=short \
+  test/hummingbot/strategy_v2 \
+  test/hummingbot/strategy/test_strategy_v2_base.py \
+  test/hummingbot/client/config test/hummingbot/cli test/hummingbot/model \
+  test/hummingbot/core/test_mm_session.py
+```
+
+**82 PostgreSQL tests passed** on disposable, loopback-only PostgreSQL 14:
+
+```sh
+python scripts/test_postgres.py --disable-warnings --tb=short
+```
+
+The full PG run exercises migrations, recorder/ownership/HALT regressions and the
+new session CAS/replay/owner-transfer cases. Existing recovery tests retain order
+and fill-race coverage; the image-level scenario matrix remains P4.
+
+Two legacy test setup issues surfaced in the broadened gates and were corrected:
+the connection-manager bootstrap test now explicitly enables migration on its
+empty disposable DB; SecurityTest owns/restores its loop and scheduler instead
+of depending on another suite's leftover event loop. Runtime defaults and secret
+handling were not changed. Existing deprecation/AsyncMock warnings remain visible.
+
+## Next — P3
+
+Expose the existing owner/store behavior through Basic Auth admin handlers with
+transactional retry receipts and FE completion states. Reuse recorder/history,
+performance and account data for bounded read APIs, daily statistics and the
+observational reconciliation report; generate Swagger from handler metadata.

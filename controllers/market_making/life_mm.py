@@ -1,6 +1,6 @@
 """LIFE reference configuration on the existing simple V2 market maker."""
 from decimal import Decimal
-from typing import List, Literal, Optional
+from typing import Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -48,9 +48,15 @@ class LifeMMConfig(pmm_simple.PMMSimpleConfig):
     take_profit: Optional[Decimal] = None
     time_limit: Optional[int] = None
     runtime_config_managed: bool = False
+    mm_session_id: Optional[str] = None
+    mm_generation: Optional[int] = Field(default=None, ge=0, strict=True)
+    saved_life_anchor: Optional[Decimal] = Field(default=None, gt=0, allow_inf_nan=False)
+    saved_source_anchors: Dict[str, Decimal] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def validate_mm_policy(self):
+        if (self.mm_session_id is None) != (self.mm_generation is None) or self.mm_session_id == "":
+            raise ValueError("MM session identity and generation must be supplied together")
         if self.scenario == "sideways":
             if self.references:
                 raise ValueError("Sideways does not accept references")
@@ -60,6 +66,12 @@ class LifeMMConfig(pmm_simple.PMMSimpleConfig):
             raise ValueError("References require unique pairs within the basket limit and weights totaling 1")
         if self.scenario == "follow_token" and len(self.references) != 1:
             raise ValueError("follow_token requires exactly one reference")
+        if self.saved_life_anchor is not None:
+            if (set(self.saved_source_anchors) != {ref.pair for ref in self.references}
+                    or any(not value.is_finite() or value <= 0 for value in self.saved_source_anchors.values())):
+                raise ValueError("Saved anchors must cover the exact reference basket")
+        elif self.saved_source_anchors:
+            raise ValueError("Saved source anchors require a LIFE anchor")
         if self.min_price >= self.max_price:
             raise ValueError("min_price must be below max_price")
         if self.initial_anchor is not None and not self.min_price <= self.initial_anchor <= self.max_price:
@@ -94,10 +106,21 @@ class LifeMMConfig(pmm_simple.PMMSimpleConfig):
 class LifeMMController(pmm_simple.PMMSimpleController):
     def __init__(self, config: LifeMMConfig, *args, **kwargs):
         super().__init__(config, *args, **kwargs)
-        self._life_anchor = None
-        self._source_anchors = {}
+        self._life_anchor = config.saved_life_anchor
+        self._source_anchors = dict(config.saved_source_anchors)
         self._stops_requested = set()
         self._account_ready = config.connector_name == "okx"
+        self._session_admitted = config.mm_session_id is None
+
+    def admit_session(self, session_id, generation):
+        if (session_id, generation) != (self.config.mm_session_id, self.config.mm_generation):
+            raise ValueError("Session admission identity changed")
+        self._session_admitted = True
+
+    def reference_state(self):
+        if self._life_anchor is None:
+            raise ValueError("Reference anchors are not ready")
+        return {"life": str(self._life_anchor), "sources": {pair: str(price) for pair, price in self._source_anchors.items()}}
 
     def update_config(self, new_config):
         if not self.config.runtime_config_managed:
@@ -135,7 +158,7 @@ class LifeMMController(pmm_simple.PMMSimpleController):
             raise ValueError(f"invalid_book:{connector_name}:{pair}")
         return (bid + ask) / 2
 
-    async def update_processed_data(self):
+    def update_reference(self):
         try:
             if not self._account_ready:
                 raise ValueError("perpetual_account_not_confirmed")
@@ -159,10 +182,13 @@ class LifeMMController(pmm_simple.PMMSimpleController):
         except Exception as error:
             self.processed_data = {"ready": False, "reason": str(error)}
 
+    async def update_processed_data(self):
+        self.update_reference()
+
     async def control_task(self):
         # Run freshness/cancellation even when the generic provider becomes unready.
         await self.update_processed_data()
-        if (not self.market_data_provider.ready or not self.processed_data["ready"]
+        if (not self._session_admitted or not self.market_data_provider.ready or not self.processed_data["ready"]
                 or not self._exposure_within_caps()):
             await self.send_actions(self._stop_quotes())
         elif self.executors_update_event.is_set():
@@ -177,7 +203,7 @@ class LifeMMController(pmm_simple.PMMSimpleController):
         return actions
 
     def determine_executor_actions(self):
-        if not self.processed_data.get("ready") or not self._exposure_within_caps():
+        if not self._session_admitted or not self.processed_data.get("ready") or not self._exposure_within_caps():
             return self._stop_quotes()
         return super().determine_executor_actions()
 
@@ -216,7 +242,7 @@ class LifeMMController(pmm_simple.PMMSimpleController):
             return False
 
     def create_actions_proposal(self):
-        if not self.processed_data.get("ready") or not self.market_data_provider.ready:
+        if not self._session_admitted or not self.processed_data.get("ready") or not self.market_data_provider.ready:
             return []
         try:
             long, short = self._exposure()
@@ -280,6 +306,11 @@ class LifeMMController(pmm_simple.PMMSimpleController):
             self._account_ready = True
         references = [ref.pair for ref in self.config.references]
         if references:
+            source = self.market_data_provider.get_connector_with_fallback(self.config.reference_connector)
+            if not source.is_trading_required:
+                # Public-only connectors do not start the private trading-rules
+                # polling task. Reuse the existing public instrument request.
+                await source._update_trading_rules()
             result = await self.market_data_provider.acquire_order_books(self.config.reference_connector, references, self)
             if not all(result.get(pair, False) for pair in references):
                 await self.market_data_provider.release_order_books(self.config.reference_connector, references, self)
@@ -296,4 +327,5 @@ class LifeMMController(pmm_simple.PMMSimpleController):
     def get_executor_config(self, level_id, price, amount):
         if not self.config.min_price <= price <= self.config.max_price:
             return None
-        return super().get_executor_config(level_id, price, amount)
+        return super().get_executor_config(level_id, price, amount).model_copy(update={
+            "mm_session_id": self.config.mm_session_id, "mm_generation": self.config.mm_generation})

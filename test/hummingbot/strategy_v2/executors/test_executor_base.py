@@ -1,3 +1,4 @@
+import asyncio
 from decimal import Decimal
 from test.isolated_asyncio_wrapper_test_case import IsolatedAsyncioWrapperTestCase
 from test.logger_mixin_for_test import LoggerMixinForTest
@@ -15,6 +16,7 @@ from hummingbot.core.event.events import (
     OrderCancelledEvent,
     OrderFilledEvent,
 )
+from hummingbot.core.order_submission_guard import current_session_scope
 from hummingbot.strategy.strategy_v2_base import StrategyV2Base
 from hummingbot.strategy_v2.executors.data_types import ExecutorConfigBase
 from hummingbot.strategy_v2.executors.executor_base import ExecutorBase
@@ -28,6 +30,23 @@ class TestExecutorBase(IsolatedAsyncioWrapperTestCase, LoggerMixinForTest):
         self.config = ExecutorConfigBase(id="test", type="position_executor", timestamp=1234567890)
         self.component = ExecutorBase(strategy=self.strategy, connectors=["connector1"], config=self.config,
                                       update_interval=0.5)
+
+    async def test_order_tasks_and_retries_inherit_their_executor_session_authority(self):
+        self.component.config = self.config.model_copy(update={"mm_session_id": "session-1", "mm_generation": 7})
+        tasks = []
+
+        async def read_scope():
+            return current_session_scope()
+
+        def schedule(*args):
+            tasks.append(asyncio.create_task(read_scope()))
+            return "queued-order"
+
+        self.strategy.buy.side_effect = schedule
+        for _ in range(2):
+            self.component.place_order("connector1", "LIFE-USDT", OrderType.LIMIT_MAKER, TradeType.BUY, Decimal("1"))
+        self.assertIsNone(current_session_scope())
+        self.assertEqual(await asyncio.gather(*tasks), [("session-1", 7), ("session-1", 7)])
 
     @property
     def create_mock_strategy(self):

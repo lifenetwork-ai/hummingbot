@@ -292,3 +292,37 @@ async def test_market_mode_change_with_positions_is_rejected_before_exchange_mut
     with pytest.raises(ValueError, match="existing orders or positions"):
         await controller.on_start()
     connector._trading_pair_position_mode_set.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_pg_session_must_be_admitted_before_executor_creation_and_scope_is_bound():
+    controller, _ = make_controller(configuration(mm_session_id="session-1", mm_generation=4))
+    await controller.update_processed_data()
+    assert controller.create_actions_proposal() == []
+    controller.admit_session("session-1", 4)
+    actions = controller.create_actions_proposal()
+    assert len(actions) == 2
+    assert all(action.executor_config.mm_session_id == "session-1" and action.executor_config.mm_generation == 4
+               for action in actions)
+
+
+@pytest.mark.asyncio
+async def test_restart_restores_saved_anchors_before_follow_calculation():
+    controller, prices = make_controller(configuration(
+        scenario="follow_token", references=[{"pair": "ETH-USDT", "weight": "1"}],
+        saved_life_anchor="0.1", saved_source_anchors={"ETH-USDT": "5"}))
+    prices["ETH-USDT"] = Decimal("10")
+    await controller.update_processed_data()
+    assert controller.processed_data["reference_price"] == Decimal("0.2")
+
+
+@pytest.mark.asyncio
+async def test_public_reference_connector_fetches_existing_instrument_metadata():
+    controller, _ = make_controller(configuration(
+        scenario="follow_token", references=[{"pair": "BTC-USDT", "weight": "1"}]))
+    connector = controller.market_data_provider.get_connector_with_fallback.return_value
+    connector.is_trading_required = False
+    connector._update_trading_rules = AsyncMock()
+    controller.market_data_provider.acquire_order_books = AsyncMock(return_value={"BTC-USDT": True})
+    await controller.on_start()
+    connector._update_trading_rules.assert_awaited_once()

@@ -11,6 +11,7 @@ import os
 import signal
 import threading
 import time
+from decimal import Decimal
 from pathlib import Path
 
 from aiohttp import web
@@ -56,10 +57,101 @@ class ServiceHost:
         self.start_task = None
         self.running = False
         self.halt_requested = False
+        self.mm_session = None
+        self.applied_mm_identity = None
         self.catalogue = {}
         self.config_hashes = {}
         self.revision = os.environ.get("K_REVISION") or os.environ.get("COMMIT_SHA") or "local"
         self.log = logging.getLogger(__name__)
+
+    def mm_effective_config(self, session):
+        from controllers.market_making.life_mm import LifeMMConfig
+        configs = session.catalogue.controller_configs(session.profile_id, session.request.market_mode, None,
+                                                       references=session.request.references)
+        overrides = []
+        for config in configs:
+            anchors = session.anchors.get(config.id, {})
+            effective = LifeMMConfig.model_validate({
+                **config.model_dump(), "mm_session_id": session.id, "mm_generation": session.generation,
+                "saved_life_anchor": anchors.get("life"), "saved_source_anchors": anchors.get("sources", {}),
+            })
+            overrides.append(effective.model_dump(mode="json"))
+        return {"script_file_name": "v2_with_controllers.py", "controller_config_overrides": overrides}
+
+    def _mm_controllers(self):
+        if self.mm_session is None or self.hb is None or self.hb.trading_core.strategy is None:
+            return []
+        configs = self.mm_session.catalogue.controller_configs(
+            self.mm_session.profile_id, self.mm_session.request.market_mode, None,
+            references=self.mm_session.request.references)
+        current = self.hb.trading_core.strategy.controllers
+        if set(current) != {config.id for config in configs}:
+            return []
+        return [current[config.id] for config in configs]
+
+    def _mm_available_quote(self, controllers):
+        available = [Decimal(str(controller.market_data_provider.get_connector_with_fallback(
+            controller.config.connector_name).get_available_balance("USDT"))) for controller in controllers]
+        if any(not value.is_finite() or value < 0 for value in available):
+            raise ValueError("Account collateral is unavailable")
+        # Both adapters may expose the same collateral. Never add them together.
+        return min(available)
+
+    def mm_runtime_ready(self):
+        try:
+            controllers = self._mm_controllers()
+            if not controllers:
+                return False
+            for controller in controllers:
+                if ((controller.config.mm_session_id, controller.config.mm_generation)
+                        != (self.mm_session.id, self.mm_session.generation)):
+                    return False
+                controller.update_reference()
+                if (not controller.market_data_provider.ready or not controller.processed_data.get("ready")
+                        or not controller._exposure_within_caps()):
+                    return False
+            pending_quote = Decimal("0")
+            for controller in controllers:
+                for executor in controller.executors_info:
+                    if executor.is_active and not executor.is_trading:
+                        config = executor.config
+                        if config.connector_name != "okx" or config.side.name == "BUY":
+                            pending_quote += config.amount * config.entry_price / config.leverage
+            return pending_quote <= self._mm_available_quote(controllers)
+        except Exception:
+            return False
+
+    async def admit_mm_session(self):
+        if self.mm_session is None or self.mm_session.status not in ("preparing", "running") or not self.mm_runtime_ready():
+            return False
+        controllers = self._mm_controllers()
+        if self.mm_session.status == "preparing":
+            supported = {}
+            for controller in controllers:
+                for name in (controller.config.connector_name, controller.config.reference_connector):
+                    connector = controller.market_data_provider.get_connector_with_fallback(name)
+                    supported[name] = set(connector.trading_rules)
+            self.mm_session.catalogue.controller_configs(
+                self.mm_session.profile_id, self.mm_session.request.market_mode, supported,
+                references=self.mm_session.request.references, available_quote=self._mm_available_quote(controllers))
+            # All markets are ready: capture this step together, with one benchmark
+            # basket, before committing its start/deadline and allowing any quote.
+            sources = None
+            for controller in controllers:
+                controller._life_anchor = None
+                controller._source_anchors = {} if sources is None else dict(sources)
+                controller.update_reference()
+                if not controller.processed_data.get("ready"):
+                    return False
+                sources = controller._source_anchors
+            anchors = {controller.config.id: controller.reference_state() for controller in controllers}
+            self.mm_session = self.store.update_mm_session(
+                owner_uuid=self.owner.owner_uuid, owner_generation=self.owner.generation, version=self.applied_version,
+                session_id=self.mm_session.id, generation=self.mm_session.generation,
+                change=lambda session, now: session.ready(now=now, anchors=anchors))
+        for controller in controllers:
+            controller.admit_session(self.mm_session.id, self.mm_session.generation)
+        return True
 
     def configure_logging(self):
         host = self
@@ -85,7 +177,7 @@ class ServiceHost:
         if path == "/startup":
             healthy = healthy and self.bootstrapped
         elif path == "/ready":
-            healthy = healthy and self.running
+            healthy = healthy and self.running and self.phase == "running"
         return web.json_response({"state": self.phase}, status=200 if healthy else 503)
 
     async def bootstrap(self):
@@ -102,6 +194,7 @@ class ServiceHost:
         self.catalogue = {kind: list_configs(kind) for kind in STRATEGY_TYPES}
         self.config_hashes = {kind: {name: hashlib.sha256(config_path(kind, name).read_bytes()).hexdigest()
                                      for name in files} for kind, files in self.catalogue.items()}
+        self.catalogue["mm-session"] = ["life_mm_profiles.yaml"]
         client = load_client_config_map_from_file(read_only=True)
         if client.mqtt_bridge.mqtt_autostart:
             raise ValueError("MQTT autostart is outside the reviewed service scope.")
@@ -137,7 +230,11 @@ class ServiceHost:
                 raise RuntimeConfigurationError("Selected strategy configuration is incomplete.")
             connectors = set(settings.required_exchanges)
         else:
-            data = controller_runner_config(name) if kind == "controller" else read_yaml(config_path(kind, name))
+            if kind == "mm-session":
+                from hummingbot.core.mm_session import MMSession
+                data = self.mm_effective_config(MMSession.model_validate(row["mm_session"]))
+            else:
+                data = controller_runner_config(name) if kind == "controller" else read_yaml(config_path(kind, name))
             module = data.get("script_file_name", "").removesuffix(".py")
             if not module.isidentifier():
                 raise RuntimeConfigurationError("Selected script module identity is invalid.")
@@ -161,9 +258,17 @@ class ServiceHost:
     async def start_strategy(self, row):
         from hummingbot.client.runner import load_and_start_strategy
         options = {"v1-strategy": "config_file_name", "v2-script": "v2_conf", "controller": "controller_conf"}
-        success = await load_and_start_strategy(
-            self.hb, headless=True, read_only_configuration=True,
-            **{options[row["config_type"]]: row["config_file_path"]})
+        if row["config_type"] == "mm-session":
+            from hummingbot.core.mm_session import MMSession
+            self.hb.strategy_file_name = row["config_file_path"]
+            self.hb.trading_core.strategy_name = "v2_with_controllers"
+            success = await self.hb.trading_core.start_strategy(
+                "v2_with_controllers", self.mm_effective_config(MMSession.model_validate(row["mm_session"])),
+                row["config_file_path"])
+        else:
+            success = await load_and_start_strategy(
+                self.hb, headless=True, read_only_configuration=True,
+                **{options[row["config_type"]]: row["config_file_path"]})
         if not success:
             self.owner.require_recovery("Strategy initialization/reconciliation failed; inspect sanitized logs.")
         return success
@@ -189,21 +294,47 @@ class ServiceHost:
                 "configuration_sha256": self.config_hashes, "engine": core.get_status(),
                 "balances": {name: {asset: str(value) for asset, value in connector.get_all_balances().items()}
                              for name, connector in core.connector_manager.connectors.items()},
+                "mm_session": self.mm_session.model_dump(mode="json", exclude={"catalogue"}) if self.mm_session else None,
                 "format_status": None}
 
     async def observe_once(self):
         from hummingbot.core.order_submission_guard import install_guard
+        from hummingbot.model.bot_state_store import ControlConflict
         if not self.owner.try_acquire():
             self.phase = "standby"
             return
         install_guard(self.owner)
         row = self.owner.check_owner()
+        if row["config_type"] == "mm-session" and row.get("mm_session"):
+            from random import SystemRandom
+
+            from hummingbot.core.mm_session import MMSession
+            self.mm_session = MMSession.model_validate(row["mm_session"])
+            if (row["desired_state"] == "running"
+                    and self.mm_session.status in ("preparing", "running")
+                    and self.mm_session.step_expires_at is not None
+                    and float(row["database_now"]) >= self.mm_session.step_expires_at
+                    and (not (row["recovery_state"] or {}).get("halt")
+                         or float(row["database_now"]) >= self.mm_session.expires_at)):
+                try:
+                    self.mm_session = self.store.update_mm_session(
+                        owner_uuid=self.owner.owner_uuid, owner_generation=self.owner.generation, version=row["control_version"],
+                        session_id=self.mm_session.id, generation=self.mm_session.generation,
+                        change=lambda session, now: session.advance(now=now, rng=SystemRandom()))
+                except ControlConflict:
+                    return
+                row = self.owner.check_owner()
+        else:
+            self.mm_session = None
+        mm_identity = (self.mm_session.id, self.mm_session.generation) if self.mm_session else None
+        self.owner.mm_ready_check = self.mm_runtime_ready if self.mm_session else None
         version = row["control_version"]
-        if version != self.applied_version:
+        if version != self.applied_version or mm_identity != self.applied_mm_identity:
             self.phase = "stopping"
             if not await self.stop_core():
                 raise RuntimeError("Service cleanup did not complete; process exit is required.")
             self.applied_version = version
+            self.applied_mm_identity = mm_identity
             self.error = None
             self.halt_requested = False
             try:
@@ -215,6 +346,11 @@ class ServiceHost:
                     self.start_task = asyncio.create_task(self.start_strategy(row))
                 else:
                     self.phase = "stopped"
+                    if self.mm_session is not None and self.mm_session.status == "stopping":
+                        self.mm_session = self.store.update_mm_session(
+                            owner_uuid=self.owner.owner_uuid, owner_generation=self.owner.generation, version=version,
+                            session_id=self.mm_session.id, generation=self.mm_session.generation,
+                            change=lambda session, now: setattr(session, "status", "stopped"))
             except Exception as error:
                 self.phase, self.error = "halted", type(error).__name__
                 self.log.error("Configuration bootstrap failed type=%s version=%s", self.error, version)
@@ -234,6 +370,16 @@ class ServiceHost:
                 raise RuntimeError("Risk-stop cleanup did not complete.")
             self.halt_requested = False
         if self.running:
+            if self.mm_session is not None:
+                try:
+                    admitted = not (row["recovery_state"] or {}).get("halt") and await self.admit_mm_session()
+                except (ValueError, ControlConflict):
+                    admitted = False
+                self.phase = "running" if admitted else "waiting_for_mm_readiness"
+                if not admitted:
+                    for controller in self._mm_controllers():
+                        controller._session_admitted = False
+                        await controller.send_actions(controller._stop_quotes())
             if (core.trade_fill_db is None or not core.trade_fill_db.persistence_healthy
                     or not self.owner.allow_new_orders or not core._strategy_running):
                 self.owner.require_recovery("Trading/recorder health requires reconciliation.")

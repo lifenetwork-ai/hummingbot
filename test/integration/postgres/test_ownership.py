@@ -1,4 +1,6 @@
 import asyncio
+import json
+import time
 from contextlib import asynccontextmanager
 from decimal import Decimal
 from types import SimpleNamespace
@@ -12,7 +14,7 @@ from hummingbot.connector.markets_recorder import MarketsRecorder
 from hummingbot.core.bot_ownership import ACCOUNT_PATHS, ORDER_PATH, BotOwnership, OwnershipLost
 from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState
-from hummingbot.core.order_submission_guard import SubmissionBlocked, install_guard
+from hummingbot.core.order_submission_guard import SubmissionBlocked, install_guard, session_order_scope
 from hummingbot.core.web_assistant.connections.data_types import RESTMethod
 from hummingbot.core.web_assistant.rest_assistant import RESTAssistant
 from hummingbot.model.bot_state_store import BotStateStore
@@ -101,6 +103,41 @@ async def send(rest, path=ORDER_PATH):
     return await rest.execute_request(url="https://offline.invalid" + path, method=RESTMethod.POST,
                                       throttler_limit_id="order", is_auth_required=True,
                                       data={"clOrdId": "order-1", "instId": "BTC-USDT", "side": "buy", "sz": "0.1"})
+
+
+def test_mm_final_gate_rejects_expired_or_superseded_step_while_cancel_remains_allowed(owned):
+    snapshot = {"id": "session-1", "generation": 0, "status": "running", "started_at": time.time() - 1,
+                "expires_at": time.time() + 60, "step_expires_at": time.time() + 60}
+    with owned.engine.begin() as connection:
+        connection.execute(text("UPDATE bot_state SET config_type='mm-session', mm_session=CAST(:state AS jsonb)"),
+                           {"state": json.dumps(snapshot)})
+    owned.owner.mm_ready_check = lambda: True
+    with session_order_scope("session-1", 0):
+        intent(owned)
+    # A new draw in the same control version must revoke a queued REST attempt.
+    with owned.engine.begin() as connection:
+        connection.execute(text("UPDATE bot_state SET mm_session=jsonb_set(mm_session, '{generation}', '1')"))
+    rest, transport = assistant()
+    with session_order_scope("session-1", 0):
+        with pytest.raises(SubmissionBlocked):
+            owned.loop.run_until_complete(send(rest))
+    transport.call.assert_not_awaited()
+    owned.loop.run_until_complete(send(rest, path="/api/v5/trade/cancel-order"))
+    assert transport.call.await_count == 1
+
+
+def test_mm_intent_requires_scope_and_deadline(owned):
+    snapshot = {"id": "session-1", "generation": 0, "status": "running", "started_at": time.time() - 120,
+                "expires_at": time.time() - 1, "step_expires_at": time.time() - 1}
+    with owned.engine.begin() as connection:
+        connection.execute(text("UPDATE bot_state SET config_type='mm-session', mm_session=CAST(:state AS jsonb)"),
+                           {"state": json.dumps(snapshot)})
+    owned.owner.mm_ready_check = lambda: True
+    with session_order_scope("session-1", 0):
+        with pytest.raises(SubmissionBlocked):
+            intent(owned)
+    with pytest.raises(SubmissionBlocked):
+        intent(owned)
 
 
 def test_two_process_sessions_have_single_owner_and_increment_generation(owned):

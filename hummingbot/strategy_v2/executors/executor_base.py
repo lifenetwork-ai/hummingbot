@@ -19,6 +19,7 @@ from hummingbot.core.event.events import (
     SellOrderCompletedEvent,
     SellOrderCreatedEvent,
 )
+from hummingbot.core.order_submission_guard import session_order_scope
 from hummingbot.strategy.strategy_v2_base import StrategyV2Base
 from hummingbot.strategy_v2.executors.data_types import ExecutorConfigBase
 from hummingbot.strategy_v2.models.base import RunnableStatus
@@ -369,10 +370,11 @@ class ExecutorBase(RunnableBase):
         :param price: The price for the order.
         :return: The result of the order placement.
         """
-        if side == TradeType.BUY:
-            return self._strategy.buy(connector_name, trading_pair, amount, order_type, price, position_action)
-        else:
-            return self._strategy.sell(connector_name, trading_pair, amount, order_type, price, position_action)
+        with session_order_scope(self.config.mm_session_id, self.config.mm_generation):
+            if side == TradeType.BUY:
+                return self._strategy.buy(connector_name, trading_pair, amount, order_type, price, position_action)
+            else:
+                return self._strategy.sell(connector_name, trading_pair, amount, order_type, price, position_action)
 
     def get_price(self, connector_name: str, trading_pair: str, price_type: PriceType = PriceType.MidPrice):
         """

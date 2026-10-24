@@ -69,3 +69,62 @@ class BotStateStore:
             ).values(acknowledged_version=version, heartbeat=text("clock_timestamp()"), status=status,
                      revision=revision))
             return result.rowcount == 1
+
+    def request_mm_session(self, *, action, expected_version, catalogue=None, request=None,
+                           current_session_id=None, rng=None):
+        from random import SystemRandom
+
+        from hummingbot.core.mm_session import MMSession, MMSessionRequest
+        if action not in ("start", "switch", "stop") or type(expected_version) is not int or expected_version < 0:
+            raise ValueError("Invalid MM action or control version")
+        if action != "stop" and (catalogue is None or request is None):
+            raise ValueError("Start/switch require a catalogue and session request")
+        with self.engine.begin() as connection:
+            row = connection.execute(select(BotState).where(BotState.bot_id == self.bot_id).with_for_update()).mappings().first()
+            if row is None or row["control_version"] != expected_version:
+                raise ControlConflict("Control version changed")
+            current = MMSession.model_validate(row["mm_session"]) if row["mm_session"] else None
+            if action == "start":
+                if row["desired_state"] == "running" or (current and current.status in ("preparing", "running", "stopping")):
+                    raise ControlConflict("An active strategy/session must be stopped or explicitly switched")
+            elif current is None or current.id != current_session_id:
+                raise ControlConflict("Current MM session identity changed")
+            if action != "stop" and (row["recovery_state"] or {}).get("halt"):
+                raise ControlConflict("Recovery HALT must be resolved before starting another session")
+            if action == "stop":
+                current.status = "stopping"
+                current.generation += 1
+                effective = current
+            else:
+                if action == "switch" and current.status not in ("preparing", "running"):
+                    raise ControlConflict("Only an active MM session can be switched")
+                effective = MMSession.create(catalogue, MMSessionRequest.model_validate(request),
+                                             rng=rng or SystemRandom())
+            values = {"control_version": expected_version + 1, "mm_session": effective.model_dump(mode="json"),
+                      "desired_state": "stopped" if action == "stop" else "running"}
+            if action != "stop":
+                values.update(config_type="mm-session", config_file_path="life_mm_profiles.yaml")
+            connection.execute(update(BotState).where(BotState.bot_id == self.bot_id).values(**values))
+            return {"control_version": expected_version + 1, "session_id": effective.id, "generation": effective.generation}
+
+    def update_mm_session(self, *, owner_uuid, owner_generation, version, session_id, generation, change):
+        from hummingbot.core.mm_session import MMSession
+        with self.engine.begin() as connection:
+            row = connection.execute(select(BotState).where(
+                BotState.bot_id == self.bot_id, BotState.owner_uuid == owner_uuid,
+                BotState.owner_generation == owner_generation, BotState.control_version == version,
+            ).with_for_update()).mappings().first()
+            if row is None or not owner_uuid or not row["mm_session"]:
+                raise ControlConflict("MM session owner/control version changed")
+            session = MMSession.model_validate(row["mm_session"])
+            if session.id != session_id or session.generation != generation:
+                raise ControlConflict("MM session or random step changed")
+            now = float(connection.execute(text("SELECT EXTRACT(EPOCH FROM clock_timestamp())")).scalar())
+            change(session, now)
+            if (row["recovery_state"] or {}).get("halt") and session.status in ("preparing", "running"):
+                raise ControlConflict("Recovery HALT blocks session activation or a new draw")
+            values = {"mm_session": session.model_dump(mode="json")}
+            if session.status in ("stopping", "stopped", "expired"):
+                values["desired_state"] = "stopped"
+            connection.execute(update(BotState).where(BotState.bot_id == self.bot_id).values(**values))
+            return session

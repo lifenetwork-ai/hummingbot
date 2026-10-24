@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Literal, Optional
 
 import base58
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from hummingbot.client.settings import AllConnectorSettings
 from hummingbot.core.data_type.common import TradeType
@@ -17,6 +17,14 @@ class ExecutorConfigBase(BaseModel):
                   "xemm_executor", "arbitrage_executor", "twap_executor", "lp_executor"]
     timestamp: Optional[float] = None
     controller_id: str = "main"
+    mm_session_id: Optional[str] = None
+    mm_generation: Optional[int] = Field(default=None, ge=0, strict=True)
+
+    @model_validator(mode="after")
+    def validate_mm_scope(self):
+        if (self.mm_session_id is None) != (self.mm_generation is None) or self.mm_session_id == "":
+            raise ValueError("MM session identity and generation must be supplied together")
+        return self
 
     @field_validator("timestamp", mode="before")
     @classmethod

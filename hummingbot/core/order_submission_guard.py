@@ -4,10 +4,28 @@ The connector persists an intent, and REST rechecks ownership after throttling a
 authentication, immediately before transport. Only the reviewed OKX connectors are
 enabled for the service. Legacy tests/tooling without PG retain existing behavior.
 """
+from contextlib import contextmanager
+from contextvars import ContextVar
+
 from hummingbot.client.config.runtime_config import postgres_requested
 
 _guard = None
 SUPPORTED_CONNECTORS = ("okx", "okx_perpetual")
+_session_scope = ContextVar("mm_order_session_scope", default=None)
+
+
+@contextmanager
+def session_order_scope(session_id, generation):
+    """Carry executor authority into connector tasks, including delayed retries."""
+    token = _session_scope.set((session_id, generation) if session_id is not None else None)
+    try:
+        yield
+    finally:
+        _session_scope.reset(token)
+
+
+def current_session_scope():
+    return _session_scope.get()
 
 
 class SubmissionBlocked(RuntimeError):

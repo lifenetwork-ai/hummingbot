@@ -22,6 +22,14 @@ class SecurityTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
+        try:
+            cls.previous_loop = asyncio.get_event_loop()
+        except RuntimeError:
+            cls.previous_loop = None
+        cls.previous_scheduler = AsyncCallScheduler._acs_shared_instance
+        cls.test_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(cls.test_loop)
+        AsyncCallScheduler._acs_shared_instance = None
         AsyncCallScheduler.shared_instance().reset_event_loop()
 
     def setUp(self) -> None:
@@ -53,8 +61,16 @@ class SecurityTest(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls) -> None:
+        AsyncCallScheduler.shared_instance().stop()
+        pending = asyncio.all_tasks(cls.test_loop)
+        for task in pending:
+            task.cancel()
+        if pending:
+            cls.test_loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+        cls.test_loop.close()
+        AsyncCallScheduler._acs_shared_instance = cls.previous_scheduler
+        asyncio.set_event_loop(cls.previous_loop if cls.previous_loop and not cls.previous_loop.is_closed() else None)
         super().tearDownClass()
-        AsyncCallScheduler.shared_instance().reset_event_loop()
 
     def async_run_with_timeout(self, coroutine: Awaitable, timeout: float = 3):
         ret = self.ev_loop.run_until_complete(asyncio.wait_for(coroutine, timeout))

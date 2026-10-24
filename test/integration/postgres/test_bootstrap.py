@@ -212,7 +212,8 @@ def test_legacy_names_fail_without_creating_parallel_tables(pg_engine, canonical
 
 
 def test_connection_manager_uses_pg_without_file_or_orm_ddl(pg_engine):
-    settings = RuntimeSettings.from_environment({"DATABASE_URL": os.environ["HBOT_TEST_POSTGRES_URL"]})
+    settings = RuntimeSettings.from_environment({"DATABASE_URL": os.environ["HBOT_TEST_POSTGRES_URL"],
+                                                "ENABLE_AUTO_MIGRATION": "true"})
     original_engine = SQLConnectionManager._postgres_engine
     original_singleton = SQLConnectionManager._scm_trade_fills_instance
     try:

@@ -24,3 +24,5 @@ class BotState(HummingbotBase):
     revision = Column(Text)
     # Current unresolved external effects only, not an event/order journal.
     recovery_state = Column(JSONB().with_variant(JSON(), "sqlite"), nullable=False, server_default=text("'{}'"))
+    # Effective current MM session only; no session-history or attribution ledger.
+    mm_session = Column(JSONB().with_variant(JSON(), "sqlite"))

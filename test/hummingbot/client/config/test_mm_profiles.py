@@ -91,3 +91,15 @@ async def test_existing_v2_loader_discovers_controller_and_periodic_reload_prese
         strategy._last_config_update_ts = 0
         StrategyV2Base.update_controllers_configs(strategy)
         assert controller.config.total_amount_quote == Decimal("20")
+
+
+@pytest.mark.asyncio
+async def test_existing_runner_loads_two_effective_configs_without_writing_yaml(tmp_path):
+    catalogue = await MMProfilesConfig.load(CATALOGUE)
+    selected = catalogue.controller_configs("sideways_default", "both", None)
+    config = StrategyV2ConfigBase(controller_config_overrides=[item.model_dump(mode="json") for item in selected])
+    with patch("hummingbot.client.settings.CONTROLLERS_CONF_DIR_PATH", tmp_path):
+        loaded = config.load_controller_configs()
+    assert {item.connector_name for item in loaded} == {"okx", "okx_perpetual"}
+    assert all(item.get_controller_class() is LifeMMController for item in loaded)
+    assert list(tmp_path.iterdir()) == []

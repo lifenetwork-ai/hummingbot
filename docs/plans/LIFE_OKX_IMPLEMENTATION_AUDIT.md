@@ -15,12 +15,12 @@ extensions. Reuse compatible helpers; HTTP trading commands must retain the port
 owner/control flow rather than invoking interactive MQTT callbacks directly.
 
 Delivery update (2026-10-25): the current plan's P1 controller/configuration
-foundation is now implemented as `controllers/market_making/life_mm.py` and
-`hummingbot/client/config/mm_profiles.py`, with 510 affected unit/regression tests
-passing. See [implementation evidence](../implementation/LIFE_OKX_PROGRESS.md).
-Session/service integration, admin API and local E2E/load/Demo acceptance remain
-open. The historical inventory and old phase mappings below are not a new audit
-of that implementation.
+foundation and P2 current-session persistence, finite/random windows, V2 service
+integration and session/step send fencing are implemented. 1,178 unit/regression
+tests plus 82 real-PostgreSQL tests pass. See
+[implementation evidence](../implementation/LIFE_OKX_PROGRESS.md). Admin HTTP API
+and local image E2E/load/Demo acceptance remain open. The historical inventory and
+old phase mappings below are not a new audit of that implementation.
 
 Reviewed: 2026-10-24 (Asia/Ho_Chi_Minh). Source: `2301ef6a6`.
 Scope: compare [the LIFE/OKX plan](LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md) with
