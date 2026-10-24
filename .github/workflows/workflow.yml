@@ -24,7 +24,7 @@ jobs:
         if: github.event_name == 'pull_request'
         with:
           PATTERNS: |
-            **/*.+(py|pyx|pyd|yml)
+            **/*.+(py|pyx|pyd|yml|yaml)
             **/*.sql
             Makefile
             Dockerfile
@@ -105,6 +105,30 @@ jobs:
           source $CONDA/etc/profile.d/conda.sh
           conda activate hummingbot
           make test-postgres
+
+      - name: Build Cloud Run image and prefetch offline infrastructure
+        shell: bash
+        run: |
+          docker pull postgres:14-alpine
+          docker pull registry:2
+          make build-cloudrun
+
+      - name: Offline deployment image E2E (required)
+        shell: bash
+        run: |
+          source $CONDA/etc/profile.d/conda.sh
+          conda activate hummingbot
+          make test-e2e-offline
+          python scripts/review_cloudrun.py deploy/cloudrun/service.example.yaml --template
+
+      - name: Retain offline E2E evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: postgres-cloudrun-offline-evidence
+          path: |
+            build/e2e-offline/
+            build/cloudrun-image.json
 
       - name: Check and report global coverage
         if: steps.program-changes.outputs.cache-hit != 'true' || steps.conda-dependencies.outputs.cache-hit != 'true'

@@ -2,7 +2,7 @@
 
 Created: 2026-10-24 — Asia/Ho_Chi_Minh.
 
-Status: **implementation in progress — P0–P5 core changes verified; P6 service integration and offline E2E remain pending**. The runtime is not deployment-ready. Checked items have implementation/review/test evidence; unchecked items remain pending. Cloud Run staging is not required.
+Status: **implementation in progress — P0–P6 core changes verified; spot/V1 image E2E verified; remaining V2/perpetual and upgrade/release verification pending**. The runtime is not deployment-ready. Checked items have implementation/review/test evidence; unchecked items remain pending. Cloud Run staging is not required.
 
 Reviewed sources:
 
@@ -111,17 +111,17 @@ This is a proposed layout. Split scripts further when useful for review and use 
 
 ### 3.2. Required rules
 
-- [ ] SQL scripts define the schema; ORM mappings must match them. Do not let the ORM silently modify schema after migration or when automatic migration is disabled.
-- [ ] Use lowercase snake_case for every application-owned table, column, index, constraint, sequence, trigger and function, including objects derived from existing models. Target identifiers must not require case-sensitive quoting; quoted legacy names are allowed only in compatibility/import/cutover code.
-- [ ] Apply one naming convention across the schema: indexes `idx_<table>_<columns>`, primary keys `pk_<table>`, unique constraints/indexes `uq_<table>_<columns>`, foreign keys `fk_<table>_<columns>`, checks `chk_<table>_<rule>`, sequences `seq_<table>_<column>` and triggers `trg_<table>_<action>`. Use short helper names such as `bot_set_updated_at`. Include meaningful suffixes when predicates or definitions differ; keep names within PostgreSQL's identifier length limit with documented deterministic abbreviations rather than relying on truncation.
-- [ ] Use a dedicated database and the `public` schema. Qualify DDL and catalog checks by schema rather than relying on an arbitrary session `search_path`.
-- [ ] Use `CREATE TABLE/INDEX IF NOT EXISTS` and `ADD COLUMN IF NOT EXISTS`. Guard constraints and triggers by schema, table and object name.
-- [ ] Keep helper functions limited to small tasks such as timestamps. Trading logic, retries, migration coordination and order submission authority remain in Python.
-- [ ] Use `CREATE OR REPLACE FUNCTION` only for helpers whose signature and body remain stable across replay. If semantics must change, add a versioned helper and a compatible binding migration so an older script cannot restore outdated behavior.
-- [ ] Do not edit deployed scripts. Add the next script; automatic changes must be additive and compatible with the running revision.
-- [ ] Startup scripts must not delete/reset business data, overwrite configuration, backfill entire tables or call exchange APIs.
-- [ ] Do not use `CREATE INDEX CONCURRENTLY` inside startup transactions. Large indexes/backfills use a separate maintenance path with completion checks.
-- [ ] Validate types, nullability, uniqueness, index columns/predicates/validity and function/trigger bindings. `IF NOT EXISTS` alone does not prove that an existing object has the intended definition. [PostgreSQL CREATE INDEX](https://www.postgresql.org/docs/current/sql-createindex.html)
+- [x] SQL scripts define the schema; ORM mappings must match them. Do not let the ORM silently modify schema after migration or when automatic migration is disabled.
+- [x] Use lowercase snake_case for every application-owned table, column, index, constraint, sequence, trigger and function, including objects derived from existing models. Target identifiers must not require case-sensitive quoting; quoted legacy names are allowed only in compatibility/import/cutover code.
+- [x] Apply one naming convention across the schema: indexes `idx_<table>_<columns>`, primary keys `pk_<table>`, unique constraints/indexes `uq_<table>_<columns>`, foreign keys `fk_<table>_<columns>`, checks `chk_<table>_<rule>`, sequences `seq_<table>_<column>` and triggers `trg_<table>_<action>`. Use short helper names such as `bot_set_updated_at`. Include meaningful suffixes when predicates or definitions differ; keep names within PostgreSQL's identifier length limit with documented deterministic abbreviations rather than relying on truncation.
+- [x] Use a dedicated database and the `public` schema. Qualify DDL and catalog checks by schema rather than relying on an arbitrary session `search_path`.
+- [x] Use `CREATE TABLE/INDEX IF NOT EXISTS` and `ADD COLUMN IF NOT EXISTS`. Guard constraints and triggers by schema, table and object name.
+- [x] Keep helper functions limited to small tasks such as timestamps. Trading logic, retries, migration coordination and order submission authority remain in Python.
+- [x] Use `CREATE OR REPLACE FUNCTION` only for helpers whose signature and body remain stable across replay. If semantics must change, add a versioned helper and a compatible binding migration so an older script cannot restore outdated behavior.
+- [x] Do not edit deployed scripts. Add the next script; automatic changes must be additive and compatible with the running revision.
+- [x] Startup scripts must not delete/reset business data, overwrite configuration, backfill entire tables or call exchange APIs.
+- [x] Do not use `CREATE INDEX CONCURRENTLY` inside startup transactions. Large indexes/backfills use a separate maintenance path with completion checks.
+- [x] Validate types, nullability, uniqueness, index columns/predicates/validity and function/trigger bindings. `IF NOT EXISTS` alone does not prove that an existing object has the intended definition. [PostgreSQL CREATE INDEX](https://www.postgresql.org/docs/current/sql-createindex.html)
 
 A migration history table is not mandatory initially: when migration is enabled, replay all scripts as the reference runner does. Keep deployed SQL immutable, log script names/checksums/image revision and test replay. Add a ledger only if concrete audit or version-management requirements justify it.
 
@@ -171,13 +171,13 @@ The names below refer to existing Python model classes. Their SQL tables use the
 | `RangePositionUpdate`, `RangePositionCollectedFees` | Provide equivalent schema; test Gateway/DEX behavior separately before enabling those connectors |
 | `Metadata` | Retain useful metadata; do not use `local_db_version` to invoke the file-copy migrator |
 
-- [ ] Inventory all registered/imported models; `get_declarative_base()` currently does not explicitly import every model in the directory.
-- [ ] Retain the scaled-integer `SqliteDecimal` representation if its range/precision is sufficient. Test scale and overflow on PostgreSQL; change individual fields to `NUMERIC(p,s)` only with a demonstrated need and explicit data conversion.
-- [ ] Preserve existing engine timestamp units; use UTC for new timestamps. Do not accidentally convert epoch milliseconds to seconds.
-- [ ] Test JSON/Decimal/Enum serialization. Use JSONB for new structured state; change existing JSON columns only for specific query/index needs.
-- [ ] Preserve `config_file_path` as the existing configuration identifier/path. Use stable relative names across revisions and exact query filters so histories from different configurations do not mix.
-- [ ] Remove the loop that drops all foreign keys in SQLConnectionManager. Handle events arriving before their order through a deliberate placeholder/upsert or a narrowly unenforced relationship, with behavioral tests.
-- [ ] Prefer existing `Order` and `MarketState` records for pending/unknown state and recovery. Add missing columns only when necessary; do not introduce an event store, outbox or order journal by default.
+- [x] Inventory all registered/imported models; `get_declarative_base()` currently does not explicitly import every model in the directory.
+- [x] Retain the scaled-integer `SqliteDecimal` representation if its range/precision is sufficient. Test scale and overflow on PostgreSQL; change individual fields to `NUMERIC(p,s)` only with a demonstrated need and explicit data conversion.
+- [x] Preserve existing engine timestamp units; use UTC for new timestamps. Do not accidentally convert epoch milliseconds to seconds.
+- [x] Test JSON/Decimal/Enum serialization. Use JSONB for new structured state; change existing JSON columns only for specific query/index needs.
+- [x] Preserve `config_file_path` as the existing configuration identifier/path. Use stable relative names across revisions and exact query filters so histories from different configurations do not mix.
+- [x] Remove the loop that drops all foreign keys in SQLConnectionManager. Handle events arriving before their order through a deliberate placeholder/upsert or a narrowly unenforced relationship, with behavioral tests.
+- [x] Prefer existing `Order` and `MarketState` records for pending/unknown state and recovery. Add missing columns only when necessary; do not introduce an event store, outbox or order journal by default.
 
 ### 4.2. Durable bot control state
 
@@ -187,22 +187,22 @@ Only one additional application table is proposed initially:
 |---|---|---|
 | `bot_state` | One row per `bot_id`: selected YAML config, desired state, control version/ack, run UUID, owner generation, heartbeat and status/error snapshot | Replaces `loaded.json`, `meta.json`, `status.json` and PID-based control across instances |
 
-- [ ] Use version checks/compare-and-set for desired-state changes and acknowledgments so retrying an older command cannot overwrite a newer command.
-- [ ] Store a configuration name and optionally a deployment/configuration digest for diagnostics, not the full YAML configuration as a new authoritative DB copy.
-- [ ] Keep this table focused on current operational state. Trading history remains in existing tables; comprehensive run/event history is a separate requirement.
+- [x] Use version checks/compare-and-set for desired-state changes and acknowledgments so retrying an older command cannot overwrite a newer command.
+- [x] Store a configuration name and optionally a deployment/configuration digest for diagnostics, not the full YAML configuration as a new authoritative DB copy.
+- [x] Keep this table focused on current operational state. Trading history remains in existing tables; comprehensive run/event history is a separate requirement.
 
 ### 4.3. Preserve ordinary YAML configuration
 
 The original application uses YAML for more than strategies: client settings, controller/script settings and encrypted connector credentials also have YAML paths. For this port, retain ordinary YAML settings while moving credential values to the environment.
 
-- [ ] Keep the existing client, strategy, controller, script and fee-override YAML formats and validation.
-- [ ] Keep existing local CLI configuration editing where applicable. PostgreSQL does not become a configuration editor or replace the YAML loaders.
-- [ ] Package non-secret YAML in the image or provide versioned configuration mounts on Cloud Run. The container recipe must explicitly include/provide them; the existing image does not automatically include local configuration.
-- [ ] Keep exchange API credentials and database passwords out of those YAML assets. Runtime database settings come from the environment and must not fall back to the default YAML SQLite mode.
-- [ ] Preserve filenames and referenced controller/script paths across deployments. Updating deployed YAML creates a new configuration/image revision; local container edits are not durable configuration changes.
-- [ ] Avoid unconditional writes to read-only deployed configuration, including `load_client_config_map_from_file()` writing back immediately. Add a narrow read-only startup option rather than rewriting all configuration loading.
-- [ ] If legacy helpers require generated files, permit a disposable working copy or generated controller wrapper in a designated temporary directory. Rebuild it from deployed inputs on every start; it must not contain the only copy of runtime state or secrets serialized from the environment.
-- [ ] Cloud CLI config writes must either produce an explicit deployment artifact or report that the deployed configuration is read-only. Do not report success for edits that will disappear on restart. Existing local hot reload may remain; live editing of deployed YAML is not required for this port.
+- [x] Keep the existing client, strategy, controller, script and fee-override YAML formats and validation.
+- [x] Keep existing local CLI configuration editing where applicable. PostgreSQL does not become a configuration editor or replace the YAML loaders.
+- [x] Package non-secret YAML in the image or provide versioned configuration mounts on Cloud Run. The container recipe must explicitly include/provide them; the existing image does not automatically include local configuration.
+- [x] Keep exchange API credentials and database passwords out of those YAML assets. Runtime database settings come from the environment and must not fall back to the default YAML SQLite mode.
+- [x] Preserve filenames and referenced controller/script paths across deployments. Updating deployed YAML creates a new configuration/image revision; local container edits are not durable configuration changes.
+- [x] Avoid unconditional writes to read-only deployed configuration, including `load_client_config_map_from_file()` writing back immediately. Add a narrow read-only startup option rather than rewriting all configuration loading.
+- [x] If legacy helpers require generated files, permit a disposable working copy or generated controller wrapper in a designated temporary directory. Rebuild it from deployed inputs on every start; it must not contain the only copy of runtime state or secrets serialized from the environment.
+- [x] Cloud CLI config writes must either produce an explicit deployment artifact or report that the deployed configuration is read-only. Do not report success for edits that will disappear on restart. Existing local hot reload may remain; live editing of deployed YAML is not required for this port.
 
 ### 4.4. Load optional local `.env` before bootstrap
 
@@ -349,7 +349,7 @@ P2 delivery: additive `006_add_order_recovery.sql` marks provisional orders expl
 - [x] P3.5: Initialize validated connector settings in memory without encrypted-file login in the cloud path. Test downstream users of Security state and readiness events so they do not wait indefinitely.
 - [x] P3.6: Retain local `create/config/import` YAML behavior. Adapt `connect` and `balance` to validate environment credentials; keep secrets out of argv and normal CLI output.
 - [x] P3.7: Startup must not create a new keystore/password file or overwrite configuration. Missing required environment credentials fail clearly; an explicitly unconfigured/stopped bot must not start trading.
-- [ ] P3.8: Preserve local hot-update rules from existing field metadata. On cloud, apply config/secret changes through a versioned deployment and expose the active config/revision in status; live cloud config editing is not required.
+- [x] P3.8: Preserve local hot-update rules from existing field metadata. On cloud, apply config/secret changes through a versioned deployment and expose the active config/revision in status; live cloud config editing is not required.
 - [ ] P3.9: Provide legacy SQLite/credential import only if needed, as a separate explicit operation. Read sources without mutation; make DB imports idempotent and verify counts, Decimal values and timestamps. Never make legacy files a startup dependency.
 
 P3 evidence (2026-10-24): selected regression suites plus environment credential/configuration tests passed **645 tests** (16.72s). OKX spot/perpetual use their existing Pydantic/SecretStr field declarations. Tests cover missing/partial credentials, secret-safe validation errors, source isolation, no keystore login/serialization, read-only client/SSL/fee YAML loading, shared application bootstrap, in-memory controller wrappers, CLI connect/balance reuse and help/version without DB/secrets.
@@ -360,8 +360,8 @@ P3 delivery: environment credentials initialize the existing Security readiness 
 
 - [x] P4.1: Replace persistence in `cli/bot.py` with `bot_state`, retaining helper interfaces where useful. Do not use local PID namespaces/psutil to determine whether the cloud bot is running.
 - [x] P4.2: `status` reads heartbeat, snapshot and age. An expired heartbeat means stale/unknown, not running merely because a row exists. Remove SIGUSR1/file snapshot coordination.
-- [ ] P4.3: **Versioned PostgreSQL CLI/backend implemented/tested in P4; the engine observer/ack loop is integrated in P6.** `start/stop/deploy` update desired state, selected YAML config and control version; the engine observes/acknowledges DB state. User stop survives service restart. A running service may remain stopped while serving health checks.
-- [ ] P4.4: **User stop is durable in the P4 control backend; platform signal integration is verified in P6.** Distinguish platform shutdown from user stop. Cloud Run SIGTERM must stop sends and perform cleanup without permanently changing desired state to stopped.
+- [x] P4.3: **Versioned PostgreSQL CLI/backend and the engine observer/ack loop verified in P4/P6.** `start/stop/deploy` update desired state, selected YAML config and control version; the engine observes/acknowledges DB state. User stop survives service restart. A running service may remain stopped while serving health checks.
+- [x] P4.4: **Durable user stop and platform signal behavior verified in P4/P6.** Distinguish platform shutdown from user stop. Cloud Run SIGTERM must stop sends and perform cleanup without permanently changing desired state to stopped.
 - [x] P4.5: Preserve `--replace`, timeouts, JSON output and exit codes where applicable. Redefine or reject cloud `--force` because it cannot SIGKILL a PID on another instance; do not falsely report completion.
 - [x] P4.6: `history` reuses the connection manager and PerformanceMetrics, removing hard-coded `sqlite:///` in `cli/data.py`; cover both running and stopped bots.
 - [x] P4.7: `doctor` checks connection/schema/configuration/credentials/heartbeat. `logs` points to Cloud Logging; do not build a PostgreSQL log store merely to emulate file tailing.
@@ -375,8 +375,8 @@ P4 delivery: a small `BotStateStore` implements atomic control-version CAS and o
 
 - [x] P5.1: Keep the single-bot model and add a session advisory lock before starting a strategy. Use a separate namespace/key from the migration lock and a dedicated connection.
 - [x] P5.2: Store owner UUID/generation in `bot_state`; condition status/ack writes on ownership to prevent stale processes overwriting a newer owner. `max-instances=1` does not replace ownership control.
-- [ ] P5.3: **Lock acquisition/standby primitive verified in P5; the actual healthy standby host is integrated in P6.** Non-owner instances stay in standby without order-producing tasks. Startup may succeed after valid schema/configuration bootstrap so deployment does not deadlock while the old revision owns the bot.
-- [ ] P5.4: **Irreversible loss latch and final send/recorder fencing verified in P5; automatic host teardown is integrated in P6.** Lost lock connection or uncertain ownership closes the send gate and stops the strategy. Reconnecting requires reacquisition and reconciliation before resuming.
+- [x] P5.3: **Healthy standby startup/handover verified in P5/P6.** Non-owner instances stay in standby without order-producing tasks. Startup may succeed after valid schema/configuration bootstrap so deployment does not deadlock while the old revision owns the bot.
+- [x] P5.4: **Loss latch, final send/recorder fencing and automatic host teardown verified in P5/P6.** Lost lock connection or uncertain ownership closes the send gate and stops the strategy. Reconnecting requires reacquisition and reconciliation before resuming.
 - [x] P5.5: Verify ownership at the final submission boundary, including retries, executor resubmission and after throttler waits. Reuse existing connector send paths and audit bypasses.
 - [x] P5.6: Reuse MarketState restore and connector order/trade reconciliation. Where required, persist pending identity before an external side effect using existing Order records or small field additions rather than a new journal framework.
 - [ ] P5.7: **Conservative restart HALT, order reconciliation, position comparison and known controller risk checkpoints implemented in P5; complete lifecycle/E2E verification remains pending.** An exchange timeout may mean acceptance without an acknowledgment. Reconcile client order IDs, open orders and fills before resubmission. Preserve any existing strategy deadlines, HALT state, loss budgets and positions across restarts.
@@ -395,19 +395,25 @@ Recovery restores existing tracking state, reads complete paginated account open
 
 The primary target is **Cloud Run Service**, with the bot loop running in the background and small HTTP health endpoints. A Worker Pool may reuse the engine later; deploying both resource types is not required for this port.
 
-- [ ] P6.1: Add a small service entrypoint, provisionally `hbot serve`, that invokes the existing engine in the foreground/PID 1 and registers SIGTERM early. No daemonization, TTY or idle `tail` process.
-- [ ] P6.2: Listen on `0.0.0.0:$PORT`. `/startup` succeeds after the selected migration policy, schema validation and config/credential bootstrap, including valid stopped/standby states. `/live` reflects event-loop health; `/ready` reports trading readiness but must not force startup to wait for ownership.
-- [ ] P6.3: Avoid dependency-driven liveness restart loops; report degraded state and close the send gate when dependencies fail. Do not expose a public order-submission endpoint.
-- [ ] P6.4: Configure instance-based billing/continuous CPU and minimum instances = 1 so the loop runs outside HTTP requests; set maximum instances = 1 for the initial deployment. [Cloud Run billing](https://docs.cloud.google.com/run/docs/configuring/billing-settings)
-- [ ] P6.5: Test deployment/maintenance overlap with two real local containers sharing PostgreSQL; maximum instance limits can be temporarily exceeded. This covers application ownership behavior without requiring Cloud Run staging. [Cloud Run autoscaling](https://docs.cloud.google.com/run/docs/about-instance-autoscaling)
-- [ ] P6.6: Start with an 8s total shutdown budget, leaving process/connection cleanup time. Existing `KILL_TIMEOUT=20s` and the V2 executor hard cap of at least 30s need parameterization. Cloud Run normally sends SIGKILL about 10s after SIGTERM. [Container contract](https://docs.cloud.google.com/run/docs/container-contract)
-- [ ] P6.7: Reuse Python logging with stdout/stderr and bot/config/owner/migration fields. Remove rotating file handlers and console silencing from this path.
-- [ ] P6.8: Build the fork's Linux amd64 image and pin its deployment digest. Include compiled extensions, SQL resources, strategy/controller modules and the intended non-secret YAML assets. Upstream `latest` does not include local changes.
-- [ ] P6.9: Add suitable build/deploy targets; replace or avoid the existing `make build` behavior that runs `git clean -xdf`.
-- [ ] P6.10: Prepare deployment configuration for dedicated PostgreSQL/Cloud SQL, its network path, Secret Manager environment injection and `ENABLE_AUTO_MIGRATION`. DDL permissions depend on the selected migration policy. Review configuration offline; actual provisioning and cloud access are deployment operations, not a staging-test prerequisite.
-- [ ] P6.11: Include static egress configuration if exchange API keys require IP allowlisting. Document the selected region and required REST/WebSocket destinations; offline tests do not certify regional connectivity or an actual allowlist. [Static outbound IP](https://docs.cloud.google.com/run/docs/configuring/static-outbound-ip)
-- [ ] P6.12: Test a read-only root filesystem with deployed YAML available, no persistent data/log/PID volumes, bytecode writes disabled and only a designated temporary working directory if necessary. A fresh instance must recover from PostgreSQL plus deployed configuration and injected secrets.
-- [ ] P6.13: Include enabled migration waits, schema validation and configuration loading in startup/probe budgets. Measure fresh-container startup locally and label it as local evidence; listening on a port alone is not proof of readiness or a measurement of Cloud Run scheduling. Cloud Run must not require a `.env` file.
+- [x] P6.1: Add a small service entrypoint, provisionally `hbot serve`, that invokes the existing engine in the foreground/PID 1 and registers SIGTERM early. No daemonization, TTY or idle `tail` process.
+- [x] P6.2: Listen on `0.0.0.0:$PORT`. `/startup` succeeds after the selected migration policy, schema validation and config/credential bootstrap, including valid stopped/standby states. `/live` reflects event-loop health; `/ready` reports trading readiness but must not force startup to wait for ownership.
+- [x] P6.3: Avoid dependency-driven liveness restart loops; report degraded state and close the send gate when dependencies fail. Do not expose a public order-submission endpoint.
+- [x] P6.4: Configure instance-based billing/continuous CPU and minimum instances = 1 so the loop runs outside HTTP requests; set maximum instances = 1 for the initial deployment. [Cloud Run billing](https://docs.cloud.google.com/run/docs/configuring/billing-settings)
+- [x] P6.5: Test deployment/maintenance overlap with two real local containers sharing PostgreSQL; maximum instance limits can be temporarily exceeded. This covers application ownership behavior without requiring Cloud Run staging. [Cloud Run autoscaling](https://docs.cloud.google.com/run/docs/about-instance-autoscaling)
+- [x] P6.6: Start with an 8s total shutdown budget, leaving process/connection cleanup time. Existing `KILL_TIMEOUT=20s` and the V2 executor hard cap of at least 30s need parameterization. Cloud Run normally sends SIGKILL about 10s after SIGTERM. [Container contract](https://docs.cloud.google.com/run/docs/container-contract)
+- [x] P6.7: Reuse Python logging with stdout/stderr and bot/config/owner/migration fields. Remove rotating file handlers and console silencing from this path.
+- [x] P6.8: Build the fork's Linux amd64 image and pin its deployment digest. Include compiled extensions, SQL resources, strategy/controller modules and the intended non-secret YAML assets. Upstream `latest` does not include local changes.
+- [x] P6.9: Add suitable build/deploy targets; replace or avoid the existing `make build` behavior that runs `git clean -xdf`.
+- [x] P6.10: Prepare deployment configuration for dedicated PostgreSQL/Cloud SQL, its network path, Secret Manager environment injection and `ENABLE_AUTO_MIGRATION`. DDL permissions depend on the selected migration policy. Review configuration offline; actual provisioning and cloud access are deployment operations, not a staging-test prerequisite.
+- [x] P6.11: Include static egress configuration if exchange API keys require IP allowlisting. Document the selected region and required REST/WebSocket destinations; offline tests do not certify regional connectivity or an actual allowlist. [Static outbound IP](https://docs.cloud.google.com/run/docs/configuring/static-outbound-ip)
+- [x] P6.12: Test a read-only root filesystem with deployed YAML available, no persistent data/log/PID volumes, bytecode writes disabled and only a designated temporary working directory if necessary. A fresh instance must recover from PostgreSQL plus deployed configuration and injected secrets.
+- [x] P6.13: Include enabled migration waits, schema validation and configuration loading in startup/probe budgets. Measure fresh-container startup locally and label it as local evidence; listening on a port alone is not proof of readiness or a measurement of Cloud Run scheduling. Cloud Run must not require a `.env` file.
+
+P6 evidence (local, 2026-10-24): **59 PostgreSQL integration tests**, **866 selected regression tests**, **4 deployment preflight tests**, and a Linux amd64 deployment-image run by registry manifest digest passed for spot/V1 PMM. The image run independently asserts 12 accepted identities, two unique partial fills despite duplicate delivery, exact amounts/fees/PnL, separate CLI control/history, read-only roots, clean stopped/running shutdown/handover, fresh DML-only startup, SIGKILL, accepted-without-ACK, paused owner/session loss and PostgreSQL outage. The final packaging run sampled startup 6.8–7.9s, shutdown 1.3–1.6s, steady memory 310.8 MiB / 2 GiB, Docker CPU 2.13%, and local reused-connection SELECT 1 p95 0.310ms; these are local samples, not Cloud Run/Cloud SQL measurements. Final artifact hashes and later packaging reruns are retained in `build/e2e-offline/RUN_ID/result.json`.
+
+P6 delivery: `hbot serve` invokes the shared application/engine in the foreground with early signal handling, a separate 9s process watchdog, versioned DB observation/publication, healthy standby/stopped startup, stdout context and health-only HTTP routes. The cloud image explicitly selects the existing build target, includes SQL/non-secret configuration, disables bytecode writes and runs non-root; the original unqualified Docker quickstart target remains available. `make build` no longer deletes the working tree. Build/review/deploy targets and [deployment instructions](../../deploy/cloudrun/README.md) describe Cloud SQL socket/network access, pinned Secret Manager versions, continuous CPU/instance limits and optional static NAT. The concrete preflight binds the deployment registry digest to passing E2E evidence. Required CI steps build/run offline tests and retain artifacts; they have been configured, not executed remotely during this work.
+
+[Acceptance mapping and remaining release work](../postgres-verification.md) distinguish spot image evidence, broader existing regression/PG coverage, and pending V2/perpetual/distinct-image upgrade/rollback scenarios. No cloud provisioning, external image publication, real exchange request or staging deployment has been performed. The final release gate stays open until the declared connector/strategy scope is complete.
 
 ## 7. Tests and acceptance criteria
 
@@ -428,17 +434,17 @@ All four layers are required for the selected first-release connectors and strat
 
 Here, offline means no access to real exchanges or cloud services during test execution. Build/pull dependencies beforehand, then run the application, PostgreSQL and a minimal exchange simulator on an isolated local container network. Test fixtures and temporary test artifacts are allowed; the application must recover without persistent local runtime files.
 
-- [ ] T1: Run the exact Linux amd64 deployment image by digest through its production service entrypoint. Match the target PostgreSQL major version. Do not bypass bootstrap, migration, schema validation, ownership, recorder transactions or recovery with mocks.
-- [ ] T2: Reuse existing OKX spot/perpetual response fixtures and connector test support. Add only the small HTTP/WebSocket server needed across process boundaries, using existing dependencies where practical. Use existing endpoint/factory injection points or a narrow test adapter; audit REST, WebSocket, time and instrument endpoints and block external network access so incomplete fixtures cannot reach a real exchange.
+- [x] T1: Run the exact Linux amd64 deployment image by digest through its production service entrypoint. Match the target PostgreSQL major version. Do not bypass bootstrap, migration, schema validation, ownership, recorder transactions or recovery with mocks.
+- [ ] T2: **Spot adapter/fixtures verified; perpetual image scope remains pending.** Reuse existing OKX spot/perpetual response fixtures and connector test support. Add only the small HTTP/WebSocket server needed across process boundaries, using existing dependencies where practical. Use existing endpoint/factory injection points or a narrow test adapter; audit REST, WebSocket, time and instrument endpoints and block external network access so incomplete fixtures cannot reach a real exchange.
 - [ ] T3: Keep exchange truth in the simulator independently of the application DB: accepted client/exchange order IDs, open orders, fills, balances and cancellations. Preserve the simulator and PostgreSQL while replacing the bot container. Support controlled delayed/lost acknowledgments, duplicate/out-of-order events and reconnects; do not implement a general exchange or matching-engine framework.
-- [ ] T4: Use an existing strategy with fixed configuration and deterministic market events. Assert expected order side, quantity and price, then inject partial/full fills and cancellations. Compare the simulator's accepted orders, SQL rows and CLI history to independently specified expected values, including exact Decimal amounts, fees, time units and applicable positions/PnL. A live process or nonempty table is not sufficient evidence.
+- [ ] T4: **Spot/V1 prices, amounts, fills, fees and PnL verified; V2/perpetual image assertions remain pending.** Use an existing strategy with fixed configuration and deterministic market events. Assert expected order side, quantity and price, then inject partial/full fills and cancellations. Compare the simulator's accepted orders, SQL rows and CLI history to independently specified expected values, including exact Decimal amounts, fees, time units and applicable positions/PnL. A live process or nonempty table is not sufficient evidence.
 - [ ] T5: Start from an empty DB with auto-migration enabled, trade, stop and replace the container with a fresh writable layer. Verify restored tracking state/history and reconciliation before new orders. Repeat with auto-migration disabled against a valid schema using a DML-only role; empty/incompatible schemas must fail before any exchange submission.
-- [ ] T6: Run CLI commands in a separate process with no shared runtime directory. Verify status/history, conflicting control commands, durable user stop and the distinction between user stop and platform SIGTERM. Exercise local dotenv loading and cloud-style injected environment values without keystore/password files.
-- [ ] T7: Start two bot containers against the same DB/account simulation. Verify serialized migrations, standby startup and single ownership. Terminate the ownership connection and pause/resume a process; inspect the independent exchange request ledger and DB state to expose stale submissions and uncertain in-flight requests.
-- [ ] T8: At controlled event barriers, kill the bot after exchange acceptance but before acknowledgment/persistence, interrupt a DB transaction, drop/reconnect WebSockets and interrupt/restore PostgreSQL. Verify reconciliation before resubmission, one persisted record per fill and no duplicate accepted logical order in the defined scenarios. Unresolved uncertainty must block new risk rather than be treated as success; this is bounded scenario evidence, not an exchange-wide exactly-once guarantee.
-- [ ] T9: Send SIGTERM to the real PID 1 and enforce the configured shutdown deadline, then separately exercise SIGKILL recovery. Test read-only deployed YAML/root filesystem with only a disposable temporary directory, stdout/stderr logging and `$PORT` health endpoints. Verify the loop progresses without inbound HTTP requests; this tests application independence from requests, not Cloud Run CPU allocation.
+- [x] T6: Run CLI commands in a separate process with no shared runtime directory. Verify status/history, conflicting control commands, durable user stop and the distinction between user stop and platform SIGTERM. Exercise local dotenv loading and cloud-style injected environment values without keystore/password files.
+- [x] T7: Start two bot containers against the same DB/account simulation. Verify serialized migrations, standby startup and single ownership. Terminate the ownership connection and pause/resume a process; inspect the independent exchange request ledger and DB state to expose stale submissions and uncertain in-flight requests.
+- [ ] T8: **Lost ACK, process pause/lock loss and DB outage image cases verified; full-image WS reconnect/transaction-interruption cases remain pending.** At controlled event barriers, kill the bot after exchange acceptance but before acknowledgment/persistence, interrupt a DB transaction, drop/reconnect WebSockets and interrupt/restore PostgreSQL. Verify reconciliation before resubmission, one persisted record per fill and no duplicate accepted logical order in the defined scenarios. Unresolved uncertainty must block new risk rather than be treated as success; this is bounded scenario evidence, not an exchange-wide exactly-once guarantee.
+- [x] T9: Send SIGTERM to the real PID 1 and enforce the configured shutdown deadline, then separately exercise SIGKILL recovery. Test read-only deployed YAML/root filesystem with only a disposable temporary directory, stdout/stderr logging and `$PORT` health endpoints. Verify the loop progresses without inbound HTTP requests; this tests application independence from requests, not Cloud Run CPU allocation.
 - [ ] T10: Exercise compatible old/new ported images locally for additive schema upgrade, ownership handover and compatible rollback. Validate intended config/environment revisions and absence of durable writes to local SQLite, snapshots or PID files.
-- [ ] T11: Use event barriers and bounded polling with explicit timeouts instead of timing-dependent sleeps. Failed prerequisites/timeouts fail the test; retries must not mask a failing first run. Retain sanitized logs, image digest, scenario seed, schema assertions, selected DB results and the simulator request/event ledger as failure evidence.
+- [x] T11: Use event barriers and bounded polling with explicit timeouts instead of timing-dependent sleeps. Failed prerequisites/timeouts fail the test; retries must not mask a failing first run. Retain sanitized logs, image digest, scenario seed, schema assertions, selected DB results and the simulator request/event ledger as failure evidence.
 
 Reuse the existing test layout and runner. Introduce only a small E2E harness and the transport simulation needed to run real processes; no second bot implementation or separate strategy framework is required.
 
@@ -488,10 +494,10 @@ Map each criterion to the smallest meaningful layer above; keep complete lifecyc
 The following Make targets are proposed work, not commands already implemented by this document:
 
 - [x] Add `make test-postgres` using disposable PostgreSQL instances/databases; fixtures execute the production SQL runner.
-- [ ] Add `make test-e2e-offline` to run the isolated container scenarios and clean up only their test resources. Required PostgreSQL/E2E CI jobs must fail when infrastructure is unavailable rather than silently skip because a DSN or container runtime is absent.
+- [x] Add `make test-e2e-offline` to run the isolated container scenarios and clean up only their test resources. Required PostgreSQL/E2E CI jobs must fail when infrastructure is unavailable rather than silently skip because a DSN or container runtime is absent.
 - [ ] Run relevant runner, CLI, recorder, configuration, strategy/V2 and selected connector regression tests. Record an explicit test-to-criterion mapping for A01–A34 and the supported connector/strategy scope.
 - [ ] Require regression, PostgreSQL integration, offline E2E and deployment-configuration review to pass before release. Keep sanitized test reports and image/config digests; the reviewed deployment artifact must use the tested image.
-- [ ] Record local CPU/RAM/startup/DB latency and shutdown measurements against agreed budgets. Label these as local measurements, not Cloud Run performance evidence. No staging deployment is a release gate.
+- [x] Record local CPU/RAM/startup/DB latency and shutdown measurements against agreed budgets. Label these as local measurements, not Cloud Run performance evidence. No staging deployment is a release gate.
 
 ## 8. Delivery order and definition of done
 

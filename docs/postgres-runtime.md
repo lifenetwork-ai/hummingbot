@@ -107,8 +107,8 @@ Client/strategy/controller/fee YAML formats remain unchanged. Service bootstrap
 reads deployed YAML without refreshing templates or writing defaults back. The
 controller runner uses a reproducible in-memory wrapper. Existing local YAML
 editing remains available; packaging/deploying a new YAML version is the durable
-cloud update mechanism. The service's final lifecycle/revision integration remains
-part of the implementation plan, not evidence of a completed deployment.
+cloud update mechanism. The service publishes active configuration hashes and revision in PostgreSQL.
+See the [deployment instructions](../deploy/cloudrun/README.md) for packaging and the remaining release gates.
 
 ## PostgreSQL CLI control
 
@@ -126,7 +126,7 @@ A timeout does not undo the persisted request. Automation should read
 reuse that expected version on retries; a superseded version fails instead of
 overwriting another command. `--replace` requests a controlled restart/replacement;
 `--force` is rejected because local PIDs cannot control another service instance.
-The foreground service host is implemented in the subsequent service phase.
+Run `hbot serve` for the foreground service host; it observes and acknowledges versioned control state.
 
 Status uses a PostgreSQL-computed heartbeat age; age >=15s, a missing heartbeat or
 missing owner means stale/unknown, even if a prior snapshot said running. Config,
@@ -167,8 +167,8 @@ its cause is insufficient. Do not delete order history to make startup pass.
 Clean shutdown checkpoints known controller drawdown/PnL peaks, preserves existing
 V2 position holds, cancels working orders and confirms terminal status before
 closing the runtime marker. A false/incomplete cleanup result must terminate the
-host while retaining ownership until process death. The service phase adds the
-hard process deadline and actual SIGTERM/standby integration; those are not yet
-verified by the P5 component tests. Arbitrary custom strategies/executor timers
+host while retaining ownership until process death. The service adds a separate 9s process watchdog. Actual SIGTERM/standby behavior
+has been verified by the spot/V1 deployment-image harness; broader V2/perpetual
+image verification remains tracked in the plan. Arbitrary custom strategies/executor timers
 are not automatically reconstructed after a crash; the persistent HALT prevents
 silently resetting their risk state.

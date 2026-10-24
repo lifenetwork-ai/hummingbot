@@ -4,6 +4,11 @@
 DYDX ?= 0
 ENV_FILE := setup/environment.yml
 PYTHON ?= python
+CLOUDRUN_IMAGE ?= hummingbot-cloudrun:local
+BUILD_JOBS ?= 2
+CLOUDRUN_CONFIG ?= deploy/cloudrun/service.example.yaml
+CLOUDRUN_REGION ?= asia-southeast1
+CLOUDRUN_EVIDENCE ?= build/e2e-offline/result.json
 ifeq ($(DYDX),1)
   ENV_FILE := setup/environment_dydx.yml
 endif
@@ -31,7 +36,25 @@ development-diff-cover:
 	diff-cover --compare-branch=origin/development coverage.xml
 
 build:
-	git clean -xdf && make clean && docker build -t hummingbot/hummingbot${TAG} -f Dockerfile .
+	docker build --target release --build-arg BUILD_JOBS=$(BUILD_JOBS) -t hummingbot/hummingbot${TAG} -f Dockerfile .
+
+.PHONY: build-cloudrun test-e2e-offline review-cloudrun-config deploy-cloudrun
+build-cloudrun:
+	mkdir -p build
+	docker buildx build --platform linux/amd64 --target cloudrun --load \
+		--build-arg BUILD_JOBS=$(BUILD_JOBS) --metadata-file build/cloudrun-image.json \
+		-t $(CLOUDRUN_IMAGE) -f Dockerfile .
+
+test-e2e-offline:
+	$(PYTHON) scripts/test_e2e_offline.py --image $(CLOUDRUN_IMAGE)
+
+review-cloudrun-config:
+	$(PYTHON) scripts/review_cloudrun.py $(CLOUDRUN_CONFIG) --evidence $(CLOUDRUN_EVIDENCE)
+
+deploy-cloudrun:
+	set -eu
+	$(PYTHON) scripts/review_cloudrun.py $(CLOUDRUN_CONFIG) --evidence $(CLOUDRUN_EVIDENCE)
+	gcloud run services replace $(CLOUDRUN_CONFIG) --region $(CLOUDRUN_REGION)
 
 .PHONY: migrate test-postgres
 migrate:

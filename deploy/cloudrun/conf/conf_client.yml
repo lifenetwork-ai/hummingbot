@@ -1,0 +1,4 @@
+# Non-secret service defaults; ordinary client/strategy/controller YAML remains supported.
+anonymized_metrics_mode: anonymized_metrics_disabled
+fetch_pairs_from_all_exchanges: false
+send_error_logs: false

@@ -1,5 +1,6 @@
-# Set the base image
-FROM continuumio/miniconda3:latest AS builder
+# Reuse the existing Miniconda build, with the reviewed base pinned by digest.
+ARG BASE_IMAGE=continuumio/miniconda3@sha256:eca594d684f495c1a02beff33a9fab53aec8c5830eaf431bb149912dc6c9e4c1
+FROM ${BASE_IMAGE} AS dependencies
 
 # Install system dependencies
 RUN apt-get update && \
@@ -13,6 +14,10 @@ COPY setup/environment.yml /tmp/environment.yml
 RUN conda env create -f /tmp/environment.yml && \
     conda clean -afy && \
     rm /tmp/environment.yml
+
+ENV PATH=/opt/conda/envs/hummingbot/bin:$PATH
+
+FROM dependencies AS builder
 
 # Copy remaining files
 COPY bin/ bin/
@@ -33,13 +38,14 @@ RUN python3 -m pip install --no-deps -r /tmp/pip_packages.txt && \
     rm /tmp/pip_packages.txt
 
 
-RUN python3 setup.py build_ext --inplace -j 8 && \
+ARG BUILD_JOBS=2
+RUN HBOT_BUILD_JOBS=${BUILD_JOBS} python3 setup.py build_ext --inplace -j ${BUILD_JOBS} && \
     rm -rf build/ && \
     find . -type f -name "*.cpp" -delete
 
 
 # Build final image using artifacts from builder
-FROM continuumio/miniconda3:latest AS release
+FROM ${BASE_IMAGE} AS release
 
 # Dockerfile author / maintainer
 LABEL maintainer="Fede Cardoso @dardonacci <federico@hummingbot.org>"
@@ -86,3 +92,21 @@ SHELL [ "/bin/bash", "-lc" ]
 # Set the default command to run when starting the container
 
 CMD conda activate hummingbot && ./bin/hummingbot_quickstart.py 2>> ./logs/errors.log
+
+# Foreground PostgreSQL service. Only reviewed non-secret deployment assets are
+# copied; local conf/, credentials, data and .env are never part of this target.
+FROM release AS cloudrun
+COPY deploy/cloudrun/conf/ conf/
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    NUMBA_CACHE_DIR=/tmp/numba \
+    HOME=/tmp/hummingbot
+USER 10001:10001
+EXPOSE 8080
+STOPSIGNAL SIGTERM
+ENTRYPOINT []
+CMD ["python", "-m", "hummingbot.cli.service"]
+
+# Keep an unqualified upstream docker build's original quickstart behavior.
+# Cloud builds always explicitly select --target cloudrun.
+FROM release AS legacy

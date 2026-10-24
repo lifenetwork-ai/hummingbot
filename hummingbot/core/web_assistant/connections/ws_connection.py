@@ -7,6 +7,7 @@ import aiohttp
 from aiohttp import WebSocketError, WSCloseCode
 
 from hummingbot.core.web_assistant.connections.data_types import WSRequest, WSResponse
+from hummingbot.core.web_assistant.connections.offline_endpoint import endpoint
 
 
 class WSConnection:
@@ -37,7 +38,7 @@ class WSConnection:
     ):
         self._ensure_not_connected()
         self._connection = await self._client_session.ws_connect(
-            ws_url,
+            endpoint(ws_url),
             headers=ws_headers,
             autoping=False,
             heartbeat=ping_timeout,

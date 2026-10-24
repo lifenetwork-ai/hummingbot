@@ -73,7 +73,8 @@ class HummingbotApplication(*commands):
         )
         self.ev_loop: asyncio.AbstractEventLoop = asyncio.get_event_loop()
         # Initialize core trading functionality
-        self.trading_core = TradingCore(self.client_config_map)
+        self.trading_core = (TradingCore(self.client_config_map, enable_gateway_monitor=False)
+                             if read_only_configuration else TradingCore(self.client_config_map))
 
         # Application-specific properties
         self.init_time: float = time.time()

@@ -1,0 +1,16 @@
+template_version: 24
+strategy: pure_market_making
+exchange: okx
+market: BTC-USDT
+bid_spread: 1
+ask_spread: 1
+order_amount: 0.1
+order_refresh_time: 3600
+max_order_age: 7200
+filled_order_delay: 3600
+order_levels: 1
+inventory_skew_enabled: false
+order_optimization_enabled: false
+add_transaction_costs: false
+price_source: current_market
+price_type: mid_price

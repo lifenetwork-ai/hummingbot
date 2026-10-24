@@ -78,6 +78,13 @@ app.command("update")(update_cmd.update)
 app.command("doctor")(doctor_cmd.doctor)
 
 
+@app.command("serve")
+def serve() -> None:
+    """Run the PostgreSQL service in the foreground with HTTP health checks."""
+    from hummingbot.cli.service import serve as run
+    run()
+
+
 def main() -> None:
     """Console-script entrypoint (``hbot``)."""
     from hummingbot.client.config.runtime_config import RuntimeConfigurationError

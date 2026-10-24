@@ -83,6 +83,11 @@ def validate_market_trading_pair(market: str, value: str) -> Optional[str]:
     Since trading pair validation and autocomplete are UI optimizations that do not impact bot performances,
     in case of network issues or slow wifi, this check returns true and does not prevent users from proceeding,
     """
+    from hummingbot.client.config.runtime_config import postgres_requested
+    if postgres_requested():
+        # Headless PG services validate real instruments through connector startup;
+        # do not launch the interactive autocomplete fetcher across all exchanges.
+        return None
     from hummingbot.core.utils.trading_pair_fetcher import TradingPairFetcher
     trading_pair_fetcher: TradingPairFetcher = TradingPairFetcher.get_instance()
     if trading_pair_fetcher.ready:

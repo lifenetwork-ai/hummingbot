@@ -17,3 +17,8 @@
 **/.env
 **/.env.*
 !**/.env.example
+**/__pycache__
+**/*.so
+/scripts/test_postgres.py
+/scripts/test_e2e_offline.py
+/scripts/review_cloudrun.py
