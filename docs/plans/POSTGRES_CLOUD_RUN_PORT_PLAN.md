@@ -2,7 +2,7 @@
 
 Created: 2026-10-24 — Asia/Ho_Chi_Minh.
 
-Status: **implementation plan only; the runtime has not been ported, migrations have not been run, and Cloud Run has not been deployed**. All checkboxes describe pending work.
+Status: **implementation in progress — P0 complete, P1 in progress**. The runtime is not deployment-ready. Checked items have implementation/review/test evidence; unchecked items remain pending. Cloud Run staging is not required.
 
 Reviewed sources:
 
@@ -40,7 +40,7 @@ Scope boundaries:
 - The first release retains **one logical bot, one dedicated database and one dedicated exchange account/subaccount**. Several processes may overlap during deployment, but only one may own order submission.
 - Reuse SQLAlchemy and the existing models. A full async rewrite, a new ORM, Redis, a message broker, a dashboard or a separate orchestration platform is not required.
 - Keep the existing credential encryption implementation for explicitly selected legacy compatibility or a one-time import. It is not required when credentials come directly from the environment.
-- The [LIFE/OKX implementation plan](../plans/LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md) is separate. At the reviewed checkout, the LIFE directories contained caches without corresponding Python/SQL source to reuse.
+- The [LIFE/OKX implementation plan](LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md) is separate. At the reviewed checkout, the LIFE directories contained caches without corresponding Python/SQL source to reuse.
 - Inventory custom strategies and connectors that write their own files. Claim cloud compatibility only for paths that have been reviewed and tested.
 - Runtime trading state must not depend on local SQLite, JSON snapshots or PID files. YAML and optional local `.env` are configuration inputs, not substitutes for durable runtime storage. Temporary files may only hold reproducible, disposable data.
 
@@ -303,12 +303,16 @@ Completion criteria: an empty DB boots with migration enabled; repeated migratio
 
 ### P0 — Inventory and scope
 
-- [ ] P0.1: Inventory SQLite, YAML, credential files, JSON snapshots, PID files and log file call sites across `connect/create/import/config/start/stop/status/history/balance/doctor/logs/deploy`. Classify each as retained configuration, environment secret input or state to port.
-- [ ] P0.2: Review bootstrap_application, config helpers, HummingbotApplication, V1 loaders, V2 controller loading/hot reload and generated wrappers. Identify the smallest changes needed for deployed YAML and environment credentials.
-- [ ] P0.3: Select first-release connectors/strategies; use OKX spot/perpetual smoke cases with appropriate fixtures/configuration. Review Gateway/certificate requirements before enabling Gateway-dependent connectors.
-- [ ] P0.4: Confirm one bot/database/account and stable config paths. Reject unsupported arrangements where multiple bots share an account through separate databases, since one database lock does not protect another database.
-- [ ] P0.5: Record baseline behavior with existing tests/fixtures, including strategy decisions, order events and accounting expectations for selected connectors. Preserve CLI output and validation where semantics remain unchanged; use this baseline to verify the shared engine after the port.
-- [ ] P0.6: Justify each new module/table and inventory the naming changes in section 3.3. Schema naming normalization is part of this port; broad architecture refactoring or strategy changes are not prerequisites.
+- [x] P0.1: Inventory SQLite, YAML, credential files, JSON snapshots, PID files and log file call sites across `connect/create/import/config/start/stop/status/history/balance/doctor/logs/deploy`. Classify each as retained configuration, environment secret input or state to port.
+- [x] P0.2: Review bootstrap_application, config helpers, HummingbotApplication, V1 loaders, V2 controller loading/hot reload and generated wrappers. Identify the smallest changes needed for deployed YAML and environment credentials.
+- [x] P0.3: Select first-release connectors/strategies; use OKX spot/perpetual smoke cases with appropriate fixtures/configuration. Review Gateway/certificate requirements before enabling Gateway-dependent connectors.
+- [x] P0.4: Confirm one bot/database/account and stable config paths. Reject unsupported arrangements where multiple bots share an account through separate databases, since one database lock does not protect another database.
+- [x] P0.5: Record baseline behavior with existing tests/fixtures, including strategy decisions, order events and accounting expectations for selected connectors. Preserve CLI output and validation where semantics remain unchanged; use this baseline to verify the shared engine after the port.
+- [x] P0.6: Justify each new module/table and inventory the naming changes in section 3.3. Schema naming normalization is part of this port; broad architecture refactoring or strategy changes are not prerequisites.
+
+P0 evidence (2026-10-24, checkout `c1c2d9fa0`): existing engine, runner, recorder, OKX spot and OKX perpetual suites passed: **160 tests, 6 warnings, 7.95s**. Initial scope is one bot/dedicated DB/account, PostgreSQL 14, OKX spot/perpetual, existing V1 pure market making and V2 script/controller loading. Gateway/DEX and unaudited custom file-writing strategies remain outside the verified cloud scope.
+
+Inventory: `cli/bot.py` holds JSON/PID state; `cli/data.py` assumes SQLite; start/stop/status/deploy use local processes and signals; recorder automatically exports CSV; config loaders/bootstrap write YAML/templates; connector login reads encrypted YAML/password verification; file logging and generated wrappers need a cloud-safe path. Ordinary YAML, explicit operator exports and backtesting output remain valid file uses. Reuse the existing engine/ORM/connector APIs and add only the environment adapter, SQL runner/verifier, operational state/ownership, service host and small offline test harness. Detailed call sites and the baseline command are recorded in [implementation notes](../implementation/POSTGRES_CLOUD_RUN_PROGRESS.md).
 
 ### P1 — Connection and configurable automatic migration
 
