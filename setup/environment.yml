@@ -41,6 +41,8 @@ dependencies:
   - prompt_toolkit>=3.0.39
   - protobuf>=4.23.3
   - psutil>=5.9.5
+  - psycopg2>=2.9.9,<3
+  - python-dotenv>=1,<2
   - ptpython>3.0.25
   - pydantic>=2
   - pyjwt>=2.3.0

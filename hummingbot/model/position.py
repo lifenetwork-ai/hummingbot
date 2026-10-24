@@ -8,10 +8,10 @@ class Position(HummingbotBase):
     """
     Database model for storing positions held by executors.
     """
-    __tablename__ = "Position"
-    __table_args__ = (Index("p_controller_id_timestamp_index",
+    __tablename__ = "positions"
+    __table_args__ = (Index("idx_positions_controller_id_timestamp",
                             "controller_id", "timestamp"),
-                      Index("p_connector_name_trading_pair_timestamp_index",
+                      Index("idx_positions_connector_name_trading_pair_timestamp",
                             "connector_name", "trading_pair", "timestamp"))
 
     id = Column(Text, primary_key=True, nullable=False)

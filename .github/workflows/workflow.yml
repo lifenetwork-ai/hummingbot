@@ -25,6 +25,11 @@ jobs:
         with:
           PATTERNS: |
             **/*.+(py|pyx|pyd|yml)
+            **/*.sql
+            Makefile
+            Dockerfile
+            MANIFEST.in
+            .dockerignore
       - name: Check if client files are modified
         id: check_files
         if: github.event_name == 'push' || env.GIT_DIFF
@@ -51,7 +56,7 @@ jobs:
           CACHE_NUMBER: 0
         with:
           path: README.md # placeholder file
-          key: ${{ runner.os }}-build-${{ env.CACHE_NUMBER }}-${{ hashFiles('hummingbot/*', '**/*.py', '**/*.py*', '**/*.pxd', 'test/*') }}
+          key: ${{ runner.os }}-build-${{ env.CACHE_NUMBER }}-${{ hashFiles('hummingbot/*', '**/*.py', '**/*.py*', '**/*.pxd', '**/*.sql', 'test/*') }}
 
       # Check for setup/environment.yml changes
       - name: Cache conda dependencies
@@ -93,6 +98,13 @@ jobs:
           source $CONDA/etc/profile.d/conda.sh
           conda activate hummingbot
           make test
+
+      - name: PostgreSQL integration (required, no missing-DSN skip)
+        shell: bash
+        run: |
+          source $CONDA/etc/profile.d/conda.sh
+          conda activate hummingbot
+          make test-postgres
 
       - name: Check and report global coverage
         if: steps.program-changes.outputs.cache-hit != 'true' || steps.conda-dependencies.outputs.cache-hit != 'true'

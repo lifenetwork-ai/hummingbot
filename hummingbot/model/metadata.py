@@ -6,7 +6,7 @@ from . import HummingbotBase
 
 
 class Metadata(HummingbotBase):
-    __tablename__ = "Metadata"
+    __tablename__ = "metadata"
 
     key = Column(Text, primary_key=True, nullable=False)
     value = Column(Text, nullable=False)

@@ -1,16 +1,16 @@
 #!/usr/bin/env python
 
-from sqlalchemy import JSON, BigInteger, Column, Index, Integer, Text
+from sqlalchemy import JSON, BigInteger, Column, Index, Integer, Sequence, Text
 
 from . import HummingbotBase
 
 
 class MarketState(HummingbotBase):
-    __tablename__ = "MarketState"
-    __table_args = (Index("ms_config_market_index",
-                          "config_file_path", "market", unique=True),)
+    __tablename__ = "market_states"
+    __table_args__ = (Index("uq_market_states_config_file_path_market",
+                            "config_file_path", "market", unique=True),)
 
-    id = Column(Integer, primary_key=True, nullable=False)
+    id = Column(Integer, Sequence("seq_market_states_id", metadata=HummingbotBase.metadata), primary_key=True, nullable=False)
     config_file_path = Column(Text, nullable=False)
     market = Column(Text, nullable=False)
     timestamp = Column(BigInteger, nullable=False)

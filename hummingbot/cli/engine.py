@@ -113,6 +113,10 @@ async def run_engine(name: str,
                      v2_conf: Optional[str],
                      password: str,
                      auto_set_permissions: Optional[str]) -> int:
+    from hummingbot.client.config.runtime_config import RuntimeSettings, postgres_requested
+    from hummingbot.model.sql_connection_manager import SQLConnectionManager
+    if postgres_requested():
+        SQLConnectionManager.initialize_postgres(RuntimeSettings.from_environment())
     client_config_map = load_client_config_map_from_file()
 
     if auto_set_permissions is not None:
@@ -155,6 +159,9 @@ def main() -> None:
     parser.add_argument("--script-config", default=None, dest="script_config")
     parser.add_argument("--auto-set-permissions", default=None, dest="auto_set_permissions")
     args = parser.parse_args()
+
+    from hummingbot.client.config.runtime_config import load_environment
+    load_environment()
 
     # Read the password, then scrub it from this process's environment so none of the subprocesses
     # the engine (or a connector) may spawn inherit the keystore password. The engine lives for the

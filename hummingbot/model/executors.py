@@ -9,14 +9,14 @@ from hummingbot.strategy_v2.models.executors_info import ExecutorInfo
 
 
 class Executors(HummingbotBase):
-    __tablename__ = "Executors"
+    __tablename__ = "executors"
     __table_args__ = (
-        Index("ex_type", "type"),
-        Index("ex_type_timestamp", "type", "timestamp"),
-        Index("ex_timestamp", "timestamp"),
-        Index("ex_close_timestamp", "close_timestamp"),
-        Index("ex_status", "status"),
-        Index("ex_type_status", "type", "status"),
+        Index("idx_executors_type", "type"),
+        Index("idx_executors_type_timestamp", "type", "timestamp"),
+        Index("idx_executors_timestamp", "timestamp"),
+        Index("idx_executors_close_timestamp", "close_timestamp"),
+        Index("idx_executors_status", "status"),
+        Index("idx_executors_type_status", "type", "status"),
     )
     id = Column(Text, primary_key=True)
     timestamp = Column(Float, nullable=False)

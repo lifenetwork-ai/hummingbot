@@ -3,12 +3,14 @@
 
 DYDX ?= 0
 ENV_FILE := setup/environment.yml
+PYTHON ?= python
 ifeq ($(DYDX),1)
   ENV_FILE := setup/environment_dydx.yml
 endif
 
 test:
 	coverage run -m pytest \
+	--ignore="test/integration" \
  	--ignore="test/mock" \
  	--ignore="test/hummingbot/connector/exchange/ndax/" \
  	--ignore="test/hummingbot/connector/derivative/dydx_v4_perpetual/" \
@@ -30,6 +32,13 @@ development-diff-cover:
 
 build:
 	git clean -xdf && make clean && docker build -t hummingbot/hummingbot${TAG} -f Dockerfile .
+
+.PHONY: migrate test-postgres
+migrate:
+	$(PYTHON) -m hummingbot.model.db_migration.postgres
+
+test-postgres:
+	$(PYTHON) scripts/test_postgres.py
 
 
 uninstall:

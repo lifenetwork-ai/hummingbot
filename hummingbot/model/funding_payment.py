@@ -10,18 +10,18 @@ from . import HummingbotBase
 
 
 class FundingPayment(HummingbotBase):
-    __tablename__ = "FundingPayment"
-    __table_args__ = (Index("fp_config_timestamp_index",
+    __tablename__ = "funding_payments"
+    __table_args__ = (Index("idx_funding_payments_config_file_path_timestamp",
                             "config_file_path", "timestamp"),
-                      Index("fp_market_trading_pair_timestamp_index",
+                      Index("idx_funding_payments_market_symbol_timestamp",
                             "market", "symbol", "timestamp")
                       )
 
-    timestamp = Column(BigInteger, primary_key=True, nullable=False)
+    timestamp = Column(BigInteger, primary_key=True, nullable=False, autoincrement=False)
     config_file_path = Column(Text, nullable=False)
-    market = Column(Text, nullable=False)
+    market = Column(Text, primary_key=True, nullable=False)
     rate = Column(Float, nullable=False)
-    symbol = Column(Text, nullable=False)
+    symbol = Column(Text, primary_key=True, nullable=False)
     amount = Column(Float, nullable=False)
 
     def __repr__(self) -> str:

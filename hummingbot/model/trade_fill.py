@@ -12,14 +12,14 @@ from hummingbot.model.decimal_type_decorator import SqliteDecimal
 
 
 class TradeFill(HummingbotBase):
-    __tablename__ = "TradeFill"
-    __table_args__ = (Index("tf_config_timestamp_index",
+    __tablename__ = "trade_fills"
+    __table_args__ = (Index("idx_trade_fills_config_file_path_timestamp",
                             "config_file_path", "timestamp"),
-                      Index("tf_market_trading_pair_timestamp_index",
+                      Index("idx_trade_fills_market_symbol_timestamp",
                             "market", "symbol", "timestamp"),
-                      Index("tf_market_base_asset_timestamp_index",
+                      Index("idx_trade_fills_market_base_asset_timestamp",
                             "market", "base_asset", "timestamp"),
-                      Index("tf_market_quote_asset_timestamp_index",
+                      Index("idx_trade_fills_market_quote_asset_timestamp",
                             "market", "quote_asset", "timestamp")
                       )
 
@@ -30,7 +30,7 @@ class TradeFill(HummingbotBase):
     base_asset = Column(Text, nullable=False)
     quote_asset = Column(Text, nullable=False)
     timestamp = Column(BigInteger, nullable=False)
-    order_id = Column(Text, ForeignKey("Order.id"), primary_key=True, nullable=False)
+    order_id = Column(Text, ForeignKey("orders.id"), primary_key=True, nullable=False)
     trade_type = Column(Text, nullable=False)
     order_type = Column(Text, nullable=False)
     price = Column(SqliteDecimal(6), nullable=False)

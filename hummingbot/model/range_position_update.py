@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from sqlalchemy import JSON, BigInteger, Column, Float, Index, Integer, Text
+from sqlalchemy import JSON, BigInteger, Column, Float, Index, Integer, Sequence, Text
 
 from . import HummingbotBase
 
@@ -9,13 +9,13 @@ class RangePositionUpdate(HummingbotBase):
     Table schema used when an event to update LP position(Add/Remove/Collect) is triggered.
     Stores all data needed for P&L tracking.
     """
-    __tablename__ = "RangePositionUpdate"
-    __table_args__ = (Index("rpu_timestamp_index", "hb_id", "timestamp"),
-                      Index("rpu_config_file_index", "config_file_path", "timestamp"),
-                      Index("rpu_position_index", "position_address"),
+    __tablename__ = "range_position_updates"
+    __table_args__ = (Index("idx_range_position_updates_hb_id_timestamp", "hb_id", "timestamp"),
+                      Index("idx_range_position_updates_config_file_path_timestamp", "config_file_path", "timestamp"),
+                      Index("idx_range_position_updates_position_address", "position_address"),
                       )
 
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, Sequence("seq_range_position_updates_id", metadata=HummingbotBase.metadata), primary_key=True)
     hb_id = Column(Text, nullable=False)  # Order ID (e.g., "range-SOL-USDC-...")
     timestamp = Column(BigInteger, nullable=False)
     tx_hash = Column(Text, nullable=True)  # Transaction signature

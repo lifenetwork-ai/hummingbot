@@ -1,19 +1,19 @@
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import Column, Integer, Numeric, String, UniqueConstraint
+from sqlalchemy import Column, Integer, Numeric, Sequence, String, UniqueConstraint
 from sqlalchemy.orm import Session
 
 from hummingbot.model import HummingbotBase
 
 
 class InventoryCost(HummingbotBase):
-    __tablename__ = "InventoryCost"
+    __tablename__ = "inventory_costs"
     __table_args__ = (
         UniqueConstraint("base_asset", "quote_asset"),
     )
 
-    id = Column(Integer, primary_key=True, nullable=False)
+    id = Column(Integer, Sequence("seq_inventory_costs_id", metadata=HummingbotBase.metadata), primary_key=True, nullable=False)
     base_asset = Column(String(45), nullable=False)
     quote_asset = Column(String(45), nullable=False)
     base_volume = Column(Numeric(48, 18), nullable=False)

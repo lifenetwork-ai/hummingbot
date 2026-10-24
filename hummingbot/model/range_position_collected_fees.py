@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from sqlalchemy import Column, Float, Index, Integer, Text
+from sqlalchemy import Column, Float, Index, Integer, Sequence, Text
 
 from . import HummingbotBase
 
@@ -8,11 +8,11 @@ class RangePositionCollectedFees(HummingbotBase):
     """
     Table schema used when LP feesmare claimed.
     """
-    __tablename__ = "RangePositionCollectedFees"
-    __table_args__ = (Index("rpf_id_index",
+    __tablename__ = "range_position_collected_fees"
+    __table_args__ = (Index("idx_range_position_collected_fees_token_id_config_file_path",
                             "token_id", "config_file_path"),
                       )
-    id = Column(Integer, primary_key=True, nullable=False)
+    id = Column(Integer, Sequence("seq_range_position_collected_fees_id", metadata=HummingbotBase.metadata), primary_key=True, nullable=False)
     config_file_path = Column(Text, nullable=False)
     strategy = Column(Text, nullable=False)
     token_id = Column(Integer, nullable=False)

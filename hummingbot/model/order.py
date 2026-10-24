@@ -9,14 +9,14 @@ from hummingbot.model.decimal_type_decorator import SqliteDecimal
 
 
 class Order(HummingbotBase):
-    __tablename__ = "Order"
-    __table_args__ = (Index("o_config_timestamp_index",
+    __tablename__ = "orders"
+    __table_args__ = (Index("idx_orders_config_file_path_creation_timestamp",
                             "config_file_path", "creation_timestamp"),
-                      Index("o_market_trading_pair_timestamp_index",
+                      Index("idx_orders_market_symbol_creation_timestamp",
                             "market", "symbol", "creation_timestamp"),
-                      Index("o_market_base_asset_timestamp_index",
+                      Index("idx_orders_market_base_asset_creation_timestamp",
                             "market", "base_asset", "creation_timestamp"),
-                      Index("o_market_quote_asset_timestamp_index",
+                      Index("idx_orders_market_quote_asset_creation_timestamp",
                             "market", "quote_asset", "creation_timestamp"))
 
     id = Column(Text, primary_key=True, nullable=False)

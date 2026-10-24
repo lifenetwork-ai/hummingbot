@@ -2,7 +2,7 @@
 
 Created: 2026-10-24 — Asia/Ho_Chi_Minh.
 
-Status: **implementation in progress — P0 complete, P1 in progress**. The runtime is not deployment-ready. Checked items have implementation/review/test evidence; unchecked items remain pending. Cloud Run staging is not required.
+Status: **implementation in progress — P0 and P1 complete, P2 next**. The runtime is not deployment-ready. Checked items have implementation/review/test evidence; unchecked items remain pending. Cloud Run staging is not required.
 
 Reviewed sources:
 
@@ -146,14 +146,14 @@ Use plural names for collections of records. Collective names such as `metadata`
 | `Metadata` | `metadata` |
 | New runtime table | `bot_state` |
 
-- [ ] N1: Use this map in DDL, SQLAlchemy `__tablename__`, foreign-key targets, index/constraint declarations, raw SQL, fixtures, schema checks and import mappings. For example, change `ForeignKey("Order.id")` to `ForeignKey("orders.id")`; reuse the `Order` Python class and relationships.
-- [ ] N2: Inventory all column names and dependent objects. Keep already-canonical columns and their meanings; normalize names that do not meet the convention. Match SQLAlchemy naming conventions to explicit SQL DDL and explicitly name any generated sequences or constraints as needed.
-- [ ] N3: A fresh PostgreSQL database creates canonical names directly. Before automatic DDL, detect legacy mixed-case application tables and fail with cutover instructions rather than silently creating empty snake_case tables alongside populated legacy tables. With automatic migration disabled, schema validation likewise rejects the legacy layout.
-- [ ] N4: If an existing PostgreSQL database needs conversion, add a separately invoked, idempotent script under `manual_scripts/` and use the same migration-lock/transaction helpers. Stop all legacy writers, including background Cloud Run revisions, and verify quiescence before running it. Table renaming is a one-time breaking cutover, not an additive rolling-startup migration.
-- [ ] N5: Guard each legacy rename: old-only means rename; canonical-only means validate and no-op; both names present means fail for explicit reconciliation; neither present means leave creation to the canonical schema scripts. Apply equivalent guards to renamed dependent objects. Run the cutover transactionally so failures do not leave partial renames.
-- [ ] N6: Preserve row identities, values, ownership/grants, foreign-key relationships, defaults, sequence ownership/current values, indexes and trigger/function bindings. Verify that inserts and joins still work after conversion. Avoid copying all rows merely to rename tables.
+- [x] N1: Use this map in DDL, SQLAlchemy `__tablename__`, foreign-key targets, index/constraint declarations, raw SQL, fixtures, schema checks and import mappings. For example, change `ForeignKey("Order.id")` to `ForeignKey("orders.id")`; reuse the `Order` Python class and relationships.
+- [x] N2: Inventory all column names and dependent objects. Keep already-canonical columns and their meanings; normalize names that do not meet the convention. Match SQLAlchemy naming conventions to explicit SQL DDL and explicitly name any generated sequences or constraints as needed.
+- [x] N3: A fresh PostgreSQL database creates canonical names directly. Before automatic DDL, detect legacy mixed-case application tables and fail with cutover instructions rather than silently creating empty snake_case tables alongside populated legacy tables. With automatic migration disabled, schema validation likewise rejects the legacy layout.
+- [x] N4: If an existing PostgreSQL database needs conversion, add a separately invoked, idempotent script under `manual_scripts/` and use the same migration-lock/transaction helpers. Stop all legacy writers, including background Cloud Run revisions, and verify quiescence before running it. Table renaming is a one-time breaking cutover, not an additive rolling-startup migration.
+- [x] N5: Guard each legacy rename: old-only means rename; canonical-only means validate and no-op; both names present means fail for explicit reconciliation; neither present means leave creation to the canonical schema scripts. Apply equivalent guards to renamed dependent objects. Run the cutover transactionally so failures do not leave partial renames.
+- [x] N6: Preserve row identities, values, ownership/grants, foreign-key relationships, defaults, sequence ownership/current values, indexes and trigger/function bindings. Verify that inserts and joins still work after conversion. Avoid copying all rows merely to rename tables.
 - [ ] N7: A SQLite import uses explicit legacy-to-canonical mappings and remains read-only against its source. Replaying an import/cutover must not create duplicate rows or duplicate old/new tables.
-- [ ] N8: After normalization, deploy only images compatible with canonical names. Do not restart an original mixed-case ORM image or automatically reverse names during rollback. Test rollback to a compatible ported revision; recovery to the original application requires a separate planned procedure.
+- [x] N8: After normalization, deploy only images compatible with canonical names. Do not restart an original mixed-case ORM image or automatically reverse names during rollback. Test rollback to a compatible ported revision; recovery to the original application requires a separate planned procedure.
 
 ## 4. Storage, YAML and environment configuration
 
@@ -236,13 +236,13 @@ HBOT_OKX_REGISTRATION_SUB_DOMAIN=www
 The example assumes the selected `psycopg2` driver is installed. Use the validated driver/connection settings for the actual deployment.
 
 - [ ] E1: Load local `.env` once before constructing DB settings, connector configuration or client bootstrap. Share this path between the service, DB-dependent CLI commands and migration command; `--help`/`--version` must still work without secrets or a DB.
-- [ ] E2: Locally use `HBOT_ENV_FILE` when explicitly set, otherwise the repository-root `.env`. Resolve paths deterministically without walking arbitrary parent directories. A missing default `.env` is allowed; a missing explicitly requested file is an error.
-- [ ] E3: Preserve already-set process values, including intentionally empty values; validate required empty values as errors instead of silently replacing them from `.env`. Do not shell-source/evaluate the file. Disable variable interpolation for literal secret values and test dollar signs, hashes, quotes and URL escaping.
-- [ ] E4: Parse `ENABLE_AUTO_MIGRATION` explicitly as a boolean: accept trimmed, case-insensitive `true`/`false`; reject other values. Never use `bool(string)`, which makes `"false"` truthy. Apply the default only when the variable is absent.
-- [ ] E5: On Cloud Run Service, detect `K_SERVICE` from the process environment before dotenv loading and skip dotenv discovery/loading. Require direct environment/Secret Manager injection; reject an explicitly requested local dotenv path in that mode.
-- [ ] E6: Add a documented `.env.example` with placeholders. Keep actual `.env`/secret variants out of Git and the Docker build context; review `.gitignore` and `.dockerignore`, allowing only safe examples where useful.
+- [x] E2: Locally use `HBOT_ENV_FILE` when explicitly set, otherwise the repository-root `.env`. Resolve paths deterministically without walking arbitrary parent directories. A missing default `.env` is allowed; a missing explicitly requested file is an error.
+- [x] E3: Preserve already-set process values, including intentionally empty values; validate required empty values as errors instead of silently replacing them from `.env`. Do not shell-source/evaluate the file. Disable variable interpolation for literal secret values and test dollar signs, hashes, quotes and URL escaping.
+- [x] E4: Parse `ENABLE_AUTO_MIGRATION` explicitly as a boolean: accept trimmed, case-insensitive `true`/`false`; reject other values. Never use `bool(string)`, which makes `"false"` truthy. Apply the default only when the variable is absent.
+- [x] E5: On Cloud Run Service, detect `K_SERVICE` from the process environment before dotenv loading and skip dotenv discovery/loading. Require direct environment/Secret Manager injection; reject an explicitly requested local dotenv path in that mode.
+- [x] E6: Add a documented `.env.example` with placeholders. Keep actual `.env`/secret variants out of Git and the Docker build context; review `.gitignore` and `.dockerignore`, allowing only safe examples where useful.
 - [ ] E7: Validate only settings needed by the selected command and configured connectors. Never print full connection URLs, environment dumps, API keys or passphrases in logs/errors/status.
-- [ ] E8: Document local `.env`, local Docker `--env-file`, and Cloud Run environment/Secret Manager setup. Use explicit secret versions for a deployment; credential rotation takes effect through a controlled restart/new revision.
+- [x] E8: Document local `.env`, local Docker `--env-file`, and Cloud Run environment/Secret Manager setup. Use explicit secret versions for a deployment; credential rotation takes effect through a controlled restart/new revision.
 
 ### 4.5. Connector credentials from environment variables
 
@@ -282,20 +282,20 @@ Process environment + optional local .env
   -> run the strategy if desired state permits
 ```
 
-- [ ] P1.1: Bootstrap environment settings before ClientConfigMap/YAML defaults can determine the DB. Inject the validated PostgreSQL connection into the existing connection manager; never silently use SQLite.
-- [ ] P1.2: Reuse SQLConnectionManager with a synchronous PostgreSQL driver compatible with the supported SQLAlchemy version; declare it in the relevant build/test environments. Do not pair an async-only driver with sync `create_engine()`.
-- [ ] P1.3: Parse `DATABASE_URL` correctly, including escaped passwords, SSL and timeouts. Use structured URL construction if separate connection fields are needed; do not concatenate unescaped credentials.
-- [ ] P1.4: Add the small PostgreSQL runner alongside the SQLite migrator; package `.sql` resources and verify their presence in the built image. Resolve resources independently of the working directory.
-- [ ] P1.5: Evaluate `ENABLE_AUTO_MIGRATION` on every service start. When true, run migrations before trading; when false, perform schema validation only. An unconfigured bot may finish valid bootstrap and await setup without starting a default strategy.
-- [ ] P1.6: For enabled migrations, use `pg_try_advisory_lock` with a stable application/database key and one dedicated physical connection for the whole batch. Run DDL through that same connection.
-- [ ] P1.7: Hold the session lock across script transactions; unlock/close in `finally`. Avoid transaction-pooling connections for session locks; connection loss fails bootstrap. PostgreSQL releases session advisory locks when the session ends. [PostgreSQL locking](https://www.postgresql.org/docs/current/explicit-locking.html)
-- [ ] P1.8: Use one transaction per SQL file: roll back a failing file and replay already-committed files safely on the next enabled start. The runner owns transaction boundaries; scripts do not nest `BEGIN/COMMIT`.
-- [ ] P1.9: Execute complete scripts through a driver path that supports multiple statements. Do not use `split(';')` because function bodies and `DO $$` blocks contain semicolons. Test with actual scripts.
-- [ ] P1.10: Bound connection/retry/lock/statement waits and total bootstrap time. Initial proposed budgets: connect 5s, migration lock wait 60s, DDL lock timeout 5s, statement timeout 30s, overall bootstrap 180s; measure before finalizing.
-- [ ] P1.11: On migration failure, missing privileges, deadline expiry or incompatible schema, log a redacted error, exit nonzero and keep startup unsuccessful. No order-producing work may have started.
-- [ ] P1.12: Replay must preserve business data. Allow revisions to overlap only when both use canonical names and the schema changes are tested as additive. Legacy name conversion follows the separate stopped-writer cutover in section 3.3; application rollback does not execute down migrations or restore a database file.
-- [ ] P1.13: With auto-migration enabled, grant the application's migration connection the necessary DDL rights only within its database/schema, without superuser privileges. With it disabled, runtime may use a DML-only role after a separately authorized migration step.
-- [ ] P1.14: `make migrate` is an explicit operator command using the same runner and locking; it executes migrations regardless of the automatic-start flag. Document this distinction, and keep schema validation free of implicit `create_all()` or other DDL.
+- [x] P1.1: Bootstrap environment settings before ClientConfigMap/YAML defaults can determine the DB. Inject the validated PostgreSQL connection into the existing connection manager; never silently use SQLite.
+- [x] P1.2: Reuse SQLConnectionManager with a synchronous PostgreSQL driver compatible with the supported SQLAlchemy version; declare it in the relevant build/test environments. Do not pair an async-only driver with sync `create_engine()`.
+- [x] P1.3: Parse `DATABASE_URL` correctly, including escaped passwords, SSL and timeouts. Use structured URL construction if separate connection fields are needed; do not concatenate unescaped credentials.
+- [x] P1.4: Add the small PostgreSQL runner alongside the SQLite migrator; package `.sql` resources and verify their presence in the built image. Resolve resources independently of the working directory.
+- [x] P1.5: Evaluate `ENABLE_AUTO_MIGRATION` on every service start. When true, run migrations before trading; when false, perform schema validation only. An unconfigured bot may finish valid bootstrap and await setup without starting a default strategy.
+- [x] P1.6: For enabled migrations, use `pg_try_advisory_lock` with a stable application/database key and one dedicated physical connection for the whole batch. Run DDL through that same connection.
+- [x] P1.7: Hold the session lock across script transactions; unlock/close in `finally`. Avoid transaction-pooling connections for session locks; connection loss fails bootstrap. PostgreSQL releases session advisory locks when the session ends. [PostgreSQL locking](https://www.postgresql.org/docs/current/explicit-locking.html)
+- [x] P1.8: Use one transaction per SQL file: roll back a failing file and replay already-committed files safely on the next enabled start. The runner owns transaction boundaries; scripts do not nest `BEGIN/COMMIT`.
+- [x] P1.9: Execute complete scripts through a driver path that supports multiple statements. Do not use `split(';')` because function bodies and `DO $$` blocks contain semicolons. Test with actual scripts.
+- [x] P1.10: Bound connection/retry/lock/statement waits and total bootstrap time. Initial proposed budgets: connect 5s, migration lock wait 60s, DDL lock timeout 5s, statement timeout 30s, overall bootstrap 180s; measure before finalizing.
+- [x] P1.11: On migration failure, missing privileges, deadline expiry or incompatible schema, log a redacted error, exit nonzero and keep startup unsuccessful. No order-producing work may have started.
+- [x] P1.12: Replay must preserve business data. Allow revisions to overlap only when both use canonical names and the schema changes are tested as additive. Legacy name conversion follows the separate stopped-writer cutover in section 3.3; application rollback does not execute down migrations or restore a database file.
+- [x] P1.13: With auto-migration enabled, grant the application's migration connection the necessary DDL rights only within its database/schema, without superuser privileges. With it disabled, runtime may use a DML-only role after a separately authorized migration step.
+- [x] P1.14: `make migrate` is an explicit operator command using the same runner and locking; it executes migrations regardless of the automatic-start flag. Document this distinction, and keep schema validation free of implicit `create_all()` or other DDL.
 
 Completion criteria: an empty DB boots with migration enabled; repeated migration runs preserve data; simultaneous starts serialize; interrupted migrations recover. With the flag disabled, a compatible DB boots without DDL and an absent/incompatible schema fails before trading.
 
@@ -312,14 +312,18 @@ Completion criteria: an empty DB boots with migration enabled; repeated migratio
 
 P0 evidence (2026-10-24, checkout `c1c2d9fa0`): existing engine, runner, recorder, OKX spot and OKX perpetual suites passed: **160 tests, 6 warnings, 7.95s**. Initial scope is one bot/dedicated DB/account, PostgreSQL 14, OKX spot/perpetual, existing V1 pure market making and V2 script/controller loading. Gateway/DEX and unaudited custom file-writing strategies remain outside the verified cloud scope.
 
-Inventory: `cli/bot.py` holds JSON/PID state; `cli/data.py` assumes SQLite; start/stop/status/deploy use local processes and signals; recorder automatically exports CSV; config loaders/bootstrap write YAML/templates; connector login reads encrypted YAML/password verification; file logging and generated wrappers need a cloud-safe path. Ordinary YAML, explicit operator exports and backtesting output remain valid file uses. Reuse the existing engine/ORM/connector APIs and add only the environment adapter, SQL runner/verifier, operational state/ownership, service host and small offline test harness. Detailed call sites and the baseline command are recorded in [implementation notes](../implementation/POSTGRES_CLOUD_RUN_PROGRESS.md).
+Inventory: `cli/bot.py` holds JSON/PID state; `cli/data.py` assumes SQLite; start/stop/status/deploy use local processes and signals; recorder automatically exports CSV; config loaders/bootstrap write YAML/templates; connector login reads encrypted YAML/password verification; file logging and generated wrappers need a cloud-safe path. Ordinary YAML, explicit operator exports and backtesting output remain valid file uses. Reuse the existing engine/ORM/connector APIs and add only the environment adapter, SQL runner/verifier, operational state/ownership, service host and small offline test harness. Progress and verification evidence are maintained directly in this plan.
 
 ### P1 — Connection and configurable automatic migration
 
-- [ ] Complete P1.1–P1.14 in section 5 and E1–E8 in section 4.4.
-- [ ] Complete N1–N8 in section 3.3. Provide canonical snake_case DDL for existing ORM entities, the minimal `bot_state` table and query-driven indexes. No bot configuration or credential table is required.
-- [ ] Remove ORM `create_all()`, blanket foreign-key removal and file-copy migration from the PostgreSQL startup path.
-- [ ] Add Make targets for migration and PostgreSQL integration tests; reuse the exact production runner.
+- [x] Implement and verify the P1.1–P1.14 PostgreSQL/bootstrap primitives in section 5. Environment primitives/documentation are implemented; selected-connector validation (E7) and final DB-dependent CLI wiring (E1) are completed in their P3/P4 phases.
+- [x] Complete canonical naming and explicit PostgreSQL cutover (N1–N6/N8), DDL for existing ORM entities, minimal `bot_state` and query-driven indexes. N7 is conditional on delivering an optional SQLite importer; no SQLite source/import requirement has been supplied.
+- [x] Remove ORM `create_all()`, blanket foreign-key removal and file-copy migration from the PostgreSQL startup path.
+- [x] Add Make targets for migration and PostgreSQL integration tests; reuse the exact production runner.
+
+P1 evidence (2026-10-24): `make test-postgres` passed **21 real PostgreSQL 14 tests** (32.75s), including populated replay 100 times, two concurrent starts, role-limited read-only schema validation, drift rejection, whole-file rollback/DO blocks, statement deadline, backend termination and explicit migration with the auto flag disabled. Explicit legacy PostgreSQL cutover is transactional across normalization plus canonical scripts and validation; data/sequence continuity, replay, conflict rejection and rollback are tested. Existing model/CLI/runner/recorder/OKX suites plus environment tests passed **527 tests**; existing PMM/V2 baseline passed **96 tests**. Remaining warnings originate in existing Pydantic/async test code.
+
+P1 delivery: five packaged canonical SQL files, explicit maintenance SQL, shared environment settings/connection factory, a session-locking migration runner and catalog validator, `make migrate`, disposable `make test-postgres`, required PostgreSQL CI step and [operations instructions](../postgres-runtime.md). The PG connection manager never infers a SQLite path or runs ORM/file migrations. New timestamps retain existing units; funding/market-data keys include the market/pair to avoid same-timestamp collisions. Service lifecycle and final image packaging verification remain in P6; credential/environment CLI integration remains in P3/P4. No cloud deployment or container E2E has been claimed.
 
 ### P2 — PostgreSQL recorder and queries
 
@@ -463,7 +467,7 @@ Map each criterion to the smallest meaningful layer above; keep complete lifecyc
 
 The following Make targets are proposed work, not commands already implemented by this document:
 
-- [ ] Add `make test-postgres` using disposable PostgreSQL instances/databases; fixtures execute the production SQL runner.
+- [x] Add `make test-postgres` using disposable PostgreSQL instances/databases; fixtures execute the production SQL runner.
 - [ ] Add `make test-e2e-offline` to run the isolated container scenarios and clean up only their test resources. Required PostgreSQL/E2E CI jobs must fail when infrastructure is unavailable rather than silently skip because a DSN or container runtime is absent.
 - [ ] Run relevant runner, CLI, recorder, configuration, strategy/V2 and selected connector regression tests. Record an explicit test-to-criterion mapping for A01–A34 and the supported connector/strategy scope.
 - [ ] Require regression, PostgreSQL integration, offline E2E and deployment-configuration review to pass before release. Keep sanitized test reports and image/config digests; the reviewed deployment artifact must use the tested image.

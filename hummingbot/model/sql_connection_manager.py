@@ -3,10 +3,9 @@ from enum import Enum
 from os.path import join
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import MetaData, create_engine, inspect
+from sqlalchemy import MetaData, create_engine
 from sqlalchemy.engine.base import Engine
 from sqlalchemy.orm import Query, Session, sessionmaker
-from sqlalchemy.schema import DropConstraint, ForeignKeyConstraint, Table
 
 from hummingbot import data_path
 from hummingbot.logger.logger import HummingbotLogger
@@ -25,6 +24,24 @@ class SQLConnectionType(Enum):
 class SQLConnectionManager(TransactionBase):
     _scm_logger: Optional[HummingbotLogger] = None
     _scm_trade_fills_instance: Optional["SQLConnectionManager"] = None
+    _postgres_engine: Optional[Engine] = None
+
+    @classmethod
+    def initialize_postgres(cls, settings) -> Engine:
+        """Service-start gate; call before connector/application bootstrap."""
+        from hummingbot.model.db_migration.postgres.connection import create_postgres_engine
+        from hummingbot.model.db_migration.postgres.runner import bootstrap_postgres
+        engine = create_postgres_engine(settings)
+        try:
+            bootstrap_postgres(engine, auto_migrate=settings.enable_auto_migration)
+        except BaseException:
+            engine.dispose()
+            raise
+        if cls._postgres_engine is not None:
+            cls._postgres_engine.dispose()
+        cls._postgres_engine = engine
+        cls._scm_trade_fills_instance = None
+        return engine
 
     LOCAL_DB_VERSION_KEY = "local_db_version"
     LOCAL_DB_VERSION_VALUE = "20230516"
@@ -47,7 +64,7 @@ class SQLConnectionManager(TransactionBase):
             cls._scm_trade_fills_instance = SQLConnectionManager(
                 client_config_map, SQLConnectionType.TRADE_FILLS, db_name=db_name
             )
-        elif cls.create_db_path(db_name=db_name) != cls._scm_trade_fills_instance.db_path:
+        elif cls._scm_trade_fills_instance.db_path is not None and cls.create_db_path(db_name=db_name) != cls._scm_trade_fills_instance.db_path:
             cls._scm_trade_fills_instance = SQLConnectionManager(
                 client_config_map, SQLConnectionType.TRADE_FILLS, db_name=db_name
             )
@@ -68,32 +85,26 @@ class SQLConnectionManager(TransactionBase):
                  db_path: Optional[str] = None,
                  db_name: Optional[str] = None,
                  called_from_migrator = False):
-        db_path = self.create_db_path(db_path, db_name)
-        self.db_path = db_path
+        from hummingbot.client.config.runtime_config import RuntimeSettings, postgres_requested
+
+        use_postgres = self._postgres_engine is not None or postgres_requested()
+        self.db_path = None if use_postgres else self.create_db_path(db_path, db_name)
 
         if connection_type is SQLConnectionType.TRADE_FILLS:
-            self._engine: Engine = create_engine(client_config_map.db_mode.get_url(self.db_path))
             self._metadata: MetaData = self.get_declarative_base().metadata
-            self._metadata.create_all(self._engine)
-
-            # SQLite does not enforce foreign key constraint, but for others engines, we need to drop it.
-            # See: `hummingbot/market/markets_recorder.py`, at line 213.
-            with self._engine.begin() as conn:
-                inspector = inspect(conn)
-
-                for tname, fkcs in reversed(
-                        inspector.get_sorted_table_and_fkc_names()):
-                    if fkcs:
-                        if not self._engine.dialect.supports_alter:
-                            continue
-                        for fkc in fkcs:
-                            fk_constraint = ForeignKeyConstraint((), (), name=fkc)
-                            Table(tname, MetaData(), fk_constraint)
-                            conn.execute(DropConstraint(fk_constraint))
+            if use_postgres:
+                self._engine = self._postgres_engine or self.initialize_postgres(RuntimeSettings.from_environment())
+            else:
+                # Transitional legacy path for existing local/unit tooling. The PG path
+                # never computes a file path, invokes ORM DDL or removes constraints.
+                self._engine = create_engine(client_config_map.db_mode.get_url(self.db_path))
+                if self._engine.dialect.name != "sqlite":
+                    raise ValueError("Configure PostgreSQL through DATABASE_URL; legacy DB modes are unsupported.")
+                self._metadata.create_all(self._engine)
 
         self._session_cls = sessionmaker(bind=self._engine)
 
-        if connection_type is SQLConnectionType.TRADE_FILLS and (not called_from_migrator):
+        if not use_postgres and connection_type is SQLConnectionType.TRADE_FILLS and (not called_from_migrator):
             self.check_and_migrate_db(client_config_map)
 
     @property

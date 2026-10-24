@@ -39,6 +39,7 @@ def main():
             "VERSION",
             "templates/*TEMPLATE.yml"
         ],
+        "hummingbot.model.db_migration.postgres": ["scripts/*.sql", "manual_scripts/*.sql"],
     }
     install_requires = [
         "aiohttp>=3.8.5",
@@ -67,6 +68,8 @@ def main():
         "prompt_toolkit>=3.0.39",
         "protobuf>=4.23.3",
         "psutil>=5.9.5",
+        "psycopg2-binary>=2.9.9,<3",
+        "python-dotenv>=1,<2",
         "pydantic>=2",
         "pyjwt>=2.3.0",
         "pyperclip>=1.8.2",

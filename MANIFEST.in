@@ -8,3 +8,4 @@ recursive-include hummingbot *.pyx *.pxd *.h *.cpp *.c
 
 # Include any other data files you might need
 recursive-include hummingbot *.json *.yml
+recursive-include hummingbot/model/db_migration/postgres *.sql
