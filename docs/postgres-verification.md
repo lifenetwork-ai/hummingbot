@@ -5,7 +5,54 @@ The source plan is [POSTGRES_CLOUD_RUN_PORT_PLAN.md](plans/POSTGRES_CLOUD_RUN_PO
 All measurements below are local; no Cloud Run staging, cloud IAM/networking or
 real exchange connection is claimed.
 
-## Environment/backend and unqualified SQL release evidence
+## Optimized Cloud Run runtime release evidence
+
+Verified on 2026-10-25. The selected image is **1,363,640,076 bytes (1.36 GB)**,
+down from 4,637,764,625 bytes (4.64 GB), a **70.60% reduction**. The builder and
+runtime dependency versions are reused; compiler/test tooling and base Conda are
+excluded from the final image. Valid runtime bytecode caches are retained.
+
+- **950 regression tests passed:** 118 configuration/storage, 11 performance and
+  821 CLI/model/connector/runner/engine/V2/packaging tests. Packager coverage is
+  **90.18%**. Existing Pydantic/AsyncMock warnings remain.
+- **Runtime smoke passed** in a network-disabled, read-only container: native
+  imports, Numba JIT, TA-Lib, TLS trust, 63 connector settings, CLI and nine SQL
+  scripts. The current-image size gate is 1.5 GiB.
+- **All five E2E scenarios passed**, with `passed=true` and
+  `release_scope_complete=true`:
+  `build/e2e-offline/20261025-011532-ec2194/result.json`.
+  Schema/migration policy, V1 spot fault recovery, V2 spot/perpetual positions/PnL,
+  and compatible upgrade/rollback passed using the actual slim deployment image.
+- Tested registry manifest:
+  `sha256:e9c8edf0cfbdef064f3c5c1f39868f79457eadf2342c4c1b136efb6714f20313`.
+  Image/config ID:
+  `sha256:20d8a0f2e8d53b12cb50565188e490f74e71c1c8b6fe5245996bcd164ecbc00c`.
+- The compatible full-image predecessor was rebuilt from source base `e9a9fe49f`
+  using its original Dockerfile. Image/config ID:
+  `sha256:c8633fd7f09ebb32ae112b391090ec70f406ee0119ca380d0683c997bdc9a831`.
+  Its tested manifest is
+  `sha256:18da0ab394e9d1caf951dcf4d63dfe65ea4a2f3d835c6e16af5665785ef06a56`.
+- The synthetic `deployment-review.example.yaml` beside the report passes
+  preflight against this exact manifest. It names no real cloud resources.
+- **1,053 application Python/native/SQL/YAML assets match the full image
+  byte-for-byte.** All retained Python distribution versions match; inventories,
+  hashes, test logs and size measurements are in
+  `build/cloudrun-image-optimization/`.
+- The previous release's **72 native PostgreSQL integration tests** remain
+  historical evidence; they were not rerun for this packaging change. The new
+  image E2E uses real PostgreSQL 14, the production driver and migrations/recovery.
+  SQL/storage implementation is unchanged.
+
+Local final-image startup samples are **6.884–8.407s**, clean shutdown
+**0.995–1.415s**. In the upgrade scenario the new image starts in **7.636s**,
+versus **8.912s** for the full predecessor and **7.608s** on rollback. Spot's
+steady sample is **235.2 MiB / 2 GiB**, Docker CPU **1.93%**, and reused-connection
+`SELECT 1` p95 **0.339ms**. These are local workload samples, not peaks or cloud
+measurements. The 1.19 GB no-bytecode-cache trial was rejected because startup
+rose to 15.3–17.2s despite passing correctness gates. See
+[image optimization](cloudrun-image-optimization.md) for the packaging tradeoff.
+
+## Earlier environment/backend and unqualified SQL release evidence
 
 Follow-up verified on 2026-10-25: centralized defaults, preferred `ENV_FILE`,
 explicit `STORAGE_BACKEND=postgres|file`, preserved original local SQLite/JSON
@@ -23,7 +70,7 @@ files. The runner still targets the canonical schema through its search path.
 - **All five image E2E scenarios passed**, `passed=true` and
   `release_scope_complete=true`:
   `build/e2e-offline/20261025-001145-0d9d95/result.json`.
-- Current manifest:
+- Manifest for that earlier release:
   `sha256:7fda2b9596c8ac985ecc2578d77cebf6dd99016570fc9085ac4ab127fb8d603d`.
   Image/config ID:
   `sha256:98fb93cb91ee111782e1cb882b2e2e58fea02905082fde37a951359f3c46b7b3`.
@@ -87,7 +134,7 @@ shutdown, ownership and recovery test deadlines were not relaxed.
 
 ## Current evidence
 
-- PostgreSQL integration: **72 passed** against disposable PostgreSQL 14, including
+- PostgreSQL integration: **72 passed** in the preceding env/SQL release against disposable PostgreSQL 14, including
   real service processes, migration replay/drift/rollback, recorder transactions,
   CLI control, ownership connection termination, populated prior-schema upgrade,
   rejection of all later recorder writes after rollback and bounded cleanup.
@@ -95,8 +142,8 @@ shutdown, ownership and recovery test deadlines were not relaxed.
   position selection/overrides, invalid-history cursor cleanup, recent per-market
   recorder warmup, additive indexes and the fully fenced fill transaction.
   The env/SQL follow-up adds the non-default search-path case.
-- Selected runner/CLI/config/model/recorder/OKX/engine/REST/V2 regression: **944 passed**
-  (`make test-cloudrun-regression`: 116 configuration/storage, 11 performance, 817 other
+- Selected runner/CLI/config/model/recorder/OKX/engine/REST/V2 regression: **950 passed**
+  (`make test-cloudrun-regression`: 118 configuration/storage, 11 performance, 821 other
   selected tests, including 7 deployment policy tests). Existing
   Pydantic/AsyncMock warnings remain; these runs have no failing tests.
 - P6 baseline deployment-image E2E: OKX spot through the existing V1 pure-market-making

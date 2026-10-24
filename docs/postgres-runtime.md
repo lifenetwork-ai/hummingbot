@@ -31,7 +31,7 @@ policy remain as documented below; renaming an old key does not activate it.
 |---|---|
 | `ENV_FILE` | Repository-root `.env` when omitted; explicit relative paths use the working directory |
 | `STORAGE_BACKEND` | `file` when neither `DATABASE_URL` nor `K_SERVICE` exists; otherwise `postgres` for compatibility. Explicit `file`/`postgres` wins locally. |
-| `ENABLE_AUTO_MIGRATION` | `true`; applies to PostgreSQL service startup |
+| `ENABLE_AUTO_MIGRATION` | `false` in the current centralized defaults; applies to PostgreSQL service startup |
 | `BOT_ID` | `hummingbot` |
 | `PORT` | `8080` locally; Cloud Run injects it |
 
@@ -64,7 +64,7 @@ transaction-pooling proxies are unsupported.
 
 ## Migration policy
 
-`ENABLE_AUTO_MIGRATION=true` (default) runs packaged SQL in name order at service
+`ENABLE_AUTO_MIGRATION=true` runs packaged SQL in name order at service
 startup before connector bootstrap. Each file has one transaction, and one session
 advisory lock covers the batch. Failed files roll back; already committed files
 are replayable. Lock wait is bounded to 60s and total DB bootstrap to 180s.
@@ -72,7 +72,7 @@ SQL scripts use unqualified table/index/sequence references (no `public.` prefix
 The shared runner sets `SET LOCAL search_path = public` for each script, including
 legacy cutover, and connections/validation continue to target the canonical schema.
 
-`ENABLE_AUTO_MIGRATION=false` performs read-only schema validation without DDL.
+`ENABLE_AUTO_MIGRATION=false` (the current code default) performs read-only schema validation without DDL.
 A role with schema usage, table DML and sequence usage/select can run an existing
 compatible schema. Missing objects or incompatible definitions fail before trading.
 Migrations require object ownership/appropriate DDL privileges in the dedicated

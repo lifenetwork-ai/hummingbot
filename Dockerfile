@@ -1,5 +1,6 @@
 # Reuse the existing Miniconda build, with the reviewed base pinned by digest.
 ARG BASE_IMAGE=continuumio/miniconda3@sha256:eca594d684f495c1a02beff33a9fab53aec8c5830eaf431bb149912dc6c9e4c1
+ARG CLOUDRUN_BASE_IMAGE=debian:trixie-slim@sha256:62bd423aeee912639ca8ee681c2b762cb3e25137e0a92b20be455898a9f034ad
 FROM ${BASE_IMAGE} AS dependencies
 
 # Install system dependencies
@@ -93,9 +94,34 @@ SHELL [ "/bin/bash", "-lc" ]
 
 CMD conda activate hummingbot && ./bin/hummingbot_quickstart.py 2>> ./logs/errors.log
 
-# Foreground PostgreSQL service. Only reviewed non-secret deployment assets are
-# copied; local conf/, credentials, data and .env are never part of this target.
-FROM release AS cloudrun
+# Reuse the compiled dependency versions while excluding build/test toolchains.
+# Pruning in a separate stage ensures discarded files never enter runtime layers.
+FROM builder AS cloudrun-artifacts
+COPY deploy/cloudrun/package_runtime.py /tmp/package_runtime.py
+RUN /opt/conda/envs/hummingbot/bin/python /tmp/package_runtime.py \
+        --prefix /opt/conda/envs/hummingbot --application /home/hummingbot && \
+    rm /tmp/package_runtime.py
+
+# Same Debian/glibc family as the pinned compiler image, without base Conda.
+# Only reviewed non-secret deployment assets and the application environment ship.
+FROM ${CLOUDRUN_BASE_IMAGE} AS cloudrun
+ARG BRANCH=""
+ARG COMMIT=""
+ARG BUILD_DATE=""
+LABEL branch=${BRANCH} commit=${COMMIT} date=${BUILD_DATE}
+ENV COMMIT_SHA=${COMMIT} \
+    COMMIT_BRANCH=${BRANCH} \
+    BUILD_DATE=${BUILD_DATE} \
+    INSTALLATION_TYPE=docker \
+    PATH=/opt/conda/envs/hummingbot/bin:$PATH
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ca-certificates libusb-1.0-0 && \
+    rm -rf /var/lib/apt/lists/*
+WORKDIR /home/hummingbot
+COPY --from=cloudrun-artifacts /opt/conda/envs/hummingbot/ /opt/conda/envs/hummingbot/
+COPY --from=cloudrun-artifacts /home/hummingbot/ /home/hummingbot/
+RUN mkdir -p conf/connectors conf/strategies conf/controllers conf/scripts logs data certs && \
+    ln -sf /home/hummingbot/bin/hbot /opt/conda/envs/hummingbot/bin/hbot
 COPY deploy/cloudrun/conf/ conf/
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \

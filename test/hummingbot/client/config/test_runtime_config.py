@@ -31,7 +31,7 @@ def test_url_escaping_defaults_and_redaction():
     assert settings.database_url.password == "p@ss#$"
     assert settings.database_url.query["sslmode"] == "require"
     assert settings.database_url.drivername == "postgresql+psycopg2"
-    assert settings.enable_auto_migration is True
+    assert settings.enable_auto_migration is False
     assert settings.port == 8080
     assert "p@ss" not in repr(settings)
     assert "DATABASE_URL" not in repr(settings)
@@ -112,7 +112,13 @@ def test_env_file_uses_process_over_file_over_defaults(tmp_path):
         settings = RuntimeSettings.from_environment({**os.environ, "DATABASE_URL": "postgresql://host/db"})
         assert settings.port == 9001
         assert settings.bot_id == "file-bot"
-        assert settings.enable_auto_migration is True
+        assert settings.enable_auto_migration is False
+
+
+@pytest.mark.parametrize("flag,expected", [("true", True), ("false", False)])
+def test_explicit_migration_flag_overrides_central_default(flag, expected):
+    settings = RuntimeSettings.from_environment({"DATABASE_URL": "postgresql://host/db", "ENABLE_AUTO_MIGRATION": flag})
+    assert settings.enable_auto_migration is expected
 
 
 def test_env_file_precedes_legacy_alias(tmp_path):

@@ -29,7 +29,7 @@ Objectives:
 - Run the existing engine headlessly and recover durable state on a fresh instance.
 - Keep YAML configuration where the original application already supports it. Moving ordinary configuration into PostgreSQL is outside this port.
 - Move connector API keys, secrets and passphrases to environment variables for the cloud runtime. Do not introduce a PostgreSQL credential store.
-- Run SQL migrations at each service start **when `ENABLE_AUTO_MIGRATION=true`**, including restarts, cold starts and new revisions. The default is `true`.
+- Run SQL migrations at each service start **when `ENABLE_AUTO_MIGRATION=true`**, including restarts, cold starts and new revisions. The current centralized code default is `false`; deployment examples explicitly select `true`.
 - With `ENABLE_AUTO_MIGRATION=false`, skip migration execution and validate the existing schema before allowing trading. Missing or incompatible schema must fail startup.
 - Keep SQL simple and idempotent: tables, indexes, constraints and small helper functions where necessary.
 - Standardize all application-owned PostgreSQL identifiers to lowercase snake_case as part of this port, including existing tables and their dependent objects.
@@ -214,7 +214,7 @@ Precedence for bootstrap and credential values: **existing process environment >
 |---|---|
 | `STORAGE_BACKEND` | `postgres` or `file`; explicit selection wins locally. Omitted preserves URL/Cloud Run detection, otherwise defaults to local file mode; service/Cloud Run requires PostgreSQL. |
 | `DATABASE_URL` | PostgreSQL connection URL; required for DB-dependent commands/service startup; use an explicitly supported sync driver |
-| `ENABLE_AUTO_MIGRATION` | `true` or `false`; defaults to `true`; controls automatic service-start migrations only |
+| `ENABLE_AUTO_MIGRATION` | `true` or `false`; current code default `false`; deployment examples explicitly use `true`; controls automatic service-start migrations only |
 | `BOT_ID` | Stable identity for the logical bot; default `hummingbot` for the initial single-bot deployment |
 | `PORT` | Cloud Run supplies it; local service default `8080` |
 | `ENV_FILE` | Optional explicit local dotenv path; read before loading a file. Preferred over compatibility alias `HBOT_ENV_FILE`; omitted uses repository-root `.env`. |
@@ -562,3 +562,16 @@ local compatibility while keeping the deployed Cloud Run service on PostgreSQL.
 - [x] Remove `public.` qualifiers from all eight packaged SQL scripts and the manual legacy-name script. Keep the runner's canonical `SET LOCAL search_path = public`, schema checks and simple idempotent objects. This requested formatting replay changes script checksums without changing table identities or adding a new schema.
 - [x] Verify original file-mode SQLite/JSON round-trips, explicit/legacy backend selection, defaults/precedence, cloud deployment rejection, non-default search-path migration replay and populated legacy cutover. Results: 944 selected regression tests and 72 PostgreSQL tests passed.
 - [x] Complete rebuilt-image offline E2E, bind its digest to deployment review, update evidence and commit. All five scenarios passed in `build/e2e-offline/20261025-001145-0d9d95/result.json`; the matching concrete synthetic deployment artifact passed preflight. See the current manifest in [verification evidence](../postgres-verification.md).
+
+## 11. Cloud Run runtime image optimization
+
+Requested after the env/SQL follow-up. Measurements and the explanation of Docker
+image aliases are in [cloudrun-image-optimization.md](../cloudrun-image-optimization.md).
+
+- [x] Measure layer/package sizes and running containers. The 4.64 GB baseline copies full base Conda plus build/test tooling; stored tags do not represent extra running bots. Previous-image tags are used for compatibility tests.
+- [x] Reuse the existing compiler stage/dependency versions, prepare runtime files separately, and copy only the application environment/application into pinned Debian slim. Preserve runtime libraries/SDKs, foreground entrypoint, non-root UID, immutable config, SQL and health/shutdown contracts.
+- [x] Remove explicit build/test packages using Conda manifests, preserve files with retained owners, discard headers/static archives/docs/orphan caches and remove empty optional-package directories. Retain valid runtime bytecode caches for startup performance. Cover escaping paths and bytecode-only modules with packager tests.
+- [x] Reduce measured Docker image size to 1,363,640,076 bytes from 4,637,764,625 bytes (70.60%). Keep a 1.5 GiB current-image gate in offline E2E. The 1.19 GB no-cache trial passed E2E but increased local bootstrap time; the final candidate retains runtime caches.
+- [x] Verify Cython imports, 63 connector settings, Numba JIT, TA-Lib, TLS trust, CLI and all nine SQL assets without network in read-only runtime. Compare retained Python distribution versions; all match.
+- [x] Pass 950 native regression tests and 90.18% packager coverage. Align two stale migration-default assertions/docs with the already committed `false` default; test explicit true/false overrides without changing the production default.
+- [x] Pass all five slim-image E2E scenarios against a compatible full-image predecessor, bind deployment review to the tested manifest, update evidence and commit. Report: `build/e2e-offline/20261025-011532-ec2194/result.json`; `passed=true`, `release_scope_complete=true`, matching synthetic deployment review passed. Final-image local startup samples: 6.884–8.407s. See [verification evidence](../postgres-verification.md) for the exact manifest and measurements.

@@ -55,6 +55,18 @@ generation/revision context. Cleanup has an 8s coroutine budget and a separate
 9s process watchdog. Google documents a normal 10s SIGTERM grace period.
 [Container contract](https://docs.cloud.google.com/run/docs/container-contract)
 
+The optimized `cloudrun` target copies the compiled runtime environment into a
+digest-pinned Debian slim image, excluding the base Conda installation and build/
+test toolchains. Measured image size is **1.36 GB**, down from **4.64 GB**; runtime
+dependency versions are preserved. See [image packaging and Docker references](../../docs/cloudrun-image-optimization.md)
+for the inventory, measurements and the distinction between image tags and running
+containers. Builder cache remains separate from the shipped image.
+
+Offline verification enforces a **1.5 GiB** current-image budget and first checks
+native imports, Numba JIT, TA-Lib, TLS trust, SDK discovery, CLI and SQL assets in
+a network-disabled read-only container. The previous compatible image may exceed
+the new budget because it is used only to exercise upgrade/rollback compatibility.
+
 The E2E harness uses real PostgreSQL 14, the deployment image, read-only roots,
 temporary `/tmp`, separate CLI containers, and an independent HTTP/WebSocket
 exchange ledger on a Docker internal network. It mounts only immutable test YAML

@@ -543,6 +543,7 @@ def main():
     args = parser.parse_args()
     metadata = json.loads(docker("image", "inspect", args.image).stdout)[0]
     assert metadata["Architecture"] == "amd64", "Build the Linux amd64 deployment target first."
+    assert metadata["Size"] <= 1536 * 1024 * 1024, "Cloud Run runtime image exceeds the 1.5 GiB size budget."
     docker("image", "inspect", "postgres:14-alpine")
     image = pin_manifest(args.image)
     previous_image = pin_manifest(args.previous_image) if args.previous_image else None
@@ -555,15 +556,22 @@ def main():
     with tempfile.TemporaryDirectory(prefix="hbot-e2e-assets-") as directory:
         assets = Path(directory)
         assets.chmod(0o755)
-        for name in ("exchange.py", "pmm.yml", "controller-spot.yml", "controller-perpetual.yml", "script-perpetual.yml"):
+        for name in ("exchange.py", "runtime_smoke.py", "pmm.yml", "controller-spot.yml", "controller-perpetual.yml", "script-perpetual.yml"):
             assets.joinpath(name).write_bytes((ROOT / "test/e2e/offline" / name).read_bytes())
         write_fixtures(assets / "fixtures.json")
         assets.joinpath("999_offline_upgrade.sql").write_text("ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS offline_upgrade_note TEXT;\n")
         assets.joinpath("pmm-revised.yml").write_text((assets / "pmm.yml").read_text().replace("bid_spread: 1", "bid_spread: 2").replace("ask_spread: 1", "ask_spread: 2"))
         result = {"image_id": metadata["Id"], "registry_manifest_digest": image.split("@", 1)[1],
+                  "image_size_bytes": metadata["Size"], "image_size_budget_bytes": 1536 * 1024 * 1024,
                   "architecture": "amd64", "config_sha256": hashlib.sha256((assets / "pmm.yml").read_bytes()).hexdigest(),
                   "fixture_sha256": {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in sorted(assets.iterdir())}}
         try:
+            print("Offline E2E: runtime ABI, JIT, TLS, SDK discovery and size budget", flush=True)
+            smoke = docker("run", "--rm", "--platform", "linux/amd64", "--network", "none", "--read-only",
+                           "--tmpfs", "/tmp:rw,nosuid,size=128m", "--mount",
+                           f"type=bind,source={assets},target=/test-assets,readonly",
+                           image, "python", "/test-assets/runtime_smoke.py", timeout=90)
+            result["runtime_smoke"] = json.loads(smoke.stdout)
             scenarios = ("schema", "spot", "v2-spot", "v2-perpetual") if args.scenario == "all" else (args.scenario,)
             if args.scenario == "all" and previous_image:
                 scenarios += ("upgrade",)
