@@ -209,8 +209,8 @@ Paths below are relative to `/api/v1/admin`:
 | `GET /fills` | Existing fills/fees filtered by market/pair/time |
 | `GET /balances` | Canonical account LIFE/USDT cash, available balances and equity with explicit field meanings and snapshot freshness |
 | `GET /positions` | Actual perpetual positions, leverage/margin data available from the connector, and freshness; visible after quoting stops |
-| `GET /performance` | Existing per-market PnL, fees, volume and funding data where available, labeled with valuation basis/time |
-| `GET /statistics/daily` | Daily recorded fill counts, buy/sell volume, fees/rebates, observed funding and account balance chart points; bounded date/market/pair filters |
+| `GET /performance` | Separate spot/perpetual PnL, fees, volume and applicable funding data, labeled with valuation basis/time |
+| `GET /statistics/daily` | Separate spot/perpetual daily series for fills, buy/sell volume, fees/rebates and applicable funding; account balance points are returned once with account scope |
 | `POST /reconciliation/check` | Request one bounded, idempotent observational check against OKX; return `202` and a receipt/check ID |
 | `GET /reconciliation` | Latest check state/report with scope, coverage, timestamps and differences; FE polling reads stored results |
 | `GET /openapi.json` | Generated OpenAPI contract with FE examples |
@@ -241,12 +241,26 @@ history reads have bounded pagination. Mark unavailable/stale data explicitly.
 Use existing `orders`, `order_statuses`, `trade_fills`, `funding_payments` and
 connector account data. `/fills` also accepts an order ID for the detail screen.
 Initial UI scope is current LIFE/USDT balances, daily fees/volume/fill counts and
-daily observed balance charts. `/statistics/daily` returns one bucket per day,
+daily observed balance charts. `/statistics/daily` returns one bucket per day/market,
 including `observed_at`, coverage and data-source fields; use a default seven-day
 range and a maximum 90-day range. Market filters apply to trading metrics;
 account balance points have an explicit account scope and are never summed across
 market series.
 
+- Reporting endpoints use `market=spot|perpetual|all`, mapping the existing
+  `okx`/`okx_perpetual` records to explicit market labels. The default `all` returns
+  separate series, not a merged trading total. Rows retain market identity even
+  when both connectors use the same `LIFE-USDT` pair name. Filters are independent
+  of the currently running mode, so switching to spot does not hide perpetual history.
+- FE presents two views: **Spot** shows its orders/fills, buy/sell volume, trading
+  fees/rebates and available spot performance; **Perpetual** shows its own trading
+  metrics plus positions, margin/leverage and observed funding. Funding is
+  `not_applicable` for spot. Daily position/margin history is not implied by the
+  existing balance-snapshot feature; those fields remain current observations.
+- Example reads: `/statistics/daily?market=spot` and
+  `/statistics/daily?market=perpetual`. With `market=all`, return distinct `spot`
+  and `perpetual` series plus one account-scoped balance series. Swagger documents
+  these response scopes so FE never combines them accidentally.
 - Aggregate actual recorded fee amounts by original currency: charges, rebates
   and net fees. Show USDT totals only for valid recorded conversions, with
   unconverted amounts/coverage visible. Funding paid/received is separate and
@@ -261,6 +275,9 @@ market series.
   account balance; select one canonical account view and never add their USDT
   balances together. Equity must not be labeled wallet cash. Perpetual-only runs
   still need the account snapshot for LIFE, not only the connector's USDT/USDC view.
+  Both UI views may reference that shared account summary, clearly labeled. Show
+  configured spot/perpetual budget allocations separately from actual exchange
+  balances; do not invent per-market wallet balances by splitting shared collateral.
 - Add one small `daily_balance_snapshots` table through the existing SQL runner.
   The current owner upserts the latest fresh observation at most once per minute
   per account/environment/currency/reporting timezone/day, using the existing loop and
@@ -280,7 +297,9 @@ market series.
 Compare bot-owned order status/cumulative fills, fill identity/quantity/fees and
 perpetual long/short exposure using existing connector reads and local records.
 Return checked scope/counts, local/exchange observation times, coverage and linked
-order IDs. Result states are `not_checked`, `checking`, `matched`, `mismatch`,
+order IDs. Select `spot`, `perpetual` or `all`; an all-market check reports separate
+spot/perpetual findings and coverage. A successful spot check cannot hide an
+unavailable or mismatched perpetual check. Result states are `not_checked`, `checking`, `matched`, `mismatch`,
 `incomplete`, `unavailable`; `matched` applies only to a complete, consistent checked
 scope. A concurrent fill, missing page, stale source or timeout cannot be reported
 as a match. Account-wide cashflow reconciliation is outside this check.
@@ -373,6 +392,7 @@ optimize only demonstrated bottlenecks if the existing code misses the targets.
 - [ ] Add routes/auth/env validation to existing aiohttp; reuse owner/control flow with transactional idempotency receipts and preserve health probes/CORS rules.
 - [ ] Expose profiles/reference-pair discovery/status and existing order/fill/balance/position/performance data; publish schema/examples including weighted basket selection and a supported pair absent from YAML.
 - [ ] **Red → Green:** daily fee/rebate/funding grouping, unavailable conversions, late/duplicate fills and timezone boundaries. Add daily statistics and the minimal balance-snapshot migration/upsert; verify shared-account deduplication, cash/equity labels and missing-day/restart behavior with real PostgreSQL.
+- [ ] **Red → Green:** separate spot/perpetual history, daily series, performance and reconciliation coverage, including identical pair names, mode switches and one market unavailable. Prove shared balances appear once, configured budgets are not reported as exchange balances, and spot funding is not applicable.
 - [ ] **Red → Green:** order details and bounded reconciliation reports for missing/mismatched data, pagination gaps, concurrent fills and read failures. Prove a check cannot mutate exchange orders, repair ledger rows, restart the strategy or clear HALT; keep command/check completion distinct from report coverage.
 - [ ] Annotate API handlers and reuse request/response model schemas; add deterministic `make swagger` generation/validation and CI drift checks for `docs/api/openapi.json`.
 - [ ] Package Swagger UI at `/api/v1/admin/docs`, reading the generated `/api/v1/admin/openapi.json`; verify Basic Auth, command headers and schema/UI availability without external assets.
