@@ -322,7 +322,7 @@ class StrategyV2Base(StrategyPyBase):
                 for action in executor_actions:
                     self.executor_orchestrator.execute_action(action)
 
-    async def on_stop(self):
+    async def on_stop(self, *, shutdown_timeout: Optional[float] = None, keep_position: bool = False):
         """
         Called when the strategy is stopped. Shuts down controllers, executors, and market data provider.
         """
@@ -350,7 +350,11 @@ class StrategyV2Base(StrategyPyBase):
                 "Restoring market registrations required to close active executors during shutdown.")
             self.add_markets(missing_markets)
 
-        await self.executor_orchestrator.stop(self.max_executors_close_attempts)
+        if shutdown_timeout is not None or keep_position:
+            await self.executor_orchestrator.stop(
+                self.max_executors_close_attempts, shutdown_timeout=shutdown_timeout, keep_position=keep_position)
+        else:
+            await self.executor_orchestrator.stop(self.max_executors_close_attempts)
         self.market_data_provider.stop()
         self.executor_orchestrator.store_all_executors()
         if self.mqtt_enabled:
@@ -641,8 +645,9 @@ class StrategyV2Base(StrategyPyBase):
             self._pub = ETopicPublisher("performance", use_bot_prefix=True)
 
         # Start controllers
-        for controller in self.controllers.values():
-            controller.start()
+        for controller_id, controller in self.controllers.items():
+            if controller_id not in getattr(self, "drawdown_exited_controllers", []):
+                controller.start()
 
     def apply_initial_setting(self):
         """

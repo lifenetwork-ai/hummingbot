@@ -106,9 +106,20 @@ class RESTAssistant:
         request = deepcopy(request)
         request = await self._pre_process_request(request)
         request = await self._authenticate(request)
-        resp = await wait_for(self._connection.call(request), timeout)
-        resp = await self._post_process_response(resp)
-        return resp
+        from hummingbot.core.order_submission_guard import after_rest, before_rest, completed_rest, failed_rest
+        context = await before_rest(request)
+        try:
+            if context is not None:
+                timeout = min(timeout, 5) if timeout is not None else 5
+            resp = await wait_for(self._connection.call(request), timeout)
+            resp = await self._post_process_response(resp)
+            await after_rest(context, resp)
+            return resp
+        except BaseException:
+            failed_rest(context)
+            raise
+        finally:
+            completed_rest(context)
 
     async def _pre_process_request(self, request: RESTRequest) -> RESTRequest:
         for pre_processor in self._rest_pre_processors:

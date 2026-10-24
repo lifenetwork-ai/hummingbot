@@ -390,7 +390,8 @@ class ExecutorOrchestrator:
                 ))
         return tuple(signature)
 
-    async def stop(self, max_executors_close_attempts: int = 3):
+    async def stop(self, max_executors_close_attempts: int = 3, *, shutdown_timeout: Optional[float] = None,
+                   keep_position: bool = False):
         """
         Stop the orchestrator task and all active executors.
 
@@ -402,6 +403,9 @@ class ExecutorOrchestrator:
         """
         for controller_id, executors_list in self.active_executors.items():
             for executor in executors_list:
+                if keep_position and not executor.is_closed:
+                    executor.force_stop_with_position_hold()
+                    continue
                 if executor.is_closed or executor.status == RunnableStatus.SHUTTING_DOWN:
                     # A SHUTTING_DOWN executor already had its close_type chosen (by a
                     # StopExecutorAction or its own logic). Calling early_stop again
@@ -419,6 +423,8 @@ class ExecutorOrchestrator:
         poll_interval = 1.0
         stall_budget = max_executors_close_attempts * 2.0
         hard_cap = max(30.0, stall_budget)
+        if shutdown_timeout is not None:
+            hard_cap = max(0.0, shutdown_timeout)
         elapsed = stalled = 0.0
         last_signature = None
         while not self._all_executors_done():

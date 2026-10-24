@@ -142,7 +142,7 @@ class V2WithControllers(StrategyV2Base):
     def apply_initial_setting(self):
         connectors_position_mode = {}
         for controller_id, controller in self.controllers.items():
-            self.max_pnl_by_controller[controller_id] = Decimal("0")
+            self.max_pnl_by_controller.setdefault(controller_id, Decimal("0"))
             config_dict = controller.config.model_dump()
             if "connector_name" in config_dict:
                 if self.is_perpetual(config_dict["connector_name"]):

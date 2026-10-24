@@ -75,7 +75,7 @@ def validate_schema(connection: Connection) -> None:
             elif column.server_default is not None:
                 expected = str(column.server_default.arg)
                 actual_default = actual.get("default") or ""
-                if actual_default.removesuffix("::text") != expected:
+                if actual_default.removesuffix("::text").removesuffix("::jsonb") != expected:
                     errors.append(f"default mismatch {table.name}.{column.name}")
             elif actual.get("default") is not None or actual.get("identity"):
                 errors.append(f"unexpected default/identity {table.name}.{column.name}")

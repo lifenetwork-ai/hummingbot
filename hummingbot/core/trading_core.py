@@ -104,6 +104,8 @@ class TradingCore:
         self.kill_switch: Optional[KillSwitch] = None
         self.markets_recorder: Optional[MarketsRecorder] = None
         self.trade_fill_db: Optional[SQLConnectionManager] = None
+        self.before_strategy_start = None
+        self.after_order_cancellation = None
 
         # Metrics collectors mapping (connector_name -> MetricsCollector)
         self._metrics_collectors: Dict[str, MetricsCollector] = {}
@@ -530,12 +532,14 @@ class TradingCore:
 
             # Add strategy to clock
             if self.strategy and self.clock:
-                self.clock.add_iterator(self.strategy)
-
                 # Restore market states if markets recorder exists
                 if self.markets_recorder:
                     for market in self.markets.values():
                         self.markets_recorder.restore_market_states(self._strategy_file_name, market)
+
+                if self.before_strategy_start is not None:
+                    await self.before_strategy_start(self)
+                self.clock.add_iterator(self.strategy)
 
                 for connector_name, connector in self.connector_manager.connectors.items():
                     if connector_name not in self._metrics_collectors and "_paper_trade" not in connector_name:
@@ -776,7 +780,8 @@ class TradingCore:
         result.reverse()
         return result
 
-    async def shutdown(self, skip_order_cancellation: bool = False) -> bool:
+    async def shutdown(self, skip_order_cancellation: bool = False, *, keep_positions: bool = False,
+                       shutdown_timeout: Optional[float] = None) -> bool:
         """
         Shutdown the trading core completely.
 
@@ -788,7 +793,10 @@ class TradingCore:
         try:
             # Handle V2 strategy specific cleanup first
             if self.strategy and isinstance(self.strategy, StrategyV2Base):
-                await self.strategy.on_stop()
+                if keep_positions:
+                    await self.strategy.on_stop(keep_position=True, shutdown_timeout=shutdown_timeout)
+                else:
+                    await self.strategy.on_stop()
 
             # Stop strategy if running
             if self._strategy_running:
@@ -797,6 +805,8 @@ class TradingCore:
             # Cancel outstanding orders
             if not skip_order_cancellation:
                 await self.cancel_outstanding_orders()
+                if self.after_order_cancellation is not None:
+                    await self.after_order_cancellation()
 
             # Stop all metrics collectors first
             for connector_name, collector in list(self._metrics_collectors.items()):

@@ -56,6 +56,24 @@ class TestStrategyV2Base(IsolatedAsyncioWrapperTestCase):
         self.strategy.tick(self.start_timestamp + 10)
         self.assertTrue(self.strategy.ready_to_trade)
 
+    def test_start_does_not_restart_controllers_stopped_by_restored_drawdown(self):
+        self.strategy.drawdown_exited_controllers = ["controller_1"]
+        self.strategy.start(self.clock, self.start_timestamp)
+        self.strategy.controllers["controller_1"].start.assert_not_called()
+        self.strategy.controllers["controller_2"].start.assert_called_once()
+
+    def test_controller_initial_settings_preserve_restored_pnl_peak(self):
+        from types import SimpleNamespace
+
+        from scripts.v2_with_controllers import V2WithControllers
+        controller = MagicMock()
+        controller.config.model_dump.return_value = {}
+        strategy = SimpleNamespace(controllers={"stable-id": controller, "new-id": controller},
+                                   max_pnl_by_controller={"stable-id": Decimal("123.456789")})
+        V2WithControllers.apply_initial_setting(strategy)
+        self.assertEqual(strategy.max_pnl_by_controller["stable-id"], Decimal("123.456789"))
+        self.assertEqual(strategy.max_pnl_by_controller["new-id"], Decimal("0"))
+
     def test_init_markets(self):
         StrategyV2Base.init_markets(self.strategy_config)
         # With no controllers configured, markets should be empty

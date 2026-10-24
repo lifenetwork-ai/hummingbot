@@ -459,11 +459,17 @@ class ExchangePyBase(ExchangeBase, ABC):
                                      f" for the pair {trading_pair}. The order will not be created."))
             return
         try:
+            from hummingbot.core.order_submission_guard import before_order
+            await before_order(self, order)
             await self._place_order_and_process_update(order=order, **kwargs,)
 
         except asyncio.CancelledError:
+            from hummingbot.core.order_submission_guard import order_failed
+            order_failed(self, order)
             raise
         except Exception as ex:
+            from hummingbot.core.order_submission_guard import order_failed
+            order_failed(self, order)
             self._on_order_failure(
                 order_id=order_id,
                 trading_pair=trading_pair,

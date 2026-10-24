@@ -142,3 +142,33 @@ fees cause an explicit performance error rather than fabricated fee conversion.
 Local YAML editing stays local; on Cloud Run, create/config mutation and software
 self-update require a new versioned deployment. PostgreSQL `deploy` selects an
 already packaged configuration instead of silently editing an ephemeral file.
+
+
+## Ownership and unresolved exchange effects
+
+The service uses a dedicated PostgreSQL session advisory lock plus owner UUID and
+generation. Use direct/session-pooled connections, not transaction pooling. All
+order creation requires the installed service owner; calling the old detached
+engine directly with PostgreSQL cannot submit orders. Only OKX spot/perpetual
+have reviewed mutation paths. Pending client IDs are committed before placement;
+a transport failure is never automatically retried as a new logical order.
+
+Startup reconciles restored order IDs, fills and complete account open-order
+lists before strategy ticks. Unknown orders or unmatched perpetual positions
+block new risk. An unclean runtime exit, unresolved submission/account mutation,
+or failed reconciliation persists HALT in `bot_state.recovery_state`. Restarting,
+clearing a pending flag, or successfully reconnecting the DB does not clear it.
+Read status/recovery details, establish that every prior process is stopped, and
+reconcile the dedicated exchange account with persisted orders/fills/positions
+before an explicit operator-reviewed database maintenance change. No automatic
+recovery-reset command is provided, and changing only `halt` without resolving
+its cause is insufficient. Do not delete order history to make startup pass.
+
+Clean shutdown checkpoints known controller drawdown/PnL peaks, preserves existing
+V2 position holds, cancels working orders and confirms terminal status before
+closing the runtime marker. A false/incomplete cleanup result must terminate the
+host while retaining ownership until process death. The service phase adds the
+hard process deadline and actual SIGTERM/standby integration; those are not yet
+verified by the P5 component tests. Arbitrary custom strategies/executor timers
+are not automatically reconstructed after a crash; the persistent HALT prevents
+silently resetting their risk state.

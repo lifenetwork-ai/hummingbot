@@ -217,6 +217,7 @@ def read_status() -> Optional[Dict[str, Any]]:
                         control_version=row["control_version"], acknowledged_version=row["acknowledged_version"],
                         revision=row["revision"], owner_generation=row["owner_generation"],
                         config=row["config_file_path"], type=row["config_type"])
+        snapshot["recovery_state"] = row["recovery_state"]
         if row["heartbeat"]:
             snapshot["updated_at"] = row["heartbeat"].timestamp()
         return snapshot

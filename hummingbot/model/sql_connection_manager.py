@@ -108,6 +108,8 @@ class SQLConnectionManager(TransactionBase):
             # PubSub logs listener exceptions. Latch persistence failure independently
             # so a service send gate cannot miss a recorder/commit exception.
             event.listen(self._session_cls, "after_soft_rollback", self._record_rollback)
+            event.listen(self._session_cls, "before_flush", self._fence_flush)
+            event.listen(self._session_cls, "do_orm_execute", self._fence_bulk_write)
 
         if not use_postgres and connection_type is SQLConnectionType.TRADE_FILLS and (not called_from_migrator):
             self.check_and_migrate_db(client_config_map)
@@ -125,6 +127,17 @@ class SQLConnectionManager(TransactionBase):
     def assert_persistence_healthy(self) -> None:
         if not self.persistence_healthy:
             raise RuntimeError("Persistence failed; ownership and exchange reconciliation are required before new orders.")
+
+    @staticmethod
+    def _fence_flush(session, flush_context, instances):
+        from hummingbot.core.order_submission_guard import fence_session
+        fence_session(session)
+
+    @staticmethod
+    def _fence_bulk_write(execute_state):
+        if execute_state.is_update or execute_state.is_delete or getattr(execute_state, "is_insert", False):
+            from hummingbot.core.order_submission_guard import fence_session
+            fence_session(execute_state.session)
 
     def get_local_db_version(self, session: Session):
         query: Query = (session.query(LocalMetadata)

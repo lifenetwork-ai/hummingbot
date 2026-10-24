@@ -22,3 +22,5 @@ class BotState(HummingbotBase):
     heartbeat = Column(DateTime(timezone=True))
     status = Column(JSONB().with_variant(JSON(), "sqlite"))
     revision = Column(Text)
+    # Current unresolved external effects only, not an event/order journal.
+    recovery_state = Column(JSONB().with_variant(JSON(), "sqlite"), nullable=False, server_default=text("'{}'"))

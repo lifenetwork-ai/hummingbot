@@ -331,16 +331,54 @@ class MarketsRecorder:
     def save_market_states(self, config_file_path: str, market: ConnectorBase, session: Session):
         market_states: Optional[MarketState] = self.get_market_states(config_file_path, market, session=session)
         timestamp: int = self.db_timestamp
+        saved_state = dict(market.tracking_states)
+        if market_states is not None:
+            # A connector may discard a pending create after a lost HTTP ack. Keep
+            # its last durable tracking identity until reconciliation resolves it.
+            pending = session.query(Order.id).filter_by(
+                config_file_path=config_file_path, market=market.display_name, creation_pending=True).all()
+            for (order_id,) in pending:
+                if order_id not in saved_state and order_id in market_states.saved_state:
+                    saved_state[order_id] = market_states.saved_state[order_id]
 
         if market_states is not None:
-            market_states.saved_state = market.tracking_states
+            market_states.saved_state = saved_state
             market_states.timestamp = timestamp
         else:
             market_states = MarketState(config_file_path=config_file_path,
                                         market=market.display_name,
                                         timestamp=timestamp,
-                                        saved_state=market.tracking_states)
+                                        saved_state=saved_state)
             session.add(market_states)
+
+    def record_order_intent(self, market: ConnectorBase, order) -> None:
+        """Persist existing order identity/tracking state before an external submission."""
+        base, quote = order.trading_pair.split("-")
+        with self._sql_manager.get_new_session() as session, session.begin():
+            if session.get(Order, order.client_order_id) is not None:
+                raise RuntimeError("Client order identity already exists; reconcile instead of resubmitting.")
+            timestamp = int(order.creation_timestamp * 1000)
+            price = order.price if order.price is not None and order.price.is_finite() else Decimal("0")
+            session.add(Order(id=order.client_order_id, config_file_path=self._config_file_path,
+                              strategy=self._strategy_name, market=market.display_name, symbol=order.trading_pair,
+                              base_asset=base, quote_asset=quote, creation_timestamp=timestamp,
+                              order_type=order.order_type.name, amount=order.amount, price=price,
+                              leverage=order.leverage or 1, position=order.position.value,
+                              last_status="Pending" + order.trade_type.name.title(),
+                              last_update_timestamp=timestamp, creation_pending=True))
+            self.save_market_states(self._config_file_path, market, session)
+
+    def reject_unsent_order(self, market: ConnectorBase, order_id: str) -> None:
+        with self._sql_manager.get_new_session() as session, session.begin():
+            order = session.get(Order, order_id)
+            if order is not None:
+                order.creation_pending = False
+                order.last_status = MarketEvent.OrderFailure.name
+            saved = self.get_market_states(self._config_file_path, market, session)
+            if saved is not None:
+                state = dict(saved.saved_state)
+                state.pop(order_id, None)
+                saved.saved_state = state
 
     def restore_market_states(self, config_file_path: str, market: ConnectorBase):
         with self._sql_manager.get_new_session() as session:
@@ -411,6 +449,8 @@ class MarketsRecorder:
                             continue
                         if was_pending or key in ("exchange_order_id", "creation_pending"):
                             setattr(order_record, key, value)
+                    if was_pending and order_record.last_status in ("PendingBuy", "PendingSell"):
+                        order_record.last_status = event_type.name
                     if order_record.last_status in (MarketEvent.BuyOrderCreated.name, MarketEvent.SellOrderCreated.name):
                         order_record.last_update_timestamp = max(order_record.last_update_timestamp, timestamp)
                 self._add_order_status(session, order_record, timestamp, event_type.name)
@@ -593,7 +633,7 @@ class MarketsRecorder:
                     self._record_latest_status(order_record, event_type.name, timestamp)
                     self._add_order_status(session, order_record, timestamp, event_type.name)
                     self.save_market_states(self._config_file_path, market, session=session)
-                elif self._sql_manager.engine.dialect.name == "postgresql":
+                elif self._sql_manager.engine.dialect.name == "postgresql" and event_type != MarketEvent.OrderFailure:
                     raise RuntimeError("Order status arrived without a persisted order identity; reconciliation is required.")
 
     def _did_cancel_order(self,

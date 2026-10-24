@@ -2,7 +2,7 @@
 
 Created: 2026-10-24 — Asia/Ho_Chi_Minh.
 
-Status: **implementation in progress — P0–P4 core changes verified, P5 next; final safety/service integration and offline E2E remain pending**. The runtime is not deployment-ready. Checked items have implementation/review/test evidence; unchecked items remain pending. Cloud Run staging is not required.
+Status: **implementation in progress — P0–P5 core changes verified; P6 service integration and offline E2E remain pending**. The runtime is not deployment-ready. Checked items have implementation/review/test evidence; unchecked items remain pending. Cloud Run staging is not required.
 
 Reviewed sources:
 
@@ -333,7 +333,7 @@ P1 delivery: five packaged canonical SQL files, explicit maintenance SQL, shared
 - [x] P2.4: Preserve atomic fill/status/market-state writes. Update any in-memory “persisted fill” cache only after commit, so rollback cannot cause a replayed fill to be lost.
 - [x] P2.5: Reuse recorder tests and connector mocks for out-of-order create/fill/cancel events, duplicate WebSocket events, reconnection, partial fills and unknown order states.
 - [x] P2.6: Measure remote DB latency on the trading loop. Retain sync SQLAlchemy if it meets the budget. If offloading is necessary, use immutable snapshots, bounded work and separate sessions per worker; propagate commit/failure. Enqueueing is not durable persistence.
-- [ ] P2.7: **Persistence-failure latch implemented/tested in P2; final connector send-gate integration remains assigned to P5.** Prevent new risk when the DB is unavailable. Retry transactions only with bounded, idempotent behavior; never blindly retry exchange submissions. Reconcile after connectivity returns.
+- [x] P2.7: **Persistence-failure latch and final connector send-gate integration implemented/tested in P2/P5.** Prevent new risk when the DB is unavailable. Retry transactions only with bounded, idempotent behavior; never blindly retry exchange submissions. Reconcile after connectivity returns.
 - [x] P2.8: Configure pool size/overflow, connect/query timeouts and pre-ping. Include deployment overlap, migration and bot-ownership connections in the connection budget.
 
 P2 evidence (2026-10-24): PostgreSQL integration suite passed **31 tests** (34.85s); selected existing regression/strategy suites passed **623 tests** (12.43s). New tests cover real FK-preserving fill-before-create, create/fill replay, partial fills, exact fees/Decimal/timestamps, all 14 registered ORM tables, conflicting duplicate rejection, actual PostgreSQL backend termination before commit, rollback with no cache acknowledgment, market-state restore and same-timestamp funding across markets/pairs. Local synchronous recorder p95 was **15.25ms over 25 fill transactions**, below the initial local 100ms budget; this is not a measurement of remote Cloud SQL latency.
@@ -373,15 +373,23 @@ P4 delivery: a small `BotStateStore` implements atomic control-version CAS and o
 
 ### P5 — Single sender and restart recovery
 
-- [ ] P5.1: Keep the single-bot model and add a session advisory lock before starting a strategy. Use a separate namespace/key from the migration lock and a dedicated connection.
-- [ ] P5.2: Store owner UUID/generation in `bot_state`; condition status/ack writes on ownership to prevent stale processes overwriting a newer owner. `max-instances=1` does not replace ownership control.
-- [ ] P5.3: Non-owner instances stay in standby without order-producing tasks. Startup may succeed after valid schema/configuration bootstrap so deployment does not deadlock while the old revision owns the bot.
-- [ ] P5.4: Lost lock connection or uncertain ownership closes the send gate and stops the strategy. Reconnecting requires reacquisition and reconciliation before resuming.
-- [ ] P5.5: Verify ownership at the final submission boundary, including retries, executor resubmission and after throttler waits. Reuse existing connector send paths and audit bypasses.
-- [ ] P5.6: Reuse MarketState restore and connector order/trade reconciliation. Where required, persist pending identity before an external side effect using existing Order records or small field additions rather than a new journal framework.
-- [ ] P5.7: An exchange timeout may mean acceptance without an acknowledgment. Reconcile client order IDs, open orders and fills before resubmission. Preserve any existing strategy deadlines, HALT state, loss budgets and positions across restarts.
-- [ ] P5.8: Database ownership/fencing protects application state; exchanges do not enforce that token. Test in-flight requests and processes paused across lock loss. A successor must reconcile uncertainty before increasing risk; a DB lock alone is not exactly-once delivery or proof of safe hot standby.
-- [ ] P5.9: Reuse stop/cancel logic with a total shutdown budget below the grace period. Do not release ownership while tasks can still submit. Preserve unresolved state when forced termination interrupts cleanup.
+- [x] P5.1: Keep the single-bot model and add a session advisory lock before starting a strategy. Use a separate namespace/key from the migration lock and a dedicated connection.
+- [x] P5.2: Store owner UUID/generation in `bot_state`; condition status/ack writes on ownership to prevent stale processes overwriting a newer owner. `max-instances=1` does not replace ownership control.
+- [ ] P5.3: **Lock acquisition/standby primitive verified in P5; the actual healthy standby host is integrated in P6.** Non-owner instances stay in standby without order-producing tasks. Startup may succeed after valid schema/configuration bootstrap so deployment does not deadlock while the old revision owns the bot.
+- [ ] P5.4: **Irreversible loss latch and final send/recorder fencing verified in P5; automatic host teardown is integrated in P6.** Lost lock connection or uncertain ownership closes the send gate and stops the strategy. Reconnecting requires reacquisition and reconciliation before resuming.
+- [x] P5.5: Verify ownership at the final submission boundary, including retries, executor resubmission and after throttler waits. Reuse existing connector send paths and audit bypasses.
+- [x] P5.6: Reuse MarketState restore and connector order/trade reconciliation. Where required, persist pending identity before an external side effect using existing Order records or small field additions rather than a new journal framework.
+- [ ] P5.7: **Conservative restart HALT, order reconciliation, position comparison and known controller risk checkpoints implemented in P5; complete lifecycle/E2E verification remains pending.** An exchange timeout may mean acceptance without an acknowledgment. Reconcile client order IDs, open orders and fills before resubmission. Preserve any existing strategy deadlines, HALT state, loss budgets and positions across restarts.
+- [x] P5.8: Database ownership/fencing protects application state; exchanges do not enforce that token. Test in-flight requests and processes paused across lock loss. A successor must reconcile uncertainty before increasing risk; a DB lock alone is not exactly-once delivery or proof of safe hot standby.
+- [x] P5.9: Reuse stop/cancel logic with a total shutdown budget below the grace period. Do not release ownership while tasks can still submit. Preserve unresolved state when forced termination interrupts cleanup.
+
+P5 evidence (local, 2026-10-24): the full disposable PostgreSQL suite passed **56 tests**; the expanded ownership subset subsequently passed **18 tests** (39 deselected). The selected CLI/config/model/recorder/OKX/engine/REST/executor regression suite passed **791 tests**. The V2 strategy suite passed **28 tests**, including preservation of restored PnL peaks and refusal to restart controllers stopped by drawdown. PostgreSQL tests terminate the actual owner backend, pause the real REST assistant at throttle/transport barriers, verify durable intent/account-mutation markers, reject stale recorder writes and duplicate physical sends, and prove that uncertain handover remains HALTed across another restart. These are integration/component tests, not container E2E.
+
+P5 delivery: `BotOwnership` uses a dedicated physical advisory-lock session and monotonically increasing generation. SQL `007_add_recovery_state.sql` adds one JSONB field to the existing `bot_state`; pending order identity uses the existing `orders`/`market_states` records. Final authenticated OKX mutations are checked after throttle/authentication; ordinary placements have a bounded transport timeout and the documented OKX `expTime` deadline. Account-setting mutations retain uncertainty until a positive acknowledgment. Only reviewed OKX spot/perpetual connectors can trade in the PG service; unreviewed mutations/connectors fail before transport.
+
+Recovery restores existing tracking state, reads complete paginated account open orders, fetches order status/fills, cancels known restored working orders and reads back terminal states before allowing strategy ticks. Unknown exchange orders/position mismatches stop startup. Shutdown reuses existing V2 position-hold and core cancellation/cleanup paths with an 8s default total budget; ownership is retained if tasks or uncertain effects remain. Known controller drawdown/HALT/PnL peak fields are checkpointed before cleanup mutates them. Stable controller IDs remain required by the existing YAML model.
+
+**Recovery limit:** the source does not reconstruct arbitrary live executors/custom strategy timers after an unclean process exit. A durable `runtime_active` marker therefore forces HALT on that path even when read-only exchange reconciliation resolves an order. It never silently restarts with reset risk limits/deadlines or resubmits an uncertain identity. Automatic resume after a clean stop is limited to reviewed strategy state; full image/process/signal evidence and the hard process watchdog belong to P6/offline verification. No exactly-once exchange guarantee is claimed. [OKX request expiry and order APIs](https://www.okx.com/docs-v5/en/)
 
 ### P6 — Container and Cloud Run Service
 

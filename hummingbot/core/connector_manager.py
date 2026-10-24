@@ -51,6 +51,10 @@ class ConnectorManager:
         Returns:
             ExchangeBase: Initialized connector instance
         """
+        from hummingbot.client.config.runtime_config import postgres_requested
+        from hummingbot.core.order_submission_guard import SUPPORTED_CONNECTORS, SubmissionBlocked
+        if postgres_requested() and connector_name not in SUPPORTED_CONNECTORS:
+            raise SubmissionBlocked("This connector has not been verified for the PostgreSQL service.")
         try:
             # Check if connector already exists
             if connector_name in self.connectors:
