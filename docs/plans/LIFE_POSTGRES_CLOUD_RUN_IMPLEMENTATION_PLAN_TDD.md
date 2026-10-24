@@ -2,6 +2,19 @@
 
 ## Current offline delivery status
 
+**2026-10-24 retained native flow diagnosis:** a command-flow replay with the
+test-only settlement evidence batch reaches 158 completed orders, then loses
+the original heartbeat execution deadline (1005.189 ms); its next recorder
+write is refused. This is a different failure from the retained 143-order
+settlement-COMMIT result. Action join plans and recorder payload construction
+are now measured over growing genuine history. Two further disposable SQL
+candidates pass 185 existing action/recorder regressions and two differential
+cases. The separate 1k gate, with function profiling/wait sampling disabled,
+stops after **224 completed orders / 1200.334 s**: PostgreSQL cancels heartbeat
+while locking the `accounts` tuple, then recorder is refused by the lease guard.
+No 1k restore is reached. Candidates are not promoted; production remains
+schema 134. See [the flow diagnosis](#retained-native-flow-diagnosis-2026-10-24).
+
 **2026-10-24 five-part follow-up:** the disposable candidate adds reciprocal
 hold/raw-row existence, atomic enrollment, live-catalog drift checks and
 SWAP/funding/cashflow monetary-source bindings. A differential test exposed
@@ -4822,6 +4835,113 @@ mechanism to a production gate, all of the following remain required:
    owner/lease, economic and final-send checks. Then measure the actual
    0/1k/10k source, complete command/COMMIT/write overhead, bytes and recovery
    under the unchanged PG6/PG8 limits. The current production path is unchanged.
+
+### Retained native flow diagnosis (2026-10-24)
+
+The opt-in `--suite pg6_capacity --profile-retained-flow` executes the native
+source-construction command flow at 32/64/128/160 completed orders. This is
+separate from the unchanged 0/1k/10k backup/restore acceptance cases. It aggregates
+every physical admission by operation and validation/execution/COMMIT phase,
+with background lease work separate from serial foreground time. Function
+statistics are optional, cumulative and potentially lagged; self/inclusive
+time must not be interpreted as CPU time or added across overlapping tasks.
+
+The first diagnostic uses schema 134 plus the earlier test-only settlement
+batch. Its complete intervals are 47.960 s (0–32), 116.455 s (32–64), and
+309.921 s (64–128). It stops at 158 completed orders after 688.507 s of source
+work: heartbeat execution takes 1005.189 ms, does not attempt COMMIT and fences
+the runtime. The following recorder stage fails its guard. No 160-order pass,
+1k source completion or restore result is inferred. Original reports remain
+under `/tmp/life-retained-flow-growth-20261024-a2`.
+
+The action audit's plan at 79 fills discards 12,176 descriptor/event pairs and
+12,385 event/operation pairs. A full-table materialized-CTE proposal is rejected:
+on the 16-order corpus it increases tuple visits (7,342→17,590) and read median
+(8.745→17.610 ms). The retained candidate uses existing primary-key lookups
+before JSON comparisons instead. Its differential records 7,342→7,070 tuple
+visits, 176→32 JSON join-filter pairs and 8.531→7.645 ms read medians. Those
+seven paired read samples are a component diagnostic, not a service SLO.
+Data-exception paths re-run a private original STABLE verifier to preserve the
+original malformed-data result/error; timeout/cancellation is not caught.
+
+The recorder candidate validates every historical delivery and every original
+numeric cast, while normalizing projection JSON only for applied heads. Exact
+normalized JSON, overflow/NaN/malformed payload errors and private-helper ACLs
+are compared with the original. Native state/digest and retained action faults
+are compared independently. Both differential cases pass (28.03 s); 185
+existing action/preparation/reconciliation/abandonment/recorder cases pass
+(189.22 s). Logs are `/tmp/life-history-candidates-parity-20261024-a7` and
+`/tmp/life-history-candidates-regression-20261024-a1`.
+
+The combined candidate improves the two completed diagnostic intervals below,
+but stops at **109**, rather than the requested 160 orders. Its heartbeat
+execution takes 1007.296 ms, with no attempted COMMIT; source elapsed is
+321.140 s (`/tmp/life-retained-flow-candidate-20261024-a1`). Earlier failure
+despite lower interval averages means tail availability is **not qualified**.
+These are separate serial diagnostic runs, not repeated latency distributions.
+The candidate additionally has bounded read-only wait sampling, so the pair is
+not an isolated headroom measurement.
+
+| Completed-order interval | Settlement-batch reference | Combined candidate |
+| --- | ---: | ---: |
+| 0–32 | 47.960 s | 44.502 s |
+| 32–64 | 116.455 s | 85.482 s |
+| 64–128 | 309.921 s | Not reached; stops at 109 |
+| 128–160 | Not reached; stops at 158 | Not reached |
+
+Fresh `pg_stat_activity` samples observe heartbeat waiting on `transactionid`
+with a blocking backend (24 of 100 sampled observations). A separate 100-sample
+blocker probe records COMMIT in 14 blocking observations, recorder apply/stage
+in 4/3, and other original financial commands/guards in the remainder. Sampling
+counts are not wait durations or causal attribution of the earlier timeout.
+The SQL definition independently confirms heartbeat and financial writers share
+the account row lock. This points to long verification while holding that lock;
+extra connections do not remove that serialization. No heartbeat/lock guard is
+relaxed by these candidates.
+
+With function profiling and wait sampling disabled, both original 0/2-order
+backup/restore controls pass (24.63 s aggregate). Their actual restore-to-
+observation times are 7417.457/7660.477 ms under the original 120-s/1-GiB limits
+(`/tmp/life-history-candidates-restore-controls-20261024-a1`).
+
+The separate actual 1k gate, without function profiling or wait sampling,
+**fails after 224 completed orders**, with source elapsed **1200333.505 ms**
+(`/tmp/life-history-candidates-capacity-1k-20261024-a1`). Risk/safety pool limits
+remain 2/2 and acquisition/statement limits remain 1000/1000 ms. The final
+heartbeat records 1005.384 ms in execution, 1021.120 ms total and no attempted
+COMMIT. Its PostgreSQL server log explicitly says `canceling statement due to
+statement timeout` **while locking the `accounts` tuple**, at the original
+`SELECT ... FOR UPDATE` inside `process_lease_command`. The next recorder apply
+is rejected at `guard_spot_observation` with
+`PG_PROCESS_LEASE_EXPIRED_OR_UNQUALIFIED`, before COMMIT. The roughly 20-minute
+elapsed time is not evidence of a grant TTL failure: the observed first failure
+is the row-lock statement timeout. No timestamp, owner/grant or lease policy is
+renewed to make this source complete. Restore is never started at 1k; 10k remains
+blocked. The earlier 143-order combined settlement-COMMIT refusal remains a
+separate retained result, not retroactively assigned this heartbeat diagnosis.
+
+The settlement diagnostic preserves the schema-134 predicate, original verifier
+call counts and NULL semantics. Seven actual predicate/parity cases pass, and
+33 scalar aggregation/physical diagnostic unit cases pass. This corrects an
+earlier diagnostic-only NULL behavior change; the single lifecycle verifier
+call was already production behavior from migration 127.
+The final complete settlement/diagnostic/evidence-batch suite also passes
+**47 cases / 72.39 s**, including physical COMMIT loss/rollback and expiry
+refusals (`/tmp/life-settlement-diagnostic-final-20261024-a1`).
+
+No candidate is installed by production migrations. Both remaining full-flow
+and retained backup/restore gates stay open; no historical source is copied,
+no timestamp is renewed and no 1000-ms/resource/restore threshold is widened.
+
+The next performance change must address verification while holding the account
+lock and at deferred COMMIT across the complete graph. The measured recorder,
+quote-birth and action histories must be covered alongside monetary/budget
+history. A constrained monetary prefix alone is not a complete replacement for
+those metadata audits. Any bounded replacement requires immutable/completeness
+constraints, independently verified enrollment/catalogs and cold/restore parity
+before hot reads can rely on it; current owner, lease and fresh-fact guards stay
+independent. This is within the existing promotion obligations below, not a
+reason to close the original capacity or headroom gates.
 
 ### Five-part follow-up and promotion boundary
 

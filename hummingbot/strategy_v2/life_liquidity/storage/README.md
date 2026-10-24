@@ -242,6 +242,26 @@ Use `PYTEST_ADDOPTS='-k diagnostic_profile'` with
 `LIFE_PG_TEST_FUNCTION_PROFILE=1` only for the separate 32-order diagnostic;
 profiled timings are not latency acceptance.
 
+For the separate growing-history command-flow diagnostic, use:
+
+```sh
+LIFE_PG_TEST_FUNCTION_PROFILE=1 PYTEST_ADDOPTS=-s \
+  python -m test.hummingbot.strategy_v2.life_liquidity.storage.run_postgres \
+  --suite pg6_capacity --profile-retained-flow --diagnose-settlement-commit \
+  --output /tmp/life-retained-flow
+```
+
+This samples 32/64/128/160 native completed orders, separates background
+heartbeat work from foreground admission phases and retains failed/partial
+intervals in JUnit. It does not run or replace backup/restore acceptance.
+`LIFE_PG_TEST_SETTLEMENT_EVIDENCE_BATCH=1`,
+`LIFE_PG_TEST_ACTION_PROOF_BATCH=1` and
+`LIFE_PG_TEST_RECORDER_PAYLOAD_VALIDATION=1` opt into separate disposable
+schema-134 SQL candidates. They are test-runner variables, not service/`.env`
+settings or deployable migrations. Candidate function-source identities are
+recorded by the flow diagnostic. See the
+[current flow diagnosis and remaining gates](../../../../docs/plans/LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#retained-native-flow-diagnosis-2026-10-24).
+
 The original 1k source fails at its 86th provisional preparation: physical
 COMMIT correctly refuses the expired quote, after 85 completed orders
 (`/tmp/life-pg6-capacity-1k-a6`). Thus restore has not been measured at 1k.

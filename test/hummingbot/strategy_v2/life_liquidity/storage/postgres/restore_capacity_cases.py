@@ -48,7 +48,8 @@ HISTORY_RETENTION = dict(mode='SETTLED_NATIVE_V1', max_retained_tickets=10000,
 RETENTION_MODEL = {**MODEL, 'birth_retention': HISTORY_RETENTION}
 
 
-async def seed_completed(database, f, cfg, owner, lease, count, progress, *, model=MODEL, hot_tickets=4096, retention=None):
+async def seed_completed(database, f, cfg, owner, lease, count, progress, *, model=MODEL, hot_tickets=4096, retention=None,
+                         on_progress=None):
     c = database[0]
     await c.execute("INSERT INTO life_financial.spot_capital_policies VALUES($1,$2,5,10,1,$3,'100',100000)", cfg.account_id, cfg.binding.policy_hash, owner.valid_from)
     await c.execute('INSERT INTO life_financial.spot_fill_policies VALUES($1,$2,1000,10000)', cfg.account_id, cfg.binding.policy_hash)
@@ -157,6 +158,8 @@ async def seed_completed(database, f, cfg, owner, lease, count, progress, *, mod
                     SettleSpotInventory('settlement:' + key, 'cycle:' + key, tuple(pair)), facts=facts, cut=snapshot.cut, owner=owner)
                 pair.clear()
             progress['completed_orders'] = n + 1
+            if on_progress is not None:
+                await on_progress(n + 1)
     except BaseException:
         failed = True
         raise

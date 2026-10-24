@@ -83,11 +83,15 @@ def main():
     import asyncpg  # noqa: F401 -- mandatory for this opt-in real-process runner.
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--suite', choices=('all', 'product_o8', 'image_native', 'image_flows', 'hedge_settlement', 'pg3', 'pg4', 'pg5', 'pg6', 'pg6_native', 'pg6_capacity', 'fill_projection_spike', 'pg6_pitr', 'historical_upgrades', 'pg6_regression', 'pg5_operations', 'ownership', 'managed_service', 'recorder_queries', 'recorder_proofs', 'codecs', 'commit_proofs', 'snapshot_proofs', 'service', 'service_trading', 'service_load', 'release_source', 'foundation', 'spot_producer', 'spot_allocation', 'spot_market_send', 'spot_market', 'joint_history', 'joint_intake', 'quote_composition', 'runner_startup', 'hedge_source', 'r2_integration', 'maker_cancellation', 'hedge_composition', 'r3_control', 'r3_risk', 'recorder', 'capital', 'session', 'lifecycle', 'actions', 'action_prepare', 'action_reconcile', 'action_abandon', 'runner_journal', 'provider_collection', 'quote_arm', 'quote_transport', 'quote_source', 'outbox', 'configuration', 'events', 'positions', 'reporting_application', 'approval_import', 'ack_ingress', 'observation_context', 'financial_ingress', 'financial_collection', 'inventory_settlement', 'markout', 'carry', 'swap', 'swap_accounting', 'swap_fills', 'funding', 'funding_repair', 'funding_cohort', 'swap_repair', 'spot_repair', 'cashflow_repair', 'terminal_repair', 'spot_recovery_paths', 'portfolio', 'swap_terminal', 'shared_release', 'joint_batch', 'joint_repair', 'hedge', 'swap_transport', 'collateral', 'joint_source', 'r1_accounting', 'joint_recovery', 'legacy_applying', 'legacy_joint', 'legacy_imports', 'late_capital', 'worker_financial', 'worker_restart', 'monitor', 'integrity_publication', 'file_staging', 'file_financial', 'file_history'), default='all')
+    parser.add_argument('--suite', choices=('recorder_write_values', 'action_proof_batch', 'all', 'product_o8', 'image_native', 'image_flows', 'hedge_settlement', 'pg3', 'pg4', 'pg5', 'pg6', 'pg6_native', 'pg6_capacity', 'fill_projection_spike', 'pg6_pitr', 'historical_upgrades', 'pg6_regression', 'pg5_operations', 'ownership', 'managed_service', 'recorder_queries', 'recorder_proofs', 'codecs', 'commit_proofs', 'snapshot_proofs', 'service', 'service_trading', 'service_load', 'release_source', 'foundation', 'spot_producer', 'spot_allocation', 'spot_market_send', 'spot_market', 'joint_history', 'joint_intake', 'quote_composition', 'runner_startup', 'hedge_source', 'r2_integration', 'maker_cancellation', 'hedge_composition', 'r3_control', 'r3_risk', 'recorder', 'capital', 'session', 'lifecycle', 'actions', 'action_prepare', 'action_reconcile', 'action_abandon', 'runner_journal', 'provider_collection', 'quote_arm', 'quote_transport', 'quote_source', 'outbox', 'configuration', 'events', 'positions', 'reporting_application', 'approval_import', 'ack_ingress', 'observation_context', 'financial_ingress', 'financial_collection', 'inventory_settlement', 'markout', 'carry', 'swap', 'swap_accounting', 'swap_fills', 'funding', 'funding_repair', 'funding_cohort', 'swap_repair', 'spot_repair', 'cashflow_repair', 'terminal_repair', 'spot_recovery_paths', 'portfolio', 'swap_terminal', 'shared_release', 'joint_batch', 'joint_repair', 'hedge', 'swap_transport', 'collateral', 'joint_source', 'r1_accounting', 'joint_recovery', 'legacy_applying', 'legacy_joint', 'legacy_imports', 'late_capital', 'worker_financial', 'worker_restart', 'monitor', 'integrity_publication', 'file_staging', 'file_financial', 'file_history'), default='all')
     parser.add_argument('--fail-fast', action='store_true', help='Stop at the first failure while retaining the original log/XML')
     parser.add_argument('--linux-image', help='Immutable locally built image ID; recorder, worker_financial, worker_restart, image_native or image_flows suites')
     parser.add_argument('--require-native-image', action='store_true', help='Refuse a worker image requiring Docker architecture emulation')
     parser.add_argument('--candidate', action='store_true', help='Run the complete O.8 candidate without claiming closure')
+    parser.add_argument('--diagnose-settlement-commit', action='store_true',
+                        help='Apply a test-only diagnostic overlay to disposable schema-134 databases')
+    parser.add_argument('--profile-retained-flow', action='store_true',
+                        help='Run the diagnostic 32/64/128/160-order flow instead of capacity acceptance')
     args = parser.parse_args()
     if args.candidate and args.suite != 'product_o8' or args.fail_fast and args.suite == 'product_o8':
         parser.error('--candidate is only for product_o8; product coverage cannot use --fail-fast')
@@ -95,6 +99,10 @@ def main():
         parser.error('--linux-image requires an immutable sha256 image ID and --suite recorder, worker_financial, worker_restart, image_native or image_flows')
     if args.require_native_image and not args.linux_image:
         parser.error('--require-native-image requires --linux-image')
+    if args.diagnose_settlement_commit and args.suite not in ('pg6_capacity', 'inventory_settlement'):
+        parser.error('--diagnose-settlement-commit requires --suite pg6_capacity or inventory_settlement')
+    if args.profile_retained_flow and args.suite != 'pg6_capacity':
+        parser.error('--profile-retained-flow requires --suite pg6_capacity')
     output = args.output.resolve()
     if not output.is_relative_to(Path('/tmp').resolve()):
         parser.error('Use /tmp for disposable qualification logs')
@@ -151,6 +159,8 @@ def main():
         port = docker('port', name, '5432/tcp').split(':')[-1]
         env = {**os.environ, 'LIFE_ENV_FILE': '', 'LIFE_AUTO_MIGRATE': 'false', 'LIFE_PG_TEST_DSN': f'postgresql://postgres@127.0.0.1:{port}/life_pg2_test',
                'LIFE_PG_TEST_CONTAINER': name, **({'LIFE_PG_TEST_VOLUME': volume} if volume else {})}
+        if args.diagnose_settlement_commit:
+            env['LIFE_PG_TEST_SETTLEMENT_DIAGNOSTIC'] = '1'
         if args.suite == 'product_o8':
             command = [sys.executable, '-m', 'test.hummingbot.strategy_v2.life_liquidity.o8_acceptance',
                        *(['--candidate'] if args.candidate else []), '--output-dir', str(output)]
@@ -272,11 +282,19 @@ def main():
         # parity is separately exercised by the offline contract suite.
         if args.suite in PG3_SUITES:
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in PG3_SUITES[args.suite]]
+        if args.suite == 'action_proof_batch':
+            selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in (
+                'actions', 'action_preparation', 'action_reconciliation', 'action_abandonment', 'action_proof_batch',
+                'recorder_payload_validation', 'recorder_write_values', 'recorder_history_batch', 'recorder', 'recorder_application')]
+        if args.suite == 'recorder_write_values':
+            selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in (
+                'recorder_write_values', 'outbox', 'configuration', 'events', 'positions',
+                'recorder_application', 'quote_birth', 'birth_retirement')]
         if args.suite == 'pg6':
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in (
                 'restore', 'backup', 'schema_restore', 'fresh_restore', 'restore_recovery', 'restore_import', 'restore_actor', 'restore_matrix', 'history_flow', 'birth_retention', 'snapshot_payload', 'action_history_batch', 'birth_fingerprints', 'recorder_history_batch', 'settlement_history_batch', 'capacity_pool', 'birth_native_view', 'file_staging', 'file_financial', 'file_history', 'file_history_restore')]
         if args.suite == 'pg6_capacity':
-            selectors = [str(selector / 'restore_capacity_cases.py')]
+            selectors = [str(selector / ('retained_flow_cases.py' if args.profile_retained_flow else 'restore_capacity_cases.py'))]
         if args.suite == 'fill_projection_spike':
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in (
                 'fill_projection', 'projection_economics', 'projection_qualification', 'projection_restore',
@@ -399,6 +417,9 @@ def main():
         if args.suite == 'funding':
             selectors.append(str(selector.with_name('test_postgres_funding_history_reuse.py')))
             selectors.append(str(selector.with_name('test_postgres_money_commit_group.py')))
+        if args.suite == 'inventory_settlement':
+            selectors.append(str(selector.with_name('test_postgres_settlement_commit.py')))
+            selectors.append(str(selector.with_name('test_postgres_settlement_evidence_batch.py')))
         if args.suite == 'legacy_imports':
             selectors = [str(selector / ('test_postgres_' + name + '.py')) for name in ('legacy_applying', 'legacy_core_cashflows', 'legacy_spot', 'legacy_joint', 'coupled_ack', 'file_recovery_history', 'completed_outer_history', 'outer_recovery_history', 'unfilled_swap', 'joint_trade_ids', 'received_observations')]
         if args.suite == 'joint_source':

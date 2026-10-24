@@ -4,6 +4,7 @@ import os
 import time
 from collections import deque
 from datetime import datetime, timezone
+from pathlib import Path
 from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.reason_capture import capture_codes, normalize_codes
 from uuid import uuid4
 
@@ -204,6 +205,35 @@ async def database(request, monkeypatch, tmp_path, migration_template, reason_co
                 if int(path.name.split('_', 1)[0]) <= request.param:
                     (directory / path.name).write_bytes(path.read_bytes())
             await migrate(c, directory, action='up')
+        if os.environ.get('LIFE_PG_TEST_SETTLEMENT_DIAGNOSTIC') == '1':
+            version = await c.fetchval('SELECT max(version) FROM life_migrations.schema_migrations')
+            if version != 134:
+                raise RuntimeError('Settlement diagnostics overlay requires the frozen schema-134 test profile')
+            overlay = Path(__file__).with_name('settlement_commit_diagnostics.sql').read_text()
+            await c.execute(overlay)
+        if os.environ.get('LIFE_PG_TEST_SETTLEMENT_EVIDENCE_BATCH') == '1':
+            version = await c.fetchval('SELECT max(version) FROM life_migrations.schema_migrations')
+            if version != 134:
+                raise RuntimeError('Settlement evidence candidate requires the frozen schema-134 test profile')
+            candidate = Path(__file__).with_name('settlement_evidence_batch.sql').read_text()
+            await c.execute(candidate)
+        if os.environ.get('LIFE_PG_TEST_ACTION_PROOF_BATCH') == '1':
+            version = await c.fetchval('SELECT max(version) FROM life_migrations.schema_migrations')
+            if version != 134:
+                raise RuntimeError('Action proof candidate requires the frozen schema-134 test profile')
+            await c.execute(Path(__file__).with_name('action_proof_batch.sql').read_text())
+        if os.environ.get('LIFE_PG_TEST_RECORDER_PAYLOAD_VALIDATION') == '1':
+            if os.environ.get('LIFE_PG_TEST_RECORDER_WRITE_VALUES') == '1':
+                raise RuntimeError('Select one recorder candidate, not both')
+            version = await c.fetchval('SELECT max(version) FROM life_migrations.schema_migrations')
+            if version != 134:
+                raise RuntimeError('Recorder payload candidate requires the frozen schema-134 test profile')
+            await c.execute(Path(__file__).with_name('recorder_payload_validation.sql').read_text())
+        if os.environ.get('LIFE_PG_TEST_RECORDER_WRITE_VALUES') == '1':
+            version = await c.fetchval('SELECT max(version) FROM life_migrations.schema_migrations')
+            if version != 134:
+                raise RuntimeError('Recorder write values require the frozen schema-134 test profile')
+            await c.execute(Path(__file__).with_name('recorder_write_values.sql').read_text())
         yield c, root + '/' + name, migration_dsn
     finally:
         await c.close()

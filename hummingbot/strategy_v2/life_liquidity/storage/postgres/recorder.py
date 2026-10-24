@@ -88,7 +88,11 @@ class PgRecorderRepository:
             controller = self._controller_sql
             applied_select = "SELECT " if self._all_history else "SELECT DISTINCT ON(o.stream) "
             direction = "ASC" if self._all_history else "DESC"
-            columns = "o.projection_id,o.stream,o.sequence,octet_length(to_jsonb(o)::text) AS bytes"
+            # Public delivery shape is fixed. Internal generated columns must
+            # not expand transfer size or consume the caller's byte budget.
+            delivery = """jsonb_build_object('account_id',o.account_id,'projection_id',o.projection_id,
+                'stream',o.stream,'sequence',o.sequence,'body',o.body,'source_hash',o.source_hash)"""
+            columns = "o.projection_id,o.stream,o.sequence,octet_length(" + delivery + "::text) AS bytes"
             select = (
                 "SELECT " + columns + """ FROM life_financial.recorder_outbox o
                 LEFT JOIN life_financial.projection_receipts r USING(account_id,projection_id)
@@ -113,7 +117,7 @@ class PgRecorderRepository:
                         LEFT JOIN life_financial.projection_receipts r USING(account_id,projection_id)
                         WHERE o.account_id=$1 AND r.projection_id IS NULL) AS pending,
                     CASE WHEN integrity.verified AND stats.count<=$4 AND stats.bytes<=$5 THEN
-                        COALESCE((SELECT jsonb_agg(to_jsonb(o) ORDER BY s.stream,s.sequence)
+                        COALESCE((SELECT jsonb_agg(""" + delivery + """ ORDER BY s.stream,s.sequence)
                             FROM selected s JOIN life_financial.recorder_outbox o ON o.account_id=$1
                                 AND o.projection_id=s.projection_id),'[]'::jsonb)
                         ELSE '[]'::jsonb END AS rows FROM integrity,stats""",

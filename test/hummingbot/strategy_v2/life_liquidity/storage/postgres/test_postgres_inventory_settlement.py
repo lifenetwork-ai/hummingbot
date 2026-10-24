@@ -1,6 +1,8 @@
 """Standalone SPOT settlement over real PostgreSQL with synthetic scoped facts."""
+import os
 from dataclasses import replace
 from decimal import Decimal as D
+from pathlib import Path
 from test.hummingbot.strategy_v2.life_liquidity.storage.postgres.test_postgres_financial_commands import order, spot
 
 import pytest
@@ -231,6 +233,8 @@ async def test_facts_expiring_at_physical_commit_release_nothing(database, monke
 
     from hummingbot.strategy_v2.life_liquidity.storage.contracts import StorageError
     repo, cfg, owner, settlement = await cycle(database)
+    if os.environ.get('LIFE_PG_TEST_SETTLEMENT_DIAGNOSTIC') != '1':
+        await database[0].execute(Path(__file__).with_name('settlement_commit_diagnostics.sql').read_text())
     original = repo._runtime._commit
 
     async def expired(tx):
@@ -241,6 +245,9 @@ async def test_facts_expiring_at_physical_commit_release_nothing(database, monke
         before = await repo.snapshot(cfg.binding)
         with pytest.raises(StorageError, match='PG_SETTLEMENT_FACTS_OR_PROJECTION_INVALID_AT_COMMIT'):
             await settlement.settle_inventory(command(), facts=await facts(repo), cut=before.cut, owner=owner)
+        diagnostic = repo._runtime.diagnostics[-1]
+        assert diagnostic.error_phase == 'commit' and diagnostic.reason_code == 'SETTLEMENT_FACTS_EXPIRED'
+        assert diagnostic.fact_age_ms > diagnostic.fact_max_age_ms == 1000
         assert (await repo.snapshot(cfg.binding)).cut == before.cut
     finally:
         await repo.close()

@@ -1,5 +1,15 @@
 # LIFE–USDT on OKX: TDD Implementation Plan
 
+**Retained native flow diagnosis (2026-10-24):** the reference diagnostic stops
+at 158 orders and the combined candidate at 109, both on heartbeat execution
+timeout. Lower average timings do not qualify tail availability. Two test-only
+action/recorder candidates pass affected functional regressions and small
+backup/restore controls. The separate 1k gate stops after **224 completed
+orders**, with a server-confirmed heartbeat timeout waiting for the `accounts`
+row lock; no 1k restore is reached. Full-flow and 1k/10k acceptance remain open.
+Measurements and scope are tracked in the
+[PostgreSQL plan](LIFE_POSTGRES_CLOUD_RUN_IMPLEMENTATION_PLAN_TDD.md#retained-native-flow-diagnosis-2026-10-24).
+
 **Five-part follow-up (2026-10-24):** the candidate now adds missing-hold/raw-row
 existence, atomic installation, catalog/ACL drift checks, other-product cash
 source bindings and small real archive round trips. A native snapshot/digest

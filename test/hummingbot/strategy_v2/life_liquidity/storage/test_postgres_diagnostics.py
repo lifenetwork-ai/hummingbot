@@ -1,5 +1,6 @@
 """Deterministic physical-boundary diagnostics without any database or .env."""
 import asyncio
+import json
 from collections import deque
 from dataclasses import FrozenInstanceError, replace
 from test.hummingbot.strategy_v2.life_liquidity.storage.test_postgres_runtime_config import configuration
@@ -8,6 +9,7 @@ import asyncpg
 import pytest
 
 from hummingbot.strategy_v2.life_liquidity.storage.contracts import CommitUnknown, StorageError
+from hummingbot.strategy_v2.life_liquidity.storage.postgres.diagnostics import _Trace
 from hummingbot.strategy_v2.life_liquidity.storage.postgres.runtime import PgRuntime
 
 
@@ -85,6 +87,37 @@ def runtime():
         pass
     store._validate_connection = validate
     return store, connection
+
+
+@pytest.mark.parametrize('reason,age', [('SETTLEMENT_FACTS_EXPIRED', 1001.25), ('SETTLEMENT_FACTS_FUTURE', -50),
+                                        ('SETTLEMENT_FACTS_NONFINITE', None), ('SETTLEMENT_FACTS_MISSING', None),
+                                        ('SETTLEMENT_PROJECTION_INVALID', 15.5)])
+def test_settlement_detail_is_a_bounded_reason_and_numeric_age(reason, age):
+    error = asyncpg.RaiseError('LIFE_SETTLEMENT_FACTS_OR_PROJECTION_INVALID_AT_COMMIT')
+    error.message = 'LIFE_SETTLEMENT_FACTS_OR_PROJECTION_INVALID_AT_COMMIT'
+    error.detail = json.dumps(dict(format='LIFE_SETTLEMENT_COMMIT_V1', reason=reason, age_ms=age, max_fact_age_ms=1000))
+    trace = _Trace('spot_settle_inventory', True)
+    trace.enter('commit')
+    trace.fail(error)
+    sample = trace.finish('error')
+    assert sample.reason_code == reason
+    assert sample.fact_age_ms == age and sample.fact_max_age_ms == 1000
+
+
+@pytest.mark.parametrize('detail', ['secret-payload', '{"reason":"secret-payload"}',
+                                    json.dumps(dict(format='LIFE_SETTLEMENT_COMMIT_V1', reason='secret-payload', age_ms=1, max_fact_age_ms=1000)),
+                                    json.dumps(dict(format='LIFE_SETTLEMENT_COMMIT_V1', reason='SETTLEMENT_FACTS_EXPIRED', age_ms=True, max_fact_age_ms=1000)),
+                                    json.dumps(dict(format='LIFE_SETTLEMENT_COMMIT_V1', reason='SETTLEMENT_FACTS_EXPIRED', age_ms=float('inf'), max_fact_age_ms=1000)),
+                                    json.dumps(dict(format='LIFE_SETTLEMENT_COMMIT_V1', reason='SETTLEMENT_FACTS_EXPIRED', age_ms=1001, max_fact_age_ms=1000, secret='secret-payload'))])
+def test_settlement_diagnostic_discards_unknown_or_malformed_details(detail):
+    error = asyncpg.RaiseError('LIFE_SETTLEMENT_FACTS_OR_PROJECTION_INVALID_AT_COMMIT')
+    error.message = 'LIFE_SETTLEMENT_FACTS_OR_PROJECTION_INVALID_AT_COMMIT'
+    error.detail = detail
+    trace = _Trace('spot_settle_inventory', True)
+    trace.fail(error)
+    sample = trace.finish('error')
+    assert sample.reason_code is sample.fact_age_ms is sample.fact_max_age_ms is None
+    assert 'secret-payload' not in repr(sample)
 
 
 async def transaction(store):
