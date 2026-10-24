@@ -105,7 +105,8 @@ Deployed YAML still supplies defaults for a new request. The hash covers both
 those defaults and the effective API request, including basket and duration.
 
 The first clock starts only after joint admission. Random steps keep that overall
-deadline, draw uniformly by scenario then profile, retain the current draw on
+deadline, initially draw uniformly by scenario then profile (revised by the P3
+configuration clarification below), retain the current draw on
 restart and skip elapsed windows without catch-up orders. Old executor retries
 retain their original scope, even if the owner's control version is unchanged.
 Real database time is used for activation and final authorization. Session/step
@@ -165,9 +166,91 @@ empty disposable DB; SecurityTest owns/restores its loop and scheduler instead
 of depending on another suite's leftover event loop. Runtime defaults and secret
 handling were not changed. Existing deprecation/AsyncMock warnings remain visible.
 
-## Next — P3
+## P3 — Admin API, reporting and observational reconciliation
 
-Expose the existing owner/store behavior through Basic Auth admin handlers with
-transactional retry receipts and FE completion states. Reuse recorder/history,
-performance and account data for bounded read APIs, daily statistics and the
-observational reconciliation report; generate Swagger from handler metadata.
+Implemented on the existing aiohttp/owner/recorder paths. Operational details and
+response semantics: [admin API guide](../admin-api.md). No OKX account, live order
+or deployment was used. The following evidence covers local P3 behavior; the
+deployment image/scenario matrix, load/soak and Demo gates remain P4–P6.
+
+### Reuse map
+
+| Existing component | P3 extension |
+|---|---|
+| aiohttp service and environment defaults | Basic Auth for all admin routes/docs; optional API enablement, CORS and reporting timezone |
+| `BotStateStore.request_mm_session` and owner publication | Caller-owned transaction for atomic idempotency receipts; accepted/applying/final outcomes require actual state |
+| Recorder ORM tables and existing indexes | Bounded market-scoped keyset history and batched order-side projection; no per-row queries |
+| Connector balance/position REST and WS loops | Retain raw cash/equity and position observation times; cache verified account UID |
+| V2 `controller_reports` cache | Expose existing performance definitions and valuation scope without a second PnL engine; the CLI `PerformanceMetrics` daily-slice assumptions do not match this endpoint |
+| Existing status JSONB and fenced publication | Preserve last observations after stop/mode switch; one daily account snapshot upsert per minute with actual observed timestamps |
+| Existing SQL runner and recorder events | Idempotent receipt/snapshot migrations, event-day fee/rebate/funding SQL aggregates using one repeatable-read snapshot |
+| Existing connector readers/contract conversion | Bounded observational reconciliation with durable receipts, owner fencing and separate market coverage; no corrective recovery call |
+
+### TDD and validation evidence
+
+- Actual HTTP Reds covered missing handlers, authentication/CORS, malformed
+  commands, receipt retries/CAS and protected local Swagger. Real PostgreSQL HTTP
+  tests exercise spot/perpetual/both, superseded start, random switch, failed
+  startup and stop completion; acknowledgement alone remains applying.
+- History reads preserve identical spot/perpetual pair names, Decimal money and
+  original fees. Query count remains constant (at most three) as order page size
+  grows. Runtime reference discovery shares one metadata refresh for concurrent reads.
+- The recorder fee-conversion Red observed a false zero. New unavailable
+  conversions now stay null with original fees intact; ambiguous legacy zero
+  conversions remain explicit in reads/daily coverage.
+- Daily PostgreSQL tests cover local midnight boundaries, charges/rebates,
+  unconverted fees, perpetual funding, late fills, shared-wallet scope, snapshot
+  upsert/replay/rate limits, owner fencing and missing dates. A concurrent-fill
+  Red returned fill count from before the insert but fees from after it; the
+  repeatable-read aggregate now reports one consistent snapshot.
+- UTC regression first observed `Asia/Bangkok` from a database default. Every
+  runtime connection now explicitly uses `timezone=UTC`; timestamps/response
+  offsets preserve the instant and serialize UTC. Reporting dates remain labels.
+- Reporting Reds distinguish engine equity from wallet cash, keep stopped and
+  disabled-market observations stale, and flag assets absent from a newer read.
+  Successful empty position snapshots remove closed legs; failed snapshots retain
+  exposure, and a newer WS event is protected from an older REST response.
+- Reconciliation tests cover actual fee/quantity/price differences, bounded/missing
+  pages, concurrent local/exchange fills, per-market timeout isolation and actual
+  long/short contract sizing. Active and held exposure both contribute. Real-PG
+  tests prove checks do not change control version, desired state, session or HALT;
+  old owners cannot complete reports. Receipt success is distinct from report match.
+- A real foreground service with external networking disabled serves statistics
+  and completes an unavailable observational check while stopped, without starting
+  a strategy. FE polling reads stored reports rather than exchange endpoints.
+- Swagger annotations generate deterministic OpenAPI with separate input/output
+  schemas, Decimal-string responses and fixed/random/runtime-reference examples.
+  Protected UI assets are pinned, bundled and checksum-verified. No CDN or remote
+  validator; CI checks schema drift.
+
+Final unit/regression gate: **1,362 passed, 2 subtests passed**. Existing upstream
+deprecation/AsyncMock warnings remain visible. Swagger drift and all changed-file
+pre-commit hooks pass. The full disposable PostgreSQL gate passes **100 tests**.
+
+### P3 configuration clarification — explicit profile selection
+
+Default profile IDs now match the three scenarios: `follow_market`, `sideways`
+and `follow_token`. Selection remains `fixed` (one `profile_id`) or `random`,
+independent of `market_mode: spot | perpetual | both`. Existing configured
+reference pairs and market budgets are preserved.
+
+YAML random defaults now contain `profile_ids` and `step_duration_seconds`.
+New random sessions use that explicit pool; API overrides may narrow it. Each
+profile has equal draw probability, including when several profiles use the same
+scenario. Saved requests retain their effective pool, current draw and deadlines.
+Archived session catalogues with the old `random.scenarios` format are decoded
+on restore; new YAML accepts only the explicit profile-pool format.
+
+TDD evidence: three initial failures demonstrated rejection of the new format,
+ignoring the YAML pool, and scenario-first weighting (1,506/3,000 draws for the
+single sideways profile). A fourth failure demonstrated that an old saved
+catalogue could no longer restore. All pass with the revised pool/restore logic.
+The targeted configuration/session/service/HTTP/Swagger suite passes **44 tests**;
+the disposable PostgreSQL session/command-receipt suite passes **11 tests**.
+This clarification is included with the completed P3 reporting APIs.
+
+## Next — P4
+
+Wire and test explicit OKX Demo/live transport selection using local transports,
+then extend the deployment-image simulator matrix. P5 load/soak and P6 dedicated
+OKX Demo acceptance follow in order.

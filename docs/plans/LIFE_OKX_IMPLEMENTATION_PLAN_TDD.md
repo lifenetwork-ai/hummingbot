@@ -87,29 +87,53 @@ Illustrative profile fragment, not yet runnable:
 ```yaml
 reference_connector: okx
 profiles:
-  market_follow:
+  follow_market:
     scenario: follow_market
     references:
       - pair: BTC-USDT
         weight: "0.6"
       - pair: ETH-USDT
         weight: "0.4"
-  sideways_default:
+  sideways:
     scenario: sideways
     anchor: session_start_mid
-  trend_eth:
+  follow_token:
     scenario: follow_token
     references:
       - pair: ETH-USDT
         weight: "1"
 random:
-  scenarios: [follow_market, sideways, follow_token]
+  profile_ids: [follow_market, sideways, follow_token]
   step_duration_seconds: 600
 ```
 
 The complete YAML also supplies market/controller settings, permitted/default
 runtime durations and per-market limits. Return these through `/profiles` so FE
 uses the same validation rules. Credentials stay in `.env`/injected secrets.
+
+Default profile IDs are `follow_market`, `sideways` and `follow_token`, matching
+their scenario names. `follow_token` follows the selected reference; it does not
+detect trends or automatically find a trending token. Reference pairs remain
+configurable, including validated API overrides outside the YAML defaults.
+
+`random` is a session selection policy, not a fourth profile or quote formula.
+Use `selection: fixed` with one `profile_id`, or `selection: random` with optional
+`profile_ids` and `step_duration_seconds`. Without `profile_ids`, random uses
+`random.profile_ids` from YAML; an API override may narrow that pool. The UI can offer **Random** alongside the three fixed
+choices while submitting the corresponding selection policy to the API.
+
+Keep these two controls separate in the UI/API:
+
+- **Selection:** one specific profile (`selection: fixed`, `profile_id`) or a
+  random profile pool (`selection: random`, optional `profile_ids`).
+- **Market:** `market_mode: spot | perpetual | both`, applicable to either selection.
+
+For example, fixed selection sends `{"selection":"fixed","profile_id":"follow_market"}`;
+random selection sends `{"selection":"random","profile_ids":["follow_market","sideways","follow_token"],"step_duration_seconds":600}`.
+These are selection fragments of a start/switch command; both commands also supply
+the market mode, duration and expected control version. Omit `profile_id` for random
+and omit random-only fields for fixed. Random may draw the same profile on consecutive
+steps; avoiding repeats would be a separate selection rule.
 
 Follow calculation:
 `reference(t) = LIFE_anchor × (1 + Σ weight_i × (source_price_i(t) / source_anchor_i − 1))`.
@@ -204,8 +228,8 @@ not part of the MVP.
   or expiry revokes new sends, including queued executor retries, and cancels quotes.
   Run these checks independently of market-data readiness; the final send guard
   also rejects an old step/profile generation within the same session.
-- Random chooses uniformly among configured scenarios, then among profiles within
-  that scenario. Use fixed step windows anchored to session start and capped by
+- Random chooses uniformly among the selected profile IDs, defaulting to the YAML
+  `random.profile_ids` pool. Use fixed step windows anchored to session start and capped by
   the overall end; each draw is persisted once. Both markets use the same draw.
   Capture new market/source anchors once per new step, after prior quotes are
   cancelled/reconciled; preserve those anchors across restarts within that step.
@@ -221,13 +245,16 @@ Mount `/api/v1/admin` on the existing aiohttp server. All admin reads, writes an
 Swagger UI/schema access require Basic Auth. Keep existing minimal health probes separate.
 
 Proposed env settings: `ADMIN_API_ENABLED=false`, `ADMIN_API_USERNAME`,
-`ADMIN_API_PASSWORD` (no usable credential defaults), `ADMIN_CORS_ORIGINS` (empty
-by default). Reuse dotenv/Cloud Run secrets and centralized defaults; no `LIFE_`
+`ADMIN_API_PASSWORD` (no usable credential defaults), `ADMIN_CORS_ORIGINS=*`
+by default. Reuse dotenv/Cloud Run secrets and centralized defaults; no `LIFE_`
 prefix. Enabling the API requires credentials. Use constant-time checks, HTTPS in
 deployment, `401`/`WWW-Authenticate` for bad credentials and redact auth from logs.
 FE sends operator-supplied credentials per request and keeps them out of its build.
-Allow only configured cross-origin FE origins/headers; actual requests remain
-authenticated after preflight. FE can poll; no new login/token service is needed.
+Support `*` for any FE origin, or a comma-separated explicit origin list. With
+`*`, return `Access-Control-Allow-Origin: *` without `Allow-Credentials`; FE sends
+its Basic `Authorization` header explicitly with `credentials: "omit"`. Allow the
+configured request headers; actual requests remain authenticated after preflight.
+FE can poll; no new login/token service is needed.
 
 Paths below are relative to `/api/v1/admin`:
 
@@ -323,6 +350,10 @@ market series.
   timestamps in storage and explicit half-open day boundaries. Store the bucket's
   timezone; do not relabel old snapshots under a new timezone. Late fills update
   their event day, and duplicate fills are counted once.
+  Every PostgreSQL connection explicitly sets `timezone=UTC`, regardless of the
+  database/server/host default. Timestamp columns use `TIMESTAMP WITH TIME ZONE`;
+  recorder epoch timestamps are UTC instants and API timestamps serialize with
+  `Z`. Local reporting dates are bucket labels, not local-time timestamps.
 - Historical balances start with these snapshots. Missing days stay missing;
   the latest sample in a day is labeled "last observed", not an exact midnight
   balance. Do not reconstruct balances from fills alone or report exact daily
@@ -364,7 +395,7 @@ Example command body, with Basic Auth and `Idempotency-Key` headers:
   "expected_version": 12,
   "market_mode": "both",
   "selection": "fixed",
-  "profile_id": "market_follow",
+  "profile_id": "follow_market",
   "references": [
     {"pair": "BTC-USDT", "weight": "0.6"},
     {"pair": "ETH-USDT", "weight": "0.4"}
@@ -373,7 +404,7 @@ Example command body, with Basic Auth and `Idempotency-Key` headers:
 }
 ```
 
-Random requests use configured scenario/profile IDs, overall `duration_seconds`
+Random requests use configured profile IDs, overall `duration_seconds`
 and `step_duration_seconds`. Switch/stop identify the current session. Start
 requires no active session. Reject arbitrary paths, unknown profiles and unsupported
 market/account settings.
@@ -445,16 +476,21 @@ The actual image/simulator matrix and Demo transport/account acceptance remain P
 
 ### P3 — Admin API for FE
 
-- [ ] **Red:** actual HTTP tests for Basic Auth, malformed baskets/modes, retries, stale versions, conflicting commands, completion/failure states and Decimal/freshness output. Cover protected Swagger UI/schema and missing or inconsistent handler documentation.
-- [ ] Add routes/auth/env validation to existing aiohttp; reuse owner/control flow with transactional idempotency receipts and preserve health probes/CORS rules.
-- [ ] Reuse history queries, account data, `PerformanceMetrics` and cached V2 reports where applicable; extract only helpers required by both callers, preserving existing CLI/MQTT behavior and avoiding duplicate fee/PnL or order-sync implementations.
-- [ ] Expose profiles/reference-pair discovery/status and existing order/fill/balance/position/performance data; publish schema/examples including weighted basket selection and a supported pair absent from YAML.
-- [ ] **Red → Green:** daily fee/rebate/funding grouping, unavailable conversions, late/duplicate fills and timezone boundaries. Add daily statistics and the minimal balance-snapshot migration/upsert; verify shared-account deduplication, cash/equity labels and missing-day/restart behavior with real PostgreSQL.
-- [ ] **Red → Green:** separate spot/perpetual history, daily series, performance and reconciliation coverage, including identical pair names, mode switches and one market unavailable. Prove shared balances appear once, configured budgets are not reported as exchange balances, and spot funding is not applicable.
-- [ ] **Red → Green:** order details and bounded reconciliation reports for missing/mismatched data, pagination gaps, concurrent fills and read failures. Prove a check cannot mutate exchange orders, repair ledger rows, restart the strategy or clear HALT; keep command/check completion distinct from report coverage.
-- [ ] Annotate API handlers and reuse request/response model schemas; add deterministic `make swagger` generation/validation and CI drift checks for `docs/api/openapi.json`.
-- [ ] Package Swagger UI at `/api/v1/admin/docs`, reading the generated `/api/v1/admin/openapi.json`; verify Basic Auth, command headers and schema/UI availability without external assets.
-- [ ] **Green/refactor:** exercise all three market modes and supported commands with bounded read/query assertions; record evidence and commit.
+- [x] **Red:** actual HTTP tests for Basic Auth, malformed baskets/modes, retries, stale versions, conflicting commands, completion/failure states and Decimal/freshness output. Cover protected Swagger UI/schema and missing or inconsistent handler documentation.
+- [x] Add routes/auth/env validation to existing aiohttp; reuse owner/control flow with transactional idempotency receipts and preserve health probes/CORS rules.
+- [x] Reuse history queries, account data, `PerformanceMetrics` and cached V2 reports where applicable; extract only helpers required by both callers, preserving existing CLI/MQTT behavior and avoiding duplicate fee/PnL or order-sync implementations.
+- [x] Expose profiles/reference-pair discovery/status and existing order/fill/balance/position/performance data; publish schema/examples including weighted basket selection and a supported pair absent from YAML.
+- [x] **Red → Green:** daily fee/rebate/funding grouping, unavailable conversions, late/duplicate fills and timezone boundaries. Add daily statistics and the minimal balance-snapshot migration/upsert; verify shared-account deduplication, cash/equity labels and missing-day/restart behavior with real PostgreSQL.
+- [x] **Red → Green:** separate spot/perpetual history, daily series, performance and reconciliation coverage, including identical pair names, mode switches and one market unavailable. Prove shared balances appear once, configured budgets are not reported as exchange balances, and spot funding is not applicable.
+- [x] **Red → Green:** order details and bounded reconciliation reports for missing/mismatched data, pagination gaps, concurrent fills and read failures. Prove a check cannot mutate exchange orders, repair ledger rows, restart the strategy or clear HALT; keep command/check completion distinct from report coverage.
+- [x] Annotate API handlers and reuse request/response model schemas; add deterministic `make swagger` generation/validation and CI drift checks for `docs/api/openapi.json`.
+- [x] Package Swagger UI at `/api/v1/admin/docs`, reading the generated `/api/v1/admin/openapi.json`; verify Basic Auth, command headers and schema/UI availability without external assets.
+- [x] **Green/refactor:** exercise all three market modes and supported commands with bounded read/query assertions; record evidence and commit.
+
+P3 evidence: [implementation progress](../implementation/LIFE_OKX_PROGRESS.md#p3--admin-api-reporting-and-observational-reconciliation) and [admin API guide](../admin-api.md).
+1,362 unit/regression tests, 2 subtests and all 100 disposable-PostgreSQL tests pass.
+Swagger drift and changed-file pre-commit checks pass. Deployment-image integration,
+local load/soak and exchange Demo acceptance remain P4–P6.
 
 ### P4 — Local image E2E and offline Demo transport contracts
 

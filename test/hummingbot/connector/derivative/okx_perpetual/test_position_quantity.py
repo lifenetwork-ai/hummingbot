@@ -65,3 +65,32 @@ async def test_missing_contract_metadata_does_not_guess_from_notional(exchange):
     with pytest.raises(ValueError, match="contract size"):
         await exchange._process_account_position_event(position())
     assert exchange.account_positions == {}
+
+
+@pytest.mark.asyncio
+async def test_successful_empty_rest_snapshot_clears_closed_positions(exchange):
+    await exchange._process_account_position_event(position())
+    assert exchange.account_positions
+    exchange._api_get = AsyncMock(return_value={"code": "0", "data": []})
+    await exchange._update_positions()
+    assert exchange.account_positions == {}, "Closed positions cannot remain visible after a successful empty snapshot"
+
+
+@pytest.mark.asyncio
+async def test_failed_rest_snapshot_retains_position_and_last_observation(exchange):
+    await exchange._process_account_position_event(position())
+    original = dict(exchange.account_positions)
+    exchange._api_get = AsyncMock(return_value={"code": "1", "msg": "temporarily unavailable", "data": []})
+    await exchange._update_positions()
+    assert exchange.account_positions == original
+
+
+@pytest.mark.asyncio
+async def test_rest_snapshot_cannot_erase_a_newer_websocket_position(exchange):
+    async def read_before_ws_event(**kwargs):
+        await exchange._process_account_position_event(position())
+        return {"code": "0", "data": []}
+    exchange._api_get = AsyncMock(side_effect=read_before_ws_event)
+    await exchange._update_positions()
+    assert len(exchange.account_positions) == 1
+    assert next(iter(exchange.account_positions.values())).amount == Decimal("0.6")

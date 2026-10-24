@@ -20,13 +20,13 @@ class MMProfile(BaseModel):
 
 class RandomSelection(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    scenarios: List[Scenario] = Field(min_length=1)
+    profile_ids: List[str] = Field(min_length=1, description="Profiles available for random selection; each has equal selection probability.")
     step_duration_seconds: int = Field(default=600, gt=0, strict=True)
 
     @model_validator(mode="after")
-    def unique_scenarios(self):
-        if len(set(self.scenarios)) != len(self.scenarios):
-            raise ValueError("Random scenarios must be unique")
+    def unique_profiles(self):
+        if len(set(self.profile_ids)) != len(self.profile_ids):
+            raise ValueError("Random profile IDs must be unique")
         return self
 
 
@@ -53,8 +53,8 @@ class MMProfilesConfig(BaseModel):
             raise ValueError("Default duration must be within configured bounds")
         if self.random.step_duration_seconds > self.max_duration_seconds:
             raise ValueError("Random step exceeds maximum session duration")
-        if not set(self.random.scenarios) <= {profile.scenario for profile in self.profiles.values()}:
-            raise ValueError("Each random scenario requires a profile")
+        if not set(self.random.profile_ids) <= set(self.profiles):
+            raise ValueError("Each random profile ID must exist in profiles")
         if len({template.id for template in self.markets.values()}) != len(self.markets):
             raise ValueError("Market controller IDs must be unique")
         if len({template.trading_pair for template in self.markets.values()}) != 1:

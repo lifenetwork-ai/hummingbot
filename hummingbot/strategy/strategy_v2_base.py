@@ -748,6 +748,8 @@ class StrategyV2Base(StrategyPyBase):
         try:
             # Get all reports in a single call and store them
             self.controller_reports = self.executor_orchestrator.get_all_reports()
+            import time
+            self.controller_reports_timestamp = time.time()
 
             # Update each controller with its specific data
             for controller_id, controller in self.controllers.items():

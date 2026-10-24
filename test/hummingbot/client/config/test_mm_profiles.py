@@ -17,7 +17,7 @@ CATALOGUE = Path(__file__).resolve().parents[4] / "deploy/cloudrun/conf/life_mm_
 async def test_deployment_packages_three_default_profiles_and_two_market_templates():
     data = await load_yml_into_dict(str(CATALOGUE))
     assert data.get("reference_connector") == "okx"
-    assert set(data["profiles"]) == {"market_follow", "sideways_default", "trend_eth"}
+    assert set(data["profiles"]) == {"follow_market", "sideways", "follow_token"}
     assert set(data["markets"]) == {"spot", "perpetual"}
     assert data["markets"]["spot"]["leverage"] == 1
     assert data["markets"]["perpetual"]["position_mode"] == "HEDGE"
@@ -26,14 +26,15 @@ async def test_deployment_packages_three_default_profiles_and_two_market_templat
 @pytest.mark.asyncio
 async def test_new_supported_reference_can_override_yaml_without_mutating_defaults():
     catalogue = await MMProfilesConfig.load(CATALOGUE)
+    defaults = catalogue.model_dump(mode="json")
     supported = {"okx": {"LIFE-USDT", "AVAX-USDT"}, "okx_perpetual": {"LIFE-USDT"}}
-    configs = catalogue.controller_configs("trend_eth", "both", supported,
+    configs = catalogue.controller_configs("follow_token", "both", supported,
                                            references=[{"pair": "AVAX-USDT", "weight": "1"}],
                                            available_quote=Decimal("200"))
     assert len(configs) == 2
     assert {config.connector_name for config in configs} == {"okx", "okx_perpetual"}
     assert all(config.references[0].pair == "AVAX-USDT" and config.runtime_config_managed for config in configs)
-    assert catalogue.profiles["trend_eth"].references[0].pair == "ETH-USDT"
+    assert catalogue.model_dump(mode="json") == defaults
 
 
 @pytest.mark.asyncio
@@ -45,7 +46,7 @@ async def test_new_supported_reference_can_override_yaml_without_mutating_defaul
 async def test_selection_rejects_missing_market_and_shared_collateral_overallocation(mode, supported, available):
     catalogue = await MMProfilesConfig.load(CATALOGUE)
     with pytest.raises(ValueError):
-        catalogue.controller_configs("sideways_default", mode, supported, available_quote=Decimal(available))
+        catalogue.controller_configs("sideways", mode, supported, available_quote=Decimal(available))
 
 
 @pytest.mark.asyncio
@@ -54,7 +55,7 @@ async def test_unknown_reference_and_non_usdt_override_are_rejected():
     supported = {"okx": {"LIFE-USDT", "BTC-USDT"}}
     for pair in ("UNKNOWN-USDT", "BTC-USDC"):
         with pytest.raises(ValueError):
-            catalogue.controller_configs("trend_eth", "spot", supported,
+            catalogue.controller_configs("follow_token", "spot", supported,
                                          references=[{"pair": pair, "weight": "1"}])
 
 
@@ -67,7 +68,7 @@ async def test_duration_and_basket_limits():
             catalogue.validate_duration(duration)
     catalogue.markets["spot"].max_reference_pairs = 1
     with pytest.raises(ValueError):
-        catalogue.controller_configs("market_follow", "spot", {"okx": {"LIFE-USDT", "BTC-USDT", "ETH-USDT"}})
+        catalogue.controller_configs("follow_market", "spot", {"okx": {"LIFE-USDT", "BTC-USDT", "ETH-USDT"}})
 
 
 @pytest.mark.asyncio
@@ -80,7 +81,7 @@ async def test_existing_v2_loader_discovers_controller_and_periodic_reload_prese
         loaded = runner_config.load_controller_configs()
         assert loaded[0].get_controller_class() is LifeMMController
         runtime_config = catalogue.controller_configs(
-            "sideways_default", "spot", {"okx": {"LIFE-USDT"}}, available_quote=Decimal("200"))[0]
+            "sideways", "spot", {"okx": {"LIFE-USDT"}}, available_quote=Decimal("200"))[0]
         runtime_config.total_amount_quote = Decimal("20")
         controller = LifeMMController(runtime_config, MagicMock(), MagicMock())
         strategy = MagicMock()
@@ -96,10 +97,29 @@ async def test_existing_v2_loader_discovers_controller_and_periodic_reload_prese
 @pytest.mark.asyncio
 async def test_existing_runner_loads_two_effective_configs_without_writing_yaml(tmp_path):
     catalogue = await MMProfilesConfig.load(CATALOGUE)
-    selected = catalogue.controller_configs("sideways_default", "both", None)
+    selected = catalogue.controller_configs("sideways", "both", None)
     config = StrategyV2ConfigBase(controller_config_overrides=[item.model_dump(mode="json") for item in selected])
     with patch("hummingbot.client.settings.CONTROLLERS_CONF_DIR_PATH", tmp_path):
         loaded = config.load_controller_configs()
     assert {item.connector_name for item in loaded} == {"okx", "okx_perpetual"}
     assert all(item.get_controller_class() is LifeMMController for item in loaded)
     assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.asyncio
+async def test_random_defaults_use_explicit_profile_ids_including_custom_names():
+    data = await load_yml_into_dict(str(CATALOGUE))
+    data["profiles"]["basket_custom"] = data["profiles"]["follow_market"]
+    data["random"] = {"profile_ids": ["basket_custom", "sideways"], "step_duration_seconds": 600}
+    catalogue = MMProfilesConfig.model_validate(data)
+    assert catalogue.random.profile_ids == ["basket_custom", "sideways"]
+    assert "scenarios" not in catalogue.random.model_dump()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("pool", [[], ["sideways", "sideways"], ["unknown_profile"]])
+async def test_random_defaults_reject_empty_duplicate_and_unknown_profiles(pool):
+    data = await load_yml_into_dict(str(CATALOGUE))
+    data["random"] = {"profile_ids": pool, "step_duration_seconds": 600}
+    with pytest.raises(ValueError):
+        MMProfilesConfig.model_validate(data)

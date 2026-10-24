@@ -387,7 +387,7 @@ class BotOwnership:
             await connector._order_tracker.process_order_update(status)
 
     @staticmethod
-    async def _open_orders(connector):
+    async def _open_orders(connector, max_pages=100):
         # OKX documents cursor pagination by ordId and a maximum page size of 100:
         # https://www.okx.com/docs-v5/en/#order-book-trading-trade-get-order-list
         # Reuse the existing authenticated client and its conservative order-query
@@ -400,7 +400,7 @@ class BotOwnership:
             )
             limit_id = get_rest_api_limit_id_for_endpoint("GET", ORDER_PATH)
         result, after = [], None
-        for _ in range(100):
+        for _ in range(max_pages):
             params = {"limit": "100"}
             if after:
                 params["after"] = after

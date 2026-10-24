@@ -552,9 +552,12 @@ class MarketsRecorder:
                 order_amount=evt.amount,
                 token=quote_asset,
             )
-        except Exception as e:
-            self.logger().error(f"Error calculating fee in quote: {e}, will be stored in the DB as 0.")
-            fee_in_quote = 0
+            fee_in_quote = Decimal(str(fee_in_quote))
+            if not fee_in_quote.is_finite():
+                raise ValueError("Non-finite fee conversion")
+        except Exception as error:
+            self.logger().warning("Quote-fee conversion unavailable; original fees are preserved type=%s", type(error).__name__)
+            fee_in_quote = None
         trade_fill_record: TradeFill = TradeFill(
             config_file_path=self.config_file_path,
             strategy=self.strategy_name,

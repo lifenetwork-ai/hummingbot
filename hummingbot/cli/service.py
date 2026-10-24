@@ -61,6 +61,9 @@ class ServiceHost:
         self.applied_mm_identity = None
         self.catalogue = {}
         self.config_hashes = {}
+        self.reporting = {}
+        self.reconciliation_task = None
+        self.next_check_poll = 0
         self.revision = os.environ.get("K_REVISION") or os.environ.get("COMMIT_SHA") or "local"
         self.log = logging.getLogger(__name__)
 
@@ -190,6 +193,7 @@ class ServiceHost:
         self.engine = SQLConnectionManager.initialize_postgres(self.settings)
         self.store = BotStateStore(self.engine, self.settings.bot_id)
         self.store.ensure()
+        self.reporting = ((self.store.read() or {}).get("status") or {}).get("reporting") or {}
         self.owner = BotOwnership(self.engine, self.settings.bot_id)
         self.catalogue = {kind: list_configs(kind) for kind in STRATEGY_TYPES}
         self.config_hashes = {kind: {name: hashlib.sha256(config_path(kind, name).read_bytes()).hexdigest()
@@ -288,13 +292,22 @@ class ServiceHost:
         return await self.owner.shutdown_core(core)
 
     def snapshot(self):
+        from hummingbot.cli.admin_observations import capture_reporting
         core = self.hb.trading_core
+        self.reporting = capture_reporting(core, self.reporting)
         return {"name": self.settings.bot_id, "running": self.running, "phase": self.phase,
                 "error": self.error, "available_configs": self.catalogue,
                 "configuration_sha256": self.config_hashes, "engine": core.get_status(),
                 "balances": {name: {asset: str(value) for asset, value in connector.get_all_balances().items()}
                              for name, connector in core.connector_manager.connectors.items()},
                 "mm_session": self.mm_session.model_dump(mode="json", exclude={"catalogue"}) if self.mm_session else None,
+                "mm_markets": [{"market": "spot" if controller.config.connector_name == "okx" else "perpetual",
+                                "connector": controller.config.connector_name, "pair": controller.config.trading_pair,
+                                "ready": bool(controller.processed_data.get("ready")), "admitted": controller._session_admitted,
+                                "reference_price": str(controller.processed_data["reference_price"]) if "reference_price" in controller.processed_data else None,
+                                "reason": controller.processed_data.get("reason")} for controller in self._mm_controllers()],
+                "reporting": self.reporting,
+                "reporting_timezone": self.admin_settings.reporting_timezone if hasattr(self, "admin_settings") else "Asia/Ho_Chi_Minh",
                 "format_status": None}
 
     async def observe_once(self):
@@ -391,6 +404,37 @@ class ServiceHost:
         self.owner.store.publish(owner_uuid=self.owner.owner_uuid, owner_generation=self.owner.generation,
                                  version=version, status=json.loads(json.dumps(self.snapshot(), default=str)),
                                  revision=self.revision)
+        await self.poll_reconciliation()
+
+    async def poll_reconciliation(self):
+        from hummingbot.model.admin_store import AdminStore
+        if self.reconciliation_task is not None and not self.reconciliation_task.done():
+            return
+        if time.monotonic() < self.next_check_poll:
+            return
+        self.next_check_poll = time.monotonic() + 1
+        storage = AdminStore(self.store)
+        row = await asyncio.to_thread(storage.claim_check, self.owner.owner_uuid, self.owner.generation)
+        if row:
+            self.reconciliation_task = asyncio.create_task(self.run_reconciliation(storage, row))
+
+    async def run_reconciliation(self, storage, row):
+        from hummingbot.core.admin_reconciliation import ReconciliationRequest, perform_check
+        owner_uuid, generation = self.owner.owner_uuid, self.owner.generation
+        try:
+            report = await perform_check(storage, self.hb.trading_core, ReconciliationRequest.model_validate(row["payload"]))
+        except asyncio.CancelledError:
+            raise
+        except Exception as error:
+            report = dict(state="unavailable", markets=[], started_at=None, finished_at=None)
+            self.log.warning("Observational check failed type=%s", type(error).__name__)
+        try:
+            await asyncio.to_thread(storage.finish_check, row["id"], owner_uuid, generation,
+                                    json.loads(json.dumps(report, default=str)))
+        except Exception as error:
+            # The durable applying receipt is reclaimable; do not emit driver
+            # details or lose the task exception to asyncio's default logger.
+            self.log.warning("Observational report publication failed type=%s", type(error).__name__)
 
     async def run(self):
         await self.bootstrap()
@@ -404,6 +448,9 @@ class ServiceHost:
     async def close(self):
         from hummingbot.core.order_submission_guard import install_guard
         self.running, self.phase = False, "stopping"
+        if self.reconciliation_task is not None and not self.reconciliation_task.done():
+            self.reconciliation_task.cancel()
+            await asyncio.gather(self.reconciliation_task, return_exceptions=True)
         if self.owner is not None and self.owner.connection is not None:
             # Any cleanup error keeps the lock until OS process teardown. The
             # deadline must remain armed when this returns False.
@@ -423,6 +470,18 @@ class ServiceHost:
         return True
 
 
+def create_service_app(host, admin_settings=None):
+    from hummingbot.cli.admin_api import AdminAPI, admin_middleware
+    from hummingbot.client.config.admin_config import AdminSettings
+    admin_settings = admin_settings or AdminSettings.from_environment()
+    host.admin_settings = admin_settings
+    app = web.Application(middlewares=[admin_middleware(admin_settings)])
+    for path in ("/startup", "/live", "/ready"):
+        app.router.add_get(path, host.health)
+    AdminAPI(host, admin_settings).register(app)
+    return app
+
+
 async def run_service():
     from hummingbot.client.config.runtime_config import RuntimeConfigurationError, RuntimeSettings, postgres_requested
     stop = asyncio.Event()
@@ -437,9 +496,7 @@ async def run_service():
         settings = RuntimeSettings.from_environment()
         host = ServiceHost(settings, stop, deadline)
         host.configure_logging()
-        app = web.Application()
-        for path in ("/startup", "/live", "/ready"):
-            app.router.add_get(path, host.health)
+        app = create_service_app(host)
         runner = web.AppRunner(app, access_log=None, shutdown_timeout=0.1)
         await runner.setup()
         await web.TCPSite(runner, "0.0.0.0", settings.port).start()

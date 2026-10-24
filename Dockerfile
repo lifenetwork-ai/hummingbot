@@ -25,6 +25,7 @@ COPY bin/ bin/
 COPY hummingbot/ hummingbot/
 COPY scripts/ scripts/
 COPY controllers/ controllers/
+COPY docs/api/openapi.json docs/api/openapi.json
 COPY scripts/ scripts-copy/
 COPY setup.py .
 COPY LICENSE .

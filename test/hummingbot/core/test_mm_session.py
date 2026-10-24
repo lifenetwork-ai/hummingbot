@@ -15,7 +15,7 @@ def rng():
 @pytest.mark.asyncio
 async def test_session_clock_starts_at_readiness_and_restart_does_not_extend_it(rng):
     catalogue = await MMProfilesConfig.load(CATALOGUE)
-    request = MMSessionRequest(market_mode="both", profile_id="market_follow", duration_seconds=3600)
+    request = MMSessionRequest(market_mode="both", profile_id="follow_market", duration_seconds=3600)
     session = MMSession.create(catalogue, request, rng=rng, session_id="session-1")
     assert not session.permits(session_id=session.id, generation=0, now=1000)
     anchors = {"life_spot": {"life": "0.1", "sources": {"BTC-USDT": "100", "ETH-USDT": "10"}},
@@ -36,7 +36,7 @@ async def test_session_clock_starts_at_readiness_and_restart_does_not_extend_it(
 async def test_random_restart_preserves_draw_skips_elapsed_windows_and_revokes_old_step(rng):
     catalogue = await MMProfilesConfig.load(CATALOGUE)
     request = MMSessionRequest(market_mode="both", selection="random", duration_seconds=3600,
-                               step_duration_seconds=600, profile_ids=["sideways_default"])
+                               step_duration_seconds=600, profile_ids=["sideways"])
     session = MMSession.create(catalogue, request, rng=rng, session_id="random-1")
     anchors = {"life_spot": {"life": "0.1", "sources": {}},
                "life_perpetual": {"life": "0.1", "sources": {}}}
@@ -62,7 +62,7 @@ async def test_random_restart_preserves_draw_skips_elapsed_windows_and_revokes_o
 async def test_missing_market_anchor_does_not_admit_both(rng):
     catalogue = await MMProfilesConfig.load(CATALOGUE)
     session = MMSession.create(catalogue, MMSessionRequest(
-        market_mode="both", profile_id="sideways_default", duration_seconds=60), rng=rng)
+        market_mode="both", profile_id="sideways", duration_seconds=60), rng=rng)
     with pytest.raises(ValueError):
         session.ready(now=1000, anchors={"life_spot": {"life": "0.1", "sources": {}}})
     assert session.started_at is None
@@ -78,7 +78,7 @@ async def test_missing_market_anchor_does_not_admit_both(rng):
 ])
 async def test_invalid_session_selection_is_rejected(rng, updates):
     catalogue = await MMProfilesConfig.load(CATALOGUE)
-    values = dict(market_mode="spot", profile_id="sideways_default", duration_seconds=3600)
+    values = dict(market_mode="spot", profile_id="sideways", duration_seconds=3600)
     values.update(updates)
     with pytest.raises(ValueError):
         MMSession.create(catalogue, MMSessionRequest(**values), rng=rng)
@@ -87,10 +87,54 @@ async def test_invalid_session_selection_is_rejected(rng, updates):
 @pytest.mark.asyncio
 async def test_configuration_hash_covers_effective_api_basket_and_duration(rng):
     catalogue = await MMProfilesConfig.load(CATALOGUE)
-    request = MMSessionRequest(market_mode="spot", profile_id="market_follow", duration_seconds=3600,
+    request = MMSessionRequest(market_mode="spot", profile_id="follow_market", duration_seconds=3600,
                                references=[{"pair": "BTC-USDT", "weight": "1"}])
     first = MMSession.create(catalogue, request, rng=rng)
     same = MMSession.create(catalogue, request, rng=rng)
     changed = MMSession.create(catalogue, request.model_copy(update={"duration_seconds": 600}), rng=rng)
     assert first.config_hash == same.config_hash
     assert first.config_hash != changed.config_hash
+
+
+@pytest.mark.asyncio
+async def test_random_uses_yaml_pool_and_api_can_narrow_it(rng):
+    catalogue = await MMProfilesConfig.load(CATALOGUE)
+    catalogue.random.profile_ids = ["sideways"]
+    request = MMSessionRequest(market_mode="both", selection="random", duration_seconds=3600)
+    session = MMSession.create(catalogue, request, rng=rng)
+    assert session.request.profile_ids == ["sideways"]
+    assert session.profile_id == "sideways"
+    assert session.request.step_duration_seconds == 600
+    with pytest.raises(ValueError, match="profile"):
+        MMSession.create(catalogue, request.model_copy(update={"profile_ids": ["follow_market"]}), rng=rng)
+
+
+@pytest.mark.asyncio
+async def test_random_draw_gives_each_profile_equal_weight(rng):
+    catalogue = await MMProfilesConfig.load(CATALOGUE)
+    catalogue.profiles["basket_custom"] = catalogue.profiles["follow_market"].model_copy(deep=True)
+    pool = ["follow_market", "basket_custom", "sideways"]
+    request = MMSessionRequest(market_mode="spot", selection="random", duration_seconds=3600, profile_ids=pool)
+    counts = dict.fromkeys(pool, 0)
+    for _ in range(3000):
+        counts[MMSession._draw(catalogue, request, rng)] += 1
+    # A fixed seed and broad bounds distinguish equal profile weights from
+    # scenario-first selection (which gives sideways approximately 50%).
+    assert all(850 < count < 1150 for count in counts.values()), counts
+
+
+@pytest.mark.asyncio
+async def test_saved_session_with_old_random_scenarios_restores_its_draw_and_deadlines(rng):
+    catalogue = await MMProfilesConfig.load(CATALOGUE)
+    session = MMSession.create(catalogue, MMSessionRequest(
+        market_mode="spot", selection="random", profile_ids=["sideways"], duration_seconds=3600), rng=rng)
+    session.ready(now=1000, anchors={"life_spot": {"life": "0.1", "sources": {}}})
+    saved = session.model_dump(mode="json")
+    saved["catalogue"]["random"] = {
+        "scenarios": ["follow_market", "sideways", "follow_token"], "step_duration_seconds": 600}
+    restored = MMSession.model_validate(saved)
+    assert restored.id == session.id and restored.profile_id == session.profile_id
+    assert restored.config_hash == session.config_hash
+    assert restored.request == session.request and restored.anchors == session.anchors
+    assert restored.started_at == 1000 and restored.expires_at == 4600 and restored.step_expires_at == 1600
+    assert restored.catalogue.random.profile_ids == list(catalogue.profiles)

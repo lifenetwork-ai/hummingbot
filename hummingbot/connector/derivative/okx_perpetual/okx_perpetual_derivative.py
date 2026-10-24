@@ -1,4 +1,5 @@
 import asyncio
+import time
 from decimal import Decimal
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -57,6 +58,10 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
         self._domain = domain
         self._last_trade_history_timestamp = None
         self._contract_sizes = {}
+        self.account_balance_observations = {}
+        self.position_observations = {}
+        self.position_snapshot_times = {}
+        self._position_event_versions = {}
 
         super().__init__(balance_asset_limit, rate_limits_share_pct)
 
@@ -346,7 +351,6 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
         wallet_balance: Dict[str, Dict[str, Any]] = await self._api_get(
             path_url=CONSTANTS.REST_GET_WALLET_BALANCE[CONSTANTS.ENDPOINT],
             is_auth_required=True,
-            params={"ccy": "USDT,USDC"},
         )
 
         if wallet_balance['code'] == CONSTANTS.RET_CODE_OK:
@@ -356,9 +360,13 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
 
         self._account_available_balances.clear()
         self._account_balances.clear()
+        self.account_balance_observations.clear()
 
         for balance in balances:
             self._update_balance_from_details(balance_details=balance)
+        if self._trading_required:
+            from hummingbot.connector.okx_account_observations import observe_account_identity
+            await observe_account_identity(self)
 
     def _update_balance_from_details(self, balance_details: Dict[str, Any]):
         equity_text = balance_details["eq"]
@@ -372,6 +380,8 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
             total = available + Decimal(balance_details["frozenBal"])
         self._account_balances[balance_details["ccy"]] = total
         self._account_available_balances[balance_details["ccy"]] = available
+        from hummingbot.connector.okx_account_observations import record_balance_details
+        record_balance_details(self, balance_details)
 
     async def _update_trading_rules(self):
         # This has to be reimplemented because the request requires an extra parameter
@@ -423,13 +433,15 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
     async def _update_trading_fees(self):
         pass
 
-    async def _request_order_fills(self, order: InFlightOrder) -> Dict[str, Any]:
+    async def _request_order_fills(self, order: InFlightOrder, *, after=None, limit=None) -> Dict[str, Any]:
         exchange_symbol = await self.exchange_symbol_associated_to_pair(trading_pair=order.trading_pair)
         body_params = {
             "instType": "SWAP",
             "ordId": order.exchange_order_id,
             "clOrdId": order.client_order_id,
             "instId": exchange_symbol,
+            **({"after": after} if after is not None else {}),
+            **({"limit": str(limit)} if limit is not None else {}),
         }
         res = await self._api_get(
             path_url=CONSTANTS.REST_USER_TRADE_RECORDS[CONSTANTS.ENDPOINT],
@@ -599,6 +611,7 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
         Retrieves all positions using the REST API.
         """
         position_tasks = []
+        versions = {pair: self._position_event_versions.get(pair, 0) for pair in self._trading_pairs}
 
         for trading_pair in self._trading_pairs:
             ex_trading_pair = await self.exchange_symbol_associated_to_pair(trading_pair)
@@ -616,24 +629,33 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
 
         # Initial parsing of responses. Joining all the responses
         parsed_resps: List[Dict[str, Any]] = []
+        successful_pairs = set()
         for resp, trading_pair in zip(raw_responses, self._trading_pairs):
-            if not isinstance(resp, Exception):
+            if self._position_event_versions.get(trading_pair, 0) != versions[trading_pair]:
+                continue
+            if not isinstance(resp, Exception) and resp.get("code") in (None, CONSTANTS.RET_CODE_OK):
                 result = resp["data"]
                 if result:
                     position_entries = result if isinstance(result, list) else [result]
                     parsed_resps.extend(position_entries)
+                if resp.get("code") == CONSTANTS.RET_CODE_OK and isinstance(result, list):
+                    successful_pairs.add(trading_pair)
             else:
-                self.logger().error(f"Error fetching positions for {trading_pair}. Response: {resp}")
+                self.logger().error(f"Error fetching positions for {trading_pair}")
 
+        observed_keys = set()
         for data in parsed_resps:
             ex_trading_pair = data["instId"]
             hb_trading_pair = await self.trading_pair_associated_to_exchange_symbol(ex_trading_pair)
+            if self._position_event_versions.get(hb_trading_pair, 0) != versions.get(hb_trading_pair):
+                continue
             position_side = self.get_position_side(data)
             unrealized_pnl = Decimal(data["upl"]) if bool(data["upl"]) else Decimal(str(0.0))
             entry_price = Decimal(data["avgPx"]) if bool(data["avgPx"]) else Decimal(str(0.0))
             amount = self.get_position_amount(data, hb_trading_pair)
             leverage = Decimal(data["lever"]) if bool(data["lever"]) else Decimal(str(0.0))
             pos_key = self._perpetual_trading.position_key(hb_trading_pair, position_side)
+            observed_keys.add(pos_key)
             if amount != s_decimal_0:
                 position = Position(
                     trading_pair=hb_trading_pair,
@@ -646,6 +668,32 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
                 self._perpetual_trading.set_position(pos_key, position)
             else:
                 self._perpetual_trading.remove_position(pos_key)
+
+        # Only a successful full response proves an omitted leg is now flat.
+        # Retain exposure on failed or incomplete reads.
+        successful_pairs = {pair for pair in successful_pairs if self._position_event_versions.get(pair, 0) == versions[pair]}
+        for key, position in list(self.account_positions.items()):
+            if position.trading_pair in successful_pairs and key not in observed_keys:
+                self._perpetual_trading.remove_position(key)
+                self.position_observations.pop(key, None)
+        for pair in successful_pairs:
+            self.position_snapshot_times[pair] = time.time()
+        for data in parsed_resps:
+            pair = await self.trading_pair_associated_to_exchange_symbol(data["instId"])
+            if self._position_event_versions.get(pair, 0) == versions.get(pair):
+                self._record_position_observation(pair, data)
+
+    def _record_position_observation(self, pair, data):
+        from hummingbot.connector.okx_account_observations import optional_decimal
+        key = self._perpetual_trading.position_key(pair, self.get_position_side(data))
+        if key not in self.account_positions:
+            self.position_observations.pop(key, None)
+            return
+        self.position_observations[key] = {
+            "observed_at": time.time(), "margin_mode": data.get("mgnMode") or None,
+            "margin": optional_decimal(data.get("margin")),
+            "liquidation_price": optional_decimal(data.get("liqPx")),
+        }
 
     @staticmethod
     def get_position_side(position_msg: Dict[str, Any]) -> PositionSide:
@@ -679,6 +727,7 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
         if bool(position_msg.get("instId")):
             ex_trading_pair = position_msg["instId"]
             trading_pair = await self.trading_pair_associated_to_exchange_symbol(symbol=ex_trading_pair)
+            self._position_event_versions[trading_pair] = self._position_event_versions.get(trading_pair, 0) + 1
             position_side = self.get_position_side(position_msg)
             entry_price = Decimal(position_msg["avgPx"]) if bool(position_msg["avgPx"]) else Decimal("0")
             amount = self.get_position_amount(position_msg, trading_pair)
@@ -697,6 +746,7 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
                 self._perpetual_trading.set_position(pos_key, position)
             else:
                 self._perpetual_trading.remove_position(pos_key)
+            self._record_position_observation(trading_pair, position_msg)
             # safe_ensure_future(self._update_balances())
 
     def _process_trade_event_message(self, trade_msg: Dict[str, Any]):
@@ -788,6 +838,8 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
             is_auth_required=True,
         )
         if response.get("code") == CONSTANTS.RET_CODE_OK and response.get("data"):
+            if response["data"][0].get("uid"):
+                self.account_uid = str(response["data"][0]["uid"])
             pos_mode = response["data"][0].get("posMode")
             reverse_map = {v: k for k, v in CONSTANTS.POSITION_MODE_MAP.items()}
             return reverse_map.get(pos_mode)

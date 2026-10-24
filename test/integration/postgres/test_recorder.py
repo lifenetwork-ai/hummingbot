@@ -99,6 +99,17 @@ def test_fill_before_create_duplicate_events_and_recovery(recording):
     assert manager.persistence_healthy
 
 
+def test_fee_conversion_failure_is_unavailable_not_a_zero_cost_trade(recording):
+    recorder, manager, market = recording
+    with patch.object(AddedToCostTradeFee, "fee_amount_in_token", side_effect=ValueError("rate unavailable")):
+        recorder._did_fill_order(MarketEvent.OrderFilled.value, market, fill())
+    with manager.get_new_session() as session:
+        stored = session.query(TradeFill).one()
+        assert stored.trade_fee_in_quote is None
+        assert stored.trade_fee["flat_fees"] == [{"token": "USDT", "amount": "0.2"}]
+    assert manager.persistence_healthy
+
+
 def test_commit_failure_rolls_back_all_state_without_acknowledgment(recording):
     recorder, manager, market = recording
 
@@ -215,8 +226,12 @@ def test_runtime_query_budget_and_exact_config_filter(recording):
 
 
 def test_all_registered_models_roundtrip(pg_engine):
+    from datetime import date, datetime, timezone
+
+    from sqlalchemy import Date, DateTime
     bootstrap_postgres(pg_engine, auto_migrate=True)
     rows = []
+    inserted_values = {}
     classes = {mapper.local_table.name: mapper.class_ for mapper in get_declarative_base().registry.mappers}
     from sqlalchemy.orm import Session
     with Session(pg_engine) as session, session.begin():
@@ -228,7 +243,14 @@ def test_all_registered_models_roundtrip(pg_engine):
                 if column.nullable:
                     continue
                 kind = column.type
-                if isinstance(kind, SqliteDecimal):
+                if column.foreign_keys:
+                    target = next(iter(column.foreign_keys)).column
+                    value = inserted_values[target.table.name][target.name]
+                elif isinstance(kind, DateTime):
+                    value = datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
+                elif isinstance(kind, Date):
+                    value = date(2026, 1, 2)
+                elif isinstance(kind, SqliteDecimal):
                     value = Decimal("123.456789")
                 elif isinstance(kind, (BigInteger, Integer)):
                     value = 1700000000123 if isinstance(kind, BigInteger) else 1
@@ -250,6 +272,7 @@ def test_all_registered_models_roundtrip(pg_engine):
             # Flush in dependency order; the same order identity is used by FKs.
             session.flush()
             rows.append((classes[table.name], obj, values))
+            inserted_values[table.name] = values
     with Session(pg_engine) as session:
         for model, _, expected in rows:
             stored = session.query(model).one()

@@ -7,4 +7,7 @@ DEFAULT_ENV_CONFIG = MappingProxyType({
     "ENABLE_AUTO_MIGRATION": "false",
     "BOT_ID": "hummingbot",
     "PORT": "8080",
+    "ADMIN_API_ENABLED": "false",
+    "ADMIN_CORS_ORIGINS": "*",
+    "REPORTING_TIMEZONE": "Asia/Ho_Chi_Minh",
 })

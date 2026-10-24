@@ -31,10 +31,10 @@ def load_environment() -> None:
         load_dotenv(path, override=False, interpolate=False)
 
 
-def parse_boolean(value: str) -> bool:
+def parse_boolean(value: str, variable: str = "ENABLE_AUTO_MIGRATION") -> bool:
     normalized = value.strip().lower()
     if normalized not in ("true", "false"):
-        raise RuntimeConfigurationError("ENABLE_AUTO_MIGRATION must be true or false.")
+        raise RuntimeConfigurationError(f"{variable} must be true or false.")
     return normalized == "true"
 
 

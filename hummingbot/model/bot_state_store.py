@@ -1,4 +1,5 @@
 """Small operational-state adapter for the existing bot_state table."""
+from contextlib import nullcontext
 from typing import Optional
 
 from sqlalchemy import select, text, update
@@ -20,7 +21,8 @@ class BotStateStore:
     def read(self) -> Optional[dict]:
         with self.engine.connect() as connection:
             row = connection.execute(text("""
-                SELECT *, EXTRACT(EPOCH FROM (clock_timestamp() - heartbeat)) AS heartbeat_age_s
+                SELECT *, EXTRACT(EPOCH FROM (clock_timestamp() - heartbeat)) AS heartbeat_age_s,
+                    EXTRACT(EPOCH FROM clock_timestamp()) AS database_now
                 FROM public.bot_state WHERE bot_id=:bot_id
             """), {"bot_id": self.bot_id}).mappings().first()
             return dict(row) if row else None
@@ -67,11 +69,18 @@ class BotStateStore:
                 BotState.owner_generation == owner_generation, BotState.control_version == version,
                 BotState.acknowledged_version <= version,
             ).values(acknowledged_version=version, heartbeat=text("clock_timestamp()"), status=status,
-                     revision=revision))
-            return result.rowcount == 1
+                     revision=revision).returning(BotState.mm_session, BotState.desired_state)).mappings().first()
+            if result is None:
+                return False
+            from hummingbot.model.admin_store import AdminStore
+            AdminStore.record_observation(connection, self.bot_id, version, status, result)
+            from hummingbot.model.admin_reporting import save_daily_balances
+            save_daily_balances(connection, (status.get("reporting") or {}).get("accounts", []),
+                                status.get("reporting_timezone", "Asia/Ho_Chi_Minh"))
+            return True
 
     def request_mm_session(self, *, action, expected_version, catalogue=None, request=None,
-                           current_session_id=None, rng=None):
+                           current_session_id=None, rng=None, connection=None):
         from random import SystemRandom
 
         from hummingbot.core.mm_session import MMSession, MMSessionRequest
@@ -79,7 +88,7 @@ class BotStateStore:
             raise ValueError("Invalid MM action or control version")
         if action != "stop" and (catalogue is None or request is None):
             raise ValueError("Start/switch require a catalogue and session request")
-        with self.engine.begin() as connection:
+        with (self.engine.begin() if connection is None else nullcontext(connection)) as connection:
             row = connection.execute(select(BotState).where(BotState.bot_id == self.bot_id).with_for_update()).mappings().first()
             if row is None or row["control_version"] != expected_version:
                 raise ControlConflict("Control version changed")

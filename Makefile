@@ -13,6 +13,13 @@ ifeq ($(DYDX),1)
   ENV_FILE := setup/environment_dydx.yml
 endif
 
+.PHONY: swagger swagger-check
+swagger:
+	$(PYTHON) -m hummingbot.cli.swagger
+
+swagger-check:
+	$(PYTHON) -m hummingbot.cli.swagger --check
+
 test:
 	coverage run -m pytest \
 	--ignore="test/integration" \

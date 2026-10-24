@@ -17,7 +17,7 @@ from hummingbot.core.mm_session import MMSession, MMSessionRequest
 async def setup_host():
     catalogue = await MMProfilesConfig.load(CATALOGUE)
     session = MMSession.create(catalogue, MMSessionRequest(
-        market_mode="both", profile_id="market_follow", duration_seconds=3600), rng=random.Random(1))
+        market_mode="both", profile_id="follow_market", duration_seconds=3600), rng=random.Random(1))
     host = ServiceHost(RuntimeSettings.from_environment({"DATABASE_URL": "postgresql://unused/test"}),
                        asyncio.Event(), MagicMock())
     host.mm_session = session
@@ -38,7 +38,7 @@ async def setup_host():
         connector.get_balance.return_value = Decimal("1000")
         connector.get_available_balance.return_value = Decimal("1000")
     provider.get_connector_with_fallback.side_effect = connectors.__getitem__
-    configs = catalogue.controller_configs("market_follow", "both", None)
+    configs = catalogue.controller_configs("follow_market", "both", None)
     controllers = {}
     for config in configs:
         config = LifeMMConfig.model_validate({**config.model_dump(), "mm_session_id": session.id, "mm_generation": 0})

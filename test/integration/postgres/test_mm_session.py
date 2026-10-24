@@ -23,7 +23,7 @@ def sessions(pg_engine):
 
 def test_request_persists_effective_basket_and_uses_control_cas(sessions):
     store, catalogue = sessions
-    request = MMSessionRequest(market_mode="both", profile_id="market_follow", duration_seconds=3600,
+    request = MMSessionRequest(market_mode="both", profile_id="follow_market", duration_seconds=3600,
                                references=[{"pair": "AVAX-USDT", "weight": "1"}])
     result = store.request_mm_session(action="start", expected_version=0, catalogue=catalogue,
                                       request=request, rng=random.Random(1))
@@ -52,7 +52,7 @@ def test_migration_replay_preserves_pending_draw(sessions):
 def test_stop_revokes_session_without_waiting_for_owner(sessions):
     store, catalogue = sessions
     result = store.request_mm_session(action="start", expected_version=0, catalogue=catalogue,
-                                      request=MMSessionRequest(market_mode="spot", profile_id="sideways_default", duration_seconds=60))
+                                      request=MMSessionRequest(market_mode="spot", profile_id="sideways", duration_seconds=60))
     store.request_mm_session(action="stop", expected_version=1, current_session_id=result["session_id"])
     row = store.read()
     assert row["desired_state"] == "stopped"
@@ -62,7 +62,7 @@ def test_stop_revokes_session_without_waiting_for_owner(sessions):
 
 def test_stale_session_id_cannot_switch_current_session(sessions):
     store, catalogue = sessions
-    request = MMSessionRequest(market_mode="spot", profile_id="sideways_default", duration_seconds=60)
+    request = MMSessionRequest(market_mode="spot", profile_id="sideways", duration_seconds=60)
     store.request_mm_session(action="start", expected_version=0, catalogue=catalogue, request=request)
     with pytest.raises(ControlConflict):
         store.request_mm_session(action="switch", expected_version=1, current_session_id="old-session",
@@ -73,7 +73,7 @@ def test_stale_session_id_cannot_switch_current_session(sessions):
 def test_owner_update_is_atomic_and_stale_generation_cannot_change_anchors(sessions):
     store, catalogue = sessions
     result = store.request_mm_session(action="start", expected_version=0, catalogue=catalogue,
-                                      request=MMSessionRequest(market_mode="spot", profile_id="sideways_default", duration_seconds=60))
+                                      request=MMSessionRequest(market_mode="spot", profile_id="sideways", duration_seconds=60))
     owner = BotOwnership(store.engine, "hummingbot")
     assert owner.try_acquire()
     try:
@@ -98,14 +98,14 @@ def test_start_and_switch_never_clear_recovery_halt(sessions):
         connection.execute(text("UPDATE bot_state SET recovery_state = '{\"halt\": true}'::jsonb"))
     with pytest.raises(ControlConflict, match="HALT"):
         store.request_mm_session(action="start", expected_version=0, catalogue=catalogue,
-                                 request=MMSessionRequest(market_mode="spot", profile_id="sideways_default", duration_seconds=60))
+                                 request=MMSessionRequest(market_mode="spot", profile_id="sideways", duration_seconds=60))
     assert store.read()["control_version"] == 0
     assert store.read()["recovery_state"]["halt"] is True
 
 
 def test_concurrent_starts_have_exactly_one_control_winner(sessions):
     store, catalogue = sessions
-    request = MMSessionRequest(market_mode="spot", profile_id="sideways_default", duration_seconds=60)
+    request = MMSessionRequest(market_mode="spot", profile_id="sideways", duration_seconds=60)
 
     def start():
         try:
@@ -122,7 +122,7 @@ def test_concurrent_starts_have_exactly_one_control_winner(sessions):
 def test_owner_restart_preserves_anchor_deadline_and_fences_previous_owner(sessions):
     store, catalogue = sessions
     store.request_mm_session(action="start", expected_version=0, catalogue=catalogue,
-                             request=MMSessionRequest(market_mode="spot", profile_id="sideways_default", duration_seconds=60))
+                             request=MMSessionRequest(market_mode="spot", profile_id="sideways", duration_seconds=60))
     first = BotOwnership(store.engine, "hummingbot")
     successor = BotOwnership(store.engine, "hummingbot")
     assert first.try_acquire()

@@ -5,24 +5,30 @@ min_duration_seconds: 60
 default_duration_seconds: 3600
 max_duration_seconds: 86400
 max_total_amount_quote: "200"
+# Profile IDs match their scenario names. Reference pairs remain configurable.
 profiles:
-  market_follow:
+  follow_market:
     scenario: follow_market
     references:
       - pair: BTC-USDT
         weight: "0.6"
       - pair: ETH-USDT
         weight: "0.4"
-  sideways_default:
+  sideways:
     scenario: sideways
     anchor: session_start_mid
-  trend_eth:
+  follow_token:
     scenario: follow_token
     references:
-      - pair: ETH-USDT
+      - pair: BTC-USDT
         weight: "1"
+# Defaults used when an API command sets selection: random.
 random:
-  scenarios: [follow_market, sideways, follow_token]
+  profile_ids:
+    - follow_market
+    - sideways
+    - follow_token
+  # Run each selected profile for 600 seconds (10 minutes), then pick again.
   step_duration_seconds: 600
 markets:
   spot:

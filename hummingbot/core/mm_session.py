@@ -6,10 +6,12 @@ import uuid
 from decimal import Decimal
 from typing import Dict, List, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from controllers.market_making.life_mm import ReferencePair
 from hummingbot.client.config.mm_profiles import MarketMode, MMProfilesConfig
+
+MMSessionStatus = Literal["preparing", "running", "stopping", "stopped", "expired"]
 
 
 def session_permits(state, *, session_id, generation, now):
@@ -41,11 +43,36 @@ class MMSession(BaseModel):
     profile_id: str
     generation: int = Field(default=0, ge=0, strict=True)
     step_index: int = Field(default=0, ge=0, strict=True)
-    status: Literal["preparing", "running", "stopping", "stopped", "expired"] = "preparing"
+    status: MMSessionStatus = "preparing"
     started_at: Optional[float] = None
     expires_at: Optional[float] = None
     step_expires_at: Optional[float] = None
     anchors: Dict[str, dict] = Field(default_factory=dict)
+
+    @model_validator(mode="before")
+    @classmethod
+    def restore_legacy_random_pool(cls, values):
+        """Decode saved pre-profile-pool sessions without redrawing or resetting time.
+
+        New YAML uses only profile_ids; this compatibility applies to archived
+        session catalogues already persisted by the previous service version.
+        """
+        if not isinstance(values, dict) or not isinstance(values.get("catalogue"), dict):
+            return values
+        catalogue = values["catalogue"]
+        policy = catalogue.get("random")
+        if not isinstance(policy, dict) or "scenarios" not in policy or "profile_ids" in policy:
+            return values
+        scenarios, profiles = policy["scenarios"], catalogue.get("profiles", {})
+        if (not isinstance(scenarios, list) or not scenarios or not isinstance(profiles, dict)
+                or any(not isinstance(scenario, str) for scenario in scenarios)
+                or len(set(scenarios)) != len(scenarios)):
+            return values
+        pool = [key for key, profile in profiles.items() if isinstance(profile, dict) and profile.get("scenario") in scenarios]
+        if {profiles[key]["scenario"] for key in pool} != set(scenarios):
+            return values
+        policy = {key: value for key, value in policy.items() if key != "scenarios"}
+        return {**values, "catalogue": {**catalogue, "random": {**policy, "profile_ids": pool}}}
 
     @classmethod
     def create(cls, catalogue, request, *, rng, session_id=None):
@@ -57,10 +84,9 @@ class MMSession(BaseModel):
         else:
             if request.references is not None or request.profile_id is not None:
                 raise ValueError("Random selection uses configured profile pools and baskets")
-            pool = list(catalogue.profiles) if request.profile_ids is None else request.profile_ids
-            if (not pool or len(pool) != len(set(pool)) or not set(pool) <= set(catalogue.profiles)
-                    or any(catalogue.profiles[key].scenario not in catalogue.random.scenarios for key in pool)):
-                raise ValueError("Random selection requires unique configured profiles in permitted scenarios")
+            pool = list(catalogue.random.profile_ids) if request.profile_ids is None else request.profile_ids
+            if not pool or len(pool) != len(set(pool)) or not set(pool) <= set(catalogue.random.profile_ids):
+                raise ValueError("Random selection requires unique profile IDs from the configured random pool")
             # Store the effective pool and step once; a revision cannot replace them.
             request = request.model_copy(update={
                 "profile_id": None, "profile_ids": list(pool),
@@ -80,10 +106,7 @@ class MMSession(BaseModel):
 
     @staticmethod
     def _draw(catalogue, request, rng):
-        groups = {}
-        for key in sorted(request.profile_ids):
-            groups.setdefault(catalogue.profiles[key].scenario, []).append(key)
-        return rng.choice(groups[rng.choice(sorted(groups))])
+        return rng.choice(sorted(request.profile_ids))
 
     def ready(self, *, now, anchors):
         if not math.isfinite(now) or (self.started_at is not None and now < self.started_at):

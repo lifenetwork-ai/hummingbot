@@ -45,6 +45,7 @@ class OkxExchange(ExchangePyBase):
         self.okx_registration_sub_domain = okx_registration_sub_domain or "www"
         self._trading_required = trading_required
         self._trading_pairs = trading_pairs
+        self.account_balance_observations = {}
         super().__init__(balance_asset_limit, rate_limits_share_pct)
 
     @property
@@ -278,9 +279,13 @@ class OkxExchange(ExchangePyBase):
 
         self._account_available_balances.clear()
         self._account_balances.clear()
+        self.account_balance_observations.clear()
 
         for balance in balances:
             self._update_balance_from_details(balance_details=balance)
+        if self._trading_required:
+            from hummingbot.connector.okx_account_observations import observe_account_identity
+            await observe_account_identity(self)
 
     def _update_balance_from_details(self, balance_details: Dict[str, Any]):
         equity_text = balance_details["eq"]
@@ -294,6 +299,8 @@ class OkxExchange(ExchangePyBase):
             total = available + Decimal(balance_details["frozenBal"])
         self._account_balances[balance_details["ccy"]] = total
         self._account_available_balances[balance_details["ccy"]] = available
+        from hummingbot.connector.okx_account_observations import record_balance_details
+        record_balance_details(self, balance_details)
 
     async def _update_trading_rules(self):
         # This has to be reimplemented because the request requires an extra parameter
@@ -341,14 +348,16 @@ class OkxExchange(ExchangePyBase):
                 "clOrdId": order.client_order_id},
             is_auth_required=True)
 
-    async def _request_order_fills(self, order: InFlightOrder) -> Dict[str, Any]:
+    async def _request_order_fills(self, order: InFlightOrder, *, after=None, limit=None) -> Dict[str, Any]:
         return await self._api_request(
             method=RESTMethod.GET,
             path_url=CONSTANTS.OKX_TRADE_FILLS_PATH,
             params={
                 "instType": "SPOT",
                 "instId": await self.exchange_symbol_associated_to_pair(order.trading_pair),
-                "ordId": await order.get_exchange_order_id()},
+                "ordId": await order.get_exchange_order_id(),
+                **({"after": after} if after is not None else {}),
+                **({"limit": str(limit)} if limit is not None else {})},
             is_auth_required=True)
 
     async def _all_trade_updates_for_order(self, order: InFlightOrder) -> List[TradeUpdate]:

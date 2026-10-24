@@ -1,0 +1,16 @@
+{
+  "files": {
+    "swagger-ui-bundle.js": {
+      "gzip_bytes": 429309,
+      "gzip_sha256": "10ffb7896fe85b21ea5b6566cae3f9c4664205d0d62b42df2814a80a09309615",
+      "upstream_sha256": "050bc415ee7048dcd881682678f720264e7da5e373f7461d7c58c755305255f7"
+    },
+    "swagger-ui.css": {
+      "gzip_bytes": 26817,
+      "gzip_sha256": "2cbd58f26a0659186938845de1ee7b56fec85972fdfd11dc4345b4d591f427fd",
+      "upstream_sha256": "1ac324f7dcd27e4b9386b4bd6421271ec147e922a22c05ba24b11515e9aa6321"
+    }
+  },
+  "upstream": "https://github.com/swagger-api/swagger-ui/releases/tag/v5.33.1",
+  "version": "v5.33.1"
+}

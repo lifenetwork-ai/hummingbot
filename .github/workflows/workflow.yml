@@ -30,6 +30,8 @@ jobs:
             Dockerfile
             MANIFEST.in
             .dockerignore
+            docs/api/openapi.json
+            hummingbot/cli/static/swagger_ui/**
       - name: Check if client files are modified
         id: check_files
         if: github.event_name == 'push' || env.GIT_DIFF
@@ -98,6 +100,13 @@ jobs:
           source $CONDA/etc/profile.d/conda.sh
           conda activate hummingbot
           make test
+
+      - name: Admin OpenAPI contract drift check
+        shell: bash
+        run: |
+          source $CONDA/etc/profile.d/conda.sh
+          conda activate hummingbot
+          make swagger-check
 
       - name: PostgreSQL integration (required, no missing-DSN skip)
         shell: bash

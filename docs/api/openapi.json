@@ -1,0 +1,5723 @@
+{
+  "components": {
+    "schemas": {
+      "AccountBalancesOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Id"
+          },
+          "balances": {
+            "items": {
+              "$ref": "#/components/schemas/BalanceObservationOutput"
+            },
+            "title": "Balances",
+            "type": "array"
+          },
+          "environment": {
+            "title": "Environment",
+            "type": "string"
+          },
+          "identity_verified": {
+            "title": "Identity Verified",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "account_id",
+          "environment",
+          "identity_verified",
+          "balances"
+        ],
+        "title": "AccountBalances",
+        "type": "object"
+      },
+      "BalanceObservationOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "available_cash": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Available Cash"
+          },
+          "available_equity": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Available Equity"
+          },
+          "cash_balance": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cash Balance"
+          },
+          "connector": {
+            "title": "Connector",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "equity": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Equity"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "title": "Observed At",
+            "type": "string"
+          },
+          "present_in_latest_snapshot": {
+            "default": true,
+            "title": "Present In Latest Snapshot",
+            "type": "boolean"
+          },
+          "source": {
+            "const": "okx_account_balance",
+            "title": "Source",
+            "type": "string"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "currency",
+          "cash_balance",
+          "available_cash",
+          "equity",
+          "available_equity",
+          "observed_at",
+          "source",
+          "connector",
+          "stale"
+        ],
+        "title": "BalanceObservation",
+        "type": "object"
+      },
+      "BalancesResponseOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "accounts": {
+            "items": {
+              "$ref": "#/components/schemas/AccountBalancesOutput"
+            },
+            "title": "Accounts",
+            "type": "array"
+          },
+          "owner_available": {
+            "title": "Owner Available",
+            "type": "boolean"
+          },
+          "scope": {
+            "const": "account",
+            "default": "account",
+            "title": "Scope",
+            "type": "string"
+          },
+          "server_time": {
+            "format": "date-time",
+            "title": "Server Time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "accounts",
+          "server_time",
+          "owner_available"
+        ],
+        "title": "BalancesResponse",
+        "type": "object"
+      },
+      "CloseTypeOutput": {
+        "enum": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ],
+        "title": "CloseType",
+        "type": "integer"
+      },
+      "CommandResponseOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "enum": [
+              "start",
+              "switch",
+              "stop"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "effective_version": {
+            "title": "Effective Version",
+            "type": "integer"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Error"
+          },
+          "expected_version": {
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "payload": {
+            "discriminator": {
+              "mapping": {
+                "start": "#/components/schemas/StartCommandOutput",
+                "stop": "#/components/schemas/StopCommandOutput",
+                "switch": "#/components/schemas/SwitchCommandOutput"
+              },
+              "propertyName": "action"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/StartCommandOutput"
+              },
+              {
+                "$ref": "#/components/schemas/SwitchCommandOutput"
+              },
+              {
+                "$ref": "#/components/schemas/StopCommandOutput"
+              }
+            ],
+            "title": "Payload"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "accepted",
+              "applying",
+              "succeeded",
+              "failed",
+              "superseded"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "action",
+          "session_id",
+          "expected_version",
+          "effective_version",
+          "status",
+          "payload",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "CommandResponse",
+        "type": "object"
+      },
+      "DailyBalanceOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "title": "Account Id",
+            "type": "string"
+          },
+          "available_cash": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Available Cash"
+          },
+          "available_equity": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Available Equity"
+          },
+          "cash_balance": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cash Balance"
+          },
+          "connector": {
+            "title": "Connector",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "environment": {
+            "title": "Environment",
+            "type": "string"
+          },
+          "equity": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Equity"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "title": "Observed At",
+            "type": "string"
+          },
+          "reporting_timezone": {
+            "title": "Reporting Timezone",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "account_id",
+          "environment",
+          "currency",
+          "reporting_timezone",
+          "day",
+          "observed_at",
+          "updated_at",
+          "connector",
+          "source",
+          "cash_balance",
+          "available_cash",
+          "equity",
+          "available_equity"
+        ],
+        "title": "DailyBalance",
+        "type": "object"
+      },
+      "DailyBucketOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "buy_volume_base": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Buy Volume Base",
+            "type": "string"
+          },
+          "buy_volume_quote": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Buy Volume Quote",
+            "type": "string"
+          },
+          "converted_fill_count": {
+            "title": "Converted Fill Count",
+            "type": "integer"
+          },
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "fee_in_usdt": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fee In Usdt"
+          },
+          "fees": {
+            "items": {
+              "$ref": "#/components/schemas/DailyFeeOutput"
+            },
+            "title": "Fees",
+            "type": "array"
+          },
+          "fill_count": {
+            "title": "Fill Count",
+            "type": "integer"
+          },
+          "funding_paid": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Funding Paid"
+          },
+          "funding_received": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Funding Received"
+          },
+          "last_event_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Event At"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "title": "Observed At",
+            "type": "string"
+          },
+          "percentage_fee_fill_count": {
+            "title": "Percentage Fee Fill Count",
+            "type": "integer"
+          },
+          "sell_volume_base": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Sell Volume Base",
+            "type": "string"
+          },
+          "sell_volume_quote": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Sell Volume Quote",
+            "type": "string"
+          },
+          "source": {
+            "const": "recorder_tables",
+            "default": "recorder_tables",
+            "title": "Source",
+            "type": "string"
+          },
+          "unconverted_fill_count": {
+            "title": "Unconverted Fill Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "day",
+          "observed_at",
+          "last_event_at",
+          "fill_count",
+          "buy_volume_base",
+          "sell_volume_base",
+          "buy_volume_quote",
+          "sell_volume_quote",
+          "converted_fill_count",
+          "unconverted_fill_count",
+          "percentage_fee_fill_count",
+          "fee_in_usdt",
+          "fees",
+          "funding_paid",
+          "funding_received"
+        ],
+        "title": "DailyBucket",
+        "type": "object"
+      },
+      "DailyFeeOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "net": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Net",
+            "type": "string"
+          },
+          "paid": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Paid",
+            "type": "string"
+          },
+          "rebates": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Rebates",
+            "type": "string"
+          }
+        },
+        "required": [
+          "currency",
+          "paid",
+          "rebates",
+          "net"
+        ],
+        "title": "DailyFee",
+        "type": "object"
+      },
+      "DailyMarketOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "connector": {
+            "title": "Connector",
+            "type": "string"
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/DailyBucketOutput"
+            },
+            "title": "Days",
+            "type": "array"
+          },
+          "funding_status": {
+            "enum": [
+              "not_applicable",
+              "observed_only"
+            ],
+            "title": "Funding Status",
+            "type": "string"
+          },
+          "market": {
+            "enum": [
+              "spot",
+              "perpetual"
+            ],
+            "title": "Market",
+            "type": "string"
+          }
+        },
+        "required": [
+          "market",
+          "connector",
+          "funding_status",
+          "days"
+        ],
+        "title": "DailyMarket",
+        "type": "object"
+      },
+      "DailyResponseOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "balance_scope": {
+            "const": "account_last_observed",
+            "title": "Balance Scope",
+            "type": "string"
+          },
+          "balances": {
+            "items": {
+              "$ref": "#/components/schemas/DailyBalanceOutput"
+            },
+            "title": "Balances",
+            "type": "array"
+          },
+          "coverage": {
+            "const": "observed_recorder_events",
+            "title": "Coverage",
+            "type": "string"
+          },
+          "end_day": {
+            "format": "date",
+            "title": "End Day",
+            "type": "string"
+          },
+          "funding_precision": {
+            "const": "legacy_float",
+            "default": "legacy_float",
+            "title": "Funding Precision",
+            "type": "string"
+          },
+          "markets": {
+            "items": {
+              "$ref": "#/components/schemas/DailyMarketOutput"
+            },
+            "title": "Markets",
+            "type": "array"
+          },
+          "reporting_timezone": {
+            "title": "Reporting Timezone",
+            "type": "string"
+          },
+          "server_time": {
+            "format": "date-time",
+            "title": "Server Time",
+            "type": "string"
+          },
+          "start_day": {
+            "format": "date",
+            "title": "Start Day",
+            "type": "string"
+          },
+          "trade_storage_scale": {
+            "const": 6,
+            "default": 6,
+            "title": "Trade Storage Scale",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "start_day",
+          "end_day",
+          "reporting_timezone",
+          "server_time",
+          "coverage",
+          "balance_scope",
+          "markets",
+          "balances"
+        ],
+        "title": "DailyResponse",
+        "type": "object"
+      },
+      "ErrorResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Detail"
+          },
+          "error": {
+            "title": "Error",
+            "type": "string"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "title": "ErrorResponse",
+        "type": "object"
+      },
+      "FeeAmountOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Amount",
+            "type": "string"
+          },
+          "token": {
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "amount"
+        ],
+        "title": "FeeAmount",
+        "type": "object"
+      },
+      "FillViewOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Amount",
+            "type": "string"
+          },
+          "connector": {
+            "title": "Connector",
+            "type": "string"
+          },
+          "conversion_status": {
+            "enum": [
+              "recorded",
+              "unavailable",
+              "legacy_ambiguous"
+            ],
+            "title": "Conversion Status",
+            "type": "string"
+          },
+          "fee": {
+            "$ref": "#/components/schemas/RecordedFeeOutput"
+          },
+          "fee_in_quote": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fee In Quote"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "leverage": {
+            "title": "Leverage",
+            "type": "integer"
+          },
+          "market": {
+            "enum": [
+              "spot",
+              "perpetual"
+            ],
+            "title": "Market",
+            "type": "string"
+          },
+          "order_id": {
+            "title": "Order Id",
+            "type": "string"
+          },
+          "pair": {
+            "title": "Pair",
+            "type": "string"
+          },
+          "position": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position"
+          },
+          "price": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Price",
+            "type": "string"
+          },
+          "quote_currency": {
+            "title": "Quote Currency",
+            "type": "string"
+          },
+          "side": {
+            "enum": [
+              "BUY",
+              "SELL"
+            ],
+            "title": "Side",
+            "type": "string"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "title": "Timestamp",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "order_id",
+          "market",
+          "connector",
+          "pair",
+          "side",
+          "price",
+          "amount",
+          "timestamp",
+          "leverage",
+          "position",
+          "fee",
+          "fee_in_quote",
+          "quote_currency",
+          "conversion_status"
+        ],
+        "title": "FillView",
+        "type": "object"
+      },
+      "FillsPageOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/FillViewOutput"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "FillsPage",
+        "type": "object"
+      },
+      "InitialPositionConfigOutput": {
+        "description": "Configuration for an initial position that the controller should consider.\nThis is used when the user already has assets in their account and wants\nthe controller to manage them.",
+        "properties": {
+          "amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Amount",
+            "type": "string"
+          },
+          "connector_name": {
+            "title": "Connector Name",
+            "type": "string"
+          },
+          "side": {
+            "$ref": "#/components/schemas/TradeTypeOutput"
+          },
+          "trading_pair": {
+            "title": "Trading Pair",
+            "type": "string"
+          }
+        },
+        "required": [
+          "connector_name",
+          "trading_pair",
+          "amount",
+          "side"
+        ],
+        "title": "InitialPositionConfig",
+        "type": "object"
+      },
+      "LifeMMConfigOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "buy_amounts_pct": {
+            "anyOf": [
+              {
+                "items": {
+                  "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "is_updatable": true,
+            "prompt": "Enter a comma-separated list of buy amounts as percentages (e.g., '50, 50'), or leave blank to distribute equally: ",
+            "prompt_on_new": true,
+            "title": "Buy Amounts Pct"
+          },
+          "buy_spreads": {
+            "default": "0.01,0.02",
+            "is_updatable": true,
+            "items": {
+              "type": "number"
+            },
+            "prompt": "Enter a comma-separated list of buy spreads (e.g., '0.01, 0.02'): ",
+            "prompt_on_new": true,
+            "title": "Buy Spreads",
+            "type": "array"
+          },
+          "connector_name": {
+            "default": "okx",
+            "enum": [
+              "okx",
+              "okx_perpetual"
+            ],
+            "title": "Connector Name",
+            "type": "string"
+          },
+          "controller_name": {
+            "default": "life_mm",
+            "title": "Controller Name",
+            "type": "string"
+          },
+          "controller_type": {
+            "default": "market_making",
+            "title": "Controller Type",
+            "type": "string"
+          },
+          "cooldown_time": {
+            "default": 15,
+            "is_updatable": true,
+            "prompt": "Enter the cooldown time in seconds between replacing an executor that traded (e.g., 15): ",
+            "prompt_on_new": true,
+            "title": "Cooldown Time",
+            "type": "integer"
+          },
+          "executor_refresh_time": {
+            "default": 300,
+            "is_updatable": true,
+            "prompt": "Enter the refresh time in seconds for executors (e.g., 300 for 5 minutes): ",
+            "prompt_on_new": true,
+            "title": "Executor Refresh Time",
+            "type": "integer"
+          },
+          "id": {
+            "description": "Unique identifier for the controller. Required.",
+            "title": "Id",
+            "type": "string"
+          },
+          "initial_anchor": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Initial Anchor"
+          },
+          "initial_positions": {
+            "default": [],
+            "is_updatable": false,
+            "items": {
+              "$ref": "#/components/schemas/InitialPositionConfigOutput"
+            },
+            "prompt": "Enter initial positions as a list of InitialPositionConfig objects: ",
+            "prompt_on_new": false,
+            "title": "Initial Positions",
+            "type": "array"
+          },
+          "leverage": {
+            "default": 1,
+            "maximum": 10,
+            "minimum": 1,
+            "title": "Leverage",
+            "type": "integer"
+          },
+          "manual_kill_switch": {
+            "default": false,
+            "is_updatable": true,
+            "title": "Manual Kill Switch",
+            "type": "boolean"
+          },
+          "margin_mode": {
+            "const": "CROSS",
+            "default": "CROSS",
+            "title": "Margin Mode",
+            "type": "string"
+          },
+          "max_base_inventory": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Max Base Inventory"
+          },
+          "max_data_age_seconds": {
+            "default": "10",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Max Data Age Seconds",
+            "type": "string"
+          },
+          "max_gross_base": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Max Gross Base"
+          },
+          "max_long_base": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Max Long Base"
+          },
+          "max_price": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Max Price",
+            "type": "string"
+          },
+          "max_reference_pairs": {
+            "default": 8,
+            "maximum": 32,
+            "minimum": 1,
+            "title": "Max Reference Pairs",
+            "type": "integer"
+          },
+          "max_short_base": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Max Short Base"
+          },
+          "min_price": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Min Price",
+            "type": "string"
+          },
+          "mm_generation": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Mm Generation"
+          },
+          "mm_session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Mm Session Id"
+          },
+          "position_mode": {
+            "$ref": "#/components/schemas/PositionModeOutput",
+            "default": "HEDGE"
+          },
+          "position_rebalance_threshold_pct": {
+            "default": "0.05",
+            "is_updatable": true,
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "prompt": "Enter the position rebalance threshold percentage (e.g., 0.05 for 5%): ",
+            "prompt_on_new": true,
+            "title": "Position Rebalance Threshold Pct",
+            "type": "string"
+          },
+          "reference_connector": {
+            "const": "okx",
+            "default": "okx",
+            "title": "Reference Connector",
+            "type": "string"
+          },
+          "references": {
+            "items": {
+              "$ref": "#/components/schemas/ReferencePairOutput"
+            },
+            "title": "References",
+            "type": "array"
+          },
+          "runtime_config_managed": {
+            "default": false,
+            "title": "Runtime Config Managed",
+            "type": "boolean"
+          },
+          "saved_life_anchor": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Saved Life Anchor"
+          },
+          "saved_source_anchors": {
+            "additionalProperties": {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            "title": "Saved Source Anchors",
+            "type": "object"
+          },
+          "scenario": {
+            "default": "sideways",
+            "enum": [
+              "follow_market",
+              "sideways",
+              "follow_token"
+            ],
+            "title": "Scenario",
+            "type": "string"
+          },
+          "sell_amounts_pct": {
+            "anyOf": [
+              {
+                "items": {
+                  "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "is_updatable": true,
+            "prompt": "Enter a comma-separated list of sell amounts as percentages (e.g., '50, 50'), or leave blank to distribute equally: ",
+            "prompt_on_new": true,
+            "title": "Sell Amounts Pct"
+          },
+          "sell_spreads": {
+            "default": "0.01,0.02",
+            "is_updatable": true,
+            "items": {
+              "type": "number"
+            },
+            "prompt": "Enter a comma-separated list of sell spreads (e.g., '0.01, 0.02'): ",
+            "prompt_on_new": true,
+            "title": "Sell Spreads",
+            "type": "array"
+          },
+          "skip_rebalance": {
+            "default": true,
+            "title": "Skip Rebalance",
+            "type": "boolean"
+          },
+          "stop_loss": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Stop Loss"
+          },
+          "take_profit": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Take Profit"
+          },
+          "take_profit_order_type": {
+            "$ref": "#/components/schemas/OrderTypeOutput",
+            "default": 2,
+            "is_updatable": true,
+            "prompt": "Enter the order type for take profit (LIMIT/MARKET): ",
+            "prompt_on_new": true
+          },
+          "time_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Time Limit"
+          },
+          "total_amount_quote": {
+            "default": "100",
+            "is_updatable": true,
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "prompt": "Enter the total amount in quote asset to use for trading (e.g., 1000): ",
+            "prompt_on_new": true,
+            "title": "Total Amount Quote",
+            "type": "string"
+          },
+          "trading_pair": {
+            "default": "LIFE-USDT",
+            "title": "Trading Pair",
+            "type": "string"
+          },
+          "trailing_stop": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrailingStopOutput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "is_updatable": true,
+            "prompt": "Enter the trailing stop as activation_price,trailing_delta (e.g., 0.015,0.003): ",
+            "prompt_on_new": true
+          }
+        },
+        "required": [
+          "id",
+          "min_price",
+          "max_price"
+        ],
+        "title": "LifeMMConfig",
+        "type": "object"
+      },
+      "MMProfileOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "anchor": {
+            "const": "session_start_mid",
+            "default": "session_start_mid",
+            "title": "Anchor",
+            "type": "string"
+          },
+          "references": {
+            "items": {
+              "$ref": "#/components/schemas/ReferencePairOutput"
+            },
+            "title": "References",
+            "type": "array"
+          },
+          "scenario": {
+            "enum": [
+              "follow_market",
+              "sideways",
+              "follow_token"
+            ],
+            "title": "Scenario",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scenario"
+        ],
+        "title": "MMProfile",
+        "type": "object"
+      },
+      "MMProfilesConfigOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "default_duration_seconds": {
+            "default": 3600,
+            "exclusiveMinimum": 0,
+            "title": "Default Duration Seconds",
+            "type": "integer"
+          },
+          "markets": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/LifeMMConfigOutput"
+            },
+            "propertyNames": {
+              "enum": [
+                "spot",
+                "perpetual"
+              ]
+            },
+            "title": "Markets",
+            "type": "object"
+          },
+          "max_duration_seconds": {
+            "default": 86400,
+            "exclusiveMinimum": 0,
+            "title": "Max Duration Seconds",
+            "type": "integer"
+          },
+          "max_total_amount_quote": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Max Total Amount Quote",
+            "type": "string"
+          },
+          "min_duration_seconds": {
+            "default": 60,
+            "exclusiveMinimum": 0,
+            "title": "Min Duration Seconds",
+            "type": "integer"
+          },
+          "profiles": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/MMProfileOutput"
+            },
+            "title": "Profiles",
+            "type": "object"
+          },
+          "random": {
+            "$ref": "#/components/schemas/RandomSelectionOutput"
+          },
+          "reference_connector": {
+            "const": "okx",
+            "default": "okx",
+            "title": "Reference Connector",
+            "type": "string"
+          }
+        },
+        "required": [
+          "profiles",
+          "markets",
+          "random",
+          "max_total_amount_quote"
+        ],
+        "title": "MMProfilesConfig",
+        "type": "object"
+      },
+      "MMSessionRequestOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "duration_seconds": {
+            "exclusiveMinimum": 0,
+            "title": "Duration Seconds",
+            "type": "integer"
+          },
+          "market_mode": {
+            "enum": [
+              "spot",
+              "perpetual",
+              "both"
+            ],
+            "title": "Market Mode",
+            "type": "string"
+          },
+          "profile_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Profile Id"
+          },
+          "profile_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Profile Ids"
+          },
+          "references": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ReferencePairOutput"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "References"
+          },
+          "selection": {
+            "default": "fixed",
+            "enum": [
+              "fixed",
+              "random"
+            ],
+            "title": "Selection",
+            "type": "string"
+          },
+          "step_duration_seconds": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Step Duration Seconds"
+          }
+        },
+        "required": [
+          "market_mode",
+          "duration_seconds"
+        ],
+        "title": "MMSessionRequest",
+        "type": "object"
+      },
+      "MarketReadinessOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "admitted": {
+            "title": "Admitted",
+            "type": "boolean"
+          },
+          "connector": {
+            "title": "Connector",
+            "type": "string"
+          },
+          "market": {
+            "enum": [
+              "spot",
+              "perpetual"
+            ],
+            "title": "Market",
+            "type": "string"
+          },
+          "pair": {
+            "title": "Pair",
+            "type": "string"
+          },
+          "ready": {
+            "title": "Ready",
+            "type": "boolean"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "reference_price": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Price"
+          }
+        },
+        "required": [
+          "market",
+          "connector",
+          "pair",
+          "ready",
+          "admitted",
+          "reference_price",
+          "reason"
+        ],
+        "title": "MarketReadiness",
+        "type": "object"
+      },
+      "OrderDetailOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "fills_url": {
+            "title": "Fills Url",
+            "type": "string"
+          },
+          "order": {
+            "$ref": "#/components/schemas/OrderViewOutput"
+          },
+          "timeline": {
+            "items": {
+              "$ref": "#/components/schemas/OrderTimelineOutput"
+            },
+            "title": "Timeline",
+            "type": "array"
+          },
+          "timeline_truncated": {
+            "title": "Timeline Truncated",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "order",
+          "timeline",
+          "timeline_truncated",
+          "fills_url"
+        ],
+        "title": "OrderDetail",
+        "type": "object"
+      },
+      "OrderTimelineOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "title": "Timestamp",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "timestamp",
+          "status"
+        ],
+        "title": "OrderTimeline",
+        "type": "object"
+      },
+      "OrderTypeOutput": {
+        "enum": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "title": "OrderType",
+        "type": "integer"
+      },
+      "OrderViewOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Amount",
+            "type": "string"
+          },
+          "connector": {
+            "title": "Connector",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "creation_pending": {
+            "title": "Creation Pending",
+            "type": "boolean"
+          },
+          "exchange_order_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exchange Order Id"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "leverage": {
+            "title": "Leverage",
+            "type": "integer"
+          },
+          "market": {
+            "enum": [
+              "spot",
+              "perpetual"
+            ],
+            "title": "Market",
+            "type": "string"
+          },
+          "order_type": {
+            "title": "Order Type",
+            "type": "string"
+          },
+          "pair": {
+            "title": "Pair",
+            "type": "string"
+          },
+          "position": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position"
+          },
+          "price": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Price",
+            "type": "string"
+          },
+          "side": {
+            "anyOf": [
+              {
+                "enum": [
+                  "BUY",
+                  "SELL"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Side"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "market",
+          "connector",
+          "pair",
+          "side",
+          "amount",
+          "price",
+          "order_type",
+          "position",
+          "leverage",
+          "status",
+          "creation_pending",
+          "exchange_order_id",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "OrderView",
+        "type": "object"
+      },
+      "OrdersPageOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/OrderViewOutput"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "OrdersPage",
+        "type": "object"
+      },
+      "PerformanceMarketOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "coverage": {
+            "enum": [
+              "observed",
+              "unavailable"
+            ],
+            "title": "Coverage",
+            "type": "string"
+          },
+          "daily_statistics_url": {
+            "title": "Daily Statistics Url",
+            "type": "string"
+          },
+          "funding_status": {
+            "enum": [
+              "not_applicable",
+              "observed_only"
+            ],
+            "title": "Funding Status",
+            "type": "string"
+          },
+          "market": {
+            "enum": [
+              "spot",
+              "perpetual"
+            ],
+            "title": "Market",
+            "type": "string"
+          },
+          "observations": {
+            "items": {
+              "$ref": "#/components/schemas/PerformanceObservationOutput"
+            },
+            "title": "Observations",
+            "type": "array"
+          }
+        },
+        "required": [
+          "market",
+          "coverage",
+          "funding_status",
+          "observations",
+          "daily_statistics_url"
+        ],
+        "title": "PerformanceMarket",
+        "type": "object"
+      },
+      "PerformanceObservationOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "connector": {
+            "title": "Connector",
+            "type": "string"
+          },
+          "controller_id": {
+            "title": "Controller Id",
+            "type": "string"
+          },
+          "market": {
+            "enum": [
+              "spot",
+              "perpetual"
+            ],
+            "title": "Market",
+            "type": "string"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "title": "Observed At",
+            "type": "string"
+          },
+          "pair": {
+            "title": "Pair",
+            "type": "string"
+          },
+          "report": {
+            "$ref": "#/components/schemas/PerformanceReportOutput"
+          },
+          "source": {
+            "const": "v2_controller_report_cache",
+            "title": "Source",
+            "type": "string"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "valuation_basis": {
+            "const": "executor_and_position_hold_reports",
+            "title": "Valuation Basis",
+            "type": "string"
+          }
+        },
+        "required": [
+          "controller_id",
+          "connector",
+          "pair",
+          "market",
+          "observed_at",
+          "source",
+          "valuation_basis",
+          "report",
+          "stale"
+        ],
+        "title": "PerformanceObservation",
+        "type": "object"
+      },
+      "PerformanceReportOutput": {
+        "properties": {
+          "close_type_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "default": {},
+            "propertyNames": {
+              "$ref": "#/components/schemas/CloseTypeOutput"
+            },
+            "title": "Close Type Counts",
+            "type": "object"
+          },
+          "global_pnl_pct": {
+            "default": "0",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Global Pnl Pct",
+            "type": "string"
+          },
+          "global_pnl_quote": {
+            "default": "0",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Global Pnl Quote",
+            "type": "string"
+          },
+          "positions_summary": {
+            "default": [],
+            "items": {},
+            "title": "Positions Summary",
+            "type": "array"
+          },
+          "realized_pnl_pct": {
+            "default": "0",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Realized Pnl Pct",
+            "type": "string"
+          },
+          "realized_pnl_quote": {
+            "default": "0",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Realized Pnl Quote",
+            "type": "string"
+          },
+          "unrealized_pnl_pct": {
+            "default": "0",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Unrealized Pnl Pct",
+            "type": "string"
+          },
+          "unrealized_pnl_quote": {
+            "default": "0",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Unrealized Pnl Quote",
+            "type": "string"
+          },
+          "volume_traded": {
+            "default": "0",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Volume Traded",
+            "type": "string"
+          }
+        },
+        "title": "PerformanceReport",
+        "type": "object"
+      },
+      "PerformanceResponseOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "markets": {
+            "items": {
+              "$ref": "#/components/schemas/PerformanceMarketOutput"
+            },
+            "title": "Markets",
+            "type": "array"
+          },
+          "owner_available": {
+            "title": "Owner Available",
+            "type": "boolean"
+          },
+          "scope": {
+            "const": "controller_lifetime_and_active_exposure",
+            "default": "controller_lifetime_and_active_exposure",
+            "title": "Scope",
+            "type": "string"
+          },
+          "server_time": {
+            "format": "date-time",
+            "title": "Server Time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "markets",
+          "server_time",
+          "owner_available"
+        ],
+        "title": "PerformanceResponse",
+        "type": "object"
+      },
+      "PositionMarketOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "connector": {
+            "title": "Connector",
+            "type": "string"
+          },
+          "coverage": {
+            "enum": [
+              "observed",
+              "unavailable",
+              "not_applicable"
+            ],
+            "title": "Coverage",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PositionObservationOutput"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "market": {
+            "enum": [
+              "spot",
+              "perpetual"
+            ],
+            "title": "Market",
+            "type": "string"
+          },
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Observed At"
+          },
+          "pair_observations": {
+            "additionalProperties": {
+              "format": "date-time",
+              "type": "string"
+            },
+            "title": "Pair Observations",
+            "type": "object"
+          },
+          "source": {
+            "const": "okx_account_positions",
+            "default": "okx_account_positions",
+            "title": "Source",
+            "type": "string"
+          },
+          "stale": {
+            "default": true,
+            "title": "Stale",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "market",
+          "connector",
+          "coverage"
+        ],
+        "title": "PositionMarket",
+        "type": "object"
+      },
+      "PositionModeOutput": {
+        "enum": [
+          "HEDGE",
+          "ONEWAY"
+        ],
+        "title": "PositionMode",
+        "type": "string"
+      },
+      "PositionObservationOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Amount",
+            "type": "string"
+          },
+          "entry_price": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Entry Price",
+            "type": "string"
+          },
+          "leverage": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Leverage",
+            "type": "string"
+          },
+          "liquidation_price": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Liquidation Price"
+          },
+          "margin": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Margin"
+          },
+          "margin_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Margin Mode"
+          },
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Observed At"
+          },
+          "pair": {
+            "title": "Pair",
+            "type": "string"
+          },
+          "side": {
+            "enum": [
+              "LONG",
+              "SHORT"
+            ],
+            "title": "Side",
+            "type": "string"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "unrealized_pnl": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Unrealized Pnl",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pair",
+          "side",
+          "amount",
+          "entry_price",
+          "unrealized_pnl",
+          "leverage",
+          "stale"
+        ],
+        "title": "PositionObservation",
+        "type": "object"
+      },
+      "PositionsResponseOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "markets": {
+            "items": {
+              "$ref": "#/components/schemas/PositionMarketOutput"
+            },
+            "title": "Markets",
+            "type": "array"
+          },
+          "owner_available": {
+            "title": "Owner Available",
+            "type": "boolean"
+          },
+          "server_time": {
+            "format": "date-time",
+            "title": "Server Time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "markets",
+          "server_time",
+          "owner_available"
+        ],
+        "title": "PositionsResponse",
+        "type": "object"
+      },
+      "ProfilesResponseOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "catalogue": {
+            "$ref": "#/components/schemas/MMProfilesConfigOutput"
+          },
+          "market_modes": {
+            "items": {
+              "enum": [
+                "spot",
+                "perpetual",
+                "both"
+              ],
+              "type": "string"
+            },
+            "title": "Market Modes",
+            "type": "array"
+          },
+          "reporting_timezone": {
+            "title": "Reporting Timezone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "catalogue",
+          "market_modes",
+          "reporting_timezone"
+        ],
+        "title": "ProfilesResponse",
+        "type": "object"
+      },
+      "RandomSelectionOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "profile_ids": {
+            "description": "Profiles available for random selection; each has equal selection probability.",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Profile Ids",
+            "type": "array"
+          },
+          "step_duration_seconds": {
+            "default": 600,
+            "exclusiveMinimum": 0,
+            "title": "Step Duration Seconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "profile_ids"
+        ],
+        "title": "RandomSelection",
+        "type": "object"
+      },
+      "ReconciliationDifferenceOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "exchange": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exchange"
+          },
+          "fill_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Fill Id"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "local": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Local"
+          },
+          "order_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Order Id"
+          },
+          "pair": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Pair"
+          },
+          "side": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Side"
+          }
+        },
+        "required": [
+          "kind",
+          "local",
+          "exchange"
+        ],
+        "title": "ReconciliationDifference",
+        "type": "object"
+      },
+      "ReconciliationMarketOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "complete": {
+            "title": "Complete",
+            "type": "boolean"
+          },
+          "differences": {
+            "items": {
+              "$ref": "#/components/schemas/ReconciliationDifferenceOutput"
+            },
+            "title": "Differences",
+            "type": "array"
+          },
+          "exchange_observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exchange Observed At"
+          },
+          "fills_checked": {
+            "title": "Fills Checked",
+            "type": "integer"
+          },
+          "local_observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Local Observed At"
+          },
+          "market": {
+            "enum": [
+              "spot",
+              "perpetual"
+            ],
+            "title": "Market",
+            "type": "string"
+          },
+          "orders_checked": {
+            "title": "Orders Checked",
+            "type": "integer"
+          },
+          "positions_checked": {
+            "title": "Positions Checked",
+            "type": "integer"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "state": {
+            "enum": [
+              "matched",
+              "mismatch",
+              "incomplete",
+              "unavailable"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "market",
+          "state",
+          "complete",
+          "local_observed_at",
+          "exchange_observed_at",
+          "orders_checked",
+          "fills_checked",
+          "positions_checked",
+          "reasons",
+          "differences"
+        ],
+        "title": "ReconciliationMarket",
+        "type": "object"
+      },
+      "ReconciliationReceiptOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Error"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/ReconciliationRequestOutput"
+          },
+          "report": {
+            "$ref": "#/components/schemas/ReconciliationReportOutput"
+          },
+          "status": {
+            "enum": [
+              "accepted",
+              "applying",
+              "succeeded",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "payload",
+          "created_at",
+          "updated_at",
+          "report"
+        ],
+        "title": "ReconciliationReceipt",
+        "type": "object"
+      },
+      "ReconciliationReportOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Finished At"
+          },
+          "markets": {
+            "items": {
+              "$ref": "#/components/schemas/ReconciliationMarketOutput"
+            },
+            "title": "Markets",
+            "type": "array"
+          },
+          "scope": {
+            "const": "bot_owned_orders_and_configured_perpetual_exposure",
+            "default": "bot_owned_orders_and_configured_perpetual_exposure",
+            "title": "Scope",
+            "type": "string"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Started At"
+          },
+          "state": {
+            "default": "not_checked",
+            "enum": [
+              "not_checked",
+              "checking",
+              "matched",
+              "mismatch",
+              "incomplete",
+              "unavailable"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "title": "ReconciliationReport",
+        "type": "object"
+      },
+      "ReconciliationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "lookback_seconds": {
+            "default": 3600,
+            "maximum": 86400,
+            "minimum": 60,
+            "title": "Lookback Seconds",
+            "type": "integer"
+          },
+          "market": {
+            "default": "all",
+            "enum": [
+              "spot",
+              "perpetual",
+              "all"
+            ],
+            "title": "Market",
+            "type": "string"
+          },
+          "max_orders": {
+            "default": 100,
+            "maximum": 200,
+            "minimum": 1,
+            "title": "Max Orders",
+            "type": "integer"
+          },
+          "max_pages": {
+            "default": 5,
+            "maximum": 10,
+            "minimum": 1,
+            "title": "Max Pages",
+            "type": "integer"
+          },
+          "pair": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "pattern": "^[A-Z0-9][A-Z0-9._]*-USDT$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Pair"
+          }
+        },
+        "title": "ReconciliationRequest",
+        "type": "object"
+      },
+      "ReconciliationRequestOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "lookback_seconds": {
+            "default": 3600,
+            "maximum": 86400,
+            "minimum": 60,
+            "title": "Lookback Seconds",
+            "type": "integer"
+          },
+          "market": {
+            "default": "all",
+            "enum": [
+              "spot",
+              "perpetual",
+              "all"
+            ],
+            "title": "Market",
+            "type": "string"
+          },
+          "max_orders": {
+            "default": 100,
+            "maximum": 200,
+            "minimum": 1,
+            "title": "Max Orders",
+            "type": "integer"
+          },
+          "max_pages": {
+            "default": 5,
+            "maximum": 10,
+            "minimum": 1,
+            "title": "Max Pages",
+            "type": "integer"
+          },
+          "pair": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "pattern": "^[A-Z0-9][A-Z0-9._]*-USDT$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Pair"
+          }
+        },
+        "title": "ReconciliationRequest",
+        "type": "object"
+      },
+      "ReconciliationResponseOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "check": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReconciliationReceiptOutput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "report": {
+            "$ref": "#/components/schemas/ReconciliationReportOutput"
+          }
+        },
+        "title": "ReconciliationResponse",
+        "type": "object"
+      },
+      "RecordedFeeOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "fee_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Fee Type"
+          },
+          "flat_fees": {
+            "items": {
+              "$ref": "#/components/schemas/FeeAmountOutput"
+            },
+            "title": "Flat Fees",
+            "type": "array"
+          },
+          "percent": {
+            "default": "0",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Percent",
+            "type": "string"
+          },
+          "percent_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Percent Token"
+          }
+        },
+        "title": "RecordedFee",
+        "type": "object"
+      },
+      "ReferenceAnchorsOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "life": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Life",
+            "type": "string"
+          },
+          "sources": {
+            "additionalProperties": {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            "title": "Sources",
+            "type": "object"
+          }
+        },
+        "required": [
+          "life",
+          "sources"
+        ],
+        "title": "ReferenceAnchors",
+        "type": "object"
+      },
+      "ReferencePair": {
+        "additionalProperties": false,
+        "properties": {
+          "pair": {
+            "title": "Pair",
+            "type": "string"
+          },
+          "weight": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 1.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Weight"
+          }
+        },
+        "required": [
+          "pair",
+          "weight"
+        ],
+        "title": "ReferencePair",
+        "type": "object"
+      },
+      "ReferencePairOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "pair": {
+            "title": "Pair",
+            "type": "string"
+          },
+          "weight": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Weight",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pair",
+          "weight"
+        ],
+        "title": "ReferencePair",
+        "type": "object"
+      },
+      "ReferencePairsResponseOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "connector": {
+            "const": "okx",
+            "default": "okx",
+            "title": "Connector",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_after": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next After"
+          },
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "price_source": {
+            "const": "spot_order_book_midpoint",
+            "default": "spot_order_book_midpoint",
+            "title": "Price Source",
+            "type": "string"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "items",
+          "next_after",
+          "observed_at",
+          "stale"
+        ],
+        "title": "ReferencePairsResponse",
+        "type": "object"
+      },
+      "SessionStateOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "anchors": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ReferenceAnchorsOutput"
+            },
+            "title": "Anchors",
+            "type": "object"
+          },
+          "config_hash": {
+            "title": "Config Hash",
+            "type": "string"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "generation": {
+            "title": "Generation",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "profile_id": {
+            "title": "Profile Id",
+            "type": "string"
+          },
+          "request": {
+            "$ref": "#/components/schemas/MMSessionRequestOutput"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "enum": [
+              "preparing",
+              "running",
+              "stopping",
+              "stopped",
+              "expired"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "step_expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Expires At"
+          },
+          "step_index": {
+            "title": "Step Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "request",
+          "config_hash",
+          "profile_id",
+          "generation",
+          "step_index",
+          "status",
+          "started_at",
+          "expires_at",
+          "step_expires_at",
+          "anchors"
+        ],
+        "title": "SessionState",
+        "type": "object"
+      },
+      "StartCommand": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "const": "start",
+            "title": "Action",
+            "type": "string"
+          },
+          "duration_seconds": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Duration Seconds"
+          },
+          "expected_version": {
+            "minimum": 0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "market_mode": {
+            "enum": [
+              "spot",
+              "perpetual",
+              "both"
+            ],
+            "title": "Market Mode",
+            "type": "string"
+          },
+          "profile_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Deployed profile ID for fixed selection, such as follow_market, sideways or follow_token. Omit for random.",
+            "title": "Profile Id"
+          },
+          "profile_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional subset of random.profile_ids for random selection; omit to use that YAML pool. Omit for fixed.",
+            "title": "Profile Ids"
+          },
+          "references": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ReferencePair"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "References"
+          },
+          "selection": {
+            "default": "fixed",
+            "description": "Fixed runs one profile; random chooses timed steps from a profile pool.",
+            "enum": [
+              "fixed",
+              "random"
+            ],
+            "title": "Selection",
+            "type": "string"
+          },
+          "step_duration_seconds": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Step Duration Seconds"
+          }
+        },
+        "required": [
+          "action",
+          "expected_version",
+          "market_mode"
+        ],
+        "title": "StartCommand",
+        "type": "object"
+      },
+      "StartCommandOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "const": "start",
+            "title": "Action",
+            "type": "string"
+          },
+          "duration_seconds": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Duration Seconds"
+          },
+          "expected_version": {
+            "minimum": 0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "market_mode": {
+            "enum": [
+              "spot",
+              "perpetual",
+              "both"
+            ],
+            "title": "Market Mode",
+            "type": "string"
+          },
+          "profile_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Deployed profile ID for fixed selection, such as follow_market, sideways or follow_token. Omit for random.",
+            "title": "Profile Id"
+          },
+          "profile_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional subset of random.profile_ids for random selection; omit to use that YAML pool. Omit for fixed.",
+            "title": "Profile Ids"
+          },
+          "references": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ReferencePairOutput"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "References"
+          },
+          "selection": {
+            "default": "fixed",
+            "description": "Fixed runs one profile; random chooses timed steps from a profile pool.",
+            "enum": [
+              "fixed",
+              "random"
+            ],
+            "title": "Selection",
+            "type": "string"
+          },
+          "step_duration_seconds": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Step Duration Seconds"
+          }
+        },
+        "required": [
+          "action",
+          "expected_version",
+          "market_mode"
+        ],
+        "title": "StartCommand",
+        "type": "object"
+      },
+      "StatusResponseOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "acknowledged_version": {
+            "title": "Acknowledged Version",
+            "type": "integer"
+          },
+          "bot_id": {
+            "title": "Bot Id",
+            "type": "string"
+          },
+          "control_version": {
+            "title": "Control Version",
+            "type": "integer"
+          },
+          "desired_state": {
+            "enum": [
+              "running",
+              "stopped"
+            ],
+            "title": "Desired State",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Error"
+          },
+          "heartbeat_age_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heartbeat Age Seconds"
+          },
+          "markets": {
+            "items": {
+              "$ref": "#/components/schemas/MarketReadinessOutput"
+            },
+            "title": "Markets",
+            "type": "array"
+          },
+          "observed_session": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SessionStateOutput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "owner_available": {
+            "title": "Owner Available",
+            "type": "boolean"
+          },
+          "phase": {
+            "title": "Phase",
+            "type": "string"
+          },
+          "running": {
+            "title": "Running",
+            "type": "boolean"
+          },
+          "server_time": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Server Time"
+          },
+          "session": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SessionStateOutput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "time_remaining_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Time Remaining Seconds"
+          }
+        },
+        "required": [
+          "bot_id",
+          "desired_state",
+          "control_version",
+          "acknowledged_version",
+          "running",
+          "phase",
+          "owner_available",
+          "heartbeat_age_seconds"
+        ],
+        "title": "StatusResponse",
+        "type": "object"
+      },
+      "StopCommand": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "const": "stop",
+            "title": "Action",
+            "type": "string"
+          },
+          "expected_version": {
+            "minimum": 0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "session_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "action",
+          "expected_version",
+          "session_id"
+        ],
+        "title": "StopCommand",
+        "type": "object"
+      },
+      "StopCommandOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "const": "stop",
+            "title": "Action",
+            "type": "string"
+          },
+          "expected_version": {
+            "minimum": 0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "session_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "action",
+          "expected_version",
+          "session_id"
+        ],
+        "title": "StopCommand",
+        "type": "object"
+      },
+      "SwitchCommand": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "const": "switch",
+            "title": "Action",
+            "type": "string"
+          },
+          "duration_seconds": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Duration Seconds"
+          },
+          "expected_version": {
+            "minimum": 0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "market_mode": {
+            "enum": [
+              "spot",
+              "perpetual",
+              "both"
+            ],
+            "title": "Market Mode",
+            "type": "string"
+          },
+          "profile_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Deployed profile ID for fixed selection, such as follow_market, sideways or follow_token. Omit for random.",
+            "title": "Profile Id"
+          },
+          "profile_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional subset of random.profile_ids for random selection; omit to use that YAML pool. Omit for fixed.",
+            "title": "Profile Ids"
+          },
+          "references": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ReferencePair"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "References"
+          },
+          "selection": {
+            "default": "fixed",
+            "description": "Fixed runs one profile; random chooses timed steps from a profile pool.",
+            "enum": [
+              "fixed",
+              "random"
+            ],
+            "title": "Selection",
+            "type": "string"
+          },
+          "session_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Session Id",
+            "type": "string"
+          },
+          "step_duration_seconds": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Step Duration Seconds"
+          }
+        },
+        "required": [
+          "action",
+          "expected_version",
+          "market_mode",
+          "session_id"
+        ],
+        "title": "SwitchCommand",
+        "type": "object"
+      },
+      "SwitchCommandOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "const": "switch",
+            "title": "Action",
+            "type": "string"
+          },
+          "duration_seconds": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Duration Seconds"
+          },
+          "expected_version": {
+            "minimum": 0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "market_mode": {
+            "enum": [
+              "spot",
+              "perpetual",
+              "both"
+            ],
+            "title": "Market Mode",
+            "type": "string"
+          },
+          "profile_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Deployed profile ID for fixed selection, such as follow_market, sideways or follow_token. Omit for random.",
+            "title": "Profile Id"
+          },
+          "profile_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional subset of random.profile_ids for random selection; omit to use that YAML pool. Omit for fixed.",
+            "title": "Profile Ids"
+          },
+          "references": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ReferencePairOutput"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "References"
+          },
+          "selection": {
+            "default": "fixed",
+            "description": "Fixed runs one profile; random chooses timed steps from a profile pool.",
+            "enum": [
+              "fixed",
+              "random"
+            ],
+            "title": "Selection",
+            "type": "string"
+          },
+          "session_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Session Id",
+            "type": "string"
+          },
+          "step_duration_seconds": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Step Duration Seconds"
+          }
+        },
+        "required": [
+          "action",
+          "expected_version",
+          "market_mode",
+          "session_id"
+        ],
+        "title": "SwitchCommand",
+        "type": "object"
+      },
+      "TradeTypeOutput": {
+        "enum": [
+          1,
+          2,
+          3
+        ],
+        "title": "TradeType",
+        "type": "integer"
+      },
+      "TrailingStopOutput": {
+        "properties": {
+          "activation_price": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Activation Price",
+            "type": "string"
+          },
+          "trailing_delta": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Trailing Delta",
+            "type": "string"
+          }
+        },
+        "required": [
+          "activation_price",
+          "trailing_delta"
+        ],
+        "title": "TrailingStop",
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "basicAuth": {
+        "scheme": "basic",
+        "type": "http"
+      }
+    }
+  },
+  "info": {
+    "title": "Hummingbot MM Admin API",
+    "version": "1.0.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/admin/balances": {
+      "get": {
+        "operationId": "getBalances",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BalancesResponseOutput"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Basic authentication required",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Origin not permitted"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Control or retry identity conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service/data unavailable"
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "Read account cash and equity once, with observation freshness",
+        "tags": [
+          "Reporting"
+        ]
+      }
+    },
+    "/api/v1/admin/commands": {
+      "post": {
+        "operationId": "submitCommand",
+        "parameters": [
+          {
+            "description": "Stable retry identity; reuse only for the identical request body",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[!-~]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "examples": {
+                "fixed_profile": {
+                  "summary": "Run one specific profile",
+                  "value": {
+                    "action": "start",
+                    "duration_seconds": 3600,
+                    "expected_version": 0,
+                    "market_mode": "spot",
+                    "profile_id": "follow_market",
+                    "selection": "fixed"
+                  }
+                },
+                "random_profiles": {
+                  "summary": "Random profile selection every ten minutes",
+                  "value": {
+                    "action": "start",
+                    "duration_seconds": 3600,
+                    "expected_version": 0,
+                    "market_mode": "both",
+                    "profile_ids": [
+                      "follow_market",
+                      "sideways",
+                      "follow_token"
+                    ],
+                    "selection": "random",
+                    "step_duration_seconds": 600
+                  }
+                },
+                "runtime_reference": {
+                  "summary": "Follow a supported reference pair outside the YAML defaults",
+                  "value": {
+                    "action": "start",
+                    "duration_seconds": 3600,
+                    "expected_version": 0,
+                    "market_mode": "perpetual",
+                    "profile_id": "follow_token",
+                    "references": [
+                      {
+                        "pair": "AVAX-USDT",
+                        "weight": "1"
+                      }
+                    ],
+                    "selection": "fixed"
+                  }
+                }
+              },
+              "schema": {
+                "discriminator": {
+                  "mapping": {
+                    "start": "#/components/schemas/StartCommand",
+                    "stop": "#/components/schemas/StopCommand",
+                    "switch": "#/components/schemas/SwitchCommand"
+                  },
+                  "propertyName": "action"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/StartCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SwitchCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/StopCommand"
+                  }
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandResponseOutput"
+                }
+              }
+            },
+            "description": "Accepted; poll command result"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Basic authentication required",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Origin not permitted"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Control or retry identity conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service/data unavailable"
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "Accept an idempotent start, switch or stop",
+        "tags": [
+          "Control"
+        ]
+      }
+    },
+    "/api/v1/admin/commands/{command_id}": {
+      "get": {
+        "operationId": "getCommand",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "command_id",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandResponseOutput"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Basic authentication required",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Origin not permitted"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Control or retry identity conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service/data unavailable"
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "Read accepted, applying or final command outcome",
+        "tags": [
+          "Control"
+        ]
+      }
+    },
+    "/api/v1/admin/docs": {
+      "get": {
+        "operationId": "getSwaggerUI",
+        "responses": {
+          "200": {
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Basic authentication required",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Origin not permitted"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Control or retry identity conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service/data unavailable"
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "Open the protected interactive API documentation",
+        "tags": [
+          "Documentation"
+        ]
+      }
+    },
+    "/api/v1/admin/docs/assets/{asset}": {
+      "get": {
+        "operationId": "getSwaggerAsset",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Basic authentication required",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Origin not permitted"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Control or retry identity conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service/data unavailable"
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "Read bundled Swagger UI assets",
+        "tags": [
+          "Documentation"
+        ]
+      }
+    },
+    "/api/v1/admin/fills": {
+      "get": {
+        "operationId": "listFills",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "market",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "enum": [
+                "spot",
+                "perpetual",
+                "all"
+              ],
+              "title": "Market",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pair",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "pattern": "^[A-Z0-9][A-Z0-9._]*-[A-Z0-9][A-Z0-9._]*$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Pair"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 2048,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "order_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Order Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FillsPageOutput"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Basic authentication required",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Origin not permitted"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Control or retry identity conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service/data unavailable"
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "Read bounded fills, original fees and conversion coverage",
+        "tags": [
+          "History"
+        ]
+      }
+    },
+    "/api/v1/admin/openapi.json": {
+      "get": {
+        "operationId": "getOpenAPI",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Basic authentication required",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Origin not permitted"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Control or retry identity conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service/data unavailable"
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "Read the generated API contract",
+        "tags": [
+          "Documentation"
+        ]
+      }
+    },
+    "/api/v1/admin/orders": {
+      "get": {
+        "operationId": "listOrders",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "market",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "enum": [
+                "spot",
+                "perpetual",
+                "all"
+              ],
+              "title": "Market",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pair",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "pattern": "^[A-Z0-9][A-Z0-9._]*-[A-Z0-9][A-Z0-9._]*$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Pair"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 2048,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "enum": [
+                "open",
+                "closed",
+                "all"
+              ],
+              "title": "State",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrdersPageOutput"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Basic authentication required",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Origin not permitted"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Control or retry identity conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service/data unavailable"
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "Read bounded bot-owned order history",
+        "tags": [
+          "History"
+        ]
+      }
+    },
+    "/api/v1/admin/orders/{order_id}": {
+      "get": {
+        "operationId": "getOrder",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "timeline_limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Timeline Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderDetailOutput"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Basic authentication required",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Origin not permitted"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Control or retry identity conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service/data unavailable"
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "Read one recorded order and its bounded status timeline",
+        "tags": [
+          "History"
+        ]
+      }
+    },
+    "/api/v1/admin/performance": {
+      "get": {
+        "operationId": "getPerformance",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "market",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "enum": [
+                "spot",
+                "perpetual",
+                "all"
+              ],
+              "title": "Market",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PerformanceResponseOutput"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Basic authentication required",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Origin not permitted"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Control or retry identity conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service/data unavailable"
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "Read separate cached V2 controller performance; daily recorded fees/funding are linked",
+        "tags": [
+          "Reporting"
+        ]
+      }
+    },
+    "/api/v1/admin/positions": {
+      "get": {
+        "operationId": "getPositions",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "market",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "enum": [
+                "spot",
+                "perpetual",
+                "all"
+              ],
+              "title": "Market",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PositionsResponseOutput"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Basic authentication required",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Origin not permitted"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Control or retry identity conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service/data unavailable"
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "Read last observed actual perpetual exposure, including after stop",
+        "tags": [
+          "Reporting"
+        ]
+      }
+    },
+    "/api/v1/admin/profiles": {
+      "get": {
+        "operationId": "listProfiles",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfilesResponseOutput"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Basic authentication required",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Origin not permitted"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Control or retry identity conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service/data unavailable"
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "Read deployed MM defaults and limits",
+        "tags": [
+          "Runtime"
+        ]
+      }
+    },
+    "/api/v1/admin/reconciliation": {
+      "get": {
+        "operationId": "getReconciliation",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReconciliationResponseOutput"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Basic authentication required",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Origin not permitted"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Control or retry identity conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service/data unavailable"
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "Read the latest stored check outcome without contacting OKX",
+        "tags": [
+          "Reconciliation"
+        ]
+      }
+    },
+    "/api/v1/admin/reconciliation/check": {
+      "post": {
+        "operationId": "requestReconciliation",
+        "parameters": [
+          {
+            "description": "Stable retry identity; reuse only for the identical request body",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[!-~]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReconciliationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReconciliationReceiptOutput"
+                }
+              }
+            },
+            "description": "Accepted; poll command result"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Basic authentication required",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Origin not permitted"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Control or retry identity conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service/data unavailable"
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "Request one bounded observational check; does not repair or control trading",
+        "tags": [
+          "Reconciliation"
+        ]
+      }
+    },
+    "/api/v1/admin/reference-pairs": {
+      "get": {
+        "operationId": "listReferencePairs",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 120,
+              "pattern": "^[a-zA-Z0-9._-]*$",
+              "title": "Search",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 120,
+              "pattern": "^[A-Z0-9._-]*$",
+              "title": "After",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReferencePairsResponseOutput"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Basic authentication required",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Origin not permitted"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Control or retry identity conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service/data unavailable"
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "Search supported OKX spot USDT references, including pairs outside YAML",
+        "tags": [
+          "Runtime"
+        ]
+      }
+    },
+    "/api/v1/admin/statistics/daily": {
+      "get": {
+        "operationId": "getDailyStatistics",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "market",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "enum": [
+                "spot",
+                "perpetual",
+                "all"
+              ],
+              "title": "Market",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "Inclusive local reporting date; defaults to seven days before the exclusive end.",
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "Exclusive local reporting date; defaults to tomorrow. Maximum range: 90 days.",
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pair",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "pattern": "^[A-Z0-9][A-Z0-9._]*-USDT$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Pair"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DailyResponseOutput"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Basic authentication required",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Origin not permitted"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Control or retry identity conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service/data unavailable"
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "Read separate market event-day fees/volume/funding and shared last-observed account balances",
+        "tags": [
+          "Reporting"
+        ]
+      }
+    },
+    "/api/v1/admin/status": {
+      "get": {
+        "operationId": "getRuntimeStatus",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResponseOutput"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Basic authentication required",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Origin not permitted"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Control or retry identity conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service/data unavailable"
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "summary": "Read requested and observed bot state",
+        "tags": [
+          "Runtime"
+        ]
+      }
+    }
+  },
+  "security": [
+    {
+      "basicAuth": []
+    }
+  ]
+}

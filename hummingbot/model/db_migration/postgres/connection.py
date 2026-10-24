@@ -18,6 +18,6 @@ def create_postgres_engine(settings: RuntimeSettings) -> Engine:
             "application_name": "hummingbot",
             # Runtime requests have a smaller budget than migration DDL; the runner
             # explicitly sets its own LOCAL statement/lock budgets per SQL file.
-            "options": "-c search_path=public -c statement_timeout=2000 -c lock_timeout=1000",
+            "options": "-c search_path=public -c timezone=UTC -c statement_timeout=2000 -c lock_timeout=1000",
         },
     )

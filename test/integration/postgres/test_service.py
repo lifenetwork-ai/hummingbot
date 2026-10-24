@@ -40,7 +40,7 @@ def health(port, path):
         return None, None
 
 
-def start_service(tmp_path, *, auto_migrate=True):
+def start_service(tmp_path, *, auto_migrate=True, admin_enabled=False):
     tmp_path.mkdir()
     conf = tmp_path / "conf"
     for name in ("strategies", "scripts", "controllers", "connectors"):
@@ -54,6 +54,7 @@ def start_service(tmp_path, *, auto_migrate=True):
            "K_REVISION": tmp_path.name, "BOT_ID": "hummingbot", "PORT": str(port),
            "ENABLE_AUTO_MIGRATION": str(auto_migrate).lower(), "PYTHONDONTWRITEBYTECODE": "1",
            "PYTHONPATH": str(Path(__file__).resolve().parents[3])}
+    env.update(ADMIN_API_ENABLED=str(admin_enabled).lower(), ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin")
     for key in list(env):
         if key == "HBOT_ENV_FILE" or key.startswith("HBOT_OKX"):
             env.pop(key)
