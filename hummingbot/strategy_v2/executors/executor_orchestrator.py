@@ -2,12 +2,14 @@ import asyncio
 import logging
 import uuid
 from collections import deque
+from contextlib import closing
 from decimal import Decimal
-from typing import TYPE_CHECKING, Dict, List, Optional
+from typing import TYPE_CHECKING, Dict, List, Optional, Union
 
 from hummingbot.connector.markets_recorder import MarketsRecorder
 from hummingbot.core.data_type.common import PositionAction, PositionMode, PriceType, TradeType
 from hummingbot.logger import HummingbotLogger
+from hummingbot.model.executors import Executors
 from hummingbot.model.position import Position
 
 if TYPE_CHECKING:
@@ -246,15 +248,17 @@ class ExecutorOrchestrator:
                 self.cached_performance[controller_id] = PerformanceReport()
                 self.active_executors[controller_id] = []
                 self.positions_held[controller_id] = []
-        db_executors = MarketsRecorder.get_instance().get_all_executors()
-        for executor in db_executors:
-            controller_id = executor.controller_id
-            if controller_id not in self.strategy.controllers:
-                continue
-            self._update_cached_performance(controller_id, executor)
+        controller_ids = list(self.strategy.controllers)
+        with closing(MarketsRecorder.get_instance().iter_executor_performance(controller_ids)) as db_executors:
+            for executor in db_executors:
+                controller_id = executor.controller_id
+                if controller_id not in self.strategy.controllers:
+                    continue
+                self._update_cached_performance(controller_id, executor)
 
         # Load positions from database only for controllers without initial position overrides
-        db_positions = MarketsRecorder.get_instance().get_all_positions()
+        db_positions = MarketsRecorder.get_instance().get_all_positions(
+            controller_ids=[cid for cid in controller_ids if cid not in self.initial_positions_by_controller])
         for position in db_positions:
             controller_id = position.controller_id
             # Skip if this controller has initial position overrides
@@ -268,20 +272,26 @@ class ExecutorOrchestrator:
                 continue
             self._load_position_from_db(controller_id, position)
 
-    def _update_cached_performance(self, controller_id: str, executor_info: ExecutorInfo):
+    def _update_cached_performance(self, controller_id: str, executor_info: Union[ExecutorInfo, Executors]):
         """
         Update the cached performance for a specific controller with an executor's information.
         """
         if controller_id not in self.cached_performance:
             self.cached_performance[controller_id] = PerformanceReport()
         report = self.cached_performance[controller_id]
+        # Match Executors.to_executor_info() for the projected historical rows.
+        close_type = CloseType(executor_info.close_type) if executor_info.close_type else None
+        pnl, volume = Decimal(executor_info.net_pnl_quote), Decimal(executor_info.filled_amount_quote)
+        # ExecutorInfo's Decimal validation previously rejected NaN/infinity.
+        # Retain that fail-closed behavior without hydrating unrelated JSON fields.
+        if not pnl.is_finite() or not volume.is_finite():
+            raise ValueError("Executor performance must contain finite PnL and volume.")
         # Only add to realized PnL if not a position hold (consistent with generate_performance_report)
-        if executor_info.close_type != CloseType.POSITION_HOLD:
-            report.realized_pnl_quote += executor_info.net_pnl_quote
-            report.volume_traded += executor_info.filled_amount_quote
-        if executor_info.close_type:
-            report.close_type_counts[executor_info.close_type] = report.close_type_counts.get(executor_info.close_type,
-                                                                                              0) + 1
+        if close_type != CloseType.POSITION_HOLD:
+            report.realized_pnl_quote += pnl
+            report.volume_traded += volume
+        if close_type:
+            report.close_type_counts[close_type] = report.close_type_counts.get(close_type, 0) + 1
 
     def _load_position_from_db(self, controller_id: str, db_position: Position):
         """

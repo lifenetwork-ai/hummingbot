@@ -33,7 +33,7 @@ class TestExecutorOrchestrator(unittest.TestCase):
     @patch.object(MarketsRecorder, "get_instance")
     def setUp(self, markets_recorder: MagicMock):
         markets_recorder.return_value = MagicMock(spec=MarketsRecorder)
-        markets_recorder.get_all_executors = MagicMock(return_value=[])
+        markets_recorder.iter_executor_performance = MagicMock(return_value=[])
         markets_recorder.get_all_positions = MagicMock(return_value=[])
         markets_recorder.store_or_update_executor = MagicMock(return_value=None)
         markets_recorder.update_or_store_position = MagicMock(return_value=None)
@@ -200,7 +200,7 @@ class TestExecutorOrchestrator(unittest.TestCase):
         )
 
         # Set up mock to return executor info
-        mock_markets_recorder.get_all_executors.return_value = [executor_info]
+        mock_markets_recorder.iter_executor_performance.side_effect = lambda _: (item for item in [executor_info])
         mock_markets_recorder.get_all_positions.return_value = []
 
         # Add the controller to the strategy's controllers dict
@@ -247,7 +247,7 @@ class TestExecutorOrchestrator(unittest.TestCase):
         )
 
         # Set up mock to return executor info and positions
-        mock_markets_recorder.get_all_executors.return_value = []
+        mock_markets_recorder.iter_executor_performance.side_effect = lambda _: (item for item in [])
         mock_markets_recorder.get_all_positions.return_value = [position1, position2]
 
         # Add the controllers to the strategy's controllers dict
@@ -373,6 +373,9 @@ class TestExecutorOrchestrator(unittest.TestCase):
         markets_recorder_mock.store_or_update_executor = MagicMock(return_value=None)
         position_executor = MagicMock(spec=PositionExecutor)
         position_executor.is_active = False
+        position_executor.executor_info.close_type = CloseType.COMPLETED
+        position_executor.executor_info.net_pnl_quote = Decimal("1.25")
+        position_executor.executor_info.filled_amount_quote = Decimal("10")
         config_mock = MagicMock(PositionExecutorConfig)
         config_mock.id = "test"
         config_mock.controller_id = "test"
@@ -380,6 +383,7 @@ class TestExecutorOrchestrator(unittest.TestCase):
         self.orchestrator.active_executors["test"] = [position_executor]
         self.orchestrator.store_all_executors()
         self.assertEqual(self.orchestrator.active_executors, {})
+        self.assertEqual(self.orchestrator.cached_performance["test"].realized_pnl_quote, Decimal("1.25"))
 
     @patch.object(ExecutorOrchestrator, "store_all_positions")
     @patch.object(ExecutorOrchestrator, "store_all_executors")
@@ -544,7 +548,7 @@ class TestExecutorOrchestrator(unittest.TestCase):
         )
 
         # Set up mock to return position
-        mock_markets_recorder.get_all_executors.return_value = []
+        mock_markets_recorder.iter_executor_performance.side_effect = lambda _: (item for item in [])
         mock_markets_recorder.get_all_positions.return_value = [db_position]
 
         # Add the controller to the strategy's controllers dict
@@ -611,7 +615,7 @@ class TestExecutorOrchestrator(unittest.TestCase):
         }
 
         # Set up mock to return both executors and positions
-        mock_markets_recorder.get_all_executors.return_value = []
+        mock_markets_recorder.iter_executor_performance.side_effect = lambda _: (item for item in [])
         mock_markets_recorder.get_all_positions.return_value = [db_position]
 
         # Add the controller to the strategy's controllers dict
@@ -951,7 +955,7 @@ class TestExecutorOrchestrator(unittest.TestCase):
         """Test that initialize_initial_positions only creates positions once"""
         mock_markets_recorder = MagicMock(spec=MarketsRecorder)
         mock_get_instance.return_value = mock_markets_recorder
-        mock_markets_recorder.get_all_executors.return_value = []
+        mock_markets_recorder.iter_executor_performance.side_effect = lambda _: (item for item in [])
         mock_markets_recorder.get_all_positions.return_value = []
 
         from hummingbot.strategy_v2.models.position_config import InitialPositionConfig

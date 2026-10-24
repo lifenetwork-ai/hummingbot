@@ -17,6 +17,7 @@ class Executors(HummingbotBase):
         Index("idx_executors_close_timestamp", "close_timestamp"),
         Index("idx_executors_status", "status"),
         Index("idx_executors_type_status", "type", "status"),
+        Index("idx_executors_controller_id", "controller_id"),
     )
     id = Column(Text, primary_key=True)
     timestamp = Column(Float, nullable=False)

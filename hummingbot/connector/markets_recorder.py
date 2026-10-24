@@ -6,10 +6,10 @@ import threading
 import time
 from decimal import Decimal
 from shutil import move
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, Iterator, List, Optional, Tuple, Union
 
 import pandas as pd
-from sqlalchemy.orm import Query, Session
+from sqlalchemy.orm import Query, Session, load_only
 
 from hummingbot import data_path
 from hummingbot.client.config.client_config_map import MarketDataCollectionConfigMap
@@ -86,7 +86,7 @@ class MarketsRecorder:
         self._market_data_collection_task: Optional[asyncio.Task] = None
         # Internal collection of trade fills in connector will be used for remote/local history reconciliation
         for market in self._markets:
-            trade_fills = self.get_trades_for_config(self._config_file_path, 2000)
+            trade_fills = self.get_trades_for_config(self._config_file_path, 2000, market=market.display_name)
             market.add_trade_fills_from_market_recorder({TradeFillOrderDetails(tf.market,
                                                                                tf.exchange_trade_id,
                                                                                tf.symbol) for tf in trade_fills})
@@ -183,11 +183,10 @@ class MarketsRecorder:
             self._markets.append(market)
 
             # Add trade fills from recorder
-            trade_fills = self.get_trades_for_config(self._config_file_path, 2000)
+            trade_fills = self.get_trades_for_config(self._config_file_path, 2000, market=market.display_name)
             market.add_trade_fills_from_market_recorder({TradeFillOrderDetails(tf.market,
                                                                                tf.exchange_trade_id,
-                                                                               tf.symbol) for tf in trade_fills
-                                                         if tf.market == market.name})
+                                                                               tf.symbol) for tf in trade_fills})
 
             # Add exchange order IDs
             exchange_order_ids = self.get_orders_for_config_and_market(self._config_file_path, market, True, 2000)
@@ -285,6 +284,21 @@ class MarketsRecorder:
             executors = session.query(Executors).all()
             return [executor.to_executor_info() for executor in executors]
 
+    def iter_executor_performance(self, controller_ids: List[str]) -> Iterator[Executors]:
+        """Stream only historical PnL fields for the selected controllers.
+
+        Keep aggregation in the existing orchestrator: SQL SUM on Float columns
+        would change its Float -> Decimal arithmetic. Do not hydrate configuration
+        or order snapshots that performance recovery does not consume.
+        """
+        if not controller_ids:
+            return
+        with self._sql_manager.get_new_session() as session:
+            yield from (session.query(Executors)
+                        .options(load_only(Executors.controller_id, Executors.close_type,
+                                           Executors.net_pnl_quote, Executors.filled_amount_quote))
+                        .filter(Executors.controller_id.in_(controller_ids)).yield_per(1000))
+
     def get_positions_by_ids(self, position_ids: List[str]) -> List[Position]:
         with self._sql_manager.get_new_session() as session:
             positions = session.query(Position).filter(Position.id.in_(position_ids)).all()
@@ -295,10 +309,14 @@ class MarketsRecorder:
             positions = session.query(Position).filter(Position.controller_id == controller_id).all()
             return positions
 
-    def get_all_positions(self) -> List[Position]:
+    def get_all_positions(self, controller_ids: Optional[List[str]] = None) -> List[Position]:
+        if controller_ids == []:
+            return []
         with self._sql_manager.get_new_session() as session:
-            positions = session.query(Position).all()
-            return positions
+            query = session.query(Position)
+            if controller_ids is not None:
+                query = query.filter(Position.controller_id.in_(controller_ids))
+            return query.all()
 
     def get_orders_for_config_and_market(self, config_file_path: str, market: ConnectorBase,
                                          with_exchange_order_id_present: Optional[bool] = False,
@@ -315,14 +333,20 @@ class MarketsRecorder:
             if number_of_rows is None:
                 return query.all()
             else:
-                return query.limit(number_of_rows).all()
+                # Keep ascending caller order, but warm reconciliation with the
+                # most recent ACK mappings instead of the oldest historical ones.
+                recent = query.order_by(None).order_by(Order.creation_timestamp.desc(), Order.id.desc())
+                return list(reversed(recent.limit(number_of_rows).all()))
 
-    def get_trades_for_config(self, config_file_path: str, number_of_rows: Optional[int] = None) -> List[TradeFill]:
+    def get_trades_for_config(self, config_file_path: str, number_of_rows: Optional[int] = None,
+                              market: Optional[str] = None) -> List[TradeFill]:
         with self._sql_manager.get_new_session() as session:
             query: Query = (session
                             .query(TradeFill)
                             .filter(TradeFill.config_file_path == config_file_path)
                             .order_by(TradeFill.timestamp.desc()))
+            if market is not None:
+                query = query.filter(TradeFill.market == market)
             if number_of_rows is None:
                 return query.all()
             else:

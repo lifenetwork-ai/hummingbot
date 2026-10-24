@@ -525,3 +525,24 @@ Suggested order: **P0 -> P1 -> P2 -> P3 -> P4 -> P5 -> P6 -> offline verificatio
 - [x] Review confirms that connectors/strategies/engine were reused and that no unnecessary framework, table or dependency was introduced.
 
 System-wide precision changes, multiple bots sharing databases/accounts, complete Gateway support, live cloud configuration editing, dashboards, event sourcing and broad ORM optimization require separate justification and scope.
+
+## 9. Post-port performance and recovery review
+
+Requested after completion of P0–P6. Evidence and cache decisions are documented in
+[postgres-performance-review.md](../postgres-performance-review.md).
+
+- [x] Measure large-history V2 startup, pending-order lookup plans and actual fenced recorder writes using disposable PostgreSQL; preserve before/after artifacts.
+- [x] Limit V2 recovery to selected controllers and required performance columns; stream history and preserve existing Decimal arithmetic and fail-closed validation.
+- [x] Add simple idempotent lookup indexes through the existing SQL runner; verify populated-schema replay and migration-disabled startup.
+- [x] Check N+1 with query budgets and detached history rendering; prove repeated live PnL reports use the existing in-memory cache without SQL.
+- [x] Correct bounded recorder warmup to recover recent order mappings and per-market fills; reproduce the former behavior with a failing test first.
+- [x] Review cache necessity: retain existing in-memory PnL/TTL caches. Defer `inmem`/`redis` adapter and environment selection until a measured safe consumer requires them; these options are not implemented by this review.
+- [x] Complete regression, real PostgreSQL and rebuilt deployment-image offline E2E checks for the review changes; update evidence and commit.
+
+Review validation: **926 regression tests**, **71 PostgreSQL tests** and **five
+offline image scenarios** passed. Report:
+`build/e2e-offline/20261024-220352-d8f55f/result.json`; tested manifest
+`sha256:70b97bea620732d53f228cb16dde63128b9177fc4e08d8c634e466c662a7879b`.
+Upgrade/rollback uses a distinct image rebuilt from `ddf77c4a7`, applies packaged
+index migration `008` and preserves recorded economics. The concrete synthetic
+deployment preflight passes against this report; no cloud deployment was performed.

@@ -48,6 +48,14 @@ issue and restart; do not delete/reset the DB. Historical deployed scripts are
 immutable. Add compatible forward scripts; large backfills/index builds belong
 in an explicit maintenance path.
 
+Performance review script `008_add_recovery_lookup_indexes.sql` adds pending-order
+and controller-history indexes. With automatic migration disabled, run `make migrate`
+before deploying this revision. For a large active database, stop trading and
+schedule the index build in a maintenance window: ordinary `CREATE INDEX` can
+wait on/block writers, and the existing bootstrap deadline still applies.
+See [the performance review](postgres-performance-review.md) for measurements,
+query budgets and the decision to retain the existing in-memory caches.
+
 ## Existing databases
 
 Normal startup refuses mixed-case legacy tables even if canonical tables also

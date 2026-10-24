@@ -43,7 +43,10 @@ def pin_manifest(reference):
         repository = f"127.0.0.1:{port}/hummingbot"
         tag = repository + ":offline"
         docker("tag", reference, tag)
-        docker("push", tag, timeout=240)
+        # Large conda/Cython layers can take several minutes to compress on
+        # Docker Desktop. This preparation budget does not relax runtime gates.
+        print(f"Preparing local immutable image reference for {reference}", flush=True)
+        docker("push", tag, timeout=600)
         metadata = json.loads(docker("image", "inspect", tag).stdout)[0]
         pinned = next(digest for digest in metadata["RepoDigests"] if digest.startswith(repository + "@"))
         docker("pull", pinned, timeout=60)

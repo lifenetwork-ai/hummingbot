@@ -5,12 +5,49 @@ The source plan is [POSTGRES_CLOUD_RUN_PORT_PLAN.md](plans/POSTGRES_CLOUD_RUN_PO
 All measurements below are local; no Cloud Run staging, cloud IAM/networking or
 real exchange connection is claimed.
 
+## Post-port review release evidence
+
+Performance/recovery changes are reviewed in
+[postgres-performance-review.md](postgres-performance-review.md). **926 regression
+tests, 71 PostgreSQL integration tests and all five rebuilt-image E2E scenarios
+passed**. Current report: `build/e2e-offline/20261024-220352-d8f55f/result.json`,
+with `passed=true` and `release_scope_complete=true`.
+
+- Registry manifest: `sha256:70b97bea620732d53f228cb16dde63128b9177fc4e08d8c634e466c662a7879b`.
+- Image/config ID: `sha256:eb91e773e563377562797303740fdf8baf6b889bce14b8e04bcda7f5d38386af`.
+- Compatible predecessor rebuilt from `git archive ddf77c4a7`:
+  `sha256:a505ebdc1e40d435be5920f7b5f3fbdf14aa877df18d2286dc99290013990fff`.
+  This is a new build of the prior source, not the historical image digest below.
+- Schema policy, V1 spot fault recovery, V2 spot/perpetual economics and distinct
+  image upgrade/rollback all passed. The new image applies packaged index script
+  `008` while the previous image owns the database; the previous application also
+  passes migration-disabled startup on the expanded schema during rollback.
+- Spot: 14 accepted identities, three unique fills, reconnect and interrupted
+  recorder recovery. Both V2 paths preserve the 0.1-base position and restored
+  PnL peak 12.345678. Upgrade/rollback preserves recorded economics.
+- Local startup samples 6.936–8.195s, shutdown 0.837–1.493s; spot steady sample
+  237.1 MiB / 2 GiB and 2.29% Docker CPU. Reused-connection `SELECT 1` p95 0.273ms.
+  These are sampled local workloads, not peak or cloud performance measurements.
+
+The synthetic `deployment-review.example.yaml` beside the report passes the
+concrete offline deployment preflight against this exact manifest. It references
+no real cloud resources. All five modified production assets match the built
+image byte-for-byte; hashes are in
+`build/postgres-performance/image-source-sha256.json`.
+
+Only the local image-push preparation timeout was extended from 240s to 600s after
+Docker Desktop exceeded it while compressing large layers. Application startup,
+shutdown, ownership and recovery test deadlines were not relaxed.
+
 ## Current evidence
 
-- PostgreSQL integration: **61 passed** against disposable PostgreSQL 14, including
+- PostgreSQL integration: **71 passed** against disposable PostgreSQL 14, including
   real service processes, migration replay/drift/rollback, recorder transactions,
   CLI control, ownership connection termination, populated prior-schema upgrade,
   rejection of all later recorder writes after rollback and bounded cleanup.
+  The post-port review adds 10 cases for large-history query budgets, exact PnL,
+  position selection/overrides, invalid-history cursor cleanup, recent per-market
+  recorder warmup, additive indexes and the fully fenced fill transaction.
 - Selected runner/CLI/config/model/recorder/OKX/engine/REST/V2 regression: **926 passed**
   (`make test-cloudrun-regression`: 101 configuration, 11 performance, 814 other
   selected tests, including 5 deployment policy tests). Existing
@@ -43,7 +80,7 @@ image/config ID `sha256:d8fb4e2feb8a909a0d6db82342df7afb2e9cc1ad2a1609246d7d57bc
 The retained synthetic service example passes the concrete offline preflight against
 that report; it names no provisioned cloud resources.
 
-Final release evidence: `build/e2e-offline/20261024-190244-08c3ef/result.json`,
+Pre-review release evidence: `build/e2e-offline/20261024-190244-08c3ef/result.json`,
 registry manifest `sha256:e9f6dc7a5105553723d46c5194c902e47ade792fc7c62d1b0e8bf77d5328c714`,
 image/config ID `sha256:02084a71adf593a4205d9a03ad0ad586c31dafaae07cd3b1daeaa9de36687f0f`.
 All five scenarios passed and `release_scope_complete=true`. The concrete
