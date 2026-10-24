@@ -157,7 +157,7 @@ or quote-bound violations block new quotes and cancel outstanding quotes.
 
 ## 5. Timed and random sessions
 
-Only three commands are needed: **start, switch, stop**. Start/switch specify the
+Only three trading commands are needed: **start, switch, stop**. Start/switch specify the
 market mode, fixed/random selection and duration. A different duration is an
 explicit switch to a new session; pause/resume and in-place duration editing are
 not part of the MVP.
@@ -205,10 +205,14 @@ Paths below are relative to `/api/v1/admin`:
 | `POST /commands` | Start/switch/stop with validated market mode, selection and duration |
 | `GET /commands/{id}` | Accepted/applying/succeeded/failed/superseded result and effective version/session |
 | `GET /orders` | Existing bot-owned open/history orders, filtered by market/pair/time |
+| `GET /orders/{id}` | Local/exchange order identity, current status, bounded status timeline and links to its fills |
 | `GET /fills` | Existing fills/fees filtered by market/pair/time |
-| `GET /balances` | Total/available balances with snapshot freshness |
+| `GET /balances` | Canonical account LIFE/USDT cash, available balances and equity with explicit field meanings and snapshot freshness |
 | `GET /positions` | Actual perpetual positions, leverage/margin data available from the connector, and freshness; visible after quoting stops |
 | `GET /performance` | Existing per-market PnL, fees, volume and funding data where available, labeled with valuation basis/time |
+| `GET /statistics/daily` | Daily recorded fill counts, buy/sell volume, fees/rebates, observed funding and account balance chart points; bounded date/market/pair filters |
+| `POST /reconciliation/check` | Request one bounded, idempotent observational check against OKX; return `202` and a receipt/check ID |
+| `GET /reconciliation` | Latest check state/report with scope, coverage, timestamps and differences; FE polling reads stored results |
 | `GET /openapi.json` | Generated OpenAPI contract with FE examples |
 | `GET /docs` | Swagger UI using the generated schema, with Basic Auth and interactive API requests |
 
@@ -232,6 +236,71 @@ Reuse ORM/snapshots/performance helpers; do not shell out to CLI or promise new
 per-scenario accounting. Monetary values are Decimal strings, timestamps UTC and
 history reads have bounded pagination. Mark unavailable/stale data explicitly.
 
+### Daily statistics and balance charts
+
+Use existing `orders`, `order_statuses`, `trade_fills`, `funding_payments` and
+connector account data. `/fills` also accepts an order ID for the detail screen.
+Initial UI scope is current LIFE/USDT balances, daily fees/volume/fill counts and
+daily observed balance charts. `/statistics/daily` returns one bucket per day,
+including `observed_at`, coverage and data-source fields; use a default seven-day
+range and a maximum 90-day range. Market filters apply to trading metrics;
+account balance points have an explicit account scope and are never summed across
+market series.
+
+- Aggregate actual recorded fee amounts by original currency: charges, rebates
+  and net fees. Show USDT totals only for valid recorded conversions, with
+  unconverted amounts/coverage visible. Funding paid/received is separate and
+  labeled as observed when settlement history is incomplete.
+- **Required narrow fix:** the recorder currently writes zero when quote-fee
+  conversion fails. Preserve unavailable conversions for new fills and flag
+  ambiguous legacy values; a failed conversion must not look like a free trade.
+  Respect existing scale-six trade storage and legacy floating-point funding
+  precision. Decimal-string output does not recover precision already lost.
+- Reuse fetched account fields for LIFE/USDT `cashBal`, `availBal`, `eq`, `availEq`
+  where present, labeling unavailable fields. Both connectors can expose the same
+  account balance; select one canonical account view and never add their USDT
+  balances together. Equity must not be labeled wallet cash. Perpetual-only runs
+  still need the account snapshot for LIFE, not only the connector's USDT/USDC view.
+- Add one small `daily_balance_snapshots` table through the existing SQL runner.
+  The current owner upserts the latest fresh observation at most once per minute
+  per account/environment/currency/reporting timezone/day, using the existing loop and
+  database connection. Record actual observation time and source semantics;
+  a repeated observation after restart is idempotent. No separate scheduler is needed.
+- Use one configured reporting timezone, initially `Asia/Ho_Chi_Minh`, with UTC
+  timestamps in storage and explicit half-open day boundaries. Store the bucket's
+  timezone; do not relabel old snapshots under a new timezone. Late fills update
+  their event day, and duplicate fills are counted once.
+- Historical balances start with these snapshots. Missing days stay missing;
+  the latest sample in a day is labeled "last observed", not an exact midnight
+  balance. Do not reconstruct balances from fills alone or report exact daily
+  PnL from isolated daily fills without opening inventory/position valuation.
+
+### Bounded reconciliation checks
+
+Compare bot-owned order status/cumulative fills, fill identity/quantity/fees and
+perpetual long/short exposure using existing connector reads and local records.
+Return checked scope/counts, local/exchange observation times, coverage and linked
+order IDs. Result states are `not_checked`, `checking`, `matched`, `mismatch`,
+`incomplete`, `unavailable`; `matched` applies only to a complete, consistent checked
+scope. A concurrent fill, missing page, stale source or timeout cannot be reported
+as a match. Account-wide cashflow reconciliation is outside this check.
+
+Run at most one bounded check at a time in the existing owner service, reusing
+connector throttlers and the planned receipt mechanism. Bound time range, pages
+and execution time; repeated FE polling reads the latest stored report without
+calling OKX. A check must not bump the trading control version or reset a session:
+the current service restarts its core when that version changes.
+If the owner or authenticated read client is unavailable, report `unavailable`;
+checking must not start/restart a strategy to obtain connector state.
+
+The existing `BotOwnership.reconcile()` is corrective startup recovery: it updates
+trackers/persistence, can cancel orders and changes send permissions. Extract/reuse
+its read/comparison pieces where suitable; do not call that lifecycle method from
+an observational endpoint. Live position comparison must include active as well as
+held exposure. This check writes its report only; it does not repair fills, cancel
+orders, alter balances or clear HALT. Existing risk/recovery enforcement remains
+active, and operator recovery handles confirmed discrepancies separately.
+
 Example command body, with Basic Auth and `Idempotency-Key` headers:
 
 ```json
@@ -254,7 +323,7 @@ and `step_duration_seconds`. Switch/stop identify the current session. Start
 requires no active session. Reject arbitrary paths, unknown profiles and unsupported
 market/account settings.
 
-Reuse control-version CAS and add a small durable idempotency receipt in the same
+For trading commands, reuse control-version CAS and a small durable idempotency receipt in the same
 transaction. Check matching retries before CAS. A matching retry returns its
 original command without resetting time;
 a reused key with different data or stale version returns `409`. Return `202` on
@@ -303,6 +372,8 @@ optimize only demonstrated bottlenecks if the existing code misses the targets.
 - [ ] **Red:** actual HTTP tests for Basic Auth, malformed baskets/modes, retries, stale versions, conflicting commands, completion/failure states and Decimal/freshness output. Cover protected Swagger UI/schema and missing or inconsistent handler documentation.
 - [ ] Add routes/auth/env validation to existing aiohttp; reuse owner/control flow with transactional idempotency receipts and preserve health probes/CORS rules.
 - [ ] Expose profiles/reference-pair discovery/status and existing order/fill/balance/position/performance data; publish schema/examples including weighted basket selection and a supported pair absent from YAML.
+- [ ] **Red → Green:** daily fee/rebate/funding grouping, unavailable conversions, late/duplicate fills and timezone boundaries. Add daily statistics and the minimal balance-snapshot migration/upsert; verify shared-account deduplication, cash/equity labels and missing-day/restart behavior with real PostgreSQL.
+- [ ] **Red → Green:** order details and bounded reconciliation reports for missing/mismatched data, pagination gaps, concurrent fills and read failures. Prove a check cannot mutate exchange orders, repair ledger rows, restart the strategy or clear HALT; keep command/check completion distinct from report coverage.
 - [ ] Annotate API handlers and reuse request/response model schemas; add deterministic `make swagger` generation/validation and CI drift checks for `docs/api/openapi.json`.
 - [ ] Package Swagger UI at `/api/v1/admin/docs`, reading the generated `/api/v1/admin/openapi.json`; verify Basic Auth, command headers and schema/UI availability without external assets.
 - [ ] **Green/refactor:** exercise all three market modes and supported commands with bounded read/query assertions; record evidence and commit.
@@ -314,7 +385,7 @@ optimize only demonstrated bottlenecks if the existing code misses the targets.
 - [ ] Extend existing routing/auth rather than create demo connector forks. Cover instrument/account/leverage/order/cancel/reconciliation requests and reference feeds; both enabled markets use the same environment.
 - [ ] Update affected OKX WebSocket URLs to port 443/default `wss://`, including relevant candle feeds; verify regional endpoints against the account site and reject unsupported combinations.
 - [ ] Extend the simulator with LIFE spot/SWAP plus reference pairs. Verify three scenarios × spot/perpetual/both, weighted baskets, random selection, API switches, expiry and restart through the deployment image.
-- [ ] **Green/refactor:** run relevant existing regression, real-PG and image E2E gates, including FE workflow, stale feed/DB faults and held exposure. Save image/config hashes and commit. No OKX account is used here.
+- [ ] **Green/refactor:** run relevant existing regression, real-PG and image E2E gates, including FE history/daily-statistics/reconciliation workflow, stale feed/DB faults and held exposure. Verify daily totals against simulator fills and observed balances without double-counting `both`. Save image/config hashes and commit. No OKX account is used here.
 
 ### P5 — Final local load and soak gate
 
@@ -331,7 +402,7 @@ These are initial local test budgets, **not measured capacity**:
 
 | Profile | Workload |
 |---|---|
-| Mixed load | 5-minute warmup, then 15 minutes; 10 FE clients, 20 aggregate reads/s, 100 aggregate market updates/s and 1 valid fill/s, with a multi-pair basket and both markets |
+| Mixed load | 5-minute warmup, then 15 minutes; 10 FE clients, 20 aggregate reads/s including daily statistics/history/report polling, 100 aggregate market updates/s and 1 valid fill/s, with a multi-pair basket and both markets |
 | Bursts/contention | Short 5× market-data bursts, duplicate/out-of-order private events, concurrent command retries and stale-version conflicts |
 | Soak | 60 minutes in `both`, finite random steps, quote refreshes and bounded history reads |
 | Faults under load | Separate feed interruption, delayed/failed DB, owner restart and expiry with queued events; report separately from healthy latency/errors |
@@ -340,6 +411,7 @@ These are initial local test budgets, **not measured capacity**:
 - [ ] Healthy reads/command acceptance: p95 ≤500ms, p99 ≤1s, no unexpected timeouts/5xx; the generator achieves its sustained offered rate. Measure actual application separately: healthy local stop/cancel ≤5s and start/switch ≤15s, not merely `202` or acknowledgement.
 - [ ] Burst backlog drains within 10s of returning to steady load; no sustained queue/pool/memory growth during soak; peak bot RSS ≤1.5 GiB. Save per-minute samples so a late leak is visible. Report unmet budgets and the bottleneck rather than silently lowering load or relaxing thresholds.
 - [ ] Reuse N+1/query-count regressions as page/history size increases; cached performance reads retain the existing cache behavior. Add cache/index changes only when these measurements justify them.
+- [ ] Include daily-snapshot writes and one rate-bounded reconciliation check during the local load profile; report polling must not multiply exchange calls or block quote/deadline handling. Date-range aggregation must remain bounded on the large-history fixtures.
 - [ ] Independent exchange ledger and PostgreSQL agree on unique fills/fees/positions. Retries never duplicate commands/orders or reset deadlines. No new sends are authorized after step/session revocation, expiry or HALT; already in-flight effects must reconcile.
 - [ ] Count expected conflict/fault responses separately. Fix demonstrated failures using regression tests, rerun the affected load profile, save sanitized JSON/report evidence and commit before P6.
 
@@ -359,7 +431,7 @@ port 443 is already available. Checked 2026-10-25.
 
 - [ ] Require passing P1–P5 evidence, the tested image and a dedicated demo account/API key with Read/Trade access supplied through the existing secret/env mechanism. Keep demo database/state separate from any live bot. Default local/CI tests must never contact OKX.
 - [ ] Check demo instruments/account settings first. If LIFE is unavailable, explicitly configure supported substitute spot/SWAP instruments (for example BTC/ETH only if available); retain LIFE/listing-specific acceptance in the local simulator. Do not silently rename LIFE in a trading request.
-- [ ] From local, run bounded spot, perpetual and both workflows using demo balances: auth, books, post-only quotes, cancel, observed fills, positions, Basic Auth commands, weighted references, random steps, expiry and restart. Confirm final state against Demo REST/private WS. Record an unobserved fill/funding case as unverified, not passed.
+- [ ] From local, run bounded spot, perpetual and both workflows using demo balances: auth, books, post-only quotes, cancel, observed fills, positions, Basic Auth commands, weighted references, random steps, expiry and restart. Compare history/statistics and the reconciliation report with Demo REST/private WS, including account balance labels. Record an unobserved fill/funding case as unverified, not passed.
 - [ ] Run a short 30-minute demo observation with conservative configured order frequency and existing exchange throttlers. Cancel test-owned quotes on completion and report retained positions as the stop policy requires. The stress/load driver remains local; do not stress-test OKX.
 - [ ] Record sanitized results, selected demo instruments, account mode, image/config hashes and remaining gaps; update this plan and commit. Demo checks exchange integration, not LIFE listing availability, production fill quality or profitability. No Cloud Run staging is required.
 
