@@ -5,6 +5,15 @@ now defines a smaller spot/perpetual MM/session/admin API MVP. The P0â€“P9/A01â€
 below describe the previous scope, not the current delivery checklist. Source
 findings remain useful when reusing the corresponding components.
 
+Reuse clarification (2026-10-25): upstream revision `9af100d68` already includes
+V2 market making, OKX connectors, recorder/history, `PerformanceMetrics` and MQTT
+start/stop/status/config/history RPC. Missing LIFE behavior or REST endpoints does
+not mean these foundations must be rebuilt. The current plan's
+[reuse inventory](LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md#2-existing-code-to-extend)
+separates upstream functionality, completed port infrastructure and the remaining
+extensions. Reuse compatible helpers; HTTP trading commands must retain the port's
+owner/control flow rather than invoking interactive MQTT callbacks directly.
+
 Reviewed: 2026-10-24 (Asia/Ho_Chi_Minh). Source: `2301ef6a6`.
 Scope: compare [the LIFE/OKX plan](LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md) with
 readable source and reproducible tests. No exchange calls, credentials, demo/live

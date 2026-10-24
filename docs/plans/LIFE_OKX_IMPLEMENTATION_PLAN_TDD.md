@@ -31,19 +31,42 @@ Reusing V2 covers both markets without adding a separate V1 implementation.
 
 ## 2. Existing code to extend
 
-| Component | Work |
-|---|---|
-| [V2 MM base](../../hummingbot/strategy_v2/controllers/market_making_controller_base.py) and [PMM simple](../../controllers/market_making/pmm_simple.py) | Reuse quote levels, sizing, refresh and executor actions; supply the reference through `update_processed_data()` |
-| [V2 runner](../../scripts/v2_with_controllers.py) and existing executors | Load one or two instances; reuse lifecycle, order tracking, position holding and recovery |
-| [OKX spot](../../hummingbot/connector/exchange/okx/okx_exchange.py) / [perpetual](../../hummingbot/connector/derivative/okx_perpetual/okx_perpetual_derivative.py) | Reuse books, balances, orders, positions and funding records; fix only the required connector gaps below |
-| [aiohttp service](../../hummingbot/cli/service.py) | Add admin routes and independent session/deadline handling on the existing port/owner loop |
-| [Control store](../../hummingbot/model/bot_state_store.py), [send guard](../../hummingbot/core/order_submission_guard.py) and recorder | Reuse versioned commands, owner fencing, HALT, database transactions and order/fill persistence |
-| Existing YAML/env loaders, SQL runner and offline simulator | Add profiles, minimal current-session/command state and focused tests |
+**Reuse first is a delivery requirement:** use existing configuration, then an
+existing extension point or a small shared-helper extraction. Build new behavior
+only for a demonstrated gap. An absent HTTP endpoint does not mean the underlying
+trading, history or accounting logic needs to be implemented again.
 
-New behavior is limited to reference profiles, timed/random sessions and admin
-adapters. Keep current state and retry receipts in PostgreSQL using existing
-models/connections and simple idempotent snake_case SQL. Keep configuration in YAML.
-No session-history subsystem or order-to-session attribution is required.
+The inventory distinguishes upstream Hummingbot foundations from infrastructure
+already completed in this fork. Neither category is new LIFE work.
+
+| Existing component | Origin | Reuse and remaining work |
+|---|---|---|
+| [V2 MM base](../../hummingbot/strategy_v2/controllers/market_making_controller_base.py) and [PMM simple](../../controllers/market_making/pmm_simple.py) | Upstream | Reuse quote levels, sizing, refresh and executor actions; supply the LIFE reference through `update_processed_data()` |
+| [V2 runner](../../scripts/v2_with_controllers.py) and [executor orchestrator](../../hummingbot/strategy_v2/executors/executor_orchestrator.py) | Upstream, extended by the port | Load one or two instances; reuse lifecycle, order tracking, held positions, recovery and cached performance reports |
+| [Market data provider](../../hummingbot/data_feed/market_data_provider.py) and existing controller config models | Upstream | Reuse prices, subscriptions, metadata and supported validation/settings; add only basket/anchor and session-specific fields |
+| [OKX spot](../../hummingbot/connector/exchange/okx/okx_exchange.py) / [perpetual](../../hummingbot/connector/derivative/okx_perpetual/okx_perpetual_derivative.py) | Upstream, extended by the port | Reuse books, balances, orders, positions, funding and throttlers; fix required quantity/demo gaps in place |
+| [Recorder](../../hummingbot/connector/markets_recorder.py), [ORM models](../../hummingbot/model) and [history commands](../../hummingbot/client/command/history_command.py) | Upstream, extended by the port | Reuse recorded orders/statuses/fills/funding and history queries; add bounded API filters/serialization and daily grouping |
+| [Performance metrics](../../hummingbot/client/performance.py), V2 reports and [balance commands](../../hummingbot/client/command/balance_command.py) | Upstream, extended by the port | Reuse compatible fee, volume, PnL and account-data helpers; adapt market scope, freshness and Decimal output without a second calculation engine |
+| [MQTT commands](../../hummingbot/remote_iface/mqtt.py) | Upstream | Start/stop/status/config/history RPC already exists; reuse applicable command semantics and underlying helpers for the HTTP adapter |
+| [aiohttp service](../../hummingbot/cli/service.py) | Completed port | Add authenticated admin routes and independent session/deadline handling on the existing port/owner loop |
+| [Control store](../../hummingbot/model/bot_state_store.py) and [send guard](../../hummingbot/core/order_submission_guard.py) | Completed port | Reuse versioned commands, owner fencing, HALT and transactions; extend with current-session fields and durable receipts |
+| Existing YAML/env loaders, SQL runner and offline simulator | Upstream configuration plus completed port tooling | Reuse configuration, idempotent migrations, PostgreSQL connections and test fixtures; extend only for the missing behavior |
+
+MQTT handlers depend on the interactive application; do not call them directly
+from the service or introduce a broker for HTTP control. Route trading commands
+through the existing PostgreSQL owner/control path. Extract a small shared helper
+only when needed, preserving the original caller and its regression coverage.
+Likewise, reuse compatible performance calculations without treating a partial
+fill window as exact daily PnL or summing unlike spot/perpetual metrics.
+
+The remaining additions are the weighted/fixed LIFE reference, finite/random
+session coordination, HTTP Basic Auth/Swagger adapters, bounded daily aggregation
+and reconciliation reports, and historical balance snapshots absent from current
+storage. Fix the identified connector/recorder gaps in their existing code paths.
+Keep current state and retry receipts in PostgreSQL using existing models/connections
+and simple idempotent snake_case SQL. Keep configuration in YAML. No parallel trading
+engine, order tracker, fee/PnL engine, command worker or persistence framework is
+required; no session-history subsystem or order-to-session attribution is required.
 
 ## 3. YAML profiles
 
@@ -52,6 +75,11 @@ Package `deploy/cloudrun/conf/life_mm_profiles.yaml` as
 spread, order size, refresh, inventory/exposure limits and perpetual settings.
 The API selects deployed profile IDs and validated runtime fields, including
 reference pairs/weights; it does not edit YAML or change the LIFE trading target.
+
+Reuse the runner's controller loader and `ControllerBase.update_config()` for
+supported updatable fields. Keep effective API session configuration authoritative
+until an explicit switch; the runner's periodic YAML reload must not silently
+overwrite it. Pair/market/session changes still follow the switch lifecycle.
 
 Illustrative profile fragment, not yet runnable:
 
@@ -104,6 +132,11 @@ maximum basket size. Reuse existing instrument discovery/subscriptions; validate
 and initialize every required reference before quoting. Persist effective pairs,
 weights and anchors in current session state so restart recreates the same feeds
 without a YAML edit or deployment. Changing pairs/weights requires a switch.
+
+Use `MarketDataProvider.initialize_order_book(s)`, `remove_order_book(s)` and
+`get_price_by_type()` for reference feeds, preserving subscriptions still needed
+by another controller or the trading target. Discover supported instruments from
+connector metadata; `get_trading_pairs()` only lists configured/subscribed pairs.
 
 For example, an operator can select a newly trending AVAX-subnet token's verified
 OKX USDT pair through `follow_token` without adding a YAML profile. If that token
@@ -232,9 +265,11 @@ Package the schema and Swagger UI static assets with the service so documentatio
 works locally without a CDN. Swagger UI supports Basic Auth and the
 `Idempotency-Key` header for trying commands, with credential persistence disabled.
 
-Reuse ORM/snapshots/performance helpers; do not shell out to CLI or promise new
-per-scenario accounting. Monetary values are Decimal strings, timestamps UTC and
-history reads have bounded pagination. Mark unavailable/stale data explicitly.
+Reuse ORM/snapshots, `PerformanceMetrics` and the V2 orchestrator's cached reports
+where their definitions match the response. Reuse underlying history/balance
+helpers instead of CLI presentation code or MQTT callbacks; do not shell out to
+CLI or add per-scenario accounting. Monetary values are Decimal strings, timestamps
+UTC and history reads have bounded pagination. Mark unavailable/stale data explicitly.
 
 ### Daily statistics and balance charts
 
@@ -357,6 +392,12 @@ API schema. No second command worker/service is required.
 All P1–P5 execution stays local with dummy credentials and isolated exchange
 fixtures. OKX Demo account access is reserved for P6 after the local gates pass.
 
+At the start of each phase, record a short reuse map in its implementation evidence:
+the existing source/helper/test, the unmet requirement, and the smallest necessary
+configuration/extension/fix. If existing behavior already meets the requirement,
+reuse it and run its relevant tests; do not create a replacement implementation.
+This is part of the phase, not a separate framework or prerequisite project.
+
 For each behavior/fix, follow **Red → Green → Refactor**:
 
 1. Write the smallest behavioral/contract test and run it failing for the intended
@@ -375,6 +416,7 @@ optimize only demonstrated bottlenecks if the existing code misses the targets.
 
 - [ ] **Red:** cover weighted returns, single-token equivalence, anchor calculation, a supported pair absent from YAML, unknown/duplicate/non-USDT pairs, basket-size limits, invalid weights/totals and a stale basket member. Reproduce fractional/zero-entry-price perpetual quantity errors before fixing them.
 - [ ] Add the YAML catalogue through existing config models/loaders; validate market modes, durations, per-market limits and API basket overrides against the source instrument metadata.
+- [ ] Reuse dynamic order-book subscriptions and controller configuration lifecycle; test shared-feed retention and prove periodic YAML reload cannot overwrite the effective API session selection.
 - [ ] Extend one V2 MM controller with shared weighted-follow/fixed-anchor logic; reuse quote/executor lifecycle for spot and perpetual.
 - [ ] Fix required perpetual quantity handling; configure maker execution, position holding, leverage and supported CROSS/HEDGE settings explicitly.
 - [ ] **Green/refactor:** verify listing/freshness, both-market budgets, held/in-flight exposure and existing V2 regressions; record evidence and commit.
@@ -390,6 +432,7 @@ optimize only demonstrated bottlenecks if the existing code misses the targets.
 
 - [ ] **Red:** actual HTTP tests for Basic Auth, malformed baskets/modes, retries, stale versions, conflicting commands, completion/failure states and Decimal/freshness output. Cover protected Swagger UI/schema and missing or inconsistent handler documentation.
 - [ ] Add routes/auth/env validation to existing aiohttp; reuse owner/control flow with transactional idempotency receipts and preserve health probes/CORS rules.
+- [ ] Reuse history queries, account data, `PerformanceMetrics` and cached V2 reports where applicable; extract only helpers required by both callers, preserving existing CLI/MQTT behavior and avoiding duplicate fee/PnL or order-sync implementations.
 - [ ] Expose profiles/reference-pair discovery/status and existing order/fill/balance/position/performance data; publish schema/examples including weighted basket selection and a supported pair absent from YAML.
 - [ ] **Red → Green:** daily fee/rebate/funding grouping, unavailable conversions, late/duplicate fills and timezone boundaries. Add daily statistics and the minimal balance-snapshot migration/upsert; verify shared-account deduplication, cash/equity labels and missing-day/restart behavior with real PostgreSQL.
 - [ ] **Red → Green:** separate spot/perpetual history, daily series, performance and reconciliation coverage, including identical pair names, mode switches and one market unavailable. Prove shared balances appear once, configured budgets are not reported as exchange balances, and spot funding is not applicable.
