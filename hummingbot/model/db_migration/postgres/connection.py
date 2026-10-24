@@ -11,11 +11,13 @@ def create_postgres_engine(settings: RuntimeSettings) -> Engine:
         pool_pre_ping=True,
         pool_size=3,
         max_overflow=2,
-        pool_timeout=5,
+        pool_timeout=2,
         hide_parameters=True,
         connect_args={
             "connect_timeout": 5,
             "application_name": "hummingbot",
-            "options": "-c search_path=public -c statement_timeout=30000 -c lock_timeout=5000",
+            # Runtime requests have a smaller budget than migration DDL; the runner
+            # explicitly sets its own LOCAL statement/lock budgets per SQL file.
+            "options": "-c search_path=public -c statement_timeout=2000 -c lock_timeout=1000",
         },
     )

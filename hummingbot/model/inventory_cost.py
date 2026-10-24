@@ -58,7 +58,7 @@ class InventoryCost(HummingbotBase):
             record = InventoryCost(
                 base_asset=base_asset,
                 quote_asset=quote_asset,
-                base_volume=float(base_volume),
-                quote_volume=float(quote_volume),
+                base_volume=base_volume,
+                quote_volume=quote_volume,
             )
             sql_session.add(record)

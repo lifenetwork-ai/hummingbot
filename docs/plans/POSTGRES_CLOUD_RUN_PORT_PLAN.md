@@ -2,7 +2,7 @@
 
 Created: 2026-10-24 — Asia/Ho_Chi_Minh.
 
-Status: **implementation in progress — P0 and P1 complete, P2 next**. The runtime is not deployment-ready. Checked items have implementation/review/test evidence; unchecked items remain pending. Cloud Run staging is not required.
+Status: **implementation in progress — P0–P2 storage/bootstrap work verified, P3 next; final safety/service integration and offline E2E remain pending**. The runtime is not deployment-ready. Checked items have implementation/review/test evidence; unchecked items remain pending. Cloud Run staging is not required.
 
 Reviewed sources:
 
@@ -312,7 +312,7 @@ Completion criteria: an empty DB boots with migration enabled; repeated migratio
 
 P0 evidence (2026-10-24, checkout `c1c2d9fa0`): existing engine, runner, recorder, OKX spot and OKX perpetual suites passed: **160 tests, 6 warnings, 7.95s**. Initial scope is one bot/dedicated DB/account, PostgreSQL 14, OKX spot/perpetual, existing V1 pure market making and V2 script/controller loading. Gateway/DEX and unaudited custom file-writing strategies remain outside the verified cloud scope.
 
-Inventory: `cli/bot.py` holds JSON/PID state; `cli/data.py` assumes SQLite; start/stop/status/deploy use local processes and signals; recorder automatically exports CSV; config loaders/bootstrap write YAML/templates; connector login reads encrypted YAML/password verification; file logging and generated wrappers need a cloud-safe path. Ordinary YAML, explicit operator exports and backtesting output remain valid file uses. Reuse the existing engine/ORM/connector APIs and add only the environment adapter, SQL runner/verifier, operational state/ownership, service host and small offline test harness. Progress and verification evidence are maintained directly in this plan.
+Inventory: `cli/bot.py` holds JSON/PID state; `cli/data.py` assumes SQLite; start/stop/status/deploy use local processes and signals; recorder retains a legacy CSV export helper; config loaders/bootstrap write YAML/templates; connector login reads encrypted YAML/password verification; file logging and generated wrappers need a cloud-safe path. Ordinary YAML, explicit operator exports and backtesting output remain valid file uses. Reuse the existing engine/ORM/connector APIs and add only the environment adapter, SQL runner/verifier, operational state/ownership, service host and small offline test harness. Progress and verification evidence are maintained directly in this plan.
 
 ### P1 — Connection and configurable automatic migration
 
@@ -327,14 +327,18 @@ P1 delivery: five packaged canonical SQL files, explicit maintenance SQL, shared
 
 ### P2 — PostgreSQL recorder and queries
 
-- [ ] P2.1: Retain recorder session/transaction interfaces; manage engine/pool lifetime rather than creating unbounded connections per command/tick.
-- [ ] P2.2: Stop inferring a database from `data/<config>.sqlite`. Use one connection configuration and exact filtering by the existing configuration identity.
-- [ ] P2.3: Port every ORM model in section 4.1 to the canonical mappings in section 3.3. Update foreign-key strings, relationships, raw SQL, query/import fixtures and schema checks; test identity/uniqueness under replay and equal timestamps across markets without rewriting the model's business logic.
-- [ ] P2.4: Preserve atomic fill/status/market-state writes. Update any in-memory “persisted fill” cache only after commit, so rollback cannot cause a replayed fill to be lost.
-- [ ] P2.5: Reuse recorder tests and connector mocks for out-of-order create/fill/cancel events, duplicate WebSocket events, reconnection, partial fills and unknown order states.
-- [ ] P2.6: Measure remote DB latency on the trading loop. Retain sync SQLAlchemy if it meets the budget. If offloading is necessary, use immutable snapshots, bounded work and separate sessions per worker; propagate commit/failure. Enqueueing is not durable persistence.
-- [ ] P2.7: Prevent new risk when the DB is unavailable. Retry transactions only with bounded, idempotent behavior; never blindly retry exchange submissions. Reconcile after connectivity returns.
-- [ ] P2.8: Configure pool size/overflow, connect/query timeouts and pre-ping. Include deployment overlap, migration and bot-ownership connections in the connection budget.
+- [x] P2.1: Retain recorder session/transaction interfaces; manage engine/pool lifetime rather than creating unbounded connections per command/tick.
+- [x] P2.2: Stop inferring a database from `data/<config>.sqlite`. Use one connection configuration and exact filtering by the existing configuration identity.
+- [x] P2.3: Port every ORM model in section 4.1 to the canonical mappings in section 3.3. Update foreign-key strings, relationships, raw SQL, query/import fixtures and schema checks; test identity/uniqueness under replay and equal timestamps across markets without rewriting the model's business logic.
+- [x] P2.4: Preserve atomic fill/status/market-state writes. Update any in-memory “persisted fill” cache only after commit, so rollback cannot cause a replayed fill to be lost.
+- [x] P2.5: Reuse recorder tests and connector mocks for out-of-order create/fill/cancel events, duplicate WebSocket events, reconnection, partial fills and unknown order states.
+- [x] P2.6: Measure remote DB latency on the trading loop. Retain sync SQLAlchemy if it meets the budget. If offloading is necessary, use immutable snapshots, bounded work and separate sessions per worker; propagate commit/failure. Enqueueing is not durable persistence.
+- [ ] P2.7: **Persistence-failure latch implemented/tested in P2; final connector send-gate integration remains assigned to P5.** Prevent new risk when the DB is unavailable. Retry transactions only with bounded, idempotent behavior; never blindly retry exchange submissions. Reconcile after connectivity returns.
+- [x] P2.8: Configure pool size/overflow, connect/query timeouts and pre-ping. Include deployment overlap, migration and bot-ownership connections in the connection budget.
+
+P2 evidence (2026-10-24): PostgreSQL integration suite passed **31 tests** (34.85s); selected existing regression/strategy suites passed **623 tests** (12.43s). New tests cover real FK-preserving fill-before-create, create/fill replay, partial fills, exact fees/Decimal/timestamps, all 14 registered ORM tables, conflicting duplicate rejection, actual PostgreSQL backend termination before commit, rollback with no cache acknowledgment, market-state restore and same-timestamp funding across markets/pairs. Local synchronous recorder p95 was **15.25ms over 25 fill transactions**, below the initial local 100ms budget; this is not a measurement of remote Cloud SQL latency.
+
+P2 delivery: additive `006_add_order_recovery.sql` marks provisional orders explicitly; duplicate create cannot erase later fill/status state; fill/status/tracking-state writes remain one transaction. Connector caches update after commit. Decimal overflow/non-finite values fail explicitly, and inventory creation preserves Decimal precision. PG runtime queries use a 2s statement / 1s lock / 2s pool-checkout budget; migrations retain their separate DDL budgets. A rollback latches persistence unhealthy and a later successful write does not reopen it. The final fail-closed submission guard/reconciliation is a P5 integration dependency and stays unchecked above. No automatic CSV export call was found during implementation; the legacy helper now explicitly refuses PG runtime file output.
 
 ### P3 — Retain YAML and supply credentials through the environment
 

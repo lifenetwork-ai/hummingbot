@@ -9,6 +9,7 @@ class SqliteDecimal(TypeDecorator):
     stored in Sqlite database.
     """
     impl = BigInteger
+    cache_ok = True
 
     def __init__(self, scale):
         """
@@ -35,4 +36,12 @@ class SqliteDecimal(TypeDecorator):
         return str(self._convert_decimal(value))
 
     def _convert_decimal(self, value: Decimal) -> int:
-        return int(Decimal(value) * self.multiplier_int) if value is not None else value
+        if value is None:
+            return None
+        decimal_value = Decimal(value)
+        if not decimal_value.is_finite():
+            raise ValueError("Recorded Decimal must be finite.")
+        result = int(decimal_value * self.multiplier_int)
+        if not -(2 ** 63) <= result < 2 ** 63:
+            raise ValueError("Recorded Decimal exceeds the signed BIGINT range at its configured scale.")
+        return result

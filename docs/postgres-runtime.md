@@ -15,8 +15,8 @@ Use injected environment values and explicit Secret Manager versions there.
 `DATABASE_URL` accepts `postgresql://` or `postgresql+psycopg2://`. Percent-encode
 special characters in URL credentials; SSL query settings such as `sslmode=require`
 are passed to the driver. Only the synchronous psycopg2 driver is supported.
-Connections use `public`, connect timeout 5s, statement timeout 30s, lock timeout 5s,
-pool size 3, overflow 2 and pool checkout timeout 5s. Budget additional migration
+Connections use `public`, connect timeout 5s, runtime statement timeout 2s, lock timeout 1s,
+pool size 3, overflow 2 and pool checkout timeout 2s. Budget additional migration
 and ownership sessions and both old/new processes during deployment overlap.
 Session advisory locks require direct/session-pooled PostgreSQL connections;
 transaction-pooling proxies are unsupported.

@@ -251,6 +251,7 @@ class MarketsRecorder:
                 existing_position.amount = position.amount
                 existing_position.breakeven_price = position.breakeven_price
                 existing_position.unrealized_pnl_quote = position.unrealized_pnl_quote
+                existing_position.realized_pnl_quote = position.realized_pnl_quote
                 existing_position.cum_fees_quote = position.cum_fees_quote
             else:
                 # Insert new position
@@ -373,29 +374,63 @@ class MarketsRecorder:
 
         with self._sql_manager.get_new_session() as session:
             with session.begin():
-                order_record: Order = Order(id=evt.order_id,
-                                            config_file_path=self._config_file_path,
-                                            strategy=self._strategy_name,
-                                            market=market.display_name,
-                                            symbol=evt.trading_pair,
-                                            base_asset=base_asset,
-                                            quote_asset=quote_asset,
-                                            creation_timestamp=timestamp,
-                                            order_type=evt.type.name,
-                                            amount=Decimal(evt.amount),
-                                            leverage=evt.leverage if evt.leverage else 1,
-                                            price=Decimal(evt.price) if evt.price == evt.price else Decimal(0),
-                                            position=evt.position if evt.position else PositionAction.NIL.value,
-                                            last_status=event_type.name,
-                                            last_update_timestamp=timestamp,
-                                            exchange_order_id=evt.exchange_order_id)
-                order_status: OrderStatus = OrderStatus(order=order_record,
-                                                        timestamp=timestamp,
-                                                        status=event_type.name)
-                session.add(order_record)
-                session.add(order_status)
-                market.add_exchange_order_ids_from_market_recorder({evt.exchange_order_id: evt.order_id})
+                order_record = session.get(Order, evt.order_id)
+                if order_record is not None and (
+                    order_record.market != market.display_name or order_record.symbol != evt.trading_pair
+                    or order_record.config_file_path != self._config_file_path
+                ):
+                    raise ValueError("Order identity conflicts with an existing recorded order.")
+                values = dict(
+                    id=evt.order_id,
+                    config_file_path=self._config_file_path,
+                    strategy=self._strategy_name,
+                    market=market.display_name,
+                    symbol=evt.trading_pair,
+                    base_asset=base_asset,
+                    quote_asset=quote_asset,
+                    creation_timestamp=timestamp,
+                    order_type=evt.type.name,
+                    amount=Decimal(evt.amount),
+                    leverage=evt.leverage if evt.leverage else 1,
+                    price=Decimal(evt.price) if evt.price == evt.price else Decimal(0),
+                    position=evt.position if evt.position else PositionAction.NIL.value,
+                    last_status=event_type.name,
+                    last_update_timestamp=timestamp,
+                    exchange_order_id=evt.exchange_order_id,
+                    creation_pending=False,
+                )
+                if order_record is None:
+                    order_record = Order(**values)
+                    session.add(order_record)
+                else:
+                    # A create ack completes a provisional record without erasing fills
+                    # or regressing a newer/terminal status. Duplicate create is a no-op.
+                    was_pending = order_record.creation_pending
+                    for key, value in values.items():
+                        if key in ("last_status", "last_update_timestamp"):
+                            continue
+                        if was_pending or key in ("exchange_order_id", "creation_pending"):
+                            setattr(order_record, key, value)
+                    if order_record.last_status in (MarketEvent.BuyOrderCreated.name, MarketEvent.SellOrderCreated.name):
+                        order_record.last_update_timestamp = max(order_record.last_update_timestamp, timestamp)
+                self._add_order_status(session, order_record, timestamp, event_type.name)
                 self.save_market_states(self._config_file_path, market, session=session)
+        if evt.exchange_order_id:
+            market.add_exchange_order_ids_from_market_recorder({evt.exchange_order_id: evt.order_id})
+
+    @staticmethod
+    def _add_order_status(session: Session, order: Order, timestamp: int, status: str) -> None:
+        exists = session.query(OrderStatus.id).filter_by(order_id=order.id, timestamp=timestamp, status=status).first()
+        if exists is None:
+            session.add(OrderStatus(order=order, timestamp=timestamp, status=status))
+
+    @staticmethod
+    def _record_latest_status(order: Order, status: str, timestamp: int) -> None:
+        terminal = {MarketEvent.OrderCancelled.name, MarketEvent.OrderFailure.name,
+                    MarketEvent.OrderExpired.name, MarketEvent.BuyOrderCompleted.name, MarketEvent.SellOrderCompleted.name}
+        if timestamp >= order.last_update_timestamp and not (order.last_status in terminal and status not in terminal):
+            order.last_status = status
+            order.last_update_timestamp = timestamp
 
     def _did_fill_order(self,
                         event_tag: int,
@@ -414,51 +449,69 @@ class MarketsRecorder:
             with session.begin():
                 # Try to find the order record, and update it if necessary.
                 order_record: Optional[Order] = session.query(Order).filter(Order.id == order_id).one_or_none()
-                if order_record is not None:
-                    order_record.last_status = event_type.name
-                    order_record.last_update_timestamp = timestamp
+                existing_fill = session.get(TradeFill, (market.display_name, order_id, evt.exchange_trade_id))
+                if existing_fill is not None:
+                    if (existing_fill.symbol != evt.trading_pair or existing_fill.price != evt.price
+                            or existing_fill.amount != evt.amount or existing_fill.trade_type != evt.trade_type.name
+                            or existing_fill.trade_fee != evt.trade_fee.to_json()):
+                        raise ValueError("Duplicate fill identity has conflicting economic values.")
+                    self.save_market_states(self._config_file_path, market, session=session)
+                else:
+                    self._store_fill(session, market, evt, order_record, timestamp, event_type.name, base_asset, quote_asset)
+        # A failed commit must never acknowledge persistence to connector reconciliation.
+        market.add_trade_fills_from_market_recorder({
+            TradeFillOrderDetails(market.display_name, evt.exchange_trade_id, evt.trading_pair)
+        })
 
-                # Order status and trade fill record should be added even if the order record is not found, because it's
-                # possible for fill event to come in before the order created event for market orders.
-                order_status: OrderStatus = OrderStatus(order_id=order_id,
-                                                        timestamp=timestamp,
-                                                        status=event_type.name)
-                try:
-                    fee_in_quote = evt.trade_fee.fee_amount_in_token(
-                        trading_pair=evt.trading_pair,
-                        price=evt.price,
-                        order_amount=evt.amount,
-                        token=quote_asset,
-                    )
-                except Exception as e:
-                    self.logger().error(f"Error calculating fee in quote: {e}, will be stored in the DB as 0.")
-                    fee_in_quote = 0
-                trade_fill_record: TradeFill = TradeFill(
-                    config_file_path=self.config_file_path,
-                    strategy=self.strategy_name,
-                    market=market.display_name,
-                    symbol=evt.trading_pair,
-                    base_asset=base_asset,
-                    quote_asset=quote_asset,
-                    timestamp=timestamp,
-                    order_id=order_id,
-                    trade_type=evt.trade_type.name,
-                    order_type=evt.order_type.name,
-                    price=evt.price,
-                    amount=evt.amount,
-                    leverage=evt.leverage if evt.leverage else 1,
-                    trade_fee=evt.trade_fee.to_json(),
-                    trade_fee_in_quote=fee_in_quote,
-                    exchange_trade_id=evt.exchange_trade_id,
-                    position=evt.position if evt.position else PositionAction.NIL.value,
-                )
-                session.add(order_status)
-                session.add(trade_fill_record)
-                self.save_market_states(self._config_file_path, market, session=session)
-
-                market.add_trade_fills_from_market_recorder({TradeFillOrderDetails(trade_fill_record.market,
-                                                                                   trade_fill_record.exchange_trade_id,
-                                                                                   trade_fill_record.symbol)})
+    def _store_fill(self, session: Session, market: ConnectorBase, evt: OrderFilledEvent,
+                    order_record: Optional[Order], timestamp: int, status: str, base_asset: str, quote_asset: str):
+        if order_record is None:
+            # Preserve FKs even when exchange fill updates precede the create ack.
+            # Quantity/price here are provisional until the original create arrives.
+            order_record = Order(id=evt.order_id, config_file_path=self._config_file_path,
+                                 strategy=self._strategy_name, market=market.display_name,
+                                 symbol=evt.trading_pair, base_asset=base_asset, quote_asset=quote_asset,
+                                 creation_timestamp=timestamp, order_type=evt.order_type.name,
+                                 amount=evt.amount, price=evt.price, leverage=evt.leverage or 1,
+                                 position=evt.position or PositionAction.NIL.value,
+                                 last_status=status, last_update_timestamp=timestamp, creation_pending=True)
+            session.add(order_record)
+        elif (order_record.market != market.display_name or order_record.symbol != evt.trading_pair
+              or order_record.config_file_path != self._config_file_path):
+            raise ValueError("Fill identity conflicts with its recorded order.")
+        self._record_latest_status(order_record, status, timestamp)
+        self._add_order_status(session, order_record, timestamp, status)
+        try:
+            fee_in_quote = evt.trade_fee.fee_amount_in_token(
+                trading_pair=evt.trading_pair,
+                price=evt.price,
+                order_amount=evt.amount,
+                token=quote_asset,
+            )
+        except Exception as e:
+            self.logger().error(f"Error calculating fee in quote: {e}, will be stored in the DB as 0.")
+            fee_in_quote = 0
+        trade_fill_record: TradeFill = TradeFill(
+            config_file_path=self.config_file_path,
+            strategy=self.strategy_name,
+            market=market.display_name,
+            symbol=evt.trading_pair,
+            base_asset=base_asset,
+            quote_asset=quote_asset,
+            timestamp=timestamp,
+            order=order_record,
+            trade_type=evt.trade_type.name,
+            order_type=evt.order_type.name,
+            price=evt.price,
+            amount=evt.amount,
+            leverage=evt.leverage if evt.leverage else 1,
+            trade_fee=evt.trade_fee.to_json(),
+            trade_fee_in_quote=fee_in_quote,
+            exchange_trade_id=evt.exchange_trade_id,
+            position=evt.position if evt.position else PositionAction.NIL.value,
+        )
+        session.add(trade_fill_record)
+        self.save_market_states(self._config_file_path, market, session=session)
 
     def _did_complete_funding_payment(self,
                                       event_tag: int,
@@ -474,7 +527,9 @@ class MarketsRecorder:
             with session.begin():
                 # Try to find the funding payment has been recorded already.
                 payment_record: Optional[FundingPayment] = session.query(FundingPayment).filter(
-                    FundingPayment.timestamp == timestamp).one_or_none()
+                    FundingPayment.timestamp == timestamp,
+                    FundingPayment.market == market.display_name,
+                    FundingPayment.symbol == evt.trading_pair).one_or_none()
                 if payment_record is None:
                     funding_payment_record: FundingPayment = FundingPayment(timestamp=timestamp,
                                                                             config_file_path=self.config_file_path,
@@ -490,6 +545,8 @@ class MarketsRecorder:
         return tuple(df.iloc[0].values) == header
 
     def append_to_csv(self, trade: TradeFill):
+        if self._sql_manager.engine.dialect.name == "postgresql":
+            raise RuntimeError("PostgreSQL runtime does not export recorder files; use an explicit operator export.")
         csv_filename = "trades_" + trade.config_file_path[:-4] + ".csv"
         csv_path = os.path.join(data_path(), csv_filename)
 
@@ -533,13 +590,11 @@ class MarketsRecorder:
                 order_record: Optional[Order] = session.query(Order).filter(Order.id == order_id).one_or_none()
 
                 if order_record is not None:
-                    order_record.last_status = event_type.name
-                    order_record.last_update_timestamp = timestamp
-                    order_status: OrderStatus = OrderStatus(order_id=order_id,
-                                                            timestamp=timestamp,
-                                                            status=event_type.name)
-                    session.add(order_status)
+                    self._record_latest_status(order_record, event_type.name, timestamp)
+                    self._add_order_status(session, order_record, timestamp, event_type.name)
                     self.save_market_states(self._config_file_path, market, session=session)
+                elif self._sql_manager.engine.dialect.name == "postgresql":
+                    raise RuntimeError("Order status arrived without a persisted order identity; reconciliation is required.")
 
     def _did_cancel_order(self,
                           event_tag: int,

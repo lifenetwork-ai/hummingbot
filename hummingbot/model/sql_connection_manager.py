@@ -3,7 +3,7 @@ from enum import Enum
 from os.path import join
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import MetaData, create_engine
+from sqlalchemy import MetaData, create_engine, event
 from sqlalchemy.engine.base import Engine
 from sqlalchemy.orm import Query, Session, sessionmaker
 
@@ -103,6 +103,11 @@ class SQLConnectionManager(TransactionBase):
                 self._metadata.create_all(self._engine)
 
         self._session_cls = sessionmaker(bind=self._engine)
+        self.persistence_healthy = True
+        if use_postgres:
+            # PubSub logs listener exceptions. Latch persistence failure independently
+            # so a service send gate cannot miss a recorder/commit exception.
+            event.listen(self._session_cls, "after_soft_rollback", self._record_rollback)
 
         if not use_postgres and connection_type is SQLConnectionType.TRADE_FILLS and (not called_from_migrator):
             self.check_and_migrate_db(client_config_map)
@@ -113,6 +118,13 @@ class SQLConnectionManager(TransactionBase):
 
     def get_new_session(self) -> Session:
         return self._session_cls()
+
+    def _record_rollback(self, session, previous_transaction) -> None:
+        self.persistence_healthy = False
+
+    def assert_persistence_healthy(self) -> None:
+        if not self.persistence_healthy:
+            raise RuntimeError("Persistence failed; ownership and exchange reconciliation are required before new orders.")
 
     def get_local_db_version(self, session: Session):
         query: Query = (session.query(LocalMetadata)

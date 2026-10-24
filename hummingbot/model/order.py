@@ -1,7 +1,7 @@
 from typing import Any, Dict
 
 import numpy
-from sqlalchemy import BigInteger, Column, Index, Integer, Text
+from sqlalchemy import BigInteger, Boolean, Column, Index, Integer, Text, text
 from sqlalchemy.orm import relationship
 
 from hummingbot.model import HummingbotBase
@@ -35,6 +35,8 @@ class Order(HummingbotBase):
     last_update_timestamp = Column(BigInteger, nullable=False)
     exchange_order_id = Column(Text, nullable=True)
     position = Column(Text, nullable=True)
+    # A fill or a persisted send intent can precede the create acknowledgment.
+    creation_pending = Column(Boolean, nullable=False, default=False, server_default=text("false"))
     status = relationship("OrderStatus", back_populates="order")
     trade_fills = relationship("TradeFill", back_populates="order")
 
