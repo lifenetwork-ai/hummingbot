@@ -7,6 +7,8 @@ Original source revision reviewed: `9af100d68`.
 Latest source audit: **2026-10-24, `2301ef6a6`**, after the PostgreSQL/Cloud Run port.
 See [LIFE_OKX_IMPLEMENTATION_AUDIT.md](LIFE_OKX_IMPLEMENTATION_AUDIT.md) for the
 component inventory, confirmed gaps, phase mapping and reproduced results.
+Plan updated after audit commit `21e8508b9`: existing components are prerequisites
+to reuse, and the checklists below describe the remaining implementation work.
 
 Status: **shared infrastructure implemented; LIFE-specific strategy implementation remains open**.
 The port supplies PostgreSQL persistence/migrations, environment configuration,
@@ -50,9 +52,9 @@ A benchmark is an input to the quoting model. It does not imply that LIFE will f
 | Reviewed component | Reusable capabilities | Required work or limitation |
 |---|---|---|
 | [OKX spot connector](../../hummingbot/connector/exchange/okx/okx_exchange.py) | Order book, limit/maker orders, balances, tick/lot sizes | Add listing-phase checks; the current instrument filter does not check `state` |
-| [OKX perpetual connector](../../hummingbot/connector/derivative/okx_perpetual/okx_perpetual_derivative.py) | Positions, contract sizes, modes, maker orders | Currently selects live linear SWAPs; dated futures and inverse contracts are outside this scope |
+| [OKX perpetual connector](../../hummingbot/connector/derivative/okx_perpetual/okx_perpetual_derivative.py) | Live linear SWAP filter, contract-size metadata, maker orders, exchange funding timestamps | Position conversion/fractional side parsing and ONEWAY close semantics need fixes; cross margin is hard-coded; dated futures/inverse contracts are outside scope |
 | [V2 controller base](../../hummingbot/strategy_v2/controllers/controller_base.py) | Configuration, market data, executor actions | Add coordination across both markets and shared limits |
-| [V2 runner base](../../hummingbot/strategy/strategy_v2_base.py) | Multiple connectors/controllers within one bot | Test perpetual connector bootstrap and independent market shutdown |
+| [V2 runner base](../../hummingbot/strategy/strategy_v2_base.py) | Multiple connectors/controllers; generic spot and perpetual bootstrap verified in offline E2E | Add one LIFE coordinator and test joint readiness, shared budgets and independent market shutdown |
 | [Order executor](../../hummingbot/strategy_v2/executors/order_executor/order_executor.py) | Order tracking, retries, remaining exposure | Prove cancel/replace, idempotency, reservations, and authorization on every send |
 | [TWAP configuration](../../hummingbot/strategy_v2/executors/twap_executor/data_types.py) | Execution over time | Defaults to TAKER; MAKER mode uses LIMIT and does not itself guarantee post-only behavior; do not reuse these defaults for LIFE |
 | [Hedge controller](../../controllers/generic/hedge_asset.py) | Example hedge-ratio calculation | `update_markets` hard-codes the spot pair `asset-USDC`; adapt it for LIFE–USDT and configure leverage explicitly |
@@ -64,7 +66,7 @@ A benchmark is an input to the quoting model. It does not imply that LIFE will f
 Mandatory integration work identified by the review:
 
 - `ControllerBase.control_task()` depends on `MarketDataProvider.ready`, which combines readiness across connectors and candle feeds. Loss of readiness can prevent the controller from requesting cancellations. Use an independent safety loop and readiness per market.
-- `OrderExecutor` can resubmit after cancellation/failure. Controller approval does not cover every send. Enforce a final authorization check for submissions and retries, including after waiting for the throttler.
+- `OrderExecutor` can resubmit after cancellation/failure. The port already checks ownership/HALT/control version after throttling/authentication. Extend that existing final authorization boundary with LIFE session/risk epochs, freshness, economics and reservations; controller approval alone does not cover every send.
 - `_update_trading_fees()` is currently `pass` in both OKX connectors. Repository fee defaults are not verified account fee rates.
 - The perpetual connector hard-codes `tdMode=cross`/`mgnMode=cross`; ONEWAY close orders do not currently send `reduceOnly`. `get_position_amount()` derives quantity from `notionalUsd / avgPx` and rounds it. Validate against contract counts and metadata before using that quantity for shared risk limits.
 - The [V2 performance report](../../hummingbot/strategy_v2/executors/executor_orchestrator.py) divides `global_pnl_pct` by turnover. Capital drawdown requires a separate calculation.
@@ -90,6 +92,37 @@ is mapped in the latest audit. Editing a requirement alone does not close it.
 | 9. Hedge churn and residual carry | Hedge batching within exposure deadlines; dynamic funding monitoring | P6.10–P6.12 | A34 |
 | 10. Persistence introduced too late | Write-ahead order identity/reservations and one authorized sender | P4.14, P5.12, P8.3 | A35, A39 |
 | 11. Overreliance on participation/STP/timers | Independent size/impact/loss limits and outage stress | P7.3, P4.15–P4.16, P8.5–P8.6 | A30, A36–A37 |
+
+### 2.2. Implemented baseline and remaining work
+
+The following are available from the port. They are not new LIFE deliverables and
+must not be replaced merely to satisfy a proposed module boundary.
+
+| Available baseline | Reuse in | Work still required |
+|---|---|---|
+| PostgreSQL ORM/recorder, migration runner, snake_case SQL and schema validation | P3/P4/P8 | Add only justified session/reservation/budget/audit state using forward idempotent scripts; preserve `ENABLE_AUTO_MIGRATION` behavior |
+| Local dotenv, cloud environment/Secret Manager input and YAML loaders | P1/P9 | LIFE schema, mode-specific validation and examples; no new credential/config store |
+| `BotOwnership`, generation fencing, `before_order` hook and final REST gate | P4/P5/P8 | Bind LIFE permits to session/config/risk epochs, price/quantity and durable reservations; retain checks after throttling |
+| Stable wire ID persisted before send, atomic fills/tracking, lost-ACK recovery and latched HALT | P4/P5/P8 | Reservation accounting, per-session quote slots, persistent deadlines and budget identities; exhaustive LIFE event races |
+| Original V2 runner, controllers/executors and cached PnL/position recovery | P3/P5/P6/P7 | One LIFE coordinator and its policies; preserve existing engine behavior with contract tests |
+| Independent HTTP/WS simulator, disposable PG tests, image E2E and CI/runbook | P0/P8/P9 | LIFE fixtures/fake clock, joint risk/economic scenarios, demo isolation, soak and applicable economic gates |
+
+Reuse evidence: **926 port regression tests, 71 PostgreSQL tests and five image
+E2E scenarios** in [postgres-verification.md](../postgres-verification.md), plus
+the **387-test OKX/controller/executor audit baseline**. These totals are not LIFE
+acceptance coverage. Keep the current in-memory caches; there is no measured need
+for a new `inmem`/`redis` adapter or Redis dependency in this plan.
+
+Confirmed blockers to track in their implementation phases:
+
+| Phase | Required regression before the fix |
+|---|---|
+| P2 | Suspended/pre-open spot instrument must not become tradable; missing/stale account fees must not become verified defaults |
+| P4 | An otherwise valid PG owner must still be blocked by an expired LIFE epoch, stale reference, invalid economic decision or absent reservation; safety must run without global feed readiness |
+| P6 | `60/100` must not be rounded up to one base unit; `avgPx=0` must not break contract-based exposure; fractional net `pos` must parse without `int()` truncation/error |
+| P6 | ONEWAY close cannot reverse a shrinking position; reject isolated configuration while requests still use cross margin |
+| P8 | The exchange timer must use the reviewed mutation gate and stop renewal when LIFE safety/ledger health fails |
+| P9 | Demo constants alone cannot enable demo mode; verify the actual REST/WS/auth/header/credential route and reject accidental production routing |
 
 ## 3. Proposed Architecture
 
@@ -148,6 +181,13 @@ Some directories contain residual bytecode caches; these do not satisfy delivery
 | `scripts/life_liquidity_runner.py` | Dedicated runner if the generic loader cannot meet connector bootstrap/shutdown requirements; a distinct name avoids CLI confusion with the controller |
 
 Reuse existing executors and storage where their behavior satisfies the contracts. Changes to shared code require regression tests demonstrating the need. Each new adapter needs contract tests against the repository's actual executor implementation.
+
+`state.py` is a LIFE adapter over the existing PostgreSQL connection/recorder and
+ownership contracts, not a second persistence system. Persist timed sessions from
+P3 onward; extend the durable intent transaction with reservations/epochs in P4.
+Do not postpone persistence until P8, create runtime JSON/SQLite state, or introduce
+a separate migration/WAL service. The dedicated runner remains conditional: reuse
+the generic V2 loader unless a failing contract test demonstrates a missing capability.
 
 ### Data Contracts
 
@@ -281,6 +321,31 @@ Each stage must pass its applicable P8/P9 gates before live operation. Completin
 | P8 | Recovery, telemetry, and system tests | Partial infrastructure foundation | PG crash recovery/HALT and image E2E reusable; LIFE state/timer/audit absent |
 | P9 | Demo, runbook, and release gates | Partial infrastructure foundation | Port CI/runbook available; LIFE modes/soak/economic gates absent |
 
+### 6.1. Next work and phase execution
+
+The next implementation task is **P0.1**, followed by the remaining P0 items
+P0.2/P0.3/P0.5/P0.6/P0.8. Keep P0.4/P0.7 complete unless changes invalidate their
+recorded evidence. P0 still needs its LIFE specification, fixtures and decision
+register before P1 starts; unavailable live values must be explicitly unresolved,
+with synthetic values labeled offline-only.
+
+| Sequence | Implement next | Exit condition |
+|---|---|---|
+| Finish P0 | Requirement/test/module mapping, state permissions, fake-clock LIFE fixtures, objectives and decision register | Reproducible fixtures and baseline; no invented live defaults |
+| P1 | LIFE configuration/durations/units/mode validation and loader discovery | Valid examples round-trip; invalid updates cannot send orders |
+| P2 | Listing gate, independent market readiness, quality/freshness and fee adapters | Pre-listing through continuous-trading replay; stale/unqualified inputs fail closed |
+| P3 | Qualified reference and durable sessions/expiry/successor | Fake-clock/restart tests preserve anchors, deadlines and epochs |
+| P4 | Economics/risk, durable reservations, permit extension and independent safety | Adverse-event and send-after-throttle tests preserve the shared invariants |
+| P5 | LIFE spot coordinator/quotes and order lifecycle | Complete simulated spot session reconciles orders, balances, fees and reservations |
+| Applicable P8/P9 spot gates | LIFE recovery/telemetry/replays and release evidence | Spot scope only; no implicit perpetual/hedge or economic approval |
+| P6, then justified P7 extensions | Connector fixes and joint hedge/perpetual risk; bounded inventory execution | Each enabled scope passes its own applicable P8/P9 cases before release |
+
+Within each phase, follow Red → Green → Refactor, run affected regression and
+coverage gates, then update this plan with commands/results/remaining gaps. Commit
+each completed phase before continuing to the next. If blocked, record the exact
+item, reproduced failure, attempted resolution and needed input; report it without
+skipping the required dependency or checking off unfinished work.
+
 ### P0 — Define behavioral contracts and establish the baseline
 
 **Goal:** define the implementation scope and create LIFE fixtures that do not depend on an actual listing.
@@ -329,7 +394,7 @@ Each stage must pass its applicable P8/P9 gates before live operation. Completin
 - [ ] P2.7: Reject inverse and dated futures; convert contract quantities into LIFE correctly using instrument metadata.
 - [ ] P2.8: Benchmarks may come from another connector; a duplicate source name cannot overwrite a trading connector.
 - [ ] P2.9: An unlisted SWAP does not block spot readiness; safety callbacks remain scheduled when feed/executor readiness fails. Use a safety callback stub here to verify runner integration; complete safety/session/cancel/reconciliation acceptance belongs in P4.15/P5.
-- [ ] P2.10: Fee adapters include account/instrument, timestamp, and currency. Test rebate/commission signs, the `feeGroup` schema, incentives, stale fees, and actual-fee reconciliation. Repository defaults are not account fee data.
+- [ ] P2.10: Implement the missing account-fee retrieval/adaptation in the existing OKX connector paths (`_update_trading_fees()` is currently `pass` in both). Fee snapshots include account/instrument, timestamp, and currency. Test rebate/commission signs, the verified current schema including `feeGroup` applicability, incentives, stale fees, and actual-fee reconciliation. Repository defaults are not account fee data.
 - [ ] P2.11: Balance/position/account snapshots carry quality and freshness metadata. Missing or inconsistent snapshots do not become zero balances/positions. Spot/perpetual snapshots of the same account must not duplicate collateral.
 
 OKX exposes a continuous-trading start time for some listings; verify metadata and applicable listing rules during implementation. [OKX instruments](https://www.okx.com/docs-v5/en/#public-data-rest-api-get-instruments).
@@ -376,8 +441,8 @@ Run risk checks before creating/replacing orders, after every fill event, and at
 - [ ] P4.10: Enforce priority: HALT > block additional risk > cancel orders > permitted exposure reduction > new quotes. Risk-reducing intents retain price limits and cannot reverse a position.
 - [ ] P4.11: Positive spread with negative net edge is blocked in `profit_mm`; subsidy mode reserves/reconciles a separate budget. Test fees/rebates, rounding, minimum order size, carry, quote-currency-to-bps conversion, and prevention of double-counted costs.
 - [ ] P4.12: Risk-reducing exits use a separate policy/budget. Test that profit thresholds do not block an otherwise valid exit, while an exit exceeding its price/slippage budget remains blocked and raises a residual-risk alert.
-- [ ] P4.13: Expiry/HALT/configuration changes/stale feeds between approval and send produce zero risk-increasing requests under invalidated permits. Cover action queues, executor retries/renewals, and requests waiting on throttlers, with contract tests of the actual connector send path. A valid successor requires a new permit and cannot reuse the previous session's permit.
-- [ ] P4.14: Commit the intent, wire client order ID, reservation, and epoch to the WAL before network send. Define the ID allocator; if connector APIs allocate IDs internally, add a tested hook. Crashes during allocation/WAL/send/ACK cannot duplicate orders or lose reservations.
+- [ ] P4.13: Extend the existing `order_submission_guard`/`BotOwnership` final REST boundary with LIFE permit checks; retain its ownership/HALT/control-version checks after throttling/authentication. Expiry/configuration changes/stale feeds or invalid economics/reservations between approval and send produce zero risk-increasing requests under invalidated permits. Cover actual action queues and executor retries/renewals. A valid successor requires a new permit and cannot reuse the previous session's permit.
+- [ ] P4.14: Reuse the connector-allocated wire ID, existing `before_order` hook and PostgreSQL durable intent path. Atomically commit the LIFE intent, wire client order ID, reservation and epoch before network send; add only the missing state/transaction contract rather than a parallel ID allocator or WAL service. Crashes during allocation/WAL/send/ACK cannot duplicate orders or lose reservations.
 - [ ] P4.15: The safety loop does not wait for market readiness or executor update events; it has a watchdog, reserved cancellation quota, and priority over order creation. Contract tests using the real runner/`ControllerBase` prove that expiry/block/cancel/reconciliation continue without readiness. Failed cancellation preserves unresolved state and blocks additional risk.
 - [ ] P4.16: Stress all orders on one side filling before cancellation, disappearing depth, basis/mark/funding shocks, and hedge outages; quotes/reservations must fit the stress budget and collateral buffer.
 - [ ] P4.17: Separate execution losses from gains/losses on starting inventory. Adverse execution can trigger the execution-loss gate even when LIFE appreciates; deposits do not erase recorded drawdown or losses.
@@ -390,7 +455,7 @@ Run risk checks before creating/replacing orders, after every fill event, and at
 **Tests first:** `test_spot_quotes.py`, `test_order_lifecycle.py`, `test_controller_spot.py`.
 
 - [ ] P5.1: Compute candidate bid/ask levels from a qualified reference, configured spreads, and quantities. Round to tick/lot sizes and submit only levels passing economics/risk gates. Do not cross the book or exceed budgets to populate every level; report insufficient depth when KPIs are unmet.
-- [ ] P5.2: Real quotes use post-only orders; executor `LIMIT_MAKER` must reach OKX as `post_only`, without automatic market-order fallback after rejection.
+- [ ] P5.2: Reuse the existing `LIMIT_MAKER` → OKX `post_only` mapping. Add LIFE executor/connector contract tests proving real quotes and retries preserve post-only semantics, without automatic market-order fallback after rejection.
 - [ ] P5.3: Each `(session, market, side, level)` has at most one valid intent/slot; cancel-replace waits for confirmation or holds sufficiently conservative reservations.
 - [ ] P5.4: Account correctly for fills concurrent with cancel ACKs; duplicate/out-of-order events cannot double-count fills.
 - [ ] P5.5: Excess token inventory reduces or blocks new buying; inventory skew cannot replace hard limits.
@@ -409,7 +474,7 @@ Run risk checks before creating/replacing orders, after every fill event, and at
 **Tests first:** `test_perpetual_quotes.py`, `test_hedge.py`, `test_joint_exposure.py`.
 
 - [ ] P6.1: Confirm account/position modes, leverage, and contract metadata before the first quote; configuration errors generate no orders.
-- [ ] P6.2: Contract-to-base conversion is consistent across order placement, fills, REST/WS positions, notional, and PnL. Fixed contract quantities in linear contracts retain the same base quantity when mark/entry prices change. Test fractional lots, `ctVal`, `avgPx=0`, and no upward quantity rounding. Fix `get_position_amount()` before enabling shared live risk management.
+- [ ] P6.2: Contract-to-base conversion is consistent across order placement, fills, REST/WS positions, notional, and PnL. Fixed contract quantities in linear contracts retain the same base quantity when mark/entry prices change. Replace `get_position_amount()`'s notional/entry-price calculation and upward rounding; fix `get_position_side()`'s integer parsing of fractional net `pos`. Test fractional lots, `ctVal`, `avgPx=0`, missing metadata and unchanged contract counts under valuation changes before enabling shared live risk management.
 - [ ] P6.3: Opening/closing respects `position_action` and position mode. ONEWAY closing requires exchange-enforced reduce-only or live operation is blocked; HEDGE closing needs corresponding contract tests. Another fill reducing the position between snapshot and send cannot turn a close into a reverse position. Margin configuration must match the actual request; reject isolated mode while the adapter hard-codes cross.
 - [ ] P6.4: Risk includes spot inventory, perpetual longs/shorts, pending orders, and margin buffers without double-counting assets in the same account.
 - [ ] P6.5: Perpetual mark/index/funding data remain distinct; neither a benchmark nor an internal quote price is the OKX mark price.
@@ -419,7 +484,7 @@ Run risk checks before creating/replacing orders, after every fill event, and at
 - [ ] P6.9: Remove the example hedge controller's `asset-USDC` assumption; test LIFE–USDT against actual market metadata.
 - [ ] P6.10: Hedge deadbands/batching reduce churn, but maximum unhedged quantity/time take priority. Test that small fills avoid unnecessary hedges, while deadline/exposure breaches invoke the selected risk-reduction policy.
 - [ ] P6.11: Estimate hedge cost from executable depth/size, basis, and fees; a marketable order is not necessarily an inexpensive hedge. Block new quotes when hedge costs violate net-edge or budget gates.
-- [ ] P6.12: Funding sign, schedule, and settlement changes update economics; do not hard-code an eight-hour interval. Positions remaining after session expiry retain funding/margin monitoring and carry budgets until actually closed.
+- [ ] P6.12: Reuse REST/WS funding data that already read exchange `nextFundingTime`; do not replace them with the legacy fixed-eight-hour helper. Add funding sign/schedule/settlement-change tests and integrate carry economics. Positions remaining after session expiry retain funding/margin monitoring and carry budgets until actually closed.
 - [ ] P6.13: A spot long/perpetual short with near-zero net delta is still blocked when stressed margin/basis exceeds limits. Cross margin uses account-level collateral and maintenance tiers; balances from two connectors cannot be counted twice.
 - [ ] P6.14: BTC/ETH/AVAX benchmarks are not automatically LIFE hedging instruments. The MVP hedges only with an appropriate LIFE contract; cross-asset hedging requires a separate basis/correlation model and research gate outside this scope.
 
@@ -452,7 +517,7 @@ Minimum WAL/order identity is already required in P4/P5; this phase hardens cras
 - [ ] P8.2: Failed/corrupt storage or an untrusted clock enters `HALTED`/`RECONCILING`; do not start a new session from default state.
 - [ ] P8.3: The MVP uses one dedicated account/subaccount, one logical bot and one PostgreSQL database. Reuse the existing database ownership/generation fence to prevent concurrent senders during process/revision overlap, including different selected strategy IDs. Bind LIFE reservations and aggregate accounting to that risk pool. Independent deployments using different databases on the same account are unsupported; PostgreSQL ownership cannot exclude them. Retain unknown/manual-order reconciliation and add LIFE account/risk-pool contract tests.
 - [ ] P8.4: The generic loader cannot automatically restart quoting after expiry/HALT; regression-test the manual kill switch and hot reload.
-- [ ] P8.5: Integrate an exchange cancellation timer where the account/environment supports it, verifying account/tag scope. Renew its heartbeat only while the safety loop/ledger are healthy, rather than merely while the process is alive. Test that a stalled controller/safety loop cannot renew indefinitely.
+- [ ] P8.5: Integrate an exchange cancellation timer where the account/environment supports it, verifying account/tag scope. Add reviewed authorization for that mutation to the existing default-deny send gate; do not send around it. Renew its heartbeat only while the LIFE safety loop/ledger are healthy, rather than merely while the process is alive. Test that a stalled controller/safety loop cannot renew indefinitely.
 - [ ] P8.6: Stopping the heartbeat is not immediate cancellation; reconcile open orders and residual positions after the timer triggers.
 - [ ] P8.7: Report source age, session time remaining, PnL including fees/funding, inventory, margin, pending reservations, latency, reject counts, and reason codes.
 - [ ] P8.8: Logs include session/intent/order/config versions without secrets; reconstruct allow/block decisions from recorded snapshots.
@@ -472,7 +537,7 @@ OKX [Cancel All After](https://www.okx.com/docs-v5/en/#order-book-trading-trade-
 
 - [ ] P9.1: Provide a runbook covering installation, validation, simulation, shadow, demo, start, pause, resume, reconciliation, and rollback.
 - [ ] P9.2: Shadow consumes real market data but cannot submit orders by adapter design; tests prove the order-placement path is unavailable.
-- [ ] P9.3: Separate demo REST/WS endpoints and credentials from production. Verify connector demo support and add it if missing; do not assume LIFE exists in demo before listing.
+- [ ] P9.3: Separate demo REST/WS routing, required request headers and credentials from production. Reuse existing perpetual demo domain/WS constants, but prove the complete authentication/transport path and review its service-gate eligibility. Missing demo configuration must fail rather than fall back to production credentials/routing. Do not assume LIFE exists in demo before listing.
 - [ ] P9.4: If demo lacks LIFE, test the connector with a supported pair and LIFE logic with a fake instrument; document each test's representativeness limits.
 - [ ] P9.5: Run demo/soak through a complete configured session and expiry, one restart, disconnection, and cancellation. Record actual duration, test activity, and logs.
 - [ ] P9.6: Unit/integration/regression CI passes, diff coverage meets its gate, and no skips conceal failures in order submission/cancellation/accounting.
