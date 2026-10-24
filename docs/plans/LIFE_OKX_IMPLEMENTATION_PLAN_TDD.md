@@ -2,11 +2,25 @@
 
 Created: 2026-10-01 (Asia/Ho_Chi_Minh)
 
-Source revision reviewed: `9af100d68`
+Original source revision reviewed: `9af100d68`.
 
-Status: **implementation plan; no new trading code has been implemented or run live**.
+Latest source audit: **2026-10-24, `2301ef6a6`**, after the PostgreSQL/Cloud Run port.
+See [LIFE_OKX_IMPLEMENTATION_AUDIT.md](LIFE_OKX_IMPLEMENTATION_AUDIT.md) for the
+component inventory, confirmed gaps, phase mapping and reproduced results.
 
-Architecture and economics reviewed on 2026-10-01. All review findings are incorporated into this plan and mapped to implementation checklists and acceptance cases in Section 2.1. The controls below are **implementation and testing requirements**, not protections already available in the bot. All implementation checklists remain open.
+Status: **shared infrastructure implemented; LIFE-specific strategy implementation remains open**.
+The port supplies PostgreSQL persistence/migrations, environment configuration,
+service lifecycle, ownership/send fencing and generic OKX recovery/E2E evidence.
+The proposed LIFE controller/modules/tests have no readable source in this checkout;
+remaining `.pyc` artifacts do not establish completed implementation. No full LIFE
+phase or A01–A39 acceptance case is marked complete. P0.4 (environment/baseline) and
+P0.7 (connector source audit) have evidence; their identified implementation gaps
+remain open. No live LIFE trading has been performed.
+
+Architecture and economics were reviewed on 2026-10-01. The requirements below
+remain the LIFE delivery contract; the audit distinguishes reusable protections
+already present from missing LIFE behavior. Completing the separate port does not
+complete this plan.
 
 ## 1. Objectives and Scope
 
@@ -59,7 +73,9 @@ These findings come from source inspection. They do not establish successful ope
 
 ### 2.1. Review-to-Implementation Traceability
 
-Each review finding below is addressed in this specification. Implementation and verification remain pending; editing the plan does not close a delivery checklist.
+Each review finding below is addressed in this specification. LIFE-specific
+implementation and verification remain pending; generic infrastructure evidence
+is mapped in the latest audit. Editing a requirement alone does not close it.
 
 | Review finding | Required control | Implementation checklist | Acceptance cases |
 |---|---|---|---|
@@ -79,7 +95,13 @@ Each review finding below is addressed in this specification. Implementation and
 
 Use **one V2 runner with one coordinating controller** for the MVP. It manages the enabled `okx` and `okx_perpetual` markets. The spot and perpetual quote engines have separate state and share an economics/risk engine, reservation ledger, and session store. Spot can run independently when perpetual trading is disabled or unavailable under the configured hedge policy.
 
-The shared coordinator prevents separate engines from allocating the same capital or submitting orders that conflict with hedge targets. A future deployment across processes would require shared reservations and enforceable ownership of order submission; that extension is outside the MVP.
+The proposed shared coordinator must prevent separate engines from allocating
+the same capital or submitting orders that conflict with hedge targets. Reuse the
+ported PostgreSQL ownership/generation fence during service-process or Cloud Run
+revision overlap: one logical bot, one dedicated database and one dedicated
+exchange account/subaccount, with only one authorized sender. LIFE reservations
+and aggregate accounting still need implementation. Multiple independent bots or
+databases sharing the same risk account remain outside the MVP.
 
 Safety, session deadlines, and reconciliation run independently of market-data readiness and the quote-creation queue. Feed failures revoke permission to increase risk while cancellation and reconciliation remain active. A single submission path revalidates permission after queues/throttling; executor retries must use that path. Watchdogs and exchange cancellation timers support process-failure handling. Outstanding quotes must remain within the capital budget for the configured outage scenarios.
 
@@ -106,7 +128,8 @@ flowchart TD
 
 ### Module Boundaries
 
-The paths below are **proposed** and do not yet exist:
+The source files below are **proposed** and do not yet exist as readable source.
+Some directories contain residual bytecode caches; these do not satisfy delivery:
 
 | Path | Responsibility |
 |---|---|
@@ -171,7 +194,12 @@ The names below describe the intended schema. P1 will implement it and produce v
 | `inventory.price_limit`, `inventory.max_participation` | Execution constraints; do not relax them automatically to complete quantity |
 | `perpetual.leverage`, `perpetual.position_mode`, `perpetual.margin_mode` | Explicit live values; do not inherit example leverage of 20; reject modes not verified by the adapter |
 
-Use `Decimal` for prices and quantities. Keep basis points, percentages, and fractions distinct; `100 bps = 1% = 0.01` is a mandatory test. Strategy configuration must use the existing credential storage mechanism rather than embed API keys.
+Use `Decimal` for prices and quantities. Keep basis points, percentages, and
+fractions distinct; `100 bps = 1% = 0.01` is a mandatory test. Keep ordinary strategy
+configuration in YAML. Reuse the port's environment credential adapter: optional
+local `.env`, process environment precedence, and Cloud Run Secret Manager
+environment injection. Do not embed credentials in strategy YAML or create a new
+credential store.
 
 Persist start/expiry timestamps in UTC. Measure in-process intervals/timeouts with a monotonic clock. On restart, validate the wall clock before allowing new orders. Downtime counts toward session duration. Restart, reconnect, and hot reload do not reset anchors or implicitly start a new session.
 
@@ -242,16 +270,16 @@ Each stage must pass its applicable P8/P9 gates before live operation. Completin
 
 | Phase | Main deliverable | Status | Evidence/commit |
 |---|---|---|---|
-| P0 | Behavioral specification, baseline, and test harness | Not started | — |
-| P1 | Schema, units, and configuration validation | Not started | — |
-| P2 | Market data and listing gate | Not started | — |
-| P3 | Reference engine and configurable sessions | Not started | — |
-| P4 | Economics, risk, reservations, safety loop, and minimum WAL | Not started | — |
-| P5 | Spot MM and order lifecycle | Not started | — |
-| P6 | Perpetuals, hedging, and shared risk | Not started | — |
-| P7 | Inventory execution and mode transitions | Not started | — |
-| P8 | Recovery, telemetry, and system tests | Not started | — |
-| P9 | Demo, runbook, and release gates | Not started | — |
+| P0 | Behavioral specification, baseline, and test harness | Partial: environment and connector audit complete | 387 regression tests; [audit](LIFE_OKX_IMPLEMENTATION_AUDIT.md); LIFE fixtures/specification still open |
+| P1 | Schema, units, and configuration validation | LIFE implementation not started | Generic Pydantic/YAML/env loaders reusable |
+| P2 | Market data and listing gate | Generic connector foundation only | Listing, quality and account-fee gaps confirmed in audit |
+| P3 | Reference engine and configurable sessions | Not implemented | No LIFE reference/session source |
+| P4 | Economics, risk, reservations, safety loop, and minimum WAL | Partial infrastructure foundation | PG intents/ownership/fencing available; LIFE risk/economics/permits absent |
+| P5 | Spot MM and order lifecycle | Generic MM/executors only | Generic OKX placement/fill/recovery evidence; LIFE coordinator absent |
+| P6 | Perpetuals, hedging, and shared risk | Generic perpetual foundation only | Position/close-only blockers; no joint LIFE ledger |
+| P7 | Inventory execution and mode transitions | Generic executors only | Bounded LIFE inventory policy/transitions absent |
+| P8 | Recovery, telemetry, and system tests | Partial infrastructure foundation | PG crash recovery/HALT and image E2E reusable; LIFE state/timer/audit absent |
+| P9 | Demo, runbook, and release gates | Partial infrastructure foundation | Port CI/runbook available; LIFE modes/soak/economic gates absent |
 
 ### P0 — Define behavioral contracts and establish the baseline
 
@@ -264,10 +292,10 @@ Each stage must pass its applicable P8/P9 gates before live operation. Completin
 - [ ] P0.1: Map R01–R12 to test IDs, modules, and completion phases.
 - [ ] P0.2: Define `CREATED`, `WAITING_READY`, `ACTIVE`, `TRANSITIONING`, `PAUSED`, `EXPIRED`, `HALTED`, and `RECONCILING`, including order permissions in each state.
 - [ ] P0.3: Provide fixtures for an empty book, no trades, a one-sided book, partial fills, pending cancellation, and restart.
-- [ ] P0.4: Verify the Conda/Cython/pytest environment; record baseline passes/failures and distinguish environment failures from strategy defects.
+- [x] P0.4: Verify the Conda/Cython/pytest environment; record baseline passes/failures and distinguish environment failures from strategy defects. **Audit evidence:** 387 relevant regression tests passed at `2301ef6a6`; command, environment and limits are recorded in the audit. This does not establish LIFE behavior coverage.
 - [ ] P0.5: Document unknowns: listing phases, a valid LIFE reference price, budgets, risk thresholds, account mode, actual fees, and OKX market-maker obligations.
 - [ ] P0.6: Select `profit_mm` or `liquidity_service`; define starting-capital/cash-flow accounting, subsidy/execution-loss/stress budgets, and liquidity KPIs. Specify units, owners, and calibration methods. Label synthetic test values explicitly and track unresolved live values in the decision register. Every live threshold needs a numeric value and supporting rationale before P9 live eligibility; unresolved live inputs do not block offline implementation and cannot become implicit live defaults.
-- [ ] P0.7: Audit actual connectors for account fees, position quantity, margin/position modes, exchange-enforced closing semantics, and the final send path. Track spot and perpetual blockers separately; a working demo does not clear accounting blockers.
+- [x] P0.7: Audit actual connectors for account fees, position quantity, margin/position modes, exchange-enforced closing semantics, and the final send path. Track spot and perpetual blockers separately; a working demo does not clear accounting blockers. **Audit evidence:** source review and local probes identify open P2/P4/P6 gaps; completion of this audit item does not mark those fixes complete.
 - [ ] P0.8: Define calibration/evaluation dataset requirements and separation, a no-trading baseline, and an MM baseline using only a qualified LIFE reference. Track unavailable LIFE datasets as unresolved evidence; synthetic fixtures permit offline development but do not satisfy live economic validation. Freeze numeric acceptance thresholds before evaluation. Do not use future data to make current pricing decisions.
 
 **Done when:** fixtures produce repeatable offline results, and unresolved assumptions are not silently replaced with live defaults.
@@ -422,7 +450,7 @@ Minimum WAL/order identity is already required in P4/P5; this phase hardens cras
 
 - [ ] P8.1: Inject crashes before send, after send but before ACK, after fill but before checkpoint, and during cancel/replace; no orders or exposure become untracked.
 - [ ] P8.2: Failed/corrupt storage or an untrusted clock enters `HALTED`/`RECONCILING`; do not start a new session from default state.
-- [ ] P8.3: The MVP uses one account/subaccount dedicated to the risk pool and one sender on one host. An account/risk-pool lock blocks two local runners, including different strategy IDs. Local locks do not protect across hosts; do not deploy active-active/hot standby until centralized send authority is verified. Detect manual/out-of-scope orders and handle them under reconciliation policy.
+- [ ] P8.3: The MVP uses one dedicated account/subaccount, one logical bot and one PostgreSQL database. Reuse the existing database ownership/generation fence to prevent concurrent senders during process/revision overlap, including different selected strategy IDs. Bind LIFE reservations and aggregate accounting to that risk pool. Independent deployments using different databases on the same account are unsupported; PostgreSQL ownership cannot exclude them. Retain unknown/manual-order reconciliation and add LIFE account/risk-pool contract tests.
 - [ ] P8.4: The generic loader cannot automatically restart quoting after expiry/HALT; regression-test the manual kill switch and hot reload.
 - [ ] P8.5: Integrate an exchange cancellation timer where the account/environment supports it, verifying account/tag scope. Renew its heartbeat only while the safety loop/ledger are healthy, rather than merely while the process is alive. Test that a stalled controller/safety loop cannot renew indefinitely.
 - [ ] P8.6: Stopping the heartbeat is not immediate cancellation; reconcile open orders and residual positions after the timer triggers.
@@ -504,11 +532,16 @@ Perpetual and basket cases are required when the corresponding feature is enable
 | A36 | The create-order queue saturates, or the safety loop stalls while the process remains alive | Cancellation has reserved capacity; exchange heartbeats cannot renew indefinitely; residual risk remains visible | P4/P8 |
 | A37 | Public volume surges while the book remains thin | Participation rules cannot override hard quantity, impact, or loss budgets | P7 |
 | A38 | Realistic costs/latency/queue assumptions remove the required edge in profit mode, breach service KPI/budgets in liquidity-service mode, or leave insufficient samples | Fail the applicable objective's gate or record insufficient evidence; capital does not scale automatically | P9 |
-| A39 | Two runners with different strategy IDs use the same risk account, or spot and perpetual report the same balance | Block the second local sender; do not double-count cash or collateral; the MVP prohibits multiple hosts | P2/P8 |
+| A39 | Overlapping runners use the dedicated bot database/account with different strategy IDs, or spot and perpetual report the same balance | Fence the second concurrent sender and do not double-count cash or collateral; independent deployments/databases sharing the account are unsupported | P2/P8 |
 
 ## 8. Test Commands and Delivery Evidence
 
-The `life_liquidity` paths will be created in their corresponding phases. The following commands are examples for a prepared `hummingbot` Conda environment:
+The `life_liquidity` source/test files will be created in their corresponding
+phases; directories containing only bytecode are not runnable suites. The following
+LIFE commands are future examples for a prepared `hummingbot` Conda environment.
+The existing six-suite regression command was run during the latest audit:
+**387 passed, 7 warnings, no failures/skips**. See the audit for its exact interpreter
+and saved evidence.
 
 ```bash
 # Run the Red/Green cycle for a specific behavior.
@@ -532,7 +565,13 @@ conda run -n hummingbot make development-diff-cover
 conda run -n hummingbot diff-cover coverage.xml --compare-branch=origin/development --fail-under=80
 ```
 
-Confirm that `origin/development` is the actual PR base before measuring diff coverage. If it differs, record the replacement base and use the same base in CI. `make test` has its own exclusion list: its result does not replace required regression tests if those exclusions omit changed areas. Do not use `make build` to prepare tests because that target currently runs `git clean -xdf`.
+Confirm that `origin/development` is the actual PR base before measuring diff
+coverage. If it differs, record the replacement base and use the same base in CI.
+`make test` has its own exclusion list: its result does not replace required
+regression tests if those exclusions omit changed areas. At the audited revision,
+`make build` builds the legacy release Docker target; it no longer runs
+`git clean -xdf`. Use the prepared Conda environment for unit tests and
+`make build-cloudrun` for the reviewed service image.
 
 Record at least the following evidence for each phase:
 
