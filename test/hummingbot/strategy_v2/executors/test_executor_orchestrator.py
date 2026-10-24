@@ -385,6 +385,20 @@ class TestExecutorOrchestrator(unittest.TestCase):
         self.assertEqual(self.orchestrator.active_executors, {})
         self.assertEqual(self.orchestrator.cached_performance["test"].realized_pnl_quote, Decimal("1.25"))
 
+    @patch.object(MarketsRecorder, "get_instance")
+    def test_store_position_during_failed_start_before_strategy_clock_tick(self, recorder):
+        self.mock_strategy.current_timestamp = float("nan")
+        self.mock_strategy.market_data_provider.time.return_value = 1700000000.25
+        hold = PositionHold(connector_name="binance", trading_pair="ETH-USDT", side=TradeType.BUY)
+        hold.net_amount_base = Decimal("1")
+        hold.avg_entry_price = Decimal("200")
+        self.orchestrator.positions_held = {"controller": [hold]}
+        self.orchestrator.store_all_positions()
+        record = recorder.return_value.update_or_store_position.call_args.args[0]
+        self.assertEqual(1700000000250, record.timestamp)
+        self.assertEqual(Decimal("1"), record.amount)
+        self.assertEqual({}, self.orchestrator.positions_held)
+
     @patch.object(ExecutorOrchestrator, "store_all_positions")
     @patch.object(ExecutorOrchestrator, "store_all_executors")
     def test_stop(self, store_all_executors, store_all_positions):

@@ -72,7 +72,7 @@ def poll(check, *, timeout=90, description):
     raise AssertionError(f"Timed out: {description}")
 
 
-def http(container, path, data=None):
+def http(container, path, data=None, headers=None):
     # Docker internal networks intentionally have no published host ports. Keep
     # the HTTP probe/control client inside the target's network namespace too.
     program = """
@@ -80,21 +80,22 @@ import json, sys
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 data = None if sys.argv[2] == 'null' else sys.argv[2].encode()
-request = Request('http://127.0.0.1:8080' + sys.argv[1], data=data, headers={'Content-Type':'application/json'})
+request = Request('http://127.0.0.1:8080' + sys.argv[1], data=data, headers={'Content-Type':'application/json', **json.loads(sys.argv[3])})
 try:
     with urlopen(request, timeout=2) as response:
-        print(json.dumps([response.status, json.load(response)]))
+        body = json.load(response) if response.headers.get_content_type() == 'application/json' else response.read().decode()
+        print(json.dumps([response.status, body]))
 except HTTPError as error:
     print(json.dumps([error.code, json.load(error)]))
 except (URLError, TimeoutError):
     print('[null,null]')
 """
-    result = docker("exec", container, "python", "-c", program, path, json.dumps(data), timeout=10, check=False)
+    result = docker("exec", container, "python", "-c", program, path, json.dumps(data), json.dumps(headers or {}), timeout=10, check=False)
     return json.loads(result.stdout) if result.returncode == 0 else (None, None)
 
 
 class Harness:
-    def __init__(self, image, assets, report):
+    def __init__(self, image, assets, report, trading_environment="live"):
         self.prefix = "hbot-e2e-" + uuid.uuid4().hex[:10]
         self.network = self.prefix + "-network"
         self.pg = self.prefix + "-pg"
@@ -109,6 +110,11 @@ class Harness:
                     "HBOT_OKX_API_KEY": "offline-key", "HBOT_OKX_SECRET_KEY": "offline-secret",
                     "HBOT_OKX_PASSPHRASE": "offline-pass", "HBOT_OFFLINE_HTTP_ORIGIN": "http://exchange:8080"}
         self.metrics = {}
+        self.env["OKX_TRADING_ENV"] = trading_environment
+        if trading_environment == "demo":
+            for prefix in ("HBOT_OKX_DEMO_", "HBOT_OKX_PERPETUAL_DEMO_"):
+                for field, value in (("API_KEY", "offline-key"), ("SECRET_KEY", "offline-secret"), ("PASSPHRASE", "offline-pass")):
+                    self.env[prefix + field] = value
 
     def run_container(self, name, args, command=(), env=None, publish=False):
         options = ["run", "-d", "--name", name, "--network", self.network]
@@ -166,6 +172,8 @@ class Harness:
                                      "scripts": ["script-perpetual.yml"]}.items():
             for filename in filenames:
                 mounts += ["--mount", f"type=bind,source={self.assets / filename},target=/home/hummingbot/conf/{directory}/{filename},readonly"]
+        if (self.assets / "life_mm_profiles.yaml").is_file():
+            mounts += ["--mount", f"type=bind,source={self.assets / 'life_mm_profiles.yaml'},target=/home/hummingbot/conf/life_mm_profiles.yaml,readonly"]
         self.run_container(name, ["--platform", "linux/amd64", "--cpus", "1", "--memory", "2g", "--read-only",
                                   "--tmpfs", "/tmp:rw,nosuid,size=128m", *mounts],
                            env=env, publish=True)
@@ -492,6 +500,136 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         self.metrics.update(file_backend_rejected=True, empty_rejected=True, drift_rejected=True,
                             repaired_schema_validated=True)
 
+    def admin(self, port, path, data=None, key=None):
+        import base64
+        headers = {"Authorization": "Basic " + base64.b64encode(b"operator:offline-admin").decode()}
+        if key:
+            headers["Idempotency-Key"] = key
+        return http(port, "/api/v1/admin" + path, data, headers)
+
+    def mm_command(self, port, action, **fields):
+        state = self.state()
+        payload = dict(action=action, expected_version=state["control_version"], **fields)
+        if action in ("stop", "switch"):
+            payload["session_id"] = state["mm_session"]["id"]
+        key = str(uuid.uuid4())
+        status, receipt = self.admin(port, "/commands", payload, key)
+        assert status == 202, receipt
+        status, retried = self.admin(port, "/commands", payload, key)
+        assert status == 202 and retried["id"] == receipt["id"]
+        poll(lambda: self.admin(port, "/commands/" + receipt["id"])[1]["status"] == "succeeded",
+             timeout=60, description="MM " + action + " actual command completion")
+        return receipt
+
+    def mm_scenario(self, *, matrix=True):
+        print("Offline E2E: LIFE admin three scenarios x spot/perpetual/both", flush=True)
+        self.env.update(ADMIN_API_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin")
+        for prefix in ("HBOT_OKX_PERPETUAL_",):
+            for field, value in (("API_KEY", "offline-key"), ("SECRET_KEY", "offline-secret"), ("PASSPHRASE", "offline-pass")):
+                self.env[prefix + field] = value
+        first, port = self.start("mm-first")
+        poll(lambda: bool(self.state().get("status")), description="MM owner status")
+        assert http(port, "/api/v1/admin/status")[0] == 401
+        assert self.admin(port, "/docs")[0] == 200
+        cases = []
+        for mode in (("spot", "perpetual", "both") if matrix else ()):
+            for profile in ("follow_market", "sideways", "follow_token"):
+                print(f"Offline LIFE: {mode}/{profile}", flush=True)
+                before = len(self.ledger()["accepted"])
+                fields = dict(market_mode=mode, selection="fixed", profile_id=profile, duration_seconds=600)
+                if profile == "follow_token":
+                    fields["references"] = [{"pair": "AVAX-USDT", "weight": "1"}]
+                self.mm_command(port, "start", **fields)
+                count = 8 if mode == "both" else 4
+                poll(lambda: len(self.ledger()["accepted"]) >= before + count, description="MM post-only levels")
+                orders = self.ledger()["accepted"][before:]
+                assert {order["instId"] for order in orders} == ({"LIFE-USDT", "LIFE-USDT-SWAP"} if mode == "both" else
+                                                                 {"LIFE-USDT" if mode == "spot" else "LIFE-USDT-SWAP"})
+                assert all(order["ordType"] == "post_only" and order["side"] in ("buy", "sell") for order in orders)
+                runtime = self.admin(port, "/status")[1]
+                assert len(runtime["markets"]) == (2 if mode == "both" else 1)
+                assert all(Decimal(item["reference_price"]) == Decimal("0.1") for item in runtime["markets"])
+                cases.append(dict(mode=mode, profile=profile, count=count))
+                self.mm_command(port, "stop")
+                assert all(order["state"] in ("filled", "canceled") for order in self.ledger()["orders"])
+        # Shared basket reference response, fixed anchors and clean process restart.
+        self.mm_command(port, "start", market_mode="both", selection="fixed", profile_id="follow_market", duration_seconds=600)
+        session = self.state()["mm_session"]
+        self.control(prices={"BTC-USDT": "110"})
+        poll(lambda: all(Decimal(item["reference_price"]) == Decimal("0.106") for item in self.admin(port, "/status")[1]["markets"]),
+             description="shared weighted basket follows +10 percent BTC with 0.6 weight")
+        self.terminate(first)
+        second, port = self.start("mm-restart", auto_migrate=False)
+        self.wait_running(port)
+        restored = self.state()["mm_session"]
+        assert restored["id"] == session["id"] and restored["anchors"] == session["anchors"]
+        assert restored["started_at"] == session["started_at"] and restored["expires_at"] == session["expires_at"]
+        # One stale reference blocks both markets without extending the session.
+        self.control(stale_pairs=["BTC-USDT"])
+        poll(lambda: not self.state()["status"]["running"] or self.state()["status"]["phase"] == "waiting_for_mm_readiness",
+             timeout=25, description="joint stale-reference readiness closes quotes")
+        self.control(stale_pairs=[])
+        self.wait_running(port)
+        assert self.state()["mm_session"]["expires_at"] == session["expires_at"]
+        # Observe real recorder fees and shared wallet via FE, then both position holds.
+
+        def live_buys():
+            buys = [order for order in self.ledger()["orders"] if order["side"] == "buy" and order["state"] == "live"]
+            return buys if {item["instId"] for item in buys} == {"LIFE-USDT", "LIFE-USDT-SWAP"} else None
+        buys = poll(live_buys, description="both markets recreate quotes after readiness recovery")
+        for order in (next(item for item in buys if item["instId"] == "LIFE-USDT"),
+                      next(item for item in buys if item["instId"] == "LIFE-USDT-SWAP")):
+            self.control(fill={"clOrdId": order["clOrdId"], "amount": order["sz"], "fee": "0.01"}, duplicate=True)
+        poll(lambda: self.sql("SELECT count(*) FROM trade_fills") == "2", description="MM separate market deduplicated fills")
+        for market in ("spot", "perpetual"):
+            fills = self.admin(port, "/fills?market=" + market)[1]["items"]
+            assert len(fills) == 1 and fills[0]["market"] == market and Decimal(fills[0]["fee_in_quote"]) == Decimal("0.01")
+        daily = self.admin(port, "/statistics/daily")[1]
+        assert all(row["days"][0]["fill_count"] == 1 and Decimal(row["days"][0]["fee_in_usdt"]) == Decimal("0.01") for row in daily["markets"])
+        balances = self.admin(port, "/balances")[1]
+        assert len(balances["accounts"]) == 1 and balances["accounts"][0]["account_id"] == "offline-account-1"
+        actual_cash = {row["ccy"]: Decimal(row["cashBal"]) for row in self.ledger()["balances"]}
+        poll(lambda: all(Decimal(row["cash_balance"]) == actual_cash[row["currency"]]
+                         for row in self.admin(port, "/balances")[1]["accounts"][0]["balances"]), description="observed shared cash matches independent exchange")
+        status, receipt = self.admin(port, "/reconciliation/check", {"market": "all"}, str(uuid.uuid4()))
+        assert status == 202
+        report = poll(lambda: (value if (value := self.admin(port, "/reconciliation")[1])["check"]["status"] in ("succeeded", "failed") else None),
+                      description="MM observational check completion")
+        assert report["report"]["state"] == "matched", report
+        self.mm_command(port, "switch", market_mode="both", selection="random", profile_ids=["sideways"],
+                        step_duration_seconds=15, duration_seconds=60)
+        first_draw = self.state()["mm_session"]
+        first_order_count = len(self.ledger()["accepted"])
+        poll(lambda: self.state()["mm_session"]["generation"] > first_draw["generation"], timeout=30, description="persisted random step")
+        poll(lambda: self.state()["mm_session"]["status"] == "expired", timeout=70, description="finite random session expiry")
+        poll(lambda: all(order["state"] in ("filled", "canceled") for order in self.ledger()["orders"]), description="expiry cancellation")
+        deadline_ms = Decimal(str(first_draw["expires_at"])) * 1000
+        random_orders = self.ledger()["accepted"][first_order_count:]
+        assert all(Decimal(order["cTime"]) < deadline_ms for order in random_orders)
+        assert self.admin(port, "/positions")[1]["markets"][1]["items"]
+        self.mm_command(port, "start", market_mode="both", selection="fixed", profile_id="sideways", duration_seconds=600)
+        accepted = len(self.ledger()["accepted"])
+        docker("stop", "--time", "5", self.pg)
+        poll(lambda: json.loads(docker("inspect", second).stdout)[0]["State"]["Status"] == "exited",
+             timeout=10, description="MM DB outage closes owned runtime")
+        after_outage = len(self.ledger()["accepted"])
+        docker("start", self.pg)
+        poll(lambda: docker("exec", self.pg, "pg_isready", "-U", "postgres", check=False).returncode == 0,
+             timeout=30, description="MM PostgreSQL restored")
+        third, third_port = self.start("mm-db-restart", auto_migrate=False)
+        poll(lambda: self.state()["status"].get("phase") == "halted", description="MM DB recovery retains HALT")
+        assert self.admin(third_port, "/status")[1]["error"]
+        assert len(self.ledger()["accepted"]) == after_outage
+        assert after_outage >= accepted
+        assert self.state()["recovery_state"]["halt"]
+        assert not self.ledger()["unknown"]
+        self.no_runtime_files(third)
+        expected_header = "1" if self.env["OKX_TRADING_ENV"] == "demo" else None
+        assert all(row["simulated"] == expected_header for row in self.ledger()["requests"]
+                   if row["path"].startswith(("/api/v5/trade/", "/api/v5/account/")))
+        self.metrics.update(matrix=cases, restart_anchors=True, weighted_reference=True, stale_both=True,
+                            fills=2, random_steps=True, expiry=True, reconciliation="matched", db_fault_halt=True)
+
     def upgrade_scenario(self, previous_image):
         print("Offline E2E: distinct compatible images, additive fixture, takeover and rollback", flush=True)
         current_image = self.image
@@ -538,8 +676,9 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--image", default="hummingbot-cloudrun:local")
-    parser.add_argument("--scenario", choices=("all", "spot", "v2-spot", "v2-perpetual", "schema", "upgrade"), default="all")
+    parser.add_argument("--scenario", choices=("all", "spot", "v2-spot", "v2-perpetual", "schema", "upgrade", "life-mm", "life-mm-recovery"), default="all")
     parser.add_argument("--previous-image", help="Cached compatible prior image; required for the release upgrade gate.")
+    parser.add_argument("--trading-env", choices=("live", "demo"), default="live", help="Local simulator routing mode; never contacts OKX.")
     args = parser.parse_args()
     metadata = json.loads(docker("image", "inspect", args.image).stdout)[0]
     assert metadata["Architecture"] == "amd64", "Build the Linux amd64 deployment target first."
@@ -559,6 +698,11 @@ def main():
         for name in ("exchange.py", "runtime_smoke.py", "pmm.yml", "controller-spot.yml", "controller-perpetual.yml", "script-perpetual.yml"):
             assets.joinpath(name).write_bytes((ROOT / "test/e2e/offline" / name).read_bytes())
         write_fixtures(assets / "fixtures.json")
+        import yaml
+        profiles = yaml.safe_load((ROOT / "deploy/cloudrun/conf/life_mm_profiles.yaml").read_text())
+        for config in profiles["markets"].values():
+            config.update(executor_refresh_time=120, cooldown_time=1)
+        assets.joinpath("life_mm_profiles.yaml").write_text(yaml.safe_dump(profiles))
         assets.joinpath("999_offline_upgrade.sql").write_text("ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS offline_upgrade_note TEXT;\n")
         assets.joinpath("pmm-revised.yml").write_text((assets / "pmm.yml").read_text().replace("bid_spread: 1", "bid_spread: 2").replace("ask_spread: 1", "ask_spread: 2"))
         result = {"image_id": metadata["Id"], "registry_manifest_digest": image.split("@", 1)[1],
@@ -572,14 +716,14 @@ def main():
                            f"type=bind,source={assets},target=/test-assets,readonly",
                            image, "python", "/test-assets/runtime_smoke.py", timeout=90)
             result["runtime_smoke"] = json.loads(smoke.stdout)
-            scenarios = ("schema", "spot", "v2-spot", "v2-perpetual") if args.scenario == "all" else (args.scenario,)
+            scenarios = ("schema", "spot", "v2-spot", "v2-perpetual", "life-mm") if args.scenario == "all" else (args.scenario,)
             if args.scenario == "all" and previous_image:
                 scenarios += ("upgrade",)
             result["scenarios"] = {}
             for scenario in scenarios:
                 scenario_report = report / scenario
                 scenario_report.mkdir()
-                harness = Harness(image, assets, scenario_report)
+                harness = Harness(image, assets, scenario_report, args.trading_env)
                 try:
                     harness.setup()
                     if scenario == "spot":
@@ -588,6 +732,8 @@ def main():
                         harness.schema_scenario()
                     elif scenario == "upgrade":
                         harness.upgrade_scenario(previous_image)
+                    elif scenario in ("life-mm", "life-mm-recovery"):
+                        harness.mm_scenario(matrix=scenario == "life-mm")
                     else:
                         harness.v2_scenario(perpetual=scenario == "v2-perpetual")
                     result["scenarios"][scenario] = {"passed": True, "metrics": harness.metrics}

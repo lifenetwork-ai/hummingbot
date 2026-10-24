@@ -69,7 +69,7 @@ async def test_local_fill_race_and_unavailable_other_market_cannot_report_match(
 def test_expected_perpetual_exposure_includes_active_and_held_both_sides():
     hold = SimpleNamespace(connector_name="okx_perpetual", trading_pair="LIFE-USDT", net_amount_base=Decimal("-4"))
     executor = SimpleNamespace(config=SimpleNamespace(connector_name="okx_perpetual", trading_pair="LIFE-USDT", side=TradeType.BUY),
-                               is_done=False, amount_to_close=Decimal("6"))
+                               is_closed=False, amount_to_close=Decimal("6"))
     core = SimpleNamespace(strategy=SimpleNamespace(executor_orchestrator=SimpleNamespace(
         positions_held={"life": [hold]}, active_executors={"life": [executor]})))
     expected, unsettled = expected_positions(core)
@@ -124,3 +124,23 @@ async def test_perpetual_comparison_uses_contract_metadata_and_keeps_both_legs_w
                                 ({("LIFE-USDT", "LONG"): Decimal("6"), ("LIFE-USDT", "SHORT"): Decimal("4")}, False), datetime.now(timezone.utc))
     assert result["state"] == "matched" and result["positions_checked"] == 2
     assert connector.account_positions == {} and connector.position_observations == {}
+
+
+def test_expected_positions_uses_the_actual_executor_runtime_interface():
+    from hummingbot.strategy_v2.executors.position_executor.position_executor import PositionExecutor
+    from hummingbot.strategy_v2.models.base import RunnableStatus
+    executor = object.__new__(PositionExecutor)
+    executor.config = SimpleNamespace(connector_name="okx_perpetual", trading_pair="LIFE-USDT", side=TradeType.BUY)
+    executor._status = RunnableStatus.RUNNING
+    executor._open_order = executor._close_order = None
+    core = SimpleNamespace(strategy=SimpleNamespace(executor_orchestrator=SimpleNamespace(
+        positions_held={}, active_executors={"life": [executor]})))
+    assert expected_positions(core) == ({}, False)
+
+
+@pytest.mark.asyncio
+async def test_account_pending_orders_from_other_market_do_not_pollute_scope():
+    now, snapshot, connector = fixture()
+    connector._api_get.return_value = {"code": "0", "data": [dict(instId="LIFE-USDT-SWAP", clOrdId="order-perpetual", ordId="18")]}
+    result = await check_market(connector, "spot", snapshot, ReconciliationRequest(), (None, False), now)
+    assert result["state"] == "matched", result

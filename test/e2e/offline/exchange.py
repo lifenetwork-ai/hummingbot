@@ -38,10 +38,14 @@ class Exchange:
         self.hold_ack = False
         self.release = asyncio.Event()
         self.release.set()
+        self.socket_args = {}
+        self.prices = {"BTC-USDT": "100", "ETH-USDT": "10", "AVAX-USDT": "20", "LIFE-USDT": "0.1"}
+        self.stale_pairs = set()
+        self.markets_task = None
 
     def event(self, order, fill=None):
         message = copy.deepcopy(self.fixtures["order_event"])
-        message["arg"]["instId"] = "BTC-USDT"
+        message["arg"]["instId"] = order["instId"]
         if order["instId"].endswith("-SWAP"):
             message["arg"].update(instId=order["instId"], instType="SWAP")
         message["data"][0].update(order)
@@ -61,6 +65,7 @@ class Exchange:
         await socket.prepare(request)
         self.connections += 1
         channels = self.sockets[socket] = set()
+        args_list = self.socket_args[socket] = []
         try:
             async for message in socket:
                 if message.type != WSMsgType.TEXT:
@@ -83,28 +88,41 @@ class Exchange:
                     for arg in payload["args"]:
                         channel = arg["channel"]
                         channels.add(channel)
+                        args_list.append(arg)
                         self.subscriptions.append({"channel": channel, "connection": self.connections})
                         await socket.send_json({"event": "subscribe", "arg": arg})
                         if channel == "books":
-                            await socket.send_json({"arg": arg, "action": "snapshot", "data": [self.book()]})
+                            await socket.send_json({"arg": arg, "action": "snapshot", "data": [self.book(arg.get("instId", "BTC-USDT"))]})
                         elif channel == "account":
                             await socket.send_json({"arg": arg, "data": self.fixtures["balances"]["data"]})
                         elif channel == "positions":
                             await socket.send_json({"arg": arg, "data": list(self.positions.values())})
                         elif channel in ("funding-rate", "mark-price", "index-tickers"):
-                            await socket.send_json({"arg": arg, "data": [self.funding()]})
+                            await socket.send_json({"arg": arg, "data": [self.funding(arg.get("instId", "BTC-USDT-SWAP"))]})
         finally:
             self.sockets.pop(socket, None)
+            self.socket_args.pop(socket, None)
         return socket
 
-    @staticmethod
-    def book():
-        return {"asks": [["101", "100", "0", "1"]], "bids": [["99", "100", "0", "1"]], "ts": millis()}
+    def book(self, pair="BTC-USDT"):
+        mid = Decimal(self.prices[pair.removesuffix("-SWAP")])
+        return {"asks": [[str(mid * Decimal("1.01")), "100000", "0", "1"]],
+                "bids": [[str(mid * Decimal("0.99")), "100000", "0", "1"]], "ts": millis()}
 
-    @staticmethod
-    def funding():
-        return {"instId": "BTC-USDT-SWAP", "fundingRate": "0", "nextFundingRate": "0", "fundingTime": millis(),
-                "nextFundingTime": str(int(millis()) + 3600000), "markPx": "100", "idxPx": "100", "ts": millis()}
+    async def market_updates(self):
+        while True:
+            await asyncio.sleep(0.2)
+            for socket, args_list in list(self.socket_args.items()):
+                for arg in list(args_list):
+                    pair = arg.get("instId", "")
+                    if socket.closed or arg.get("channel") != "books" or pair.removesuffix("-SWAP") in self.stale_pairs:
+                        continue
+                    await socket.send_json({"arg": arg, "action": "snapshot", "data": [self.book(pair)]})
+
+    def funding(self, pair="BTC-USDT-SWAP"):
+        price = self.prices[pair.removesuffix("-SWAP")]
+        return {"instId": pair, "fundingRate": "0", "nextFundingRate": "0", "fundingTime": millis(),
+                "nextFundingTime": str(int(millis()) + 3600000), "markPx": price, "idxPx": price, "ts": millis()}
 
     @staticmethod
     def ok(data):
@@ -118,12 +136,13 @@ class Exchange:
             return web.json_response({"accepted": self.accepted, "orders": list(self.orders.values()),
                                       "fills": self.fills, "requests": self.requests, "unknown": self.unknown,
                                       "positions": list(self.positions.values()), "mutations": self.mutations,
+                                      "balances": self.fixtures["balances"]["data"][0]["details"],
                                       "connections": self.connections, "subscriptions": self.subscriptions})
         if path == "/control":
             return await self.control(await request.json())
         raw = await request.text()
         data = json.loads(raw) if raw else {}
-        self.requests.append({"method": method, "path": path, "at_ms": millis()})
+        self.requests.append({"method": method, "path": path, "at_ms": millis(), "simulated": request.headers.get("x-simulated-trading")})
         if path.startswith(("/api/v5/trade/", "/api/v5/account/")) and not request.headers.get("OK-ACCESS-KEY"):
             self.unknown.append({"path": path, "reason": "missing authentication"})
             return web.json_response({"code": "50103", "msg": "missing fixture auth", "data": []}, status=401)
@@ -139,11 +158,11 @@ class Exchange:
         if path == "/api/v5/public/instruments":
             return web.json_response(self.fixtures["perpetual_instruments" if request.query.get("instType") == "SWAP" else "instruments"])
         if path in ("/api/v5/public/mark-price", "/api/v5/market/index-tickers", "/api/v5/public/funding-rate"):
-            return self.ok([self.funding()])
+            return self.ok([self.funding(request.query.get("instId", "BTC-USDT-SWAP"))])
         if path == "/api/v5/account/config":
-            return self.ok([{"posMode": self.position_mode}])
+            return self.ok([{"posMode": self.position_mode, "uid": "offline-account-1"}])
         if path == "/api/v5/account/positions":
-            return self.ok(list(self.positions.values()))
+            return self.ok([row for row in self.positions.values() if not request.query.get("instId") or row["instId"] == request.query["instId"]])
         if path == "/api/v5/account/bills":
             return self.ok([])
         if path in ("/api/v5/account/set-position-mode", "/api/v5/account/set-leverage"):
@@ -154,7 +173,7 @@ class Exchange:
         if path == "/api/v5/account/balance":
             return web.json_response(self.fixtures["balances"])
         if path == "/api/v5/market/books":
-            return self.ok([self.book()])
+            return self.ok([self.book(request.query.get("instId", "BTC-USDT"))])
         if path in ("/api/v5/market/ticker", "/api/v5/market/tickers"):
             symbol = "BTC-USDT-SWAP" if request.query.get("instType") == "SWAP" else "BTC-USDT"
             return self.ok([{"instId": symbol, "last": "100", "askPx": "101", "bidPx": "99", "ts": millis()}])
@@ -202,6 +221,12 @@ class Exchange:
         return web.json_response({"error": "Unspecified simulator endpoint"}, status=500)
 
     async def control(self, data):
+        if "prices" in data:
+            for pair, price in data["prices"].items():
+                assert pair in self.prices and Decimal(price) > 0
+                self.prices[pair] = str(price)
+        if "stale_pairs" in data:
+            self.stale_pairs = set(data["stale_pairs"])
         if "hold_ack" in data:
             self.hold_ack = data["hold_ack"]
             self.release.clear() if self.hold_ack else self.release.set()
@@ -221,28 +246,30 @@ class Exchange:
             fill = {"instType": "SWAP" if perpetual else "SPOT", "instId": order["instId"], "tradeId": str(len(self.fills) + 1),
                     "clOrdId": order["clOrdId"], "ordId": order["ordId"], "fillPx": order["px"],
                     "fillSz": str(amount), "feeCcy": "USDT", "fee": str(-Decimal(spec["fee"])), "ts": millis(),
-                    "side": order["side"], "posSide": order.get("posSide", "long")}
+                    "side": order["side"], "posSide": order.get("posSide", "long"), "billId": str(len(self.fills) + 1)}
             self.fills.append(fill)
             if perpetual:
                 side = order.get("posSide", "long")
                 base = amount * Decimal("0.01")
-                position = self.positions.setdefault(side, {"instId": order["instId"], "posSide": side, "pos": "0",
-                                                            "avgPx": order["px"], "notionalUsd": "0", "lever": "1", "upl": "0"})
+                position = self.positions.setdefault((order["instId"], side), {"instId": order["instId"], "posSide": side, "pos": "0",
+                                                                               "avgPx": order["px"], "notionalUsd": "0", "lever": "1", "upl": "0"})
                 position["pos"] = str(Decimal(position["pos"]) + amount)
                 position["notionalUsd"] = str(Decimal(position["notionalUsd"]) + base * Decimal(order["px"]))
-                position["upl"] = str(Decimal(position["pos"]) * Decimal("0.01") * (Decimal("100") - Decimal(position["avgPx"])))
+                position["upl"] = str(Decimal(position["pos"]) * Decimal("0.01") * (Decimal(self.prices[order["instId"].removesuffix("-SWAP")]) - Decimal(position["avgPx"])))
                 await self.broadcast({"arg": {"channel": "positions"}, "data": list(self.positions.values())})
             for details in self.fixtures["balances"]["data"][0]["details"]:
                 if perpetual:
                     delta = -Decimal(spec["fee"]) if details["ccy"] == "USDT" else Decimal("0")
-                    details["eq"] = details["availEq"] = str(Decimal(details["eq"]) + delta)
+                    details["cashBal"] = details["availBal"] = details["eq"] = details["availEq"] = str(Decimal(details["eq"]) + delta)
                     continue
-                if details["ccy"] == "BTC":
+                if details["ccy"] == order["instId"].split("-")[0]:
                     delta = amount if order["side"] == "buy" else -amount
-                else:
+                elif details["ccy"] == "USDT":
                     quote = amount * Decimal(order["px"])
                     delta = (-quote if order["side"] == "buy" else quote) - Decimal(spec["fee"])
-                details["eq"] = details["availEq"] = str(Decimal(details["eq"]) + delta)
+                else:
+                    delta = Decimal("0")
+                details["cashBal"] = details["availBal"] = details["eq"] = details["availEq"] = str(Decimal(details["eq"]) + delta)
             message = self.event(order, fill)
             await self.broadcast(message)
             await self.broadcast({"arg": {"channel": "account"}, "data": self.fixtures["balances"]["data"]})
@@ -254,5 +281,14 @@ class Exchange:
 if __name__ == "__main__":
     exchange = Exchange()
     app = web.Application()
+
+    async def start(app):
+        exchange.markets_task = asyncio.create_task(exchange.market_updates())
+
+    async def stop(app):
+        exchange.markets_task.cancel()
+        await asyncio.gather(exchange.markets_task, return_exceptions=True)
+    app.on_startup.append(start)
+    app.on_cleanup.append(stop)
     app.router.add_route("*", "/{path:.*}", exchange.handle)
     web.run_app(app, host="0.0.0.0", port=8080, access_log=None)

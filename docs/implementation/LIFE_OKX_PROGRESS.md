@@ -249,8 +249,96 @@ The targeted configuration/session/service/HTTP/Swagger suite passes **44 tests*
 the disposable PostgreSQL session/command-receipt suite passes **11 tests**.
 This clarification is included with the completed P3 reporting APIs.
 
-## Next — P4
+## P4 — Local image and Demo transport integration
 
 Wire and test explicit OKX Demo/live transport selection using local transports,
 then extend the deployment-image simulator matrix. P5 load/soak and P6 dedicated
 OKX Demo acceptance follow in order.
+
+Environment contract: [OKX live/Demo routing](../okx-environments.md). Both existing
+adapters share process-level mode/site validation and a REST header preprocessor;
+public reference discovery and candle business feeds follow the same selection.
+Dedicated Demo credential variables never fall back to live values. Existing
+AWS live routing remains separate and conflicting combinations are rejected.
+Affected WS routes now use default TLS port 443.
+
+Transport Reds caught the perpetual public feed's hard-coded live host and missing
+Demo REST header. Real local HTTP/WS tests exercise authenticated GET/POST requests,
+login and reconnect for both connectors across global/US/EEA route selections.
+Credential Reds demonstrated live-key fallback; dedicated Demo keys are now required.
+Changed connector/candle/config regressions pass (305 tests), broader isolated
+connector/config routing regressions pass (379 tests), and all 100 real-PG tests pass.
+
+The deployment image exercised all three scenarios in spot/perpetual/both plus
+weighted references and clean restart. Its reconciliation read then exposed a
+runtime interface error: `ExecutorBase` uses `is_closed`, not `is_done`. A new
+regression with an actual `PositionExecutor` reproduced it; the reader now uses
+the upstream interface. The complete image gate is still open while rerunning it.
+No exchange account or external order has been used.
+
+Further image-level Reds found account-wide pending orders being mislabeled as
+out-of-scope orders for the other market. Observational comparison now filters
+the returned instrument type before checking ownership/scope; a regression
+reproduces the shared-account response.
+
+The paused-owner gate also exposed an idle publication transaction retaining row
+locks after its separate advisory ownership session had been terminated. Runtime
+connections now bound `idle_in_transaction_session_timeout` to five seconds;
+a real PostgreSQL test verifies automatic rollback and successor row-lock access.
+This affects only idle open transactions, not the committed idle owner session.
+
+With held exposure, failed startup recovery occurred before the strategy's first
+clock tick; upstream position persistence attempted `int(NaN)` during cleanup.
+A regression reproduces that exact path. Held-position metadata now uses the
+provider's actual UTC observation time when the strategy timestamp is not finite;
+it does not change MM session/step clocks or authorizations. Orchestrator and
+observational comparison regressions pass (51 tests). Final image gates remain open.
+
+The updated recovery rehearsal passes with two independent fill records and actual
+held exposure: weighted references, clean restart/anchors, shared stale-feed stop,
+separate market fills/fees, one shared wallet, matched observational reconciliation,
+finite random steps/expiry, and DB-loss restart retaining HALT. The port's older
+pause/lost-ACK/DB/recorder fault sequence also passes after the idle-transaction fix.
+These rehearsals use a derived image to iterate on Python-only fixes; they are not
+the final deployment artifact acceptance. The standard Dockerfile artifact is
+undergoing the full matrix and upgrade/rollback gate separately.
+
+Latest broad gate: **1,557 tests + 2 subtests pass**; disposable PostgreSQL:
+**101 tests pass**. `make test-cloudrun-regression`, Swagger drift and pre-commit
+checks pass. Existing upstream warnings remain visible. The offline Make target
+now defaults to Demo routing with public dummy keys; local transport checks and
+LIFE controller tests are included in the dedicated regression target.
+
+
+### Final P4 artifact acceptance
+
+The standard Dockerfile image passes the complete isolated-network E2E gate in
+Demo routing mode using only public dummy credentials. All six scenarios pass:
+schema rejection/validation, V1 spot lifecycle/faults, V2 spot, V2 perpetual,
+LIFE MM and upgrade/rollback between distinct compatible images. LIFE covers all
+nine profile/market combinations, runtime AVAX selection, shared weighted
+references, anchor/deadline restart, stale-both cancellation, separate unique
+fills/fees, deduplicated shared cash, matched reconciliation, random steps/expiry,
+held positions and DB-loss restart retaining HALT. No Cloud Run or OKX account
+was contacted. All test containers/networks were removed afterward.
+
+- Report: `build/e2e-offline/20261025-052617-198127/result.json`
+- Image ID: `sha256:262fe296c57e6b0d143d6d9224f6df1f3b96dcf929b0cb1b5e9a843eafbd2fe1`
+- Registry manifest: `sha256:fa93ef205ba289cf6cb820d83cf4ba2cdbccd2e7d4a82e67c0a2b14ac58a78fd`
+- Uncompressed image size: 1,364,444,310 bytes (under the 1.5 GiB budget).
+- Baseline config hash: `c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc`;
+  per-fixture hashes, including the tested LIFE YAML, are retained in the report.
+- Host is macOS arm64 with the Linux amd64 image under Docker emulation; the
+  test bot is limited to 1 CPU / 2 GiB. This gate is functional acceptance, not P5
+  load/soak capacity evidence.
+
+Final gates: 1,557 unit/regression tests plus 2 subtests; all 101 PostgreSQL tests;
+all four groups in `make test-cloudrun-regression` (143 + 11 + 886 + 88 tests);
+Swagger drift and pre-commit checks. The Make target now stops on the first
+failing group instead of allowing a later group to mask failure.
+
+## Next — P5
+
+Run opt-in local mixed load, bursts, faults and a real 60-minute soak on the
+accepted deployment artifact. Record offered and achieved rates and the budgets
+in the plan before final dedicated-account OKX Demo acceptance (P6).

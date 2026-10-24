@@ -37,14 +37,14 @@ def main():
     ssl.create_default_context()
     trust = ssl.get_default_verify_paths()
     assert trust.cafile and Path(trust.cafile).is_file()
-    assert len(list(SCRIPTS.glob("*.sql"))) == 8
+    assert len(list(SCRIPTS.glob("*.sql"))) == 12
     assert (SCRIPTS.parent / "manual_scripts/001_normalize_legacy_names.sql").is_file()
     cli_version = subprocess.check_output(["hbot", "--version"], text=True, timeout=20).strip()
     assert cli_version
     report = json.loads(Path("cloudrun-runtime-packages.json").read_text())
     assert report["environment_bytes_after"] < report["environment_bytes_before"]
     print(json.dumps({"passed": True, "numba_jit": True, "ta_lib": True, "tls_trust": True,
-                      "connector_count": len(connectors), "sql_scripts": 9,
+                      "connector_count": len(connectors), "sql_scripts": len(list(SCRIPTS.glob("*.sql"))),
                       "build_tools_absent": True, "cli_version": cli_version,
                       "environment_bytes": report["environment_bytes_after"]}))
 

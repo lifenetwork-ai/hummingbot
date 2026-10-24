@@ -1,4 +1,5 @@
 """Reuse existing OKX connector response builders as cross-process JSON fixtures."""
+import copy
 import json
 from decimal import Decimal
 from pathlib import Path
@@ -26,5 +27,18 @@ def write_fixtures(path: Path):
                                 exchange_symbol_for_tokens=lambda base, quote: f"{base}-{quote}-SWAP")
     perpetual_instruments = OkxPerpetualDerivativeTests.all_symbols_request_mock_response.fget(perpetual)
     perpetual_instruments["data"][0].update(ctVal="0.01", tickSz="0.01", lotSz="0.0001", minSz="0.0001")
+    for base in ("LIFE", "ETH", "AVAX"):
+        spot = copy.deepcopy(instruments["data"][0])
+        spot.update(instId=f"{base}-USDT", baseCcy=base, quoteCcy="USDT", tickSz="0.000001" if base == "LIFE" else "0.01", state="live")
+        instruments["data"].append(spot)
+        swap = copy.deepcopy(perpetual_instruments["data"][0])
+        swap.update(instId=f"{base}-USDT-SWAP", instFamily=f"{base}-USDT", ctValCcy=base,
+                    settleCcy="USDT", tickSz="0.000001" if base == "LIFE" else "0.01", state="live")
+        perpetual_instruments["data"].append(swap)
+    for details in balances["data"][0]["details"]:
+        details.update(cashBal=details["eq"], availBal=details["availEq"])
+    life = copy.deepcopy(balances["data"][0]["details"][0])
+    life.update(ccy="LIFE", eq="1000", availEq="1000", cashBal="1000", availBal="1000")
+    balances["data"][0]["details"].append(life)
     path.write_text(json.dumps({"instruments": instruments, "perpetual_instruments": perpetual_instruments,
                                "balances": balances, "order_event": order_event}))

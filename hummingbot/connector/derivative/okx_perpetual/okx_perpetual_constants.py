@@ -56,17 +56,17 @@ FUNDING_PAYMENT_TYPE = "8"
 # -------------------------------------------
 # WEB SOCKET ENDPOINTS
 # -------------------------------------------
-WSS_PUBLIC_URLS = {DEFAULT_DOMAIN: f"wss://ws.okx.com:8443/ws/{REST_API_VERSION}/public",
-                   AWS_DOMAIN: f"wss://wsaws.okx.com:8443/ws/{REST_API_VERSION}/public",
-                   DEMO_DOMAIN: f"wss://wspap.okx.com:8443/ws/{REST_API_VERSION}/public?brokerId=9999"}
+WSS_PUBLIC_URLS = {DEFAULT_DOMAIN: f"wss://ws.okx.com/ws/{REST_API_VERSION}/public",
+                   AWS_DOMAIN: f"wss://wsaws.okx.com/ws/{REST_API_VERSION}/public",
+                   DEMO_DOMAIN: f"wss://wspap.okx.com/ws/{REST_API_VERSION}/public"}
 
-WSS_PRIVATE_URLS = {DEFAULT_DOMAIN: f"wss://ws.okx.com:8443/ws/{REST_API_VERSION}/private",
-                    AWS_DOMAIN: f"wss://wsaws.okx.com:8443/ws/{REST_API_VERSION}/private",
-                    DEMO_DOMAIN: f"wss://wspap.okx.com:8443/ws/{REST_API_VERSION}/private?brokerId=9999"}
+WSS_PRIVATE_URLS = {DEFAULT_DOMAIN: f"wss://ws.okx.com/ws/{REST_API_VERSION}/private",
+                    AWS_DOMAIN: f"wss://wsaws.okx.com/ws/{REST_API_VERSION}/private",
+                    DEMO_DOMAIN: f"wss://wspap.okx.com/ws/{REST_API_VERSION}/private"}
 
-WSS_BUSINESS_URLS = {DEFAULT_DOMAIN: f"wss://ws.okx.com:8443/ws/{REST_API_VERSION}/business",
-                     AWS_DOMAIN: f"wss://wsaws.okx.com:8443/ws/{REST_API_VERSION}/business",
-                     DEMO_DOMAIN: f"wss://wspap.okx.com:8443/ws/{REST_API_VERSION}/business?brokerId=9999"}
+WSS_BUSINESS_URLS = {DEFAULT_DOMAIN: f"wss://ws.okx.com/ws/{REST_API_VERSION}/business",
+                     AWS_DOMAIN: f"wss://wsaws.okx.com/ws/{REST_API_VERSION}/business",
+                     DEMO_DOMAIN: f"wss://wspap.okx.com/ws/{REST_API_VERSION}/business"}
 SECONDS_TO_WAIT_TO_RECEIVE_MESSAGE = 25
 WS_PING_REQUEST = "ping"
 WS_PONG_RESPONSE = "pong"
@@ -185,3 +185,13 @@ RET_CODE_API_KEY_INVALID = "50111"
 RET_CODE_INVALID_SIGNATURE = "50113"
 RET_CODE_CANCEL_FAILED_BECAUSE_ORDER_NOT_EXISTS = "51603"
 RET_CODE_ORDER_ALREADY_CANCELLED = "51401"
+
+# Regional live/demo routes share the existing connector and throttlers.
+for _site, _rest, _ws in (("app", "us", "wsus"), ("my", "eea", "wseea")):
+    for _demo in (False, True):
+        _domain = f"okx_perpetual_{_site}" + ("_demo" if _demo else "")
+        REST_URLS[_domain] = f"https://{_rest}.okx.com"
+        _host = _ws + ("pap" if _demo else "")
+        WSS_PUBLIC_URLS[_domain] = f"wss://{_host}.okx.com/ws/v5/public"
+        WSS_PRIVATE_URLS[_domain] = f"wss://{_host}.okx.com/ws/v5/private"
+        WSS_BUSINESS_URLS[_domain] = f"wss://{_host}.okx.com/ws/v5/business"

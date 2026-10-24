@@ -18,6 +18,15 @@ class OKXSpotCandles(CandlesBase):
 
     def __init__(self, trading_pair: str, interval: str = "1m", max_records: int = 150):
         super().__init__(trading_pair, interval, max_records)
+        self._install_environment_headers()
+
+    def _install_environment_headers(self):
+        from hummingbot.connector.okx_environment import OKXEnvironment, OKXEnvironmentHeaders
+        self._api_factory._rest_pre_processors.append(OKXEnvironmentHeaders(OKXEnvironment.load()))
+
+    def attach_connector(self, connector):
+        super().attach_connector(connector)
+        self._install_environment_headers()
 
     @property
     def name(self):
@@ -25,11 +34,13 @@ class OKXSpotCandles(CandlesBase):
 
     @property
     def rest_url(self):
-        return CONSTANTS.REST_URL
+        from hummingbot.connector.okx_environment import OKXEnvironment
+        return OKXEnvironment.load().rest_url
 
     @property
     def wss_url(self):
-        return CONSTANTS.WSS_URL
+        from hummingbot.connector.okx_environment import OKXEnvironment
+        return OKXEnvironment.load().websocket_url("business")
 
     @property
     def health_check_url(self):

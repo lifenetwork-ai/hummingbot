@@ -7,7 +7,17 @@ from hummingbot.client.config.config_var import ConfigVar
 class ConfigVarTest(unittest.TestCase):
     def setUp(self) -> None:
         super().setUp()
-        self.ev_loop = asyncio.get_event_loop()
+        try:
+            self.previous_loop = asyncio.get_event_loop()
+        except RuntimeError:
+            self.previous_loop = None
+        self.ev_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.ev_loop)
+
+    def tearDown(self):
+        self.ev_loop.close()
+        asyncio.set_event_loop(self.previous_loop)
+        super().tearDown()
 
     def test_init_defaults_assigned(self):
         var = ConfigVar("key", "test prompt")

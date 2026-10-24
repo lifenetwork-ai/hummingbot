@@ -31,7 +31,9 @@ def build_api_factory(
         time_synchronizer: Optional[TimeSynchronizer] = None,
         time_provider: Optional[Callable] = None,
         auth: Optional[AuthBase] = None,
-        domain: str = CONSTANTS.DEFAULT_DOMAIN) -> WebAssistantsFactory:
+        domain: str = CONSTANTS.DEFAULT_DOMAIN, environment=None) -> WebAssistantsFactory:
+    from hummingbot.connector.okx_environment import OKXEnvironment, OKXEnvironmentHeaders
+    environment = environment or OKXEnvironment.load()
     throttler = throttler or create_throttler()
     time_synchronizer = time_synchronizer or TimeSynchronizer()
     time_provider = time_provider or (lambda: get_current_server_time(
@@ -42,6 +44,7 @@ def build_api_factory(
         throttler=throttler,
         auth=auth,
         rest_pre_processors=[
+            OKXEnvironmentHeaders(environment),
             TimeSynchronizerRESTPreProcessor(synchronizer=time_synchronizer, time_provider=time_provider),
         ])
     return api_factory

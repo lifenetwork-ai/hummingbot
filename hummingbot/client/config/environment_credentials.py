@@ -20,10 +20,19 @@ def connector_environment_fields(connector: str):
 def load_connector_credentials(connector: str, environ: Optional[Mapping[str, str]] = None) -> ClientConfigAdapter:
     values = os.environ if environ is None else environ
     model, fields = connector_environment_fields(connector)
+    environment = None
+    if connector in ("okx", "okx_perpetual"):
+        from hummingbot.connector.okx_environment import OKXEnvironment
+        try:
+            environment = OKXEnvironment.load(environ=values)
+        except ValueError as error:
+            raise RuntimeConfigurationError(str(error)) from None
     payload = {"connector": connector}
     missing = []
     for item in fields:
         variable = "HBOT_" + item.attr.upper()
+        if environment is not None and environment.mode == "demo" and item.attr.endswith(("_api_key", "_secret_key", "_passphrase")):
+            variable = "HBOT_" + connector.upper() + "_DEMO_" + item.attr.removeprefix(connector + "_").upper()
         if variable in values:
             if not values[variable]:
                 missing.append(variable)
@@ -33,6 +42,8 @@ def load_connector_credentials(connector: str, environ: Optional[Mapping[str, st
             missing.append(variable)
     if missing:
         raise RuntimeConfigurationError("Missing connector environment values: " + ", ".join(missing))
+    if connector == "okx" and environment is not None:
+        payload["okx_registration_sub_domain"] = environment.site
     try:
         return ClientConfigAdapter(model.model_validate(payload))
     except ValidationError as error:
@@ -49,6 +60,7 @@ def configured_environment_connectors(names: Iterable[str]) -> list[str]:
             _, fields = connector_environment_fields(name)
         except RuntimeConfigurationError:
             continue
-        if any("HBOT_" + field.attr.upper() in os.environ for field in fields):
+        if any("HBOT_" + field.attr.upper() in os.environ for field in fields) or any(
+                key.startswith("HBOT_" + name.upper() + "_DEMO_") for key in os.environ):
             configured.append(name)
     return configured

@@ -29,11 +29,18 @@ from hummingbot.strategy.avellaneda_market_making.avellaneda_market_making_confi
 class ConfigHelpersTest(unittest.TestCase):
     def setUp(self) -> None:
         super().setUp()
-        self.ev_loop = asyncio.get_event_loop()
+        try:
+            self.previous_loop = asyncio.get_event_loop()
+        except RuntimeError:
+            self.previous_loop = None
+        self.ev_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.ev_loop)
         self._original_connectors_conf_dir_path = config_helpers.CONNECTORS_CONF_DIR_PATH
 
     def tearDown(self) -> None:
         config_helpers.CONNECTORS_CONF_DIR_PATH = self._original_connectors_conf_dir_path
+        self.ev_loop.close()
+        asyncio.set_event_loop(self.previous_loop)
         super().tearDown()
 
     def async_run_with_timeout(self, coroutine: Awaitable, timeout: float = 1):

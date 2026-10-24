@@ -55,7 +55,14 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
         self.okx_perpetual_passphrase = okx_perpetual_passphrase
         self._trading_required = trading_required
         self._trading_pairs = trading_pairs
-        self._domain = domain
+        from hummingbot.connector.okx_environment import OKXEnvironment
+        if domain not in CONSTANTS.REST_URLS:
+            raise ValueError("Unsupported OKX perpetual domain")
+        self.okx_environment = OKXEnvironment.load(legacy_demo=domain == CONSTANTS.DEMO_DOMAIN)
+        if domain == CONSTANTS.AWS_DOMAIN and (self.okx_environment.mode != "live" or self.okx_environment.site != "www"):
+            raise ValueError("AWS domain supports only the global live environment")
+        self._domain = domain if domain == CONSTANTS.AWS_DOMAIN else self.okx_environment.perpetual_domain
+        self.trading_environment = self.okx_environment.mode
         self._last_trade_history_timestamp = None
         self._contract_sizes = {}
         self.account_balance_observations = {}
@@ -78,7 +85,7 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
 
     @property
     def rate_limits_rules(self) -> List[RateLimit]:
-        return web_utils.build_rate_limits(self.trading_pairs)
+        return web_utils.build_rate_limits(self.trading_pairs, domain=self._domain)
 
     @property
     def domain(self) -> str:
@@ -165,6 +172,8 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
             throttler=self._throttler,
             time_synchronizer=self._time_synchronizer,
             auth=self._auth,
+            domain=self._domain,
+            environment=self.okx_environment,
         )
 
     def _create_order_book_data_source(self) -> OrderBookTrackerDataSource:

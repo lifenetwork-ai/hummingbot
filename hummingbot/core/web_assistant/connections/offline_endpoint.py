@@ -15,7 +15,7 @@ def endpoint(url: str) -> str:
     if (parsed.scheme != "http" or parsed.hostname not in ("exchange", "127.0.0.1", "localhost")
             or parsed.username or parsed.password or parsed.path not in ("", "/") or parsed.query or parsed.fragment):
         raise ValueError("Offline transport requires an isolated local HTTP origin.")
-    for prefix in ("HBOT_OKX_", "HBOT_OKX_PERPETUAL_"):
+    for prefix in ("HBOT_OKX_", "HBOT_OKX_PERPETUAL_", "HBOT_OKX_DEMO_", "HBOT_OKX_PERPETUAL_DEMO_"):
         for field, dummy in (("API_KEY", "offline-key"), ("SECRET_KEY", "offline-secret"), ("PASSPHRASE", "offline-pass")):
             if prefix + field in os.environ and os.environ[prefix + field] != dummy:
                 raise ValueError("Offline transport accepts only the public fixture credentials.")

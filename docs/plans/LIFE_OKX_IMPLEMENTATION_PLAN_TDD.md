@@ -494,12 +494,17 @@ local load/soak and exchange Demo acceptance remain P4–P6.
 
 ### P4 — Local image E2E and offline Demo transport contracts
 
-- [ ] **Red:** instantiate real connector/auth/data-source paths against local transports; verify selected demo/live mode, final REST headers and public/private WS routing, including reconnects. Existing URL-helper tests are insufficient.
-- [ ] Wire an explicit process setting such as `OKX_TRADING_ENV=demo|live` into both existing connectors. Keep it separate from API `market_mode`; no API hot switch between demo/live. Demo runs require dedicated demo credentials and never fall back to live keys/routes.
-- [ ] Extend existing routing/auth rather than create demo connector forks. Cover instrument/account/leverage/order/cancel/reconciliation requests and reference feeds; both enabled markets use the same environment.
-- [ ] Update affected OKX WebSocket URLs to port 443/default `wss://`, including relevant candle feeds; verify regional endpoints against the account site and reject unsupported combinations.
-- [ ] Extend the simulator with LIFE spot/SWAP plus reference pairs. Verify three scenarios × spot/perpetual/both, weighted baskets, random selection, API switches, expiry and restart through the deployment image.
-- [ ] **Green/refactor:** run relevant existing regression, real-PG and image E2E gates, including FE history/daily-statistics/reconciliation workflow, stale feed/DB faults and held exposure. Verify daily totals against simulator fills and observed balances without double-counting `both`. Save image/config hashes and commit. No OKX account is used here.
+- [x] **Red:** instantiate real connector/auth/data-source paths against local transports; verify selected demo/live mode, final REST headers and public/private WS routing, including reconnects. Existing URL-helper tests are insufficient.
+- [x] Wire an explicit process setting such as `OKX_TRADING_ENV=demo|live` into both existing connectors. Keep it separate from API `market_mode`; no API hot switch between demo/live. Demo runs require dedicated demo credentials and never fall back to live keys/routes.
+- [x] Extend existing routing/auth rather than create demo connector forks. Cover instrument/account/leverage/order/cancel/reconciliation requests and reference feeds; both enabled markets use the same environment.
+- [x] Update affected OKX WebSocket URLs to port 443/default `wss://`, including relevant candle feeds; verify regional endpoints against the account site and reject unsupported combinations.
+- [x] Extend the simulator with LIFE spot/SWAP plus reference pairs. Verify three scenarios × spot/perpetual/both, weighted baskets, random selection, API switches, expiry and restart through the deployment image.
+- [x] **Green/refactor:** run relevant existing regression, real-PG and image E2E gates, including FE history/daily-statistics/reconciliation workflow, stale feed/DB faults and held exposure. Verify daily totals against simulator fills and observed balances without double-counting `both`. Save image/config hashes and commit. No OKX account is used here.
+
+P4 evidence: [implementation progress](../implementation/LIFE_OKX_PROGRESS.md#p4--local-image-and-demo-transport-integration) and [routing guide](../okx-environments.md).
+All six deployment-image scenarios pass, including the nine LIFE profile/market
+combinations and upgrade/rollback. 1,557 regressions, 2 subtests and all 101
+disposable-PostgreSQL tests pass. Real OKX account checks remain P6.
 
 ### P5 — Final local load and soak gate
 

@@ -23,14 +23,19 @@ def build_api_factory(
         time_synchronizer: Optional[TimeSynchronizer] = None,
         time_provider: Optional[Callable] = None,
         auth: Optional[AuthBase] = None,
+        domain: str = CONSTANTS.DEFAULT_DOMAIN,
+        environment=None,
 ) -> WebAssistantsFactory:
-    throttler = throttler or create_throttler()
+    from hummingbot.connector.okx_environment import OKXEnvironment, OKXEnvironmentHeaders
+    environment = environment or OKXEnvironment.load(legacy_demo=domain == CONSTANTS.DEMO_DOMAIN)
+    throttler = throttler or AsyncThrottler(build_rate_limits(domain=domain))
     time_synchronizer = time_synchronizer or TimeSynchronizer()
-    time_provider = time_provider or (lambda: get_current_server_time(throttler=throttler, domain=CONSTANTS.DEFAULT_DOMAIN))
+    time_provider = time_provider or (lambda: get_current_server_time(throttler=throttler, domain=domain))
     api_factory = WebAssistantsFactory(
         throttler=throttler,
         auth=auth,
         rest_pre_processors=[
+            OKXEnvironmentHeaders(environment),
             TimeSynchronizerRESTPreProcessor(synchronizer=time_synchronizer, time_provider=time_provider),
             HeadersContentRESTPreProcessor(),
         ],
@@ -127,10 +132,9 @@ def wss_linear_private_url(connector_variant_label: Optional[str]) -> str:
     return _wss_url(CONSTANTS.WSS_PRIVATE_URLS, connector_variant_label)
 
 
-def build_rate_limits(trading_pairs: Optional[List[str]] = None) -> List[RateLimit]:
+def build_rate_limits(trading_pairs: Optional[List[str]] = None, domain=CONSTANTS.DEFAULT_DOMAIN) -> List[RateLimit]:
     trading_pairs = trading_pairs or []
     rate_limits = []
-    domain = CONSTANTS.DEFAULT_DOMAIN
     rate_limits.extend(_build_websocket_rate_limits(domain))
     rate_limits.extend(_build_public_rate_limits())
     rate_limits.extend(_build_private_rate_limits(trading_pairs))

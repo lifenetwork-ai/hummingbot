@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import math
 import uuid
 from collections import deque
 from contextlib import closing
@@ -505,7 +506,11 @@ class ExecutorOrchestrator:
                     connector_name=position_summary.connector_name,
                     trading_pair=position_summary.trading_pair,
                     side=position_summary.side.name,
-                    timestamp=int(self.strategy.current_timestamp * 1e3),
+                    # Startup recovery can fail before the strategy receives its
+                    # first clock tick. Persist held exposure with an actual UTC
+                    # observation time rather than converting the NaN sentinel.
+                    timestamp=int((self.strategy.current_timestamp if math.isfinite(self.strategy.current_timestamp)
+                                   else self.strategy.market_data_provider.time()) * 1e3),
                     volume_traded_quote=position_summary.volume_traded_quote,
                     amount=position_summary.amount,
                     breakeven_price=position_summary.breakeven_price,

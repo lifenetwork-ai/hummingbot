@@ -197,7 +197,7 @@ class OkxPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
     async def _connected_websocket_assistant(self) -> WSAssistant:
         ws: WSAssistant = await self._api_factory.get_ws_assistant()
         await ws.connect(
-            ws_url=CONSTANTS.WSS_PUBLIC_URLS[CONSTANTS.DEFAULT_DOMAIN],
+            ws_url=web_utils.wss_linear_public_url(self._domain),
             message_timeout=CONSTANTS.SECONDS_TO_WAIT_TO_RECEIVE_MESSAGE
         )
         return ws

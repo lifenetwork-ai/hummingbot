@@ -45,7 +45,7 @@ def expected_positions(core, pair=None):
             config = executor.config
             if config.connector_name != "okx_perpetual" or (pair and config.trading_pair != pair):
                 continue
-            if executor.is_done:
+            if executor.is_closed:
                 # A completed hold can be in transit to the existing hold cache.
                 if (getattr(getattr(executor, "close_type", None), "name", None) == "POSITION_HOLD"
                         and config.id not in orchestrator.executors_ids_position_held):
@@ -78,6 +78,9 @@ async def check_market(connector, market, snapshot, request, expected, started_a
         known = {row["id"] for row in local_orders}
         prefix = connector.client_order_id_prefix
         for row in pending:
+            instrument_type = row.get("instType") or ("SWAP" if row.get("instId", "").endswith("-SWAP") else "SPOT")
+            if instrument_type != ("SPOT" if market == "spot" else "SWAP"):
+                continue
             client_id = row.get("clOrdId") or ""
             if client_id.startswith(prefix) and client_id not in known and (not request.pair or row.get("instId", "").removesuffix("-SWAP") == request.pair):
                 result["reasons"].append("exchange_open_order_outside_local_scope")

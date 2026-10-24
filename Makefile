@@ -9,6 +9,7 @@ BUILD_JOBS ?= 2
 CLOUDRUN_CONFIG ?= deploy/cloudrun/service.example.yaml
 CLOUDRUN_REGION ?= asia-southeast1
 CLOUDRUN_EVIDENCE ?= build/e2e-offline/result.json
+OFFLINE_OKX_TRADING_ENV ?= demo
 ifeq ($(DYDX),1)
   ENV_FILE := setup/environment_dydx.yml
 endif
@@ -47,6 +48,7 @@ build:
 
 .PHONY: build-cloudrun test-cloudrun-regression test-e2e-offline review-cloudrun-config deploy-cloudrun
 test-cloudrun-regression:
+	set -eu
 	$(PYTHON) -m pytest -q test/hummingbot/client/config
 	$(PYTHON) -m pytest -q test/hummingbot/client/test_performance.py
 	$(PYTHON) -m pytest -q test/hummingbot/cli test/hummingbot/model test/hummingbot/client/test_runner.py \
@@ -56,6 +58,11 @@ test-cloudrun-regression:
 		test/hummingbot/strategy/test_strategy_v2_base.py \
 		test/hummingbot/strategy_v2/executors/test_executor_orchestrator.py \
 		test/hummingbot/strategy_v2/executors/position_executor
+	$(PYTHON) -m pytest -q test/hummingbot/connector/test_okx_environment.py \
+		test/hummingbot/connector/test_okx_environment_transport.py \
+		test/hummingbot/connector/test_okx_account_observations.py \
+		test/hummingbot/core/test_mm_session.py test/hummingbot/core/test_admin_reconciliation.py \
+		test/hummingbot/strategy_v2/controllers/test_life_mm.py
 
 build-cloudrun:
 	mkdir -p build
@@ -64,7 +71,7 @@ build-cloudrun:
 		-t $(CLOUDRUN_IMAGE) -f Dockerfile .
 
 test-e2e-offline:
-	$(PYTHON) scripts/test_e2e_offline.py --image $(CLOUDRUN_IMAGE) $(if $(CLOUDRUN_PREVIOUS_IMAGE),--previous-image $(CLOUDRUN_PREVIOUS_IMAGE),)
+	$(PYTHON) scripts/test_e2e_offline.py --image $(CLOUDRUN_IMAGE) --trading-env $(OFFLINE_OKX_TRADING_ENV) $(if $(CLOUDRUN_PREVIOUS_IMAGE),--previous-image $(CLOUDRUN_PREVIOUS_IMAGE),)
 
 review-cloudrun-config:
 	$(PYTHON) scripts/review_cloudrun.py $(CLOUDRUN_CONFIG) --evidence $(CLOUDRUN_EVIDENCE)

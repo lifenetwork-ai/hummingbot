@@ -34,7 +34,7 @@ class OkxExchange(ExchangePyBase):
                  rate_limits_share_pct: Decimal = Decimal("100"),
                  trading_pairs: Optional[List[str]] = None,
                  trading_required: bool = True,
-                 okx_registration_sub_domain: str = "www"):
+                 okx_registration_sub_domain: str = None):
         """
         :param okx_registration_sub_domain: The subdomain to use - options are "www" (default), "app" (US users), or "my" (EEA users)
                               See: https://github.com/ccxt/ccxt/issues/24601
@@ -42,7 +42,10 @@ class OkxExchange(ExchangePyBase):
         self.okx_api_key = okx_api_key
         self.okx_secret_key = okx_secret_key
         self.okx_passphrase = okx_passphrase
-        self.okx_registration_sub_domain = okx_registration_sub_domain or "www"
+        from hummingbot.connector.okx_environment import OKXEnvironment
+        self.okx_environment = OKXEnvironment.load(site=okx_registration_sub_domain or None)
+        self.okx_registration_sub_domain = self.okx_environment.site
+        self.trading_environment = self.okx_environment.mode
         self._trading_required = trading_required
         self._trading_pairs = trading_pairs
         self.account_balance_observations = {}
@@ -128,6 +131,7 @@ class OkxExchange(ExchangePyBase):
             throttler=self._throttler,
             time_synchronizer=self._time_synchronizer,
             auth=self._auth,
+            environment=self.okx_environment,
             domain=self.domain)
 
     def _create_order_book_data_source(self) -> OrderBookTrackerDataSource:
