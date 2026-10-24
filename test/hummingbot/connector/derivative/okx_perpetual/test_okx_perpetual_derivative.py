@@ -4,7 +4,7 @@ import re
 from decimal import Decimal
 from test.isolated_asyncio_wrapper_test_case import IsolatedAsyncioWrapperTestCase
 from typing import Any, Callable, List, Optional, Tuple
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pandas as pd
 from aioresponses import aioresponses
@@ -44,6 +44,20 @@ class OkxPerpetualDerivativeTests(
 
     def _is_logged(self, log_level: str, message: str) -> bool:
         return any(record.levelname == log_level and record.getMessage() == message for record in self.log_records)
+
+    def test_rest_and_websocket_order_times_use_epoch_seconds(self):
+        order = InFlightOrder(client_order_id="time-units", exchange_order_id="1", trading_pair=self.trading_pair,
+                              order_type=OrderType.LIMIT, trade_type=TradeType.BUY, amount=Decimal("1"),
+                              price=Decimal("100"), creation_timestamp=1700000000)
+        event = self.order_event_for_full_fill_websocket_update(order)["data"][0]
+        event["uTime"] = "1700000000123"
+        with patch.object(self.exchange, "_request_order_update", AsyncMock(return_value={"data": [event]})):
+            update = self.run_async_with_timeout(self.exchange._request_order_status(order))
+        self.assertEqual(1700000000.123, update.update_timestamp)
+        self.exchange._order_tracker.start_tracking_order(order)
+        with patch.object(self.exchange._order_tracker, "process_trade_update") as process:
+            self.exchange._process_order_event_message(event)
+        self.assertEqual(1700000000.123, process.call_args.args[0].fill_timestamp)
 
     @property
     def all_symbols_url(self):

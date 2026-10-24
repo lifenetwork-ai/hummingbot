@@ -38,7 +38,18 @@ development-diff-cover:
 build:
 	docker build --target release --build-arg BUILD_JOBS=$(BUILD_JOBS) -t hummingbot/hummingbot${TAG} -f Dockerfile .
 
-.PHONY: build-cloudrun test-e2e-offline review-cloudrun-config deploy-cloudrun
+.PHONY: build-cloudrun test-cloudrun-regression test-e2e-offline review-cloudrun-config deploy-cloudrun
+test-cloudrun-regression:
+	$(PYTHON) -m pytest -q test/hummingbot/client/config
+	$(PYTHON) -m pytest -q test/hummingbot/client/test_performance.py
+	$(PYTHON) -m pytest -q test/hummingbot/cli test/hummingbot/model test/hummingbot/client/test_runner.py \
+		test/hummingbot/connector/test_markets_recorder.py \
+		test/hummingbot/connector/exchange/okx test/hummingbot/connector/derivative/okx_perpetual \
+		test/hummingbot/core/test_trading_core.py test/hummingbot/core/web_assistant \
+		test/hummingbot/strategy/test_strategy_v2_base.py \
+		test/hummingbot/strategy_v2/executors/test_executor_orchestrator.py \
+		test/hummingbot/strategy_v2/executors/position_executor
+
 build-cloudrun:
 	mkdir -p build
 	docker buildx build --platform linux/amd64 --target cloudrun --load \
@@ -46,7 +57,7 @@ build-cloudrun:
 		-t $(CLOUDRUN_IMAGE) -f Dockerfile .
 
 test-e2e-offline:
-	$(PYTHON) scripts/test_e2e_offline.py --image $(CLOUDRUN_IMAGE)
+	$(PYTHON) scripts/test_e2e_offline.py --image $(CLOUDRUN_IMAGE) $(if $(CLOUDRUN_PREVIOUS_IMAGE),--previous-image $(CLOUDRUN_PREVIOUS_IMAGE),)
 
 review-cloudrun-config:
 	$(PYTHON) scripts/review_cloudrun.py $(CLOUDRUN_CONFIG) --evidence $(CLOUDRUN_EVIDENCE)

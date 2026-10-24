@@ -352,6 +352,34 @@ def test_incomplete_shutdown_preserves_owner_and_durable_halt(owned):
     assert not successor.try_acquire()
 
 
+def test_fill_during_v2_shutdown_requires_position_reconciliation(owned):
+    core = reconciliation_core(owned)
+    core.strategy.executor_orchestrator = object()
+    order = intent(owned)
+    order.current_state = OrderState.OPEN
+
+    async def refresh(connector, orders):
+        order.executed_amount_base = Decimal("0.1")
+        order.current_state = OrderState.FILLED
+
+    owned.owner._refresh_orders = AsyncMock(side_effect=refresh)
+
+    async def shutdown(**kwargs):
+        try:
+            await core.after_order_cancellation()
+        except SubmissionBlocked:
+            return False
+        return True
+
+    core.shutdown = AsyncMock(side_effect=shutdown)
+    assert not owned.loop.run_until_complete(owned.owner.shutdown_core(core, timeout=1))
+    recovery = owned.store.read()["recovery_state"]
+    assert recovery["halt"] and recovery["runtime_active"] and recovery["shutdown_incomplete"]
+    assert "fill arrived" in recovery["reason"]
+    successor = BotOwnership(owned.engine, "hummingbot")
+    assert not successor.try_acquire()
+
+
 def test_release_refuses_live_transport_task(owned):
     async def scenario():
         task = asyncio.create_task(asyncio.Event().wait())

@@ -16,7 +16,9 @@ def candidate(tmp_path):
     data["spec"]["template"]["spec"]["containers"][0]["image"] = "example.invalid/project/bot@" + digest
     path = tmp_path / "service.yaml"
     evidence = tmp_path / "result.json"
-    evidence.write_text(json.dumps({"passed": True, "architecture": "amd64", "registry_manifest_digest": digest}))
+    scenarios = {name: {"passed": True} for name in ("schema", "spot", "v2-spot", "v2-perpetual", "upgrade")}
+    evidence.write_text(json.dumps({"passed": True, "architecture": "amd64", "registry_manifest_digest": digest,
+                                   "release_scope_complete": True, "scenarios": scenarios}))
     return data, path, evidence
 
 
@@ -32,6 +34,21 @@ def test_concrete_deployment_is_bound_to_passing_tested_manifest(candidate):
         review(path)
     evidence.write_text(json.dumps({"passed": True, "architecture": "amd64", "registry_manifest_digest": "sha256:" + "b" * 64}))
     with pytest.raises(ValueError, match="differs"):
+        review(path, evidence=evidence)
+
+
+def test_partial_smoke_report_cannot_approve_release(candidate):
+    data, path, evidence = candidate
+    write(data, path)
+    result = json.loads(evidence.read_text())
+    result["release_scope_complete"] = False
+    evidence.write_text(json.dumps(result))
+    with pytest.raises(ValueError, match="Complete offline release scope"):
+        review(path, evidence=evidence)
+    result["release_scope_complete"] = True
+    result["scenarios"].pop("upgrade")
+    evidence.write_text(json.dumps(result))
+    with pytest.raises(ValueError, match="Every required"):
         review(path, evidence=evidence)
 
 

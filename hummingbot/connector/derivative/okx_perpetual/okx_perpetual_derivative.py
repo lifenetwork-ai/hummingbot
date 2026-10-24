@@ -495,7 +495,7 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
             client_order_id=tracked_order.client_order_id,
             exchange_order_id=str(order_data["ordId"]),
             trading_pair=tracked_order.trading_pair,
-            update_timestamp=int(order_data["uTime"]),
+            update_timestamp=int(order_data["uTime"]) / 1000,
             new_state=new_state,
         )
         return order_update
@@ -752,7 +752,7 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
                 fill_base_amount=fill_base_amount,
                 fill_quote_amount=fill_base_amount * Decimal(order_msg["fillPx"]),
                 fill_price=Decimal(order_msg["fillPx"]),
-                fill_timestamp=int(order_msg["uTime"]),
+                fill_timestamp=int(order_msg["uTime"]) / 1000,
             )
             self._order_tracker.process_trade_update(trade_update)
 

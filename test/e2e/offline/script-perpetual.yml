@@ -1,0 +1,4 @@
+script_file_name: v2_with_controllers.py
+controllers_config: [controller-perpetual.yml]
+max_global_drawdown_quote: 100
+max_controller_drawdown_quote: 100

@@ -1,7 +1,7 @@
 # PostgreSQL service deployment
 
-The application uses the existing Hummingbot engine. Implementation and remaining
-release gates are tracked in [the plan](../../docs/plans/POSTGRES_CLOUD_RUN_PORT_PLAN.md).
+The application uses the existing Hummingbot engine. Implementation and release
+evidence are tracked in [the plan](../../docs/plans/POSTGRES_CLOUD_RUN_PORT_PLAN.md).
 No Cloud Run service, Secret Manager secret, exchange account or cloud database
 has been provisioned or contacted by these local tests.
 
@@ -42,7 +42,9 @@ make build-cloudrun PYTHON=/path/to/hummingbot/python
 docker pull postgres:14-alpine
 docker pull registry:2
 make test-postgres PYTHON=/path/to/hummingbot/python
-make test-e2e-offline PYTHON=/path/to/hummingbot/python
+make test-cloudrun-regression PYTHON=/path/to/hummingbot/python
+make test-e2e-offline PYTHON=/path/to/hummingbot/python \
+  CLOUDRUN_PREVIOUS_IMAGE=REGISTRY/COMPATIBLE_PREVIOUS_IMAGE@sha256:PREVIOUS_MANIFEST
 ```
 
 The cloud target compiles Linux amd64 extensions using the existing build,
@@ -58,6 +60,20 @@ exchange ledger on a Docker internal network. It mounts only immutable test YAML
 and simulator assets. The narrow transport override accepts public dummy fixture
 credentials and rejects `K_SERVICE`; it cannot be enabled on Cloud Run. No test
 queries a real exchange. Its simulator is deliberately limited to named scenarios.
+
+The default suite covers schema rejection, V1 spot, V2 spot and V2 perpetual.
+For complete release evidence, prefetch a distinct compatible previous ported
+image and supply `CLOUDRUN_PREVIOUS_IMAGE`. The upgrade case runs both images,
+replays a mounted test-only additive SQL script through the production migration
+runner, changes the selected immutable strategy configuration, hands over ownership,
+and rolls back the application while retaining new nullable data and old economics.
+The fixture column is never added to the production SQL package. This tests the
+specified compatible change; every future release must supply its own compatible
+predecessor and review its actual SQL changes. Legacy pre-port images are unsupported.
+CI accepts the pinned predecessor in repository variable `HBOT_PREVIOUS_COMPATIBLE_IMAGE`.
+Without it, the four-scenario smoke report has `release_scope_complete=false` and
+cannot approve deployment. Regression runs isolate legacy event-loop-dependent
+configuration/performance tests from CLI tests that use `asyncio.run()`.
 
 Before isolation, the harness briefly publishes the image to a disposable
 loopback-only registry, resolves/pulls its manifest digest, then removes that
@@ -124,7 +140,8 @@ make review-cloudrun-config CLOUDRUN_CONFIG=/path/to/filled-service.yaml \
 
 The concrete review rejects placeholders, tags, incompatible lifecycle settings,
 plaintext credentials, unpinned secrets and a digest differing from the passing
-E2E artifact. It does not call cloud APIs. After the required release gates pass,
+E2E artifact. It also rejects partial smoke reports without the image rollback
+gate. It does not call cloud APIs. After the required release gates pass,
 an operator may explicitly run `make deploy-cloudrun` with the same configuration,
 evidence and selected region. This implementation has not run that target, pushed
 an image to an external registry, or performed a Cloud Run staging deployment.

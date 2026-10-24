@@ -31,6 +31,11 @@ def review(path, *, template=False, evidence=None):
         require(result.get("passed") is True and result.get("architecture") == "amd64", "Offline E2E did not pass for amd64.")
         require(container["image"].split("@", 1)[1] == result.get("registry_manifest_digest"),
                 "Deployment digest differs from the image exercised in offline E2E.")
+        require(result.get("release_scope_complete") is True, "Complete offline release scope, including compatible image rollback, is required.")
+        required = {"schema", "spot", "v2-spot", "v2-perpetual", "upgrade"}
+        scenarios = result.get("scenarios", {})
+        require(required <= scenarios.keys() and all(scenarios[name].get("passed") is True for name in required),
+                "Every required offline release scenario must pass.")
     require(container['ports'][0]['containerPort'] == 8080)
     require('command' not in container and 'args' not in container, 'Keep the tested foreground image entrypoint.')
     startup, live = container["startupProbe"], container["livenessProbe"]

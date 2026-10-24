@@ -108,7 +108,9 @@ reads deployed YAML without refreshing templates or writing defaults back. The
 controller runner uses a reproducible in-memory wrapper. Existing local YAML
 editing remains available; packaging/deploying a new YAML version is the durable
 cloud update mechanism. The service publishes active configuration hashes and revision in PostgreSQL.
-See the [deployment instructions](../deploy/cloudrun/README.md) for packaging and the remaining release gates.
+PostgreSQL controller configurations require unique, nonempty stable `id` values
+so restarts select the same persisted position and risk state.
+See the [deployment instructions](../deploy/cloudrun/README.md) for packaging and the release contract.
 
 ## PostgreSQL CLI control
 
@@ -164,11 +166,18 @@ before an explicit operator-reviewed database maintenance change. No automatic
 recovery-reset command is provided, and changing only `halt` without resolving
 its cause is insufficient. Do not delete order history to make startup pass.
 
+A recorder rollback latches that manager unhealthy and blocks subsequent ORM
+flushes/bulk writes, including tracking snapshots. A failed fill cannot be followed
+by a committed snapshot claiming it was recorded. Exit and reconcile from durable
+state and exchange fill truth in a fresh service; do not retry/reset that manager.
+
 Clean shutdown checkpoints known controller drawdown/PnL peaks, preserves existing
 V2 position holds, cancels working orders and confirms terminal status before
 closing the runtime marker. A false/incomplete cleanup result must terminate the
 host while retaining ownership until process death. The service adds a separate 9s process watchdog. Actual SIGTERM/standby behavior
-has been verified by the spot/V1 deployment-image harness; broader V2/perpetual
-image verification remains tracked in the plan. Arbitrary custom strategies/executor timers
+has been verified by the spot/V1 deployment-image harness; V2 spot/perpetual
+position/risk restoration uses existing controllers and position holds. A fill
+arriving while V2 cleanup snapshots positions retains HALT and requires operator
+position reconciliation. Arbitrary custom strategies/executor timers
 are not automatically reconstructed after a crash; the persistent HALT prevents
 silently resetting their risk state.

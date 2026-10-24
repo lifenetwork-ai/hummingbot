@@ -106,14 +106,26 @@ jobs:
           conda activate hummingbot
           make test-postgres
 
+      - name: PostgreSQL port regression (required)
+        shell: bash
+        run: |
+          source $CONDA/etc/profile.d/conda.sh
+          conda activate hummingbot
+          make test-cloudrun-regression
+
       - name: Build Cloud Run image and prefetch offline infrastructure
+        env:
+          CLOUDRUN_PREVIOUS_IMAGE: ${{ vars.HBOT_PREVIOUS_COMPATIBLE_IMAGE }}
         shell: bash
         run: |
           docker pull postgres:14-alpine
           docker pull registry:2
+          if [ -n "$CLOUDRUN_PREVIOUS_IMAGE" ]; then docker pull "$CLOUDRUN_PREVIOUS_IMAGE"; fi
           make build-cloudrun
 
       - name: Offline deployment image E2E (required)
+        env:
+          CLOUDRUN_PREVIOUS_IMAGE: ${{ vars.HBOT_PREVIOUS_COMPATIBLE_IMAGE }}
         shell: bash
         run: |
           source $CONDA/etc/profile.d/conda.sh

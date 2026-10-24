@@ -1,0 +1,17 @@
+id: offline-spot-controller
+controller_name: pmm_simple
+controller_type: market_making
+connector_name: okx
+trading_pair: BTC-USDT
+total_amount_quote: 9.9
+buy_spreads: [0.01]
+sell_spreads: []
+buy_amounts_pct: [1]
+sell_amounts_pct: []
+executor_refresh_time: 3600
+cooldown_time: 3600
+leverage: 1
+skip_rebalance: true
+stop_loss: null
+take_profit: null
+time_limit: null

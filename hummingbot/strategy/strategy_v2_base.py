@@ -96,11 +96,18 @@ class StrategyV2ConfigBase(BaseClientModel):
         return v
 
     def load_controller_configs(self):
+        from hummingbot.client.config.runtime_config import postgres_requested
         loaded_configs = []
         for config_path in self.controllers_config:
             full_path = os.path.join(settings.CONTROLLERS_CONF_DIR_PATH, config_path)
             with open(full_path, 'r') as file:
                 config_data = yaml.safe_load(file)
+
+            if postgres_requested():
+                controller_id = config_data.get("id")
+                if (not isinstance(controller_id, str) or not controller_id.strip()
+                        or any(config.id == controller_id for config in loaded_configs)):
+                    raise ValueError("PostgreSQL controllers require unique, nonempty stable IDs in deployed YAML.")
 
             controller_type = config_data.get('controller_type')
             controller_name = config_data.get('controller_name')

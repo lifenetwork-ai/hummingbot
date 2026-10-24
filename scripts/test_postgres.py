@@ -41,7 +41,7 @@ def main() -> int:
         print("PostgreSQL test infrastructure failed; tests were not skipped.", file=sys.stderr)
         return 1
     finally:
-        subprocess.run(["docker", "rm", "-f", name], capture_output=True, timeout=30)
+        subprocess.run(["docker", "rm", "-f", "-v", name], capture_output=True, timeout=30)
 
 
 if __name__ == "__main__":

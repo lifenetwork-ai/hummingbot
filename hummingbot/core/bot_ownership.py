@@ -471,6 +471,11 @@ class BotOwnership:
         # A cancel acknowledgment alone is not terminal. Read back known orders
         # while connectors/recorder still run, before returning ownership.
         tracked = [(connector, list(connector.in_flight_orders.values())) for connector in self.connectors.values()]
+        # V2 snapshots held positions during on_stop, before final cancellation
+        # readback. A concurrent fill makes that snapshot unsafe to resume.
+        held_snapshot = hasattr(strategy, "executor_orchestrator")
+        execution_before_stop = {order.client_order_id: order.executed_amount_base
+                                 for _, orders in tracked for order in orders}
 
         async def confirm_cancellations():
             for connector, orders in tracked:
@@ -480,6 +485,10 @@ class BotOwnership:
                     await asyncio.sleep(0.1)
                     await self._refresh_orders(connector, [order for order in orders if not order.is_done])
             core.trade_fill_db.assert_persistence_healthy()
+            if held_snapshot and any(order.executed_amount_base != execution_before_stop[order.client_order_id]
+                                     for _, orders in tracked for order in orders):
+                self.require_recovery("A fill arrived during position checkpoint cleanup; operator reconciliation is required.")
+                raise SubmissionBlocked("Position checkpoint changed during shutdown.")
 
         core.after_order_cancellation = confirm_cancellations
         core.KILL_TIMEOUT = min(core.KILL_TIMEOUT, max(0.1, timeout / 3))

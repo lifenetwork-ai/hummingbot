@@ -2,6 +2,7 @@
 import json
 from decimal import Decimal
 from pathlib import Path
+from test.hummingbot.connector.derivative.okx_perpetual.test_okx_perpetual_derivative import OkxPerpetualDerivativeTests
 from test.hummingbot.connector.exchange.okx.test_okx_exchange import OkxExchangeTests
 from types import SimpleNamespace
 
@@ -21,4 +22,9 @@ def write_fixtures(path: Path):
                           order_type=OrderType.LIMIT, trade_type=TradeType.BUY, amount=Decimal("0.1"),
                           price=Decimal("99"), creation_timestamp=1700000000)
     order_event = OkxExchangeTests.order_event_for_new_order_websocket_update(fixture, order)
-    path.write_text(json.dumps({"instruments": instruments, "balances": balances, "order_event": order_event}))
+    perpetual = SimpleNamespace(base_asset="BTC", quote_asset="USDT", exchange_trading_pair="BTC-USDT-SWAP",
+                                exchange_symbol_for_tokens=lambda base, quote: f"{base}-{quote}-SWAP")
+    perpetual_instruments = OkxPerpetualDerivativeTests.all_symbols_request_mock_response.fget(perpetual)
+    perpetual_instruments["data"][0].update(ctVal="0.01", tickSz="0.01", lotSz="0.0001", minSz="0.0001")
+    path.write_text(json.dumps({"instruments": instruments, "perpetual_instruments": perpetual_instruments,
+                               "balances": balances, "order_event": order_event}))

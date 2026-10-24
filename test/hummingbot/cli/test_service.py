@@ -69,3 +69,18 @@ def test_offline_transport_preserves_paths_and_refuses_real_keys_and_cloud(monke
     monkeypatch.setenv("K_SERVICE", "actual-cloud-service")
     with pytest.raises(ValueError, match="forbidden"):
         endpoint("https://www.okx.com")
+
+
+@pytest.mark.parametrize("identity", ["", "offline-spot-controller"])
+def test_postgres_controller_identity_cannot_be_empty_or_duplicated(tmp_path, monkeypatch, identity):
+    from hummingbot.client import settings
+    from hummingbot.strategy.strategy_v2_base import StrategyV2ConfigBase
+    fixture = Path(__file__).resolve().parents[3] / "test/e2e/offline/controller-spot.yml"
+    original = fixture.read_text()
+    (tmp_path / "first.yml").write_text(original)
+    (tmp_path / "second.yml").write_text(original.replace("id: offline-spot-controller", f'id: "{identity}"'))
+    monkeypatch.setenv("DATABASE_URL", "postgresql://unused/test")
+    monkeypatch.setattr(settings, "CONTROLLERS_CONF_DIR_PATH", tmp_path)
+    config = StrategyV2ConfigBase(script_file_name="v2_with_controllers.py", controllers_config=["first.yml", "second.yml"])
+    with pytest.raises(ValueError, match="stable IDs"):
+        config.load_controller_configs()

@@ -17,6 +17,7 @@ from hummingbot.model import get_declarative_base
 from hummingbot.model.bot_state import BotState
 from hummingbot.model.db_migration.postgres.runner import (
     MIGRATION_LOCK,
+    SCRIPTS,
     PostgreSQLBootstrapError,
     bootstrap_postgres,
     validate_schema,
@@ -50,6 +51,27 @@ def test_empty_and_populated_replay_100_times(pg_engine):
         """)).scalars().all()
         assert all(name == name.lower() and len(name) <= 63 for name in identifiers)
         assert set(inspect(connection).get_table_names(schema="public")) == set(get_declarative_base().metadata.tables)
+
+
+def test_populated_previous_canonical_schema_adds_recovery_columns_without_data_loss(pg_engine):
+    with pg_engine.begin() as connection:
+        for script in sorted(SCRIPTS.glob("*.sql"))[:5]:
+            connection.exec_driver_sql(script.read_text())
+        connection.execute(text("""INSERT INTO public.orders
+            (id,config_file_path,strategy,market,symbol,base_asset,quote_asset,creation_timestamp,
+             order_type,amount,leverage,price,last_status,last_update_timestamp)
+            VALUES ('previous-order','old.yml','pure_market_making','okx','BTC-USDT','BTC','USDT',
+                    1720000000123,'LIMIT',1000001,1,99123456,'OrderCreated',1720000000123)"""))
+        connection.execute(text("INSERT INTO public.bot_state (bot_id,control_version,status) VALUES ('test',7,'{}')"))
+        connection.exec_driver_sql("INSERT INTO public.market_states (config_file_path,market,timestamp,saved_state) "
+                                   "VALUES ('old.yml','okx',1720000000123,'{\"tracked\":true}')")
+    for automatic in (True, True, False):
+        bootstrap_postgres(pg_engine, auto_migrate=automatic)
+    with pg_engine.connect() as connection:
+        assert connection.execute(text("SELECT amount,price,creation_timestamp,creation_pending FROM public.orders")).one() == (
+            1000001, 99123456, 1720000000123, False)
+        assert connection.execute(text("SELECT control_version,recovery_state FROM public.bot_state")).one() == (7, {})
+        assert connection.execute(text("SELECT saved_state FROM public.market_states")).scalar() == {"tracked": True}
 
 
 def test_auto_disabled_absent_and_valid_schema(pg_engine):
