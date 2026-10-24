@@ -11,13 +11,14 @@ Run the existing Hummingbot MM engine with three selectable reference profiles:
 
 | Scenario | Reference behavior |
 |---|---|
-| `follow_market` | Follow the percentage change of a selected pair such as BTC-USDT or ETH-USDT |
+| `follow_market` | Follow the weighted percentage changes of selected pairs such as BTC-USDT and ETH-USDT |
 | `sideways` | Quote around a saved LIFE anchor using configured spread and quote bounds |
 | `follow_token` | Follow a configured token that the operator selects because it is trending |
 
-The two follow scenarios share one calculation. YAML lists the selectable pairs;
-each profile follows one pair. These modes control the bot's quotes, not the
-resulting market price.
+The two follow scenarios share one calculation: `follow_market` accepts a weighted
+basket; `follow_token` uses one pair with weight 1. YAML supplies default profiles;
+the admin API can select additional verified reference pairs at runtime. These
+modes control the bot's quotes, not the resulting market price.
 
 Admin API selects `market_mode: spot | perpetual | both`, profile and duration.
 `both` runs spot and perpetual concurrently with the **same scenario and clock**,
@@ -49,24 +50,29 @@ No session-history subsystem or order-to-session attribution is required.
 Package `deploy/cloudrun/conf/life_mm_profiles.yaml` as
 `conf/life_mm_profiles.yaml`. Reuse existing controller configuration models for
 spread, order size, refresh, inventory/exposure limits and perpetual settings.
-The API selects deployed IDs and validated runtime fields; it does not edit YAML.
+The API selects deployed profile IDs and validated runtime fields, including
+reference pairs/weights; it does not edit YAML or change the LIFE trading target.
 
 Illustrative profile fragment, not yet runnable:
 
 ```yaml
+reference_connector: okx
 profiles:
-  market_btc:
+  market_follow:
     scenario: follow_market
-    reference_pair: BTC-USDT
-  market_eth:
-    scenario: follow_market
-    reference_pair: ETH-USDT
+    references:
+      - pair: BTC-USDT
+        weight: "0.6"
+      - pair: ETH-USDT
+        weight: "0.4"
   sideways_default:
     scenario: sideways
     anchor: session_start_mid
   trend_eth:
     scenario: follow_token
-    reference_pair: ETH-USDT
+    references:
+      - pair: ETH-USDT
+        weight: "1"
 random:
   scenarios: [follow_market, sideways, follow_token]
   step_duration_seconds: 600
@@ -76,10 +82,42 @@ The complete YAML also supplies market/controller settings, permitted/default
 runtime durations and per-market limits. Return these through `/profiles` so FE
 uses the same validation rules. Credentials stay in `.env`/injected secrets.
 
-Follow calculation: `reference = LIFE_anchor × source_price / source_anchor`.
-Use Decimal; save each enabled market's LIFE anchor and the source anchor before
-quoting. Sideways uses its saved LIFE anchor. Source prices come from the existing
-market-data provider. Absolute BTC/ETH prices must never become LIFE quotes.
+Follow calculation:
+`reference(t) = LIFE_anchor × (1 + Σ weight_i × (source_price_i(t) / source_anchor_i − 1))`.
+Use Decimal; require non-empty unique supported pairs, positive finite weights and
+an exact total weight of 1. All references in this MVP are USDT-quoted pairs.
+`follow_token` requires one pair with weight 1. No silent weight normalization.
+
+YAML supplies default baskets, not a closed pair allowlist. A fixed start/switch
+command may override `references`: several pairs for `follow_market`, exactly one
+for `follow_token`. The source is fixed by `reference_connector` (initially OKX
+spot), shared by both trading markets and routed through the chosen demo/live
+environment. Read each reference's bid/ask midpoint from that connector's order
+book through the existing `MarketDataProvider`; both trading markets use this
+same spot benchmark source. API requests cannot supply arbitrary connectors or
+feed URLs. DEX feeds and perpetual-only reference pairs are outside the initial
+source support.
+
+A pair absent from YAML is accepted if it exists and is tradable on that source,
+has the supported USDT quote currency and usable fresh data, and fits the configured
+maximum basket size. Reuse existing instrument discovery/subscriptions; validate
+and initialize every required reference before quoting. Persist effective pairs,
+weights and anchors in current session state so restart recreates the same feeds
+without a YAML edit or deployment. Changing pairs/weights requires a switch.
+
+For example, an operator can select a newly trending AVAX-subnet token's verified
+OKX USDT pair through `follow_token` without adding a YAML profile. If that token
+is only on a DEX or has no supported feed, return `reference_pair_unavailable`;
+adding that data source is separate work. Sharing an ecosystem does not create
+a price feed or automatically select a trend.
+
+Random steps use the configured profiles' baskets. If any required source is stale
+or missing, block/cancel the basket's quotes instead of dropping that source and
+renormalizing. Restart preserves the saved basket/anchors within the current step.
+
+Save each enabled market's LIFE anchor as well. Sideways uses its saved LIFE
+anchor. Reuse the existing market-data provider for source prices. Absolute
+BTC/ETH prices must never become LIFE quotes.
 
 Use a fresh market midpoint for the anchor, or an explicit configured initial
 anchor if no usable LIFE midpoint exists. Missing/stale data, non-positive prices
@@ -161,7 +199,8 @@ Paths below are relative to `/api/v1/admin`:
 
 | Method / path | Purpose |
 |---|---|
-| `GET /profiles` | Available scenarios/pairs, market modes, validated settings, defaults and limits |
+| `GET /profiles` | Available scenarios, reference source, default baskets/weight rules, market modes, validated settings, defaults and limits |
+| `GET /reference-pairs` | Search/paginate supported source instruments for FE selection, including pairs absent from YAML; reuse instrument metadata and expose its freshness |
 | `GET /status` | Requested/actual state, per-market readiness, current session/random step, references, expiry/time left, versions, staleness and HALT reason |
 | `POST /commands` | Start/switch/stop with validated market mode, selection and duration |
 | `GET /commands/{id}` | Accepted/applying/succeeded/failed/superseded result and effective version/session |
@@ -184,7 +223,11 @@ Example command body, with Basic Auth and `Idempotency-Key` headers:
   "expected_version": 12,
   "market_mode": "both",
   "selection": "fixed",
-  "profile_id": "market_btc",
+  "profile_id": "market_follow",
+  "references": [
+    {"pair": "BTC-USDT", "weight": "0.6"},
+    {"pair": "ETH-USDT", "weight": "0.4"}
+  ],
   "duration_seconds": 3600
 }
 ```
@@ -203,49 +246,115 @@ actual requested state: the existing acknowledged version alone is not success.
 Publish validation (`422`), not-found (`404`) and unavailable (`503`) errors in the
 API schema. No second command worker/service is required.
 
-## 7. Implementation checklist
+## 7. TDD and delivery order
 
-Complete phases in order, update evidence here and commit each finished phase.
+**TDD/unit → PostgreSQL integration → local image E2E → local load/soak → OKX Demo.**
+All P1–P5 execution stays local with dummy credentials and isolated exchange
+fixtures. OKX Demo account access is reserved for P6 after the local gates pass.
+
+For each behavior/fix, follow **Red → Green → Refactor**:
+
+1. Write the smallest behavioral/contract test and run it failing for the intended
+   missing behavior, rather than an import/environment error.
+2. Implement the minimum change using the existing components; make that test pass.
+3. Refactor with focused regression tests green. Record Red/Green commands/results
+   and commit the completed phase with tests and code together.
+
+Use fake clocks, fixed random seeds and Decimal for deterministic unit tests;
+real disposable PostgreSQL for transactions/CAS/recovery; the independent simulator
+for actual connector/API/image flows. Do not rewrite existing passing behavior to
+manufacture a Red result. Define load assertions first and measure a baseline;
+optimize only demonstrated bottlenecks if the existing code misses the targets.
 
 ### P1 — Reuse V2 for both markets and three profiles
 
-- [ ] Add the packaged profile catalogue using existing config models/loaders; validate supported pairs, market modes, durations and limits.
-- [ ] Extend one V2 MM controller with normalized follow/fixed-anchor reference logic; reuse quote/executor lifecycle for spot and perpetual instances.
-- [ ] Fix required perpetual quantity handling; explicitly configure maker execution, position holding, leverage and supported CROSS/HEDGE settings.
-- [ ] Verify listing/freshness checks, inventory/exposure caps and combined budgets for `both`, including held positions and in-flight orders.
-- [ ] Test both connectors, reference units/anchors, invalid inputs and original V2 behavior using focused regressions.
+- [ ] **Red:** cover weighted returns, single-token equivalence, anchor calculation, a supported pair absent from YAML, unknown/duplicate/non-USDT pairs, basket-size limits, invalid weights/totals and a stale basket member. Reproduce fractional/zero-entry-price perpetual quantity errors before fixing them.
+- [ ] Add the YAML catalogue through existing config models/loaders; validate market modes, durations, per-market limits and API basket overrides against the source instrument metadata.
+- [ ] Extend one V2 MM controller with shared weighted-follow/fixed-anchor logic; reuse quote/executor lifecycle for spot and perpetual.
+- [ ] Fix required perpetual quantity handling; configure maker execution, position holding, leverage and supported CROSS/HEDGE settings explicitly.
+- [ ] **Green/refactor:** verify listing/freshness, both-market budgets, held/in-flight exposure and existing V2 regressions; record evidence and commit.
 
 ### P2 — Current session and random selection
 
-- [ ] Persist minimal current-session state using existing PostgreSQL/migration/control machinery.
-- [ ] Implement start/switch/stop, independent expiry handling and final-send session checks without replacing ownership/HALT/recovery.
-- [ ] Add persisted random draws/windows shared by both markets; preserve deadlines across restart.
-- [ ] Test fake-clock expiry, market-mode switches, cancel/fill races, restart/downtime, stale feeds and both-market readiness failures.
+- [ ] **Red:** fake-clock expiry, step/profile revocation, market-mode switches, cancel/fill races, random draws, persisted basket/anchor/feed recovery, restart/downtime and both-market readiness failures.
+- [ ] Persist current-session/basket/anchor state using existing PostgreSQL/migration/control machinery; implement start/switch/stop and independent expiry/final-send checks.
+- [ ] Persist random draws/windows shared by both markets; preserve selected weights, anchors and deadlines across restart.
+- [ ] **Green/refactor:** real-PG CAS/replay/recovery tests and existing ownership/HALT regressions pass; record evidence and commit.
 
 ### P3 — Admin API for FE
 
-- [ ] Add Basic Auth/env validation and routes to the existing aiohttp server, retaining health probes and explicit CORS where needed.
-- [ ] Add versioned/idempotent command receipts and observable completion through the existing owner loop.
-- [ ] Expose profile/status and existing order/fill/balance/position/performance data, with bounded reads and freshness.
-- [ ] Publish the API schema/examples; test auth, malformed input, retries, conflicting versions, failures, decimal output and all three market-mode selections.
+- [ ] **Red:** actual HTTP tests for Basic Auth, malformed baskets/modes, retries, stale versions, conflicting commands, completion/failure states and Decimal/freshness output.
+- [ ] Add routes/auth/env validation to existing aiohttp; reuse owner/control flow with transactional idempotency receipts and preserve health probes/CORS rules.
+- [ ] Expose profiles/reference-pair discovery/status and existing order/fill/balance/position/performance data; publish schema/examples including weighted basket selection and a supported pair absent from YAML.
+- [ ] **Green/refactor:** exercise all three market modes and supported commands with bounded read/query assertions; record evidence and commit.
 
-### P4 — Offline acceptance
+### P4 — Local image E2E and offline Demo transport contracts
 
-- [ ] Extend the existing simulator with LIFE spot/SWAP and configured reference pairs; exercise the actual V2/OKX/PostgreSQL service.
-- [ ] Verify all three scenarios on spot and perpetual; verify `both`, random selection, API mode switches, expiry and restart without losing held exposure or deadlines.
-- [ ] Exercise the FE HTTP workflow: catalogue/status, Basic Auth commands, completion polling, stop and order/fill/balance/position/performance reads.
-- [ ] Run relevant existing regression and deployment-image E2E gates; document YAML/env setup, API use and recovery, update evidence and commit. Cloud Run staging is not required.
+- [ ] **Red:** instantiate real connector/auth/data-source paths against local transports; verify selected demo/live mode, final REST headers and public/private WS routing, including reconnects. Existing URL-helper tests are insufficient.
+- [ ] Wire an explicit process setting such as `OKX_TRADING_ENV=demo|live` into both existing connectors. Keep it separate from API `market_mode`; no API hot switch between demo/live. Demo runs require dedicated demo credentials and never fall back to live keys/routes.
+- [ ] Extend existing routing/auth rather than create demo connector forks. Cover instrument/account/leverage/order/cancel/reconciliation requests and reference feeds; both enabled markets use the same environment.
+- [ ] Update affected OKX WebSocket URLs to port 443/default `wss://`, including relevant candle feeds; verify regional endpoints against the account site and reject unsupported combinations.
+- [ ] Extend the simulator with LIFE spot/SWAP plus reference pairs. Verify three scenarios × spot/perpetual/both, weighted baskets, random selection, API switches, expiry and restart through the deployment image.
+- [ ] **Green/refactor:** run relevant existing regression, real-PG and image E2E gates, including FE workflow, stale feed/DB faults and held exposure. Save image/config hashes and commit. No OKX account is used here.
+
+### P5 — Final local load and soak gate
+
+Reuse the image, disposable PostgreSQL and simulator; add one opt-in Python/aiohttp
+load runner/Make target rather than another service or load-testing framework.
+The bot runs at **1 CPU / 2 GiB**; PG/simulator/load generation have separate
+recorded limits. Record host architecture/emulation, image/config hashes, fixture
+sizes and requested **and achieved** rates. Reuse existing large-history/query
+fixtures from [the PostgreSQL performance review](../postgres-performance-review.md).
+Seed sufficient virtual inventory/collateral for the valid-fill workload while
+retaining all configured risk caps.
+
+These are initial local test budgets, **not measured capacity**:
+
+| Profile | Workload |
+|---|---|
+| Mixed load | 5-minute warmup, then 15 minutes; 10 FE clients, 20 aggregate reads/s, 100 aggregate market updates/s and 1 valid fill/s, with a multi-pair basket and both markets |
+| Bursts/contention | Short 5× market-data bursts, duplicate/out-of-order private events, concurrent command retries and stale-version conflicts |
+| Soak | 60 minutes in `both`, finite random steps, quote refreshes and bounded history reads |
+| Faults under load | Separate feed interruption, delayed/failed DB, owner restart and expiry with queued events; report separately from healthy latency/errors |
+
+- [ ] Define assertions before measuring. Record p50/p95/p99 API latency, command application time, event-loop lag/event age/backlog, recorder latency, CPU/peak RSS, DB pool waits/connections, query counts and errors.
+- [ ] Healthy reads/command acceptance: p95 ≤500ms, p99 ≤1s, no unexpected timeouts/5xx; the generator achieves its sustained offered rate. Measure actual application separately: healthy local stop/cancel ≤5s and start/switch ≤15s, not merely `202` or acknowledgement.
+- [ ] Burst backlog drains within 10s of returning to steady load; no sustained queue/pool/memory growth during soak; peak bot RSS ≤1.5 GiB. Save per-minute samples so a late leak is visible. Report unmet budgets and the bottleneck rather than silently lowering load or relaxing thresholds.
+- [ ] Reuse N+1/query-count regressions as page/history size increases; cached performance reads retain the existing cache behavior. Add cache/index changes only when these measurements justify them.
+- [ ] Independent exchange ledger and PostgreSQL agree on unique fills/fees/positions. Retries never duplicate commands/orders or reset deadlines. No new sends are authorized after step/session revocation, expiry or HALT; already in-flight effects must reconcile.
+- [ ] Count expected conflict/fault responses separately. Fix demonstrated failures using regression tests, rerun the affected load profile, save sanitized JSON/report evidence and commit before P6.
+
+### P6 — Final acceptance against OKX Demo
+
+OKX documents Demo API keys, the `x-simulated-trading: 1` REST header and separate
+demo WebSocket endpoints; REST may share the production host. Verify the account's
+site and supported demo instruments rather than relying on hostname alone.
+[OKX Demo Trading Services](https://www.okx.com/docs-v5/en/#overview-demo-trading-services).
+
+Current code is not yet a complete demo path: spot has no demo selection, both
+auth classes lack that header, and perpetual public-book WS uses the default
+domain despite existing demo URL constants. P4 must close these gaps locally.
+OKX also announces public-internet WebSocket port 8443 retirement on **2026-10-31**;
+port 443 is already available. Checked 2026-10-25.
+[OKX API changelog](https://www.okx.com/docs-v5/log_en/#upcoming-changes-websocket-port-8443-discontinuation).
+
+- [ ] Require passing P1–P5 evidence, the tested image and a dedicated demo account/API key with Read/Trade access supplied through the existing secret/env mechanism. Keep demo database/state separate from any live bot. Default local/CI tests must never contact OKX.
+- [ ] Check demo instruments/account settings first. If LIFE is unavailable, explicitly configure supported substitute spot/SWAP instruments (for example BTC/ETH only if available); retain LIFE/listing-specific acceptance in the local simulator. Do not silently rename LIFE in a trading request.
+- [ ] From local, run bounded spot, perpetual and both workflows using demo balances: auth, books, post-only quotes, cancel, observed fills, positions, Basic Auth commands, weighted references, random steps, expiry and restart. Confirm final state against Demo REST/private WS. Record an unobserved fill/funding case as unverified, not passed.
+- [ ] Run a short 30-minute demo observation with conservative configured order frequency and existing exchange throttlers. Cancel test-owned quotes on completion and report retained positions as the stop policy requires. The stress/load driver remains local; do not stress-test OKX.
+- [ ] Record sanitized results, selected demo instruments, account mode, image/config hashes and remaining gaps; update this plan and commit. Demo checks exchange integration, not LIFE listing availability, production fill quality or profitability. No Cloud Run staging is required.
 
 ## 8. Scope kept out
 
-Weighted baskets/sensitivity tuning, automatic trend discovery, automatic
+Sensitivity tuning, automatic trend discovery, automatic
 spot/perpetual hedging, TWAP inventory execution, pause/resume, live duration
 editing, a separate session-history/per-session PnL subsystem, general economics/
-reservation frameworks, Redis, WebSockets, user/RBAC management and writable YAML
+reservation frameworks, Redis, frontend WebSocket streaming, user/RBAC management and writable YAML
 APIs are outside this implementation. Current session state in `/status` is enough
 for FE control; existing order/fill history remains available.
 
 Completion means the three scenarios, timed/random sessions and authenticated FE
-controls work on **spot, perpetual and both**, using the existing engine and
-verified offline. Existing ownership, persistence, recovery and risk protections
-remain required.
+controls work on **spot, perpetual and both**, using the existing engine, with
+Red/Green evidence, passing local integration/E2E/load gates and final OKX Demo
+integration results. Existing ownership, persistence, recovery and risk protections
+remain required; unavailable Demo/LIFE checks must remain explicitly open.
