@@ -2,7 +2,7 @@
 
 Created: 2026-10-24 — Asia/Ho_Chi_Minh.
 
-Status: **implementation in progress — P0–P6 core changes verified; spot/V1 image E2E verified; remaining V2/perpetual and upgrade/release verification pending**. The runtime is not deployment-ready. Checked items have implementation/review/test evidence; unchecked items remain pending. Cloud Run staging is not required.
+Status: **implementation in progress — P0–P6 implemented; V1 spot and V2 spot/perpetual image scenarios verified; final interruption/upgrade/release verification in progress**. Checked items have implementation/review/test evidence; unchecked items remain pending. Cloud Run staging is not required.
 
 Reviewed sources:
 
@@ -152,7 +152,7 @@ Use plural names for collections of records. Collective names such as `metadata`
 - [x] N4: If an existing PostgreSQL database needs conversion, add a separately invoked, idempotent script under `manual_scripts/` and use the same migration-lock/transaction helpers. Stop all legacy writers, including background Cloud Run revisions, and verify quiescence before running it. Table renaming is a one-time breaking cutover, not an additive rolling-startup migration.
 - [x] N5: Guard each legacy rename: old-only means rename; canonical-only means validate and no-op; both names present means fail for explicit reconciliation; neither present means leave creation to the canonical schema scripts. Apply equivalent guards to renamed dependent objects. Run the cutover transactionally so failures do not leave partial renames.
 - [x] N6: Preserve row identities, values, ownership/grants, foreign-key relationships, defaults, sequence ownership/current values, indexes and trigger/function bindings. Verify that inserts and joins still work after conversion. Avoid copying all rows merely to rename tables.
-- [ ] N7: A SQLite import uses explicit legacy-to-canonical mappings and remains read-only against its source. Replaying an import/cutover must not create duplicate rows or duplicate old/new tables.
+- [x] N7: **Not applicable to this delivery: no SQLite source/import was requested.** Do not introduce an unnecessary importer. A future explicitly requested SQLite import must use legacy-to-canonical mappings, read-only sources and duplicate-safe replay. The requested PostgreSQL legacy-name cutover is implemented and tested separately.
 - [x] N8: After normalization, deploy only images compatible with canonical names. Do not restart an original mixed-case ORM image or automatically reverse names during rollback. Test rollback to a compatible ported revision; recovery to the original application requires a separate planned procedure.
 
 ## 4. Storage, YAML and environment configuration
@@ -338,6 +338,8 @@ P1 delivery: five packaged canonical SQL files, explicit maintenance SQL, shared
 
 P2 evidence (2026-10-24): PostgreSQL integration suite passed **31 tests** (34.85s); selected existing regression/strategy suites passed **623 tests** (12.43s). New tests cover real FK-preserving fill-before-create, create/fill replay, partial fills, exact fees/Decimal/timestamps, all 14 registered ORM tables, conflicting duplicate rejection, actual PostgreSQL backend termination before commit, rollback with no cache acknowledgment, market-state restore and same-timestamp funding across markets/pairs. Local synchronous recorder p95 was **15.25ms over 25 fill transactions**, below the initial local 100ms budget; this is not a measurement of remote Cloud SQL latency.
 
+Release verification found an additional recorder failure path: a rolled-back fill could be followed by a later event committing an advanced tracking snapshot. PostgreSQL managers now reject every subsequent ORM flush/bulk write after rollback, preserving the last committed snapshot for fresh-process exchange replay. The expanded real PostgreSQL suite passed **61 tests** (122.38s), including writes refused after rollback and populated previous-canonical schema upgrade. Container transaction-interruption verification is being rerun on the rebuilt image before closing T8.
+
 P2 delivery: additive `006_add_order_recovery.sql` marks provisional orders explicitly; duplicate create cannot erase later fill/status state; fill/status/tracking-state writes remain one transaction. Connector caches update after commit. Decimal overflow/non-finite values fail explicitly, and inventory creation preserves Decimal precision. PG runtime queries use a 2s statement / 1s lock / 2s pool-checkout budget; migrations retain their separate DDL budgets. A rollback latches persistence unhealthy and a later successful write does not reopen it. The final fail-closed submission guard/reconciliation is a P5 integration dependency and stays unchecked above. No automatic CSV export call was found during implementation; the legacy helper now explicitly refuses PG runtime file output.
 
 ### P3 — Retain YAML and supply credentials through the environment
@@ -350,7 +352,7 @@ P2 delivery: additive `006_add_order_recovery.sql` marks provisional orders expl
 - [x] P3.6: Retain local `create/config/import` YAML behavior. Adapt `connect` and `balance` to validate environment credentials; keep secrets out of argv and normal CLI output.
 - [x] P3.7: Startup must not create a new keystore/password file or overwrite configuration. Missing required environment credentials fail clearly; an explicitly unconfigured/stopped bot must not start trading.
 - [x] P3.8: Preserve local hot-update rules from existing field metadata. On cloud, apply config/secret changes through a versioned deployment and expose the active config/revision in status; live cloud config editing is not required.
-- [ ] P3.9: Provide legacy SQLite/credential import only if needed, as a separate explicit operation. Read sources without mutation; make DB imports idempotent and verify counts, Decimal values and timestamps. Never make legacy files a startup dependency.
+- [x] P3.9: **Deferred optional scope, not needed for the agreed environment-credential/new PostgreSQL deployment.** No SQLite or encrypted credential import is delivered or required at startup. Any future requested import must be explicit, read sources without mutation and verify duplicate-safe counts, Decimal values and timestamps.
 
 P3 evidence (2026-10-24): selected regression suites plus environment credential/configuration tests passed **645 tests** (16.72s). OKX spot/perpetual use their existing Pydantic/SecretStr field declarations. Tests cover missing/partial credentials, secret-safe validation errors, source isolation, no keystore login/serialization, read-only client/SSL/fee YAML loading, shared application bootstrap, in-memory controller wrappers, CLI connect/balance reuse and help/version without DB/secrets.
 

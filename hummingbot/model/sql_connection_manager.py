@@ -128,15 +128,15 @@ class SQLConnectionManager(TransactionBase):
         if not self.persistence_healthy:
             raise RuntimeError("Persistence failed; ownership and exchange reconciliation are required before new orders.")
 
-    @staticmethod
-    def _fence_flush(session, flush_context, instances):
+    def _fence_flush(self, session, flush_context, instances):
         from hummingbot.core.order_submission_guard import fence_session
+        self.assert_persistence_healthy()
         fence_session(session)
 
-    @staticmethod
-    def _fence_bulk_write(execute_state):
+    def _fence_bulk_write(self, execute_state):
         if execute_state.is_update or execute_state.is_delete or getattr(execute_state, "is_insert", False):
             from hummingbot.core.order_submission_guard import fence_session
+            self.assert_persistence_healthy()
             fence_session(execute_state.session)
 
     def get_local_db_version(self, session: Session):

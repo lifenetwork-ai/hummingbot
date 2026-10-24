@@ -116,6 +116,23 @@ def test_commit_failure_rolls_back_all_state_without_acknowledgment(recording):
     with manager.get_new_session() as session:
         for model in (Order, OrderStatus, TradeFill, MarketState):
             assert session.query(model).count() == 0
+    with pytest.raises(RuntimeError, match="Persistence failed"):
+        recorder._did_fill_order(MarketEvent.OrderFilled.value, market, fill())
+    market.tracking_states = {"order-1": {"unpersisted_fill": True}}
+    with pytest.raises(RuntimeError, match="Persistence failed"):
+        with manager.get_new_session() as session, session.begin():
+            recorder.save_market_states("test.yml", market, session)
+    with pytest.raises(RuntimeError, match="Persistence failed"):
+        with manager.get_new_session() as session, session.begin():
+            session.execute(text("SELECT 1"))
+            session.query(Order).update({Order.last_status: "unsafe"})
+    with manager.get_new_session() as session:
+        assert session.query(MarketState).count() == 0
+    # Recovery reconstructs persistence/tracking from DB and exchange truth in a
+    # fresh process; the failed manager must never persist its advanced cache.
+    with patch.object(SQLConnectionManager, "_postgres_engine", manager.engine):
+        fresh_manager = SQLConnectionManager(None, SQLConnectionType.TRADE_FILLS)
+    recorder._sql_manager = fresh_manager
     recorder._did_fill_order(MarketEvent.OrderFilled.value, market, fill())
     with manager.get_new_session() as session:
         assert session.query(TradeFill).count() == 1
@@ -152,6 +169,10 @@ def test_actual_db_session_loss_before_commit_keeps_fill_replayable(recording):
         event.remove(manager._session_cls, "before_commit", terminate_backend)
     assert not market.persisted_fills
     assert not manager.persistence_healthy
+    with pytest.raises(RuntimeError, match="Persistence failed"):
+        recorder._did_fill_order(MarketEvent.OrderFilled.value, market, fill())
+    with patch.object(SQLConnectionManager, "_postgres_engine", manager.engine):
+        recorder._sql_manager = SQLConnectionManager(None, SQLConnectionType.TRADE_FILLS)
     recorder._did_fill_order(MarketEvent.OrderFilled.value, market, fill())
     with manager.get_new_session() as session:
         assert session.query(TradeFill).count() == 1
