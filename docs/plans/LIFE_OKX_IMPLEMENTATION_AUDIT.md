@@ -14,6 +14,14 @@ separates upstream functionality, completed port infrastructure and the remainin
 extensions. Reuse compatible helpers; HTTP trading commands must retain the port's
 owner/control flow rather than invoking interactive MQTT callbacks directly.
 
+Delivery update (2026-10-25): the current plan's P1 controller/configuration
+foundation is now implemented as `controllers/market_making/life_mm.py` and
+`hummingbot/client/config/mm_profiles.py`, with 510 affected unit/regression tests
+passing. See [implementation evidence](../implementation/LIFE_OKX_PROGRESS.md).
+Session/service integration, admin API and local E2E/load/Demo acceptance remain
+open. The historical inventory and old phase mappings below are not a new audit
+of that implementation.
+
 Reviewed: 2026-10-24 (Asia/Ho_Chi_Minh). Source: `2301ef6a6`.
 Scope: compare [the LIFE/OKX plan](LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md) with
 readable source and reproducible tests. No exchange calls, credentials, demo/live

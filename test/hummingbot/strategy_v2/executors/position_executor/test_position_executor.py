@@ -1,6 +1,6 @@
 from decimal import Decimal
 from test.isolated_asyncio_wrapper_test_case import IsolatedAsyncioWrapperTestCase
-from unittest.mock import MagicMock, PropertyMock, patch
+from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 
 from hummingbot.connector.exchange_py_base import ExchangePyBase
 from hummingbot.connector.trading_rule import TradingRule
@@ -956,3 +956,33 @@ class TestPositionExecutor(IsolatedAsyncioWrapperTestCase):
         self.assertEqual(executor.status, RunnableStatus.TERMINATED)
         held_ids = {order["client_order_id"] for order in executor._held_position_orders}
         self.assertEqual(held_ids, {"OID-ENTRY"})
+
+    async def test_keep_position_preserves_partial_fill_after_entry_cancel(self):
+        """MM refresh cancels residual quantity without losing executed exposure."""
+        config = self.get_position_config_market_long()
+        executor = PositionExecutor(self.strategy, config)
+        order = InFlightOrder(
+            client_order_id="partial-entry", exchange_order_id="exchange-entry",
+            trading_pair=config.trading_pair, order_type=OrderType.LIMIT_MAKER,
+            trade_type=TradeType.BUY, amount=Decimal("1"), price=Decimal("100"),
+            creation_timestamp=1000, initial_state=OrderState.CANCELED,
+        )
+        order.update_with_trade_update(TradeUpdate(
+            trade_id="partial-fill", client_order_id=order.client_order_id,
+            exchange_order_id=order.exchange_order_id, trading_pair=order.trading_pair,
+            fill_price=Decimal("100"), fill_base_amount=Decimal("0.4"), fill_quote_amount=Decimal("40"),
+            fee=AddedToCostTradeFee(flat_fees=[]), fill_timestamp=1001,
+        ))
+        executor._open_order = TrackedOrder(order.client_order_id)
+        executor._open_order.order = order
+        executor.early_stop(keep_position=True)
+        with patch.object(executor, "_sleep", AsyncMock()):
+            await executor.control_shutdown_process()
+        self.assertEqual(executor.status, RunnableStatus.TERMINATED)
+        self.assertEqual(executor.close_type, CloseType.POSITION_HOLD)
+        self.assertEqual(len(executor._held_position_orders), 1)
+        self.assertEqual(Decimal(executor._held_position_orders[0]["executed_amount_base"]), Decimal("0.4"))
+        self.strategy.sell.assert_not_called()
+        # The forced-shutdown path must retain that same partial fill exactly once.
+        executor.force_stop_with_position_hold()
+        self.assertEqual(len(executor._held_position_orders), 1)

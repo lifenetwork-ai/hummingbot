@@ -1,0 +1,61 @@
+# Default catalogue. Review instrument availability, price bounds and budgets before use.
+# Loading this file does not start a session or authorize trading.
+reference_connector: okx
+min_duration_seconds: 60
+default_duration_seconds: 3600
+max_duration_seconds: 86400
+max_total_amount_quote: "200"
+profiles:
+  market_follow:
+    scenario: follow_market
+    references:
+      - pair: BTC-USDT
+        weight: "0.6"
+      - pair: ETH-USDT
+        weight: "0.4"
+  sideways_default:
+    scenario: sideways
+    anchor: session_start_mid
+  trend_eth:
+    scenario: follow_token
+    references:
+      - pair: ETH-USDT
+        weight: "1"
+random:
+  scenarios: [follow_market, sideways, follow_token]
+  step_duration_seconds: 600
+markets:
+  spot:
+    id: life_spot
+    controller_type: market_making
+    controller_name: life_mm
+    connector_name: okx
+    trading_pair: LIFE-USDT
+    total_amount_quote: "100"
+    buy_spreads: [0.01, 0.02]
+    sell_spreads: [0.01, 0.02]
+    executor_refresh_time: 60
+    cooldown_time: 15
+    leverage: 1
+    min_price: "0.000001"
+    max_price: "1000"
+    max_base_inventory: "10000"
+  perpetual:
+    id: life_perpetual
+    controller_type: market_making
+    controller_name: life_mm
+    connector_name: okx_perpetual
+    trading_pair: LIFE-USDT
+    total_amount_quote: "100"
+    buy_spreads: [0.01, 0.02]
+    sell_spreads: [0.01, 0.02]
+    executor_refresh_time: 60
+    cooldown_time: 15
+    leverage: 2
+    position_mode: HEDGE
+    margin_mode: CROSS
+    min_price: "0.000001"
+    max_price: "1000"
+    max_long_base: "10000"
+    max_short_base: "10000"
+    max_gross_base: "15000"

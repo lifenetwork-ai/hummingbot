@@ -258,6 +258,7 @@ class OkxExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests):
                     "category": "1",
                     "baseCcy": self.base_asset,
                     "quoteCcy": self.quote_asset,
+                    "state": "live",
                 }
             ]
         }

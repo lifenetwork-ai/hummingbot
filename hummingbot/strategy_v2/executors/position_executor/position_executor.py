@@ -339,10 +339,7 @@ class PositionExecutor(ExecutorBase):
         self.close_timestamp = self._strategy.current_timestamp
         if self.all_orders_completed():
             if self.close_type == CloseType.POSITION_HOLD:
-                if self._open_order and self._open_order.is_filled:
-                    self._held_position_orders.append(self._open_order.order.to_json())
-                if self._close_order and self._close_order.is_filled:
-                    self._held_position_orders.append(self._close_order.order.to_json())
+                self._held_position_orders = self._collect_held_position_orders()
                 if len(self._held_position_orders) == 0:
                     self.close_type = CloseType.EARLY_STOP
                 self.stop()
@@ -633,7 +630,8 @@ class PositionExecutor(ExecutorBase):
         held = list(self._held_position_orders)
         seen = {order.get("client_order_id") for order in held}
         for tracked in (self._open_order, self._close_order, self._take_profit_limit_order):
-            if tracked and tracked.is_filled and tracked.order and tracked.order.client_order_id not in seen:
+            if (tracked and tracked.order and (tracked.is_filled or tracked.executed_amount_base > 0)
+                    and tracked.order.client_order_id not in seen):
                 seen.add(tracked.order.client_order_id)
                 held.append(tracked.order.to_json())
         return held

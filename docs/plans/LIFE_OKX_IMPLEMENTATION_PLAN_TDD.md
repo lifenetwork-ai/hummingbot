@@ -1,7 +1,8 @@
 # LIFE / OKX: Market-Making MVP Plan
 
 Updated: 2026-10-25 (Asia/Ho_Chi_Minh). Runtime baseline: `2d1dc0b7b`.
-Status: planning; the LIFE scenarios and admin API are not implemented yet.
+Status: P1 controller/configuration foundation implemented and locally tested;
+P2 session/service integration and P3 admin API remain open.
 The [previous audit](LIFE_OKX_IMPLEMENTATION_AUDIT.md) covers historical scope;
 this document is the current delivery checklist.
 
@@ -414,12 +415,20 @@ optimize only demonstrated bottlenecks if the existing code misses the targets.
 
 ### P1 — Reuse V2 for both markets and three profiles
 
-- [ ] **Red:** cover weighted returns, single-token equivalence, anchor calculation, a supported pair absent from YAML, unknown/duplicate/non-USDT pairs, basket-size limits, invalid weights/totals and a stale basket member. Reproduce fractional/zero-entry-price perpetual quantity errors before fixing them.
-- [ ] Add the YAML catalogue through existing config models/loaders; validate market modes, durations, per-market limits and API basket overrides against the source instrument metadata.
-- [ ] Reuse dynamic order-book subscriptions and controller configuration lifecycle; test shared-feed retention and prove periodic YAML reload cannot overwrite the effective API session selection.
-- [ ] Extend one V2 MM controller with shared weighted-follow/fixed-anchor logic; reuse quote/executor lifecycle for spot and perpetual.
-- [ ] Fix required perpetual quantity handling; configure maker execution, position holding, leverage and supported CROSS/HEDGE settings explicitly.
-- [ ] **Green/refactor:** verify listing/freshness, both-market budgets, held/in-flight exposure and existing V2 regressions; record evidence and commit.
+- [x] **Red:** cover weighted returns, single-token equivalence, anchor calculation, a supported pair absent from YAML, unknown/duplicate/non-USDT pairs, basket-size limits, invalid weights/totals and a stale basket member. Reproduce fractional/zero-entry-price perpetual quantity errors before fixing them.
+- [x] Add the YAML catalogue through existing config models/loaders; validate market modes, durations, per-market limits and API basket overrides against the source instrument metadata.
+- [x] Reuse dynamic order-book subscriptions and controller configuration lifecycle; test shared-feed retention and prove periodic YAML reload cannot overwrite the effective API session selection.
+- [x] Extend one V2 MM controller with shared weighted-follow/fixed-anchor logic; reuse quote/executor lifecycle for spot and perpetual.
+- [x] Fix required perpetual quantity handling; configure maker execution, position holding, leverage and supported CROSS/HEDGE settings explicitly.
+- [x] **Green/refactor:** verify listing/freshness, both-market budgets, held/in-flight exposure and existing V2 regressions; record evidence and commit.
+
+P1 evidence: [implementation progress](../implementation/LIFE_OKX_PROGRESS.md).
+510 targeted new/regression tests pass locally. Empty listing books require an
+explicit initial anchor and a fresh snapshot; partial fills survive quote refresh.
+The catalogue validates both-market selection/budgets; actual session admission,
+shared readiness, restart/expiry and final-send integration are P2 work, followed
+by image E2E, load and Demo gates. P1 does not establish a running admin-controlled
+LIFE service or price-path guarantees.
 
 ### P2 — Current session and random selection
 

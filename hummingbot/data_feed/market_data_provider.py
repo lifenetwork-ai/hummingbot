@@ -45,6 +45,11 @@ class MarketDataProvider:
         self._non_trading_connectors = LazyDict[str, ConnectorBase](self._create_non_trading_connector)
         self._non_trading_connectors_started: Dict[str, bool] = {}  # Track which connectors have been started
         self._rates_required = GroupedSetDict[str, ConnectorPair]()
+        self._reference_book_users = {}
+        self._reference_book_owned = set()
+        self._reference_book_locks = {}
+        self._reference_protected_pairs = {name: set(connector.trading_pairs or [])
+                                           for name, connector in connectors.items()}
         self.conn_settings = AllConnectorSettings.get_connector_settings()
 
     def stop(self):
@@ -60,6 +65,9 @@ class MarketDataProvider:
             safe_ensure_future(connector.stop_network())
         self._non_trading_connectors.clear()
         self._non_trading_connectors_started.clear()
+        self._reference_book_users.clear()
+        self._reference_book_owned.clear()
+        self._reference_book_locks.clear()
 
     @property
     def ready(self) -> bool:
@@ -418,8 +426,7 @@ class MarketDataProvider:
                     return False
                 # The trading pair was added during startup, so we're done
                 # Wait for order book to be initialized
-                await self._wait_for_order_book_initialized(connector, trading_pair)
-                return True
+                return await self._wait_for_order_book_initialized(connector, trading_pair)
 
         # Add trading pair dynamically via connector method
         return await connector.add_trading_pair(trading_pair)
@@ -464,6 +471,39 @@ class MarketDataProvider:
             tp: (result is True) if not isinstance(result, Exception) else False
             for tp, result in zip(trading_pairs, results)
         }
+
+    async def acquire_order_books(self, connector_name: str, trading_pairs: List[str], consumer: object):
+        """Acquire reference books through the existing subscription path."""
+        async def acquire(pair):
+            key = (connector_name, pair)
+            # Serialize a connector's first network start as well as pair subscriptions.
+            async with self._reference_book_locks.setdefault(connector_name, asyncio.Lock()):
+                users = self._reference_book_users.setdefault(key, set())
+                if not users:
+                    connector = self.get_connector_with_fallback(connector_name)
+                    protected = self._reference_protected_pairs.setdefault(
+                        connector_name, set(connector.trading_pairs or []))
+                    if pair not in protected:
+                        self._reference_book_owned.add(key)
+                    if not await self.initialize_order_book(connector_name, pair):
+                        return False
+                users.add(consumer)
+                return True
+        pairs = list(dict.fromkeys(trading_pairs))
+        return dict(zip(pairs, await asyncio.gather(*(acquire(pair) for pair in pairs))))
+
+    async def release_order_books(self, connector_name: str, trading_pairs: List[str], consumer: object):
+        """Release reference books owned by the given controller."""
+        async def release(pair):
+            key = (connector_name, pair)
+            async with self._reference_book_locks.setdefault(connector_name, asyncio.Lock()):
+                users = self._reference_book_users.get(key, set())
+                users.discard(consumer)
+                if not users and key in self._reference_book_owned:
+                    if await self.remove_order_book(connector_name, pair):
+                        self._reference_book_owned.discard(key)
+                        self._reference_book_users.pop(key, None)
+        await asyncio.gather(*(release(pair) for pair in dict.fromkeys(trading_pairs)))
 
     async def remove_order_book(self, connector_name: str, trading_pair: str) -> bool:
         """
