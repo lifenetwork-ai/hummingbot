@@ -62,8 +62,7 @@ def login(*, password_stdin: bool = False, confirm: bool = False, connectors=Non
     config/security imports are deferred here so commands that don't authenticate stay fast to import.
     """
     from hummingbot.client.config.config_helpers import load_client_config_map_from_file
-    from hummingbot.client.config.runtime_config import RuntimeConfigurationError, load_environment, postgres_requested
-    load_environment()
+    from hummingbot.client.config.runtime_config import RuntimeConfigurationError, postgres_requested
     if postgres_requested():
         from hummingbot.client.config.environment_credentials import configured_environment_connectors
         from hummingbot.client.config.security import Security

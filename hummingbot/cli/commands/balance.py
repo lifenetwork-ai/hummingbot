@@ -180,9 +180,8 @@ def balance(
     as_json: bool = json_option(),
 ) -> None:
     """Show your connector balances, with their value in USD."""
-    from hummingbot.client.config.runtime_config import RuntimeConfigurationError, load_environment, postgres_requested
+    from hummingbot.client.config.runtime_config import RuntimeConfigurationError, postgres_requested
     from hummingbot.client.settings import AllConnectorSettings
-    load_environment()
     if postgres_requested() and connector is not None:
         ccm, password = login(password_stdin=password_stdin, connectors=[connector])
     else:

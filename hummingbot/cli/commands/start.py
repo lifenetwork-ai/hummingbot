@@ -58,6 +58,7 @@ def start(
         None, "--auto-set-permissions", help="user:group to chown conf/data/logs (Docker)."),
     timeout: float = typer.Option(120.0, "--timeout", help="Seconds to wait for the bot to start."),
     as_json: bool = json_option(),
+    expected_version: Optional[int] = typer.Option(None, "--expected-version", help="Reject stale PostgreSQL control intent."),
 ) -> None:
     """Start a bot from a config file (type auto-detected).
 
@@ -65,19 +66,29 @@ def start(
     holding the file; a --v1-strategy/--v2-script/--controller flag is only needed when a legacy name
     exists under more than one type. By default the bot runs detached (the command returns); pass
     --foreground to run it in the foreground, e.g. as a Docker container's main process."""
-    record = launch(file=file, v1=v1, v2=v2, controller=controller, replace=replace,
-                    foreground=foreground, password_stdin=password_stdin,
-                    auto_set_permissions=auto_set_permissions, timeout=timeout)
+    options = dict(file=file, v1=v1, v2=v2, controller=controller, replace=replace,
+                   foreground=foreground, password_stdin=password_stdin,
+                   auto_set_permissions=auto_set_permissions, timeout=timeout)
+    if isinstance(expected_version, int):
+        options["expected_version"] = expected_version
+    record = launch(**options)
     emit(record, render_kv(record, title="start"), as_json)
 
 
 def launch(*, file: Optional[str], v1: bool = False, v2: bool = False, controller: bool = False,
            replace: bool = False, foreground: bool = False, password_stdin: bool = False,
-           auto_set_permissions: Optional[str] = None, timeout: float = 120.0) -> dict:
+           auto_set_permissions: Optional[str] = None, timeout: float = 120.0,
+           expected_version: Optional[int] = None) -> dict:
     """The core of ``hbot start`` — resolve, spawn, wait for readiness; returns the start record.
 
     Shared with ``hbot deploy`` (which bundles config creation + launch into one call).
     """
+    if bot.postgres_mode():
+        from hummingbot.cli.commands.service_control import launch_service_config
+        return launch_service_config(file=file, v1=v1, v2=v2, controller=controller, replace=replace,
+                                     foreground=foreground, password_stdin=password_stdin,
+                                     auto_set_permissions=auto_set_permissions, timeout=timeout,
+                                     expected_version=expected_version)
     # Filename->type resolution shared with `hbot config`/`hbot import`: a flag forces the type, else
     # it's detected from the conf dirs (names are unique across types).
     from hummingbot.cli.commands._common import one_type

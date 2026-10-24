@@ -158,8 +158,12 @@ def config(
     as_json: bool = json_option(),
 ) -> None:
     """View or set configuration — global client settings, plus the loaded strategy's config."""
+    import os
+
     from hummingbot.client.config.config_helpers import load_client_config_map_from_file
-    cm = load_client_config_map_from_file()
+    if "K_SERVICE" in os.environ and value is not None:
+        fail("Deployed YAML is read-only; update/version the configuration and deploy a new revision.", ExitCode.CONFIG_ERROR)
+    cm = load_client_config_map_from_file(read_only=True) if bot.postgres_mode() else load_client_config_map_from_file()
     active = _active_strategy()
 
     if key is None:

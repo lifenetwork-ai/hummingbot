@@ -66,9 +66,12 @@ class PerformanceMetrics:
     async def create(cls,
                      trading_pair: str,
                      trades: List[Any],
-                     current_balances: Dict[str, Decimal]) -> 'PerformanceMetrics':
+                     current_balances: Dict[str, Decimal], *, use_recorded_values: bool = False) -> 'PerformanceMetrics':
         performance = PerformanceMetrics()
-        await performance._initialize_metrics(trading_pair, trades, current_balances)
+        if use_recorded_values:
+            await performance._initialize_metrics(trading_pair, trades, current_balances, use_recorded_values=True)
+        else:
+            await performance._initialize_metrics(trading_pair, trades, current_balances)
         return performance
 
     @staticmethod
@@ -287,7 +290,7 @@ class PerformanceMetrics:
     async def _initialize_metrics(self,
                                   trading_pair: str,
                                   trades: List[Any],
-                                  current_balances: Dict[str, Decimal]):
+                                  current_balances: Dict[str, Decimal], *, use_recorded_values: bool = False):
         """
         Calculates PnL, fees, Return % and etc...
         :param trading_pair: the trading market to get performance metrics
@@ -308,7 +311,8 @@ class PerformanceMetrics:
         self.start_quote_bal = self.cur_quote_bal - self.tot_vol_quote
 
         self.start_price = Decimal(str(trades[0].price))
-        self.cur_price = await RateOracle.get_instance().stored_or_live_rate(trading_pair)
+        self.cur_price = (Decimal(str(trades[-1].price)) if use_recorded_values
+                          else await RateOracle.get_instance().stored_or_live_rate(trading_pair))
         if self.cur_price is None:
             self.cur_price = Decimal(str(trades[-1].price))
         self.start_base_ratio_pct = self.divide(self.start_base_bal * self.start_price,
@@ -320,7 +324,13 @@ class PerformanceMetrics:
         self.cur_value = (self.cur_base_bal * self.cur_price) + self.cur_quote_bal
         self._calculate_trade_pnl(buys, sells)
 
-        await self._calculate_fees(quote, trades)
+        if use_recorded_values:
+            if any(getattr(trade, "trade_fee_in_quote", None) is None for trade in trades):
+                raise ValueError("Recorded quote fees are missing; offline performance cannot reprice them.")
+            self.fee_in_quote = sum((Decimal(str(trade.trade_fee_in_quote)) for trade in trades), Decimal("0"))
+            self.fees[quote] = self.fee_in_quote
+        else:
+            await self._calculate_fees(quote, trades)
 
         self.total_pnl = self.trade_pnl - self.fee_in_quote
         self.return_pct = self.divide(self.total_pnl, self.hold_value)

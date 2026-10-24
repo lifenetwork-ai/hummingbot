@@ -62,6 +62,8 @@ def update(
     as_json: bool = json_option(),
 ) -> None:
     """Update hbot to the latest version of its branch (source installs)."""
+    if "K_SERVICE" in os.environ:
+        fail("Deploy a new compatible container image revision to update the Cloud Run service.", ExitCode.CONFIG_ERROR)
     if os.environ.get("INSTALLATION_TYPE") == "docker":
         fail("this is a Docker install — a container cannot replace its own image. "
              "Update from the HOST:  docker compose pull && docker compose up -d",

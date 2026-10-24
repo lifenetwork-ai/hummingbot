@@ -76,7 +76,21 @@ def deploy(
     from hummingbot.cli.strategy_configs import config_path, edit_config, parse_set_pairs, validate_controller
 
     explicit_type = one_type(v1, v2, controller, required=False)
+    if bot.postgres_mode():
+        catalogue = (bot.read_status() or {}).get("available_configs") or {}
+        matches = [kind for kind, files in catalogue.items() if target in files]
+        if matches:
+            if name or set_values or values_stdin:
+                fail("Deployed YAML updates require a new configuration/image revision.", ExitCode.CONFIG_ERROR)
+            started = launch(file=target, v1=v1, v2=v2, controller=controller, replace=replace,
+                             foreground=foreground, password_stdin=password_stdin, timeout=timeout)
+            record = {"file": target, "config": "deployed", **started}
+            emit(record, render_kv(record, title=f"deployed {target}"), as_json)
+            return
     kind, resolved, stype = resolve_target(target, explicit_type)
+    if bot.postgres_mode() and (kind != "config" or set_values or values_stdin):
+        fail("Prepare YAML with create/config locally, package it in the deployment, then select the deployed file.",
+             ExitCode.CONFIG_ERROR)
 
     if kind == "config":
         if name:
@@ -105,7 +119,8 @@ def deploy(
                 validate_controller(path)  # a broken controller fails here, not mid-launch
             except Exception as e:
                 fail(f"invalid controller config: {e}", ExitCode.CONFIG_ERROR)
-        bot.write_loaded(resolved, stype)
+        if not bot.postgres_mode():
+            bot.write_loaded(resolved, stype)
         config_record = {"file": resolved, "type": stype, "config": "existing",
                          "applied": ", ".join(sorted(values)) or "-"}
     else:

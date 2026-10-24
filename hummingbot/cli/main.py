@@ -53,6 +53,8 @@ def _root(
     if version:
         typer.echo(f"hbot {_version()}")
         raise typer.Exit()
+    from hummingbot.client.config.runtime_config import load_environment
+    load_environment()
 
 
 # v1 surface — a faithful subset of the interactive client's commands (minus gateway), plus one
@@ -78,7 +80,14 @@ app.command("doctor")(doctor_cmd.doctor)
 
 def main() -> None:
     """Console-script entrypoint (``hbot``)."""
-    app()
+    from hummingbot.client.config.runtime_config import RuntimeConfigurationError
+    from hummingbot.model.bot_state_store import ControlConflict
+    from hummingbot.model.db_migration.postgres.runner import PostgreSQLBootstrapError
+    try:
+        app()
+    except (RuntimeConfigurationError, ControlConflict, PostgreSQLBootstrapError) as error:
+        typer.echo(str(error), err=True)
+        raise SystemExit(4) from None
 
 
 if __name__ == "__main__":

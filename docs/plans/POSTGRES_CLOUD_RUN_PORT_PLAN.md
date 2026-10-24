@@ -2,7 +2,7 @@
 
 Created: 2026-10-24 — Asia/Ho_Chi_Minh.
 
-Status: **implementation in progress — P0–P3 core changes verified, P4 next; final safety/service integration and offline E2E remain pending**. The runtime is not deployment-ready. Checked items have implementation/review/test evidence; unchecked items remain pending. Cloud Run staging is not required.
+Status: **implementation in progress — P0–P4 core changes verified, P5 next; final safety/service integration and offline E2E remain pending**. The runtime is not deployment-ready. Checked items have implementation/review/test evidence; unchecked items remain pending. Cloud Run staging is not required.
 
 Reviewed sources:
 
@@ -235,7 +235,7 @@ HBOT_OKX_REGISTRATION_SUB_DOMAIN=www
 
 The example assumes the selected `psycopg2` driver is installed. Use the validated driver/connection settings for the actual deployment.
 
-- [ ] E1: Load local `.env` once before constructing DB settings, connector configuration or client bootstrap. Share this path between the service, DB-dependent CLI commands and migration command; `--help`/`--version` must still work without secrets or a DB.
+- [x] E1: Load local `.env` once before constructing DB settings, connector configuration or client bootstrap. Share this path between the service, DB-dependent CLI commands and migration command; `--help`/`--version` must still work without secrets or a DB.
 - [x] E2: Locally use `HBOT_ENV_FILE` when explicitly set, otherwise the repository-root `.env`. Resolve paths deterministically without walking arbitrary parent directories. A missing default `.env` is allowed; a missing explicitly requested file is an error.
 - [x] E3: Preserve already-set process values, including intentionally empty values; validate required empty values as errors instead of silently replacing them from `.env`. Do not shell-source/evaluate the file. Disable variable interpolation for literal secret values and test dollar signs, hashes, quotes and URL escaping.
 - [x] E4: Parse `ENABLE_AUTO_MIGRATION` explicitly as a boolean: accept trimmed, case-insensitive `true`/`false`; reject other values. Never use `bool(string)`, which makes `"false"` truthy. Apply the default only when the variable is absent.
@@ -358,14 +358,18 @@ P3 delivery: environment credentials initialize the existing Security readiness 
 
 ### P4 — CLI and PostgreSQL runtime control
 
-- [ ] P4.1: Replace persistence in `cli/bot.py` with `bot_state`, retaining helper interfaces where useful. Do not use local PID namespaces/psutil to determine whether the cloud bot is running.
-- [ ] P4.2: `status` reads heartbeat, snapshot and age. An expired heartbeat means stale/unknown, not running merely because a row exists. Remove SIGUSR1/file snapshot coordination.
-- [ ] P4.3: `start/stop/deploy` update desired state, selected YAML config and control version; the engine observes/acknowledges DB state. User stop survives service restart. A running service may remain stopped while serving health checks.
-- [ ] P4.4: Distinguish platform shutdown from user stop. Cloud Run SIGTERM must stop sends and perform cleanup without permanently changing desired state to stopped.
-- [ ] P4.5: Preserve `--replace`, timeouts, JSON output and exit codes where applicable. Redefine or reject cloud `--force` because it cannot SIGKILL a PID on another instance; do not falsely report completion.
-- [ ] P4.6: `history` reuses the connection manager and PerformanceMetrics, removing hard-coded `sqlite:///` in `cli/data.py`; cover both running and stopped bots.
-- [ ] P4.7: `doctor` checks connection/schema/configuration/credentials/heartbeat. `logs` points to Cloud Logging; do not build a PostgreSQL log store merely to emulate file tailing.
-- [ ] P4.8: Operator commands use the same DB bootstrap without shared runtime directories or `docker exec`. Starting a cloud configuration requires it to be present in the deployed config set; local edits must not be mistaken for a deployed update. Mutating control commands do not independently submit exchange orders.
+- [x] P4.1: Replace persistence in `cli/bot.py` with `bot_state`, retaining helper interfaces where useful. Do not use local PID namespaces/psutil to determine whether the cloud bot is running.
+- [x] P4.2: `status` reads heartbeat, snapshot and age. An expired heartbeat means stale/unknown, not running merely because a row exists. Remove SIGUSR1/file snapshot coordination.
+- [ ] P4.3: **Versioned PostgreSQL CLI/backend implemented/tested in P4; the engine observer/ack loop is integrated in P6.** `start/stop/deploy` update desired state, selected YAML config and control version; the engine observes/acknowledges DB state. User stop survives service restart. A running service may remain stopped while serving health checks.
+- [ ] P4.4: **User stop is durable in the P4 control backend; platform signal integration is verified in P6.** Distinguish platform shutdown from user stop. Cloud Run SIGTERM must stop sends and perform cleanup without permanently changing desired state to stopped.
+- [x] P4.5: Preserve `--replace`, timeouts, JSON output and exit codes where applicable. Redefine or reject cloud `--force` because it cannot SIGKILL a PID on another instance; do not falsely report completion.
+- [x] P4.6: `history` reuses the connection manager and PerformanceMetrics, removing hard-coded `sqlite:///` in `cli/data.py`; cover both running and stopped bots.
+- [x] P4.7: `doctor` checks connection/schema/configuration/credentials/heartbeat. `logs` points to Cloud Logging; do not build a PostgreSQL log store merely to emulate file tailing.
+- [x] P4.8: Operator commands use the same DB bootstrap without shared runtime directories or `docker exec`. Starting a cloud configuration requires it to be present in the deployed config set; local edits must not be mistaken for a deployed update. Mutating control commands do not independently submit exchange orders.
+
+P4 evidence (2026-10-24): full PostgreSQL suite passed **38 tests** (49.75s); the expanded control suite subsequently passed **8 tests** including an additional undeployed-config/read-only-YAML case. Selected regression suites passed **645 tests** (17.05s). Existing performance tests passed **11 tests** separately; legacy synchronous performance tests need a current event loop and are run separately from CLI `asyncio.run()` tests. CLI/runner regression passed **380 tests** after the new option handling was corrected.
+
+P4 delivery: a small `BotStateStore` implements atomic control-version CAS and owner/version-fenced publishing against the existing single `bot_state` table. PostgreSQL CLI paths bypass runtime JSON/PID directories; separate real CLI processes exercise start/stop/status/history with no shared writable layer. Heartbeat age is computed by PostgreSQL; stale snapshots report unknown/not live. `--expected-version` supports safe automation retries; `--timeout 0` returns **requested**, never a false running/stopped acknowledgment. `--force` cannot signal a remote PID. Startup selection checks the service-advertised config set when present, and cloud YAML mutation/update commands are rejected. History uses the existing accounting formulas with recorded quote fees and last-fill valuation explicitly labeled, without live price requests. Doctor validates PG/schema/heartbeat and environment fields; logs directs operators to stdout/Cloud Logging. The service's actual observer, owner publication and platform shutdown remain P5/P6 integration dependencies, not a completed cloud runtime.
 
 ### P5 — Single sender and restart recovery
 

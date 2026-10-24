@@ -64,6 +64,13 @@ def resolve_db_for_command(name: Optional[str]) -> Tuple[Path, Optional[str], bo
     With ``name`` -> a past/stopped bot's DB (no config filter, not running). Otherwise the current
     bot's DB. Fails clearly when the bot/DB is absent. Centralizes the lookup + error wording so the
     two commands can't drift apart."""
+    if bot.postgres_mode():
+        config = name or bot.config_file_path()
+        if name and name not in bot.list_bots() and not name.endswith(".yml"):
+            config = name + ".yml"
+        if not config:
+            fail("no strategy configuration selected; pass an exact configuration filename", ExitCode.NOT_FOUND)
+        return "postgresql", config, bot.running() if name is None else False
     if name:
         db_path = bot.db_path_for(name)
         if db_path is None:

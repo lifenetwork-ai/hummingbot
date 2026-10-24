@@ -154,6 +154,40 @@ CHECKS: List[Callable[[], dict]] = [
 
 def doctor(as_json: bool = json_option()) -> None:
     """Check the install's health; exit 0 = healthy, 1 = something needs fixing."""
+    from hummingbot.cli import bot
+    if bot.postgres_mode():
+        rows = [_extensions_row()]
+        try:
+            store = bot.state_store()
+            from hummingbot.model.db_migration.postgres.runner import validate_schema
+            with store.engine.connect() as connection:
+                validate_schema(connection)
+            rows.append(_row("postgresql schema", "ok", "connection and canonical schema validated; no DDL"))
+            status = bot.read_status() or {}
+            rows.append(_row("heartbeat", "warn" if status.get("stale", True) else "ok",
+                             "stale/unknown" if status.get("stale", True) else "current owner heartbeat"))
+            rows.append(_row("configuration", "ok" if store.read() else "warn", "YAML selection comes from bot_state"))
+            from hummingbot.client.config.environment_credentials import (
+                configured_environment_connectors,
+                load_connector_credentials,
+            )
+            names = list((status.get("engine") or {}).get("connectors") or {})
+            names = names or configured_environment_connectors(["okx", "okx_perpetual"])
+            from hummingbot.client.config.runtime_config import RuntimeConfigurationError
+            try:
+                for name in names:
+                    load_connector_credentials(name)
+                rows.append(_row("credentials", "ok" if names else "warn",
+                                 "environment fields validated; no exchange request" if names else "no connector selected/configured"))
+            except RuntimeConfigurationError as error:
+                rows.append(_row("credentials", "fail", str(error)))
+        except Exception:
+            rows.append(_row("postgresql schema", "fail", "connection/schema validation failed; inspect redacted service logs"))
+        healthy = all(row["status"] != "fail" for row in rows)
+        emit({"healthy": healthy, "checks": rows}, render_table(rows, title="doctor"), as_json)
+        if not healthy:
+            fail("doctor found problems", ExitCode.ERROR)
+        return
     rows = []
     for check in CHECKS:
         try:

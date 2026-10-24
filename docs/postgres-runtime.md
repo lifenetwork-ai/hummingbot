@@ -109,3 +109,36 @@ controller runner uses a reproducible in-memory wrapper. Existing local YAML
 editing remains available; packaging/deploying a new YAML version is the durable
 cloud update mechanism. The service's final lifecycle/revision integration remains
 part of the implementation plan, not evidence of a completed deployment.
+
+## PostgreSQL CLI control
+
+CLI commands bootstrap the same environment settings once at the CLI entrypoint.
+DB-dependent commands validate schema with **no automatic DDL**, even when
+`ENABLE_AUTO_MIGRATION=true`; service-start migration and explicit `make migrate`
+are separate operations.
+
+`hbot start <deployed-config.yml>` and `hbot stop` change PostgreSQL desired state.
+They never spawn a detached process or signal a PID in PostgreSQL mode. Use
+`--timeout 0 --json` to receive a persisted **requested** receipt immediately, or a
+positive timeout to await the service's matching control-version acknowledgment.
+A timeout does not undo the persisted request. Automation should read
+`hbot status --json`, pass its `control_version` through `--expected-version`, and
+reuse that expected version on retries; a superseded version fails instead of
+overwriting another command. `--replace` requests a controlled restart/replacement;
+`--force` is rejected because local PIDs cannot control another service instance.
+The foreground service host is implemented in the subsequent service phase.
+
+Status uses a PostgreSQL-computed heartbeat age; age >=15s, a missing heartbeat or
+missing owner means stale/unknown, even if a prior snapshot said running. Config,
+control/ack versions and revision remain visible for diagnosis. Config paths are
+stable YAML identities. Selecting an imported file is not proof that it was deployed;
+start checks an available service catalogue, and the service must validate its own
+configuration before acknowledgment/trading.
+
+History uses exact configuration filters and the existing PerformanceMetrics
+accounting formulas with last recorded fill prices and recorded quote fees. It
+prints that valuation basis and does not fetch live prices. Missing recorded quote
+fees cause an explicit performance error rather than fabricated fee conversion.
+Local YAML editing stays local; on Cloud Run, create/config mutation and software
+self-update require a new versioned deployment. PostgreSQL `deploy` selects an
+already packaged configuration instead of silently editing an ephemeral file.

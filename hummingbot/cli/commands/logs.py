@@ -37,6 +37,13 @@ def logs(
     With no name, shows the current bot; pass a name (from `hbot start`) to view a past/stopped bot.
     Note for agents: ``-f`` runs until interrupted — bound it (e.g. a timeout) rather than awaiting forever.
     """
+    if bot.postgres_mode():
+        import os
+        record = {"source": "Cloud Logging", "filter": 'resource.type="cloud_run_revision"',
+                  "service": os.environ.get("K_SERVICE"), "bot_id": os.environ.get("BOT_ID", "hummingbot"),
+                  "note": "Use Cloud Logging for this service/revision; local process logs are on stdout/stderr."}
+        emit(record, "Logs are on stdout/stderr; on Cloud Run open Cloud Logging for the service/revision.", as_json)
+        return
     if as_json and follow:
         fail("--json is a snapshot format; it cannot be combined with --follow", ExitCode.CONFIG_ERROR)
 

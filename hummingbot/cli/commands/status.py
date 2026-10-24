@@ -28,6 +28,8 @@ def _recent_log_errors() -> Dict[str, Any]:
 
 def _request_fresh_snapshot(timeout: float = REFRESH_TIMEOUT) -> None:
     """Ask the running engine (via SIGUSR1) to write a current snapshot, and wait for it."""
+    if bot.postgres_mode():
+        return
     pid = bot.read_pid()
     if pid is None or not bot.is_engine_pid(pid):
         return
@@ -48,6 +50,10 @@ def status(as_json: bool = json_option()) -> None:
     # Unlike stop/logs/trades/history/update (which exit NOT_FOUND when there's no bot), `status` is a
     # poll: "is anything running?" is a valid question with a valid answer, so "no bot" is success
     # (exit 0, running=false) — a harness can poll status without treating the empty state as an error.
+    if bot.postgres_mode():
+        record = bot.read_status() or {"running": False, "note": "no bot configured"}
+        emit(record, render_kv(record, title="status"), as_json)
+        return
     if not bot.exists():
         # No bot has ever been started. If a config was `import`ed (loaded but not run), surface it so
         # the user sees what `hbot start` would launch — otherwise report the plain empty state.

@@ -144,10 +144,9 @@ def connect(
 ) -> None:
     """Show connections or add a connector's API keys."""
     from hummingbot.client.config.config_helpers import ClientConfigAdapter, load_client_config_map_from_file
-    from hummingbot.client.config.runtime_config import load_environment, postgres_requested
+    from hummingbot.client.config.runtime_config import postgres_requested
     from hummingbot.client.config.security import Security
     from hummingbot.client.settings import AllConnectorSettings
-    load_environment()
 
     if postgres_requested() and not show_fields:
         if keys_stdin or replace or password_stdin:

@@ -85,6 +85,9 @@ def create_config(*, strategy: str, set_values: Optional[List[str]] = None, valu
 
     Shared with ``hbot deploy`` (which bundles config creation + launch into one call).
     """
+    import os
+    if "K_SERVICE" in os.environ:
+        fail("Deployed YAML is read-only; create/version configuration locally and deploy it.", ExitCode.CONFIG_ERROR)
     from hummingbot.cli.strategy_configs import (
         create_config_file,
         describe_strategy,

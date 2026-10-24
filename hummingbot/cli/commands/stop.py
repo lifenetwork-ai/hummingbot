@@ -2,6 +2,7 @@
 import os
 import signal
 import time
+from typing import Optional
 
 import typer
 
@@ -13,8 +14,17 @@ def stop(
     timeout: float = typer.Option(30.0, "--timeout", help="Seconds to wait for graceful shutdown."),
     force: bool = typer.Option(False, "--force", help="SIGKILL if still alive after timeout."),
     as_json: bool = json_option(),
+    expected_version: Optional[int] = typer.Option(None, "--expected-version", help="Reject stale PostgreSQL control intent."),
 ) -> None:
     """Stop the bot gracefully, cancelling its open orders."""
+    if bot.postgres_mode():
+        from hummingbot.cli.commands.service_control import request_control
+        if force:
+            fail("--force cannot kill another service instance; request stop and inspect recovery status.", ExitCode.CONFIG_ERROR)
+        record = request_control(desired_state="stopped", timeout=timeout,
+                                 expected_version=expected_version if isinstance(expected_version, int) else None)
+        emit(record, render_kv(record, title="stop"), as_json)
+        return
     if not bot.exists():
         fail("no bot has been started", ExitCode.NOT_FOUND)
 

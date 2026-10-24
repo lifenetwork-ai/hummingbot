@@ -35,8 +35,9 @@ async def _compute(fills: list, balances: Dict[str, Dict[str, float]]) -> List[d
     for (market, symbol), trades in groups.items():
         cur_balances = _balances_for_market(market, balances)
         try:
+            options = {"use_recorded_values": True} if bot.postgres_mode() else {}
             perf = await asyncio.wait_for(
-                PerformanceMetrics.create(symbol, trades, cur_balances), PERF_TIMEOUT)
+                PerformanceMetrics.create(symbol, trades, cur_balances, **options), PERF_TIMEOUT)
         except Exception as e:
             # str() of e.g. asyncio.TimeoutError is empty — always name the exception type.
             results.append({"market": market, "pair": symbol, "trades": len(trades),
@@ -85,6 +86,8 @@ def history(
         return
 
     markets = asyncio.run(_compute(fills, balances))
+    if bot.postgres_mode():
+        echo("Valuation uses the last recorded fill price and recorded quote fees; no live prices are fetched.")
 
     cols = ["market", "pair", "trades", "buys", "sells", "base_vol", "quote_vol",
             "trade_pnl", "fees", "total_pnl", "return%"]
