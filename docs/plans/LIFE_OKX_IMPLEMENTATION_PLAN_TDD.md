@@ -184,7 +184,7 @@ not part of the MVP.
 ## 6. Basic-authenticated admin API
 
 Mount `/api/v1/admin` on the existing aiohttp server. All admin reads, writes and
-schema access require Basic Auth. Keep existing minimal health probes separate.
+Swagger UI/schema access require Basic Auth. Keep existing minimal health probes separate.
 
 Proposed env settings: `ADMIN_API_ENABLED=false`, `ADMIN_API_USERNAME`,
 `ADMIN_API_PASSWORD` (no usable credential defaults), `ADMIN_CORS_ORIGINS` (empty
@@ -209,7 +209,24 @@ Paths below are relative to `/api/v1/admin`:
 | `GET /balances` | Total/available balances with snapshot freshness |
 | `GET /positions` | Actual perpetual positions, leverage/margin data available from the connector, and freshness; visible after quoting stops |
 | `GET /performance` | Existing per-market PnL, fees, volume and funding data where available, labeled with valuation basis/time |
-| `GET /openapi.json` | Small request/response/error contract with FE examples |
+| `GET /openapi.json` | Generated OpenAPI contract with FE examples |
+| `GET /docs` | Swagger UI using the generated schema, with Basic Auth and interactive API requests |
+
+Swagger annotations belong on **API handlers**, using decorator/docstring metadata
+for summary, tags, operation ID, parameters/headers, request body, responses/errors
+and Basic Auth. Reference the existing request/response models for data schemas;
+keep business logic and storage code independent of documentation metadata.
+
+During P3, add `.PHONY: swagger` and `make swagger` to `Makefile`. The target
+generates and validates `docs/api/openapi.json` from the registered routes, handler
+annotations and referenced models, without starting the bot, connecting to a
+database/exchange or reading secrets. Repeated generation must be deterministic;
+CI verifies that annotations/models and the generated contract agree.
+
+Serve the same generated contract at `/openapi.json` and load it from `/docs`.
+Package the schema and Swagger UI static assets with the service so documentation
+works locally without a CDN. Swagger UI supports Basic Auth and the
+`Idempotency-Key` header for trying commands, with credential persistence disabled.
 
 Reuse ORM/snapshots/performance helpers; do not shell out to CLI or promise new
 per-scenario accounting. Monetary values are Decimal strings, timestamps UTC and
@@ -283,9 +300,11 @@ optimize only demonstrated bottlenecks if the existing code misses the targets.
 
 ### P3 — Admin API for FE
 
-- [ ] **Red:** actual HTTP tests for Basic Auth, malformed baskets/modes, retries, stale versions, conflicting commands, completion/failure states and Decimal/freshness output.
+- [ ] **Red:** actual HTTP tests for Basic Auth, malformed baskets/modes, retries, stale versions, conflicting commands, completion/failure states and Decimal/freshness output. Cover protected Swagger UI/schema and missing or inconsistent handler documentation.
 - [ ] Add routes/auth/env validation to existing aiohttp; reuse owner/control flow with transactional idempotency receipts and preserve health probes/CORS rules.
 - [ ] Expose profiles/reference-pair discovery/status and existing order/fill/balance/position/performance data; publish schema/examples including weighted basket selection and a supported pair absent from YAML.
+- [ ] Annotate API handlers and reuse request/response model schemas; add deterministic `make swagger` generation/validation and CI drift checks for `docs/api/openapi.json`.
+- [ ] Package Swagger UI at `/api/v1/admin/docs`, reading the generated `/api/v1/admin/openapi.json`; verify Basic Auth, command headers and schema/UI availability without external assets.
 - [ ] **Green/refactor:** exercise all three market modes and supported commands with bounded read/query assertions; record evidence and commit.
 
 ### P4 — Local image E2E and offline Demo transport contracts
