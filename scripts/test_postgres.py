@@ -33,7 +33,7 @@ def main() -> int:
         env = {**os.environ, "HBOT_TEST_POSTGRES_URL": f"postgresql+psycopg2://postgres:{password}@127.0.0.1:{port}/{database}"}
         # Production/connector secrets have no role in this isolated job.
         for key in list(env):
-            if key in ("DATABASE_URL", "K_SERVICE", "HBOT_ENV_FILE") or key.startswith("HBOT_OKX"):
+            if key in ("DATABASE_URL", "K_SERVICE", "ENV_FILE", "HBOT_ENV_FILE", "STORAGE_BACKEND") or key.startswith("HBOT_OKX"):
                 env.pop(key)
         return subprocess.run([sys.executable, "-m", "pytest", "-q", "test/integration/postgres", *sys.argv[1:]],
                               cwd=root, env=env).returncode

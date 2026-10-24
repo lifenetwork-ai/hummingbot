@@ -151,9 +151,11 @@ class Harness:
         poll(lambda: http(self.exchange_port, "/ledger")[0] == 200, timeout=30, description="simulator readiness")
         assert json.loads(docker("network", "inspect", self.network).stdout)[0]["Internal"]
 
-    def start(self, revision, *, auto_migrate=True, runtime_role=False, expect_failure=False, additive_fixture=False):
+    def start(self, revision, *, auto_migrate=True, runtime_role=False, expect_failure=False, additive_fixture=False,
+              storage_backend="postgres"):
         name = self.prefix + "-" + revision
-        env = {**self.env, "K_REVISION": revision, "ENABLE_AUTO_MIGRATION": str(auto_migrate).lower()}
+        env = {**self.env, "K_REVISION": revision, "ENABLE_AUTO_MIGRATION": str(auto_migrate).lower(),
+               "STORAGE_BACKEND": storage_backend}
         if runtime_role:
             env["DATABASE_URL"] = f"postgresql+psycopg2://hbot_runtime:{self.password}@db:5432/hbot_test_offline"
         mounts = []
@@ -475,6 +477,8 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
 
     def schema_scenario(self):
         print("Offline E2E: disabled migration rejects empty and incompatible schemas", flush=True)
+        self.start("file-backend", storage_backend="file", expect_failure=True)
+        assert self.sql("SELECT to_regclass('public.bot_state') IS NULL") == "t"
         self.start("empty", auto_migrate=False, expect_failure=True)
         valid, _ = self.start("valid")
         poll(lambda: self.state()["owner_uuid"], description="validated schema owner")
@@ -485,7 +489,8 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         repaired, _ = self.start("repaired", auto_migrate=False)
         self.terminate(repaired)
         assert not self.ledger()["accepted"]
-        self.metrics.update(empty_rejected=True, drift_rejected=True, repaired_schema_validated=True)
+        self.metrics.update(file_backend_rejected=True, empty_rejected=True, drift_rejected=True,
+                            repaired_schema_validated=True)
 
     def upgrade_scenario(self, previous_image):
         print("Offline E2E: distinct compatible images, additive fixture, takeover and rollback", flush=True)

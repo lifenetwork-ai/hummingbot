@@ -1,4 +1,5 @@
 import logging
+import os
 from enum import Enum
 from os.path import join
 from typing import TYPE_CHECKING, Optional
@@ -85,9 +86,16 @@ class SQLConnectionManager(TransactionBase):
                  db_path: Optional[str] = None,
                  db_name: Optional[str] = None,
                  called_from_migrator = False):
-        from hummingbot.client.config.runtime_config import RuntimeSettings, postgres_requested
+        from hummingbot.client.config.runtime_config import (
+            RuntimeConfigurationError,
+            RuntimeSettings,
+            postgres_requested,
+        )
 
-        use_postgres = self._postgres_engine is not None or postgres_requested()
+        requested = postgres_requested()
+        if self._postgres_engine is not None and os.environ.get("STORAGE_BACKEND", "").strip().lower() == "file":
+            raise RuntimeConfigurationError("STORAGE_BACKEND cannot change after PostgreSQL initialization; restart the process.")
+        use_postgres = self._postgres_engine is not None or requested
         self.db_path = None if use_postgres else self.create_db_path(db_path, db_name)
 
         if connection_type is SQLConnectionType.TRADE_FILLS:

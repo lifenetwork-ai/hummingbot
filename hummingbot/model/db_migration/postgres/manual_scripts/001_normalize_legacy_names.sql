@@ -20,11 +20,11 @@ BEGIN
         ('Metadata', 'metadata')
     ) AS names(old_name, new_name)
     LOOP
-        IF to_regclass(format('public.%I', item.old_name)) IS NOT NULL THEN
-            IF to_regclass(format('public.%I', item.new_name)) IS NOT NULL THEN
+        IF to_regclass(format('%I', item.old_name)) IS NOT NULL THEN
+            IF to_regclass(format('%I', item.new_name)) IS NOT NULL THEN
                 RAISE EXCEPTION 'Both legacy and canonical table names exist; reconcile explicitly';
             END IF;
-            EXECUTE format('ALTER TABLE public.%I RENAME TO %I', item.old_name, item.new_name);
+            EXECUTE format('ALTER TABLE %I RENAME TO %I', item.old_name, item.new_name);
         END IF;
     END LOOP;
 END $$;
@@ -61,11 +61,11 @@ BEGIN
         ('os_order_id_timestamp_index', 'idx_order_statuses_order_id_timestamp')
     ) AS names(old_name, new_name)
     LOOP
-        IF to_regclass(format('public.%I', item.old_name)) IS NOT NULL THEN
-            IF to_regclass(format('public.%I', item.new_name)) IS NOT NULL THEN
+        IF to_regclass(format('%I', item.old_name)) IS NOT NULL THEN
+            IF to_regclass(format('%I', item.new_name)) IS NOT NULL THEN
                 RAISE EXCEPTION 'Both legacy and canonical index names exist';
             END IF;
-            EXECUTE format('ALTER INDEX public.%I RENAME TO %I', item.old_name, item.new_name);
+            EXECUTE format('ALTER INDEX %I RENAME TO %I', item.old_name, item.new_name);
         END IF;
     END LOOP;
 END $$;
@@ -93,7 +93,7 @@ BEGIN
             IF EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid=item.conrelid AND conname=target) THEN
                 RAISE EXCEPTION 'Both legacy and canonical constraint names exist';
             END IF;
-            EXECUTE format('ALTER TABLE public.%I RENAME CONSTRAINT %I TO %I', item.relname, item.conname, target);
+            EXECUTE format('ALTER TABLE %I RENAME CONSTRAINT %I TO %I', item.relname, item.conname, target);
         END IF;
     END LOOP;
 END $$;
@@ -107,13 +107,13 @@ BEGIN
         ('funding_payments', 'timestamp'), ('market_data', 'timestamp')
     ) AS names(table_name, column_name)
     LOOP
-        IF to_regclass(format('public.%I', item.table_name)) IS NULL THEN CONTINUE; END IF;
-        current_sequence := pg_get_serial_sequence(format('public.%I', item.table_name), item.column_name);
+        IF to_regclass(format('%I', item.table_name)) IS NULL THEN CONTINUE; END IF;
+        current_sequence := pg_get_serial_sequence(format('%I', item.table_name), item.column_name);
         IF current_sequence IS NULL THEN CONTINUE; END IF;
         SELECT relname INTO current_name FROM pg_class WHERE oid=current_sequence::regclass;
         target := 'seq_' || item.table_name || '_' || item.column_name;
         IF current_name <> target THEN
-            IF to_regclass(format('public.%I', target)) IS NOT NULL THEN
+            IF to_regclass(format('%I', target)) IS NOT NULL THEN
                 RAISE EXCEPTION 'Both legacy and canonical sequence names exist';
             END IF;
             EXECUTE format('ALTER SEQUENCE %s RENAME TO %I', current_sequence, target);
@@ -131,19 +131,19 @@ BEGIN
         ('market_data', ARRAY['timestamp', 'exchange', 'trading_pair']::text[])
     ) AS names(table_name, columns)
     LOOP
-        IF to_regclass(format('public.%I', item.table_name)) IS NULL THEN CONTINUE; END IF;
+        IF to_regclass(format('%I', item.table_name)) IS NULL THEN CONTINUE; END IF;
         SELECT array_agg(a.attname::text ORDER BY keys.ordinality) INTO actual_columns
         FROM pg_constraint c CROSS JOIN LATERAL unnest(c.conkey) WITH ORDINALITY AS keys(attnum, ordinality)
         JOIN pg_attribute a ON a.attrelid=c.conrelid AND a.attnum=keys.attnum
-        WHERE c.conrelid=to_regclass(format('public.%I', item.table_name)) AND c.contype='p';
+        WHERE c.conrelid=to_regclass(format('%I', item.table_name)) AND c.contype='p';
         IF actual_columns = ARRAY['timestamp']::text[] THEN
-            EXECUTE format('ALTER TABLE public.%I DROP CONSTRAINT %I', item.table_name, 'pk_' || item.table_name);
-            EXECUTE format('ALTER TABLE public.%I ADD CONSTRAINT %I PRIMARY KEY (%s)',
+            EXECUTE format('ALTER TABLE %I DROP CONSTRAINT %I', item.table_name, 'pk_' || item.table_name);
+            EXECUTE format('ALTER TABLE %I ADD CONSTRAINT %I PRIMARY KEY (%s)',
                 item.table_name, 'pk_' || item.table_name, array_to_string(item.columns, ', '));
         ELSIF actual_columns IS DISTINCT FROM item.columns THEN
             RAISE EXCEPTION 'Unexpected legacy primary key; reconcile explicitly';
         END IF;
-        EXECUTE format('ALTER TABLE public.%I ALTER COLUMN timestamp DROP DEFAULT', item.table_name);
+        EXECUTE format('ALTER TABLE %I ALTER COLUMN timestamp DROP DEFAULT', item.table_name);
     END LOOP;
 END $$;
 
@@ -155,10 +155,10 @@ BEGIN
     FOR item IN SELECT unnest(ARRAY['order_statuses', 'trade_fills']) AS table_name
     LOOP
         target := 'fk_' || item.table_name || '_order_id';
-        IF to_regclass(format('public.%I', item.table_name)) IS NOT NULL
-            AND NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid=to_regclass(format('public.%I', item.table_name)) AND conname=target)
+        IF to_regclass(format('%I', item.table_name)) IS NOT NULL
+            AND NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid=to_regclass(format('%I', item.table_name)) AND conname=target)
         THEN
-            EXECUTE format('ALTER TABLE public.%I ADD CONSTRAINT %I FOREIGN KEY (order_id) REFERENCES public.orders(id)', item.table_name, target);
+            EXECUTE format('ALTER TABLE %I ADD CONSTRAINT %I FOREIGN KEY (order_id) REFERENCES orders(id)', item.table_name, target);
         END IF;
     END LOOP;
 END $$;

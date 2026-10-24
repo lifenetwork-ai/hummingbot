@@ -182,12 +182,31 @@ Some directories contain residual bytecode caches; these do not satisfy delivery
 
 Reuse existing executors and storage where their behavior satisfies the contracts. Changes to shared code require regression tests demonstrating the need. Each new adapter needs contract tests against the repository's actual executor implementation.
 
-`state.py` is a LIFE adapter over the existing PostgreSQL connection/recorder and
-ownership contracts, not a second persistence system. Persist timed sessions from
+`state.py` is a LIFE adapter over the existing storage contracts. Its PostgreSQL
+path reuses the current connection/recorder and ownership layer. Persist timed sessions from
 P3 onward; extend the durable intent transaction with reservations/epochs in P4.
-Do not postpone persistence until P8, create runtime JSON/SQLite state, or introduce
-a separate migration/WAL service. The dedicated runner remains conditional: reuse
+Do not postpone persistence until P8, introduce a separate migration/WAL service,
+or create local JSON/SQLite fallback state in PostgreSQL mode. If LIFE explicitly
+enables local file mode, reuse and test the original storage path through the same
+business contracts. The dedicated runner remains conditional: reuse
 the generic V2 loader unless a failing contract test demonstrates a missing capability.
+
+Runtime configuration follows the reviewed `life-wallet-backend/conf/env.go` and
+`default_values.go` pattern: centralized non-secret defaults, then local env-file
+values, then process-environment overrides. Runtime keys do not use a `LIFE_`
+prefix. The implemented settings are `STORAGE_BACKEND=postgres|file`, `ENV_FILE`,
+`DATABASE_URL`, `ENABLE_AUTO_MIGRATION`, `BOT_ID` and `PORT`; defaults and backend
+compatibility rules are documented in [runtime operations](../postgres-runtime.md).
+`ENV_FILE` supersedes the compatible `HBOT_ENV_FILE` alias. Ordinary strategy/client
+settings stay in YAML; connector credentials use the existing env adapter.
+
+`file` selects the original local SQLite/JSON runtime; Cloud Run/foreground service
+uses `postgres`. The existing backend paths must remain regression-tested. The
+LIFE controller is still unimplemented: P1 must validate its supported modes, and
+P3/P4 must implement durable session/reservation contracts for every backend that
+LIFE explicitly enables. A generic local file switch alone does not establish LIFE
+recovery eligibility. PostgreSQL SQL scripts omit `public.` prefixes; the shared
+runner supplies the canonical `public` search path, preserving idempotent replay.
 
 ### Data Contracts
 
@@ -374,7 +393,7 @@ skipping the required dependency or checking off unfinished work.
 - [ ] P1.3: Prices/quantities use `Decimal`; bps/percent/fraction conversions have separate tests.
 - [ ] P1.4: Reject invalid benchmark weights, currencies without conversion paths, unknown fields, and missing live limits.
 - [ ] P1.5: An invalid configuration update preserves the previous configuration, records a reason code, and generates no orders.
-- [ ] P1.6: Provide `simulation.yml.example` and a JSON/schema export; examples contain no credentials and cannot automatically start live trading.
+- [ ] P1.6: Provide `simulation.yml.example` and a JSON/schema export; examples contain no credentials and cannot automatically start live trading. Reuse centralized runtime defaults and `ENV_FILE` loading; any new env keys omit `LIFE_`. Do not create default live fee/risk/budget values to fill unresolved inputs.
 - [ ] P1.7: The CLI discovers `life_liquidity`; test nested fields and serialization rather than assuming the existing CLI supports all nested updates.
 - [ ] P1.8: Reject live configurations missing an objective, fee policy, or cost/loss/stress budgets. Subsidies require an explicit allocation and cannot disable hard limits.
 - [ ] P1.9: Reject margin modes unsupported by the adapter; feature-gate benchmark baskets and perpetual quotes until each has separate evidence.

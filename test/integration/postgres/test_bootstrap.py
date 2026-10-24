@@ -27,6 +27,23 @@ from hummingbot.model.market_state import MarketState
 from hummingbot.model.sql_connection_manager import SQLConnectionManager, SQLConnectionType
 
 
+def test_unqualified_scripts_use_runner_search_path_and_replay(pg_engine):
+    with pg_engine.begin() as connection:
+        connection.execute(text("CREATE SCHEMA hbot_test_shadow"))
+        connection.execute(text("SET search_path = hbot_test_shadow"))
+    try:
+        for enabled in (True, True, False):
+            bootstrap_postgres(pg_engine, auto_migrate=enabled)
+        with pg_engine.connect() as connection:
+            assert set(inspect(connection).get_table_names(schema="public")) == set(get_declarative_base().metadata.tables)
+            assert inspect(connection).get_table_names(schema="hbot_test_shadow") == []
+            validate_schema(connection)
+    finally:
+        with pg_engine.begin() as connection:
+            connection.execute(text("SET search_path = public"))
+            connection.execute(text("DROP SCHEMA hbot_test_shadow"))
+
+
 def test_empty_and_populated_replay_100_times(pg_engine):
     bootstrap_postgres(pg_engine, auto_migrate=True)
     with Session(pg_engine) as session, session.begin():

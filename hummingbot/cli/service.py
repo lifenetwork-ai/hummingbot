@@ -278,7 +278,7 @@ class ServiceHost:
 
 
 async def run_service():
-    from hummingbot.client.config.runtime_config import RuntimeSettings
+    from hummingbot.client.config.runtime_config import RuntimeConfigurationError, RuntimeSettings, postgres_requested
     stop = asyncio.Event()
     deadline = ShutdownDeadline(stop)
     deadline.install()
@@ -286,6 +286,8 @@ async def run_service():
     clean = False
     started = time.monotonic()
     try:
+        if not postgres_requested():
+            raise RuntimeConfigurationError("The foreground service requires STORAGE_BACKEND=postgres; use hbot start for file mode.")
         settings = RuntimeSettings.from_environment()
         host = ServiceHost(settings, stop, deadline)
         host.configure_logging()

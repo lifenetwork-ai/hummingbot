@@ -45,8 +45,10 @@ def review(path, *, template=False, evidence=None):
     require(live['timeoutSeconds'] >= 5)
     require('readinessProbe' not in container, 'Standby must pass deployment startup independently of trading readiness.')
     env = {item["name"]: item for item in container["env"]}
+    require(env.get("STORAGE_BACKEND", {}).get("value", "postgres") == "postgres",
+            "Cloud Run requires STORAGE_BACKEND=postgres.")
     require(env['ENABLE_AUTO_MIGRATION']['value'] in ('true', 'false'))
-    require('PORT' not in env and 'HBOT_ENV_FILE' not in env and ('HBOT_OFFLINE_HTTP_ORIGIN' not in env))
+    require('PORT' not in env and 'ENV_FILE' not in env and 'HBOT_ENV_FILE' not in env and ('HBOT_OFFLINE_HTTP_ORIGIN' not in env))
     require('DATABASE_URL' in env)
     for name, item in env.items():
         if name == "DATABASE_URL" or re.match(r"HBOT_OKX_(PERPETUAL_)?(API_KEY|SECRET_KEY|PASSPHRASE)$", name):

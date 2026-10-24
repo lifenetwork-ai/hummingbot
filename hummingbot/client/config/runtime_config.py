@@ -7,6 +7,8 @@ from typing import Mapping, Optional
 from dotenv import load_dotenv
 from sqlalchemy.engine import URL, make_url
 
+from hummingbot.client.config.defaults import DEFAULT_ENV_CONFIG
+
 
 class RuntimeConfigurationError(ValueError):
     """A deliberately redacted configuration error safe for CLI/service logs."""
@@ -14,14 +16,17 @@ class RuntimeConfigurationError(ValueError):
 
 def load_environment() -> None:
     """Load only the selected local file, preserving even empty process values."""
-    explicit = os.environ.get("HBOT_ENV_FILE")
+    # ENV_FILE follows the shared backend convention; retain the old name for
+    # existing local installations. Presence, including empty, takes precedence.
+    variable = "ENV_FILE" if "ENV_FILE" in os.environ else "HBOT_ENV_FILE"
+    explicit = os.environ.get(variable)
     if "K_SERVICE" in os.environ:
         if explicit is not None:
-            raise RuntimeConfigurationError("HBOT_ENV_FILE is not supported on Cloud Run; inject environment settings.")
+            raise RuntimeConfigurationError(f"{variable} is not supported on Cloud Run; inject environment settings.")
         return
-    path = Path(explicit).expanduser() if explicit else Path(__file__).resolve().parents[3] / ".env"
+    path = Path(explicit).expanduser() if explicit else Path(__file__).resolve().parents[3] / DEFAULT_ENV_CONFIG["ENV_FILE"]
     if explicit is not None and (not explicit or not path.is_file()):
-        raise RuntimeConfigurationError("The explicitly selected HBOT_ENV_FILE does not exist.")
+        raise RuntimeConfigurationError(f"The explicitly selected {variable} does not exist.")
     if path.is_file():
         load_dotenv(path, override=False, interpolate=False)
 
@@ -37,9 +42,9 @@ def parse_boolean(value: str) -> bool:
 class RuntimeSettings:
     # Neither repr nor exception text may expose connection credentials/query parameters.
     database_url: URL = field(repr=False)
-    enable_auto_migration: bool = True
-    bot_id: str = "hummingbot"
-    port: int = 8080
+    enable_auto_migration: bool = DEFAULT_ENV_CONFIG["ENABLE_AUTO_MIGRATION"] == "true"
+    bot_id: str = DEFAULT_ENV_CONFIG["BOT_ID"]
+    port: int = int(DEFAULT_ENV_CONFIG["PORT"])
 
     @classmethod
     def from_environment(cls, environ: Optional[Mapping[str, str]] = None) -> "RuntimeSettings":
@@ -56,17 +61,35 @@ class RuntimeSettings:
         except Exception:
             raise RuntimeConfigurationError("DATABASE_URL must be a valid postgresql+psycopg2 URL with a database.") from None
         try:
-            port = int(values.get("PORT", "8080"))
+            port = int(values.get("PORT", DEFAULT_ENV_CONFIG["PORT"]))
             if not 1 <= port <= 65535:
                 raise ValueError
         except ValueError:
             raise RuntimeConfigurationError("PORT must be an integer between 1 and 65535.") from None
-        bot_id = values.get("BOT_ID", "hummingbot")
+        bot_id = values.get("BOT_ID", DEFAULT_ENV_CONFIG["BOT_ID"])
         if not bot_id.strip() or len(bot_id) > 128:
             raise RuntimeConfigurationError("BOT_ID must contain 1–128 characters.")
-        return cls(url, parse_boolean(values.get("ENABLE_AUTO_MIGRATION", "true")), bot_id, port)
+        return cls(url, parse_boolean(values.get("ENABLE_AUTO_MIGRATION", DEFAULT_ENV_CONFIG["ENABLE_AUTO_MIGRATION"])),
+                   bot_id, port)
+
+
+def storage_backend(environ: Optional[Mapping[str, str]] = None) -> str:
+    """Select the process storage backend without connecting or reading dotenv."""
+    values = os.environ if environ is None else environ
+    explicit = values.get("STORAGE_BACKEND")
+    if explicit is None:
+        # Preserve existing deployments, including invalid/empty DSNs: selecting
+        # PG must fail validation rather than silently create local files.
+        selected = "postgres" if "DATABASE_URL" in values or "K_SERVICE" in values else DEFAULT_ENV_CONFIG["STORAGE_BACKEND"]
+    else:
+        selected = explicit.strip().lower()
+    if selected not in ("postgres", "file"):
+        raise RuntimeConfigurationError("STORAGE_BACKEND must be postgres or file.")
+    if "K_SERVICE" in values and selected != "postgres":
+        raise RuntimeConfigurationError("Cloud Run requires STORAGE_BACKEND=postgres.")
+    return selected
 
 
 def postgres_requested() -> bool:
-    """Presence, including an empty value, selects PG and must never fall back to SQLite."""
-    return "DATABASE_URL" in os.environ or "K_SERVICE" in os.environ
+    """Explicit selection wins locally; omitted mode preserves legacy detection."""
+    return storage_backend() == "postgres"

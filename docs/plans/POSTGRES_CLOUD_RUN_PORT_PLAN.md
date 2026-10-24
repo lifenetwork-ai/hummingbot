@@ -212,17 +212,19 @@ Precedence for bootstrap and credential values: **existing process environment >
 
 | Variable | Purpose and default |
 |---|---|
+| `STORAGE_BACKEND` | `postgres` or `file`; explicit selection wins locally. Omitted preserves URL/Cloud Run detection, otherwise defaults to local file mode; service/Cloud Run requires PostgreSQL. |
 | `DATABASE_URL` | PostgreSQL connection URL; required for DB-dependent commands/service startup; use an explicitly supported sync driver |
 | `ENABLE_AUTO_MIGRATION` | `true` or `false`; defaults to `true`; controls automatic service-start migrations only |
 | `BOT_ID` | Stable identity for the logical bot; default `hummingbot` for the initial single-bot deployment |
 | `PORT` | Cloud Run supplies it; local service default `8080` |
-| `HBOT_ENV_FILE` | Optional explicit local dotenv path; read from the process environment before loading a file |
+| `ENV_FILE` | Optional explicit local dotenv path; read before loading a file. Preferred over compatibility alias `HBOT_ENV_FILE`; omitted uses repository-root `.env`. |
 | Connector credential variables | Values mapped to existing connector fields, as specified in section 4.5 |
 | `HBOT_PASSWORD` | Only needed for an explicitly selected legacy encrypted-keystore flow; not required for environment credentials |
 
 Illustrative `.env.example` content; these values are placeholders, not actual credentials:
 
 ```dotenv
+STORAGE_BACKEND=postgres
 DATABASE_URL=postgresql+psycopg2://hummingbot:replace_me@127.0.0.1:5432/hummingbot
 ENABLE_AUTO_MIGRATION=true
 BOT_ID=hummingbot
@@ -236,7 +238,7 @@ HBOT_OKX_REGISTRATION_SUB_DOMAIN=www
 The example assumes the selected `psycopg2` driver is installed. Use the validated driver/connection settings for the actual deployment.
 
 - [x] E1: Load local `.env` once before constructing DB settings, connector configuration or client bootstrap. Share this path between the service, DB-dependent CLI commands and migration command; `--help`/`--version` must still work without secrets or a DB.
-- [x] E2: Locally use `HBOT_ENV_FILE` when explicitly set, otherwise the repository-root `.env`. Resolve paths deterministically without walking arbitrary parent directories. A missing default `.env` is allowed; a missing explicitly requested file is an error.
+- [x] E2: Locally use `ENV_FILE`, then compatibility alias `HBOT_ENV_FILE`, otherwise the repository-root `.env`. Resolve paths deterministically without walking arbitrary parent directories. A missing default `.env` is allowed; a missing/empty explicitly requested file is an error. Non-secret defaults are centralized; new keys omit a `LIFE_` prefix.
 - [x] E3: Preserve already-set process values, including intentionally empty values; validate required empty values as errors instead of silently replacing them from `.env`. Do not shell-source/evaluate the file. Disable variable interpolation for literal secret values and test dollar signs, hashes, quotes and URL escaping.
 - [x] E4: Parse `ENABLE_AUTO_MIGRATION` explicitly as a boolean: accept trimmed, case-insensitive `true`/`false`; reject other values. Never use `bool(string)`, which makes `"false"` truthy. Apply the default only when the variable is absent.
 - [x] E5: On Cloud Run Service, detect `K_SERVICE` from the process environment before dotenv loading and skip dotenv discovery/loading. Require direct environment/Secret Manager injection; reject an explicitly requested local dotenv path in that mode.
@@ -546,3 +548,17 @@ offline image scenarios** passed. Report:
 Upgrade/rollback uses a distinct image rebuilt from `ddf77c4a7`, applies packaged
 index migration `008` and preserves recorded economics. The concrete synthetic
 deployment preflight passes against this report; no cloud deployment was performed.
+
+## 10. Environment defaults, backend selection and SQL naming follow-up
+
+Requested after the LIFE/OKX audit. Reference: local
+`life-wallet-backend/conf/env.go` and `default_values.go`. This extends explicit
+local compatibility while keeping the deployed Cloud Run service on PostgreSQL.
+
+- [x] Centralize non-secret defaults in `hummingbot/client/config/defaults.py`; retain process env > selected dotenv > defaults. New env keys omit the `LIFE_` prefix. Preserve secret values and require explicit database/live inputs.
+- [x] Add preferred `ENV_FILE`, retaining `HBOT_ENV_FILE` as a lower-priority compatibility alias; reject missing/empty explicit files and cloud env-file selectors.
+- [x] Add `STORAGE_BACKEND=postgres|file`. Explicit local file mode uses the original SQLite/JSON/PID paths even when a URL exists. Omitted mode preserves existing PostgreSQL detection; errors in a selected PostgreSQL backend never fall back to files. Service/Cloud Run requires PostgreSQL and mode changes require restart.
+- [x] Rename the eight legacy `LIFE_` keys in the ignored local `.env` without changing their values. Document that the previous migration knobs are not active aliases for the current runner; current settings are `DATABASE_URL`/`ENABLE_AUTO_MIGRATION`.
+- [x] Remove `public.` qualifiers from all eight packaged SQL scripts and the manual legacy-name script. Keep the runner's canonical `SET LOCAL search_path = public`, schema checks and simple idempotent objects. This requested formatting replay changes script checksums without changing table identities or adding a new schema.
+- [x] Verify original file-mode SQLite/JSON round-trips, explicit/legacy backend selection, defaults/precedence, cloud deployment rejection, non-default search-path migration replay and populated legacy cutover. Results: 944 selected regression tests and 72 PostgreSQL tests passed.
+- [x] Complete rebuilt-image offline E2E, bind its digest to deployment review, update evidence and commit. All five scenarios passed in `build/e2e-offline/20261025-001145-0d9d95/result.json`; the matching concrete synthetic deployment artifact passed preflight. See the current manifest in [verification evidence](../postgres-verification.md).

@@ -2,7 +2,7 @@
 -- Transactions and migration locking are owned by the Python runner.
 
 
-CREATE TABLE IF NOT EXISTS public.bot_state (
+CREATE TABLE IF NOT EXISTS bot_state (
 	bot_id TEXT NOT NULL,
 	config_file_path TEXT,
 	config_type TEXT,

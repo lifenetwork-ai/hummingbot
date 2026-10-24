@@ -28,6 +28,8 @@ spec:
               cpu: '1'
               memory: 2Gi
           env:
+            - name: STORAGE_BACKEND
+              value: postgres
             - name: BOT_ID
               value: hummingbot
             - name: ENABLE_AUTO_MIGRATION

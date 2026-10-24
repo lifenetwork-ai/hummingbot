@@ -2,7 +2,7 @@
 -- Transactions and migration locking are owned by the Python runner.
 
 
-CREATE TABLE IF NOT EXISTS public.executors (
+CREATE TABLE IF NOT EXISTS executors (
 	id TEXT NOT NULL,
 	timestamp FLOAT NOT NULL,
 	type TEXT NOT NULL,
@@ -21,20 +21,20 @@ CREATE TABLE IF NOT EXISTS public.executors (
 	CONSTRAINT pk_executors PRIMARY KEY (id)
 );
 
-CREATE SEQUENCE IF NOT EXISTS public.seq_controllers_controller_id;
+CREATE SEQUENCE IF NOT EXISTS seq_controllers_controller_id;
 
-CREATE TABLE IF NOT EXISTS public.controllers (
+CREATE TABLE IF NOT EXISTS controllers (
 	id TEXT,
-	controller_id INTEGER DEFAULT nextval('public.seq_controllers_controller_id'::regclass) NOT NULL,
+	controller_id INTEGER DEFAULT nextval('seq_controllers_controller_id'::regclass) NOT NULL,
 	timestamp FLOAT NOT NULL,
 	type TEXT NOT NULL,
 	config JSON NOT NULL,
 	CONSTRAINT pk_controllers PRIMARY KEY (controller_id)
 );
 
-ALTER SEQUENCE public.seq_controllers_controller_id OWNED BY public.controllers.controller_id;
+ALTER SEQUENCE seq_controllers_controller_id OWNED BY controllers.controller_id;
 
-CREATE TABLE IF NOT EXISTS public.positions (
+CREATE TABLE IF NOT EXISTS positions (
 	id TEXT NOT NULL,
 	controller_id TEXT NOT NULL,
 	connector_name TEXT NOT NULL,

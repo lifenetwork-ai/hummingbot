@@ -82,3 +82,50 @@ def test_empty_database_url_selects_pg_and_fails():
         assert postgres_requested()
         with pytest.raises(RuntimeConfigurationError):
             RuntimeSettings.from_environment()
+
+
+@pytest.mark.parametrize("mode,expected", [("file", False), ("postgres", True), (" POSTGRES ", True)])
+def test_explicit_storage_backend_overrides_local_database_detection(mode, expected):
+    with patch.dict(os.environ, {"STORAGE_BACKEND": mode, "DATABASE_URL": ""}, clear=True):
+        assert postgres_requested() is expected
+
+
+@pytest.mark.parametrize("mode", ["", "sqlite", "mysql", "true"])
+def test_invalid_storage_backend_fails_without_echoing_values(mode):
+    with patch.dict(os.environ, {"STORAGE_BACKEND": mode}, clear=True):
+        with pytest.raises(RuntimeConfigurationError, match="STORAGE_BACKEND"):
+            postgres_requested()
+
+
+def test_file_backend_is_not_allowed_on_cloud_run():
+    with patch.dict(os.environ, {"STORAGE_BACKEND": "file", "K_SERVICE": "test"}, clear=True):
+        with pytest.raises(RuntimeConfigurationError, match="Cloud Run"):
+            postgres_requested()
+
+
+def test_env_file_uses_process_over_file_over_defaults(tmp_path):
+    file = tmp_path / "selected.env"
+    file.write_text("STORAGE_BACKEND=postgres\nPORT=9000\nBOT_ID=file-bot\n")
+    with patch.dict(os.environ, {"ENV_FILE": str(file), "PORT": "9001"}, clear=True):
+        load_environment()
+        assert postgres_requested()
+        settings = RuntimeSettings.from_environment({**os.environ, "DATABASE_URL": "postgresql://host/db"})
+        assert settings.port == 9001
+        assert settings.bot_id == "file-bot"
+        assert settings.enable_auto_migration is True
+
+
+def test_env_file_precedes_legacy_alias(tmp_path):
+    file = tmp_path / "selected.env"
+    file.write_text("PORT=9000\n")
+    with patch.dict(os.environ, {"ENV_FILE": str(file), "HBOT_ENV_FILE": str(tmp_path / "missing")}, clear=True):
+        load_environment()
+        assert os.environ["PORT"] == "9000"
+
+
+@pytest.mark.parametrize("values", [{"ENV_FILE": ""}, {"ENV_FILE": "/missing/test.env"},
+                                    {"K_SERVICE": "test", "ENV_FILE": "/any/test.env"}])
+def test_invalid_or_cloud_env_file_is_rejected(values):
+    with patch.dict(os.environ, values, clear=True):
+        with pytest.raises(RuntimeConfigurationError, match="ENV_FILE"):
+            load_environment()

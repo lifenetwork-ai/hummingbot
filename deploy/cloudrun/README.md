@@ -8,9 +8,10 @@ has been provisioned or contacted by these local tests.
 ## Foreground service and configuration
 
 Run `hbot serve`, or the equivalent production command
-`python -m hummingbot.cli.service`. `DATABASE_URL` is required. Local invocation
+`python -m hummingbot.cli.service`. Set `STORAGE_BACKEND=postgres`; `DATABASE_URL`
+is required. Cloud Run rejects file mode. Local invocation
 uses the shared dotenv loader; Cloud Run uses injected environment values and
-ignores `.env`. Supply exchange credentials through the environment field names
+ignores `.env` and rejects `ENV_FILE`/`HBOT_ENV_FILE`. Supply exchange credentials through the environment field names
 documented in [runtime operations](../../docs/postgres-runtime.md).
 
 The initial database desired state is stopped. In another process, select a

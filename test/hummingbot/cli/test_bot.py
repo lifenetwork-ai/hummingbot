@@ -24,6 +24,18 @@ class ControllerLoaderNameTest(unittest.TestCase):
 
 
 class BotStateTest(unittest.TestCase):
+    def test_explicit_file_mode_uses_original_state_even_with_database_url(self):
+        with TemporaryDirectory() as directory, \
+                patch.dict(os.environ, {"STORAGE_BACKEND": "file", "DATABASE_URL": "invalid-unused"}, clear=True), \
+                patch.object(bot, "bot_dir", return_value=Path(directory)), \
+                patch.object(bot, "state_store") as postgres:
+            bot.write_meta({"name": "local", "type": "controller", "file": "local.yml"})
+            bot.write_status({"running": False})
+            assert bot.read_meta()["name"] == "local"
+            assert bot.read_status()["running"] is False
+            assert (Path(directory) / "meta.json").is_file()
+            postgres.assert_not_called()
+
     def test_tail_lines_seeks_from_end(self):
         with TemporaryDirectory() as d:
             p = Path(d) / "log.txt"

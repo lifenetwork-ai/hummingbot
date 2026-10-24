@@ -2,7 +2,7 @@
 -- Transactions and migration locking are owned by the Python runner.
 
 
-CREATE TABLE IF NOT EXISTS public.funding_payments (
+CREATE TABLE IF NOT EXISTS funding_payments (
 	timestamp BIGINT NOT NULL,
 	config_file_path TEXT NOT NULL,
 	market TEXT NOT NULL,
@@ -12,10 +12,10 @@ CREATE TABLE IF NOT EXISTS public.funding_payments (
 	CONSTRAINT pk_funding_payments PRIMARY KEY (timestamp, market, symbol)
 );
 
-CREATE SEQUENCE IF NOT EXISTS public.seq_inventory_costs_id;
+CREATE SEQUENCE IF NOT EXISTS seq_inventory_costs_id;
 
-CREATE TABLE IF NOT EXISTS public.inventory_costs (
-	id INTEGER DEFAULT nextval('public.seq_inventory_costs_id'::regclass) NOT NULL,
+CREATE TABLE IF NOT EXISTS inventory_costs (
+	id INTEGER DEFAULT nextval('seq_inventory_costs_id'::regclass) NOT NULL,
 	base_asset VARCHAR(45) NOT NULL,
 	quote_asset VARCHAR(45) NOT NULL,
 	base_volume NUMERIC(48, 18) NOT NULL,
@@ -24,9 +24,9 @@ CREATE TABLE IF NOT EXISTS public.inventory_costs (
 	CONSTRAINT uq_inventory_costs_base_asset_quote_asset UNIQUE (base_asset, quote_asset)
 );
 
-ALTER SEQUENCE public.seq_inventory_costs_id OWNED BY public.inventory_costs.id;
+ALTER SEQUENCE seq_inventory_costs_id OWNED BY inventory_costs.id;
 
-CREATE TABLE IF NOT EXISTS public.market_data (
+CREATE TABLE IF NOT EXISTS market_data (
 	timestamp BIGINT NOT NULL,
 	exchange TEXT NOT NULL,
 	trading_pair TEXT NOT NULL,
@@ -37,10 +37,10 @@ CREATE TABLE IF NOT EXISTS public.market_data (
 	CONSTRAINT pk_market_data PRIMARY KEY (timestamp, exchange, trading_pair)
 );
 
-CREATE SEQUENCE IF NOT EXISTS public.seq_range_position_updates_id;
+CREATE SEQUENCE IF NOT EXISTS seq_range_position_updates_id;
 
-CREATE TABLE IF NOT EXISTS public.range_position_updates (
-	id INTEGER DEFAULT nextval('public.seq_range_position_updates_id'::regclass) NOT NULL,
+CREATE TABLE IF NOT EXISTS range_position_updates (
+	id INTEGER DEFAULT nextval('seq_range_position_updates_id'::regclass) NOT NULL,
 	hb_id TEXT NOT NULL,
 	timestamp BIGINT NOT NULL,
 	tx_hash TEXT,
@@ -64,12 +64,12 @@ CREATE TABLE IF NOT EXISTS public.range_position_updates (
 	CONSTRAINT pk_range_position_updates PRIMARY KEY (id)
 );
 
-ALTER SEQUENCE public.seq_range_position_updates_id OWNED BY public.range_position_updates.id;
+ALTER SEQUENCE seq_range_position_updates_id OWNED BY range_position_updates.id;
 
-CREATE SEQUENCE IF NOT EXISTS public.seq_range_position_collected_fees_id;
+CREATE SEQUENCE IF NOT EXISTS seq_range_position_collected_fees_id;
 
-CREATE TABLE IF NOT EXISTS public.range_position_collected_fees (
-	id INTEGER DEFAULT nextval('public.seq_range_position_collected_fees_id'::regclass) NOT NULL,
+CREATE TABLE IF NOT EXISTS range_position_collected_fees (
+	id INTEGER DEFAULT nextval('seq_range_position_collected_fees_id'::regclass) NOT NULL,
 	config_file_path TEXT NOT NULL,
 	strategy TEXT NOT NULL,
 	token_id INTEGER NOT NULL,
@@ -80,4 +80,4 @@ CREATE TABLE IF NOT EXISTS public.range_position_collected_fees (
 	CONSTRAINT pk_range_position_collected_fees PRIMARY KEY (id)
 );
 
-ALTER SEQUENCE public.seq_range_position_collected_fees_id OWNED BY public.range_position_collected_fees.id;
+ALTER SEQUENCE seq_range_position_collected_fees_id OWNED BY range_position_collected_fees.id;

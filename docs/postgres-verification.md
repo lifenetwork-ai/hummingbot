@@ -5,7 +5,53 @@ The source plan is [POSTGRES_CLOUD_RUN_PORT_PLAN.md](plans/POSTGRES_CLOUD_RUN_PO
 All measurements below are local; no Cloud Run staging, cloud IAM/networking or
 real exchange connection is claimed.
 
-## Post-port review release evidence
+## Environment/backend and unqualified SQL release evidence
+
+Follow-up verified on 2026-10-25: centralized defaults, preferred `ENV_FILE`,
+explicit `STORAGE_BACKEND=postgres|file`, preserved original local SQLite/JSON
+behavior, and removal of `public.` qualifiers from all nine migration/cutover SQL
+files. The runner still targets the canonical schema through its search path.
+
+- **944 selected regression tests passed:** 116 configuration/storage, 11
+  performance and 817 CLI/model/connector/runner/engine/V2 tests. This includes
+  seven deployment-policy tests and local SQLite/JSON round-trips with an ignored
+  PostgreSQL URL in explicit file mode.
+- **72 PostgreSQL tests passed:** fresh and populated replay, 100 replays,
+  legacy cutover, DML-only startup, drift/rollback and the new non-default
+  session-search-path regression. No new tables or renamed catalog objects are
+  introduced by removing the SQL qualifiers.
+- **All five image E2E scenarios passed**, `passed=true` and
+  `release_scope_complete=true`:
+  `build/e2e-offline/20261025-001145-0d9d95/result.json`.
+- Current manifest:
+  `sha256:7fda2b9596c8ac985ecc2578d77cebf6dd99016570fc9085ac4ab127fb8d603d`.
+  Image/config ID:
+  `sha256:98fb93cb91ee111782e1cb882b2e2e58fea02905082fde37a951359f3c46b7b3`.
+- Compatible predecessor rebuilt from `git archive 2301ef6a6`:
+  `sha256:90adabf8e82bfc31abf49fb09a11e37e397156db7007fc322f7ce0d685ca1d40`.
+  This is a new build of the prior source; the old historical images disappeared
+  from local Docker during preparation. The current image was reloaded from cache
+  and temporary containers retained both images for the successful retry; those
+  containers have been removed.
+- E2E explicitly selects PostgreSQL and additionally proves file-mode foreground
+  startup fails before creating `bot_state` or accepting any exchange order.
+  Schema policy, V1 fault recovery, V2 spot/perpetual positions/PnL, and compatible
+  upgrade/rollback preserve the same economic assertions as the previous release.
+- The concrete synthetic deployment example beside the report passes preflight
+  against this exact manifest and requires PostgreSQL. It names no real cloud
+  resources. No cloud deployment or real exchange operation was performed.
+
+Sanitized source/Red/Green/regression/PG validation artifacts are in
+`build/env-storage-validation/`. Fourteen Python/SQL/config image assets match
+source byte-for-byte. The ignored local `.env` had eight `LIFE_` keys renamed with
+their values preserved; their old migration-tool meanings are distinguished from
+current runtime settings in [runtime operations](postgres-runtime.md).
+
+Local image samples: startup 6.605–8.032s, shutdown 0.929–1.617s, spot steady
+236.3 MiB / 2 GiB and 2.31% Docker CPU; reused-connection `SELECT 1` p95 0.309ms.
+These are workload samples, not peak or Cloud Run/Cloud SQL measurements.
+
+## Earlier post-port review release evidence
 
 Performance/recovery changes are reviewed in
 [postgres-performance-review.md](postgres-performance-review.md). **926 regression
@@ -41,16 +87,17 @@ shutdown, ownership and recovery test deadlines were not relaxed.
 
 ## Current evidence
 
-- PostgreSQL integration: **71 passed** against disposable PostgreSQL 14, including
+- PostgreSQL integration: **72 passed** against disposable PostgreSQL 14, including
   real service processes, migration replay/drift/rollback, recorder transactions,
   CLI control, ownership connection termination, populated prior-schema upgrade,
   rejection of all later recorder writes after rollback and bounded cleanup.
   The post-port review adds 10 cases for large-history query budgets, exact PnL,
   position selection/overrides, invalid-history cursor cleanup, recent per-market
   recorder warmup, additive indexes and the fully fenced fill transaction.
-- Selected runner/CLI/config/model/recorder/OKX/engine/REST/V2 regression: **926 passed**
-  (`make test-cloudrun-regression`: 101 configuration, 11 performance, 814 other
-  selected tests, including 5 deployment policy tests). Existing
+  The env/SQL follow-up adds the non-default search-path case.
+- Selected runner/CLI/config/model/recorder/OKX/engine/REST/V2 regression: **944 passed**
+  (`make test-cloudrun-regression`: 116 configuration/storage, 11 performance, 817 other
+  selected tests, including 7 deployment policy tests). Existing
   Pydantic/AsyncMock warnings remain; these runs have no failing tests.
 - P6 baseline deployment-image E2E: OKX spot through the existing V1 pure-market-making
   strategy passed on Linux amd64 with PostgreSQL 14, read-only roots and an

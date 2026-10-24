@@ -8,9 +8,50 @@ Do not deploy until the required phases and offline verification gates pass.
 Install the declared environment dependencies (`psycopg2` and `python-dotenv`), then
 copy `.env.example` to `.env` and supply local settings. Process environment takes
 precedence, including empty values; literal secret values are not interpolated.
-`HBOT_ENV_FILE` selects an explicit local file; a missing explicit file fails.
-Cloud Run (`K_SERVICE` present) ignores local `.env` and rejects `HBOT_ENV_FILE`.
+`ENV_FILE` selects an explicit local file; a missing/empty explicit file fails.
+`HBOT_ENV_FILE` remains a compatibility alias; `ENV_FILE` takes precedence.
+Cloud Run (`K_SERVICE` present) ignores local `.env` and rejects either explicit file selector.
 Use injected environment values and explicit Secret Manager versions there.
+
+Non-secret defaults live in
+[defaults.py](../hummingbot/client/config/defaults.py), following the centralized
+defaults/process-environment pattern reviewed in `life-wallet-backend/conf`.
+New env names use descriptive uppercase keys without a `LIFE_` prefix. Secrets,
+the PostgreSQL URL and live trading limits have no fabricated default values.
+Old local LIFE migration settings are renamed without the prefix (`AUTO_MIGRATE`,
+`MIGRATION_DSN`, `MIGRATION_DIRECTORY`, `MIGRATION_SSL_CA_FILE`,
+`MIGRATION_LOCAL_INSECURE`, `MIGRATION_LOCK_TIMEOUT_SECONDS`,
+`MIGRATION_STATEMENT_TIMEOUT_MS`, `MIGRATION_DDL_LOCK_TIMEOUT_MS`). They belonged
+to the previous LIFE tooling and are not aliases consumed by the current runtime.
+Use `DATABASE_URL` (a supported PostgreSQL URL) and `ENABLE_AUTO_MIGRATION` for
+the implemented runner. Its packaged script directory and bounded timeout/TLS
+policy remain as documented below; renaming an old key does not activate it.
+
+| Variable | Default / behavior |
+|---|---|
+| `ENV_FILE` | Repository-root `.env` when omitted; explicit relative paths use the working directory |
+| `STORAGE_BACKEND` | `file` when neither `DATABASE_URL` nor `K_SERVICE` exists; otherwise `postgres` for compatibility. Explicit `file`/`postgres` wins locally. |
+| `ENABLE_AUTO_MIGRATION` | `true`; applies to PostgreSQL service startup |
+| `BOT_ID` | `hummingbot` |
+| `PORT` | `8080` locally; Cloud Run injects it |
+
+Choose the backend before starting a process:
+
+```dotenv
+# PostgreSQL service: hbot serve
+STORAGE_BACKEND=postgres
+DATABASE_URL=postgresql+psycopg2://hummingbot:replace_me@127.0.0.1:5432/hummingbot
+ENABLE_AUTO_MIGRATION=true
+```
+
+For the original local runtime, set `STORAGE_BACKEND=file` and use `hbot start`.
+It uses the existing SQLite recorder, local JSON/PID state and original credential
+flow; an otherwise present `DATABASE_URL` is ignored by that runtime. PostgreSQL
+selection with a missing/bad/unavailable URL fails without falling back to files.
+Cloud Run and `hbot serve` require PostgreSQL. Changing backends requires stopping
+and restarting the process; it does not import or synchronize existing data.
+The explicit operator command `make migrate` still targets PostgreSQL regardless
+of the selected trading backend or automatic-migration flag.
 
 `DATABASE_URL` accepts `postgresql://` or `postgresql+psycopg2://`. Percent-encode
 special characters in URL credentials; SSL query settings such as `sslmode=require`
@@ -27,6 +68,9 @@ transaction-pooling proxies are unsupported.
 startup before connector bootstrap. Each file has one transaction, and one session
 advisory lock covers the batch. Failed files roll back; already committed files
 are replayable. Lock wait is bounded to 60s and total DB bootstrap to 180s.
+SQL scripts use unqualified table/index/sequence references (no `public.` prefix).
+The shared runner sets `SET LOCAL search_path = public` for each script, including
+legacy cutover, and connections/validation continue to target the canonical schema.
 
 `ENABLE_AUTO_MIGRATION=false` performs read-only schema validation without DDL.
 A role with schema usage, table DML and sequence usage/select can run an existing
@@ -34,7 +78,7 @@ compatible schema. Missing objects or incompatible definitions fail before tradi
 Migrations require object ownership/appropriate DDL privileges in the dedicated
 database, not superuser privileges.
 
-Explicitly apply SQL regardless of the automatic flag:
+Explicitly apply SQL regardless of the automatic flag or local trading backend:
 
 ```sh
 make migrate
@@ -45,7 +89,9 @@ make migrate PYTHON=/path/to/python
 Connection errors expose safe error types/SQLSTATE, not driver messages or DSNs.
 SQL names/checksums are logged. Correct the reported configuration/privileges/schema
 issue and restart; do not delete/reset the DB. Historical deployed scripts are
-immutable. Add compatible forward scripts; large backfills/index builds belong
+normally immutable. The requested removal of `public.` is a formatting-only replay
+of existing idempotent scripts: checksums change, catalog names/data do not. Use
+compatible forward scripts for future schema changes; large backfills/index builds belong
 in an explicit maintenance path.
 
 Performance review script `008_add_recovery_lookup_indexes.sql` adds pending-order
@@ -73,11 +119,13 @@ known tables/indexes/constraints/sequences without copying business rows. Both
 names present, unexpected definitions, orphan FKs or duplicate market-state keys
 fail and roll back for explicit reconciliation. Replay preserves sequence values.
 Only compatible canonical-name application images can be rolled back afterward.
-No automatic down migration/rename reversal is provided.
+No automatic down migration/rename reversal is provided. Removing SQL text's
+`public.` qualifiers does not move any existing table to another schema.
 
 SQLite import is optional and has not been implemented; keep any original DB
 read-only and do not point the PostgreSQL runtime at a SQLite file. Existing local
-SQLite tooling is transitional and is not a fallback when `DATABASE_URL` is present.
+file mode is an explicit local backend; it is never an automatic fallback after a
+PostgreSQL connection or validation failure.
 
 ## Disposable PostgreSQL verification
 

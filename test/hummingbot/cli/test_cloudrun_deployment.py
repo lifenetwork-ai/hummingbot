@@ -52,7 +52,7 @@ def test_partial_smoke_report_cannot_approve_release(candidate):
         review(path, evidence=evidence)
 
 
-@pytest.mark.parametrize("mutation", ["cpu", "secret", "tag"])
+@pytest.mark.parametrize("mutation", ["cpu", "secret", "tag", "file-storage", "env-file"])
 def test_deploy_review_rejects_settings_that_break_the_tested_contract(candidate, mutation):
     data, path, evidence = candidate
     revision = data["spec"]["template"]
@@ -61,6 +61,10 @@ def test_deploy_review_rejects_settings_that_break_the_tested_contract(candidate
         revision["metadata"]["annotations"]["run.googleapis.com/cpu-throttling"] = "true"
     elif mutation == "secret":
         next(item for item in container["env"] if item["name"] == "DATABASE_URL")["valueFrom"]["secretKeyRef"]["key"] = "latest"
+    elif mutation == "file-storage":
+        next(item for item in container["env"] if item["name"] == "STORAGE_BACKEND")["value"] = "file"
+    elif mutation == "env-file":
+        container["env"].append({"name": "ENV_FILE", "value": "/tmp/env"})
     else:
         container["image"] = "example.invalid/project/bot:latest"
     write(data, path)
