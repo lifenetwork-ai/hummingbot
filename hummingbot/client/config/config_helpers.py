@@ -204,6 +204,8 @@ class ClientConfigAdapter:
 
     def decrypt_all_secure_data(self):
         from hummingbot.client.config.security import Security  # avoids circular import
+        if Security.uses_environment_credentials():
+            raise RuntimeError("Environment credentials must not enter the keystore decryption path.")
 
         secure_config_items = (
             traversal_item
@@ -262,6 +264,8 @@ class ClientConfigAdapter:
         from hummingbot.client.config.security import Security  # avoids circular import
         for attr, value in conf_dict.items():
             if isinstance(value, SecretStr):
+                if Security.uses_environment_credentials():
+                    raise RuntimeError("Environment credentials must not be serialized to configuration files.")
                 clear_text_value = value.get_secret_value() if isinstance(value, SecretStr) else value
                 if not Security.secrets_manager:
                     logging.getLogger().warning(f"Ignore the following error if your config file {attr} contains secret(s)")
@@ -622,13 +626,16 @@ def get_strategy_pydantic_config_cls(strategy_name: str):
     return pydantic_cm_class
 
 
-async def load_strategy_config_map_from_file(yml_path: Path) -> Union[ClientConfigAdapter, Dict[str, ConfigVar]]:
+async def load_strategy_config_map_from_file(yml_path: Path, *, read_only: bool = False) -> Union[ClientConfigAdapter, Dict[str, ConfigVar]]:
     strategy_name = strategy_name_from_file(yml_path)
     config_cls = get_strategy_pydantic_config_cls(strategy_name)
     if config_cls is None:  # legacy
         config_map = get_strategy_config_map(strategy_name)
         template_path = get_strategy_template_path(strategy_name)
-        await load_yml_into_cm_legacy(str(yml_path), str(template_path), config_map)
+        if read_only:
+            await load_yml_into_cm_legacy(str(yml_path), str(template_path), config_map, read_only=True)
+        else:
+            await load_yml_into_cm_legacy(str(yml_path), str(template_path), config_map)
     else:
         config_data = read_yml_file(yml_path)
         hb_config = config_cls(**config_data)
@@ -645,7 +652,7 @@ def load_connector_config_map_from_file(yml_path: Path) -> ClientConfigAdapter:
     return config_map
 
 
-def load_client_config_map_from_file() -> ClientConfigAdapter:
+def load_client_config_map_from_file(*, read_only: bool = False) -> ClientConfigAdapter:
     yml_path = CLIENT_CONFIG_PATH
     if yml_path.exists():
         config_data = read_yml_file(yml_path)
@@ -653,11 +660,12 @@ def load_client_config_map_from_file() -> ClientConfigAdapter:
         config_data = {}
     client_config = ClientConfigMap(**config_data)
     config_map = ClientConfigAdapter(client_config)
-    save_to_yml(yml_path, config_map)
+    if not read_only:
+        save_to_yml(yml_path, config_map)
     return config_map
 
 
-def load_ssl_config_map_from_file() -> ClientConfigAdapter:
+def load_ssl_config_map_from_file(*, read_only: bool = False) -> ClientConfigAdapter:
     yml_path = GATEWAY_SSL_CONF_FILE
     if yml_path.exists():
         config_data = read_yml_file(yml_path)
@@ -666,7 +674,7 @@ def load_ssl_config_map_from_file() -> ClientConfigAdapter:
     ssl_config = SSLConfigMap(**config_data)
     config_map = ClientConfigAdapter(ssl_config)
 
-    if yml_path.exists():
+    if yml_path.exists() and not read_only:
         save_to_yml(yml_path, config_map)
 
     return config_map
@@ -728,7 +736,7 @@ async def save_yml_from_dict(yml_path: str, conf_dict: Dict[str, Any]):
         logging.getLogger().error(f"Error writing configs: {str(e)}", exc_info=True)
 
 
-async def load_yml_into_cm_legacy(yml_path: str, template_file_path: str, cm: Dict[str, ConfigVar]):
+async def load_yml_into_cm_legacy(yml_path: str, template_file_path: str, cm: Dict[str, ConfigVar], *, read_only: bool = False):
     try:
         data = {}
         conf_version = -1
@@ -763,13 +771,15 @@ async def load_yml_into_cm_legacy(yml_path: str, template_file_path: str, cm: Di
             if cvar.value is not None:
                 err_msg = await cvar.validate(str(cvar.value))
                 if err_msg is not None:
+                    if read_only:
+                        raise ConfigValidationError(f"Invalid deployed YAML field: {key}")
                     # Instead of raising an exception, simply skip over this variable and wait till the user is prompted
                     logging.getLogger().error(
                         "Invalid value %s for config variable %s: %s" % (val_in_file, cvar.key, err_msg)
                     )
                     cvar.value = None
 
-        if conf_version < template_version:
+        if conf_version < template_version and not read_only:
             # delete old config file
             if isfile(yml_path):
                 unlink(yml_path)
@@ -778,20 +788,26 @@ async def load_yml_into_cm_legacy(yml_path: str, template_file_path: str, cm: Di
             # save the old variables into the new config file
             save_to_yml_legacy(yml_path, cm)
     except Exception as e:
+        if read_only:
+            from hummingbot.client.config.runtime_config import RuntimeConfigurationError
+            raise RuntimeConfigurationError("Unable to load deployed YAML configuration.") from None
         logging.getLogger().error("Error loading configs. Your config file may be corrupt. %s" % (e,),
                                   exc_info=True)
 
 
-async def read_system_configs_from_yml():
+async def read_system_configs_from_yml(*, read_only: bool = False):
     """
     Read global config and selected strategy yml files and save the values to corresponding config map
     If a yml file is outdated, it gets reformatted with the new template
     """
-    await load_yml_into_cm_legacy(
-        str(TRADE_FEES_CONFIG_PATH), str(TEMPLATE_PATH / "conf_fee_overrides_TEMPLATE.yml"), fee_overrides_config_map
-    )
+    args = (str(TRADE_FEES_CONFIG_PATH), str(TEMPLATE_PATH / "conf_fee_overrides_TEMPLATE.yml"), fee_overrides_config_map)
+    if read_only:
+        await load_yml_into_cm_legacy(*args, read_only=True)
+    else:
+        await load_yml_into_cm_legacy(*args)
     # In case config maps get updated (due to default values)
-    save_system_configs_to_yml()
+    if not read_only:
+        save_system_configs_to_yml()
 
 
 def save_system_configs_to_yml():

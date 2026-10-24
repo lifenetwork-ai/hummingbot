@@ -180,8 +180,13 @@ def balance(
     as_json: bool = json_option(),
 ) -> None:
     """Show your connector balances, with their value in USD."""
+    from hummingbot.client.config.runtime_config import RuntimeConfigurationError, load_environment, postgres_requested
     from hummingbot.client.settings import AllConnectorSettings
-    ccm, password = login(password_stdin=password_stdin)
+    load_environment()
+    if postgres_requested() and connector is not None:
+        ccm, password = login(password_stdin=password_stdin, connectors=[connector])
+    else:
+        ccm, password = login(password_stdin=password_stdin)
 
     sym = ccm.global_token.global_token_symbol
     timeout = float(ccm.commands_timeout.other_commands_timeout)
@@ -195,8 +200,10 @@ def balance(
             result, err = asyncio.run(_fetch_one(ccm, connector, timeout, with_prices))
         except asyncio.TimeoutError:
             fail("network timeout fetching balances", ExitCode.TIMEOUT)
+        except RuntimeConfigurationError as error:
+            fail(str(error), ExitCode.CONFIG_ERROR)
         if err is not None:
-            fail(f"{connector}: {err}", ExitCode.ERROR)
+            fail(f"{connector}: connection check failed" if postgres_requested() else f"{connector}: {err}", ExitCode.ERROR)
     else:
         try:
             result = asyncio.run(_fetch_all(ccm, timeout, with_prices))

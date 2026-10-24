@@ -55,13 +55,25 @@ def unlock_keystore(password: str) -> None:
         fail("invalid password", ExitCode.CONFIG_ERROR)
 
 
-def login(*, password_stdin: bool = False, confirm: bool = False):
+def login(*, password_stdin: bool = False, confirm: bool = False, connectors=None):
     """Resolve the keystore password, load the client config, and unlock Security.
 
     Returns ``(client_config_map, password)``; fails with a clear error on a bad password. The heavy
     config/security imports are deferred here so commands that don't authenticate stay fast to import.
     """
     from hummingbot.client.config.config_helpers import load_client_config_map_from_file
+    from hummingbot.client.config.runtime_config import RuntimeConfigurationError, load_environment, postgres_requested
+    load_environment()
+    if postgres_requested():
+        from hummingbot.client.config.environment_credentials import configured_environment_connectors
+        from hummingbot.client.config.security import Security
+        from hummingbot.client.settings import connectable_exchange_names
+        try:
+            selected = connectors if connectors is not None else configured_environment_connectors(connectable_exchange_names())
+            Security.initialize_from_environment(selected)
+            return load_client_config_map_from_file(read_only=True), None
+        except RuntimeConfigurationError as error:
+            fail(str(error), ExitCode.CONFIG_ERROR)
     password = resolve_password(password_stdin=password_stdin, confirm=confirm)
     client_config_map = load_client_config_map_from_file()
     unlock_keystore(password)

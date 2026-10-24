@@ -117,7 +117,9 @@ async def run_engine(name: str,
     from hummingbot.model.sql_connection_manager import SQLConnectionManager
     if postgres_requested():
         SQLConnectionManager.initialize_postgres(RuntimeSettings.from_environment())
-    client_config_map = load_client_config_map_from_file()
+    use_postgres = postgres_requested()
+    client_config_map = (load_client_config_map_from_file(read_only=True) if use_postgres
+                         else load_client_config_map_from_file())
 
     if auto_set_permissions is not None:
         autofix_permissions(auto_set_permissions)
@@ -125,15 +127,19 @@ async def run_engine(name: str,
     # Boot headless with per-instance logging up front: the structured log at logs/logs_<name>.log is
     # the single rotating log (read by `hbot logs`); silence_console drops the stdout handlers that would
     # otherwise duplicate into the redirected, non-rotating bot.log. No MQTT (this engine isn't run_headless).
+    bootstrap_options = dict(strategy_file_name=name, override_log_level=client_config_map.log_level,
+                             headless=True, silence_console=not use_postgres)
+    if use_postgres:
+        bootstrap_options.update(environment_connectors=[], read_only_configuration=True)
     hb = await bootstrap_application(
-        client_config_map, ETHKeyFileSecretManger(password),
-        strategy_file_name=name, override_log_level=client_config_map.log_level,
-        headless=True, silence_console=True)
+        client_config_map, None if use_postgres else ETHKeyFileSecretManger(password), **bootstrap_options)
     if hb is None:
         return 4
 
-    started = await load_and_start_strategy(
-        hb, config_file_name=config_file_name, v2_conf=v2_conf, headless=True)
+    strategy_options = dict(config_file_name=config_file_name, v2_conf=v2_conf, headless=True)
+    if use_postgres:
+        strategy_options["read_only_configuration"] = True
+    started = await load_and_start_strategy(hb, **strategy_options)
     if not started:
         logging.getLogger().error("Failed to load strategy. Exiting.")
         return 1
@@ -169,7 +175,8 @@ def main() -> None:
     password = os.environ.get("HBOT_PASSWORD") or os.environ.get("CONFIG_PASSWORD")
     os.environ.pop("HBOT_PASSWORD", None)
     os.environ.pop("CONFIG_PASSWORD", None)
-    if not password:
+    from hummingbot.client.config.runtime_config import postgres_requested
+    if not password and not postgres_requested():
         sys.stderr.write("HBOT_PASSWORD is not set; the engine cannot unlock the keystore.\n")
         sys.exit(4)
 

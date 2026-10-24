@@ -78,6 +78,37 @@ def _show_connections(ccm, password_stdin: bool) -> None:
                       title="connections", max_widths={"error": 100}))
 
 
+def _environment_connections(connector, show_all: bool) -> None:
+    from hummingbot.client.config.config_helpers import load_client_config_map_from_file
+    from hummingbot.client.config.environment_credentials import configured_environment_connectors
+    from hummingbot.client.config.runtime_config import RuntimeConfigurationError
+    from hummingbot.client.config.security import Security
+    from hummingbot.user.user_balances import UserBalances
+    names = _connectable_exchanges()
+    configured = configured_environment_connectors(names)
+    if show_all:
+        echo(render_table([{"connector": name, "keys_added": name in configured} for name in names],
+                          columns=["connector", "keys_added"], title="environment connectors"))
+        return
+    selected = [connector] if connector else configured
+    if not selected:
+        echo("No connector credentials configured; set HBOT_<CONNECTOR_FIELD> environment values and restart.")
+        return
+    try:
+        Security.initialize_from_environment(selected)
+        ccm = load_client_config_map_from_file(read_only=True)
+        errors = asyncio.run(asyncio.wait_for(
+            UserBalances.instance().update_exchanges(ccm, reconnect=True, exchanges=selected),
+            float(ccm.commands_timeout.other_commands_timeout)))
+    except RuntimeConfigurationError as error:
+        fail(str(error), ExitCode.CONFIG_ERROR)
+    except asyncio.TimeoutError:
+        fail("network timeout testing connections", ExitCode.TIMEOUT)
+    rows = [{"connector": name, "keys_added": True, "keys_confirmed": errors.get(name) is None,
+             "error": None if errors.get(name) is None else "connection check failed"} for name in selected]
+    echo(render_table(rows, columns=["connector", "keys_added", "keys_confirmed", "error"], title="environment connections"))
+
+
 def _collect_key_values(fields: List[Any], cfg: "ClientConfigAdapter",
                         keys_stdin: bool) -> Dict[str, str]:
     if keys_stdin or not sys.stdin.isatty():
@@ -113,8 +144,18 @@ def connect(
 ) -> None:
     """Show connections or add a connector's API keys."""
     from hummingbot.client.config.config_helpers import ClientConfigAdapter, load_client_config_map_from_file
+    from hummingbot.client.config.runtime_config import load_environment, postgres_requested
     from hummingbot.client.config.security import Security
     from hummingbot.client.settings import AllConnectorSettings
+    load_environment()
+
+    if postgres_requested() and not show_fields:
+        if keys_stdin or replace or password_stdin:
+            fail("Environment credentials are read-only; update the environment and restart.", ExitCode.CONFIG_ERROR)
+        if connector is not None and connector not in _connectable_exchanges():
+            fail(f"unknown connector '{connector}'", ExitCode.CONFIG_ERROR)
+        _environment_connections(connector, show_all)
+        return
 
     if connector is None:
         if show_all:

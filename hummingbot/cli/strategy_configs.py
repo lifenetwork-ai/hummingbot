@@ -508,12 +508,8 @@ def wrap_controller_as_v2(controller_filename: str) -> str:
     Returns the generated loader config filename (in conf/scripts/); its stem is the bot's DB/log name.
     """
     loader = controller_loader_name(controller_filename)
-    content = {
-        "script_file_name": V2_CONTROLLER_RUNNER,
-        "controllers_config": [controller_filename],
-        "max_global_drawdown_quote": None,
-        "max_controller_drawdown_quote": None,
-    }
+    from hummingbot.client.runner import controller_runner_config
+    content = controller_runner_config(controller_filename)
     with open(config_path("v2-script", loader), "w") as f:
         yaml.safe_dump(content, f, default_flow_style=False, sort_keys=False)
     return loader

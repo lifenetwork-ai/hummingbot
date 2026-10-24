@@ -2,7 +2,7 @@
 
 Created: 2026-10-24 — Asia/Ho_Chi_Minh.
 
-Status: **implementation in progress — P0–P2 storage/bootstrap work verified, P3 next; final safety/service integration and offline E2E remain pending**. The runtime is not deployment-ready. Checked items have implementation/review/test evidence; unchecked items remain pending. Cloud Run staging is not required.
+Status: **implementation in progress — P0–P3 core changes verified, P4 next; final safety/service integration and offline E2E remain pending**. The runtime is not deployment-ready. Checked items have implementation/review/test evidence; unchecked items remain pending. Cloud Run staging is not required.
 
 Reviewed sources:
 
@@ -241,7 +241,7 @@ The example assumes the selected `psycopg2` driver is installed. Use the validat
 - [x] E4: Parse `ENABLE_AUTO_MIGRATION` explicitly as a boolean: accept trimmed, case-insensitive `true`/`false`; reject other values. Never use `bool(string)`, which makes `"false"` truthy. Apply the default only when the variable is absent.
 - [x] E5: On Cloud Run Service, detect `K_SERVICE` from the process environment before dotenv loading and skip dotenv discovery/loading. Require direct environment/Secret Manager injection; reject an explicitly requested local dotenv path in that mode.
 - [x] E6: Add a documented `.env.example` with placeholders. Keep actual `.env`/secret variants out of Git and the Docker build context; review `.gitignore` and `.dockerignore`, allowing only safe examples where useful.
-- [ ] E7: Validate only settings needed by the selected command and configured connectors. Never print full connection URLs, environment dumps, API keys or passphrases in logs/errors/status.
+- [x] E7: Validate only settings needed by the selected command and configured connectors. Never print full connection URLs, environment dumps, API keys or passphrases in logs/errors/status.
 - [x] E8: Document local `.env`, local Docker `--env-file`, and Cloud Run environment/Secret Manager setup. Use explicit secret versions for a deployment; credential rotation takes effect through a controlled restart/new revision.
 
 ### 4.5. Connector credentials from environment variables
@@ -250,12 +250,12 @@ Reuse connector field declarations and Pydantic validation, including `SecretStr
 
 A proposed deterministic naming rule is `HBOT_` plus the uppercase existing field name. For OKX spot, this maps `HBOT_OKX_API_KEY`, `HBOT_OKX_SECRET_KEY` and `HBOT_OKX_PASSPHRASE` to the existing fields. OKX perpetual has separate fields, so use `HBOT_OKX_PERPETUAL_API_KEY`, `HBOT_OKX_PERPETUAL_SECRET_KEY` and `HBOT_OKX_PERPETUAL_PASSPHRASE`. Non-secret connection fields such as the OKX registration subdomain can use the same mapping.
 
-- [ ] C1: Build the existing connector config objects from environment values, validate them, and populate the same in-memory settings consumed by connector factories/UserBalances.
-- [ ] C2: Validate credentials for the selected connectors; missing or partial credentials fail clearly. Do not silently fall back to encrypted YAML or combine different credential sources for one connector.
-- [ ] C3: The cloud environment path bypasses `Security.login()` file/password verification and does not require `HBOT_PASSWORD` or `conf/.password_verification`. Preserve any readiness signals/in-memory initialization that downstream code expects.
-- [ ] C4: Prevent calls that encrypt/decrypt or serialize environment secrets back to YAML, PostgreSQL or generated wrappers. Keep redaction and `SecretStr` behavior; allow plaintext only where connector authentication needs it in memory.
-- [ ] C5: Reuse connection checks in `hbot connect`/`balance` for environment-supplied credentials. Do not automatically edit `.env` or publish secrets from a service process. Document configuring the variables and redeploying when credentials change.
-- [ ] C6: Keep existing encrypted YAML support only as an explicit legacy path if required. A one-time import may reuse `ETHKeyFileSecretManger` and password verification to decrypt existing values for operator-managed migration to secrets; it must not become a cloud startup dependency.
+- [x] C1: Build the existing connector config objects from environment values, validate them, and populate the same in-memory settings consumed by connector factories/UserBalances.
+- [x] C2: Validate credentials for the selected connectors; missing or partial credentials fail clearly. Do not silently fall back to encrypted YAML or combine different credential sources for one connector.
+- [x] C3: The cloud environment path bypasses `Security.login()` file/password verification and does not require `HBOT_PASSWORD` or `conf/.password_verification`. Preserve any readiness signals/in-memory initialization that downstream code expects.
+- [x] C4: Prevent calls that encrypt/decrypt or serialize environment secrets back to YAML, PostgreSQL or generated wrappers. Keep redaction and `SecretStr` behavior; allow plaintext only where connector authentication needs it in memory.
+- [x] C5: Reuse connection checks in `hbot connect`/`balance` for environment-supplied credentials. Do not automatically edit `.env` or publish secrets from a service process. Document configuring the variables and redeploying when credentials change.
+- [x] C6: Keep existing encrypted YAML support only as an explicit legacy path if required. A one-time import may reuse `ETHKeyFileSecretManger` and password verification to decrypt existing values for operator-managed migration to secrets; it must not become a cloud startup dependency.
 
 The original encrypted-file path derives keys from a keystore password, encrypts individual secret fields and stores ciphertext in connector YAML. With environment credentials, `.env` contains sensitive values directly on the local machine and Secret Manager supplies them to the cloud process. This replaces the storage/input path; it does not add application-level encryption to environment variables.
 
@@ -342,15 +342,19 @@ P2 delivery: additive `006_add_order_recovery.sql` marks provisional orders expl
 
 ### P3 — Retain YAML and supply credentials through the environment
 
-- [ ] P3.1: Complete section 4.3 and C1–C6 in section 4.5. Keep ClientConfigAdapter, existing config classes and YAML formats rather than adding configuration repositories.
-- [ ] P3.2: Retain ordinary client, fee, V1/V2 and controller YAML. Separate secret loading and DB connection bootstrap from those YAML defaults.
-- [ ] P3.3: Reuse TradingCore's existing strategy startup/configuration paths; add only the adaptation needed for read-only deployed configuration and environment-backed connector settings.
-- [ ] P3.4: Preserve V2 controller loading; make generated wrappers reproducible in memory or a temporary working directory. Do not persist environment credentials in generated files.
-- [ ] P3.5: Initialize validated connector settings in memory without encrypted-file login in the cloud path. Test downstream users of Security state and readiness events so they do not wait indefinitely.
-- [ ] P3.6: Retain local `create/config/import` YAML behavior. Adapt `connect` and `balance` to validate environment credentials; keep secrets out of argv and normal CLI output.
-- [ ] P3.7: Startup must not create a new keystore/password file or overwrite configuration. Missing required environment credentials fail clearly; an explicitly unconfigured/stopped bot must not start trading.
+- [x] P3.1: Complete section 4.3 and C1–C6 in section 4.5. Keep ClientConfigAdapter, existing config classes and YAML formats rather than adding configuration repositories.
+- [x] P3.2: Retain ordinary client, fee, V1/V2 and controller YAML. Separate secret loading and DB connection bootstrap from those YAML defaults.
+- [x] P3.3: Reuse TradingCore's existing strategy startup/configuration paths; add only the adaptation needed for read-only deployed configuration and environment-backed connector settings.
+- [x] P3.4: Preserve V2 controller loading; make generated wrappers reproducible in memory or a temporary working directory. Do not persist environment credentials in generated files.
+- [x] P3.5: Initialize validated connector settings in memory without encrypted-file login in the cloud path. Test downstream users of Security state and readiness events so they do not wait indefinitely.
+- [x] P3.6: Retain local `create/config/import` YAML behavior. Adapt `connect` and `balance` to validate environment credentials; keep secrets out of argv and normal CLI output.
+- [x] P3.7: Startup must not create a new keystore/password file or overwrite configuration. Missing required environment credentials fail clearly; an explicitly unconfigured/stopped bot must not start trading.
 - [ ] P3.8: Preserve local hot-update rules from existing field metadata. On cloud, apply config/secret changes through a versioned deployment and expose the active config/revision in status; live cloud config editing is not required.
 - [ ] P3.9: Provide legacy SQLite/credential import only if needed, as a separate explicit operation. Read sources without mutation; make DB imports idempotent and verify counts, Decimal values and timestamps. Never make legacy files a startup dependency.
+
+P3 evidence (2026-10-24): selected regression suites plus environment credential/configuration tests passed **645 tests** (16.72s). OKX spot/perpetual use their existing Pydantic/SecretStr field declarations. Tests cover missing/partial credentials, secret-safe validation errors, source isolation, no keystore login/serialization, read-only client/SSL/fee YAML loading, shared application bootstrap, in-memory controller wrappers, CLI connect/balance reuse and help/version without DB/secrets.
+
+P3 delivery: environment credentials initialize the existing Security readiness state and are validated when the existing connector manager selects a connector; no encrypted YAML fallback occurs. `connect` checks injected credentials instead of storing them; `balance` supports selected/all environment-configured connectors. Cloud bootstrap uses read-only YAML and stdout logging without first opening file handlers. Local legacy encrypted input remains available through the existing explicit legacy path. Controller wrappers reuse the existing V2 runner/configuration using a dictionary rather than a generated deployed file. Deployment/config revision reporting is integrated in P4/P6; optional SQLite/credential export/import is not requested or delivered.
 
 ### P4 — CLI and PostgreSQL runtime control
 

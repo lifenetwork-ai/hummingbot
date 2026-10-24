@@ -83,3 +83,29 @@ its own container. It never loads `.env`. Docker/image availability is required;
 failure to provide test infrastructure fails the command instead of skipping tests.
 Direct integration invocation requires `HBOT_TEST_POSTGRES_URL` and a database
 name starting `hbot_test_`; **that test database's public schema is erased**.
+
+## Environment connector credentials and YAML
+
+With PostgreSQL selected, exchange secrets come only from process variables (or
+local dotenv input). Names are `HBOT_` plus each existing connector field in
+uppercase: OKX spot uses `HBOT_OKX_API_KEY`, `HBOT_OKX_SECRET_KEY`,
+`HBOT_OKX_PASSPHRASE`; perpetual uses the `HBOT_OKX_PERPETUAL_` equivalents.
+`HBOT_OKX_REGISTRATION_SUB_DOMAIN` retains the existing `www`/`app`/`my` validation.
+Only selected connectors require complete credentials; an unconfigured/stopped bot
+can bootstrap without exchange secrets. Environment mode requires neither
+`HBOT_PASSWORD` nor `.password_verification` nor encrypted connector YAML. It never
+writes environment credentials back to files or PostgreSQL.
+
+`hbot connect okx` checks configured environment values through the existing
+balance/connection APIs; `hbot connect --fields okx` lists field declarations.
+`hbot balance okx --units-only` skips rate-oracle pricing. These commands contact
+the selected exchange; unit tests mock that external boundary. `--keys-stdin`,
+`--replace` and password input do not update environment credentials. Set values
+in the local environment or Secret Manager and restart/deploy the intended version.
+
+Client/strategy/controller/fee YAML formats remain unchanged. Service bootstrap
+reads deployed YAML without refreshing templates or writing defaults back. The
+controller runner uses a reproducible in-memory wrapper. Existing local YAML
+editing remains available; packaging/deploying a new YAML version is the durable
+cloud update mechanism. The service's final lifecycle/revision integration remains
+part of the implementation plan, not evidence of a completed deployment.

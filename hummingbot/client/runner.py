@@ -16,7 +16,7 @@ import os
 import pwd
 import subprocess
 from pathlib import Path
-from typing import Optional
+from typing import Iterable, Optional
 
 import yaml
 
@@ -72,12 +72,23 @@ async def load_and_start_strategy(hb: HummingbotApplication,
                                   *,
                                   config_file_name: Optional[str] = None,
                                   v2_conf: Optional[str] = None,
-                                  headless: bool = False) -> bool:
+                                  headless: bool = False,
+                                  read_only_configuration: bool = False,
+                                  controller_conf: Optional[str] = None) -> bool:
     """Load a strategy/script config and (in headless mode) start it.
 
     Mirrors the legacy quickstart flow. Returns False on any load/start failure.
     """
-    if v2_conf:
+    if controller_conf:
+        from hummingbot.client.settings import CONTROLLERS_CONF_DIR_PATH
+        if not (CONTROLLERS_CONF_DIR_PATH / controller_conf).is_file():
+            logging.getLogger().error("Controller configuration is absent from the deployed config set.")
+            return False
+        hb.strategy_file_name = controller_conf
+        hb.trading_core.strategy_name = "v2_with_controllers"
+        return await hb.trading_core.start_strategy(
+            "v2_with_controllers", controller_runner_config(controller_conf), controller_conf)
+    elif v2_conf:
         # V2 config-driven start: derive script from config file
         conf_path = SCRIPT_STRATEGY_CONF_DIR_PATH / v2_conf
         if not conf_path.exists():
@@ -110,9 +121,11 @@ async def load_and_start_strategy(hb: HummingbotApplication,
         hb.strategy_file_name = config_file_name.split(".")[0]  # Remove .yml extension
 
         try:
-            strategy_config = await load_strategy_config_map_from_file(
-                STRATEGIES_CONF_DIR_PATH / config_file_name
-            )
+            if read_only_configuration:
+                strategy_config = await load_strategy_config_map_from_file(
+                    STRATEGIES_CONF_DIR_PATH / config_file_name, read_only=True)
+            else:
+                strategy_config = await load_strategy_config_map_from_file(STRATEGIES_CONF_DIR_PATH / config_file_name)
         except FileNotFoundError:
             logging.getLogger().error(
                 f"Strategy config file not found: {STRATEGIES_CONF_DIR_PATH / config_file_name}")
@@ -156,6 +169,8 @@ async def bootstrap_application(
     headless: bool = False,
     mqtt_autostart: bool = False,
     silence_console: bool = False,
+    environment_connectors: Optional[Iterable[str]] = None,
+    read_only_configuration: bool = False,
 ) -> Optional[HummingbotApplication]:
     """Shared boot sequence for the legacy quickstart and the hbot engine: log in, decrypt, write the
     legacy yml files, init logging, read system configs, apply paper-trade settings, and build the
@@ -165,20 +180,38 @@ async def bootstrap_application(
     from hummingbot import init_logging
     from hummingbot.client.config.config_helpers import create_yml_files_legacy, read_system_configs_from_yml
     from hummingbot.client.config.security import Security
-    if not Security.login(secrets_manager):
-        logging.getLogger().error("Invalid password.")
-        return None
+    if environment_connectors is not None:
+        Security.initialize_from_environment(environment_connectors)
+    else:
+        if not Security.login(secrets_manager):
+            logging.getLogger().error("Invalid password.")
+            return None
     await Security.wait_til_decryption_done()
-    await create_yml_files_legacy()
-    init_logging("hummingbot_logs.yml", client_config_map,
-                 override_log_level=override_log_level, strategy_file_path=strategy_file_name)
+    if not read_only_configuration:
+        await create_yml_files_legacy()
+    logging_args = dict(override_log_level=override_log_level, strategy_file_path=strategy_file_name)
+    if read_only_configuration:
+        logging_args["console_only"] = True
+    init_logging("hummingbot_logs.yml", client_config_map, **logging_args)
     if silence_console:
         silence_console_handlers()
-    await read_system_configs_from_yml()
+    if read_only_configuration:
+        await read_system_configs_from_yml(read_only=True)
+    else:
+        await read_system_configs_from_yml()
     if mqtt_autostart:
         client_config_map.mqtt_bridge.mqtt_autostart = True
     AllConnectorSettings.initialize_paper_trade_settings(client_config_map.paper_trade.paper_trade_exchanges)
+    if read_only_configuration:
+        return HummingbotApplication.main_application(client_config_map=client_config_map, headless_mode=headless,
+                                                      read_only_configuration=True)
     return HummingbotApplication.main_application(client_config_map=client_config_map, headless_mode=headless)
+
+
+def controller_runner_config(controller_filename: str) -> dict:
+    """Same existing controller runner, with a reproducible in-memory wrapper."""
+    return {"script_file_name": "v2_with_controllers.py", "controllers_config": [controller_filename],
+            "max_global_drawdown_quote": None, "max_controller_drawdown_quote": None}
 
 
 def silence_console_handlers() -> None:

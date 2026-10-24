@@ -129,7 +129,8 @@ def get_logging_conf(conf_filename: str = 'hummingbot_logs.yml'):
 def init_logging(conf_filename: str,
                  client_config_map: "_ClientConfigAdapter",
                  override_log_level: Optional[str] = None,
-                 strategy_file_path: str = "hummingbot"):
+                 strategy_file_path: str = "hummingbot",
+                 console_only: bool = False):
     import io
     import logging.config
     from os.path import join
@@ -147,6 +148,19 @@ def init_logging(conf_filename: str,
 
     # Do not raise exceptions during log handling
     logging.raiseExceptions = False
+
+    if console_only:
+        # Do not open configured rotating files at all; deleting handlers afterward
+        # would already have written to the ephemeral/read-only filesystem.
+        for name in list(logging.root.manager.loggerDict):
+            logger = logging.getLogger(name)
+            for handler in list(logger.handlers):
+                logger.removeHandler(handler)
+                handler.close()
+            logger.propagate = True
+        logging.basicConfig(level=override_log_level or "INFO", stream=sys.stdout,
+                            format="%(asctime)s %(levelname)s %(name)s %(message)s", force=True)
+        return
 
     file_path: str = join(prefix_path(), "conf", conf_filename)
     yaml_parser: YAML = YAML()

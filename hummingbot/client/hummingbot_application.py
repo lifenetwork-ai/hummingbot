@@ -51,18 +51,25 @@ class HummingbotApplication(*commands):
         return s_logger
 
     @classmethod
-    def main_application(cls, client_config_map: Optional[ClientConfigAdapter] = None, headless_mode: bool = False) -> "HummingbotApplication":
+    def main_application(cls, client_config_map: Optional[ClientConfigAdapter] = None, headless_mode: bool = False,
+                         read_only_configuration: bool = False) -> "HummingbotApplication":
         if cls._main_app is None:
-            cls._main_app = HummingbotApplication(client_config_map=client_config_map, headless_mode=headless_mode)
+            if read_only_configuration:
+                cls._main_app = HummingbotApplication(client_config_map=client_config_map, headless_mode=headless_mode,
+                                                      read_only_configuration=True)
+            else:
+                cls._main_app = HummingbotApplication(client_config_map=client_config_map, headless_mode=headless_mode)
         return cls._main_app
 
-    def __init__(self, client_config_map: Optional[ClientConfigAdapter] = None, headless_mode: bool = False):
+    def __init__(self, client_config_map: Optional[ClientConfigAdapter] = None, headless_mode: bool = False,
+                 read_only_configuration: bool = False):
         self.client_config_map: Union[ClientConfigMap, ClientConfigAdapter] = (  # type-hint enables IDE auto-complete
-            client_config_map or load_client_config_map_from_file()
+            client_config_map or (load_client_config_map_from_file(read_only=True) if read_only_configuration
+                                  else load_client_config_map_from_file())
         )
         self.headless_mode = headless_mode
         self.ssl_config_map: SSLConfigMap = (  # type-hint enables IDE auto-complete
-            load_ssl_config_map_from_file()
+            load_ssl_config_map_from_file(read_only=True) if read_only_configuration else load_ssl_config_map_from_file()
         )
         self.ev_loop: asyncio.AbstractEventLoop = asyncio.get_event_loop()
         # Initialize core trading functionality

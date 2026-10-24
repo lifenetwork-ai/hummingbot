@@ -124,7 +124,10 @@ class UserBalances:
         tasks = []
         # Update user balances
         if len(exchanges) == 0:
-            exchanges = [cs.name for cs in AllConnectorSettings.get_connector_settings().values()]
+            if Security.uses_environment_credentials():
+                exchanges = list(Security.all_decrypted_values())
+            else:
+                exchanges = [cs.name for cs in AllConnectorSettings.get_connector_settings().values()]
         exchanges: List[str] = [
             cs.name
             for cs in AllConnectorSettings.get_connector_settings().values()
