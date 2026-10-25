@@ -9,7 +9,6 @@ from pydantic import ConfigDict, Field, field_validator
 
 from hummingbot.client.config.config_data_types import BaseClientModel
 from hummingbot.core.data_type.common import MarketDict, PositionAction, PriceType, TradeType
-from hummingbot.core.utils.async_utils import safe_ensure_future
 from hummingbot.data_feed.candles_feed.data_types import CandlesConfig
 from hummingbot.data_feed.market_data_provider import MarketDataProvider
 from hummingbot.strategy_v2.executors.order_executor.data_types import (
@@ -205,6 +204,7 @@ class ControllerBase(RunnableBase):
         self.executors_update_event = asyncio.Event()
         self.executors_info_queue = asyncio.Queue()
         self._control_loop_task = None
+        self._control_tasks = set()
 
     def start(self):
         """
@@ -214,17 +214,23 @@ class ControllerBase(RunnableBase):
             self.terminated.clear()
             self._status = RunnableStatus.RUNNING
             self.executors_update_event.set()
-            previous = self._control_loop_task
-            self._control_loop_task = safe_ensure_future(self._run_control_loop(previous))
+            previous = tuple(self._control_tasks)
+            # Schedule the coroutine itself: cancel-before-first-tick must not
+            # strand an unawaited coroutine inside a separate safety wrapper.
+            self._control_loop_task = asyncio.ensure_future(self._run_control_loop(previous))
+            self._control_tasks.add(self._control_loop_task)
+            self._control_loop_task.add_done_callback(self._control_tasks.discard)
         self.initialize_candles()
 
     async def _run_control_loop(self, previous):
         try:
             # A synchronous stop/start must retire the old task and its reference
             # subscriptions before the next generation can acquire them.
-            if previous is not None:
-                await asyncio.gather(previous, return_exceptions=True)
+            if previous:
+                await asyncio.shield(asyncio.gather(*previous, return_exceptions=True))
             await self.control_loop()
+        except Exception:
+            self.logger().error("Controller control loop failed.", exc_info=True)
         finally:
             if asyncio.current_task() is self._control_loop_task:
                 self._status = RunnableStatus.TERMINATED
@@ -239,8 +245,10 @@ class ControllerBase(RunnableBase):
 
     async def wait_closed(self):
         """Wait for the retained control task, including asynchronous cleanup."""
-        if self._control_loop_task is not None:
-            await asyncio.gather(self._control_loop_task, return_exceptions=True)
+        while self._control_tasks:
+            tasks = tuple(self._control_tasks)
+            await asyncio.gather(*tasks, return_exceptions=True)
+            self._control_tasks.difference_update(tasks)
 
     def initialize_candles(self):
         """

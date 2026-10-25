@@ -108,3 +108,43 @@ async def test_life_reference_release_finishes_before_wait_closed_returns():
         release.set()
         await asyncio.wait_for(waiting, .5)
     item.market_data_provider.release_order_books.assert_awaited_once_with("okx", ["BTC-USDT"], item)
+
+
+@pytest.mark.asyncio
+async def test_stop_start_stop_keeps_awaiting_the_older_generations_cleanup():
+    item = controller()
+    started, releasing, release = asyncio.Event(), asyncio.Event(), asyncio.Event()
+    starts = []
+
+    async def work():
+        starts.append(True)
+        started.set()
+        await asyncio.Event().wait()
+
+    async def cleanup():
+        releasing.set()
+        await release.wait()
+
+    item.control_task, item.on_stop = work, cleanup
+    item.start()
+    await asyncio.wait_for(started.wait(), .5)
+    old = item._control_loop_task
+    item.stop()
+    await asyncio.wait_for(releasing.wait(), .5)
+    item.start()
+    item.stop()  # Replacement has not even entered its coroutine yet.
+    item.start()  # It must wait for the older cleanup, not just the cancelled replacement.
+    for _ in range(10):
+        await asyncio.sleep(0)
+    early_starts = len(starts)
+    item.stop()
+    waiting = asyncio.create_task(item.wait_closed())
+    try:
+        for _ in range(5):
+            await asyncio.sleep(0)
+        assert not waiting.done(), "The older generation still owns unfinished cleanup"
+        assert not old.done()
+        assert early_starts == 1
+    finally:
+        release.set()
+        await asyncio.gather(waiting, old, return_exceptions=True)

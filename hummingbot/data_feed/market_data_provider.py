@@ -78,7 +78,9 @@ class MarketDataProvider:
     async def wait_closed(self):
         """Drain public-network shutdown before the strategy drops this provider."""
         while self._stopping_tasks:
-            await asyncio.gather(*tuple(self._stopping_tasks), return_exceptions=True)
+            tasks = tuple(self._stopping_tasks)
+            await asyncio.gather(*tasks, return_exceptions=True)
+            self._stopping_tasks.difference_update(tasks)
 
     @property
     def ready(self) -> bool:
