@@ -124,8 +124,9 @@ For an existing scaled schema, stop all writers before applying this revision.
 An older scaled-integer revision is incompatible with the converted schema;
 schema validation must reject it. With auto migration disabled, apply migrations
 explicitly first. No existing Demo database is changed merely by editing or
-building this source. The scheduled funding observation retains its original
-image/schema until its bounded check finishes.
+building this source. At the original precision-correction checkpoint, Demo
+retained its old image/schema. Its later P7 upgrade and preserved logical-history
+hashes are recorded in [Demo acceptance](okx-demo-acceptance.md).
 
 Verification: 1,271 regression tests/nine subtests, 113 PostgreSQL tests and three
 extended precision checks pass. Image `1710edfec3fb...` passes all five applicable

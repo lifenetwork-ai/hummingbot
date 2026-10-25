@@ -333,7 +333,7 @@ market series.
   ambiguous legacy values; a failed conversion must not look like a free trade.
   PostgreSQL order/fill/position decimals now use unscaled NUMERIC following the
   demonstrated BTC precision fix below. Legacy floating-point funding precision
-  is unchanged in the delivered runtime; P7 below plans exact bill-based funding
+  is preserved for old events; P7 below delivers exact identified bill-based
   ingestion and restart backfill. Decimal-string output does not recover
   precision already lost.
 - Reuse fetched account fields for LIFE/USDT `cashBal`, `availBal`, `eq`, `availEq`
@@ -668,15 +668,15 @@ silently repaired, and the existing funding watcher continues on its original
 image/schema. Existing funding/executor summary FLOAT fields are outside this
 targeted scaled-decimal fix. See [runtime details](../postgres-runtime.md#decimal-storage).
 
-### P7 — Durable funding observation and restart backfill (TDD; planned)
+### P7 — Durable funding observation and restart backfill (TDD)
 
-**Status: local implementation delivered; image E2E/load and final Demo acceptance in progress.** The owner requested this follow-up before deployment.
+**Status: local implementation and image E2E/load probe verified; actual Demo settlement remains open.** The owner requested this follow-up before deployment.
 Reuse the existing service, OKX authenticated REST readers/throttlers, recorder,
 PostgreSQL ownership, SQL runner and reporting handlers. No separate watcher
 container, Cloud Scheduler, queue, Redis or general accounting framework is needed.
 The local 07:00 Demo watcher is a bounded acceptance helper, not this feature.
 
-Current gaps: the upstream perpetual connector polls payments every 120 seconds
+Upstream gaps addressed here: the perpetual connector polls payments every 120 seconds
 only while its trading network is running. Startup initializes the last-payment
 timestamp without emitting that payment, and the reader selects only the latest
 matching bill. Stopping the strategy also stops its connectors. Consequently,
@@ -716,9 +716,26 @@ the recent endpoint alone does not promise complete lifetime history.
 #### P7.5 — Green verification and acceptance
 
 - [x] Pass targeted unit tests and disposable real-PostgreSQL tests for exact amounts, original currencies, event times, migration replay, transactional cursor advancement, uniqueness and owner fencing. Keep upstream file-mode regressions green.
-- [ ] Extend the existing internal-network E2E simulator: stop/expire with a held position, inject multiple funding bills while stopped, restart, replay pages and verify the database plus daily API totals exactly. Include closed-position catch-up, delayed bills, owner handover, unavailable/history-limited responses and DB failure without new exchange trading mutations.
-- [ ] Run the existing local load probe with the funding reader active. Verify bounded REST/DB calls across many pairs and FE polls, no N+1, no duplicate totals, no leaked tasks/connections and unchanged trading/API budgets. Save sanitized evidence, update this checklist/progress and commit.
+- [x] Extend the existing internal-network E2E simulator: stop/expire with a held position, inject multiple funding bills while stopped, restart, replay pages and verify the database plus daily API totals exactly. Include closed-position catch-up, delayed bills, owner handover, unavailable/history-limited responses and DB failure without new exchange trading mutations.
+- [x] Run the existing local load probe with the funding reader active. Verify bounded REST/DB calls across many pairs and FE polls, no N+1, no duplicate totals, no leaked tasks/connections and unchanged trading/API budgets. Save sanitized evidence, update this checklist/progress and commit.
 - [ ] Finally run opt-in OKX Demo acceptance using the completed implementation: compare an actual bill with DB/daily totals, repeat ingestion and restart to prove deduplication/backfill. If no real settlement is available, keep this item open. The original-image 07:00 watcher does not certify P7. No Cloud Run staging or exchange load test is required.
+
+Local verification: **1,286 regression tests/nine subtests**, **121 full PostgreSQL
+tests**, then **17 targeted PostgreSQL tests** after one additional regression
+reproduced funding checkpoint updates invalidating trading reconciliation. The
+fingerprint now ignores only `funding_sync`; HALT and other recovery changes
+remain significant. Swagger check passes.
+
+Image `f6af2bf561c6...` (1,364,511,171 bytes; 15 checked source hashes match) passes
+all seven offline scenarios, including the nine profile/market cases, six exact
+funding bills across stop/restart/closed-position/owner/DB-failure cases, and
+upgrade/rollback with the compatible precision image. Its isolated **60-second
+diagnostic probe**, with 100,000 historical fills and a five-second funding cadence,
+passes at 20 reads/s, ~100 book updates/s and one fill/s: read p95 **262.63ms**,
+p99 **676.13ms**, zero unexpected errors/violations. Sixty unique fills and two
+identified funding bills match the independent ledger. This is a bounded local
+probe, not a new full soak or Cloud Run benchmark. Earlier failed runs remain
+recorded with their fixes/limits in [portable evidence](../funding-backfill-evidence.json).
 
 ## 8. Scope kept out
 

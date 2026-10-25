@@ -1,0 +1,340 @@
+{
+  "implementation_commit": "7dee5ffe4",
+  "image": {
+    "image_id": "sha256:f6af2bf561c6713641508e50ff20303704101c4252d3f3f383cc8d394d1a409e",
+    "size_bytes": 1364511171,
+    "source_sha256": {
+      "hummingbot/core/funding_sync.py": "ed4c2a4904730e3614929fe1a91975009896d2042e6528733ebbea9085322673",
+      "hummingbot/model/funding_bill.py": "830a035cb1a369f0dbff1fdd76fca2156a4eedee4a9782f037971ca81c784028",
+      "hummingbot/cli/service.py": "ff50f5b56972be6e4b73fb0fdc258becf27c7c4dd50f1ec551f5ab57910adc40",
+      "hummingbot/cli/admin_api.py": "7d2877e1a04540bffcfc76b3810e9f8bdb4e22d83fbffd268dfb1ca4df91fe6a",
+      "hummingbot/cli/admin_models.py": "5c395ee271586585a12bf8a14453ab817fe32aab0516328bb21555f44b226dc4",
+      "hummingbot/core/connector_manager.py": "98fa67bbc0ce80206d9051edb5660caba2717b55447d6cc686fcb6ced4789b84",
+      "hummingbot/connector/perpetual_derivative_py_base.py": "294ceca9f1f794e7f447d3cb01aa65a15c235891aa1ee3c21512d3a1a40bd29c",
+      "hummingbot/connector/markets_recorder.py": "93962317fd588361a9737af979ce22b68f9c91b01c76f1b13f6e2f46602fb673",
+      "hummingbot/model/admin_reporting.py": "56a2a94582d891117a560d0ebde7493efcee4599233d40ca1589325c797fb782",
+      "hummingbot/model/__init__.py": "854edea6b5ccb5f4031ac227ba10eb7c42d41cd0aa881304c04ddbc91d20baa3",
+      "hummingbot/client/config/defaults.py": "6e4ab14700beeeecfdb71bb054b0fff66e1b46e2e555c60f52b94d75553c3f29",
+      "hummingbot/connector/derivative/okx_perpetual/okx_perpetual_constants.py": "a9b3e7d4ac41105c6359f293572e25a7f79bb8e4a380a607888999a164a1d63e",
+      "hummingbot/connector/derivative/okx_perpetual/okx_perpetual_web_utils.py": "d45067c462bfd4bb05e476c7ea921aac0a421c1d2cb32b7faa3d3e527f2f25ff",
+      "hummingbot/model/db_migration/postgres/scripts/014_create_funding_bills.sql": "53e0b92d06650b15661fdd9b99e8942409147e11619bbc21c1b48c33fd8429b2",
+      "hummingbot/model/admin_reconciliation.py": "296e373f7f1a27ae668052fc8cb341dc1bd82a0ab516314f5af3591afd2df238"
+    },
+    "matches_worktree": true,
+    "implementation_commit": "7dee5ffe4"
+  },
+  "native_verification": {
+    "regression_tests": 1286,
+    "subtests": 9,
+    "full_postgres_tests": 121,
+    "post_fix_targeted_postgres_tests": 17,
+    "new_post_fix_regression_tests": 1,
+    "swagger_check": true,
+    "logs": [
+      "build/funding/regression-final.log",
+      "build/funding/postgres-final.log",
+      "build/funding/reconciliation-red.log",
+      "build/funding/reconciliation-green.log"
+    ]
+  },
+  "offline": {
+    "artifact": "build/e2e-offline/20261026-053654-8a92c3/result.json",
+    "passed": true,
+    "runtime_smoke": {
+      "passed": true,
+      "numba_jit": true,
+      "ta_lib": true,
+      "tls_trust": true,
+      "connector_count": 63,
+      "sql_scripts": 15,
+      "build_tools_absent": true,
+      "cli_version": "hbot 2.17.0",
+      "environment_bytes": 1264264546
+    },
+    "scenarios": {
+      "schema": {
+        "passed": true,
+        "metrics": {
+          "valid_startup_s": 11.672,
+          "valid_shutdown_s": 1.368,
+          "repaired_startup_s": 8.731,
+          "repaired_shutdown_s": 1.008,
+          "file_backend_rejected": true,
+          "empty_rejected": true,
+          "drift_rejected": true,
+          "repaired_schema_validated": true
+        }
+      },
+      "spot": {
+        "passed": true,
+        "metrics": {
+          "first_startup_s": 9.364,
+          "second_startup_s": 8.871,
+          "local_steady_resources": "cpu=5.36% memory=242.4MiB / 2GiB",
+          "local_database": {
+            "select_one_p95_ms": 0.28833300166297704
+          },
+          "first_shutdown_s": 1.258,
+          "second_shutdown_s": 2.184,
+          "third_startup_s": 9.71,
+          "fourth_startup_s": 9.083,
+          "fifth_startup_s": 12.861,
+          "sixth_startup_s": 11.418,
+          "seventh_startup_s": 8.802,
+          "accepted_orders": 14,
+          "persisted_fills": 3,
+          "websocket_reconnect": true,
+          "interrupted_recorder_recovered": true
+        }
+      },
+      "v2-spot": {
+        "passed": true,
+        "metrics": {
+          "v2-first_startup_s": 8.987,
+          "first_shutdown_s": 1.382,
+          "v2-second_startup_s": 8.402,
+          "second_shutdown_s": 1.015,
+          "accepted_orders": 1,
+          "persisted_fills": 1,
+          "position_base": "0.1",
+          "pnl_peak_restored": "12.345678"
+        }
+      },
+      "v2-perpetual": {
+        "passed": true,
+        "metrics": {
+          "v2-first_startup_s": 9.205,
+          "first_shutdown_s": 1.332,
+          "v2-second_startup_s": 8.74,
+          "second_shutdown_s": 1.232,
+          "accepted_orders": 1,
+          "persisted_fills": 1,
+          "position_base": "0.1",
+          "pnl_peak_restored": "12.345678"
+        }
+      },
+      "life-mm": {
+        "passed": true,
+        "metrics": {
+          "mm-first_startup_s": 8.891,
+          "first_shutdown_s": 1.481,
+          "mm-restart_startup_s": 9.421,
+          "mm-db-restart_startup_s": 9.064,
+          "matrix": [
+            {
+              "mode": "spot",
+              "profile": "follow_market",
+              "count": 4
+            },
+            {
+              "mode": "spot",
+              "profile": "sideways",
+              "count": 4
+            },
+            {
+              "mode": "spot",
+              "profile": "follow_token",
+              "count": 4
+            },
+            {
+              "mode": "perpetual",
+              "profile": "follow_market",
+              "count": 4
+            },
+            {
+              "mode": "perpetual",
+              "profile": "sideways",
+              "count": 4
+            },
+            {
+              "mode": "perpetual",
+              "profile": "follow_token",
+              "count": 4
+            },
+            {
+              "mode": "both",
+              "profile": "follow_market",
+              "count": 8
+            },
+            {
+              "mode": "both",
+              "profile": "sideways",
+              "count": 8
+            },
+            {
+              "mode": "both",
+              "profile": "follow_token",
+              "count": 8
+            }
+          ],
+          "restart_anchors": true,
+          "weighted_reference": true,
+          "stale_both": true,
+          "fills": 2,
+          "random_steps": true,
+          "expiry": true,
+          "expiry_funding": true,
+          "reconciliation": "matched",
+          "db_fault_halt": true
+        }
+      },
+      "funding": {
+        "passed": true,
+        "metrics": {
+          "funding-first_startup_s": 10.807,
+          "first_shutdown_s": 1.64,
+          "funding-restart_startup_s": 8.838,
+          "funding-standby_startup_s": 10.884,
+          "restart_shutdown_s": 1.611,
+          "funding-db-recovery_startup_s": 10.462,
+          "identified_bills": 6,
+          "original_amounts_exact": true,
+          "same_timestamp_bills": true,
+          "stopped_observation": true,
+          "closed_position_backfill": true,
+          "repeated_pages_idempotent": true,
+          "legacy_not_double_counted": true,
+          "owner_handover": true,
+          "unavailable_visible": true,
+          "db_failure_backfill": true,
+          "no_trading_mutations_after_stop": true
+        }
+      },
+      "upgrade": {
+        "passed": true,
+        "metrics": {
+          "old_startup_s": 11.156,
+          "new_startup_s": 9.105,
+          "old_shutdown_s": 1.474,
+          "new_shutdown_s": 1.074,
+          "rollback_startup_s": 8.773,
+          "rollback_shutdown_s": 1.292,
+          "previous_manifest_digest": "sha256:2667aefad77850ec7bbece850406d9f8091ba482ae2f5403053f6647f55a0c42",
+          "additive_fixture": "nullable test-only orders.offline_upgrade_note",
+          "rollback_preserved_economics": true
+        }
+      }
+    },
+    "compatible_predecessor_upgrade_and_rollback": true
+  },
+  "load_probe": {
+    "artifact": "build/mm-load/20261026-054815-726f5b/result.json",
+    "diagnostic_only": true,
+    "host_architecture": "arm64",
+    "image_architecture": "amd64",
+    "emulation": true,
+    "bot_limits": {
+      "cpus": 1,
+      "memory_bytes": 2147483648
+    },
+    "history_orders": 100000,
+    "history_fills": 100000,
+    "funding_sync_interval_seconds": 5,
+    "duration_seconds": 60,
+    "read_p95_ms": 262.6312530010182,
+    "read_p99_ms": 676.1321700032568,
+    "completed_reads_per_second": 20.0,
+    "market_updates_per_second": 99.98839762131085,
+    "fills_per_second": 1.0,
+    "unexpected_errors": 0,
+    "violations": [],
+    "ledger": {
+      "unique_exchange_fills": 60,
+      "unique_recorder_fills": 60,
+      "positions_matched": true,
+      "identified_funding_bills": 2,
+      "daily_snapshots": 3
+    }
+  },
+  "earlier_attempts": [
+    {
+      "artifact": "build/e2e-offline/20261026-051755-df7cac/result.json",
+      "passed": false,
+      "reason": "Funding checkpoint polluted trading-reconciliation fingerprint; reproduced with a real-PG Red test and fixed in 7dee5ffe4."
+    },
+    {
+      "artifact": "build/mm-load/20261026-052011-990d3a/result.json",
+      "passed": false,
+      "reason": "Latency/error budgets exceeded during overlapping test workloads. Isolated predecessor probe passed; final-image isolated result is recorded above."
+    }
+  ],
+  "demo": {
+    "state": "pending_actual_settlement",
+    "actual_payment_verified": false,
+    "authenticated_get_preflight": {
+      "environment": "demo",
+      "scope": "authenticated GET readers only; no persisted payments or trading commands",
+      "passed": true,
+      "reads": [
+        {
+          "endpoint": "/api/v5/account/config",
+          "code": "0",
+          "rows": 1
+        },
+        {
+          "endpoint": "/api/v5/account/bills",
+          "code": "0",
+          "rows": 0
+        },
+        {
+          "endpoint": "/api/v5/account/bills-archive",
+          "code": "0",
+          "rows": 0
+        }
+      ]
+    },
+    "scheduled_settlement_utc": "2026-10-26T00:00:00Z",
+    "scheduled_settlement_vietnam": "2026-10-26 07:00 +07:00",
+    "service_image_id": "sha256:f6af2bf561c6713641508e50ff20303704101c4252d3f3f383cc8d394d1a409e",
+    "service_phase": "stopped",
+    "desired_state": "stopped",
+    "history_unchanged": true,
+    "history_tables": {
+      "orders": {
+        "count": 320,
+        "logical_sha256": "1f23ab79af46886ba0e05fd2fc560db47d4260a22f132b10983e07987c5628b6"
+      },
+      "trade_fills": {
+        "count": 5,
+        "logical_sha256": "58955f5f6088c5ad4e064d713452319b4173f32cc79aab6517759b75f6ddfc26"
+      },
+      "positions": {
+        "count": 3,
+        "logical_sha256": "9162475d458111b555db6654d4e0c32407345a7dde1609c6e704c29c9d50e53f"
+      }
+    },
+    "funding_sync": {
+      "state": "observed",
+      "account_id": "[demo-account]",
+      "environment": "demo",
+      "pairs": [
+        "BTC-USDT"
+      ],
+      "covered_from_ms": 1792947411000,
+      "covered_until_ms": 1792968659767,
+      "last_success_ms": 1792968659767,
+      "backfill_pending": false,
+      "stale": false,
+      "history_gap_from_ms": null,
+      "history_gap_until_ms": null,
+      "error": null,
+      "legacy_history_unverified": null,
+      "source": "okx_account_bills"
+    },
+    "private_pre_migration_backup_saved": true,
+    "strategy_commands": [],
+    "original_quote_based_helper_retired": true
+  },
+  "scope": {
+    "new_full_soak": false,
+    "cloud_run_deployment": false,
+    "exchange_load_test": false,
+    "legacy_lost_decimal_digits_reconstructed": false
+  },
+  "harness_sha256": {
+    "scripts/test_e2e_offline.py": "ba24e9c1f4ffbc28fe78d4dff53ac9463dc96e8675143f4e3928742ba21e5c08",
+    "scripts/test_mm_load.py": "860a57e83d1a391023023e698fcd79cecb85446a585425cc8a65a339177ed6b3",
+    "scripts/mm_load_ledger.py": "db8e38ee2948211cc5154a144472c22676571a1efd66e3cd58bb284fbc227458",
+    "test/e2e/offline/exchange.py": "314867066a59821d207c09dae7c77c955db02289e8ceb4e255348149fd389038"
+  }
+}

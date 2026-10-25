@@ -1,6 +1,6 @@
 # LIFE / OKX implementation progress
 
-Updated: 2026-10-25 (Asia/Ho_Chi_Minh).
+Updated: 2026-10-26 (Asia/Ho_Chi_Minh).
 Delivery checklist: [current plan](../plans/LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md).
 
 ## P1 — Controller and configuration foundation
@@ -651,7 +651,7 @@ Cloud Run deployment was submitted during this correction.
 ### Planned P7 — funding observation while idle and restart backfill
 
 The owner requested a plan update for durable funding collection in the existing
-service. [P7](../plans/LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md#p7--durable-funding-observation-and-restart-backfill-tdd-planned)
+service. [P7](../plans/LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md#p7--durable-funding-observation-and-restart-backfill-tdd)
 is added with all implementation/acceptance items unchecked. It covers retained
 positions after stop/expiry/spot-only switching, catch-up even after a position
 closes, late bills, exact original amounts/currencies, account/environment/bill-ID
@@ -668,8 +668,8 @@ or runtime behavior has been implemented by this planning change.
 ### P7 local implementation — storage, reader and service lifecycle
 
 The new tests first reproduced missing durable bill identity, transactional
-cursor behavior, exact daily totals and GET-only transport contracts. The local
-implementation now passes **1,285 regression tests/nine subtests** and **120
+cursor behavior, exact daily totals and GET-only transport contracts. The initial local
+implementation passed **1,285 regression tests/nine subtests** and **120
 real-PostgreSQL tests**. It reuses existing connector auth/throttlers, the service
 owner loop, bot-state JSON checkpoints and the decimal adapter. Native funding
 event persistence/polling is suppressed only for service-managed PG perpetual
@@ -698,3 +698,44 @@ Opt-in Demo GET preflight succeeds for account config, recent bills and archived
 bills with zero payments returned. It made no trading command or database write
 and does not certify actual settlement/backfill. Evidence is under
 `build/funding/`; image E2E/load and final real-bill acceptance remain open.
+
+### P7 image/local acceptance and Demo observer upgrade
+
+Final source verification passes **1,286 regression tests/nine subtests** and
+**121 full PostgreSQL tests**. A subsequently discovered integration defect was
+reproduced Red against real PostgreSQL: background funding checkpoints polluted
+the trading-reconciliation fingerprint. The fix excludes only `funding_sync`,
+keeps HALT/other recovery changes significant, and passes **17 targeted PG tests**
+including the new regression. Swagger check passes.
+
+Image `f6af2bf561c6...` is **1,364,511,171 bytes** and its 15 checked runtime/SQL
+hashes match source commit `7dee5ffe4`. All seven offline groups pass in one
+combined run: schema, spot, V2 spot/perpetual, nine LIFE profile/market cases,
+funding and compatible predecessor upgrade/rollback. The funding scenario
+verifies six exact bills, two distinct bills sharing a timestamp, paginated
+unrelated instruments, legacy overlap, stopped/expired observation, catch-up
+after position closure, late bills, owner handover, API failure and DB loss.
+No new trading mutation occurs after stop.
+
+The final image's isolated **60-second diagnostic probe** passes with 100,000
+historical orders/fills, a five-second funding interval, 20 completed reads/s,
+~100 book updates/s and one fill/s. Read p95 is **262.63ms**, p99 **676.13ms**;
+there are zero unexpected errors or budget violations. Independent ledgers match
+60 fills, held positions and two exact funding bills. No new full soak, Cloud Run
+benchmark/deployment or exchange load test is claimed. The earlier overlapping
+probe failed latency/error budgets and remains recorded; isolated runs pass with
+unchanged budgets. No additional cache is justified by this bounded workload.
+[Portable evidence](../funding-backfill-evidence.json) retains image/source
+identity, original artifacts, metrics and unsuccessful attempts.
+
+The dedicated Demo service now uses this final P7 image with desired state
+`stopped`. The old quote-based scheduled helper was retired. Startup auto-migrated
+the retained DB; a private pre-migration pg_dump is saved, and normalized hashes
+of all order/fill/position rows match before/after: **320 orders, five fills,
+three persisted position records**. UTC and control version are retained. The
+service's own read-only funding coverage is fresh, with no strategy command or
+new quote. Its initial authenticated bill reads contain no actual settlement.
+The local bounded acceptance helper will compare the 07:00 Vietnam settlement
+with exact DB/daily totals, cold-restart the stopped service to verify replay,
+and then stop/release ownership. Actual Demo funding items remain open until a
+real bill passes those checks; a successful empty read is not payment evidence.

@@ -14,12 +14,16 @@ The subsequently authorized PostgreSQL precision fix is now implemented and
 locally verified in image `1710edfec3fb...`: [precision evidence](postgres-decimal-precision.json).
 The Demo observations below remain evidence for their original images and
 scaled schema. Their lost digits were not fabricated or backfilled, and the
-scheduled funding watcher continues on `17d530e26018...` with its unchanged DB.
+original quote-based helper has been retired. The dedicated local Demo service now
+uses the P7 image `f6af2bf561c6...` with trading stopped; its read-only funding
+observer awaits the actual settlement below. Auto migration preserved normalized
+hashes of all 320 orders, five fills and three position records.
+[Current P7 evidence](funding-backfill-evidence.json).
 
-The currently retained runtime is
+The retained runtime before the P7 upgrade was
 `sha256:17d530e26018da8c5d0e4f7c2f769fc29c28dd04f6a3c908f7f6f5568fa49023`,
-code commit `32285f5c8`. It includes the cancellation fix discovered after the
-observation and passes full native regression, selected local E2E, a real fenced
+code commit `32285f5c8`. It included the cancellation fix discovered after the
+observation and passed full native regression, selected local E2E, a real fenced
 Demo terminal-response probe and idle startup/shutdown checks. The 30-minute
 numbers below retain their original `8401c10c2c5c...` image identity.
 
@@ -73,9 +77,10 @@ The dedicated local PostgreSQL 14 container is
 `hummingbot-okx-demo-postgres`, database `okx_demo`, on its own Docker network and
 persistent volume. Its host port is bound to loopback. `DATABASE_URL` has been
 filled in the private Demo env; the container env uses the database's Docker
-hostname. PostgreSQL and runtime connections report UTC. All 13 packaged SQL
-scripts replayed successfully twice against the new database, which has 16
-public tables. `ENABLE_AUTO_MIGRATION=true` remains enabled for service startup.
+hostname. PostgreSQL and runtime connections report UTC. At the original P6
+setup, all 13 packaged SQL scripts replayed twice and the database had 16 tables.
+The later P7 image packages 15 SQL files and validates 17 tables after migration.
+`ENABLE_AUTO_MIGRATION=true` remains enabled for service startup.
 
 Local preflight artifacts:
 
@@ -338,27 +343,36 @@ Local diagnostics: `build/okx-demo/fill-acceptance-20261025T202131Z.json`,
 
 Funding status: **scheduled; payment remains unverified**.
 
-The authenticated Demo account has no funding bill yet. The Demo-header public
-BTC-USDT-SWAP response reports the next settlement at **2026-10-26 00:00 UTC**
-(**07:00 Asia/Ho_Chi_Minh**). OKX documents funding settlement in Demo and that
-payment requires holding a position at settlement.
+The Demo-header BTC-USDT-SWAP response reports the next settlement at
+**2026-10-26 00:00 UTC** (**07:00 Asia/Ho_Chi_Minh**). The actual Demo account
+retains SHORT 0.0004 BTC and has no pending orders. OKX documents funding
+settlement in Demo and that payment requires holding a position at settlement.
 [OKX funding formula announcement](https://www.okx.com/nb/help/okx-to-change-the-funding-rate-formula-for-perpetual-futures),
 [funding fee FAQ](https://www.okx.com/en-us/help/funding-fees-for-perpetual-contracts-faq).
 
-A bounded local watcher is scheduled to start the existing service at 23:57 UTC
-and stop by 00:06 UTC after observing settlement. Its temporary private
-perpetual caps are long 0.000001, short 0.0004 and gross 0.0004 BTC. The existing
-SHORT exactly consumes the gross cap, so neither side can create a new quote.
-A real smoke session verified readiness, restored held exposure, unchanged
-320-order/five-fill counters, no exchange pending orders and clean stop with
-released ownership. No risk fence is bypassed.
+After the seven final-image offline groups and isolated load probe passed, the
+original quote-based scheduled helper was retired while still waiting. A private
+logical PostgreSQL backup was saved before starting the final P7 image
+`f6af2bf561c6...` on the same database/volume. Auto migration converted old scaled
+columns and added exact identified bill storage; normalized hashes of all
+orders/fills/positions match before/after. Old lost digits were not fabricated.
+The original P6/precision evidence above retains its original image/schema scope.
 
-Before the scheduled run, the watcher requires the service to be stopped, no
-pending orders, the exact known held position, no HALT and an unchanged private
-catalogue. It will compare a new Demo funding bill's original USDT amount and
-timestamp with the existing recorder's `funding_payments`, then stop and restore
-the private catalogue. Changed prerequisites abort the check. Absence of a real
-bill or recorder mismatch keeps funding unverified. The watcher is local and
-requires this Mac and Docker to remain available; a temporary `caffeinate`
-process prevents idle sleep until it exits. PostgreSQL and the held Demo
-position remain retained after the check.
+The same service now observes funding with **desired state stopped**, without
+activating a strategy, applying temporary caps, or submitting trading/account
+commands. Startup is healthy and trading readiness is correctly false. Its
+initial account-bill reads succeeded but contained no actual payment; fresh
+coverage alone does not close settlement acceptance. The private catalogue and
+existing control version remain unchanged.
+
+A bounded local acceptance helper only reads this service, the exchange and DB.
+At settlement it will match original signed USDT amount, bill identity and UTC
+millisecond time against `funding_bills` and daily totals, then cold-restart the
+stopped service to prove replay/deduplication. It will stop the service and verify
+ownership release/no pending orders afterward, by approximately 07:06 Vietnam.
+Changed trading intent aborts the check and leaves the user-controlled service
+untouched. Missing settlement or a mismatch leaves the Demo checkboxes open.
+The helper runs locally under `caffeinate` so this Mac/Docker must remain available;
+it is acceptance infrastructure, not a required Cloud Run watcher/container.
+The service feature itself polls while its owner process exists and backfills
+after downtime. No new exchange orders are needed for this follow-up.

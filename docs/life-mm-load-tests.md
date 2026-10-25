@@ -254,3 +254,18 @@ Remaining limits are explicit:
 - Host arm64/amd64 emulation and local PG do not establish Cloud SQL latency or
   live exchange fill quality. Dedicated-account OKX Demo P6, instrument/account
   validation and the 30-minute observation remain unverified until configured.
+
+## P7 funding follow-up probe
+
+The P7 image (`f6af2bf561c6...`) passes a separate 60-second diagnostic probe with
+100,000 historical orders/fills seeded in **natural NUMERIC units**, both markets,
+and funding observation every five seconds. At 20 reads/s, ~100 updates/s and one
+fill/s, read p95 is 262.63ms and p99 676.13ms, with no errors/budget violations.
+Sixty unique fills and two exact identified funding bills match independent
+exchange ledgers. The account reader remains bounded independently of FE polls;
+daily reporting retains its existing aggregate/cache path.
+
+This probe supplements the new funding lifecycle/E2E tests; it does not replace
+or claim a repeat of the original full load/soak gate. The first overlapping run
+failed latency/error budgets; its report and passing isolated runs are retained
+in [funding-backfill-evidence.json](funding-backfill-evidence.json).
