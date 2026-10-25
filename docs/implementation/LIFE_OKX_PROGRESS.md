@@ -569,3 +569,36 @@ after a repeated reply, with no new orders. History remains 300 cancelled orders
 zero fills, an expired/stopped session, no HALT and released ownership. The completed
 30-minute observation keeps its original image identity and 40 log entries; no
 new full load/soak or long Demo observation is claimed for the cancellation fix.
+
+### P6 natural fills/fees and filled-position recovery — 2026-10-26
+
+The retained `17d530e26018...` image, without source changes, produced five
+natural Demo maker fills: three spot/two perpetual. A temporary private
+40-USDT-per-market, single-level, 0.002% spread catalogue enabled observation;
+the original private catalogue is restored. Independent authenticated fill
+reads match all five trade IDs and original fee amounts/currencies, including
+the BTC-denominated spot buy fee. No self-matching or synthetic fills were used.
+
+A real service restart preserved SHORT 0.0002 BTC, session identity, anchors and
+deadline; readiness and both-market reconciliation passed. A subsequent natural
+sell leaves SHORT 0.0004 BTC. Current state is 320 orders/five fills, no pending
+exchange orders, no HALT and released ownership. The bot is stopped; dedicated
+PostgreSQL and the held Demo position remain. Follow-up service logs contain no
+ERROR/WARNING entries. No new runtime code, image build or full regression was
+needed. Evidence: [focused report](../okx-demo-acceptance.md) and
+[portable JSON](../okx-demo-fill-acceptance.json).
+
+Legacy scaled-six storage truncates the three spot quantities by
+0.00000016–0.00000018 BTC. Existing reconciliation allows 0.000001 BTC, so its
+matched result does not claim lossless quantity storage. Original fee JSON is
+exact. This limitation remains explicit instead of silently changing financial
+precision during acceptance.
+
+Funding remains the only open Demo observation. A real smoke verified the
+existing controller can stay ready with gross capacity fully consumed by the
+held SHORT, admitting no new orders. A bounded local watcher is scheduled for
+23:57 UTC–00:06 UTC around the 2026-10-26 00:00 UTC settlement (07:00 Vietnam).
+It checks stopped/no-HALT/unchanged position and config before startup, compares
+the real USDT funding bill with the recorder, then stops and restores config.
+Absence/mismatch leaves the funding checkbox open. No funding payment has been
+fabricated or marked passed in advance.

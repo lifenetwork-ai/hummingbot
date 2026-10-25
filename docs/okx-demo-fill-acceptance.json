@@ -1,0 +1,1718 @@
+{
+  "scope": "Real Demo natural maker fills, original fees, filled-exposure restart; funding remains pending",
+  "implementation_commit": "32285f5c8",
+  "image_id": "sha256:17d530e26018da8c5d0e4f7c2f769fc29c28dd04f6a3c908f7f6f5568fa49023",
+  "fill_run": {
+    "started_at": "2026-10-25T20:21:31.254464+00:00",
+    "environment": "demo",
+    "image_id": "sha256:17d530e26018da8c5d0e4f7c2f769fc29c28dd04f6a3c908f7f6f5568fa49023",
+    "profile_sha256": "88b6de6acf5e7aa41a2c615d904e9aad05aa082defd6c5422d3071edd6739064",
+    "trading_pair": "BTC-USDT",
+    "follow_token_reference": "AVAX-USDT",
+    "quote_budget_per_market": "40",
+    "preserve_positions_on_stop": true,
+    "passed": true,
+    "matrix": [],
+    "commands": [
+      {
+        "action": "start",
+        "receipt_id": "12da0a21-b82f-43f2-9b3b-cf025e3f7239",
+        "same_key_retry_same_receipt": true,
+        "elapsed_seconds": 3.071882792050019
+      },
+      {
+        "action": "stop",
+        "receipt_id": "1056165d-8f60-4f44-8168-82bfd9e02288",
+        "same_key_retry_same_receipt": true,
+        "elapsed_seconds": 1.033732458949089
+      }
+    ],
+    "checks": [
+      {
+        "check": {
+          "id": "8bcc7919-cc96-4715-84b0-08d3c8b1e4b8",
+          "status": "succeeded",
+          "payload": {
+            "market": "all",
+            "pair": "BTC-USDT",
+            "lookback_seconds": 120,
+            "max_orders": 100,
+            "max_pages": 5
+          },
+          "created_at": "2026-10-25T20:21:52.472835Z",
+          "updated_at": "2026-10-25T20:21:55.504761Z",
+          "error": null,
+          "report": {
+            "scope": "bot_owned_orders_and_configured_perpetual_exposure",
+            "state": "matched",
+            "started_at": "2026-10-25T20:21:52.955214Z",
+            "finished_at": "2026-10-25T20:21:55.503053Z",
+            "markets": [
+              {
+                "market": "spot",
+                "state": "matched",
+                "complete": true,
+                "local_observed_at": "2026-10-25T20:21:52.955214Z",
+                "exchange_observed_at": "2026-10-25T20:21:55.484531Z",
+                "orders_checked": 8,
+                "fills_checked": 2,
+                "positions_checked": 0,
+                "reasons": [],
+                "differences": []
+              },
+              {
+                "market": "perpetual",
+                "state": "matched",
+                "complete": true,
+                "local_observed_at": "2026-10-25T20:21:52.955214Z",
+                "exchange_observed_at": "2026-10-25T20:21:55.487682Z",
+                "orders_checked": 8,
+                "fills_checked": 2,
+                "positions_checked": 1,
+                "reasons": [],
+                "differences": []
+              }
+            ]
+          }
+        },
+        "report": {
+          "scope": "bot_owned_orders_and_configured_perpetual_exposure",
+          "state": "matched",
+          "started_at": "2026-10-25T20:21:52.955214Z",
+          "finished_at": "2026-10-25T20:21:55.503053Z",
+          "markets": [
+            {
+              "market": "spot",
+              "state": "matched",
+              "complete": true,
+              "local_observed_at": "2026-10-25T20:21:52.955214Z",
+              "exchange_observed_at": "2026-10-25T20:21:55.484531Z",
+              "orders_checked": 8,
+              "fills_checked": 2,
+              "positions_checked": 0,
+              "reasons": [],
+              "differences": []
+            },
+            {
+              "market": "perpetual",
+              "state": "matched",
+              "complete": true,
+              "local_observed_at": "2026-10-25T20:21:52.955214Z",
+              "exchange_observed_at": "2026-10-25T20:21:55.487682Z",
+              "orders_checked": 8,
+              "fills_checked": 2,
+              "positions_checked": 1,
+              "reasons": [],
+              "differences": []
+            }
+          ]
+        }
+      }
+    ],
+    "observations": [
+      {
+        "elapsed_seconds": 0.027258750051259995,
+        "phase": "running",
+        "open_orders": 0,
+        "fills": 3,
+        "markets": [
+          "perpetual",
+          "spot"
+        ]
+      }
+    ],
+    "natural_matching_only": true,
+    "baseline_fills": {
+      "items": [
+        {
+          "id": "4543186038",
+          "order_id": "93027a12dac34fBCSBCUTf90304cbcb2",
+          "market": "perpetual",
+          "connector": "okx_perpetual",
+          "pair": "BTC-USDT",
+          "side": "SELL",
+          "price": "80554.09",
+          "amount": "0.0002",
+          "timestamp": "2026-10-25T20:20:25Z",
+          "leverage": 1,
+          "position": "OPEN",
+          "fee": {
+            "fee_type": "AddedToCost",
+            "percent": "0",
+            "percent_token": "USDT",
+            "flat_fees": [
+              {
+                "token": "USDT",
+                "amount": "0.0032221636"
+              }
+            ]
+          },
+          "fee_in_quote": "0.003222",
+          "quote_currency": "USDT",
+          "conversion_status": "recorded"
+        },
+        {
+          "id": "1417150351",
+          "order_id": "93027a12dac34fBCSBCUTa9abc2f2be2",
+          "market": "spot",
+          "connector": "okx",
+          "pair": "BTC-USDT",
+          "side": "SELL",
+          "price": "80587.6",
+          "amount": "0.000248",
+          "timestamp": "2026-10-25T20:20:23Z",
+          "leverage": 1,
+          "position": "NIL",
+          "fee": {
+            "fee_type": "DeductedFromReturns",
+            "percent": "0",
+            "percent_token": "USDT",
+            "flat_fees": [
+              {
+                "token": "USDT",
+                "amount": "0.0159995397536"
+              }
+            ]
+          },
+          "fee_in_quote": "0.015999",
+          "quote_currency": "USDT",
+          "conversion_status": "recorded"
+        },
+        {
+          "id": "1417150335",
+          "order_id": "93027a12dac34fBCBBCUTf588f07619a",
+          "market": "spot",
+          "connector": "okx",
+          "pair": "BTC-USDT",
+          "side": "BUY",
+          "price": "80584.4",
+          "amount": "0.000248",
+          "timestamp": "2026-10-25T20:19:27Z",
+          "leverage": 1,
+          "position": "NIL",
+          "fee": {
+            "fee_type": "AddedToCost",
+            "percent": "0",
+            "percent_token": "BTC",
+            "flat_fees": [
+              {
+                "token": "BTC",
+                "amount": "1.98544E-7"
+              }
+            ]
+          },
+          "fee_in_quote": "0.015999",
+          "quote_currency": "USDT",
+          "conversion_status": "recorded"
+        }
+      ],
+      "next_cursor": null
+    },
+    "baseline_has_prior_fills": true,
+    "initial_session": {
+      "id": "bddfed42-d994-4ffc-aa79-450dae7718ed",
+      "request": {
+        "market_mode": "both",
+        "selection": "fixed",
+        "duration_seconds": 900,
+        "profile_id": "sideways",
+        "references": null,
+        "profile_ids": null,
+        "step_duration_seconds": null
+      },
+      "config_hash": "f9e8babbcced783a5df4205bc82a7f4e056f250f6aad7913fd4061d713c7ffe6",
+      "profile_id": "sideways",
+      "generation": 0,
+      "step_index": 0,
+      "status": "running",
+      "started_at": "2026-10-25T20:21:38.151800Z",
+      "expires_at": "2026-10-25T20:36:38.151800Z",
+      "step_expires_at": "2026-10-25T20:36:38.151800Z",
+      "anchors": {
+        "demo_btc_spot": {
+          "life": "80591.55",
+          "sources": {}
+        },
+        "demo_btc_perpetual": {
+          "life": "80558.98",
+          "sources": {}
+        }
+      }
+    },
+    "before_restart": {
+      "status": {
+        "bot_id": "okx-demo-btc",
+        "desired_state": "running",
+        "control_version": 30,
+        "acknowledged_version": 30,
+        "running": true,
+        "phase": "running",
+        "owner_available": true,
+        "heartbeat_age_seconds": 0.142448,
+        "session": {
+          "id": "bddfed42-d994-4ffc-aa79-450dae7718ed",
+          "request": {
+            "market_mode": "both",
+            "selection": "fixed",
+            "duration_seconds": 900,
+            "profile_id": "sideways",
+            "references": null,
+            "profile_ids": null,
+            "step_duration_seconds": null
+          },
+          "config_hash": "f9e8babbcced783a5df4205bc82a7f4e056f250f6aad7913fd4061d713c7ffe6",
+          "profile_id": "sideways",
+          "generation": 0,
+          "step_index": 0,
+          "status": "running",
+          "started_at": "2026-10-25T20:21:38.151800Z",
+          "expires_at": "2026-10-25T20:36:38.151800Z",
+          "step_expires_at": "2026-10-25T20:36:38.151800Z",
+          "anchors": {
+            "demo_btc_spot": {
+              "life": "80591.55",
+              "sources": {}
+            },
+            "demo_btc_perpetual": {
+              "life": "80558.98",
+              "sources": {}
+            }
+          }
+        },
+        "observed_session": {
+          "id": "bddfed42-d994-4ffc-aa79-450dae7718ed",
+          "request": {
+            "market_mode": "both",
+            "selection": "fixed",
+            "duration_seconds": 900,
+            "profile_id": "sideways",
+            "references": null,
+            "profile_ids": null,
+            "step_duration_seconds": null
+          },
+          "config_hash": "f9e8babbcced783a5df4205bc82a7f4e056f250f6aad7913fd4061d713c7ffe6",
+          "profile_id": "sideways",
+          "generation": 0,
+          "step_index": 0,
+          "status": "running",
+          "started_at": "2026-10-25T20:21:38.151800Z",
+          "expires_at": "2026-10-25T20:36:38.151800Z",
+          "step_expires_at": "2026-10-25T20:36:38.151800Z",
+          "anchors": {
+            "demo_btc_spot": {
+              "life": "80591.55",
+              "sources": {}
+            },
+            "demo_btc_perpetual": {
+              "life": "80558.98",
+              "sources": {}
+            }
+          }
+        },
+        "markets": [
+          {
+            "market": "spot",
+            "connector": "okx",
+            "pair": "BTC-USDT",
+            "ready": true,
+            "admitted": true,
+            "reference_price": "80591.55",
+            "reason": null
+          },
+          {
+            "market": "perpetual",
+            "connector": "okx_perpetual",
+            "pair": "BTC-USDT",
+            "ready": true,
+            "admitted": true,
+            "reference_price": "80558.98",
+            "reason": null
+          }
+        ],
+        "server_time": "2026-10-25T20:21:38.304905Z",
+        "time_remaining_seconds": 899.8468949794769,
+        "error": null
+      },
+      "fills": {
+        "items": [
+          {
+            "id": "4543186038",
+            "order_id": "93027a12dac34fBCSBCUTf90304cbcb2",
+            "market": "perpetual",
+            "connector": "okx_perpetual",
+            "pair": "BTC-USDT",
+            "side": "SELL",
+            "price": "80554.09",
+            "amount": "0.0002",
+            "timestamp": "2026-10-25T20:20:25Z",
+            "leverage": 1,
+            "position": "OPEN",
+            "fee": {
+              "fee_type": "AddedToCost",
+              "percent": "0",
+              "percent_token": "USDT",
+              "flat_fees": [
+                {
+                  "token": "USDT",
+                  "amount": "0.0032221636"
+                }
+              ]
+            },
+            "fee_in_quote": "0.003222",
+            "quote_currency": "USDT",
+            "conversion_status": "recorded"
+          },
+          {
+            "id": "1417150351",
+            "order_id": "93027a12dac34fBCSBCUTa9abc2f2be2",
+            "market": "spot",
+            "connector": "okx",
+            "pair": "BTC-USDT",
+            "side": "SELL",
+            "price": "80587.6",
+            "amount": "0.000248",
+            "timestamp": "2026-10-25T20:20:23Z",
+            "leverage": 1,
+            "position": "NIL",
+            "fee": {
+              "fee_type": "DeductedFromReturns",
+              "percent": "0",
+              "percent_token": "USDT",
+              "flat_fees": [
+                {
+                  "token": "USDT",
+                  "amount": "0.0159995397536"
+                }
+              ]
+            },
+            "fee_in_quote": "0.015999",
+            "quote_currency": "USDT",
+            "conversion_status": "recorded"
+          },
+          {
+            "id": "1417150335",
+            "order_id": "93027a12dac34fBCBBCUTf588f07619a",
+            "market": "spot",
+            "connector": "okx",
+            "pair": "BTC-USDT",
+            "side": "BUY",
+            "price": "80584.4",
+            "amount": "0.000248",
+            "timestamp": "2026-10-25T20:19:27Z",
+            "leverage": 1,
+            "position": "NIL",
+            "fee": {
+              "fee_type": "AddedToCost",
+              "percent": "0",
+              "percent_token": "BTC",
+              "flat_fees": [
+                {
+                  "token": "BTC",
+                  "amount": "1.98544E-7"
+                }
+              ]
+            },
+            "fee_in_quote": "0.015999",
+            "quote_currency": "USDT",
+            "conversion_status": "recorded"
+          }
+        ],
+        "next_cursor": null
+      },
+      "positions": {
+        "markets": [
+          {
+            "market": "spot",
+            "connector": "okx",
+            "coverage": "not_applicable",
+            "observed_at": null,
+            "stale": true,
+            "source": "okx_account_positions",
+            "pair_observations": {},
+            "items": []
+          },
+          {
+            "market": "perpetual",
+            "connector": "okx_perpetual",
+            "coverage": "observed",
+            "observed_at": "2026-10-25T20:21:37.719835Z",
+            "stale": false,
+            "source": "okx_account_positions",
+            "pair_observations": {
+              "BTC-USDT": "2026-10-25T20:21:37.719835Z"
+            },
+            "items": [
+              {
+                "pair": "BTC-USDT",
+                "side": "SHORT",
+                "amount": "-0.00020",
+                "entry_price": "80554.09",
+                "unrealized_pnl": "-0.001998000000001",
+                "leverage": "1",
+                "margin_mode": "cross",
+                "margin": null,
+                "liquidation_price": "24968101.4663845",
+                "observed_at": "2026-10-25T20:21:38.071827Z",
+                "stale": false
+              }
+            ]
+          }
+        ],
+        "server_time": "2026-10-25T20:21:38.332473Z",
+        "owner_available": true
+      }
+    },
+    "restart_with_filled_exposure": {
+      "passed": true,
+      "status": {
+        "bot_id": "okx-demo-btc",
+        "desired_state": "running",
+        "control_version": 30,
+        "acknowledged_version": 30,
+        "running": true,
+        "phase": "running",
+        "owner_available": true,
+        "heartbeat_age_seconds": 0.029163,
+        "session": {
+          "id": "bddfed42-d994-4ffc-aa79-450dae7718ed",
+          "request": {
+            "market_mode": "both",
+            "selection": "fixed",
+            "duration_seconds": 900,
+            "profile_id": "sideways",
+            "references": null,
+            "profile_ids": null,
+            "step_duration_seconds": null
+          },
+          "config_hash": "f9e8babbcced783a5df4205bc82a7f4e056f250f6aad7913fd4061d713c7ffe6",
+          "profile_id": "sideways",
+          "generation": 0,
+          "step_index": 0,
+          "status": "running",
+          "started_at": "2026-10-25T20:21:38.151800Z",
+          "expires_at": "2026-10-25T20:36:38.151800Z",
+          "step_expires_at": "2026-10-25T20:36:38.151800Z",
+          "anchors": {
+            "demo_btc_spot": {
+              "life": "80591.55",
+              "sources": {}
+            },
+            "demo_btc_perpetual": {
+              "life": "80558.98",
+              "sources": {}
+            }
+          }
+        },
+        "observed_session": {
+          "id": "bddfed42-d994-4ffc-aa79-450dae7718ed",
+          "request": {
+            "market_mode": "both",
+            "selection": "fixed",
+            "duration_seconds": 900,
+            "profile_id": "sideways",
+            "references": null,
+            "profile_ids": null,
+            "step_duration_seconds": null
+          },
+          "config_hash": "f9e8babbcced783a5df4205bc82a7f4e056f250f6aad7913fd4061d713c7ffe6",
+          "profile_id": "sideways",
+          "generation": 0,
+          "step_index": 0,
+          "status": "running",
+          "started_at": "2026-10-25T20:21:38.151800Z",
+          "expires_at": "2026-10-25T20:36:38.151800Z",
+          "step_expires_at": "2026-10-25T20:36:38.151800Z",
+          "anchors": {
+            "demo_btc_spot": {
+              "life": "80591.55",
+              "sources": {}
+            },
+            "demo_btc_perpetual": {
+              "life": "80558.98",
+              "sources": {}
+            }
+          }
+        },
+        "markets": [
+          {
+            "market": "spot",
+            "connector": "okx",
+            "pair": "BTC-USDT",
+            "ready": true,
+            "admitted": true,
+            "reference_price": "80591.55",
+            "reason": null
+          },
+          {
+            "market": "perpetual",
+            "connector": "okx_perpetual",
+            "pair": "BTC-USDT",
+            "ready": true,
+            "admitted": true,
+            "reference_price": "80558.98",
+            "reason": null
+          }
+        ],
+        "server_time": "2026-10-25T20:21:47.399059Z",
+        "time_remaining_seconds": 890.7527408599854,
+        "error": null
+      },
+      "positions": {
+        "markets": [
+          {
+            "market": "spot",
+            "connector": "okx",
+            "coverage": "not_applicable",
+            "observed_at": null,
+            "stale": true,
+            "source": "okx_account_positions",
+            "pair_observations": {},
+            "items": []
+          },
+          {
+            "market": "perpetual",
+            "connector": "okx_perpetual",
+            "coverage": "observed",
+            "observed_at": "2026-10-25T20:21:46.216007Z",
+            "stale": false,
+            "source": "okx_account_positions",
+            "pair_observations": {
+              "BTC-USDT": "2026-10-25T20:21:46.216007Z"
+            },
+            "items": [
+              {
+                "pair": "BTC-USDT",
+                "side": "SHORT",
+                "amount": "-0.00020",
+                "entry_price": "80554.09",
+                "unrealized_pnl": "-0.0010399999999994",
+                "leverage": "1",
+                "margin_mode": "cross",
+                "margin": null,
+                "liquidation_price": "24968101.4663845",
+                "observed_at": "2026-10-25T20:21:46.584281Z",
+                "stale": false
+              }
+            ]
+          }
+        ],
+        "server_time": "2026-10-25T20:21:47.447751Z",
+        "owner_available": true
+      },
+      "fills": {
+        "items": [
+          {
+            "id": "4543186038",
+            "order_id": "93027a12dac34fBCSBCUTf90304cbcb2",
+            "market": "perpetual",
+            "connector": "okx_perpetual",
+            "pair": "BTC-USDT",
+            "side": "SELL",
+            "price": "80554.09",
+            "amount": "0.0002",
+            "timestamp": "2026-10-25T20:20:25Z",
+            "leverage": 1,
+            "position": "OPEN",
+            "fee": {
+              "fee_type": "AddedToCost",
+              "percent": "0",
+              "percent_token": "USDT",
+              "flat_fees": [
+                {
+                  "token": "USDT",
+                  "amount": "0.0032221636"
+                }
+              ]
+            },
+            "fee_in_quote": "0.003222",
+            "quote_currency": "USDT",
+            "conversion_status": "recorded"
+          },
+          {
+            "id": "1417150351",
+            "order_id": "93027a12dac34fBCSBCUTa9abc2f2be2",
+            "market": "spot",
+            "connector": "okx",
+            "pair": "BTC-USDT",
+            "side": "SELL",
+            "price": "80587.6",
+            "amount": "0.000248",
+            "timestamp": "2026-10-25T20:20:23Z",
+            "leverage": 1,
+            "position": "NIL",
+            "fee": {
+              "fee_type": "DeductedFromReturns",
+              "percent": "0",
+              "percent_token": "USDT",
+              "flat_fees": [
+                {
+                  "token": "USDT",
+                  "amount": "0.0159995397536"
+                }
+              ]
+            },
+            "fee_in_quote": "0.015999",
+            "quote_currency": "USDT",
+            "conversion_status": "recorded"
+          },
+          {
+            "id": "1417150335",
+            "order_id": "93027a12dac34fBCBBCUTf588f07619a",
+            "market": "spot",
+            "connector": "okx",
+            "pair": "BTC-USDT",
+            "side": "BUY",
+            "price": "80584.4",
+            "amount": "0.000248",
+            "timestamp": "2026-10-25T20:19:27Z",
+            "leverage": 1,
+            "position": "NIL",
+            "fee": {
+              "fee_type": "AddedToCost",
+              "percent": "0",
+              "percent_token": "BTC",
+              "flat_fees": [
+                {
+                  "token": "BTC",
+                  "amount": "1.98544E-7"
+                }
+              ]
+            },
+            "fee_in_quote": "0.015999",
+            "quote_currency": "USDT",
+            "conversion_status": "recorded"
+          }
+        ],
+        "next_cursor": null
+      }
+    },
+    "fills": {
+      "items": [
+        {
+          "id": "1417150389",
+          "order_id": "93027a12dac34fBCSBCUT897cc9315b1",
+          "market": "spot",
+          "connector": "okx",
+          "pair": "BTC-USDT",
+          "side": "SELL",
+          "price": "80597.5",
+          "amount": "0.000248",
+          "timestamp": "2026-10-25T20:21:50Z",
+          "leverage": 1,
+          "position": "NIL",
+          "fee": {
+            "fee_type": "DeductedFromReturns",
+            "percent": "0",
+            "percent_token": "USDT",
+            "flat_fees": [
+              {
+                "token": "USDT",
+                "amount": "0.01600086048"
+              }
+            ]
+          },
+          "fee_in_quote": "0.016",
+          "quote_currency": "USDT",
+          "conversion_status": "recorded"
+        },
+        {
+          "id": "4543186344",
+          "order_id": "93027a12dac34fBCSBCUT8b1f6ea8d73",
+          "market": "perpetual",
+          "connector": "okx_perpetual",
+          "pair": "BTC-USDT",
+          "side": "SELL",
+          "price": "80560.59",
+          "amount": "0.0002",
+          "timestamp": "2026-10-25T20:21:49Z",
+          "leverage": 1,
+          "position": "OPEN",
+          "fee": {
+            "fee_type": "AddedToCost",
+            "percent": "0",
+            "percent_token": "USDT",
+            "flat_fees": [
+              {
+                "token": "USDT",
+                "amount": "0.0032224236"
+              }
+            ]
+          },
+          "fee_in_quote": "0.003222",
+          "quote_currency": "USDT",
+          "conversion_status": "recorded"
+        },
+        {
+          "id": "4543186038",
+          "order_id": "93027a12dac34fBCSBCUTf90304cbcb2",
+          "market": "perpetual",
+          "connector": "okx_perpetual",
+          "pair": "BTC-USDT",
+          "side": "SELL",
+          "price": "80554.09",
+          "amount": "0.0002",
+          "timestamp": "2026-10-25T20:20:25Z",
+          "leverage": 1,
+          "position": "OPEN",
+          "fee": {
+            "fee_type": "AddedToCost",
+            "percent": "0",
+            "percent_token": "USDT",
+            "flat_fees": [
+              {
+                "token": "USDT",
+                "amount": "0.0032221636"
+              }
+            ]
+          },
+          "fee_in_quote": "0.003222",
+          "quote_currency": "USDT",
+          "conversion_status": "recorded"
+        },
+        {
+          "id": "1417150351",
+          "order_id": "93027a12dac34fBCSBCUTa9abc2f2be2",
+          "market": "spot",
+          "connector": "okx",
+          "pair": "BTC-USDT",
+          "side": "SELL",
+          "price": "80587.6",
+          "amount": "0.000248",
+          "timestamp": "2026-10-25T20:20:23Z",
+          "leverage": 1,
+          "position": "NIL",
+          "fee": {
+            "fee_type": "DeductedFromReturns",
+            "percent": "0",
+            "percent_token": "USDT",
+            "flat_fees": [
+              {
+                "token": "USDT",
+                "amount": "0.0159995397536"
+              }
+            ]
+          },
+          "fee_in_quote": "0.015999",
+          "quote_currency": "USDT",
+          "conversion_status": "recorded"
+        },
+        {
+          "id": "1417150335",
+          "order_id": "93027a12dac34fBCBBCUTf588f07619a",
+          "market": "spot",
+          "connector": "okx",
+          "pair": "BTC-USDT",
+          "side": "BUY",
+          "price": "80584.4",
+          "amount": "0.000248",
+          "timestamp": "2026-10-25T20:19:27Z",
+          "leverage": 1,
+          "position": "NIL",
+          "fee": {
+            "fee_type": "AddedToCost",
+            "percent": "0",
+            "percent_token": "BTC",
+            "flat_fees": [
+              {
+                "token": "BTC",
+                "amount": "1.98544E-7"
+              }
+            ]
+          },
+          "fee_in_quote": "0.015999",
+          "quote_currency": "USDT",
+          "conversion_status": "recorded"
+        }
+      ],
+      "next_cursor": null
+    },
+    "positions": {
+      "markets": [
+        {
+          "market": "spot",
+          "connector": "okx",
+          "coverage": "not_applicable",
+          "observed_at": null,
+          "stale": true,
+          "source": "okx_account_positions",
+          "pair_observations": {},
+          "items": []
+        },
+        {
+          "market": "perpetual",
+          "connector": "okx_perpetual",
+          "coverage": "observed",
+          "observed_at": "2026-10-25T20:21:46.216007Z",
+          "stale": false,
+          "source": "okx_account_positions",
+          "pair_observations": {
+            "BTC-USDT": "2026-10-25T20:21:46.216007Z"
+          },
+          "items": [
+            {
+              "pair": "BTC-USDT",
+              "side": "SHORT",
+              "amount": "-0.00040",
+              "entry_price": "80557.34",
+              "unrealized_pnl": "-0.0030760000000009",
+              "leverage": "1",
+              "margin_mode": "cross",
+              "margin": null,
+              "liquidation_price": "12573881.420887424",
+              "observed_at": "2026-10-25T20:21:54.394773Z",
+              "stale": false
+            }
+          ]
+        }
+      ],
+      "server_time": "2026-10-25T20:21:55.525512Z",
+      "owner_available": true
+    },
+    "statistics": {
+      "start_day": "2026-10-19",
+      "end_day": "2026-10-26",
+      "reporting_timezone": "UTC",
+      "server_time": "2026-10-25T20:21:55.531848Z",
+      "coverage": "observed_recorder_events",
+      "balance_scope": "account_last_observed",
+      "trade_storage_scale": 6,
+      "funding_precision": "legacy_float",
+      "markets": [
+        {
+          "market": "spot",
+          "connector": "okx",
+          "funding_status": "not_applicable",
+          "days": [
+            {
+              "day": "2026-10-25",
+              "observed_at": "2026-10-25T20:21:55.531848Z",
+              "last_event_at": "2026-10-25T20:21:50Z",
+              "fill_count": 3,
+              "buy_volume_base": "0.00024800000000000000",
+              "sell_volume_base": "0.00049600000000000000",
+              "buy_volume_quote": "19.9849312000000000",
+              "sell_volume_quote": "39.9739048000000000",
+              "converted_fill_count": 3,
+              "unconverted_fill_count": 0,
+              "percentage_fee_fill_count": 0,
+              "fee_in_usdt": "0.04799800000000000000",
+              "fees": [
+                {
+                  "currency": "BTC",
+                  "paid": "1.98544E-7",
+                  "rebates": "0",
+                  "net": "1.98544E-7"
+                },
+                {
+                  "currency": "USDT",
+                  "paid": "0.0320004002336",
+                  "rebates": "0",
+                  "net": "0.0320004002336"
+                }
+              ],
+              "funding_paid": null,
+              "funding_received": null,
+              "source": "recorder_tables"
+            }
+          ]
+        },
+        {
+          "market": "perpetual",
+          "connector": "okx_perpetual",
+          "funding_status": "observed_only",
+          "days": [
+            {
+              "day": "2026-10-25",
+              "observed_at": "2026-10-25T20:21:55.531848Z",
+              "last_event_at": "2026-10-25T20:21:49Z",
+              "fill_count": 2,
+              "buy_volume_base": "0E-24",
+              "sell_volume_base": "0.00040000000000000000",
+              "buy_volume_quote": "0E-32",
+              "sell_volume_quote": "32.2229360000000000",
+              "converted_fill_count": 2,
+              "unconverted_fill_count": 0,
+              "percentage_fee_fill_count": 0,
+              "fee_in_usdt": "0.00644400000000000000",
+              "fees": [
+                {
+                  "currency": "USDT",
+                  "paid": "0.0064445872",
+                  "rebates": "0",
+                  "net": "0.0064445872"
+                }
+              ],
+              "funding_paid": "0",
+              "funding_received": "0",
+              "source": "recorder_tables"
+            }
+          ]
+        }
+      ],
+      "balances": [
+        {
+          "account_id": "[demo-account]",
+          "environment": "demo",
+          "currency": "BTC",
+          "reporting_timezone": "UTC",
+          "day": "2026-10-25",
+          "observed_at": "2026-10-25T20:21:14.166214Z",
+          "updated_at": "2026-10-25T20:21:19.123614Z",
+          "connector": "okx_perpetual",
+          "source": "okx_account_balance",
+          "cash_balance": "0.999999811456000000",
+          "available_cash": "0.999751641456000000",
+          "equity": "0.999999811456000000",
+          "available_equity": "0.999751641456000000"
+        },
+        {
+          "account_id": "[demo-account]",
+          "environment": "demo",
+          "currency": "ETH",
+          "reporting_timezone": "UTC",
+          "day": "2026-10-25",
+          "observed_at": "2026-10-25T20:21:14.166233Z",
+          "updated_at": "2026-10-25T20:21:19.123693Z",
+          "connector": "okx_perpetual",
+          "source": "okx_account_balance",
+          "cash_balance": "1.000000000000000000",
+          "available_cash": "1.000000000000000000",
+          "equity": "1.000000000000000000",
+          "available_equity": "1.000000000000000000"
+        },
+        {
+          "account_id": "[demo-account]",
+          "environment": "demo",
+          "currency": "OKB",
+          "reporting_timezone": "UTC",
+          "day": "2026-10-25",
+          "observed_at": "2026-10-25T20:21:14.166220Z",
+          "updated_at": "2026-10-25T20:21:19.123710Z",
+          "connector": "okx_perpetual",
+          "source": "okx_account_balance",
+          "cash_balance": "100.000000000000000000",
+          "available_cash": "100.000000000000000000",
+          "equity": "100.000000000000000000",
+          "available_equity": "100.000000000000000000"
+        },
+        {
+          "account_id": "[demo-account]",
+          "environment": "demo",
+          "currency": "USDT",
+          "reporting_timezone": "UTC",
+          "day": "2026-10-25",
+          "observed_at": "2026-10-25T20:21:14.166227Z",
+          "updated_at": "2026-10-25T20:21:19.123722Z",
+          "connector": "okx_perpetual",
+          "source": "okx_account_balance",
+          "cash_balance": "4999.980766596646000000",
+          "available_cash": "4947.729010948648000000",
+          "equity": "4999.976242596646000000",
+          "available_equity": "4947.729010948648000000"
+        }
+      ]
+    },
+    "final_status": {
+      "bot_id": "okx-demo-btc",
+      "desired_state": "stopped",
+      "control_version": 31,
+      "acknowledged_version": 31,
+      "running": false,
+      "phase": "stopped",
+      "owner_available": true,
+      "heartbeat_age_seconds": 0.395075,
+      "session": {
+        "id": "bddfed42-d994-4ffc-aa79-450dae7718ed",
+        "request": {
+          "market_mode": "both",
+          "selection": "fixed",
+          "duration_seconds": 900,
+          "profile_id": "sideways",
+          "references": null,
+          "profile_ids": null,
+          "step_duration_seconds": null
+        },
+        "config_hash": "f9e8babbcced783a5df4205bc82a7f4e056f250f6aad7913fd4061d713c7ffe6",
+        "profile_id": "sideways",
+        "generation": 1,
+        "step_index": 0,
+        "status": "stopped",
+        "started_at": "2026-10-25T20:21:38.151800Z",
+        "expires_at": "2026-10-25T20:36:38.151800Z",
+        "step_expires_at": "2026-10-25T20:36:38.151800Z",
+        "anchors": {
+          "demo_btc_spot": {
+            "life": "80591.55",
+            "sources": {}
+          },
+          "demo_btc_perpetual": {
+            "life": "80558.98",
+            "sources": {}
+          }
+        }
+      },
+      "observed_session": {
+        "id": "bddfed42-d994-4ffc-aa79-450dae7718ed",
+        "request": {
+          "market_mode": "both",
+          "selection": "fixed",
+          "duration_seconds": 900,
+          "profile_id": "sideways",
+          "references": null,
+          "profile_ids": null,
+          "step_duration_seconds": null
+        },
+        "config_hash": "f9e8babbcced783a5df4205bc82a7f4e056f250f6aad7913fd4061d713c7ffe6",
+        "profile_id": "sideways",
+        "generation": 1,
+        "step_index": 0,
+        "status": "stopped",
+        "started_at": "2026-10-25T20:21:38.151800Z",
+        "expires_at": "2026-10-25T20:36:38.151800Z",
+        "step_expires_at": "2026-10-25T20:36:38.151800Z",
+        "anchors": {
+          "demo_btc_spot": {
+            "life": "80591.55",
+            "sources": {}
+          },
+          "demo_btc_perpetual": {
+            "life": "80558.98",
+            "sources": {}
+          }
+        }
+      },
+      "markets": [],
+      "server_time": "2026-10-25T20:21:56.592403Z",
+      "time_remaining_seconds": 881.559396982193,
+      "error": null
+    },
+    "final_fills": {
+      "items": [
+        {
+          "id": "1417150389",
+          "order_id": "93027a12dac34fBCSBCUT897cc9315b1",
+          "market": "spot",
+          "connector": "okx",
+          "pair": "BTC-USDT",
+          "side": "SELL",
+          "price": "80597.5",
+          "amount": "0.000248",
+          "timestamp": "2026-10-25T20:21:50Z",
+          "leverage": 1,
+          "position": "NIL",
+          "fee": {
+            "fee_type": "DeductedFromReturns",
+            "percent": "0",
+            "percent_token": "USDT",
+            "flat_fees": [
+              {
+                "token": "USDT",
+                "amount": "0.01600086048"
+              }
+            ]
+          },
+          "fee_in_quote": "0.016",
+          "quote_currency": "USDT",
+          "conversion_status": "recorded"
+        },
+        {
+          "id": "4543186344",
+          "order_id": "93027a12dac34fBCSBCUT8b1f6ea8d73",
+          "market": "perpetual",
+          "connector": "okx_perpetual",
+          "pair": "BTC-USDT",
+          "side": "SELL",
+          "price": "80560.59",
+          "amount": "0.0002",
+          "timestamp": "2026-10-25T20:21:49Z",
+          "leverage": 1,
+          "position": "OPEN",
+          "fee": {
+            "fee_type": "AddedToCost",
+            "percent": "0",
+            "percent_token": "USDT",
+            "flat_fees": [
+              {
+                "token": "USDT",
+                "amount": "0.0032224236"
+              }
+            ]
+          },
+          "fee_in_quote": "0.003222",
+          "quote_currency": "USDT",
+          "conversion_status": "recorded"
+        },
+        {
+          "id": "4543186038",
+          "order_id": "93027a12dac34fBCSBCUTf90304cbcb2",
+          "market": "perpetual",
+          "connector": "okx_perpetual",
+          "pair": "BTC-USDT",
+          "side": "SELL",
+          "price": "80554.09",
+          "amount": "0.0002",
+          "timestamp": "2026-10-25T20:20:25Z",
+          "leverage": 1,
+          "position": "OPEN",
+          "fee": {
+            "fee_type": "AddedToCost",
+            "percent": "0",
+            "percent_token": "USDT",
+            "flat_fees": [
+              {
+                "token": "USDT",
+                "amount": "0.0032221636"
+              }
+            ]
+          },
+          "fee_in_quote": "0.003222",
+          "quote_currency": "USDT",
+          "conversion_status": "recorded"
+        },
+        {
+          "id": "1417150351",
+          "order_id": "93027a12dac34fBCSBCUTa9abc2f2be2",
+          "market": "spot",
+          "connector": "okx",
+          "pair": "BTC-USDT",
+          "side": "SELL",
+          "price": "80587.6",
+          "amount": "0.000248",
+          "timestamp": "2026-10-25T20:20:23Z",
+          "leverage": 1,
+          "position": "NIL",
+          "fee": {
+            "fee_type": "DeductedFromReturns",
+            "percent": "0",
+            "percent_token": "USDT",
+            "flat_fees": [
+              {
+                "token": "USDT",
+                "amount": "0.0159995397536"
+              }
+            ]
+          },
+          "fee_in_quote": "0.015999",
+          "quote_currency": "USDT",
+          "conversion_status": "recorded"
+        },
+        {
+          "id": "1417150335",
+          "order_id": "93027a12dac34fBCBBCUTf588f07619a",
+          "market": "spot",
+          "connector": "okx",
+          "pair": "BTC-USDT",
+          "side": "BUY",
+          "price": "80584.4",
+          "amount": "0.000248",
+          "timestamp": "2026-10-25T20:19:27Z",
+          "leverage": 1,
+          "position": "NIL",
+          "fee": {
+            "fee_type": "AddedToCost",
+            "percent": "0",
+            "percent_token": "BTC",
+            "flat_fees": [
+              {
+                "token": "BTC",
+                "amount": "1.98544E-7"
+              }
+            ]
+          },
+          "fee_in_quote": "0.015999",
+          "quote_currency": "USDT",
+          "conversion_status": "recorded"
+        }
+      ],
+      "next_cursor": null
+    },
+    "final_positions": {
+      "markets": [
+        {
+          "market": "spot",
+          "connector": "okx",
+          "coverage": "not_applicable",
+          "observed_at": null,
+          "stale": true,
+          "source": "okx_account_positions",
+          "pair_observations": {},
+          "items": []
+        },
+        {
+          "market": "perpetual",
+          "connector": "okx_perpetual",
+          "coverage": "observed",
+          "observed_at": "2026-10-25T20:21:46.216007Z",
+          "stale": true,
+          "source": "okx_account_positions",
+          "pair_observations": {
+            "BTC-USDT": "2026-10-25T20:21:46.216007Z"
+          },
+          "items": [
+            {
+              "pair": "BTC-USDT",
+              "side": "SHORT",
+              "amount": "-0.00040",
+              "entry_price": "80557.34",
+              "unrealized_pnl": "-0.0030760000000009",
+              "leverage": "1",
+              "margin_mode": "cross",
+              "margin": null,
+              "liquidation_price": "12573881.420887424",
+              "observed_at": "2026-10-25T20:21:54.394773Z",
+              "stale": true
+            }
+          ]
+        }
+      ],
+      "server_time": "2026-10-25T20:21:56.609739Z",
+      "owner_available": true
+    },
+    "pending_exchange_orders": [],
+    "finished_at": "2026-10-25T20:21:57.817410+00:00"
+  },
+  "independent_account": {
+    "at": "2026-10-25T20:25:46.576929+00:00",
+    "fills": [
+      {
+        "instId": "BTC-USDT",
+        "clOrdId": "93027a12dac34fBCSBCUT897cc9315b1",
+        "ordId": "4041876532130893824",
+        "tradeId": "1417150389",
+        "fillSz": "0.00024816",
+        "fillPx": "80597.5",
+        "fee": "-0.01600086048",
+        "feeCcy": "USDT",
+        "side": "sell",
+        "posSide": "net",
+        "ts": "1792959711043",
+        "subType": "2",
+        "execType": "M"
+      },
+      {
+        "instId": "BTC-USDT-SWAP",
+        "clOrdId": "93027a12dac34fBCSBCUT8b1f6ea8d73",
+        "ordId": "4041876541559689216",
+        "tradeId": "4543186344",
+        "fillSz": "0.02",
+        "fillPx": "80560.59",
+        "fee": "-0.0032224236",
+        "feeCcy": "USDT",
+        "side": "sell",
+        "posSide": "short",
+        "ts": "1792959709621",
+        "subType": "4",
+        "execType": "M"
+      },
+      {
+        "instId": "BTC-USDT-SWAP",
+        "clOrdId": "93027a12dac34fBCSBCUTf90304cbcb2",
+        "ordId": "4041873671414239232",
+        "tradeId": "4543186038",
+        "fillSz": "0.02",
+        "fillPx": "80554.09",
+        "fee": "-0.0032221636",
+        "feeCcy": "USDT",
+        "side": "sell",
+        "posSide": "short",
+        "ts": "1792959625197",
+        "subType": "4",
+        "execType": "M"
+      },
+      {
+        "instId": "BTC-USDT",
+        "clOrdId": "93027a12dac34fBCSBCUTa9abc2f2be2",
+        "ordId": "4041873657455595520",
+        "tradeId": "1417150351",
+        "fillSz": "0.00024817",
+        "fillPx": "80587.6",
+        "fee": "-0.0159995397536",
+        "feeCcy": "USDT",
+        "side": "sell",
+        "posSide": "net",
+        "ts": "1792959624043",
+        "subType": "2",
+        "execType": "M"
+      },
+      {
+        "instId": "BTC-USDT",
+        "clOrdId": "93027a12dac34fBCBBCUTf588f07619a",
+        "ordId": "4041871559934496768",
+        "tradeId": "1417150335",
+        "fillSz": "0.00024818",
+        "fillPx": "80584.4",
+        "fee": "-0.000000198544",
+        "feeCcy": "BTC",
+        "side": "buy",
+        "posSide": "net",
+        "ts": "1792959567104",
+        "subType": "1",
+        "execType": "M"
+      }
+    ],
+    "positions": [
+      {
+        "instId": "BTC-USDT-SWAP",
+        "tradeId": "4543186344",
+        "fee": "-0.0064445872",
+        "posSide": "short",
+        "pos": "0.04",
+        "avgPx": "80557.34",
+        "fundingFee": "0",
+        "pnl": "0",
+        "ccy": "USDT"
+      }
+    ],
+    "funding_bills": [],
+    "pending": [],
+    "cash": {
+      "BTC": "0.999751651456",
+      "OKB": "100",
+      "USDT": "5019.9626189125665",
+      "ETH": "1"
+    },
+    "db_fills": [
+      {
+        "market": "okx",
+        "order_id": "93027a12dac34fBCBBCUTf588f07619a",
+        "exchange_trade_id": "1417150335",
+        "amount": 248,
+        "price": 80584400000,
+        "trade_fee": {
+          "fee_type": "AddedToCost",
+          "percent": "0",
+          "percent_token": "BTC",
+          "flat_fees": [
+            {
+              "token": "BTC",
+              "amount": "1.98544E-7"
+            }
+          ]
+        },
+        "trade_fee_in_quote": 15999
+      },
+      {
+        "market": "okx",
+        "order_id": "93027a12dac34fBCSBCUTa9abc2f2be2",
+        "exchange_trade_id": "1417150351",
+        "amount": 248,
+        "price": 80587600000,
+        "trade_fee": {
+          "fee_type": "DeductedFromReturns",
+          "percent": "0",
+          "percent_token": "USDT",
+          "flat_fees": [
+            {
+              "token": "USDT",
+              "amount": "0.0159995397536"
+            }
+          ]
+        },
+        "trade_fee_in_quote": 15999
+      },
+      {
+        "market": "okx_perpetual",
+        "order_id": "93027a12dac34fBCSBCUTf90304cbcb2",
+        "exchange_trade_id": "4543186038",
+        "amount": 200,
+        "price": 80554090000,
+        "trade_fee": {
+          "fee_type": "AddedToCost",
+          "percent": "0",
+          "percent_token": "USDT",
+          "flat_fees": [
+            {
+              "token": "USDT",
+              "amount": "0.0032221636"
+            }
+          ]
+        },
+        "trade_fee_in_quote": 3222
+      },
+      {
+        "market": "okx_perpetual",
+        "order_id": "93027a12dac34fBCSBCUT8b1f6ea8d73",
+        "exchange_trade_id": "4543186344",
+        "amount": 200,
+        "price": 80560590000,
+        "trade_fee": {
+          "fee_type": "AddedToCost",
+          "percent": "0",
+          "percent_token": "USDT",
+          "flat_fees": [
+            {
+              "token": "USDT",
+              "amount": "0.0032224236"
+            }
+          ]
+        },
+        "trade_fee_in_quote": 3222
+      },
+      {
+        "market": "okx",
+        "order_id": "93027a12dac34fBCSBCUT897cc9315b1",
+        "exchange_trade_id": "1417150389",
+        "amount": 248,
+        "price": 80597500000,
+        "trade_fee": {
+          "fee_type": "DeductedFromReturns",
+          "percent": "0",
+          "percent_token": "USDT",
+          "flat_fees": [
+            {
+              "token": "USDT",
+              "amount": "0.01600086048"
+            }
+          ]
+        },
+        "trade_fee_in_quote": 16000
+      }
+    ],
+    "db_funding": []
+  },
+  "original_fee_comparison": {
+    "fills": [
+      {
+        "market": "spot",
+        "fill_id": "1417150389",
+        "quantity": "0.00024816",
+        "recorder_quantity": "0.000248",
+        "legacy_quantity_truncation": "1.6E-7",
+        "fee_currency": "USDT",
+        "exchange_fee_signed": "-0.01600086048",
+        "recorder_fee_cost": "0.01600086048",
+        "original_fee_matches": true
+      },
+      {
+        "market": "perpetual",
+        "fill_id": "4543186344",
+        "quantity": "0.0002",
+        "recorder_quantity": "0.0002",
+        "legacy_quantity_truncation": "0.0000",
+        "fee_currency": "USDT",
+        "exchange_fee_signed": "-0.0032224236",
+        "recorder_fee_cost": "0.0032224236",
+        "original_fee_matches": true
+      },
+      {
+        "market": "perpetual",
+        "fill_id": "4543186038",
+        "quantity": "0.0002",
+        "recorder_quantity": "0.0002",
+        "legacy_quantity_truncation": "0.0000",
+        "fee_currency": "USDT",
+        "exchange_fee_signed": "-0.0032221636",
+        "recorder_fee_cost": "0.0032221636",
+        "original_fee_matches": true
+      },
+      {
+        "market": "spot",
+        "fill_id": "1417150351",
+        "quantity": "0.00024817",
+        "recorder_quantity": "0.000248",
+        "legacy_quantity_truncation": "1.7E-7",
+        "fee_currency": "USDT",
+        "exchange_fee_signed": "-0.0159995397536",
+        "recorder_fee_cost": "0.0159995397536",
+        "original_fee_matches": true
+      },
+      {
+        "market": "spot",
+        "fill_id": "1417150335",
+        "quantity": "0.00024818",
+        "recorder_quantity": "0.000248",
+        "legacy_quantity_truncation": "1.8E-7",
+        "fee_currency": "BTC",
+        "exchange_fee_signed": "-0.000000198544",
+        "recorder_fee_cost": "1.98544E-7",
+        "original_fee_matches": true
+      }
+    ],
+    "all_original_fees_match": true,
+    "source_account_read": "2026-10-25T20:22:10.988847+00:00"
+  },
+  "funding_no_new_order_smoke": {
+    "environment": "demo",
+    "image_id": "sha256:17d530e26018da8c5d0e4f7c2f769fc29c28dd04f6a3c908f7f6f5568fa49023",
+    "passed": true,
+    "commands": [
+      {
+        "action": "start",
+        "receipt_id": "0da20f95-8ca0-49be-a351-4a8da403b947",
+        "same_key_retry_same_receipt": true,
+        "elapsed_seconds": 4.108498875051737
+      },
+      {
+        "action": "stop",
+        "receipt_id": "264cb28c-7efc-4175-a916-ea9cba19dccd",
+        "same_key_retry_same_receipt": true,
+        "elapsed_seconds": 1.03379858401604
+      }
+    ],
+    "checks": [],
+    "smoke_only": true,
+    "natural_settlement_only": true,
+    "new_orders_allowed": false,
+    "funding_schedule": {
+      "formulaType": "withRate",
+      "fundingRate": "0.0001000000000000",
+      "fundingTime": "1792972800000",
+      "impactValue": "20000.0000000000000000",
+      "instId": "BTC-USDT-SWAP",
+      "instType": "SWAP",
+      "interestRate": "0.0001000000000000",
+      "maxFundingRate": "0.00375",
+      "method": "current_period",
+      "minFundingRate": "-0.00375",
+      "nextFundingRate": "",
+      "nextFundingTime": "1793001600000",
+      "premium": "-0.0003710955587531",
+      "prevFundingTime": "1792944000000",
+      "settFundingRate": "0.0001000000000000",
+      "settState": "settled",
+      "ts": "1792959803927"
+    },
+    "scheduled_start_utc": "2026-10-25T23:57:00+00:00",
+    "deadline_utc": "2026-10-26T00:06:00+00:00",
+    "state": "smoke_passed_no_new_orders",
+    "before": {
+      "orders": 320,
+      "fills": 5,
+      "payments": [],
+      "owner_released": true,
+      "desired_state": "stopped",
+      "halt": false
+    },
+    "positions_before": [
+      {
+        "instId": "BTC-USDT-SWAP",
+        "posSide": "short",
+        "pos": "0.04",
+        "avgPx": "80557.34",
+        "ccy": "USDT",
+        "fundingFee": "0"
+      }
+    ],
+    "bills_before": [],
+    "ready_status": {
+      "bot_id": "okx-demo-btc",
+      "desired_state": "running",
+      "control_version": 32,
+      "acknowledged_version": 32,
+      "running": true,
+      "phase": "running",
+      "owner_available": true,
+      "heartbeat_age_seconds": 0.363622,
+      "session": {
+        "id": "24b0eaf4-1739-4ef9-848c-dbe1bf684300",
+        "request": {
+          "market_mode": "perpetual",
+          "selection": "fixed",
+          "duration_seconds": 900,
+          "profile_id": "sideways",
+          "references": null,
+          "profile_ids": null,
+          "step_duration_seconds": null
+        },
+        "config_hash": "3ce30d454e7050e9b76a92591367058a091ef990da4eaa631c82891117cbb081",
+        "profile_id": "sideways",
+        "generation": 0,
+        "step_index": 0,
+        "status": "running",
+        "started_at": "2026-10-25T20:24:15.557831Z",
+        "expires_at": "2026-10-25T20:39:15.557831Z",
+        "step_expires_at": "2026-10-25T20:39:15.557831Z",
+        "anchors": {
+          "demo_btc_perpetual": {
+            "life": "80551.405",
+            "sources": {}
+          }
+        }
+      },
+      "observed_session": {
+        "id": "24b0eaf4-1739-4ef9-848c-dbe1bf684300",
+        "request": {
+          "market_mode": "perpetual",
+          "selection": "fixed",
+          "duration_seconds": 900,
+          "profile_id": "sideways",
+          "references": null,
+          "profile_ids": null,
+          "step_duration_seconds": null
+        },
+        "config_hash": "3ce30d454e7050e9b76a92591367058a091ef990da4eaa631c82891117cbb081",
+        "profile_id": "sideways",
+        "generation": 0,
+        "step_index": 0,
+        "status": "running",
+        "started_at": "2026-10-25T20:24:15.557831Z",
+        "expires_at": "2026-10-25T20:39:15.557831Z",
+        "step_expires_at": "2026-10-25T20:39:15.557831Z",
+        "anchors": {
+          "demo_btc_perpetual": {
+            "life": "80551.405",
+            "sources": {}
+          }
+        }
+      },
+      "markets": [
+        {
+          "market": "perpetual",
+          "connector": "okx_perpetual",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80551.405",
+          "reason": null
+        }
+      ],
+      "server_time": "2026-10-25T20:24:16.464954Z",
+      "time_remaining_seconds": 899.0928771495819,
+      "error": null
+    },
+    "current_database": {
+      "orders": 320,
+      "fills": 5,
+      "payments": [],
+      "owner_released": false,
+      "desired_state": "running",
+      "halt": false
+    },
+    "positions_current": [
+      {
+        "instId": "BTC-USDT-SWAP",
+        "posSide": "short",
+        "pos": "0.04",
+        "avgPx": "80557.34",
+        "ccy": "USDT",
+        "fundingFee": "0"
+      }
+    ],
+    "bills_current": [],
+    "observed_at": "2026-10-25T20:24:30.025051+00:00",
+    "final_database": {
+      "orders": 320,
+      "fills": 5,
+      "payments": [],
+      "owner_released": true,
+      "desired_state": "stopped",
+      "halt": false
+    },
+    "positions_after": [
+      {
+        "instId": "BTC-USDT-SWAP",
+        "posSide": "short",
+        "pos": "0.04",
+        "avgPx": "80557.34",
+        "ccy": "USDT",
+        "fundingFee": "0"
+      }
+    ],
+    "bills_after": [],
+    "pending_after": [],
+    "finished_at": "2026-10-25T20:24:35.326453+00:00"
+  },
+  "funding_payment_verified": false,
+  "runtime_source_changed": false,
+  "cloud_run_deployed": false
+}

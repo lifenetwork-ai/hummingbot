@@ -1,10 +1,14 @@
 # OKX Demo acceptance — P6
 
 Status: **the bounded Demo protocol passed**, completed on 2026-10-26 in
-Asia/Ho_Chi_Minh. Natural fill/fee, filled-position recovery and funding checks
-remain explicitly unverified. Two real integration defects were fixed with
+Asia/Ho_Chi_Minh. A subsequent focused run verified natural fills, original fees
+and filled-position recovery; funding settlement remains pending. Two real integration defects were fixed with
 Red/Green regressions before the final run. Portable, credential-free evidence:
 [okx-demo-acceptance.json](okx-demo-acceptance.json).
+
+Latest follow-up: [natural-fill evidence](okx-demo-fill-acceptance.json). The
+current account has no pending orders and retains a Demo SHORT of **0.0004 BTC**;
+the earlier zero-position/unchanged-cash figures below describe the original run.
 
 The currently retained runtime is
 `sha256:17d530e26018da8c5d0e4f7c2f769fc29c28dd04f6a3c908f7f6f5568fa49023`,
@@ -266,11 +270,11 @@ image `8401c10c2c5c...`; it is not relabelled as a new soak of this fix.
 - [x] Validate the post-observation cancellation fix in its rebuilt image with
   local E2E and direct Demo terminal-response/readback checks.
 
-## Unverified Demo checks
+## Follow-up Demo checks
 
-- [ ] Observe natural fills and confirm private-stream/recorder fee accounting
-  and restart with filled exposure against Demo. This run had zero fills and
-  zero perpetual positions; the existing local simulator covers these cases.
+- [x] Observe natural fills and confirm private-stream/recorder fee accounting
+  and restart with filled exposure against Demo. The focused follow-up below
+  verifies both markets and a persisted perpetual SHORT.
 - [ ] Observe a real Demo funding payment and compare the retained original
   currency amount with the exchange. No payment was observed in this run.
 
@@ -278,3 +282,77 @@ The three-profile matrix covers all profiles, while the long random sample
 happened to select only follow_market. BTC Demo integration does not verify LIFE
 listing availability, live fill quality or profitability. Original scale-six
 trade storage and legacy funding precision are unchanged.
+
+## Natural maker fills and filled-exposure restart — 2026-10-26
+
+The retained `17d530e26018...` image was used unchanged. Only the private Demo
+catalogue was temporarily adjusted: **40 USDT per market**, one maker level on
+each side, spread **0.002%**, refresh 30 seconds and cooldown 5 seconds. Prices
+remained based on the existing sideways/session-start anchor. No taker order,
+self-match, synthetic fill or account-balance adjustment was used.
+
+OKX returned five natural fills with `execType=M`: **three spot and two
+perpetual**. Independent authenticated fill reads matched all five recorder
+trade IDs and original flat-fee amounts/currencies. The spot buy fee was
+`0.000000198544 BTC`; the spot sell fees were `0.0159995397536 USDT` and
+`0.01600086048 USDT`. Perpetual fees were `0.0032221636 USDT` and
+`0.0032224236 USDT`. Exchange negative fee amounts correspond to positive costs
+in the recorder; this sign change is expected.
+
+A subsequent both-market session loaded the held SHORT of **0.0002 BTC**, then
+restarted the actual container. The position, session ID, anchors, start and
+expiry were preserved; `/ready` returned healthy with no recovery HALT.
+Observational reconciliation matched both markets, checking eight orders and
+two fills per market plus the perpetual position. A second natural perpetual
+sell subsequently increased the retained SHORT to **0.0004 BTC** (0.04 contracts,
+average entry 80,557.34 USDT). Stop cancelled outstanding quotes and preserved
+this exposure as designed.
+
+The final independent read and dedicated database show **320 orders, five
+fills, zero pending exchange orders, released ownership and no HALT**. Cash is
+BTC `0.999751651456`, USDT `5019.9626189125665`, ETH `1`, OKB `100`.
+Service logs for these follow-ups contain zero ERROR/WARNING entries. The
+original private catalogue has been restored. No runtime code or image rebuild
+was required, and the earlier 1,259-test regression is not claimed as a new run.
+
+The legacy quantity precision limitation is observable: the three spot fills
+contain `0.00024818`, `0.00024817` and `0.00024816 BTC`, but scaled-six recorder
+columns each retain `0.000248 BTC`. Differences of 0.00000016–0.00000018 BTC are
+within the existing reconciliation tolerance of 0.000001 BTC; this is **not
+lossless quantity reconciliation**. Original fee JSON remains exact, while
+converted fee columns also retain their existing six-decimal precision. A
+precision-schema change was not mixed into this exchange acceptance run.
+
+Portable evidence: [okx-demo-fill-acceptance.json](okx-demo-fill-acceptance.json).
+Local diagnostics: `build/okx-demo/fill-acceptance-20261025T202131Z.json`,
+`fill-account-current.json`, `fill-fee-comparison.json`, `fill-service.log` and
+`funding-smoke.json`.
+
+## Scheduled funding observation
+
+Funding status: **scheduled; payment remains unverified**.
+
+The authenticated Demo account has no funding bill yet. The Demo-header public
+BTC-USDT-SWAP response reports the next settlement at **2026-10-26 00:00 UTC**
+(**07:00 Asia/Ho_Chi_Minh**). OKX documents funding settlement in Demo and that
+payment requires holding a position at settlement.
+[OKX funding formula announcement](https://www.okx.com/nb/help/okx-to-change-the-funding-rate-formula-for-perpetual-futures),
+[funding fee FAQ](https://www.okx.com/en-us/help/funding-fees-for-perpetual-contracts-faq).
+
+A bounded local watcher is scheduled to start the existing service at 23:57 UTC
+and stop by 00:06 UTC after observing settlement. Its temporary private
+perpetual caps are long 0.000001, short 0.0004 and gross 0.0004 BTC. The existing
+SHORT exactly consumes the gross cap, so neither side can create a new quote.
+A real smoke session verified readiness, restored held exposure, unchanged
+320-order/five-fill counters, no exchange pending orders and clean stop with
+released ownership. No risk fence is bypassed.
+
+Before the scheduled run, the watcher requires the service to be stopped, no
+pending orders, the exact known held position, no HALT and an unchanged private
+catalogue. It will compare a new Demo funding bill's original USDT amount and
+timestamp with the existing recorder's `funding_payments`, then stop and restore
+the private catalogue. Changed prerequisites abort the check. Absence of a real
+bill or recorder mismatch keeps funding unverified. The watcher is local and
+requires this Mac and Docker to remain available; a temporary `caffeinate`
+process prevents idle sleep until it exits. PostgreSQL and the held Demo
+position remain retained after the check.

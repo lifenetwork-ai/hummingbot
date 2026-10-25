@@ -581,7 +581,7 @@ are in the separate report.
 
 ### P6 — Final acceptance against OKX Demo
 
-**Demo protocol completed; unobserved fill/funding checks remain open.** P1–P5
+**Demo protocol, natural fills/fees and filled-exposure restart passed; funding settlement remains open.** P1–P5
 local gates have passed. Dedicated Demo setup uses isolated UTC PostgreSQL,
 Futures/Hedge/Cross 1x, explicit BTC-USDT trading and AVAX-USDT single-token
 following. Two real defects were fixed with TDD: reusing a target book as a
@@ -593,8 +593,8 @@ The observation image passes selected LIFE offline E2E/recovery and all nine
 real Demo profile/market cases. Its 30-minute random/both session completed with
 three steps, preserved anchors/deadline across restart, two matched spot/perpetual
 reconciliations and automatic expiry/cancellation. That image created 288
-orders; all are cancelled. The retained DB has 300 including the earlier 12-order
-pilot, zero fills, UTC, no HALT and no owner. Final exchange reads show no pending
+orders; all are cancelled. At that protocol's completion the DB had 300 including the earlier 12-order
+pilot, zero fills, UTC, no HALT and no owner. Those exchange reads showed no pending
 orders or perpetual positions and unchanged cash. No new full load/soak or Cloud
 Run deployment was performed. See [Demo acceptance](../okx-demo-acceptance.md),
 [portable evidence](../okx-demo-acceptance.json) and
@@ -608,6 +608,18 @@ a direct Demo `51400`/terminal-readback probe under real PG ownership, and idle
 service startup/clean shutdown. The probe submits no new orders. The recorded
 30-minute run retains its original `8401c10c2c5c...` image provenance; no new full
 load/soak or 30-minute Demo run is claimed for the cancellation fix.
+
+The unchanged retained image subsequently recorded five natural maker fills
+(three spot/two perpetual). All original fee amounts and currencies match Demo
+trade reads. A real restart preserved a 0.0002 BTC SHORT, anchors and deadline;
+both-market reconciliation matched. Final exposure is SHORT 0.0004 BTC with no
+pending orders, 320 persisted orders/five fills, released ownership and no HALT.
+Legacy scale-six spot quantity truncation is explicitly reported, not described
+as lossless reconciliation. A capped no-new-order funding smoke passed. A bounded
+local watcher will observe the 2026-10-26 00:00 UTC settlement; payment stays
+unverified until a real bill matches the recorder. See
+[natural-fill evidence](../okx-demo-fill-acceptance.json) and the
+[updated acceptance report](../okx-demo-acceptance.md).
 
 OKX documents Demo API keys, the `x-simulated-trading: 1` REST header and separate
 demo WebSocket endpoints; REST may share the production host. Verify the account's
@@ -630,9 +642,9 @@ port 443 is already available. Checked 2026-10-25.
 
 - [x] Finish rebuilt-image E2E and the direct known-terminal Demo cancellation probe for the post-observation fix; retain the original observation's image identity.
 
-Unverified Demo checks are deliberately kept open:
+Focused follow-up checklist:
 
-- [ ] Observe natural fills and verify exchange/private-stream/recorder fees and recovery with filled exposure. This observation had zero fills/positions; local fixtures cover these paths.
+- [x] Observe natural fills and verify exchange/private-stream/recorder fees and recovery with filled exposure. Five natural maker fills, exact original fees/currencies, real SHORT recovery and matched reconciliation are recorded in the focused follow-up.
 - [ ] Observe a Demo funding payment and verify its original-currency accounting against the exchange. No payment was observed in the bounded run.
 
 ## 8. Scope kept out
