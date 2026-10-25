@@ -647,3 +647,20 @@ container still uses the original `17d530e26018...` image so the scheduled
 07:00 Vietnam funding check can finish against a consistent image/schema. The
 precision image is for subsequent fresh runtime use; no new real Demo order or
 Cloud Run deployment was submitted during this correction.
+
+### Planned P7 — funding observation while idle and restart backfill
+
+The owner requested a plan update for durable funding collection in the existing
+service. [P7](../plans/LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md#p7--durable-funding-observation-and-restart-backfill-tdd-planned)
+is added with all implementation/acceptance items unchecked. It covers retained
+positions after stop/expiry/spot-only switching, catch-up even after a position
+closes, late bills, exact original amounts/currencies, account/environment/bill-ID
+deduplication, owner-fenced transactional checkpoints and explicit API coverage.
+The design reuses the existing connector readers, recorder, bot state and SQL
+runner; no separate watcher container or scheduler is planned. Verification is
+Red/Green unit + real PG, internal-network E2E and a bounded local load probe,
+followed by opt-in Demo settlement/backfill checks. The existing original-image
+07:00 Demo watcher remains a separate observation and cannot close P7.
+
+This update changes documentation only. No funding observer, backfill migration
+or runtime behavior has been implemented by this planning change.

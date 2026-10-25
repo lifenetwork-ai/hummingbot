@@ -178,6 +178,7 @@ The names below refer to existing Python model classes. Their SQL tables use the
 - [x] Preserve `config_file_path` as the existing configuration identifier/path. Use stable relative names across revisions and exact query filters so histories from different configurations do not mix.
 - [x] Remove the loop that drops all foreign keys in SQLConnectionManager. Handle events arriving before their order through a deliberate placeholder/upsert or a narrowly unenforced relationship, with behavioral tests.
 - [x] Prefer existing `Order` and `MarketState` records for pending/unknown state and recovery. Add missing columns only when necessary; do not introduce an event store, outbox or order journal by default.
+- [ ] Funding follow-up (planned, not delivered by the original port): reuse `funding_payments`, existing bot state and the current owner/service for read-only observation with retained positions and bounded restart backfill. Add exact bill amounts/currency, account/environment/bill-ID uniqueness and transactional checkpoints through idempotent SQL; verify legacy-event deduplication, stopped/closed-position catch-up, API coverage and local E2E/load before opt-in Demo. No extra service/container is required. Detailed scope/checklist: [LIFE/OKX P7](LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md#p7--durable-funding-observation-and-restart-backfill-tdd-planned).
 
 ### 4.2. Durable bot control state
 

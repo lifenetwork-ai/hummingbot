@@ -333,7 +333,9 @@ market series.
   ambiguous legacy values; a failed conversion must not look like a free trade.
   PostgreSQL order/fill/position decimals now use unscaled NUMERIC following the
   demonstrated BTC precision fix below. Legacy floating-point funding precision
-  is unchanged. Decimal-string output does not recover precision already lost.
+  is unchanged in the delivered runtime; P7 below plans exact bill-based funding
+  ingestion and restart backfill. Decimal-string output does not recover
+  precision already lost.
 - Reuse fetched account fields for LIFE/USDT `cashBal`, `availBal`, `eq`, `availEq`
   where present, labeling unavailable fields. Both connectors can expose the same
   account balance; select one canonical account view and never add their USDT
@@ -666,6 +668,58 @@ silently repaired, and the existing funding watcher continues on its original
 image/schema. Existing funding/executor summary FLOAT fields are outside this
 targeted scaled-decimal fix. See [runtime details](../postgres-runtime.md#decimal-storage).
 
+### P7 — Durable funding observation and restart backfill (TDD; planned)
+
+**Status: not implemented.** The owner requested this follow-up before deployment.
+Reuse the existing service, OKX authenticated REST readers/throttlers, recorder,
+PostgreSQL ownership, SQL runner and reporting handlers. No separate watcher
+container, Cloud Scheduler, queue, Redis or general accounting framework is needed.
+The local 07:00 Demo watcher is a bounded acceptance helper, not this feature.
+
+Current gaps: the upstream perpetual connector polls payments every 120 seconds
+only while its trading network is running. Startup initializes the last-payment
+timestamp without emitting that payment, and the reader selects only the latest
+matching bill. Stopping the strategy also stops its connectors. Consequently,
+retained positions and payments during downtime can be absent from the recorder.
+The existing `(timestamp, market, symbol)` identity also cannot distinguish every
+exchange bill or isolate accounts/environments.
+
+#### P7.1 — Red tests and minimal ingestion contract
+
+- [ ] Add failing tests for a running session, admin stop, session expiry, switching to spot-only with retained perpetual exposure, and restart after several settlements. Funding observation must never start a strategy, place/cancel orders, change leverage/mode, clear HALT or reopen the trading send gate.
+- [ ] Cover catch-up when the position was closed during downtime, no current position remains, or the final settlement bill arrives late. Startup backfill must not be gated solely on current nonzero positions.
+- [ ] Cover repeated/overlapping pages, late bills, two distinct bills sharing a timestamp, account/demo/live isolation, owner loss and commit failure. Verify exactly-once economic totals, not just successful polling.
+
+#### P7.2 — Reuse OKX bill reads and PostgreSQL persistence
+
+- [ ] Extend the existing authenticated bills reader with bounded pagination/time windows and funding-bill filtering. Preserve actual `billId`, account/environment, instrument, UTC epoch-millisecond event time, signed amount and original currency; exclude transfers, trading fees and unrelated instruments. A historical settlement rate is nullable when unavailable; never label the current market rate as an old bill's rate.
+- [ ] Extend `funding_payments` through simple idempotent SQL, using exact PostgreSQL NUMERIC/Decimal for new bill amounts and supplied rates. Use verified account + environment + exchange bill ID as the uniqueness boundary; adjust the old timestamp-based key so distinct same-time bills survive. Preserve legacy rows and file-backend behavior. Handle unambiguous legacy/event matches without double counting; flag ambiguous history rather than invent bill IDs or recover precision from FLOAT.
+- [ ] Use one authoritative PostgreSQL bill-ingestion path for both running and idle observation. Reuse the recorder's transaction/deduplication logic where compatible, but do not simultaneously count the upstream last-payment event and its bill as separate payments. Persist the bounded backfill checkpoint in existing bot state, scoped by account/environment, in the same owner-fenced transaction as the committed page. A failed write must not advance it.
+
+#### P7.3 — Same-service read-only lifecycle
+
+- [ ] Schedule bounded account-scoped polls in the existing owner/service loop, initially reusing the 120-second cadence and current request timeouts. Retain only the authenticated REST reader needed after strategy connectors stop; do not bootstrap order books, executors or a trading session just to observe funding.
+- [ ] Continue observation for configured/previously traded perpetual instruments while exposure remains, including stopped/expired and spot-only sessions. Perform bounded startup catch-up regardless of current exposure and a final overlapping sweep after closure for delayed bills. If the whole service is down, collect missed settlements on restart; no local process can poll while its container is absent.
+- [ ] Reuse ownership fencing, existing connection/session cleanup, throttling and retry patterns. Standby/lost owners must not persist pages or checkpoints. Observation failures expose stale/incomplete coverage and retry without changing trading intent or bypassing existing DB/risk protections. Poll per account, not per FE request or once per pair when an account bill page suffices.
+
+#### P7.4 — Coverage and existing FE APIs
+
+- [ ] Backfill with a resumable cursor plus an overlapping time window for delayed bills; advance coverage only for fully committed windows, never to the restart wall clock by default. Respect documented endpoint retention, pagination limits and Demo/site availability. Use supported historical bill reads for older gaps; report an uncovered interval when it cannot be retrieved. Automated archive/file export is outside this scope.
+- [ ] Extend existing `/status` reporting and `/statistics/daily` models/handler Swagger annotations with last successful sync, pending catch-up and covered/uncovered interval semantics. Keep spot funding `not_applicable`, perpetual funding separate, and daily buckets based on UTC event instants with the configured display timezone. Validate settlement currency for supported USDT contracts; do not sum unrelated currencies or treat unavailable data as zero. FE reads must stay observational and reuse stored results/cache.
+
+OKX documents recent bills with `billId` pagination and a separate historical
+bills endpoint. Limits and field semantics must be verified during implementation;
+the recent endpoint alone does not promise complete lifetime history.
+[OKX account bills](https://my.okx.com/docs-v5/en/#trading-account-rest-api-get-bills-details-last-7-days),
+[OKX pagination guidance](https://www.okx.com/docs-v5/trick_en/#pagination).
+
+#### P7.5 — Green verification and acceptance
+
+- [ ] Pass targeted unit tests and disposable real-PostgreSQL tests for exact amounts, original currencies, event times, migration replay, transactional cursor advancement, uniqueness and owner fencing. Keep upstream file-mode regressions green.
+- [ ] Extend the existing internal-network E2E simulator: stop/expire with a held position, inject multiple funding bills while stopped, restart, replay pages and verify the database plus daily API totals exactly. Include closed-position catch-up, delayed bills, owner handover, unavailable/history-limited responses and DB failure without new exchange trading mutations.
+- [ ] Run the existing local load probe with the funding reader active. Verify bounded REST/DB calls across many pairs and FE polls, no N+1, no duplicate totals, no leaked tasks/connections and unchanged trading/API budgets. Save sanitized evidence, update this checklist/progress and commit.
+- [ ] Finally run opt-in OKX Demo acceptance using the completed implementation: compare an actual bill with DB/daily totals, repeat ingestion and restart to prove deduplication/backfill. If no real settlement is available, keep this item open. The original-image 07:00 watcher does not certify P7. No Cloud Run staging or exchange load test is required.
+
 ## 8. Scope kept out
 
 Sensitivity tuning, automatic trend discovery, automatic
@@ -679,4 +733,6 @@ Completion means the three scenarios, timed/random sessions and authenticated FE
 controls work on **spot, perpetual and both**, using the existing engine, with
 Red/Green evidence, passing local integration/E2E/load gates and final OKX Demo
 integration results. Existing ownership, persistence, recovery and risk protections
-remain required; unavailable Demo/LIFE checks must remain explicitly open.
+remain required; unavailable Demo/LIFE checks must remain explicitly open. P7 is
+an additional required funding-accounting follow-up before calling the new
+idle/restart funding behavior complete; prior P1–P6 evidence does not mark it done.
