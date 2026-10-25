@@ -6,7 +6,6 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from controllers.market_making import pmm_simple
 from hummingbot.core.data_type.common import OrderType, PositionMode, PositionSide, PriceType, TradeType
-from hummingbot.core.utils.async_utils import safe_ensure_future
 from hummingbot.strategy_v2.models.executor_actions import StopExecutorAction
 
 
@@ -317,11 +316,11 @@ class LifeMMController(pmm_simple.PMMSimpleController):
                 raise ValueError("Reference order books are unavailable")
         await super().on_start()
 
-    def on_stop(self):
+    async def on_stop(self):
         references = [ref.pair for ref in self.config.references]
         if references:
-            safe_ensure_future(self.market_data_provider.release_order_books(
-                self.config.reference_connector, references, self))
+            await self.market_data_provider.release_order_books(
+                self.config.reference_connector, references, self)
         super().on_stop()
 
     def get_executor_config(self, level_id, price, amount):

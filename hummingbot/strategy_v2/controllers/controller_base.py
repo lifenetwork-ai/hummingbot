@@ -204,6 +204,7 @@ class ControllerBase(RunnableBase):
         self.processed_data = {}
         self.executors_update_event = asyncio.Event()
         self.executors_info_queue = asyncio.Queue()
+        self._control_loop_task = None
 
     def start(self):
         """
@@ -213,8 +214,33 @@ class ControllerBase(RunnableBase):
             self.terminated.clear()
             self._status = RunnableStatus.RUNNING
             self.executors_update_event.set()
-            safe_ensure_future(self.control_loop())
+            previous = self._control_loop_task
+            self._control_loop_task = safe_ensure_future(self._run_control_loop(previous))
         self.initialize_candles()
+
+    async def _run_control_loop(self, previous):
+        try:
+            # A synchronous stop/start must retire the old task and its reference
+            # subscriptions before the next generation can acquire them.
+            if previous is not None:
+                await asyncio.gather(previous, return_exceptions=True)
+            await self.control_loop()
+        finally:
+            if asyncio.current_task() is self._control_loop_task:
+                self._status = RunnableStatus.TERMINATED
+                self.terminated.set()
+
+    def stop(self):
+        stopping = self.terminated.is_set()
+        super().stop()
+        task = self._control_loop_task
+        if not stopping and task is not None and not task.done() and task is not asyncio.current_task(loop=task.get_loop()):
+            task.cancel()
+
+    async def wait_closed(self):
+        """Wait for the retained control task, including asynchronous cleanup."""
+        if self._control_loop_task is not None:
+            await asyncio.gather(self._control_loop_task, return_exceptions=True)
 
     def initialize_candles(self):
         """

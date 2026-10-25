@@ -345,9 +345,10 @@ class StrategyV2Base(StrategyPyBase):
         # Stop controllers FIRST to prevent new executor actions
         for controller in self.controllers.values():
             controller.stop()
-
         if self.listen_to_executor_actions_task:
             self.listen_to_executor_actions_task.cancel()
+            await asyncio.gather(self.listen_to_executor_actions_task, return_exceptions=True)
+        await asyncio.gather(*(controller.wait_closed() for controller in self.controllers.values()))
 
         # Executors may still need to place position-closing orders during shutdown.
         # A clock/strategy teardown racing with this coroutine can remove StrategyBase's
@@ -370,6 +371,7 @@ class StrategyV2Base(StrategyPyBase):
         else:
             await self.executor_orchestrator.stop(self.max_executors_close_attempts)
         self.market_data_provider.stop()
+        await self.market_data_provider.wait_closed()
         self.executor_orchestrator.store_all_executors()
         if self.mqtt_enabled:
             self._pub({controller_id: {} for controller_id in self.controllers.keys()})

@@ -48,6 +48,10 @@ class TestStrategyV2Base(IsolatedAsyncioWrapperTestCase):
                         self.strategy.executor_orchestrator = MockExecutorOrchestrator.return_value
                         self.strategy.market_data_provider = MockMarketDataProvider.return_value
                         self.strategy.controllers = {'controller_1': MagicMock(), 'controller_2': MagicMock()}
+                        for controller in self.strategy.controllers.values():
+                            controller.wait_closed = AsyncMock()
+                        self.strategy.market_data_provider.wait_closed = AsyncMock()
+                        self.strategy.listen_to_executor_actions_task = None
         self.strategy.logger().setLevel(1)
 
     async def test_start(self):
@@ -207,6 +211,52 @@ class TestStrategyV2Base(IsolatedAsyncioWrapperTestCase):
         # Check if stop is called on each controller
         for controller in self.strategy.controllers.values():
             controller.stop.assert_called_once()
+
+    async def test_on_stop_awaits_controller_and_public_network_cleanup(self):
+        closed = []
+
+        async def controller_closed():
+            closed.append(True)
+
+        async def executors_stop(*args, **kwargs):
+            self.assertEqual(len(closed), 2)
+
+        for controller in self.strategy.controllers.values():
+            controller.wait_closed.side_effect = controller_closed
+        self.strategy.executor_orchestrator.stop = AsyncMock(side_effect=executors_stop)
+        listener = asyncio.create_task(asyncio.Event().wait())
+        self.strategy.listen_to_executor_actions_task = listener
+        try:
+            await self.strategy.on_stop()
+            self.assertTrue(listener.done())
+            self.strategy.market_data_provider.wait_closed.assert_awaited_once()
+        finally:
+            listener.cancel()
+            await asyncio.gather(listener, return_exceptions=True)
+
+    async def test_shutdown_retires_action_listener_before_waiting_for_slow_cleanup(self):
+        entered, release = asyncio.Event(), asyncio.Event()
+
+        async def slow_cleanup():
+            entered.set()
+            await release.wait()
+
+        controller = self.strategy.controllers["controller_1"]
+        controller.wait_closed.side_effect = slow_cleanup
+        controller.stop.side_effect = lambda: self.strategy.actions_queue.put_nowait([
+            CreateExecutorAction(controller_id="controller_1", executor_config=PositionExecutorConfig(
+                timestamp=1, trading_pair=self.trading_pair, connector_name=self.connector_name,
+                side=TradeType.BUY, amount=Decimal("1")))])
+        self.strategy.executor_orchestrator.stop = AsyncMock()
+        listener = asyncio.create_task(self.strategy.listen_to_executor_actions())
+        self.strategy.listen_to_executor_actions_task = listener
+        stopping = asyncio.create_task(self.strategy.on_stop())
+        try:
+            await asyncio.wait_for(entered.wait(), .5)
+            self.strategy.executor_orchestrator.execute_actions.assert_not_called()
+        finally:
+            release.set()
+            await stopping
 
     async def test_on_stop_restores_missing_market_before_stopping_executors(self):
         self.strategy.remove_markets([self.connector])

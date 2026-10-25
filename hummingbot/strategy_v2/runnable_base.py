@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import logging
 from abc import ABC
 
@@ -63,15 +64,19 @@ class RunnableBase(ABC):
         The main control loop of the smart component.
         This method is responsible for executing the control task at the specified interval.
         """
-        await self.on_start()
-        while not self.terminated.is_set():
-            try:
-                await self.control_task()
-            except Exception as e:
-                self.logger().error(e, exc_info=True)
-            finally:
-                await asyncio.sleep(self.update_interval)
-        self.on_stop()
+        try:
+            await self.on_start()
+            while not self.terminated.is_set():
+                try:
+                    await self.control_task()
+                except Exception as e:
+                    self.logger().error(e, exc_info=True)
+                if not self.terminated.is_set():
+                    await asyncio.sleep(self.update_interval)
+        finally:
+            cleanup = self.on_stop()
+            if inspect.isawaitable(cleanup):
+                await cleanup
 
     def on_stop(self):
         """

@@ -40,6 +40,7 @@ class MarketDataProvider:
         self.candles_feeds = {}  # Stores instances of candle feeds
         self.connectors = connectors  # Stores instances of connectors
         self._rates_update_task = None
+        self._stopping_tasks = set()
         self._rates_update_interval = rates_update_interval
         self._rates = {}
         self._non_trading_connectors = LazyDict[str, ConnectorBase](self._create_non_trading_connector)
@@ -57,17 +58,27 @@ class MarketDataProvider:
             candle_feed.stop()
         if self._rates_update_task:
             self._rates_update_task.cancel()
+            self._retain_stopping_task(self._rates_update_task)
             self._rates_update_task = None
         self.candles_feeds.clear()
         self._rates_required.clear()
         # Stop non-trading connectors that were started for public data access
         for connector in self._non_trading_connectors.values():
-            safe_ensure_future(connector.stop_network())
+            self._retain_stopping_task(safe_ensure_future(connector.stop_network()))
         self._non_trading_connectors.clear()
         self._non_trading_connectors_started.clear()
         self._reference_book_users.clear()
         self._reference_book_owned.clear()
         self._reference_book_locks.clear()
+
+    def _retain_stopping_task(self, task):
+        self._stopping_tasks.add(task)
+        task.add_done_callback(self._stopping_tasks.discard)
+
+    async def wait_closed(self):
+        """Drain public-network shutdown before the strategy drops this provider."""
+        while self._stopping_tasks:
+            await asyncio.gather(*tuple(self._stopping_tasks), return_exceptions=True)
 
     @property
     def ready(self) -> bool:

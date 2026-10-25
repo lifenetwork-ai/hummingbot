@@ -63,7 +63,11 @@ test-cloudrun-regression:
 		test/hummingbot/connector/test_okx_environment_transport.py \
 		test/hummingbot/connector/test_okx_account_observations.py \
 		test/hummingbot/core/test_mm_session.py test/hummingbot/core/test_admin_reconciliation.py \
-		test/hummingbot/strategy_v2/controllers/test_life_mm.py
+		test/hummingbot/strategy_v2/controllers/test_life_mm.py \
+		test/hummingbot/strategy_v2/controllers/test_controller_base.py \
+		test/hummingbot/strategy_v2/controllers/test_controller_lifecycle.py \
+		test/hummingbot/strategy_v2/test_runnable_base.py \
+		test/hummingbot/data_feed/test_market_data_provider.py test/hummingbot/data_feed/test_provider_shutdown.py
 
 build-cloudrun:
 	mkdir -p build
