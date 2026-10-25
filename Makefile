@@ -10,6 +10,7 @@ CLOUDRUN_CONFIG ?= deploy/cloudrun/service.example.yaml
 CLOUDRUN_REGION ?= asia-southeast1
 CLOUDRUN_EVIDENCE ?= build/e2e-offline/result.json
 OFFLINE_OKX_TRADING_ENV ?= demo
+MM_LOAD_PROFILE ?= all
 ifeq ($(DYDX),1)
   ENV_FILE := setup/environment_dydx.yml
 endif
@@ -72,6 +73,10 @@ build-cloudrun:
 
 test-e2e-offline:
 	$(PYTHON) scripts/test_e2e_offline.py --image $(CLOUDRUN_IMAGE) --trading-env $(OFFLINE_OKX_TRADING_ENV) $(if $(CLOUDRUN_PREVIOUS_IMAGE),--previous-image $(CLOUDRUN_PREVIOUS_IMAGE),)
+
+.PHONY: test-mm-load
+test-mm-load:
+	$(PYTHON) scripts/test_mm_load.py --image $(CLOUDRUN_IMAGE) --profile $(MM_LOAD_PROFILE)
 
 review-cloudrun-config:
 	$(PYTHON) scripts/review_cloudrun.py $(CLOUDRUN_CONFIG) --evidence $(CLOUDRUN_EVIDENCE)

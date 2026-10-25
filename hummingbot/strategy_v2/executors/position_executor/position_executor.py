@@ -629,7 +629,9 @@ class PositionExecutor(ExecutorBase):
         """
         held = list(self._held_position_orders)
         seen = {order.get("client_order_id") for order in held}
-        for tracked in (self._open_order, self._close_order, self._take_profit_limit_order):
+        # Cancel/failure callbacks move tracked orders out of the live slots.
+        # Their already executed portion still belongs to the position hold.
+        for tracked in (*self._failed_orders, self._open_order, self._close_order, self._take_profit_limit_order):
             if (tracked and tracked.order and (tracked.is_filled or tracked.executed_amount_base > 0)
                     and tracked.order.client_order_id not in seen):
                 seen.add(tracked.order.client_order_id)

@@ -13,7 +13,9 @@ from hummingbot.model.decimal_type_decorator import SqliteDecimal
 
 class TradeFill(HummingbotBase):
     __tablename__ = "trade_fills"
-    __table_args__ = (Index("idx_trade_fills_config_file_path_timestamp",
+    __table_args__ = (Index("idx_trade_fills_timestamp_market_order_id_exchange_trade_id",
+                            "timestamp", "market", "order_id", "exchange_trade_id"),
+                      Index("idx_trade_fills_config_file_path_timestamp",
                             "config_file_path", "timestamp"),
                       Index("idx_trade_fills_market_symbol_timestamp",
                             "market", "symbol", "timestamp"),

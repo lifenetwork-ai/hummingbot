@@ -82,6 +82,12 @@ uses UTC, timestamps are `TIMESTAMP WITH TIME ZONE` or UTC epochs, and local dat
 are labels with their timezone recorded. Changing the reporting timezone does not
 relabel old balance snapshots.
 
+Daily statistics use a bounded 32-entry in-memory cache to coalesce concurrent
+dashboard polls. `ADMIN_STATISTICS_CACHE_TTL_SECONDS` defaults to 5 (0 disables;
+maximum 60). Responses retain the aggregate's original `server_time` and balance
+observation timestamps. Cache expiry triggers a fresh consistent database read;
+failures are not cached. This cache is never used for trading or command state.
+
 The response contains separate market day series and one account balance series.
 Only observed days appear; missing days are gaps. Fees include original-currency
 paid/rebate/net amounts, recorded USDT conversion coverage and explicit unavailable

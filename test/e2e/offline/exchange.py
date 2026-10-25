@@ -42,6 +42,9 @@ class Exchange:
         self.prices = {"BTC-USDT": "100", "ETH-USDT": "10", "AVAX-USDT": "20", "LIFE-USDT": "0.1"}
         self.stale_pairs = set()
         self.markets_task = None
+        self.target_updates_per_second = 0
+        self.market_update_count = 0
+        self.market_rate_changed = asyncio.Event()
 
     def event(self, order, fill=None):
         message = copy.deepcopy(self.fixtures["order_event"])
@@ -110,14 +113,29 @@ class Exchange:
                 "bids": [[str(mid * Decimal("0.99")), "100000", "0", "1"]], "ts": millis()}
 
     async def market_updates(self):
+        next_update = time.monotonic()
+        previous_target = None
         while True:
-            await asyncio.sleep(0.2)
+            subscriptions = sum(arg.get("channel") == "books" for args in self.socket_args.values() for arg in args)
+            if previous_target != self.target_updates_per_second:
+                next_update = time.monotonic()
+                previous_target = self.target_updates_per_second
+            interval = subscriptions / self.target_updates_per_second if self.target_updates_per_second and subscriptions else 0.2
+            next_update += interval
+            try:
+                await asyncio.wait_for(self.market_rate_changed.wait(), timeout=max(0, next_update - time.monotonic()))
+                self.market_rate_changed.clear()
+                previous_target = None
+                continue
+            except asyncio.TimeoutError:
+                pass
             for socket, args_list in list(self.socket_args.items()):
                 for arg in list(args_list):
                     pair = arg.get("instId", "")
                     if socket.closed or arg.get("channel") != "books" or pair.removesuffix("-SWAP") in self.stale_pairs:
                         continue
                     await socket.send_json({"arg": arg, "action": "snapshot", "data": [self.book(pair)]})
+                    self.market_update_count += 1
 
     def funding(self, pair="BTC-USDT-SWAP"):
         price = self.prices[pair.removesuffix("-SWAP")]
@@ -137,6 +155,8 @@ class Exchange:
                                       "fills": self.fills, "requests": self.requests, "unknown": self.unknown,
                                       "positions": list(self.positions.values()), "mutations": self.mutations,
                                       "balances": self.fixtures["balances"]["data"][0]["details"],
+                                      "market_update_count": self.market_update_count,
+                                      "observed_at_monotonic": time.monotonic(),
                                       "connections": self.connections, "subscriptions": self.subscriptions})
         if path == "/control":
             return await self.control(await request.json())
@@ -203,7 +223,10 @@ class Exchange:
         if path in ("/api/v5/trade/cancel-order", "/api/v5/trade/cancel-batch-orders"):
             result = []
             for item in data if isinstance(data, list) else [data]:
-                order = self.orders[item["clOrdId"]]
+                order = self.orders.get(item["clOrdId"])
+                if order is None:
+                    result.append({"clOrdId": item["clOrdId"], "ordId": "", "sCode": "51400", "sMsg": "Order does not exist"})
+                    continue
                 if order["state"] != "filled":
                     order.update(state="canceled", uTime=millis())
                 await self.broadcast(self.event(order))
@@ -221,6 +244,10 @@ class Exchange:
         return web.json_response({"error": "Unspecified simulator endpoint"}, status=500)
 
     async def control(self, data):
+        if "target_updates_per_second" in data:
+            self.target_updates_per_second = float(data["target_updates_per_second"])
+            assert 0 <= self.target_updates_per_second <= 1000
+            self.market_rate_changed.set()
         if "prices" in data:
             for pair, price in data["prices"].items():
                 assert pair in self.prices and Decimal(price) > 0
@@ -238,6 +265,10 @@ class Exchange:
         if "fill" in data:
             spec = data["fill"]
             order = self.orders[spec["clOrdId"]]
+            # A candidate GET /ledger can race with a real connector cancel.
+            # A terminal order cannot be filled/reopened by the test driver.
+            if order["state"] not in ("live", "partially_filled"):
+                return web.json_response({"error": "order_not_fillable"}, status=409)
             amount = Decimal(spec["amount"])
             total = Decimal(order["accFillSz"]) + amount
             assert total <= Decimal(order["sz"])
@@ -256,7 +287,6 @@ class Exchange:
                 position["pos"] = str(Decimal(position["pos"]) + amount)
                 position["notionalUsd"] = str(Decimal(position["notionalUsd"]) + base * Decimal(order["px"]))
                 position["upl"] = str(Decimal(position["pos"]) * Decimal("0.01") * (Decimal(self.prices[order["instId"].removesuffix("-SWAP")]) - Decimal(position["avgPx"])))
-                await self.broadcast({"arg": {"channel": "positions"}, "data": list(self.positions.values())})
             for details in self.fixtures["balances"]["data"][0]["details"]:
                 if perpetual:
                     delta = -Decimal(spec["fee"]) if details["ccy"] == "USDT" else Decimal("0")
@@ -272,6 +302,8 @@ class Exchange:
                 details["cashBal"] = details["availBal"] = details["eq"] = details["availEq"] = str(Decimal(details["eq"]) + delta)
             message = self.event(order, fill)
             await self.broadcast(message)
+            if perpetual:
+                await self.broadcast({"arg": {"channel": "positions"}, "data": copy.deepcopy(list(self.positions.values()))})
             await self.broadcast({"arg": {"channel": "account"}, "data": self.fixtures["balances"]["data"]})
             if data.get("duplicate"):
                 await self.broadcast(message)

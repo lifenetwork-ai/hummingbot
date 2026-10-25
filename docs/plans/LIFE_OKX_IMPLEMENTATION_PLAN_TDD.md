@@ -526,10 +526,20 @@ These are initial local test budgets, **not measured capacity**:
 | Soak | 60 minutes in `both`, finite random steps, quote refreshes and bounded history reads |
 | Faults under load | Separate feed interruption, delayed/failed DB, owner restart and expiry with queued events; report separately from healthy latency/errors |
 
-- [ ] Define assertions before measuring. Record p50/p95/p99 API latency, command application time, event-loop lag/event age/backlog, recorder latency, CPU/peak RSS, DB pool waits/connections, query counts and errors.
+`make test-mm-load` runs this opt-in local gate. `MM_LOAD_PROFILE=probe` is a
+60-second diagnostic, not the final gate; `all` runs the complete durations.
+The fixed mixed window enforces the 100-update/s and 1-fill/s budgets. Soak
+records achieved rates across intentional random-step admission gaps. Its first
+and last five minute samples must show median RSS growth ≤64 MiB, median book
+backlog ≤max(10, initial+4), and median pool p95 ≤max(20ms, initial+5ms).
+Market-rate counts use the simulator's two monotonic observation times, allowing
+one four-book batch at the measurement boundary. Thresholds are unchanged after
+measurement; expected conflicts and injected-fault failures are reported separately.
+
+- [x] Define assertions before measuring. Record p50/p95/p99 API latency, command application time, event-loop lag/event age/backlog, recorder latency, CPU/peak RSS, DB pool waits/connections, query counts and errors.
 - [ ] Healthy reads/command acceptance: p95 ≤500ms, p99 ≤1s, no unexpected timeouts/5xx; the generator achieves its sustained offered rate. Measure actual application separately: healthy local stop/cancel ≤5s and start/switch ≤15s, not merely `202` or acknowledgement.
 - [ ] Burst backlog drains within 10s of returning to steady load; no sustained queue/pool/memory growth during soak; peak bot RSS ≤1.5 GiB. Save per-minute samples so a late leak is visible. Report unmet budgets and the bottleneck rather than silently lowering load or relaxing thresholds.
-- [ ] Reuse N+1/query-count regressions as page/history size increases; cached performance reads retain the existing cache behavior. Add cache/index changes only when these measurements justify them.
+- [x] Reuse N+1/query-count regressions as page/history size increases; cached performance reads retain the existing cache behavior. Add cache/index changes only when these measurements justify them.
 - [ ] Include daily-snapshot writes and one rate-bounded reconciliation check during the local load profile; report polling must not multiply exchange calls or block quote/deadline handling. Date-range aggregation must remain bounded on the large-history fixtures.
 - [ ] Independent exchange ledger and PostgreSQL agree on unique fills/fees/positions. Retries never duplicate commands/orders or reset deadlines. No new sends are authorized after step/session revocation, expiry or HALT; already in-flight effects must reconcile.
 - [ ] Count expected conflict/fault responses separately. Fix demonstrated failures using regression tests, rerun the affected load profile, save sanitized JSON/report evidence and commit before P6.
@@ -541,9 +551,10 @@ demo WebSocket endpoints; REST may share the production host. Verify the account
 site and supported demo instruments rather than relying on hostname alone.
 [OKX Demo Trading Services](https://www.okx.com/docs-v5/en/#overview-demo-trading-services).
 
-Current code is not yet a complete demo path: spot has no demo selection, both
-auth classes lack that header, and perpetual public-book WS uses the default
-domain despite existing demo URL constants. P4 must close these gaps locally.
+P4 closed the originally identified Demo gaps: spot selection, simulated REST
+headers for both auth paths, and the perpetual public-book WS domain. Real local
+HTTP/WS transport tests and the deployment-image matrix verify that routing;
+they do not replace dedicated-account acceptance here.
 OKX also announces public-internet WebSocket port 8443 retirement on **2026-10-31**;
 port 443 is already available. Checked 2026-10-25.
 [OKX API changelog](https://www.okx.com/docs-v5/log_en/#upcoming-changes-websocket-port-8443-discontinuation).

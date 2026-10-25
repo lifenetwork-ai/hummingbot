@@ -20,6 +20,11 @@ def test_admin_is_disabled_by_default_and_credentials_are_redacted():
     {"ADMIN_API_ENABLED": "true", "ADMIN_API_USERNAME": "bad:username", "ADMIN_API_PASSWORD": "test-password"},
     {"ADMIN_CORS_ORIGINS": "https://*.example"},
     {"REPORTING_TIMEZONE": "unknown/timezone"},
+    {"ADMIN_STATISTICS_CACHE_TTL_SECONDS": "nan"},
+    {"ADMIN_STATISTICS_CACHE_TTL_SECONDS": "inf"},
+    {"ADMIN_STATISTICS_CACHE_TTL_SECONDS": "-1"},
+    {"ADMIN_STATISTICS_CACHE_TTL_SECONDS": "61"},
+    {"ADMIN_STATISTICS_CACHE_TTL_SECONDS": "bad"},
 ])
 def test_invalid_auth_cors_and_timezone_configuration_is_rejected(values):
     with pytest.raises(RuntimeConfigurationError):
@@ -36,3 +41,8 @@ def test_explicit_cors_origins_and_reporting_timezone():
 def test_cors_defaults_to_all_origins_and_accepts_explicit_wildcard():
     assert AdminSettings.from_environment({}).cors_origins == ("*",)
     assert AdminSettings.from_environment({"ADMIN_CORS_ORIGINS": "*"}).cors_origins == ("*",)
+
+
+def test_daily_cache_ttl_is_bounded_and_can_be_disabled():
+    assert AdminSettings.from_environment({}).statistics_cache_ttl_seconds == 5
+    assert AdminSettings.from_environment({"ADMIN_STATISTICS_CACHE_TTL_SECONDS": "0"}).statistics_cache_ttl_seconds == 0

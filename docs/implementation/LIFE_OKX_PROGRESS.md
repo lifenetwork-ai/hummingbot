@@ -337,8 +337,89 @@ all four groups in `make test-cloudrun-regression` (143 + 11 + 886 + 88 tests);
 Swagger drift and pre-commit checks. The Make target now stops on the first
 failing group instead of allowing a later group to mask failure.
 
-## Next — P5
+## P5 — In progress
 
 Run opt-in local mixed load, bursts, faults and a real 60-minute soak on the
 accepted deployment artifact. Record offered and achieved rates and the budgets
 in the plan before final dedicated-account OKX Demo acceptance (P6).
+
+The large-history probe exposed real query cost and a populated-performance API
+serialization error. Two failing query-plan tests now pass with the additive
+global pagination indexes in SQL `012`; a bounded five-second daily statistics
+cache coalesces concurrent reads using the existing cachetools dependency.
+The original report timestamp remains visible and trading never reads this cache.
+A failing populated-report HTTP test now passes after rehydrating JSONB enum keys
+for the original upstream PerformanceReport model. No second PnL engine was added.
+
+The opt-in runner, declared assertions and diagnostic failures are documented in
+[the load gate](../life-mm-load-tests.md). Short probes are not final acceptance.
+The standard image rebuild, complete load durations and fault windows remain open.
+
+The short burst rehearsal now passes 20 reads/s (aggregate p95 107 ms / p99
+660 ms), 5x books, concurrent retry/conflict checks and independent fills/fees/
+positions. It exposed another upstream reuse gap: PositionExecutor's HEDGE
+entries were netted because its config has no position_action. A failing test
+now passes with separate LONG/SHORT holds and storage/restore coverage; all
+82 orchestrator/position executor tests pass. A separate real-PG failing test
+now verifies cleanup skips only proven-unsent failed creates while retaining
+remote readback for sent failures. These rehearsals use a derived image for
+iteration, so final artifact load acceptance remains open.
+
+Latest validation after the hedge/cleanup fixes: **105 disposable-PostgreSQL
+tests pass**; `make test-cloudrun-regression` groups pass (149 + 11 + 895 + 88).
+The rebuilt standard image is `sha256:32570e999d340ea8cb1b885fc614d11c387296998860b468cd1ca5afe2e477f7`
+(1,364,471,788 uncompressed bytes). Final image E2E/load acceptance is in progress.
+
+P6 prerequisite is unavailable locally: the `.env` has no dedicated spot or
+perpetual Demo credential set and no explicit Demo environment selection (only
+presence was inspected; no secret value was printed). No OKX account calls have
+been attempted. The P6 checklist remains open until that dedicated configuration
+is supplied after local gates pass.
+
+All five fault-under-load cases pass on the standard P5 image: basket feed
+interruption, owner restart, expiry with queued books, real DB lock delay and
+complete DB outage. Both DB cases fail closed and retain HALT after restart.
+Evidence: `build/mm-load/20261025-062535-7b127e/result.json`; fault response errors
+are classified separately from healthy latency capacity. The full image matrix
+and sustained mixed/soak remain in progress.
+
+The rebuilt standard image passes the full six-scenario E2E matrix, including
+LIFE's nine profile/market combinations and upgrade/rollback to the accepted P4
+artifact. Manifest: `sha256:764f6c43e76916cb5ee33676e533165d30ae6223ec1570844ae974ca8a102723`.
+The final `make test-mm-load` all-profile run has started after other workloads
+and builds finished; it is not marked passed until its full durations finish.
+
+The first all-profile attempt stopped before warmup during rapid start/stop:
+the simulator incorrectly returned HTTP 500 for cancel-not-found, and a tracker
+transition from FAILED to CANCELED lost the earlier proof that a create never
+passed transport. The simulator now returns item code 51400, and ownership keeps
+explicit no-transport rejection evidence until the next clean prepare. Sent or
+uncertain effects are still read back. Both terminal states have a failing-then-
+passing PostgreSQL regression; the full PG suite now passes **107 tests**.
+
+The corrected 60-second probe passes at 20 reads/s, ~100 books/s and 1 fill/s:
+p95 61 ms, p99 537 ms. This uses dispatch-inclusive latency and actual server
+counter timing. A newly rebuilt standard image
+`sha256:dd9b125a04d16c73a6feec7c5458f116fadd5aeb438fbce3142e7a8649b8ee29`
+(1,364,472,526 bytes) is running the sequential final E2E/load pipeline.
+Neither short probes nor the aborted pre-warmup attempt count as P5 completion.
+
+The first full mixed window met rate/latency budgets but independent comparison
+rejected invented simulator fills after a terminal cancel. Three failing simulator
+regressions now pass: terminal orders reject injection, and a perpetual fill's
+publication snapshot cannot be overwritten by a later cancel. The rerun passes
+15-minute mixed with **18,000 reads / 900 new fills**, p95 **78 ms**, p99 **551 ms**,
+all recorder identities/units/fees matching the independent ledger.
+
+Its following switch exposed a real V2 partial-cancel recovery bug: cancel events
+move the entry out of the live slot into `_failed_orders`, which hold collection
+ignored. The earlier partial-cancel unit test had omitted that callback. After
+adding the real callback the test fails, then passes when the existing collector
+includes old tracked orders with order-ID deduplication. All 82 orchestrator/
+position executor tests pass. A five-second-refresh container rehearsal now
+passes burst, switch/stop/start and separate held LONG/SHORT recovery.
+
+The runner now additionally compares the existing reconciliation projection of
+held-plus-active exposure, and rejects HALT during healthy profiles. Final image
+rebuild/E2E and the complete load/soak rerun remain open; no full P5 completion
+has been claimed from the intermediate measurements.

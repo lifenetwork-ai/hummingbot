@@ -10,7 +10,8 @@ from hummingbot.model.decimal_type_decorator import SqliteDecimal
 
 class Order(HummingbotBase):
     __tablename__ = "orders"
-    __table_args__ = (Index("idx_orders_creation_pending_config_file_path_market",
+    __table_args__ = (Index("idx_orders_creation_timestamp_id", "creation_timestamp", "id"),
+                      Index("idx_orders_creation_pending_config_file_path_market",
                             "creation_pending", "config_file_path", "market"),
                       Index("idx_orders_config_file_path_creation_timestamp",
                             "config_file_path", "creation_timestamp"),

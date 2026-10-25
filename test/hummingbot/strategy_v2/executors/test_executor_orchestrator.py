@@ -907,6 +907,42 @@ class TestExecutorOrchestrator(unittest.TestCase):
         sides = {p.side for p in positions}
         self.assertEqual(sides, {TradeType.BUY, TradeType.SELL})
 
+    def test_position_executor_hedge_keeps_long_and_short_holds_separate(self):
+        from hummingbot.core.data_type.common import PositionMode
+
+        market = MagicMock()
+        market.position_mode = PositionMode.HEDGE
+        self.mock_strategy.connectors = {"okx_perpetual": market}
+        self.mock_strategy.markets = {"okx_perpetual": {"LIFE-USDT"}}
+        self.mock_strategy.current_timestamp = 1234
+        executors = []
+        for side in (TradeType.BUY, TradeType.SELL):
+            executor = self._build_position_hold_executor(side.name, "okx_perpetual", "LIFE-USDT", side, side.name,
+                                                          Decimal("0.005"), Decimal("0.0005"))
+            # Actual PMMSimple/LIFE executor schema has no position_action field;
+            # its entry always opens exposure, unlike the OrderExecutor above.
+            config = PositionExecutorConfig(id=side.name, timestamp=1234, connector_name="okx_perpetual",
+                                            trading_pair="LIFE-USDT", side=side, amount=Decimal("1"))
+            executor.executor_info = executor.executor_info.model_copy(update={"config": config, "type": "position_executor"})
+            executors.append(executor)
+        self.orchestrator.active_executors = {"life_perpetual": executors}
+        self.orchestrator.positions_held = {"life_perpetual": []}
+        self.orchestrator.executors_ids_position_held = []
+        self.orchestrator.cached_performance = {"life_perpetual": PerformanceReport()}
+        self.orchestrator.get_all_reports()
+        holds = self.orchestrator.positions_held["life_perpetual"]
+        self.assertEqual({position.side: position.net_amount_base for position in holds},
+                         {TradeType.BUY: Decimal("0.005"), TradeType.SELL: Decimal("-0.005")})
+        with patch.object(MarketsRecorder, "get_instance") as recorder:
+            self.orchestrator.store_all_positions()
+            records = [call.args[0] for call in recorder.return_value.update_or_store_position.call_args_list]
+        self.assertEqual({row.side: row.amount for row in records}, {"BUY": Decimal("0.005"), "SELL": Decimal("0.005")})
+        self.orchestrator.positions_held = {"life_perpetual": []}
+        for row in records:
+            self.orchestrator._load_position_from_db("life_perpetual", row)
+        self.assertEqual({position.side: position.net_amount_base for position in self.orchestrator.positions_held["life_perpetual"]},
+                         {TradeType.BUY: Decimal("0.005"), TradeType.SELL: Decimal("-0.005")})
+
     def test_get_all_reports_with_existing_positions(self):
         """Test get_all_reports with existing positions to exercise find_existing_position logic"""
         # This tests lines 475-476,480-482,485,487 through high-level functionality

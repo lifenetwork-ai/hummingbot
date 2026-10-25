@@ -1,4 +1,5 @@
 """Admin HTTP settings loaded through the existing dotenv/environment bootstrap."""
+import math
 import os
 from dataclasses import dataclass, field
 from urllib.parse import urlsplit
@@ -15,6 +16,7 @@ class AdminSettings:
     password: str = field(default="", repr=False)
     cors_origins: tuple = ("*",)
     reporting_timezone: str = "Asia/Ho_Chi_Minh"
+    statistics_cache_ttl_seconds: float = 5
 
     @classmethod
     def from_environment(cls, environ=None):
@@ -46,4 +48,10 @@ class AdminSettings:
             ZoneInfo(timezone)
         except (ZoneInfoNotFoundError, ValueError):
             raise RuntimeConfigurationError("REPORTING_TIMEZONE must name a supported IANA timezone.") from None
-        return cls(enabled, username, password, ("*",) if "*" in origins else tuple(dict.fromkeys(origins)), timezone)
+        try:
+            ttl = float(values.get("ADMIN_STATISTICS_CACHE_TTL_SECONDS", DEFAULT_ENV_CONFIG["ADMIN_STATISTICS_CACHE_TTL_SECONDS"]))
+            if not math.isfinite(ttl) or not 0 <= ttl <= 60:
+                raise ValueError
+        except (ValueError, TypeError):
+            raise RuntimeConfigurationError("ADMIN_STATISTICS_CACHE_TTL_SECONDS must be between 0 and 60.") from None
+        return cls(enabled, username, password, ("*",) if "*" in origins else tuple(dict.fromkeys(origins)), timezone, ttl)

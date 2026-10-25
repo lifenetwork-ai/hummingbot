@@ -41,6 +41,7 @@ class BotOwnership:
         self.connectors = {}
         self.active_intents = set()
         self.sent_intents = set()
+        self.unsent_rejections = set()
         self.submission_tasks = set()
         self.transport_tasks = {}
         self.account_lock = asyncio.Lock()
@@ -87,6 +88,7 @@ class BotOwnership:
 
     def prepare(self, version, config_file_path):
         self.check_owner()
+        self.unsent_rejections.clear()
         self.allow_new_orders = False
         self.reconciling = True
         self.version = version
@@ -192,6 +194,11 @@ class BotOwnership:
             task.add_done_callback(self.submission_tasks.discard)
 
     def order_failed(self, connector, order):
+        if order.client_order_id not in self.sent_intents and not order.exchange_order_id:
+            # This hook runs only in this process's create coroutine. Retain
+            # positive no-transport evidence even if a later cancel-not-found
+            # acknowledgement changes FAILED to CANCELED in the tracker.
+            self.unsent_rejections.add(order.client_order_id)
         if order.client_order_id in self.sent_intents:
             self.require_recovery("An order submission did not finish with a durable acknowledgment.")
         elif order.client_order_id in self.active_intents:
@@ -504,7 +511,16 @@ class BotOwnership:
 
         async def confirm_cancellations():
             for connector, orders in tracked:
-                await self._refresh_orders(connector, orders)
+                for order in orders:
+                    # A create can be rejected by our final send gate while
+                    # shutdown is already awaiting earlier cancels. Such a
+                    # failed, never-transported order cannot exist remotely;
+                    # asking OKX for it yields an empty not-found response.
+                    # Sent/uncertain failures still require exchange readback.
+                    if (order.is_done and order.client_order_id in self.unsent_rejections and not order.exchange_order_id
+                            and order.client_order_id not in self.sent_intents):
+                        continue
+                    await self._refresh_orders(connector, [order])
                 while any(not order.is_done for order in orders):
                     self.check_owner()
                     await asyncio.sleep(0.1)

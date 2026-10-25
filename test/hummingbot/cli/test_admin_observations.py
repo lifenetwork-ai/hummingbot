@@ -27,6 +27,22 @@ async def test_reporting_endpoints_keep_account_cash_separate_and_return_stale_o
         assert (await http.get("/api/v1/admin/performance?market=margin")).status == 422
 
 
+@pytest.mark.asyncio
+async def test_performance_http_round_trips_a_populated_upstream_close_type_report():
+    from hummingbot.strategy_v2.models.executors import CloseType
+    from hummingbot.strategy_v2.models.executors_info import PerformanceReport
+    report = PerformanceReport(close_type_counts={CloseType.EARLY_STOP: 2})
+    async with client() as (http, storage):
+        storage.observations.return_value = dict(server_time=1700000000, owner_available=True, performance=[dict(
+            controller_id="life_spot", market="spot", connector="okx", pair="LIFE-USDT", observed_at=1700000000,
+            source="v2_controller_report_cache", valuation_basis="executor_and_position_hold_reports",
+            stale=False, report=report.model_dump(mode="json"))])
+        response = await http.get("/api/v1/admin/performance")
+        assert response.status == 200, await response.text()
+        body = await response.json()
+        assert body["markets"][0]["observations"][0]["report"]["close_type_counts"] == {str(CloseType.EARLY_STOP.value): 2}
+
+
 def test_capture_deduplicates_shared_wallet_and_keeps_disabled_market_last_observed():
     from hummingbot.cli.admin_observations import capture_reporting
 

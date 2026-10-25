@@ -22,6 +22,7 @@ from hummingbot.strategy_v2.executors.dca_executor.dca_executor import DCAExecut
 from hummingbot.strategy_v2.executors.grid_executor.grid_executor import GridExecutor
 from hummingbot.strategy_v2.executors.lp_executor.lp_executor import LPExecutor
 from hummingbot.strategy_v2.executors.order_executor.order_executor import OrderExecutor
+from hummingbot.strategy_v2.executors.position_executor.data_types import PositionExecutorConfig
 from hummingbot.strategy_v2.executors.position_executor.position_executor import PositionExecutor
 from hummingbot.strategy_v2.executors.twap_executor.twap_executor import TWAPExecutor
 from hummingbot.strategy_v2.executors.xemm_executor.xemm_executor import XEMMExecutor
@@ -688,6 +689,12 @@ class ExecutorOrchestrator:
             return None
 
         position_mode = market.position_mode
+        if position_mode == PositionMode.HEDGE and isinstance(executor_info.config, PositionExecutorConfig):
+            # A PositionExecutor entry always opens its configured direction.
+            # It has no position_action field; netting its independent hedge
+            # legs would lose exposure on stop/restart and fail reconciliation.
+            return executor_info.config.side
+
         if hasattr(executor_info.config, "position_action") and position_mode == PositionMode.HEDGE:
             opposite_side = TradeType.BUY if executor_info.config.side == TradeType.SELL else TradeType.SELL
             return opposite_side if executor_info.config.position_action == PositionAction.CLOSE else executor_info.config.side

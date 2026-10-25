@@ -4,12 +4,13 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Annotated, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_serializer
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_serializer, field_validator
 
 from controllers.market_making.life_mm import ReferencePair
 from hummingbot.client.config.mm_profiles import MarketMode, MMProfilesConfig
 from hummingbot.core.admin_reconciliation import ReconciliationRequest
 from hummingbot.core.mm_session import MMSessionRequest, MMSessionStatus
+from hummingbot.strategy_v2.models.executors import CloseType
 from hummingbot.strategy_v2.models.executors_info import PerformanceReport
 
 
@@ -319,6 +320,17 @@ class PerformanceObservation(APIModel):
     # Reuse the upstream report model; no second PnL calculation.
     report: PerformanceReport
     stale: bool
+
+    @field_validator("report", mode="before")
+    @classmethod
+    def decode_persisted_close_type_keys(cls, value):
+        # JSONB stringifies numeric enum map keys. Rehydrate the upstream enum
+        # before its report model validates; do not recalculate performance.
+        if isinstance(value, dict) and "close_type_counts" in value:
+            value = {**value, "close_type_counts": {
+                CloseType(int(key)) if isinstance(key, str) and key.isdecimal() else key: count
+                for key, count in value["close_type_counts"].items()}}
+        return value
 
 
 class PerformanceMarket(APIModel):

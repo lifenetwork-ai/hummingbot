@@ -11,6 +11,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from aiohttp import BasicAuth, web
+from cachetools import TTLCache
 from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -90,6 +91,8 @@ class AdminAPI:
         self._reference_retry_at = 0
         self._reference_lock = asyncio.Lock()
         self._reference_provider = None
+        self._daily_cache = TTLCache(maxsize=32, ttl=settings.statistics_cache_ttl_seconds)
+        self._daily_lock = asyncio.Lock()
 
     def register(self, app):
         app.middlewares.append(admin_errors)
@@ -302,8 +305,17 @@ class AdminAPI:
                    tag="Reporting", response_model=DailyResponse, query_model=DailyQuery)
     async def daily(self, request):
         query = self.query(request, DailyQuery)
-        row = await asyncio.to_thread(self.storage().daily, **query.model_dump(), reporting_timezone=self.settings.reporting_timezone)
-        return web.json_response(DailyResponse.model_validate(row).model_dump(mode="json"))
+        key = query.model_dump_json(), self.settings.reporting_timezone
+        # One loop owns this small read-only cache. Coalesce misses so FE polling
+        # cannot run the same large aggregate concurrently. Never cache failures
+        # or alter observation timestamps; trading/control do not read this cache.
+        async with self._daily_lock:
+            body = self._daily_cache.get(key)
+            if body is None:
+                row = await asyncio.to_thread(self.storage().daily, **query.model_dump(), reporting_timezone=self.settings.reporting_timezone)
+                body = DailyResponse.model_validate(row).model_dump(mode="json")
+                self._daily_cache[key] = body
+        return web.json_response(body)
 
     @staticmethod
     def check_response(row):

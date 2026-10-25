@@ -158,7 +158,7 @@ class Harness:
         assert json.loads(docker("network", "inspect", self.network).stdout)[0]["Internal"]
 
     def start(self, revision, *, auto_migrate=True, runtime_role=False, expect_failure=False, additive_fixture=False,
-              storage_backend="postgres"):
+              storage_backend="postgres", instrumented=False):
         name = self.prefix + "-" + revision
         env = {**self.env, "K_REVISION": revision, "ENABLE_AUTO_MIGRATION": str(auto_migrate).lower(),
                "STORAGE_BACKEND": storage_backend}
@@ -174,9 +174,11 @@ class Harness:
                 mounts += ["--mount", f"type=bind,source={self.assets / filename},target=/home/hummingbot/conf/{directory}/{filename},readonly"]
         if (self.assets / "life_mm_profiles.yaml").is_file():
             mounts += ["--mount", f"type=bind,source={self.assets / 'life_mm_profiles.yaml'},target=/home/hummingbot/conf/life_mm_profiles.yaml,readonly"]
+        if instrumented:
+            mounts += ["--mount", f"type=bind,source={self.assets},target=/test-assets,readonly"]
         self.run_container(name, ["--platform", "linux/amd64", "--cpus", "1", "--memory", "2g", "--read-only",
-                                  "--tmpfs", "/tmp:rw,nosuid,size=128m", *mounts],
-                           env=env, publish=True)
+                                  "--tmpfs", "/tmp:rw,nosuid,size=128m", *(["--network-alias", "bot"] if instrumented else []), *mounts],
+                           env=env, publish=True, command=["python", "/test-assets/load_service.py"] if instrumented else ())
         port = self.port(name)
         started = time.monotonic()
         if expect_failure:
@@ -188,7 +190,8 @@ class Harness:
         poll(lambda: http(port, "/startup")[0] == 200, timeout=200, description=f"{revision} validated startup")
         self.metrics[revision + "_startup_s"] = round(time.monotonic() - started, 3)
         assert http(port, "/live")[0] == 200
-        assert docker("exec", name, "python", "-c", "from pathlib import Path; print(Path('/proc/1/cmdline').read_bytes())").stdout.startswith("b'python\\x00-m\\x00hummingbot.cli.service")
+        expected = "b'python\\x00/test-assets/load_service.py" if instrumented else "b'python\\x00-m\\x00hummingbot.cli.service"
+        assert docker("exec", name, "python", "-c", "from pathlib import Path; print(Path('/proc/1/cmdline').read_bytes())").stdout.startswith(expected)
         return name, port
 
     def cli(self, *args, success=True):

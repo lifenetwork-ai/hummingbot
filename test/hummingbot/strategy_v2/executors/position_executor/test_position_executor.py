@@ -976,6 +976,12 @@ class TestPositionExecutor(IsolatedAsyncioWrapperTestCase):
         executor._open_order = TrackedOrder(order.client_order_id)
         executor._open_order.order = order
         executor.early_stop(keep_position=True)
+        # Deliver the actual connector event: it moves the tracked entry to
+        # _failed_orders and clears _open_order before the shutdown loop runs.
+        executor.process_order_canceled_event(
+            0, self.strategy.connectors[config.connector_name],
+            OrderCancelledEvent(timestamp=1002, order_id=order.client_order_id))
+        self.assertIsNone(executor._open_order)
         with patch.object(executor, "_sleep", AsyncMock()):
             await executor.control_shutdown_process()
         self.assertEqual(executor.status, RunnableStatus.TERMINATED)

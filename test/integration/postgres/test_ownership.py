@@ -389,6 +389,31 @@ def test_incomplete_shutdown_preserves_owner_and_durable_halt(owned):
     assert not successor.try_acquire()
 
 
+@pytest.mark.parametrize("transport_attempted", [False, True])
+@pytest.mark.parametrize("terminal_state", [OrderState.FAILED, OrderState.CANCELED])
+def test_shutdown_skips_only_proven_unsent_failed_creates(owned, transport_attempted, terminal_state):
+    core = reconciliation_core(owned)
+    order = intent(owned)
+    order.current_state = OrderState.FAILED
+    if transport_attempted:
+        owned.owner.sent_intents.add(order.client_order_id)
+        # Model a failed response with uncertain exchange execution. A final
+        # read remains mandatory even if the connector marks the order failed.
+        owned.owner.order_failed(owned.market, order)
+    else:
+        owned.owner.order_failed(owned.market, order)
+    # A cancel-not-found acknowledgement can follow the send-gate rejection.
+    order.current_state = terminal_state
+    owned.owner._refresh_orders = AsyncMock()
+
+    async def shutdown(**kwargs):
+        await core.after_order_cancellation()
+        return True
+    core.shutdown = AsyncMock(side_effect=shutdown)
+    owned.loop.run_until_complete(owned.owner.shutdown_core(core, timeout=1))
+    assert owned.owner._refresh_orders.await_count == int(transport_attempted)
+
+
 def test_fill_during_v2_shutdown_requires_position_reconciliation(owned):
     core = reconciliation_core(owned)
     core.strategy.executor_orchestrator = object()
