@@ -470,3 +470,29 @@ Demo credentials and isolated Demo DB configuration are absent. No OKX account
 or Cloud Run deployment was contacted. Dedicated account/instrument checks,
 spot/perpetual/both workflows and the 30-minute conservative Demo observation
 must still run after configuration; see [setup](../okx-environments.md).
+
+### Completed — Cache, SQL and task-lifecycle optimization follow-up
+
+The [separate optimization report](../life-mm-optimization-review.md) records
+before/after results, code changes, rejected slower aggregate trials, image
+hashes, test commands and remaining limits. Valid cache hits bypass unrelated
+misses; the daily transaction avoids measured JIT overhead; balance snapshots
+batch all currencies into one SQL. Native medians improve 812 → 504ms for
+100,000-fill daily reports and 184 → 28ms for 100-currency snapshots (100 → 1 SQL).
+
+Controller generations, reference release, action-listener retirement and public
+connector closure are awaited, including immediate repeated stop/start/stop.
+Asyncio traces identified the residual upstream funding-payment poller that
+network stop never cancelled; that poller is now cancelled/drained before its
+notifier is replaced. Final-image LIFE E2E covers nine market/profile cases and
+recovery; both its debug logs and the burst logs have zero pending-task or
+unawaited-coroutine diagnostics.
+
+All 1,249 native regression and 111 PostgreSQL tests pass; Swagger and pre-commit
+checks pass. The standalone 90-second burst passes, with 1,800 reads, aggregate
+p95/p99 64/518ms, 90 independently matched fills and actual stop 0.53s. Daily-route
+p95 is still 570ms in that short window. The original full soak and six-scenario
+rehearsals retain their own image provenance; this follow-up does not recertify
+a 60-minute soak of the new artifact. P6 dedicated OKX Demo acceptance remains
+pending configuration. Implementation commits: `dd68d41a8`, `5c56e7869`,
+`e4afbcac6`, `c00285ab7`, `742290063`.

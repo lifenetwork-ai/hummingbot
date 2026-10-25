@@ -556,6 +556,28 @@ Evidence and per-route caveats: [load report](../life-mm-load-tests.md),
 cache misses remain approximately 1.1 seconds, so aggregate acceptance is not a
 per-endpoint latency guarantee. Upstream teardown pending-task diagnostics remain
 visible; no healthy HTTP failures/HALT or sustained resource growth was observed.
+These caveats describe the original immutable P5 artifact; the follow-up below
+records subsequent source changes separately.
+
+### P5 follow-up — Measured cache, SQL and lifecycle optimization
+
+- [x] Let valid daily-cache hits bypass an unrelated aggregate miss; preserve coalescing, TTL, filter isolation and error behavior with a failing-then-passing test.
+- [x] Measure daily reports on 100,000 fills. Reject slower combined-query trials; disable JIT only inside the reporting transaction, retain exact fees/volumes and verify connection setting restoration.
+- [x] Replace per-currency snapshot SQL with one batch; retain ownership fencing, DB-clock freshness, UTC instants, update cadence and nullable/exact values. Verify duplicate/stale/future observations.
+- [x] Retain and drain controller generations, including blocked/failed startup and immediate stop/start/stop. Await reference release and public-network closure; retire the action listener before waiting for slow cleanup.
+- [x] Trace residual pending-task diagnostics in Docker, reproduce the orphaned perpetual funding-payment poller and cancel/drain it before replacing its notifier on network stop. Confirm clean final-image debug logs.
+- [x] Add native lifecycle regressions to the Makefile regression target and run the full 111-test PostgreSQL suite. Record idle before/after measurements.
+- [x] Validate the final rebuilt image with affected offline E2E and burst load; record evidence and complete the separate [optimization report](../life-mm-optimization-review.md). Keep the original 60-minute soak evidence attached to its original image.
+
+Follow-up complete: native daily-report median **812 → 504ms**; 100-currency
+snapshot **100 → 1 SQL**, median **184 → 28ms**. All **1,249 native regression**
+and **111 PostgreSQL** tests pass. Final-image LIFE E2E passes all nine
+market/profile combinations and recovery, with zero pending-task/unawaited
+coroutine diagnostics. The standalone 90-second burst passes all budgets and
+independent ledger checks (90 fills); aggregate read p95/p99 **64/518ms**.
+Daily-route p95 remains **570ms** in this short window; the prior 60-minute soak
+is not relabelled as validation of this new image. Details, hashes and limits
+are in the separate report.
 
 ### P6 — Final acceptance against OKX Demo
 

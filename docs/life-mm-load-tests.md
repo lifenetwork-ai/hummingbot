@@ -1,5 +1,9 @@
 # LIFE MM local load gate
 
+The original acceptance below is preserved for its recorded image. Subsequent
+cache/SQL and task-lifecycle changes, measurements and their own validation are
+tracked separately in [life-mm-optimization-review.md](life-mm-optimization-review.md).
+
 Run with the compiled environment and Docker available:
 
 ```sh
