@@ -64,6 +64,7 @@ test-cloudrun-regression:
 		test/hummingbot/connector/test_okx_account_observations.py \
 		test/hummingbot/core/test_mm_session.py test/hummingbot/core/test_admin_reconciliation.py \
 		test/hummingbot/strategy_v2/controllers/test_life_mm.py \
+		test/hummingbot/strategy_v2/controllers/test_reference_subscriptions.py \
 		test/hummingbot/strategy_v2/controllers/test_controller_base.py \
 		test/hummingbot/strategy_v2/controllers/test_controller_lifecycle.py \
 		test/hummingbot/strategy_v2/test_runnable_base.py \

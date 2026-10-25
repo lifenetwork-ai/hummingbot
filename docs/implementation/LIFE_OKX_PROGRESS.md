@@ -463,13 +463,12 @@ groups 149 + 11 + 898 + 88 pass; Swagger and pre-commit pass. Daily cache-miss
 latency (~1.1 s) and upstream teardown pending-task diagnostics are reported
 explicitly; aggregate acceptance does not erase those follow-ups.
 
-### Remaining — P6 requires dedicated Demo configuration
+### Previous gate at P5 completion — P6 was not configured
 
-P1–P5 local gates are complete. P6 remains unchecked: dedicated spot/perpetual
-Demo credentials and isolated Demo DB configuration are absent. No OKX account
-or Cloud Run deployment was contacted. Dedicated account/instrument checks,
-spot/perpetual/both workflows and the 30-minute conservative Demo observation
-must still run after configuration; see [setup](../okx-environments.md).
+At P5 completion, dedicated spot/perpetual Demo credentials and an isolated
+Demo DB were absent, and no OKX account or Cloud Run deployment had been
+contacted. P6 therefore remained open pending account/instrument checks,
+spot/perpetual/both workflows and the 30-minute conservative observation.
 
 ### Completed — Cache, SQL and task-lifecycle optimization follow-up
 
@@ -496,3 +495,20 @@ rehearsals retain their own image provenance; this follow-up does not recertify
 a 60-minute soak of the new artifact. P6 dedicated OKX Demo acceptance remains
 pending configuration. Implementation commits: `dd68d41a8`, `5c56e7869`,
 `e4afbcac6`, `c00285ab7`, `742290063`.
+
+### P6 in progress — authenticated Demo setup and reference-book regression
+
+Dedicated Demo credentials authenticate for spot/perpetual with Read/Trade
+permissions. BTC/ETH/AVAX metadata is available; BTC-USDT is the explicit trading
+substitute and follow_token uses AVAX-USDT. Futures, Hedge and Cross 1x are
+confirmed. The isolated PostgreSQL Demo database uses UTC and replays all 13
+scripts twice successfully.
+
+The reconstructed standard image passes the selected nine-case LIFE offline E2E
+and recovery. The first real spot/follow_market case instead exposed an existing
+reference-book reuse defect when BTC is both target and benchmark. The run
+stopped before any order was recorded. Two new regressions fail before and pass
+after a small provider change that borrows an already tracked book. All 140
+affected tests pass; the reference tests are included in the Makefile gate.
+Corrected-image verification and real Demo workflows/30-minute observation
+remain open. See [the Demo report](../okx-demo-acceptance.md) for evidence and gaps.

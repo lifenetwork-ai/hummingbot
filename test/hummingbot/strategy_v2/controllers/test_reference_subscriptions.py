@@ -1,8 +1,50 @@
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from hummingbot.data_feed.market_data_provider import MarketDataProvider
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("public_only", [False, True])
+async def test_reference_basket_reuses_target_book_and_releases_only_its_own_subscription(public_only):
+    target_book = object()
+    books = {"BTC-USDT": target_book}
+
+    async def subscribe(pair):
+        # The upstream tracker rejects attempts to add an already tracked pair.
+        if pair in books:
+            return False
+        books[pair] = object()
+        return True
+
+    async def unsubscribe(pair):
+        books.pop(pair)
+        return True
+
+    connector = SimpleNamespace(
+        trading_pairs=["BTC-USDT"],
+        order_book_tracker=SimpleNamespace(order_books=books),
+        add_trading_pair=AsyncMock(side_effect=subscribe),
+        remove_trading_pair=AsyncMock(side_effect=unsubscribe),
+    )
+    provider = MarketDataProvider({} if public_only else {"okx": connector})
+    if public_only:
+        provider._non_trading_connectors["okx"] = connector
+        provider._non_trading_connectors_started["okx"] = True
+    first, second = object(), object()
+    pairs = ["BTC-USDT", "ETH-USDT"]
+
+    assert await provider.acquire_order_books("okx", pairs, first) == dict.fromkeys(pairs, True)
+    assert await provider.acquire_order_books("okx", pairs, second) == dict.fromkeys(pairs, True)
+    connector.add_trading_pair.assert_awaited_once_with("ETH-USDT")
+
+    await provider.release_order_books("okx", pairs, first)
+    connector.remove_trading_pair.assert_not_awaited()
+    await provider.release_order_books("okx", pairs, second)
+    connector.remove_trading_pair.assert_awaited_once_with("ETH-USDT")
+    assert books == {"BTC-USDT": target_book}
 
 
 @pytest.mark.asyncio

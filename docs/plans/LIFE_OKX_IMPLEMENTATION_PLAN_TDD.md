@@ -581,11 +581,17 @@ are in the separate report.
 
 ### P6 — Final acceptance against OKX Demo
 
-**Pending dedicated Demo configuration.** P1–P5 local gates have passed. No
-configured spot/perpetual Demo key set is present locally, and no OKX account
-was contacted. Supply dedicated Demo credentials through a separate env/secret
-configuration and a separate database before running this phase; see
-[Demo environment setup](../okx-environments.md). Do not send secrets in chat.
+**In progress — dedicated Demo preflight completed.** P1–P5 local gates have
+passed. Dedicated credentials now authenticate against OKX Demo; the isolated
+Demo PostgreSQL database has replayed all migrations twice with UTC connections.
+The owner enabled Futures mode; the existing connector configured and confirmed
+Hedge/Cross 1x. BTC-USDT is the explicit test instrument and AVAX-USDT the
+single-token reference. The first real case exposed a duplicate reference-book
+subscription when the benchmark is also the trading target, before any order
+was created. Its Red/Green regressions pass; corrected-image verification and
+the remaining workflows/observation are still open. See
+[Demo acceptance progress](../okx-demo-acceptance.md) and
+[environment setup](../okx-environments.md).
 
 OKX documents Demo API keys, the `x-simulated-trading: 1` REST header and separate
 demo WebSocket endpoints; REST may share the production host. Verify the account's
@@ -601,7 +607,7 @@ port 443 is already available. Checked 2026-10-25.
 [OKX API changelog](https://www.okx.com/docs-v5/log_en/#upcoming-changes-websocket-port-8443-discontinuation).
 
 - [ ] Require passing P1–P5 evidence, the tested image and a dedicated demo account/API key with Read/Trade access supplied through the existing secret/env mechanism. Keep demo database/state separate from any live bot. Default local/CI tests must never contact OKX.
-- [ ] Check demo instruments/account settings first. If LIFE is unavailable, explicitly configure supported substitute spot/SWAP instruments (for example BTC/ETH only if available); retain LIFE/listing-specific acceptance in the local simulator. Do not silently rename LIFE in a trading request.
+- [x] Check demo instruments/account settings first. If LIFE is unavailable, explicitly configure supported substitute spot/SWAP instruments (for example BTC/ETH only if available); retain LIFE/listing-specific acceptance in the local simulator. Do not silently rename LIFE in a trading request.
 - [ ] From local, run bounded spot, perpetual and both workflows using demo balances: auth, books, post-only quotes, cancel, observed fills, positions, Basic Auth commands, weighted references, random steps, expiry and restart. Compare history/statistics and the reconciliation report with Demo REST/private WS, including account balance labels. Record an unobserved fill/funding case as unverified, not passed.
 - [ ] Run a short 30-minute demo observation with conservative configured order frequency and existing exchange throttlers. Cancel test-owned quotes on completion and report retained positions as the stop policy requires. The stress/load driver remains local; do not stress-test OKX.
 - [ ] Record sanitized results, selected demo instruments, account mode, image/config hashes and remaining gaps; update this plan and commit. Demo checks exchange integration, not LIFE listing availability, production fill quality or profitability. No Cloud Run staging is required.

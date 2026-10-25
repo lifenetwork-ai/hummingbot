@@ -441,6 +441,11 @@ class MarketDataProvider:
                 # Wait for order book to be initialized
                 return await self._wait_for_order_book_initialized(connector, trading_pair)
 
+        # A benchmark can also be the connector's trading target. Borrow that
+        # tracked book; the upstream add operation rejects duplicate pairs.
+        if trading_pair in connector.order_book_tracker.order_books:
+            return True
+
         # Add trading pair dynamically via connector method
         return await connector.add_trading_pair(trading_pair)
 
