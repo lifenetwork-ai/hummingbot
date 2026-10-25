@@ -527,7 +527,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
 
     def mm_scenario(self, *, matrix=True):
         print("Offline E2E: LIFE admin three scenarios x spot/perpetual/both", flush=True)
-        self.env.update(ADMIN_API_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin")
+        self.env.update(ADMIN_API_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin", FUNDING_SYNC_INTERVAL_SECONDS="5")
         for prefix in ("HBOT_OKX_PERPETUAL_",):
             for field, value in (("API_KEY", "offline-key"), ("SECRET_KEY", "offline-secret"), ("PASSPHRASE", "offline-pass")):
                 self.env[prefix + field] = value
@@ -611,6 +611,13 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         random_orders = self.ledger()["accepted"][first_order_count:]
         assert all(Decimal(order["cTime"]) < deadline_ms for order in random_orders)
         assert self.admin(port, "/positions")[1]["markets"][1]["items"]
+        expired_orders = len(self.ledger()["accepted"])
+        bill_time = int(time.time() * 1000) - 1000
+        self.control(funding_bills=[dict(billId="8801", type="8", subType="174", instId="LIFE-USDT-SWAP",
+                                         ts=str(bill_time), pnl="0.0030000000000000001", ccy="USDT")])
+        poll(lambda: self.sql("SELECT count(*) FROM funding_bills") == "1", timeout=40,
+             description="expired session keeps funding observation alive")
+        assert len(self.ledger()["accepted"]) == expired_orders and self.state()["desired_state"] == "stopped"
         self.mm_command(port, "start", market_mode="both", selection="fixed", profile_id="sideways", duration_seconds=600)
         accepted = len(self.ledger()["accepted"])
         docker("stop", "--time", "5", self.pg)
@@ -632,7 +639,90 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         assert all(row["simulated"] == expected_header for row in self.ledger()["requests"]
                    if row["path"].startswith(("/api/v5/trade/", "/api/v5/account/")))
         self.metrics.update(matrix=cases, restart_anchors=True, weighted_reference=True, stale_both=True,
-                            fills=2, random_steps=True, expiry=True, reconciliation="matched", db_fault_halt=True)
+                            fills=2, random_steps=True, expiry=True, expiry_funding=True, reconciliation="matched", db_fault_halt=True)
+
+    def funding_scenario(self):
+        print("Offline E2E: stopped funding, exact bills, restart and closed-position catch-up", flush=True)
+        self.env.update(ADMIN_API_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin",
+                        FUNDING_SYNC_INTERVAL_SECONDS="1")
+        for field, value in (("API_KEY", "offline-key"), ("SECRET_KEY", "offline-secret"), ("PASSPHRASE", "offline-pass")):
+            self.env["HBOT_OKX_PERPETUAL_" + field] = value
+        first, port = self.start("funding-first")
+        poll(lambda: bool(self.state().get("owner_uuid")), description="funding service owner")
+        self.mm_command(port, "start", market_mode="perpetual", selection="fixed", profile_id="sideways", duration_seconds=600)
+        buy = poll(lambda: next((row for row in self.ledger()["orders"] if row["side"] == "buy" and row["state"] == "live"), None),
+                   description="perpetual test quote")
+        self.control(fill={"clOrdId": buy["clOrdId"], "amount": buy["sz"], "fee": "0.01"}, duplicate=True)
+        poll(lambda: self.sql("SELECT count(*) FROM trade_fills") == "1", description="position fill persisted")
+        self.mm_command(port, "stop")
+        assert self.ledger()["positions"]
+        accepted = len(self.ledger()["accepted"])
+        mutations = len(self.ledger()["mutations"])
+        timestamp = int(time.time() * 1000) - 5000
+
+        def bill(identity, amount, ts=timestamp, pair="LIFE-USDT-SWAP"):
+            return dict(billId=str(identity), type="8", subType="173" if Decimal(amount) < 0 else "174",
+                        instId=pair, ts=str(ts), pnl=amount, ccy="USDT")
+        bills = [bill(1, "-0.1234567890123456789"), bill(2, "0.0234567890123456789")]
+        # Account pages also contain unrelated instruments. Force two pages
+        # while retaining only this configured market's funding.
+        unrelated = [bill(n, "99", pair="ETH-USDT-SWAP") for n in range(100, 201)]
+        self.control(funding_bills=bills + unrelated)
+        poll(lambda: self.sql("SELECT count(*) FROM funding_bills") == "2", timeout=60, description="idle funding pages persisted once")
+        self.sql(f"INSERT INTO funding_payments(timestamp,config_file_path,market,symbol,rate,amount) VALUES ({timestamp},'legacy.yml','okx_perpetual','LIFE-USDT',0.001,-0.12345678901234568)")
+
+        def totals(expected_paid, expected_received):
+            daily = self.admin(port, "/statistics/daily?market=perpetual&pair=LIFE-USDT")[1]
+            days = daily["markets"][0]["days"]
+            return (sum((Decimal(row["funding_paid"]) for row in days), Decimal(0)) == Decimal(expected_paid)
+                    and sum((Decimal(row["funding_received"]) for row in days), Decimal(0)) == Decimal(expected_received))
+        poll(lambda: totals("0.1234567890123456789", "0.0234567890123456789"), description="exact funding API without legacy double count")
+        self.terminate(first)
+        self.control(clear_positions=True)
+        bills += [bill(3, "-0.0030000000000000001", timestamp - 1000), bill(4, "0.0020000000000000001")]
+        self.control(funding_bills=bills + unrelated)
+        second, port = self.start("funding-restart", auto_migrate=False)
+        poll(lambda: self.sql("SELECT count(*) FROM funding_bills") == "4", timeout=60, description="closed-position restart catches delayed bills")
+        poll(lambda: totals("0.1264567890123456790", "0.0254567890123456790"), description="daily backfilled totals")
+        self.control(funding_bills=bills + unrelated)
+        time.sleep(2)
+        assert self.sql("SELECT count(*) FROM funding_bills") == "4"
+        self.control(funding_error=True)
+        poll(lambda: (self.admin(port, "/status")[1].get("funding_sync") or {}).get("state") == "unavailable",
+             description="funding outage is visible")
+        assert self.state()["desired_state"] == "stopped" and not self.state()["status"]["running"]
+        self.control(funding_error=False)
+        poll(lambda: (self.admin(port, "/status")[1].get("funding_sync") or {}).get("state") == "observed",
+             timeout=30, description="funding read recovery")
+        config_reads = sum(row["path"] == "/api/v5/account/config" for row in self.ledger()["requests"])
+        third, third_port = self.start("funding-standby", auto_migrate=False)
+        assert http(third_port, "/live")[1]["state"] == "standby"
+        time.sleep(2)
+        assert sum(row["path"] == "/api/v5/account/config" for row in self.ledger()["requests"]) == config_reads
+        self.terminate(second)
+        bills.append(bill(5, "0.001", int(time.time() * 1000) - 500))
+        self.control(funding_bills=bills + unrelated)
+        poll(lambda: self.sql("SELECT count(*) FROM funding_bills") == "5", timeout=60, description="new owner continues bill cursor")
+        # DB loss while idle must not cause any trading mutation; the next
+        # owner resumes the last committed bill window after DB restoration.
+        docker("stop", "--time", "5", self.pg)
+        poll(lambda: json.loads(docker("inspect", third).stdout)[0]["State"]["Status"] == "exited",
+             timeout=15, description="idle owner exits after DB loss")
+        bills.append(bill(6, "-0.004", int(time.time() * 1000) - 500))
+        self.control(funding_bills=bills + unrelated)
+        docker("start", self.pg)
+        poll(lambda: docker("exec", self.pg, "pg_isready", "-U", "postgres", check=False).returncode == 0,
+             timeout=30, description="funding PostgreSQL restored")
+        fourth, port = self.start("funding-db-recovery", auto_migrate=False)
+        poll(lambda: self.sql("SELECT count(*) FROM funding_bills") == "6", timeout=60, description="funding catches up after DB failure")
+        assert len(self.ledger()["accepted"]) == accepted and len(self.ledger()["mutations"]) == mutations
+        assert not self.ledger()["positions"] and not self.ledger()["unknown"]
+        assert self.state()["desired_state"] == "stopped"
+        self.no_runtime_files(fourth)
+        self.metrics.update(identified_bills=6, original_amounts_exact=True, same_timestamp_bills=True,
+                            stopped_observation=True, closed_position_backfill=True, repeated_pages_idempotent=True,
+                            legacy_not_double_counted=True, owner_handover=True, unavailable_visible=True,
+                            db_failure_backfill=True, no_trading_mutations_after_stop=True)
 
     def upgrade_scenario(self, previous_image):
         print("Offline E2E: distinct compatible images, additive fixture, takeover and rollback", flush=True)
@@ -680,7 +770,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--image", default="hummingbot-cloudrun:local")
-    parser.add_argument("--scenario", choices=("all", "spot", "v2-spot", "v2-perpetual", "schema", "upgrade", "life-mm", "life-mm-recovery"), default="all")
+    parser.add_argument("--scenario", choices=("all", "spot", "v2-spot", "v2-perpetual", "schema", "upgrade", "life-mm", "life-mm-recovery", "funding"), default="all")
     parser.add_argument("--previous-image", help="Cached compatible prior image; required for the release upgrade gate.")
     parser.add_argument("--trading-env", choices=("live", "demo"), default="live", help="Local simulator routing mode; never contacts OKX.")
     args = parser.parse_args()
@@ -720,7 +810,7 @@ def main():
                            f"type=bind,source={assets},target=/test-assets,readonly",
                            image, "python", "/test-assets/runtime_smoke.py", timeout=90)
             result["runtime_smoke"] = json.loads(smoke.stdout)
-            scenarios = ("schema", "spot", "v2-spot", "v2-perpetual", "life-mm") if args.scenario == "all" else (args.scenario,)
+            scenarios = ("schema", "spot", "v2-spot", "v2-perpetual", "life-mm", "funding") if args.scenario == "all" else (args.scenario,)
             if args.scenario == "all" and previous_image:
                 scenarios += ("upgrade",)
             result["scenarios"] = {}
@@ -734,6 +824,8 @@ def main():
                         harness.scenario()
                     elif scenario == "schema":
                         harness.schema_scenario()
+                    elif scenario == "funding":
+                        harness.funding_scenario()
                     elif scenario == "upgrade":
                         harness.upgrade_scenario(previous_image)
                     elif scenario in ("life-mm", "life-mm-recovery"):

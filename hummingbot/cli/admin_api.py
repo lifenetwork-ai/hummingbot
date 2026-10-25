@@ -196,7 +196,9 @@ class AdminAPI:
                                phase=snapshot.get("phase", "unknown") if owner_available else "owner_unavailable",
                                session=session, observed_session=snapshot.get("mm_session"), markets=snapshot.get("mm_markets") or [],
                                server_time=datetime.fromtimestamp(now, tz=timezone.utc) if now is not None else None,
-                               time_remaining_seconds=remaining, error=snapshot.get("error"))
+                               time_remaining_seconds=remaining, error=snapshot.get("error"),
+                               funding_sync=({**snapshot["funding_sync"], **({"state": "unavailable", "error": "owner_unavailable"} if not owner_available else {})}
+                                             if snapshot.get("funding_sync") else None))
         return web.json_response(model.model_dump(mode="json"))
 
     @api_operation(operation_id="submitCommand", summary="Accept an idempotent start, switch or stop", tag="Control",

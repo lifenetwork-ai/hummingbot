@@ -132,6 +132,7 @@ REST_USER_TRADE_RECORDS = {METHOD: GET,
                            ENDPOINT: f"/api/{REST_API_VERSION}/trade/fills"}
 REST_BILLS_DETAILS = {METHOD: GET,
                       ENDPOINT: f"/api/{REST_API_VERSION}/account/bills"}
+REST_BILLS_ARCHIVE = {METHOD: GET, ENDPOINT: f"/api/{REST_API_VERSION}/account/bills-archive"}
 REST_WS_LOGIN_PATH = {METHOD: GET,
                       ENDPOINT: "/users/self/verify"}
 
@@ -178,6 +179,7 @@ RATE_LIMIT_GET_POSITIONS = 10  # per 2 seconds
 RATE_LIMIT_GET_WALLET_BALANCE = 10  # per 2 seconds
 RATE_LIMIT_GET_ACCOUNT_CONFIG = 5  # per 2 seconds
 RATE_LIMIT_SET_POSITION_MODE = 5  # per 2 seconds
+RATE_LIMIT_BILLS_ARCHIVE = 5  # per 2 seconds
 RATE_LIMIT_BILLS_DETAILS = 5  # per 1 second
 RET_CODE_TIMESTAMP_HEADER_INVALID = "50112"
 RET_CODE_PARAMS_ERROR = "51000"

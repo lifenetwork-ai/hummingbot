@@ -37,7 +37,7 @@ def main():
     ssl.create_default_context()
     trust = ssl.get_default_verify_paths()
     assert trust.cafile and Path(trust.cafile).is_file()
-    assert len(list(SCRIPTS.glob("*.sql"))) == 14
+    assert len(list(SCRIPTS.glob("*.sql"))) == 15
     assert (SCRIPTS.parent / "manual_scripts/001_normalize_legacy_names.sql").is_file()
     cli_version = subprocess.check_output(["hbot", "--version"], text=True, timeout=20).strip()
     assert cli_version

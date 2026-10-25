@@ -670,7 +670,7 @@ targeted scaled-decimal fix. See [runtime details](../postgres-runtime.md#decima
 
 ### P7 — Durable funding observation and restart backfill (TDD; planned)
 
-**Status: not implemented.** The owner requested this follow-up before deployment.
+**Status: local implementation delivered; image E2E/load and final Demo acceptance in progress.** The owner requested this follow-up before deployment.
 Reuse the existing service, OKX authenticated REST readers/throttlers, recorder,
 PostgreSQL ownership, SQL runner and reporting handlers. No separate watcher
 container, Cloud Scheduler, queue, Redis or general accounting framework is needed.
@@ -693,7 +693,7 @@ exchange bill or isolate accounts/environments.
 #### P7.2 — Reuse OKX bill reads and PostgreSQL persistence
 
 - [ ] Extend the existing authenticated bills reader with bounded pagination/time windows and funding-bill filtering. Preserve actual `billId`, account/environment, instrument, UTC epoch-millisecond event time, signed amount and original currency; exclude transfers, trading fees and unrelated instruments. A historical settlement rate is nullable when unavailable; never label the current market rate as an old bill's rate.
-- [ ] Extend `funding_payments` through simple idempotent SQL, using exact PostgreSQL NUMERIC/Decimal for new bill amounts and supplied rates. Use verified account + environment + exchange bill ID as the uniqueness boundary; adjust the old timestamp-based key so distinct same-time bills survive. Preserve legacy rows and file-backend behavior. Handle unambiguous legacy/event matches without double counting; flag ambiguous history rather than invent bill IDs or recover precision from FLOAT.
+- [x] Preserve the upstream `funding_payments` model/file format and add the narrow PostgreSQL `funding_bills` companion through `014_create_funding_bills.sql`. Its exact NUMERIC amounts/nullable rates and account/environment/bill-ID primary key preserve distinct same-time bills without a SQLite column/key migration. Identified bills are authoritative for overlapping event-time/instrument groups in daily reports; original legacy rows remain intact and explicitly unverified. Never invent legacy bill IDs or recover precision from FLOAT.
 - [ ] Use one authoritative PostgreSQL bill-ingestion path for both running and idle observation. Reuse the recorder's transaction/deduplication logic where compatible, but do not simultaneously count the upstream last-payment event and its bill as separate payments. Persist the bounded backfill checkpoint in existing bot state, scoped by account/environment, in the same owner-fenced transaction as the committed page. A failed write must not advance it.
 
 #### P7.3 — Same-service read-only lifecycle

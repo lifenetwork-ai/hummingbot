@@ -24,3 +24,12 @@ def ledger_violations(ledger, rows):
     if actual != expected:
         errors.append("recorder_fill_units_price_or_fee")
     return errors
+
+
+def funding_ledger_violations(bills, rows, *, account_id, environment):
+    expected = {(account_id, environment, str(bill["billId"])): (
+        bill["instId"].removesuffix("-SWAP"), int(bill["ts"]), Decimal(bill["pnl"]), bill["ccy"])
+        for bill in bills if str(bill["type"]) == "8" and str(bill["subType"]) in ("173", "174")}
+    actual = {(row["account_id"], row["environment"], row["bill_id"]): (
+        row["symbol"], row["timestamp"], Decimal(row["amount"]), row["currency"]) for row in rows}
+    return [] if expected == actual and len(actual) == len(rows) else ["funding_identity_currency_or_amount"]

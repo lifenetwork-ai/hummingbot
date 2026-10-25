@@ -16,7 +16,7 @@ sys.path.insert(0, str(ROOT))
 
 from scripts.mm_load_budgets import soak_violations, violations  # noqa: E402
 from scripts.mm_load_faults import fault_windows  # noqa: E402
-from scripts.mm_load_ledger import ledger_violations  # noqa: E402
+from scripts.mm_load_ledger import funding_ledger_violations, ledger_violations  # noqa: E402
 from scripts.test_e2e_offline import Harness, docker, pin_manifest, poll  # noqa: E402
 
 
@@ -73,6 +73,9 @@ def verify_ledger(harness, port, *, require_running=True):
     (harness.report / "recorder-load-fills.json").write_text(json.dumps(rows, indent=2))
     assert not ledger_violations(ledger, rows), "Independent fill/fee/unit comparison failed"
     assert not ledger["unknown"]
+    funding_rows = json.loads(harness.sql("SELECT COALESCE(json_agg(t),'[]') FROM (SELECT account_id,environment,bill_id,symbol,timestamp,amount::text AS amount,currency FROM funding_bills) t"))
+    assert not funding_ledger_violations(ledger.get("funding_bills", []), funding_rows,
+                                         account_id="offline-account-1", environment=harness.env["OKX_TRADING_ENV"]), "Funding bill ledger mismatch"
     expected_positions = {(row["instId"].removesuffix("-SWAP"), row["posSide"].upper()): Decimal(row["pos"]) * Decimal("0.01") for row in ledger["positions"]}
 
     def positions_match():
@@ -99,6 +102,7 @@ def verify_ledger(harness, port, *, require_running=True):
     poll(totals_match, timeout=15, description="large-history statistics retain all unique load fills")
     assert harness.sql("SELECT count(*) FROM daily_balance_snapshots") != "0"
     return dict(unique_exchange_fills=len(ledger["fills"]), unique_recorder_fills=len(rows), positions_matched=True,
+                identified_funding_bills=len(funding_rows),
                 daily_snapshots=int(harness.sql("SELECT count(*) FROM daily_balance_snapshots")))
 
 
@@ -168,7 +172,7 @@ def main():
                     host_architecture=platform.machine(), image_architecture="amd64", emulation=platform.machine() != "x86_64",
                     bot_limits=dict(cpus=1, memory_bytes=2 * 1024**3), postgres_limits=dict(cpus=2, memory_bytes=512 * 1024**2),
                     simulator_limits=dict(cpus=1, memory_bytes=512 * 1024**2), client_limits=dict(cpus=1, memory_bytes=512 * 1024**2),
-                    history_orders=args.history_rows, history_fills=args.history_rows, windows={})
+                    history_orders=args.history_rows, history_fills=args.history_rows, funding_sync_interval_seconds=5, windows={})
     evidence["source_sha256"] = {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest() for path in (
         ROOT / "scripts/test_mm_load.py", ROOT / "scripts/mm_load_budgets.py", ROOT / "scripts/mm_load_faults.py", ROOT / "scripts/mm_load_ledger.py")}
     try:
@@ -196,11 +200,16 @@ def main():
                 evidence["docker_host_resources"] = docker("info", "--format", "cpus={{.NCPU}} memory_bytes={{.MemTotal}}").stdout.strip()
                 docker("update", "--cpus", "1", "--memory", "512m", "--memory-swap", "512m", harness.simulator)
                 docker("update", "--cpus", "2", "--memory", "512m", "--memory-swap", "512m", harness.pg)
+                harness.env["FUNDING_SYNC_INTERVAL_SECONDS"] = "5"
                 bot, port = harness.start("load-bot", instrumented=True)
                 docker("update", "--memory", "2g", "--memory-swap", "2g", bot)
                 poll(lambda: bool(harness.state().get("status")), description="load owner status")
                 print(f"Local load evidence: {report}", flush=True)
                 seed_history(harness, args.history_rows)
+                bill_time = int(time.time() * 1000) - 1000
+                harness.control(funding_bills=[dict(billId=str(i), type="8", subType="174" if value[0] != "-" else "173",
+                                                    instId="LIFE-USDT-SWAP", ts=str(bill_time), pnl=value, ccy="USDT")
+                                               for i, value in ((1, "-0.0000001234567890123456789"), (2, "0.0000000234567890123456789"))])
                 controls = {}
                 controls["start"], _ = command(harness, port, "start", market_mode="both", selection="fixed", profile_id="follow_market", duration_seconds=86400)
                 controls["switch"], _ = command(harness, port, "switch", market_mode="both", selection="fixed", profile_id="follow_market", duration_seconds=86400)

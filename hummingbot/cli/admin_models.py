@@ -107,7 +107,25 @@ class MarketReadiness(APIModel):
     reason: Optional[str]
 
 
+class FundingSyncStatus(APIModel):
+    state: Literal["not_configured", "waiting", "backfilling", "observed", "unavailable"]
+    account_id: Optional[str] = None
+    environment: Optional[Literal["live", "demo"]] = None
+    pairs: List[str] = Field(default_factory=list)
+    covered_from_ms: Optional[int] = Field(default=None, description="Start of the verified bill-read interval; UTC epoch milliseconds.")
+    covered_until_ms: Optional[int] = Field(default=None, description="Exclusive end of the committed interval; not lifetime-history coverage.")
+    last_success_ms: Optional[int] = None
+    backfill_pending: bool = False
+    stale: bool = True
+    history_gap_from_ms: Optional[int] = None
+    history_gap_until_ms: Optional[int] = None
+    error: Optional[str] = None
+    legacy_history_unverified: Optional[bool] = None
+    source: Literal["okx_account_bills"] = "okx_account_bills"
+
+
 class StatusResponse(APIModel):
+    funding_sync: Optional[FundingSyncStatus] = None
     bot_id: str
     desired_state: Literal["running", "stopped"]
     control_version: int
@@ -375,8 +393,8 @@ class DailyBucket(APIModel):
     percentage_fee_fill_count: int
     fee_in_usdt: Optional[Decimal]
     fees: List[DailyFee]
-    funding_paid: Optional[Decimal]
-    funding_received: Optional[Decimal]
+    funding_paid: Optional[Decimal] = Field(description="Observed settlement payments; null when no settlement basis is recorded. Consult funding_sync coverage.")
+    funding_received: Optional[Decimal] = Field(description="Observed settlement receipts; null when no settlement basis is recorded. Consult funding_sync coverage.")
     source: Literal["recorder_tables"] = "recorder_tables"
 
 
@@ -410,8 +428,9 @@ class DailyResponse(APIModel):
     server_time: datetime
     coverage: Literal["observed_recorder_events"]
     balance_scope: Literal["account_last_observed"]
-    trade_storage_scale: Literal[6] = 6
-    funding_precision: Literal["legacy_float"] = "legacy_float"
+    trade_storage_scale: Optional[int] = Field(default=None, description="PostgreSQL NUMERIC has no fixed storage scale.")
+    funding_precision: Literal["decimal_bills_with_legacy_float"] = "decimal_bills_with_legacy_float"
+    funding_sync: Optional[FundingSyncStatus] = None
     markets: List[DailyMarket]
     balances: List[DailyBalance]
 

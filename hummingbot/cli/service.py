@@ -64,6 +64,17 @@ class ServiceHost:
         self.reporting = {}
         self.reconciliation_task = None
         self.next_check_poll = 0
+        self.funding_task = self.funding_sync = self.funding_store = None
+        self.funding_state = {}
+        self.funding_error = None
+        self.funding_configured = False
+        self.next_funding_poll = 0
+        self._funding_template_pairs = None
+        from hummingbot.client.config.defaults import DEFAULT_ENV_CONFIG
+        self.funding_interval = int(os.environ.get("FUNDING_SYNC_INTERVAL_SECONDS",
+                                                   DEFAULT_ENV_CONFIG["FUNDING_SYNC_INTERVAL_SECONDS"]))
+        if not 1 <= self.funding_interval <= 3600:
+            raise ValueError("FUNDING_SYNC_INTERVAL_SECONDS must be within 1..3600")
         self.revision = os.environ.get("K_REVISION") or os.environ.get("COMMIT_SHA") or "local"
         self.log = logging.getLogger(__name__)
 
@@ -293,6 +304,7 @@ class ServiceHost:
 
     def snapshot(self):
         from hummingbot.cli.admin_observations import capture_reporting
+        from hummingbot.core.funding_sync import public_status
         core = self.hb.trading_core
         self.reporting = capture_reporting(core, self.reporting)
         return {"name": self.settings.bot_id, "running": self.running, "phase": self.phase,
@@ -307,6 +319,8 @@ class ServiceHost:
                                 "reference_price": str(controller.processed_data["reference_price"]) if "reference_price" in controller.processed_data else None,
                                 "reason": controller.processed_data.get("reason")} for controller in self._mm_controllers()],
                 "reporting": self.reporting,
+                "funding_sync": {**public_status(self.funding_state, now_ms=int(time.time() * 1000), error=self.funding_error),
+                                 **({"state": "not_configured"} if not self.funding_configured else {})},
                 "reporting_timezone": self.admin_settings.reporting_timezone if hasattr(self, "admin_settings") else "Asia/Ho_Chi_Minh",
                 "format_status": None}
 
@@ -405,6 +419,75 @@ class ServiceHost:
                                  version=version, status=json.loads(json.dumps(self.snapshot(), default=str)),
                                  revision=self.revision)
         await self.poll_reconciliation()
+        self.poll_funding()
+
+    def poll_funding(self):
+        from hummingbot.client.config.environment_credentials import configured_environment_connectors
+        if (self.funding_task is not None and not self.funding_task.done()) or time.monotonic() < self.next_funding_poll:
+            return
+        self.next_funding_poll = time.monotonic() + self.funding_interval
+        self.funding_configured = bool(configured_environment_connectors(["okx_perpetual"]))
+        if not self.funding_configured:
+            return
+        self.funding_task = asyncio.create_task(self.collect_funding())
+
+    async def collect_funding(self):
+        from hummingbot.client.config.mm_profiles import MMProfilesConfig
+        from hummingbot.client.settings import CONF_DIR_PATH
+        from hummingbot.core.funding_sync import FundingReader, FundingSync
+        from hummingbot.model.funding_bill import FundingBillStore
+        try:
+            row = self.owner.check_owner()
+            if self.funding_store is None:
+                self.funding_store = FundingBillStore(self.engine, self.settings.bot_id,
+                                                      owner_backend_pid=self.owner.backend_pid)
+            self.funding_state = await asyncio.to_thread(self.funding_store.load)
+            pairs, earliest = await asyncio.to_thread(self.funding_store.scope)
+            pairs.update(self.funding_state.get("pairs", []))
+            if self._funding_template_pairs is None:
+                self._funding_template_pairs = set()
+                path = CONF_DIR_PATH / "life_mm_profiles.yaml"
+                if path.exists():
+                    catalogue = await MMProfilesConfig.load(path)
+                    template = catalogue.markets.get("perpetual")
+                    if template is not None:
+                        self._funding_template_pairs.add(template.trading_pair)
+            pairs.update(self._funding_template_pairs)
+            connector = self.hb.trading_core.connector_manager.connectors.get("okx_perpetual")
+            if connector is not None:
+                pairs.update(connector.trading_pairs or [])
+            if not pairs:
+                return
+            # Fresh REST assistant per batch survives the shared HTTP session's
+            # shutdown/recreation when the trading core stops. No network tasks,
+            # market data, RateOracle registration or exchange mutations start.
+            reader = FundingReader.from_environment()
+            if self.funding_sync is None:
+                self.funding_sync = FundingSync(self.funding_store, reader,
+                                                environment=reader.connector.trading_environment)
+            else:
+                self.funding_sync.getter = reader
+            self.funding_state = await self.funding_sync.sync(
+                self.owner.owner_uuid, self.owner.generation, now_ms=int(float(row["database_now"]) * 1000),
+                pairs=pairs, earliest_ms=earliest)
+            self.funding_error = None
+            now_ms = int(time.time() * 1000)
+            if self.funding_state.get("pending") or self.funding_state.get("covered_until_ms", now_ms) < now_ms - 120000:
+                self.next_funding_poll = time.monotonic() + 1
+        except asyncio.CancelledError:
+            raise
+        except Exception as error:
+            self.funding_error = type(error).__name__
+            self.log.warning("Funding observation unavailable type=%s", self.funding_error)
+            if self.funding_store is not None:
+                try:
+                    checkpoint = await asyncio.to_thread(self.funding_store.load)
+                    checkpoint = {**checkpoint, "last_error": self.funding_error}
+                    await asyncio.to_thread(self.funding_store.commit, self.owner.owner_uuid,
+                                            self.owner.generation, [], checkpoint)
+                    self.funding_state = checkpoint
+                except Exception:
+                    pass  # Lost ownership/DB failure cannot acknowledge progress.
 
     async def poll_reconciliation(self):
         from hummingbot.model.admin_store import AdminStore
@@ -448,6 +531,9 @@ class ServiceHost:
     async def close(self):
         from hummingbot.core.order_submission_guard import install_guard
         self.running, self.phase = False, "stopping"
+        if self.funding_task is not None and not self.funding_task.done():
+            self.funding_task.cancel()
+            await asyncio.gather(self.funding_task, return_exceptions=True)
         if self.reconciliation_task is not None and not self.reconciliation_task.done():
             self.reconciliation_task.cancel()
             await asyncio.gather(self.reconciliation_task, return_exceptions=True)
@@ -467,6 +553,8 @@ class ServiceHost:
         install_guard(None)
         if self.engine is not None:
             self.engine.dispose()
+        from hummingbot.core.web_assistant.connections.connections_factory import ConnectionsFactory
+        await ConnectionsFactory().close()
         return True
 
 

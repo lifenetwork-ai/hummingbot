@@ -76,9 +76,15 @@ def daily(engine, *, start_day=None, end_day=None, reporting_timezone, market="a
         # These bounded UI aggregates repeatedly paid more JIT compilation than
         # execution. Keep the setting local to this read-only transaction.
         connection.exec_driver_sql("SET LOCAL jit = off")
-        now = connection.execute(select(func.clock_timestamp())).scalar_one()
+        observation = connection.execute(text("""
+            SELECT clock_timestamp() AS now,
+                (SELECT recovery_state->'funding_sync' FROM bot_state LIMIT 1) AS funding_sync,
+                EXISTS(SELECT 1 FROM funding_payments) AS legacy_funding
+        """)).mappings().one()
+        now = observation["now"]
+        checkpoint = observation["funding_sync"] or {}
         start, end, start_ms, end_ms = day_range(start_day, end_day, reporting_timezone, now)
-        params = dict(markets=[MARKETS[key] for key in selected], start_ms=start_ms, end_ms=end_ms, tz=reporting_timezone, pair=pair)
+        params = dict(markets=[MARKETS[key] for key in selected], start_ms=start_ms, end_ms=end_ms, tz=reporting_timezone, pair=pair, funding_account=checkpoint.get("account_id"), funding_environment=checkpoint.get("environment"))
         fills = connection.execute(text("WITH scoped AS (" + FILL_SCOPE + """), converted AS (
             SELECT *, (trade_fee_in_quote IS NOT NULL AND quote_asset = 'USDT'
                 AND NOT (trade_fee_in_quote = 0 AND has_original_fee)) AS valid_conversion FROM scoped)
@@ -102,11 +108,22 @@ def daily(engine, *, start_day=None, end_day=None, reporting_timezone, market="a
             GROUP BY market, day, fee->>'token' ORDER BY market, day, currency
         """), params).mappings().all()
         funding = connection.execute(text("""
-            SELECT market, (to_timestamp(timestamp/1000.0) AT TIME ZONE :tz)::date AS day, MAX(timestamp) AS last_event_ms,
-                SUM(GREATEST(-amount::text::numeric,0)) AS paid, SUM(GREATEST(amount::text::numeric,0)) AS received
-            FROM funding_payments WHERE market='okx_perpetual' AND market=ANY(:markets)
-                AND timestamp >= :start_ms AND timestamp < :end_ms AND (:pair IS NULL OR symbol=:pair)
-            GROUP BY market, day ORDER BY day
+            WITH identified AS (
+                SELECT timestamp, symbol, amount FROM funding_bills
+                WHERE account_id=:funding_account AND environment=:funding_environment AND currency='USDT'
+                    AND timestamp >= :start_ms AND timestamp < :end_ms AND (:pair IS NULL OR symbol=:pair)
+            ), combined AS (
+                SELECT timestamp,symbol,amount FROM identified
+                UNION ALL
+                SELECT p.timestamp,p.symbol,p.amount::text::numeric FROM funding_payments p
+                WHERE p.market='okx_perpetual' AND p.timestamp >= :start_ms AND p.timestamp < :end_ms
+                    AND (:pair IS NULL OR p.symbol=:pair)
+                    AND NOT EXISTS(SELECT 1 FROM identified b WHERE b.timestamp=p.timestamp AND b.symbol=p.symbol)
+            )
+            SELECT 'okx_perpetual' AS market, (to_timestamp(timestamp/1000.0) AT TIME ZONE :tz)::date AS day,
+                MAX(timestamp) AS last_event_ms, SUM(GREATEST(-amount,0)) AS paid, SUM(GREATEST(amount,0)) AS received
+            FROM combined WHERE 'okx_perpetual'=ANY(:markets)
+            GROUP BY day ORDER BY day
         """), params).mappings().all()
         balances = [dict(row) for row in connection.execute(select(DailyBalanceSnapshot).where(
             DailyBalanceSnapshot.reporting_timezone == reporting_timezone, DailyBalanceSnapshot.day >= start,
@@ -120,8 +137,7 @@ def daily(engine, *, start_day=None, end_day=None, reporting_timezone, market="a
             buckets[key] = dict(day=day, observed_at=now, last_event_at=None, fill_count=0,
                                 buy_volume_base=Decimal(0), sell_volume_base=Decimal(0), buy_volume_quote=Decimal(0), sell_volume_quote=Decimal(0),
                                 converted_fill_count=0, unconverted_fill_count=0, percentage_fee_fill_count=0, fee_in_usdt=None, fees=[],
-                                funding_paid=Decimal(0) if connector == "okx_perpetual" else None,
-                                funding_received=Decimal(0) if connector == "okx_perpetual" else None)
+                                funding_paid=None, funding_received=None)
         return buckets[key]
 
     for row in fills:
@@ -134,7 +150,10 @@ def daily(engine, *, start_day=None, end_day=None, reporting_timezone, market="a
         item = bucket(row["market"], row["day"])
         last = datetime.fromtimestamp(row["last_event_ms"] / 1000, timezone.utc)
         item.update(funding_paid=row["paid"], funding_received=row["received"], last_event_at=max(item["last_event_at"] or last, last))
-    return dict(start_day=start, end_day=end, reporting_timezone=reporting_timezone, server_time=now,
+    from hummingbot.core.funding_sync import public_status
+    funding_sync = public_status(checkpoint, now_ms=int(now.timestamp() * 1000))
+    funding_sync["legacy_history_unverified"] = observation["legacy_funding"]
+    return dict(funding_sync=funding_sync, start_day=start, end_day=end, reporting_timezone=reporting_timezone, server_time=now,
                 coverage="observed_recorder_events", balance_scope="account_last_observed", balances=balances,
                 markets=[dict(market=key, connector=MARKETS[key], funding_status="not_applicable" if key == "spot" else "observed_only",
                               days=[value for (connector, day), value in sorted(buckets.items()) if connector == MARKETS[key]]) for key in selected])

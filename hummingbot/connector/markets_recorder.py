@@ -588,6 +588,11 @@ class MarketsRecorder:
             self._ev_loop.call_soon_threadsafe(self._did_complete_funding_payment, event_tag, market, evt)
             return
 
+        if getattr(market, "funding_bills_managed", False) is True:
+            # The owner service persists identified bills, including idle/backfill
+            # periods. A legacy event must not count that same payment twice.
+            return
+
         timestamp: float = evt.timestamp
 
         with self._sql_manager.get_new_session() as session:

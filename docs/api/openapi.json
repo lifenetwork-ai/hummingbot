@@ -445,6 +445,7 @@
                 "type": "null"
               }
             ],
+            "description": "Observed settlement payments; null when no settlement basis is recorded. Consult funding_sync coverage.",
             "title": "Funding Paid"
           },
           "funding_received": {
@@ -457,6 +458,7 @@
                 "type": "null"
               }
             ],
+            "description": "Observed settlement receipts; null when no settlement basis is recorded. Consult funding_sync coverage.",
             "title": "Funding Received"
           },
           "last_event_at": {
@@ -619,10 +621,21 @@
             "type": "string"
           },
           "funding_precision": {
-            "const": "legacy_float",
-            "default": "legacy_float",
+            "const": "decimal_bills_with_legacy_float",
+            "default": "decimal_bills_with_legacy_float",
             "title": "Funding Precision",
             "type": "string"
+          },
+          "funding_sync": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FundingSyncStatusOutput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
           },
           "markets": {
             "items": {
@@ -646,10 +659,17 @@
             "type": "string"
           },
           "trade_storage_scale": {
-            "const": 6,
-            "default": 6,
-            "title": "Trade Storage Scale",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "PostgreSQL NUMERIC has no fixed storage scale.",
+            "title": "Trade Storage Scale"
           }
         },
         "required": [
@@ -852,6 +872,164 @@
           "next_cursor"
         ],
         "title": "FillsPage",
+        "type": "object"
+      },
+      "FundingSyncStatusOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Account Id"
+          },
+          "backfill_pending": {
+            "default": false,
+            "title": "Backfill Pending",
+            "type": "boolean"
+          },
+          "covered_from_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Start of the verified bill-read interval; UTC epoch milliseconds.",
+            "title": "Covered From Ms"
+          },
+          "covered_until_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Exclusive end of the committed interval; not lifetime-history coverage.",
+            "title": "Covered Until Ms"
+          },
+          "environment": {
+            "anyOf": [
+              {
+                "enum": [
+                  "live",
+                  "demo"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Environment"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Error"
+          },
+          "history_gap_from_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "History Gap From Ms"
+          },
+          "history_gap_until_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "History Gap Until Ms"
+          },
+          "last_success_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Last Success Ms"
+          },
+          "legacy_history_unverified": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Legacy History Unverified"
+          },
+          "pairs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Pairs",
+            "type": "array"
+          },
+          "source": {
+            "const": "okx_account_bills",
+            "default": "okx_account_bills",
+            "title": "Source",
+            "type": "string"
+          },
+          "stale": {
+            "default": true,
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "state": {
+            "enum": [
+              "not_configured",
+              "waiting",
+              "backfilling",
+              "observed",
+              "unavailable"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "title": "FundingSyncStatus",
         "type": "object"
       },
       "InitialPositionConfigOutput": {
@@ -3163,6 +3341,17 @@
             ],
             "default": null,
             "title": "Error"
+          },
+          "funding_sync": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FundingSyncStatusOutput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
           },
           "heartbeat_age_seconds": {
             "anyOf": [

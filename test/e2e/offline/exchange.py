@@ -26,6 +26,8 @@ class Exchange:
         self.fixtures = json.loads(Path("/test-assets/fixtures.json").read_text())
         self.orders = {}
         self.fills = []
+        self.funding_bills = []
+        self.funding_error = False
         self.accepted = []
         self.requests = []
         self.unknown = []
@@ -152,7 +154,7 @@ class Exchange:
             return await self.websocket(request)
         if path == "/ledger":
             return web.json_response({"accepted": self.accepted, "orders": list(self.orders.values()),
-                                      "fills": self.fills, "requests": self.requests, "unknown": self.unknown,
+                                      "fills": self.fills, "funding_bills": self.funding_bills, "requests": self.requests, "unknown": self.unknown,
                                       "positions": list(self.positions.values()), "mutations": self.mutations,
                                       "balances": self.fixtures["balances"]["data"][0]["details"],
                                       "market_update_count": self.market_update_count,
@@ -162,7 +164,7 @@ class Exchange:
             return await self.control(await request.json())
         raw = await request.text()
         data = json.loads(raw) if raw else {}
-        self.requests.append({"method": method, "path": path, "at_ms": millis(), "simulated": request.headers.get("x-simulated-trading")})
+        self.requests.append({"method": method, "path": path, "at_ms": millis(), "simulated": request.headers.get("x-simulated-trading"), "params": dict(request.query)})
         if path.startswith(("/api/v5/trade/", "/api/v5/account/")) and not request.headers.get("OK-ACCESS-KEY"):
             self.unknown.append({"path": path, "reason": "missing authentication"})
             return web.json_response({"code": "50103", "msg": "missing fixture auth", "data": []}, status=401)
@@ -183,8 +185,15 @@ class Exchange:
             return self.ok([{"posMode": self.position_mode, "uid": "offline-account-1"}])
         if path == "/api/v5/account/positions":
             return self.ok([row for row in self.positions.values() if not request.query.get("instId") or row["instId"] == request.query["instId"]])
-        if path == "/api/v5/account/bills":
-            return self.ok([])
+        if path in ("/api/v5/account/bills", "/api/v5/account/bills-archive"):
+            if self.funding_error:
+                return web.json_response({"code": "50011", "msg": "injected temporary failure", "data": []})
+            rows = [row for row in self.funding_bills
+                    if int(request.query.get("begin", "0")) <= int(row["ts"]) <= int(request.query.get("end", millis()))
+                    and (not request.query.get("after") or int(row["billId"]) < int(request.query["after"]))
+                    and (not request.query.get("type") or str(row["type"]) == request.query["type"])]
+            rows.sort(key=lambda row: int(row["billId"]), reverse=True)
+            return self.ok(rows[:min(100, int(request.query.get("limit", "100")))])
         if path in ("/api/v5/account/set-position-mode", "/api/v5/account/set-leverage"):
             self.mutations.append({"path": path, "data": data})
             if "posMode" in data:
@@ -259,6 +268,12 @@ class Exchange:
             self.release.clear() if self.hold_ack else self.release.set()
         if data.get("drop_ws"):
             await asyncio.gather(*(socket.close() for socket in list(self.sockets)))
+        if "funding_bills" in data:
+            self.funding_bills = copy.deepcopy(data["funding_bills"])
+        if "funding_error" in data:
+            self.funding_error = bool(data["funding_error"])
+        if data.get("clear_positions"):
+            self.positions.clear()
         if "replay_trade_id" in data:
             fill = next(item for item in self.fills if item["tradeId"] == data["replay_trade_id"])
             await self.broadcast(self.event(self.orders[fill["clOrdId"]], fill))

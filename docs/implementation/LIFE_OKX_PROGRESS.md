@@ -664,3 +664,37 @@ followed by opt-in Demo settlement/backfill checks. The existing original-image
 
 This update changes documentation only. No funding observer, backfill migration
 or runtime behavior has been implemented by this planning change.
+
+### P7 local implementation — storage, reader and service lifecycle
+
+The new tests first reproduced missing durable bill identity, transactional
+cursor behavior, exact daily totals and GET-only transport contracts. The local
+implementation now passes **1,285 regression tests/nine subtests** and **120
+real-PostgreSQL tests**. It reuses existing connector auth/throttlers, the service
+owner loop, bot-state JSON checkpoints and the decimal adapter. Native funding
+event persistence/polling is suppressed only for service-managed PG perpetual
+connectors; original file-mode behavior remains unchanged.
+
+Implementation detail refined from the initial plan: add one narrow
+`funding_bills` companion table instead of altering the upstream event table's
+primary key/columns and requiring a SQLite migration. Script
+`014_create_funding_bills.sql` has exact amounts, nullable historical rate, scoped
+bill identity and a composite account/environment/time/pair index. Daily reports
+prefer identified bills over overlapping legacy event groups and label legacy
+history unverified; no old row or bill ID is fabricated. FE status/daily coverage
+is explicit, and the earlier stale API metadata claiming trade scale six is
+corrected to unscaled NUMERIC.
+
+The reader uses only authenticated GETs, two bounded pages per batch, resumable
+committed windows and a one-hour overlap. Older supported windows use the bills
+archive reader under its existing SDK throttler pattern (5 requests/2s); history
+outside the conservative 89-day window has an explicit gap. Idle/expired/HALT/
+spot-only lifecycle tests show no strategy activation or mutation of send/HALT
+intent. Actual advisory-backend loss and commit failure cannot advance the
+checkpoint. Default cadence is 120s through centralized
+`FUNDING_SYNC_INTERVAL_SECONDS`; FE polls do not trigger exchange requests.
+
+Opt-in Demo GET preflight succeeds for account config, recent bills and archived
+bills with zero payments returned. It made no trading command or database write
+and does not certify actual settlement/backfill. Evidence is under
+`build/funding/`; image E2E/load and final real-bill acceptance remain open.

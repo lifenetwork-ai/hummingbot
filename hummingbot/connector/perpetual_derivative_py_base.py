@@ -99,7 +99,8 @@ class PerpetualDerivativePyBase(ExchangePyBase, ABC):
         if self.is_trading_required:
             if len(self.supported_position_modes()) > 1:
                 await self._initialize_position_mode()
-            self._funding_fee_polling_task = safe_ensure_future(self._funding_payment_polling_loop())
+            if getattr(self, "funding_bills_managed", False) is not True:
+                self._funding_fee_polling_task = safe_ensure_future(self._funding_payment_polling_loop())
 
     def set_position_mode(self, mode: PositionMode):
         """

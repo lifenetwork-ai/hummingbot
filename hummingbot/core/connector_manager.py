@@ -102,6 +102,9 @@ class ConnectorManager:
                 connector_class = get_connector_class(connector_name)
                 connector = connector_class(**init_params)
 
+            if connector_name == "okx_perpetual" and postgres_requested():
+                connector.funding_bills_managed = True
+
             # Add to active connectors
             self.connectors[connector_name] = connector
             RateOracle.get_instance().register_connector(connector)

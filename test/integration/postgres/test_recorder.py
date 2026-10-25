@@ -320,3 +320,13 @@ def test_local_recorder_latency_budget(recording):
     p95 = sorted(samples)[int(len(samples) * 0.95)]
     print(f"Local PostgreSQL recorder p95={p95:.2f}ms (25 synchronous fill transactions)")
     assert p95 < 100, "Local recorder exceeds the initial 100ms p95 budget; profile before enabling the service."
+
+
+def test_managed_funding_events_do_not_duplicate_authoritative_bills(recording):
+    recorder, manager, market = recording
+    market.funding_bills_managed = True
+    event = FundingPaymentCompletedEvent(timestamp=1700000000000, market='okx_perpetual', trading_pair='BTC-USDT',
+                                         amount=Decimal('0.1234567890123456789'), funding_rate=Decimal('.001'))
+    recorder._did_complete_funding_payment(MarketEvent.FundingPaymentCompleted.value, market, event)
+    with manager.get_new_session() as session:
+        assert session.query(FundingPayment).count() == 0
