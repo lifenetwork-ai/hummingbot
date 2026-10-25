@@ -99,7 +99,7 @@ and controller-history indexes. With automatic migration disabled, run `make mig
 before deploying this revision. For a large active database, stop trading and
 schedule the index build in a maintenance window: ordinary `CREATE INDEX` can
 wait on/block writers, and the existing bootstrap deadline still applies.
-See [the performance review](postgres-performance-review.md) for measurements,
+See [the performance review](../reports/postgres-performance-review.md) for measurements,
 query budgets and the decision to retain the existing in-memory caches.
 
 ### Decimal storage
@@ -126,22 +126,11 @@ schema validation must reject it. With auto migration disabled, apply migrations
 explicitly first. No existing Demo database is changed merely by editing or
 building this source. At the original precision-correction checkpoint, Demo
 retained its old image/schema. Its later P7 upgrade and preserved logical-history
-hashes are recorded in [Demo acceptance](okx-demo-acceptance.md).
+hashes are recorded in [Demo acceptance](../reports/okx-demo-acceptance.md).
 
-Verification: 1,271 regression tests/nine subtests, 113 PostgreSQL tests and three
-extended precision checks pass. Image `1710edfec3fb...` passes all five applicable
-fresh-deployment offline scenarios, including nine LIFE profile/market cases.
-The spot scenario uses 8-decimal partial fills and 18-decimal fees through
-duplicate replay, restart and interrupted-transaction recovery. A 60-second
-diagnostic probe with 100,000 historical fills completes 20 reads/s, about 100
-market updates/s and one fill/s without budget violations: read p95 120.52ms,
-p99 622.44ms; 60 independent fills match the recorder and positions. History
-retains at most three queries per orders page and one per fills/performance read.
-This is not a new full load/soak, old-schema hot rollback or Cloud Run run.
-See [portable precision evidence](postgres-decimal-precision.json). Native local
-recorder p95 is 30.97ms over 25 transactions; cold daily statistics over 100,000
-fills use six queries, p95 1,289.85ms across 11 samples. Measurements overlapped
-other local test/image preparation and do not compare remote Cloud SQL latency.
+Recorded image/test/precision measurements are in the
+[verification report](../reports/postgres-verification.md) and
+[portable precision evidence](../reports/postgres-decimal-precision.json).
 
 ## Existing databases
 

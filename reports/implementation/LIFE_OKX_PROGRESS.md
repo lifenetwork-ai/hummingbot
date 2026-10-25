@@ -1,7 +1,7 @@
 # LIFE / OKX implementation progress
 
 Updated: 2026-10-26 (Asia/Ho_Chi_Minh).
-Delivery checklist: [current plan](../plans/LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md).
+Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md).
 
 ## P1 — Controller and configuration foundation
 
@@ -169,7 +169,7 @@ handling were not changed. Existing deprecation/AsyncMock warnings remain visibl
 ## P3 — Admin API, reporting and observational reconciliation
 
 Implemented on the existing aiohttp/owner/recorder paths. Operational details and
-response semantics: [admin API guide](../admin-api.md). No OKX account, live order
+response semantics: [admin API guide](../../docs/admin-api.md). No OKX account, live order
 or deployment was used. The following evidence covers local P3 behavior; the
 deployment image/scenario matrix, load/soak and Demo gates remain P4–P6.
 
@@ -255,7 +255,7 @@ Wire and test explicit OKX Demo/live transport selection using local transports,
 then extend the deployment-image simulator matrix. P5 load/soak and P6 dedicated
 OKX Demo acceptance follow in order.
 
-Environment contract: [OKX live/Demo routing](../okx-environments.md). Both existing
+Environment contract: [OKX live/Demo routing](../../docs/okx-environments.md). Both existing
 adapters share process-level mode/site validation and a REST header preprocessor;
 public reference discovery and candle business feeds follow the same selection.
 Dedicated Demo credential variables never fall back to live values. Existing
@@ -352,7 +352,7 @@ A failing populated-report HTTP test now passes after rehydrating JSONB enum key
 for the original upstream PerformanceReport model. No second PnL engine was added.
 
 The opt-in runner, declared assertions and diagnostic failures are documented in
-[the load gate](../life-mm-load-tests.md). Short probes are not final acceptance.
+[the load gate](../../docs/life-mm-load-tests.md). Short probes are not final acceptance.
 The standard image rebuild, complete load durations and fault windows remain open.
 
 The short burst rehearsal now passes 20 reads/s (aggregate p95 107 ms / p99
@@ -456,7 +456,7 @@ All 4,890 native test fills/fees/units and both account/V2 exposure projections
 match the independent ledger. Random steps retain their session start/deadline.
 DB-delay and DB-loss restart both retain HALT.
 
-The plan checklist is updated. Evidence: [load report](../life-mm-load-tests.md),
+The plan checklist is updated. Evidence: [load report](../../docs/life-mm-load-tests.md),
 [portable sanitized data](../life-mm-load-acceptance.json), and full local
 `build/mm-load/20261025-080606-4367d6/result.json`. All 107 PG tests and regression
 groups 149 + 11 + 898 + 88 pass; Swagger and pre-commit pass. Daily cache-miss
@@ -651,7 +651,7 @@ Cloud Run deployment was submitted during this correction.
 ### Planned P7 — funding observation while idle and restart backfill
 
 The owner requested a plan update for durable funding collection in the existing
-service. [P7](../plans/LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md#p7--durable-funding-observation-and-restart-backfill-tdd)
+service. [P7](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md#p7--durable-funding-observation-and-restart-backfill-tdd)
 is added with all implementation/acceptance items unchecked. It covers retained
 positions after stop/expiry/spot-only switching, catch-up even after a position
 closes, late bills, exact original amounts/currencies, account/environment/bill-ID

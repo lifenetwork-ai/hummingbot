@@ -1,7 +1,7 @@
 # PostgreSQL / Cloud Run verification evidence
 
 This document records the completed local verification and its deployment limits.
-The source plan is [POSTGRES_CLOUD_RUN_PORT_PLAN.md](plans/POSTGRES_CLOUD_RUN_PORT_PLAN.md).
+The source plan is [POSTGRES_CLOUD_RUN_PORT_PLAN.md](../docs/plans/POSTGRES_CLOUD_RUN_PORT_PLAN.md).
 All measurements below are local; no Cloud Run staging, cloud IAM/networking or
 real exchange connection is claimed.
 
@@ -92,7 +92,7 @@ Sanitized source/Red/Green/regression/PG validation artifacts are in
 `build/env-storage-validation/`. Fourteen Python/SQL/config image assets match
 source byte-for-byte. The ignored local `.env` had eight `LIFE_` keys renamed with
 their values preserved; their old migration-tool meanings are distinguished from
-current runtime settings in [runtime operations](postgres-runtime.md).
+current runtime settings in [runtime operations](../docs/postgres-runtime.md).
 
 Local image samples: startup 6.605–8.032s, shutdown 0.929–1.617s, spot steady
 236.3 MiB / 2 GiB and 2.31% Docker CPU; reused-connection `SELECT 1` p95 0.309ms.
@@ -268,8 +268,25 @@ fields as unscaled NUMERIC, while preserving the upstream SQLite format. Its new
 checks cover 8-decimal partial fills, precise fee replay, ORM values beyond 18
 decimal places, natural-unit reporting and exact reconciliation. Previously
 discarded digits are not reconstructed. See
-[decimal operations](postgres-runtime.md#decimal-storage) and the
-[follow-up checklist](plans/LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md).
+[decimal operations](../docs/postgres-runtime.md#decimal-storage) and the
+[follow-up checklist](../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md).
 No general live-executor
 or custom timer reconstruction after crashes is claimed: a persisted runtime marker
 forces HALT rather than silently resetting that risk state.
+
+## Decimal precision follow-up
+
+Verification: 1,271 regression tests/nine subtests, 113 PostgreSQL tests and three
+extended precision checks pass. Image `1710edfec3fb...` passes all five applicable
+fresh-deployment offline scenarios, including nine LIFE profile/market cases.
+The spot scenario uses 8-decimal partial fills and 18-decimal fees through
+duplicate replay, restart and interrupted-transaction recovery. A 60-second
+diagnostic probe with 100,000 historical fills completes 20 reads/s, about 100
+market updates/s and one fill/s without budget violations: read p95 120.52ms,
+p99 622.44ms; 60 independent fills match the recorder and positions. History
+retains at most three queries per orders page and one per fills/performance read.
+This is not a new full load/soak, old-schema hot rollback or Cloud Run run.
+See [portable precision evidence](postgres-decimal-precision.json). Native local
+recorder p95 is 30.97ms over 25 transactions; cold daily statistics over 100,000
+fills use six queries, p95 1,289.85ms across 11 samples. Measurements overlapped
+other local test/image preparation and do not compare remote Cloud SQL latency.

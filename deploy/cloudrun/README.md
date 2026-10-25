@@ -57,10 +57,11 @@ generation/revision context. Cleanup has an 8s coroutine budget and a separate
 
 The optimized `cloudrun` target copies the compiled runtime environment into a
 digest-pinned Debian slim image, excluding the base Conda installation and build/
-test toolchains. Measured image size is **1.36 GB**, down from **4.64 GB**; runtime
-dependency versions are preserved. See [image packaging and Docker references](../../docs/cloudrun-image-optimization.md)
-for the inventory, measurements and the distinction between image tags and running
-containers. Builder cache remains separate from the shipped image.
+test toolchains; runtime dependency versions are preserved. See
+[runtime image packaging](../../docs/cloudrun-runtime.md) for build behavior and
+the distinction between image tags and running containers, and the
+[optimization report](../../reports/cloudrun-image-optimization.md) for measured
+sizes and inventories. Builder cache remains separate from the shipped image.
 
 Offline verification enforces a **1.5 GiB** current-image budget and first checks
 native imports, Numba JIT, TA-Lib, TLS trust, SDK discovery, CLI and SQL assets in

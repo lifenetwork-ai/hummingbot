@@ -3,7 +3,7 @@
 Updated: 2026-10-25 (Asia/Ho_Chi_Minh). Runtime baseline: `2d1dc0b7b`.
 Status: P1 controller/configuration and P2 session/service integration implemented
 and locally tested; P3 admin API and subsequent acceptance phases remain open.
-The [previous audit](LIFE_OKX_IMPLEMENTATION_AUDIT.md) covers historical scope;
+The [previous audit](../../reports/LIFE_OKX_IMPLEMENTATION_AUDIT.md) covers historical scope;
 this document is the current delivery checklist.
 
 ## 1. Required behavior
@@ -456,7 +456,7 @@ optimize only demonstrated bottlenecks if the existing code misses the targets.
 - [x] Fix required perpetual quantity handling; configure maker execution, position holding, leverage and supported CROSS/HEDGE settings explicitly.
 - [x] **Green/refactor:** verify listing/freshness, both-market budgets, held/in-flight exposure and existing V2 regressions; record evidence and commit.
 
-P1 evidence: [implementation progress](../implementation/LIFE_OKX_PROGRESS.md).
+P1 evidence: [implementation progress](../../reports/implementation/LIFE_OKX_PROGRESS.md).
 510 targeted new/regression tests pass locally. Empty listing books require an
 explicit initial anchor and a fresh snapshot; partial fills survive quote refresh.
 The catalogue validates both-market selection/budgets; actual session admission,
@@ -471,7 +471,7 @@ LIFE service or price-path guarantees.
 - [x] Persist random draws/windows shared by both markets; preserve selected weights, anchors and deadlines across restart.
 - [x] **Green/refactor:** real-PG CAS/replay/recovery tests and existing ownership/HALT regressions pass; record evidence and commit.
 
-P2 evidence: [implementation progress](../implementation/LIFE_OKX_PROGRESS.md#p2--current-session-and-random-selection).
+P2 evidence: [implementation progress](../../reports/implementation/LIFE_OKX_PROGRESS.md#p2--current-session-and-random-selection).
 1,178 unit/regression tests and all 82 disposable-PostgreSQL tests pass. Session
 control is available as internal service/store behavior; its authenticated HTTP
 commands, durable retry receipts and FE completion states are P3, not yet exposed.
@@ -490,7 +490,7 @@ The actual image/simulator matrix and Demo transport/account acceptance remain P
 - [x] Package Swagger UI at `/api/v1/admin/docs`, reading the generated `/api/v1/admin/openapi.json`; verify Basic Auth, command headers and schema/UI availability without external assets.
 - [x] **Green/refactor:** exercise all three market modes and supported commands with bounded read/query assertions; record evidence and commit.
 
-P3 evidence: [implementation progress](../implementation/LIFE_OKX_PROGRESS.md#p3--admin-api-reporting-and-observational-reconciliation) and [admin API guide](../admin-api.md).
+P3 evidence: [implementation progress](../../reports/implementation/LIFE_OKX_PROGRESS.md#p3--admin-api-reporting-and-observational-reconciliation) and [admin API guide](../admin-api.md).
 1,362 unit/regression tests, 2 subtests and all 100 disposable-PostgreSQL tests pass.
 Swagger drift and changed-file pre-commit checks pass. Deployment-image integration,
 local load/soak and exchange Demo acceptance remain P4–P6.
@@ -504,7 +504,7 @@ local load/soak and exchange Demo acceptance remain P4–P6.
 - [x] Extend the simulator with LIFE spot/SWAP plus reference pairs. Verify three scenarios × spot/perpetual/both, weighted baskets, random selection, API switches, expiry and restart through the deployment image.
 - [x] **Green/refactor:** run relevant existing regression, real-PG and image E2E gates, including FE history/daily-statistics/reconciliation workflow, stale feed/DB faults and held exposure. Verify daily totals against simulator fills and observed balances without double-counting `both`. Save image/config hashes and commit. No OKX account is used here.
 
-P4 evidence: [implementation progress](../implementation/LIFE_OKX_PROGRESS.md#p4--local-image-and-demo-transport-integration) and [routing guide](../okx-environments.md).
+P4 evidence: [implementation progress](../../reports/implementation/LIFE_OKX_PROGRESS.md#p4--local-image-and-demo-transport-integration) and [routing guide](../okx-environments.md).
 All six deployment-image scenarios pass, including the nine LIFE profile/market
 combinations and upgrade/rollback. 1,557 regressions, 2 subtests and all 101
 disposable-PostgreSQL tests pass. Real OKX account checks remain P6.
@@ -516,7 +516,7 @@ load runner/Make target rather than another service or load-testing framework.
 The bot runs at **1 CPU / 2 GiB**; PG/simulator/load generation have separate
 recorded limits. Record host architecture/emulation, image/config hashes, fixture
 sizes and requested **and achieved** rates. Reuse existing large-history/query
-fixtures from [the PostgreSQL performance review](../postgres-performance-review.md).
+fixtures from [the PostgreSQL performance review](../../reports/postgres-performance-review.md).
 Seed sufficient virtual inventory/collateral for the valid-fill workload while
 retaining all configured risk caps.
 
@@ -554,8 +554,8 @@ p95 **74ms**, p99 **584ms**, 72,000 completed reads and 3,600 valid fills. All f
 fault windows pass; independent recorder/exchange comparison agrees on 4,890
 unique fills. Peak bot RSS **341 MiB**; burst backlog drains in **0.53s**.
 
-Evidence and per-route caveats: [load report](../life-mm-load-tests.md),
-[sanitized acceptance data](../life-mm-load-acceptance.json). Daily statistics
+Evidence and per-route caveats: [load report](../../reports/life-mm-load-tests.md),
+[sanitized acceptance data](../../reports/life-mm-load-acceptance.json). Daily statistics
 cache misses remain approximately 1.1 seconds, so aggregate acceptance is not a
 per-endpoint latency guarantee. Upstream teardown pending-task diagnostics remain
 visible; no healthy HTTP failures/HALT or sustained resource growth was observed.
@@ -570,7 +570,7 @@ records subsequent source changes separately.
 - [x] Retain and drain controller generations, including blocked/failed startup and immediate stop/start/stop. Await reference release and public-network closure; retire the action listener before waiting for slow cleanup.
 - [x] Trace residual pending-task diagnostics in Docker, reproduce the orphaned perpetual funding-payment poller and cancel/drain it before replacing its notifier on network stop. Confirm clean final-image debug logs.
 - [x] Add native lifecycle regressions to the Makefile regression target and run the full 111-test PostgreSQL suite. Record idle before/after measurements.
-- [x] Validate the final rebuilt image with affected offline E2E and burst load; record evidence and complete the separate [optimization report](../life-mm-optimization-review.md). Keep the original 60-minute soak evidence attached to its original image.
+- [x] Validate the final rebuilt image with affected offline E2E and burst load; record evidence and complete the separate [optimization report](../../reports/life-mm-optimization-review.md). Keep the original 60-minute soak evidence attached to its original image.
 
 Follow-up complete: native daily-report median **812 → 504ms**; 100-currency
 snapshot **100 → 1 SQL**, median **184 → 28ms**. All **1,249 native regression**
@@ -599,8 +599,8 @@ reconciliations and automatic expiry/cancellation. That image created 288
 orders; all are cancelled. At that protocol's completion the DB had 300 including the earlier 12-order
 pilot, zero fills, UTC, no HALT and no owner. Those exchange reads showed no pending
 orders or perpetual positions and unchanged cash. No new full load/soak or Cloud
-Run deployment was performed. See [Demo acceptance](../okx-demo-acceptance.md),
-[portable evidence](../okx-demo-acceptance.json) and
+Run deployment was performed. See [Demo acceptance](../../reports/okx-demo-acceptance.md),
+[portable evidence](../../reports/okx-demo-acceptance.json) and
 [environment setup](../okx-environments.md).
 
 Post-observation log review identified duplicate cancel response `51400` being
@@ -621,8 +621,8 @@ Legacy scale-six spot quantity truncation is explicitly reported, not described
 as lossless reconciliation. A capped no-new-order funding smoke passed. A bounded
 local watcher will observe the 2026-10-26 00:00 UTC settlement; payment stays
 unverified until a real bill matches the recorder. See
-[natural-fill evidence](../okx-demo-fill-acceptance.json) and the
-[updated acceptance report](../okx-demo-acceptance.md).
+[natural-fill evidence](../../reports/okx-demo-fill-acceptance.json) and the
+[updated acceptance report](../../reports/okx-demo-acceptance.md).
 
 OKX documents Demo API keys, the `x-simulated-trading: 1` REST header and separate
 demo WebSocket endpoints; REST may share the production host. Verify the account's
@@ -661,7 +661,7 @@ replaying a truncated fill could also be rejected as conflicting economic data.
 - [x] Add replayable SQL converting all 15 scaled BIGINT fields once; test legacy rows, new precise values, replay and disabled-migration validation.
 - [x] Sum natural units in daily statistics and compare quantities/prices exactly in observational reconciliation.
 - [x] Test 8-decimal partial fills/fees/replay and round-trip every affected ORM field beyond 18 decimal places.
-- [x] Finish full PostgreSQL/regression verification and deployment-image offline precision/recovery checks; record evidence and commit. 1,271 regression tests/nine subtests, 113 PostgreSQL tests and three extended precision checks pass. The same rebuilt image passes schema/spot, V2 spot/perpetual and all nine LIFE cases across combined/selected runs, plus a 60-second/100,000-history-fill diagnostic load probe. See [portable precision evidence](../postgres-decimal-precision.json).
+- [x] Finish full PostgreSQL/regression verification and deployment-image offline precision/recovery checks; record evidence and commit. 1,271 regression tests/nine subtests, 113 PostgreSQL tests and three extended precision checks pass. The same rebuilt image passes schema/spot, V2 spot/perpetual and all nine LIFE cases across combined/selected runs, plus a 60-second/100,000-history-fill diagnostic load probe. See [portable precision evidence](../../reports/postgres-decimal-precision.json).
 
 Original Demo evidence remains historical: no old quantity is fabricated or
 silently repaired, and the existing funding watcher continues on its original
@@ -735,7 +735,7 @@ passes at 20 reads/s, ~100 book updates/s and one fill/s: read p95 **262.63ms**,
 p99 **676.13ms**, zero unexpected errors/violations. Sixty unique fills and two
 identified funding bills match the independent ledger. This is a bounded local
 probe, not a new full soak or Cloud Run benchmark. Earlier failed runs remain
-recorded with their fixes/limits in [portable evidence](../funding-backfill-evidence.json).
+recorded with their fixes/limits in [portable evidence](../../reports/funding-backfill-evidence.json).
 
 ## 8. Scope kept out
 

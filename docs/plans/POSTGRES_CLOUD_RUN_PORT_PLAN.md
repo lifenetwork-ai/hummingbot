@@ -178,7 +178,7 @@ The names below refer to existing Python model classes. Their SQL tables use the
 - [x] Preserve `config_file_path` as the existing configuration identifier/path. Use stable relative names across revisions and exact query filters so histories from different configurations do not mix.
 - [x] Remove the loop that drops all foreign keys in SQLConnectionManager. Handle events arriving before their order through a deliberate placeholder/upsert or a narrowly unenforced relationship, with behavioral tests.
 - [x] Prefer existing `Order` and `MarketState` records for pending/unknown state and recovery. Add missing columns only when necessary; do not introduce an event store, outbox or order journal by default.
-- [x] Funding follow-up implementation/local verification: reuse `funding_payments`, bot-state checkpoints and the current owner/service; add the narrow `funding_bills` companion with exact NUMERIC amounts, account/environment/bill identity and transactional checkpoints through `014_create_funding_bills.sql`. Legacy deduplication, stopped/closed-position catch-up, API coverage, full image E2E and the bounded local load probe pass. No extra service/container is required. [LIFE/OKX P7](LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md#p7--durable-funding-observation-and-restart-backfill-tdd), [evidence](../funding-backfill-evidence.json).
+- [x] Funding follow-up implementation/local verification: reuse `funding_payments`, bot-state checkpoints and the current owner/service; add the narrow `funding_bills` companion with exact NUMERIC amounts, account/environment/bill identity and transactional checkpoints through `014_create_funding_bills.sql`. Legacy deduplication, stopped/closed-position catch-up, API coverage, full image E2E and the bounded local load probe pass. No extra service/container is required. [LIFE/OKX P7](LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md#p7--durable-funding-observation-and-restart-backfill-tdd), [evidence](../../reports/funding-backfill-evidence.json).
 - [ ] Funding Demo acceptance: observe an actual settlement through P7, compare exact original amount/time with DB/daily totals, and cold-restart to verify deduplication. Keep open until a real bill is verified; P7 tracks the scheduled 07:00 Vietnam observation.
 
 ### 4.2. Durable bot control state
@@ -419,7 +419,7 @@ P6 evidence (local, 2026-10-24): **59 PostgreSQL integration tests**, **866 sele
 
 P6 delivery: `hbot serve` invokes the shared application/engine in the foreground with early signal handling, a separate 9s process watchdog, versioned DB observation/publication, healthy standby/stopped startup, stdout context and health-only HTTP routes. The cloud image explicitly selects the existing build target, includes SQL/non-secret configuration, disables bytecode writes and runs non-root; the original unqualified Docker quickstart target remains available. `make build` no longer deletes the working tree. Build/review/deploy targets and [deployment instructions](../../deploy/cloudrun/README.md) describe Cloud SQL socket/network access, pinned Secret Manager versions, continuous CPU/instance limits and optional static NAT. The concrete preflight binds the deployment registry digest to passing E2E evidence. Required CI steps build/run offline tests and retain artifacts; they have been configured, not executed remotely during this work.
 
-[Acceptance mapping and final evidence](../postgres-verification.md) record **926 selected regression tests**, **61 real PostgreSQL tests**, and all five passing deployment-image scenarios: schema policy, V1 spot, V2 spot, V2 perpetual and distinct-image upgrade/rollback. The concrete offline deployment review matches the tested registry manifest. No cloud provisioning, external image publication, real exchange request or staging deployment has been performed.
+[Acceptance mapping and final evidence](../../reports/postgres-verification.md) record **926 selected regression tests**, **61 real PostgreSQL tests**, and all five passing deployment-image scenarios: schema policy, V1 spot, V2 spot, V2 perpetual and distinct-image upgrade/rollback. The concrete offline deployment review matches the tested registry manifest. No cloud provisioning, external image publication, real exchange request or staging deployment has been performed.
 
 ## 7. Tests and acceptance criteria
 
@@ -533,7 +533,7 @@ System-wide precision changes, multiple bots sharing databases/accounts, complet
 ## 9. Post-port performance and recovery review
 
 Requested after completion of P0–P6. Evidence and cache decisions are documented in
-[postgres-performance-review.md](../postgres-performance-review.md).
+[postgres-performance-review.md](../../reports/postgres-performance-review.md).
 
 - [x] Measure large-history V2 startup, pending-order lookup plans and actual fenced recorder writes using disposable PostgreSQL; preserve before/after artifacts.
 - [x] Limit V2 recovery to selected controllers and required performance columns; stream history and preserve existing Decimal arithmetic and fail-closed validation.
@@ -563,12 +563,12 @@ local compatibility while keeping the deployed Cloud Run service on PostgreSQL.
 - [x] Rename the eight legacy `LIFE_` keys in the ignored local `.env` without changing their values. Document that the previous migration knobs are not active aliases for the current runner; current settings are `DATABASE_URL`/`ENABLE_AUTO_MIGRATION`.
 - [x] Remove `public.` qualifiers from all eight packaged SQL scripts and the manual legacy-name script. Keep the runner's canonical `SET LOCAL search_path = public`, schema checks and simple idempotent objects. This requested formatting replay changes script checksums without changing table identities or adding a new schema.
 - [x] Verify original file-mode SQLite/JSON round-trips, explicit/legacy backend selection, defaults/precedence, cloud deployment rejection, non-default search-path migration replay and populated legacy cutover. Results: 944 selected regression tests and 72 PostgreSQL tests passed.
-- [x] Complete rebuilt-image offline E2E, bind its digest to deployment review, update evidence and commit. All five scenarios passed in `build/e2e-offline/20261025-001145-0d9d95/result.json`; the matching concrete synthetic deployment artifact passed preflight. See the current manifest in [verification evidence](../postgres-verification.md).
+- [x] Complete rebuilt-image offline E2E, bind its digest to deployment review, update evidence and commit. All five scenarios passed in `build/e2e-offline/20261025-001145-0d9d95/result.json`; the matching concrete synthetic deployment artifact passed preflight. See the current manifest in [verification evidence](../../reports/postgres-verification.md).
 
 ## 11. Cloud Run runtime image optimization
 
 Requested after the env/SQL follow-up. Measurements and the explanation of Docker
-image aliases are in [cloudrun-image-optimization.md](../cloudrun-image-optimization.md).
+image aliases are in [cloudrun-image-optimization.md](../../reports/cloudrun-image-optimization.md).
 
 - [x] Measure layer/package sizes and running containers. The 4.64 GB baseline copies full base Conda plus build/test tooling; stored tags do not represent extra running bots. Previous-image tags are used for compatibility tests.
 - [x] Reuse the existing compiler stage/dependency versions, prepare runtime files separately, and copy only the application environment/application into pinned Debian slim. Preserve runtime libraries/SDKs, foreground entrypoint, non-root UID, immutable config, SQL and health/shutdown contracts.
@@ -576,4 +576,4 @@ image aliases are in [cloudrun-image-optimization.md](../cloudrun-image-optimiza
 - [x] Reduce measured Docker image size to 1,363,640,076 bytes from 4,637,764,625 bytes (70.60%). Keep a 1.5 GiB current-image gate in offline E2E. The 1.19 GB no-cache trial passed E2E but increased local bootstrap time; the final candidate retains runtime caches.
 - [x] Verify Cython imports, 63 connector settings, Numba JIT, TA-Lib, TLS trust, CLI and all nine SQL assets without network in read-only runtime. Compare retained Python distribution versions; all match.
 - [x] Pass 950 native regression tests and 90.18% packager coverage. Align two stale migration-default assertions/docs with the already committed `false` default; test explicit true/false overrides without changing the production default.
-- [x] Pass all five slim-image E2E scenarios against a compatible full-image predecessor, bind deployment review to the tested manifest, update evidence and commit. Report: `build/e2e-offline/20261025-011532-ec2194/result.json`; `passed=true`, `release_scope_complete=true`, matching synthetic deployment review passed. Final-image local startup samples: 6.884–8.407s. See [verification evidence](../postgres-verification.md) for the exact manifest and measurements.
+- [x] Pass all five slim-image E2E scenarios against a compatible full-image predecessor, bind deployment review to the tested manifest, update evidence and commit. Report: `build/e2e-offline/20261025-011532-ec2194/result.json`; `passed=true`, `release_scope_complete=true`, matching synthetic deployment review passed. Final-image local startup samples: 6.884–8.407s. See [verification evidence](../../reports/postgres-verification.md) for the exact manifest and measurements.

@@ -1,6 +1,6 @@
 # LIFE/OKX implementation audit after the PostgreSQL port
 
-Historical scope note (2026-10-25): the current [LIFE/OKX plan](LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md)
+Historical scope note (2026-10-25): the current [LIFE/OKX plan](../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md)
 now defines a smaller spot/perpetual MM/session/admin API MVP. The P0–P9/A01–A39 mappings
 below describe the previous scope, not the current delivery checklist. Source
 findings remain useful when reusing the corresponding components.
@@ -9,7 +9,7 @@ Reuse clarification (2026-10-25): upstream revision `9af100d68` already includes
 V2 market making, OKX connectors, recorder/history, `PerformanceMetrics` and MQTT
 start/stop/status/config/history RPC. Missing LIFE behavior or REST endpoints does
 not mean these foundations must be rebuilt. The current plan's
-[reuse inventory](LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md#2-existing-code-to-extend)
+[reuse inventory](../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md#2-existing-code-to-extend)
 separates upstream functionality, completed port infrastructure and the remaining
 extensions. Reuse compatible helpers; HTTP trading commands must retain the port's
 owner/control flow rather than invoking interactive MQTT callbacks directly.
@@ -18,7 +18,7 @@ Delivery update (2026-10-25): the current plan's P1 controller/configuration
 foundation and P2 current-session persistence, finite/random windows, V2 service
 integration and session/step send fencing are implemented. 1,178 unit/regression
 tests plus 82 real-PostgreSQL tests pass. See
-[implementation evidence](../implementation/LIFE_OKX_PROGRESS.md). Admin HTTP API
+[implementation evidence](implementation/LIFE_OKX_PROGRESS.md). Admin HTTP API
 and local image E2E/load/Demo acceptance remain open. The historical inventory and
 old phase mappings below are not a new audit of that implementation.
 
@@ -27,12 +27,12 @@ upstream scaled-six decimal adapter discarded fractional quantities and could
 reject a legitimate fill replay. The fix reuses that adapter with unscaled
 PostgreSQL NUMERIC for its 15 fields, retaining the original SQLite format.
 Migration, daily reporting and exact reconciliation are covered by the current
-[plan's post-Demo checklist](LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md) and
-[runtime notes](../postgres-runtime.md#decimal-storage). This historical audit
+[plan's post-Demo checklist](../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md) and
+[runtime notes](../docs/postgres-runtime.md#decimal-storage). This historical audit
 does not certify a new Cloud Run deployment or alter old Demo evidence.
 
 Reviewed: 2026-10-24 (Asia/Ho_Chi_Minh). Source: `2301ef6a6`.
-Scope: compare [the LIFE/OKX plan](LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md) with
+Scope: compare [the LIFE/OKX plan](../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md) with
 readable source and reproducible tests. No exchange calls, credentials, demo/live
 orders or cloud deployment were used for this audit.
 
@@ -57,13 +57,13 @@ that those files exist in the current checkout.
 
 | Component and evidence | What is already available | What it does not establish |
 |---|---|---|
-| [PostgreSQL runner](../../hummingbot/model/db_migration/postgres/runner.py), [SQL scripts](../../hummingbot/model/db_migration/postgres/scripts), [runtime operations](../postgres-runtime.md) | Canonical schema, idempotent migration, `ENABLE_AUTO_MIGRATION`, schema validation, durable recorder/control state | LIFE session, reservation, budget and economic-audit schemas |
-| [Service](../../hummingbot/cli/service.py), [runtime config](../../hummingbot/client/config/runtime_config.py), [environment credentials](../../hummingbot/client/config/environment_credentials.py) | Foreground service, probes, bounded shutdown, local dotenv/cloud environment input, ordinary YAML, credential validation | LIFE mode selection, shadow/demo isolation or its configuration validation |
-| [Ownership](../../hummingbot/core/bot_ownership.py), [send gate](../../hummingbot/core/order_submission_guard.py), [REST assistant](../../hummingbot/core/web_assistant/rest_assistant.py) | Dedicated PG session lock/generation; write fencing; final ownership/HALT/control-version checks after throttling/authentication; bounded transport and request deadline | A permit binding LIFE session/config/risk epochs, quantity/price, reservation, data freshness and economics; account-wide exclusion of unrelated deployments using other databases |
-| [Recorder](../../hummingbot/connector/markets_recorder.py), [ownership integration tests](../../test/integration/postgres/test_ownership.py), [recorder tests](../../test/integration/postgres/test_recorder.py) | Stable client ID persisted before send; atomic order/status/fill/tracking state; duplicate handling; lost-ACK reconciliation; rollback latch and durable HALT | Atomic LIFE capital reservations, session/day/campaign budgets, slot identity and their release rules |
-| [V2 runner](../../scripts/v2_with_controllers.py), [orchestrator](../../hummingbot/strategy_v2/executors/executor_orchestrator.py) | Existing controller/executor lifecycle, restored positions/PnL peaks/stopped-controller state, scoped streaming PnL recovery and in-memory reports | Timed LIFE session recovery; NAV/cashflow accounting; turnover-independent capital drawdown; automatic eligibility to resume after uncertainty |
-| [OKX spot](../../hummingbot/connector/exchange/okx/okx_exchange.py), [perpetual](../../hummingbot/connector/derivative/okx_perpetual/okx_perpetual_derivative.py), existing order/position/TWAP executors | Books, balances, order/fill tracking, tick/lot handling, spot/perpetual placement and `LIMIT_MAKER` → `post_only` mapping | Complete listing-phase, account-fee, close-only, shared collateral or LIFE-specific risk contracts |
-| [Independent offline exchange](../../test/e2e/offline/exchange.py), [E2E runner](../../scripts/test_e2e_offline.py), [verification report](../postgres-verification.md) | Real image/connector/engine/PG flow; V1 spot and V2 spot/perpetual; faults, restart and distinct-image rollback | LIFE instruments/session logic, joint spot/perpetual coordination, conservative queue/impact economics, calibrated backtests or real OKX demo evidence |
+| [PostgreSQL runner](../hummingbot/model/db_migration/postgres/runner.py), [SQL scripts](../hummingbot/model/db_migration/postgres/scripts), [runtime operations](../docs/postgres-runtime.md) | Canonical schema, idempotent migration, `ENABLE_AUTO_MIGRATION`, schema validation, durable recorder/control state | LIFE session, reservation, budget and economic-audit schemas |
+| [Service](../hummingbot/cli/service.py), [runtime config](../hummingbot/client/config/runtime_config.py), [environment credentials](../hummingbot/client/config/environment_credentials.py) | Foreground service, probes, bounded shutdown, local dotenv/cloud environment input, ordinary YAML, credential validation | LIFE mode selection, shadow/demo isolation or its configuration validation |
+| [Ownership](../hummingbot/core/bot_ownership.py), [send gate](../hummingbot/core/order_submission_guard.py), [REST assistant](../hummingbot/core/web_assistant/rest_assistant.py) | Dedicated PG session lock/generation; write fencing; final ownership/HALT/control-version checks after throttling/authentication; bounded transport and request deadline | A permit binding LIFE session/config/risk epochs, quantity/price, reservation, data freshness and economics; account-wide exclusion of unrelated deployments using other databases |
+| [Recorder](../hummingbot/connector/markets_recorder.py), [ownership integration tests](../test/integration/postgres/test_ownership.py), [recorder tests](../test/integration/postgres/test_recorder.py) | Stable client ID persisted before send; atomic order/status/fill/tracking state; duplicate handling; lost-ACK reconciliation; rollback latch and durable HALT | Atomic LIFE capital reservations, session/day/campaign budgets, slot identity and their release rules |
+| [V2 runner](../scripts/v2_with_controllers.py), [orchestrator](../hummingbot/strategy_v2/executors/executor_orchestrator.py) | Existing controller/executor lifecycle, restored positions/PnL peaks/stopped-controller state, scoped streaming PnL recovery and in-memory reports | Timed LIFE session recovery; NAV/cashflow accounting; turnover-independent capital drawdown; automatic eligibility to resume after uncertainty |
+| [OKX spot](../hummingbot/connector/exchange/okx/okx_exchange.py), [perpetual](../hummingbot/connector/derivative/okx_perpetual/okx_perpetual_derivative.py), existing order/position/TWAP executors | Books, balances, order/fill tracking, tick/lot handling, spot/perpetual placement and `LIMIT_MAKER` → `post_only` mapping | Complete listing-phase, account-fee, close-only, shared collateral or LIFE-specific risk contracts |
+| [Independent offline exchange](../test/e2e/offline/exchange.py), [E2E runner](../scripts/test_e2e_offline.py), [verification report](postgres-verification.md) | Real image/connector/engine/PG flow; V1 spot and V2 spot/perpetual; faults, restart and distinct-image rollback | LIFE instruments/session logic, joint spot/perpetual coordination, conservative queue/impact economics, calibrated backtests or real OKX demo evidence |
 
 Extend these components. Do not build a second trading engine, migration framework,
 ownership system or recorder. Cache optimization is already reviewed separately;
@@ -94,7 +94,7 @@ making merely because a generic BTC/ETH fixture can place an OKX order.
 ## Confirmed connector and integration gaps
 
 1. **Spot listing eligibility — P2.1–P2.5.**
-   [`okx_utils.is_exchange_information_valid`](../../hummingbot/connector/exchange/okx/okx_utils.py)
+   [`okx_utils.is_exchange_information_valid`](../hummingbot/connector/exchange/okx/okx_utils.py)
    checks instrument type and currencies, but not state or continuous-trading
    phase. A local probe with `state='suspend'` still returns `True`. The perpetual
    filter already checks live linear SWAPs; this is useful but not the full
@@ -103,7 +103,7 @@ making merely because a generic BTC/ETH fixture can place an OKX order.
    remain `pass`. Generic default fee schedules and recorded fill fees do not
    supply a current account/instrument fee snapshot for pre-send economics.
 3. **Perpetual quantity — P6.2 / A31.**
-   [`get_position_amount`](../../hummingbot/connector/derivative/okx_perpetual/okx_perpetual_derivative.py)
+   [`get_position_amount`](../hummingbot/connector/derivative/okx_perpetual/okx_perpetual_derivative.py)
    uses `notionalUsd / avgPx` and `max(amount, round(amount))`, rather than
    position contract count and instrument metadata. Local probes show `60/100`
    becomes **1**, `avgPx=0` raises `DivisionByZero`, and the net-side parser's
@@ -117,7 +117,7 @@ making merely because a generic BTC/ETH fixture can place an OKX order.
    reusable but needs shrinking-position/retry tests; explicit isolated mode
    must not be accepted while requests still use cross.
 5. **Safety scheduling and send authority — P4.13–P4.15 / A23–A24/A36.**
-   [`ControllerBase.control_task`](../../hummingbot/strategy_v2/controllers/controller_base.py)
+   [`ControllerBase.control_task`](../hummingbot/strategy_v2/controllers/controller_base.py)
    still waits for global `MarketDataProvider.ready` **and** an executor update
    event. The service observer is independent, but does not implement LIFE feed,
    session, reservation or economics checks. Extend the existing final gate;
@@ -176,7 +176,7 @@ The source probes call only local filter/position conversion functions. They
 demonstrate current behavior; they are not implemented LIFE acceptance tests or
 a phase's completed Red → Green cycle. Previously completed port evidence remains
 926 regression tests, 71 PostgreSQL integration tests and five image E2E scenarios
-in [postgres-verification.md](../postgres-verification.md); it was not rerun or
+in [postgres-verification.md](postgres-verification.md); it was not rerun or
 claimed as new LIFE evidence in this documentation audit.
 
 Proceed in the plan's existing order: finish P0's remaining specification,
