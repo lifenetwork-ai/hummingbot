@@ -1,0 +1,1721 @@
+{
+  "started_at": "2026-10-25T16:56:03.383087+00:00",
+  "environment": "demo",
+  "image_id": "sha256:8401c10c2c5c50f4d426db6f2e8529506923fa77b02b0090f028e56c11c04fc2",
+  "profile_sha256": "a785db0bda63d941bde20662dab51eede88b6eaf7ff0e647c81f5d6399f3aeaa",
+  "trading_pair": "BTC-USDT",
+  "follow_token_reference": "AVAX-USDT",
+  "quote_budget_per_market": "100",
+  "preserve_positions_on_stop": true,
+  "passed": true,
+  "matrix": [
+    {
+      "mode": "spot",
+      "profile": "follow_market",
+      "recorder_orders": 4,
+      "exchange_live_post_only_orders": 4,
+      "instruments": [
+        "BTC-USDT"
+      ],
+      "order_ids": [
+        "93027a12dac34fBCBBCUT2ef422c85ed",
+        "93027a12dac34fBCBBCUT545ad08c935",
+        "93027a12dac34fBCSBCUT387a4bb5f71",
+        "93027a12dac34fBCSBCUT3fbc0099f95"
+      ],
+      "anchors": {
+        "demo_btc_spot": {
+          "life": "80834.15",
+          "sources": {
+            "BTC-USDT": "80834.15",
+            "ETH-USDT": "2358.60"
+          }
+        }
+      }
+    },
+    {
+      "mode": "spot",
+      "profile": "sideways",
+      "recorder_orders": 4,
+      "exchange_live_post_only_orders": 4,
+      "instruments": [
+        "BTC-USDT"
+      ],
+      "order_ids": [
+        "93027a12dac34fBCBBCUT30a1533b304",
+        "93027a12dac34fBCBBCUT5a0efb2f908",
+        "93027a12dac34fBCSBCUT1cf85cbd8c3",
+        "93027a12dac34fBCSBCUTb7fe3007b2c"
+      ],
+      "anchors": {
+        "demo_btc_spot": {
+          "life": "80808.9",
+          "sources": {}
+        }
+      }
+    },
+    {
+      "mode": "spot",
+      "profile": "follow_token",
+      "recorder_orders": 4,
+      "exchange_live_post_only_orders": 4,
+      "instruments": [
+        "BTC-USDT"
+      ],
+      "order_ids": [
+        "93027a12dac34fBCBBCUTe10a6606a22",
+        "93027a12dac34fBCBBCUTe6dacee02c8",
+        "93027a12dac34fBCSBCUTc472d383d17",
+        "93027a12dac34fBCSBCUTff27b223a24"
+      ],
+      "anchors": {
+        "demo_btc_spot": {
+          "life": "80796.75",
+          "sources": {
+            "AVAX-USDT": "8.940"
+          }
+        }
+      }
+    },
+    {
+      "mode": "perpetual",
+      "profile": "follow_market",
+      "recorder_orders": 4,
+      "exchange_live_post_only_orders": 4,
+      "instruments": [
+        "BTC-USDT-SWAP"
+      ],
+      "order_ids": [
+        "93027a12dac34fBCBBCUT2cd1b608970",
+        "93027a12dac34fBCBBCUT6f8b9d13bc9",
+        "93027a12dac34fBCSBCUTc0e0079b0b2",
+        "93027a12dac34fBCSBCUTec316bcaa26"
+      ],
+      "anchors": {
+        "demo_btc_perpetual": {
+          "life": "80772.69",
+          "sources": {
+            "BTC-USDT": "80826.65",
+            "ETH-USDT": "2357.485"
+          }
+        }
+      }
+    },
+    {
+      "mode": "perpetual",
+      "profile": "sideways",
+      "recorder_orders": 4,
+      "exchange_live_post_only_orders": 4,
+      "instruments": [
+        "BTC-USDT-SWAP"
+      ],
+      "order_ids": [
+        "93027a12dac34fBCBBCUT6ea68e0e2a6",
+        "93027a12dac34fBCBBCUTe1aee697c60",
+        "93027a12dac34fBCSBCUT540408aef1d",
+        "93027a12dac34fBCSBCUTd2198336de4"
+      ],
+      "anchors": {
+        "demo_btc_perpetual": {
+          "life": "80742.95",
+          "sources": {}
+        }
+      }
+    },
+    {
+      "mode": "perpetual",
+      "profile": "follow_token",
+      "recorder_orders": 4,
+      "exchange_live_post_only_orders": 4,
+      "instruments": [
+        "BTC-USDT-SWAP"
+      ],
+      "order_ids": [
+        "93027a12dac34fBCBBCUT0b125c5a430",
+        "93027a12dac34fBCBBCUT8405e9ea6cd",
+        "93027a12dac34fBCSBCUT41263b8db15",
+        "93027a12dac34fBCSBCUTc5a7138c988"
+      ],
+      "anchors": {
+        "demo_btc_perpetual": {
+          "life": "80765.90",
+          "sources": {
+            "AVAX-USDT": "8.9475"
+          }
+        }
+      }
+    },
+    {
+      "mode": "both",
+      "profile": "follow_market",
+      "recorder_orders": 8,
+      "exchange_live_post_only_orders": 8,
+      "instruments": [
+        "BTC-USDT",
+        "BTC-USDT-SWAP"
+      ],
+      "order_ids": [
+        "93027a12dac34fBCBBCUT16720485bdf",
+        "93027a12dac34fBCBBCUT6ddc61ddb34",
+        "93027a12dac34fBCBBCUTd02a0f7c950",
+        "93027a12dac34fBCBBCUTdc4954a056b",
+        "93027a12dac34fBCSBCUT1074ab3191b",
+        "93027a12dac34fBCSBCUT1d57f4150e5",
+        "93027a12dac34fBCSBCUT69e5ab3a655",
+        "93027a12dac34fBCSBCUTa78edfabd96"
+      ],
+      "anchors": {
+        "demo_btc_spot": {
+          "life": "80801.55",
+          "sources": {
+            "BTC-USDT": "80801.55",
+            "ETH-USDT": "2356.53"
+          }
+        },
+        "demo_btc_perpetual": {
+          "life": "80765.325",
+          "sources": {
+            "BTC-USDT": "80801.55",
+            "ETH-USDT": "2356.53"
+          }
+        }
+      }
+    },
+    {
+      "mode": "both",
+      "profile": "sideways",
+      "recorder_orders": 8,
+      "exchange_live_post_only_orders": 8,
+      "instruments": [
+        "BTC-USDT",
+        "BTC-USDT-SWAP"
+      ],
+      "order_ids": [
+        "93027a12dac34fBCBBCUT58a5fbdd9cc",
+        "93027a12dac34fBCBBCUTb3e86955a5f",
+        "93027a12dac34fBCBBCUTccb3c68dabb",
+        "93027a12dac34fBCBBCUTf8384c59d8b",
+        "93027a12dac34fBCSBCUT557464c0cc4",
+        "93027a12dac34fBCSBCUT618b4c718c1",
+        "93027a12dac34fBCSBCUTc2fd267e1f8",
+        "93027a12dac34fBCSBCUTe1614718047"
+      ],
+      "anchors": {
+        "demo_btc_spot": {
+          "life": "80793.05",
+          "sources": {}
+        },
+        "demo_btc_perpetual": {
+          "life": "80760.575",
+          "sources": {}
+        }
+      }
+    },
+    {
+      "mode": "both",
+      "profile": "follow_token",
+      "recorder_orders": 8,
+      "exchange_live_post_only_orders": 8,
+      "instruments": [
+        "BTC-USDT",
+        "BTC-USDT-SWAP"
+      ],
+      "order_ids": [
+        "93027a12dac34fBCBBCUT91b50766b07",
+        "93027a12dac34fBCBBCUTa9117d7ea1c",
+        "93027a12dac34fBCBBCUTc24eef303fa",
+        "93027a12dac34fBCBBCUTd90ab87e71d",
+        "93027a12dac34fBCSBCUT17576d516c2",
+        "93027a12dac34fBCSBCUT3a85fc0ce62",
+        "93027a12dac34fBCSBCUT551638abac3",
+        "93027a12dac34fBCSBCUT5d2ba073b13"
+      ],
+      "anchors": {
+        "demo_btc_spot": {
+          "life": "80793.05",
+          "sources": {
+            "AVAX-USDT": "8.943"
+          }
+        },
+        "demo_btc_perpetual": {
+          "life": "80753.41",
+          "sources": {
+            "AVAX-USDT": "8.943"
+          }
+        }
+      }
+    }
+  ],
+  "commands": [
+    {
+      "action": "start",
+      "receipt_id": "0be574c9-17eb-486a-9fc1-469411ed33c4",
+      "same_key_retry_same_receipt": true,
+      "elapsed_seconds": 3.0552337910048664
+    },
+    {
+      "action": "stop",
+      "receipt_id": "d22fb90d-28e6-4266-b1be-65bd5c40a469",
+      "same_key_retry_same_receipt": true,
+      "elapsed_seconds": 2.0463336249813437
+    },
+    {
+      "action": "start",
+      "receipt_id": "cb906d14-1652-4aba-b270-55455997ccd9",
+      "same_key_retry_same_receipt": true,
+      "elapsed_seconds": 3.0389384170994163
+    },
+    {
+      "action": "stop",
+      "receipt_id": "33522e3d-d228-410e-a117-3545b085d55a",
+      "same_key_retry_same_receipt": true,
+      "elapsed_seconds": 2.0544855420012027
+    },
+    {
+      "action": "start",
+      "receipt_id": "25026ab4-3568-4bef-a71b-aeb804d96182",
+      "same_key_retry_same_receipt": true,
+      "elapsed_seconds": 3.063421708997339
+    },
+    {
+      "action": "stop",
+      "receipt_id": "3760f967-6071-4e24-98bb-1da8cbb4ae8f",
+      "same_key_retry_same_receipt": true,
+      "elapsed_seconds": 2.041069332975894
+    },
+    {
+      "action": "start",
+      "receipt_id": "ed14a138-1039-4c0f-be9f-7828b5e16e6e",
+      "same_key_retry_same_receipt": true,
+      "elapsed_seconds": 6.084030041936785
+    },
+    {
+      "action": "stop",
+      "receipt_id": "c3df664d-4d95-40d3-a1fb-e865042e2298",
+      "same_key_retry_same_receipt": true,
+      "elapsed_seconds": 2.056322833057493
+    },
+    {
+      "action": "start",
+      "receipt_id": "e0e414ee-4724-492c-a029-990f7f0702d9",
+      "same_key_retry_same_receipt": true,
+      "elapsed_seconds": 4.094959917012602
+    },
+    {
+      "action": "stop",
+      "receipt_id": "933202cc-01dc-4fe6-9152-523475878760",
+      "same_key_retry_same_receipt": true,
+      "elapsed_seconds": 2.0381049159914255
+    },
+    {
+      "action": "start",
+      "receipt_id": "99607be3-370b-42dd-82c8-ce7f0819e413",
+      "same_key_retry_same_receipt": true,
+      "elapsed_seconds": 4.063737584045157
+    },
+    {
+      "action": "stop",
+      "receipt_id": "4c8ea01e-0625-4385-86d7-365e91bbd47e",
+      "same_key_retry_same_receipt": true,
+      "elapsed_seconds": 2.0361809588503093
+    },
+    {
+      "action": "start",
+      "receipt_id": "8669feca-ef8d-4428-99ab-250e5f4c4edc",
+      "same_key_retry_same_receipt": true,
+      "elapsed_seconds": 4.0569162499159575
+    },
+    {
+      "action": "switch",
+      "receipt_id": "2d88e8c2-39fd-422b-bf6b-1ab699488fe3",
+      "same_key_retry_same_receipt": true,
+      "elapsed_seconds": 5.150112917181104
+    },
+    {
+      "action": "switch",
+      "receipt_id": "06125d23-0ccc-4728-b12f-6ccaadee1b6b",
+      "same_key_retry_same_receipt": true,
+      "elapsed_seconds": 5.073090915801004
+    },
+    {
+      "action": "stop",
+      "receipt_id": "8ff6eaab-f464-4c47-a598-60ebc1a60d1b",
+      "same_key_retry_same_receipt": true,
+      "elapsed_seconds": 3.0707360829692334
+    },
+    {
+      "action": "start",
+      "receipt_id": "8dea4a7f-df2e-4d41-b145-b58f3db001d1",
+      "same_key_retry_same_receipt": true,
+      "elapsed_seconds": 3.316223042085767
+    }
+  ],
+  "checks": [
+    {
+      "check": {
+        "id": "4054f591-c3ce-4ab9-a2cf-bfab46a0b2d2",
+        "status": "succeeded",
+        "payload": {
+          "market": "all",
+          "pair": "BTC-USDT",
+          "lookback_seconds": 120,
+          "max_orders": 100,
+          "max_pages": 5
+        },
+        "created_at": "2026-10-25T17:03:22.095805Z",
+        "updated_at": "2026-10-25T17:03:26.531697Z",
+        "error": null,
+        "report": {
+          "scope": "bot_owned_orders_and_configured_perpetual_exposure",
+          "state": "matched",
+          "started_at": "2026-10-25T17:03:22.321861Z",
+          "finished_at": "2026-10-25T17:03:26.529835Z",
+          "markets": [
+            {
+              "market": "spot",
+              "state": "matched",
+              "complete": true,
+              "local_observed_at": "2026-10-25T17:03:22.321861Z",
+              "exchange_observed_at": "2026-10-25T17:03:26.339530Z",
+              "orders_checked": 12,
+              "fills_checked": 0,
+              "positions_checked": 0,
+              "reasons": [],
+              "differences": []
+            },
+            {
+              "market": "perpetual",
+              "state": "matched",
+              "complete": true,
+              "local_observed_at": "2026-10-25T17:03:22.321861Z",
+              "exchange_observed_at": "2026-10-25T17:03:26.512855Z",
+              "orders_checked": 12,
+              "fills_checked": 0,
+              "positions_checked": 0,
+              "reasons": [],
+              "differences": []
+            }
+          ]
+        }
+      },
+      "report": {
+        "scope": "bot_owned_orders_and_configured_perpetual_exposure",
+        "state": "matched",
+        "started_at": "2026-10-25T17:03:22.321861Z",
+        "finished_at": "2026-10-25T17:03:26.529835Z",
+        "markets": [
+          {
+            "market": "spot",
+            "state": "matched",
+            "complete": true,
+            "local_observed_at": "2026-10-25T17:03:22.321861Z",
+            "exchange_observed_at": "2026-10-25T17:03:26.339530Z",
+            "orders_checked": 12,
+            "fills_checked": 0,
+            "positions_checked": 0,
+            "reasons": [],
+            "differences": []
+          },
+          {
+            "market": "perpetual",
+            "state": "matched",
+            "complete": true,
+            "local_observed_at": "2026-10-25T17:03:22.321861Z",
+            "exchange_observed_at": "2026-10-25T17:03:26.512855Z",
+            "orders_checked": 12,
+            "fills_checked": 0,
+            "positions_checked": 0,
+            "reasons": [],
+            "differences": []
+          }
+        ]
+      }
+    },
+    {
+      "check": {
+        "id": "18e952bf-7f81-43f4-b91a-2d5f0d9ee531",
+        "status": "succeeded",
+        "payload": {
+          "market": "all",
+          "pair": "BTC-USDT",
+          "lookback_seconds": 120,
+          "max_orders": 100,
+          "max_pages": 5
+        },
+        "created_at": "2026-10-25T17:19:12.117592Z",
+        "updated_at": "2026-10-25T17:19:16.944188Z",
+        "error": null,
+        "report": {
+          "scope": "bot_owned_orders_and_configured_perpetual_exposure",
+          "state": "matched",
+          "started_at": "2026-10-25T17:19:12.775910Z",
+          "finished_at": "2026-10-25T17:19:16.942169Z",
+          "markets": [
+            {
+              "market": "spot",
+              "state": "matched",
+              "complete": true,
+              "local_observed_at": "2026-10-25T17:19:12.775910Z",
+              "exchange_observed_at": "2026-10-25T17:19:16.656443Z",
+              "orders_checked": 12,
+              "fills_checked": 0,
+              "positions_checked": 0,
+              "reasons": [],
+              "differences": []
+            },
+            {
+              "market": "perpetual",
+              "state": "matched",
+              "complete": true,
+              "local_observed_at": "2026-10-25T17:19:12.775910Z",
+              "exchange_observed_at": "2026-10-25T17:19:16.926071Z",
+              "orders_checked": 12,
+              "fills_checked": 0,
+              "positions_checked": 0,
+              "reasons": [],
+              "differences": []
+            }
+          ]
+        }
+      },
+      "report": {
+        "scope": "bot_owned_orders_and_configured_perpetual_exposure",
+        "state": "matched",
+        "started_at": "2026-10-25T17:19:12.775910Z",
+        "finished_at": "2026-10-25T17:19:16.942169Z",
+        "markets": [
+          {
+            "market": "spot",
+            "state": "matched",
+            "complete": true,
+            "local_observed_at": "2026-10-25T17:19:12.775910Z",
+            "exchange_observed_at": "2026-10-25T17:19:16.656443Z",
+            "orders_checked": 12,
+            "fills_checked": 0,
+            "positions_checked": 0,
+            "reasons": [],
+            "differences": []
+          },
+          {
+            "market": "perpetual",
+            "state": "matched",
+            "complete": true,
+            "local_observed_at": "2026-10-25T17:19:12.775910Z",
+            "exchange_observed_at": "2026-10-25T17:19:16.926071Z",
+            "orders_checked": 12,
+            "fills_checked": 0,
+            "positions_checked": 0,
+            "reasons": [],
+            "differences": []
+          }
+        ]
+      }
+    }
+  ],
+  "observations": [
+    {
+      "elapsed_seconds": 0.003829540917649865,
+      "phase": "running",
+      "step": 0,
+      "profile": "follow_market",
+      "open_recorder_orders": 0,
+      "markets": [
+        {
+          "market": "spot",
+          "connector": "okx",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80803.050",
+          "reason": null
+        },
+        {
+          "market": "perpetual",
+          "connector": "okx_perpetual",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80757.9950",
+          "reason": null
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 60.39582320791669,
+      "phase": "running",
+      "step": 0,
+      "profile": "follow_market",
+      "open_recorder_orders": 8,
+      "markets": [
+        {
+          "market": "spot",
+          "connector": "okx",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80819.55061231244483671668136",
+          "reason": null
+        },
+        {
+          "market": "perpetual",
+          "connector": "okx_perpetual",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80774.48641173044035542397928",
+          "reason": null
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 120.83098295796663,
+      "phase": "running",
+      "step": 0,
+      "profile": "follow_market",
+      "open_recorder_orders": 8,
+      "markets": [
+        {
+          "market": "spot",
+          "connector": "okx",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80803.01544177303279245026818",
+          "reason": null
+        },
+        {
+          "market": "perpetual",
+          "connector": "okx_perpetual",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80757.96046104236626448549647",
+          "reason": null
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 181.2036711659748,
+      "phase": "running",
+      "step": 0,
+      "profile": "follow_market",
+      "open_recorder_orders": 8,
+      "markets": [
+        {
+          "market": "spot",
+          "connector": "okx",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80803.07504141489578382782267",
+          "reason": null
+        },
+        {
+          "market": "perpetual",
+          "connector": "okx_perpetual",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80758.02002745204477598170346",
+          "reason": null
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 241.53911991603673,
+      "phase": "running",
+      "step": 0,
+      "profile": "follow_market",
+      "open_recorder_orders": 8,
+      "markets": [
+        {
+          "market": "spot",
+          "connector": "okx",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80764.87573655713218820014936",
+          "reason": null
+        },
+        {
+          "market": "perpetual",
+          "connector": "okx_perpetual",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80719.84202215760665555330796",
+          "reason": null
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 307.36809041607194,
+      "phase": "running",
+      "step": 0,
+      "profile": "follow_market",
+      "open_recorder_orders": 10,
+      "markets": [
+        {
+          "market": "spot",
+          "connector": "okx",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80747.96797465883630932174622",
+          "reason": null
+        },
+        {
+          "market": "perpetual",
+          "connector": "okx_perpetual",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80702.94368786399064607120689",
+          "reason": null
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 367.8973387910519,
+      "phase": "running",
+      "step": 0,
+      "profile": "follow_market",
+      "open_recorder_orders": 5,
+      "markets": [
+        {
+          "market": "spot",
+          "connector": "okx",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80769.98005927931292008961911",
+          "reason": null
+        },
+        {
+          "market": "perpetual",
+          "connector": "okx_perpetual",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80724.94349875875299761621449",
+          "reason": null
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 428.28976395796053,
+      "phase": "running",
+      "step": 0,
+      "profile": "follow_market",
+      "open_recorder_orders": 8,
+      "markets": [
+        {
+          "market": "spot",
+          "connector": "okx",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80778.83461750628012763935094",
+          "reason": null
+        },
+        {
+          "market": "perpetual",
+          "connector": "okx_perpetual",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80733.79311976960130857063025",
+          "reason": null
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 488.64429025002755,
+      "phase": "running",
+      "step": 0,
+      "profile": "follow_market",
+      "open_recorder_orders": 8,
+      "markets": [
+        {
+          "market": "spot",
+          "connector": "okx",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80820.97313301989272863059273",
+          "reason": null
+        },
+        {
+          "market": "perpetual",
+          "connector": "okx_perpetual",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80775.90813925408548166542927",
+          "reason": null
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 549.0734943330754,
+      "phase": "running",
+      "step": 0,
+      "profile": "follow_market",
+      "open_recorder_orders": 8,
+      "markets": [
+        {
+          "market": "spot",
+          "connector": "okx",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80799.36404011643696109715528",
+          "reason": null
+        },
+        {
+          "market": "perpetual",
+          "connector": "okx_perpetual",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80754.31109537205607365191365",
+          "reason": null
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 609.4472116250545,
+      "phase": "running",
+      "step": 1,
+      "profile": "follow_market",
+      "open_recorder_orders": 8,
+      "markets": [
+        {
+          "market": "spot",
+          "connector": "okx",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80823.08829928709836938873828",
+          "reason": null
+        },
+        {
+          "market": "perpetual",
+          "connector": "okx_perpetual",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80777.03577036979808189432516",
+          "reason": null
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 669.9147572079673,
+      "phase": "running",
+      "step": 1,
+      "profile": "follow_market",
+      "open_recorder_orders": 8,
+      "markets": [
+        {
+          "market": "spot",
+          "connector": "okx",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80789.88592463914528209383814",
+          "reason": null
+        },
+        {
+          "market": "perpetual",
+          "connector": "okx_perpetual",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80743.85231424315830829211761",
+          "reason": null
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 730.3068778330926,
+      "phase": "running",
+      "step": 1,
+      "profile": "follow_market",
+      "open_recorder_orders": 8,
+      "markets": [
+        {
+          "market": "spot",
+          "connector": "okx",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80810.81555761896373518856132",
+          "reason": null
+        },
+        {
+          "market": "perpetual",
+          "connector": "okx_perpetual",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80764.77002163898444476481094",
+          "reason": null
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 790.6612348749768,
+      "phase": "running",
+      "step": 1,
+      "profile": "follow_market",
+      "open_recorder_orders": 8,
+      "markets": [
+        {
+          "market": "spot",
+          "connector": "okx",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80811.42307154696894771135018",
+          "reason": null
+        },
+        {
+          "market": "perpetual",
+          "connector": "okx_perpetual",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80765.37718940906219079271683",
+          "reason": null
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 851.0640521249734,
+      "phase": "running",
+      "step": 1,
+      "profile": "follow_market",
+      "open_recorder_orders": 6,
+      "markets": [
+        {
+          "market": "spot",
+          "connector": "okx",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80778.27433535028535166488742",
+          "reason": null
+        },
+        {
+          "market": "perpetual",
+          "connector": "okx_perpetual",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80732.24734117081216521047167",
+          "reason": null
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 915.9822835410014,
+      "phase": "running",
+      "step": 1,
+      "profile": "follow_market",
+      "open_recorder_orders": 8,
+      "markets": [
+        {
+          "market": "spot",
+          "connector": "okx",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80782.59296451621803456479891",
+          "reason": null
+        },
+        {
+          "market": "perpetual",
+          "connector": "okx_perpetual",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80736.56350960678844324532366",
+          "reason": null
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 976.3836619579233,
+      "phase": "running",
+      "step": 1,
+      "profile": "follow_market",
+      "open_recorder_orders": 8,
+      "markets": [
+        {
+          "market": "spot",
+          "connector": "okx",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80783.55460951709881508490512",
+          "reason": null
+        },
+        {
+          "market": "perpetual",
+          "connector": "okx_perpetual",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80737.52460666790172505142077",
+          "reason": null
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 1036.775908041047,
+      "phase": "running",
+      "step": 1,
+      "profile": "follow_market",
+      "open_recorder_orders": 4,
+      "markets": [
+        {
+          "market": "spot",
+          "connector": "okx",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80816.69583178577719860857902",
+          "reason": null
+        },
+        {
+          "market": "perpetual",
+          "connector": "okx_perpetual",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80770.64694525953931861434595",
+          "reason": null
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 1097.1895557909738,
+      "phase": "running",
+      "step": 1,
+      "profile": "follow_market",
+      "open_recorder_orders": 8,
+      "markets": [
+        {
+          "market": "spot",
+          "connector": "okx",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80812.52780666549229263985839",
+          "reason": null
+        },
+        {
+          "market": "perpetual",
+          "connector": "okx_perpetual",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80766.48129505589542458927767",
+          "reason": null
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 1157.5781775829382,
+      "phase": "running",
+      "step": 1,
+      "profile": "follow_market",
+      "open_recorder_orders": 8,
+      "markets": [
+        {
+          "market": "spot",
+          "connector": "okx",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80823.79804369095852266577243",
+          "reason": null
+        },
+        {
+          "market": "perpetual",
+          "connector": "okx_perpetual",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80777.74511036539606103137543",
+          "reason": null
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 1217.966793749947,
+      "phase": "running",
+      "step": 2,
+      "profile": "follow_market",
+      "open_recorder_orders": 8,
+      "markets": [
+        {
+          "market": "spot",
+          "connector": "okx",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80844.17005189525898831826267",
+          "reason": null
+        },
+        {
+          "market": "perpetual",
+          "connector": "okx_perpetual",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80805.06423757473052747139365",
+          "reason": null
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 1279.527712916024,
+      "phase": "running",
+      "step": 2,
+      "profile": "follow_market",
+      "open_recorder_orders": 8,
+      "markets": [
+        {
+          "market": "spot",
+          "connector": "okx",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80853.19679929731358230044934",
+          "reason": null
+        },
+        {
+          "market": "perpetual",
+          "connector": "okx_perpetual",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80814.08661857278101745999974",
+          "reason": null
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 1339.955555290915,
+      "phase": "running",
+      "step": 2,
+      "profile": "follow_market",
+      "open_recorder_orders": 8,
+      "markets": [
+        {
+          "market": "spot",
+          "connector": "okx",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80826.44790658004727008872689",
+          "reason": null
+        },
+        {
+          "market": "perpetual",
+          "connector": "okx_perpetual",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80787.35066478767530115977387",
+          "reason": null
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 1400.4364996249788,
+      "phase": "running",
+      "step": 2,
+      "profile": "follow_market",
+      "open_recorder_orders": 8,
+      "markets": [
+        {
+          "market": "spot",
+          "connector": "okx",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80911.09809684851930902502261",
+          "reason": null
+        },
+        {
+          "market": "perpetual",
+          "connector": "okx_perpetual",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80871.95990819973566161513832",
+          "reason": null
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 1460.8172133748885,
+      "phase": "running",
+      "step": 2,
+      "profile": "follow_market",
+      "open_recorder_orders": 8,
+      "markets": [
+        {
+          "market": "spot",
+          "connector": "okx",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80946.44124557108122902230693",
+          "reason": null
+        },
+        {
+          "market": "perpetual",
+          "connector": "okx_perpetual",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80907.28596079018861047814137",
+          "reason": null
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 1521.330871416023,
+      "phase": "running",
+      "step": 2,
+      "profile": "follow_market",
+      "open_recorder_orders": 8,
+      "markets": [
+        {
+          "market": "spot",
+          "connector": "okx",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80912.61103799004527574925638",
+          "reason": null
+        },
+        {
+          "market": "perpetual",
+          "connector": "okx_perpetual",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80873.47211750376091030454415",
+          "reason": null
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 1581.7415577499196,
+      "phase": "running",
+      "step": 2,
+      "profile": "follow_market",
+      "open_recorder_orders": 8,
+      "markets": [
+        {
+          "market": "spot",
+          "connector": "okx",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80874.81316603512583433403911",
+          "reason": null
+        },
+        {
+          "market": "perpetual",
+          "connector": "okx_perpetual",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80835.69252907579748020610287",
+          "reason": null
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 1642.2567689579446,
+      "phase": "running",
+      "step": 2,
+      "profile": "follow_market",
+      "open_recorder_orders": 8,
+      "markets": [
+        {
+          "market": "spot",
+          "connector": "okx",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80838.25771622670972176842751",
+          "reason": null
+        },
+        {
+          "market": "perpetual",
+          "connector": "okx_perpetual",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80799.15476181185790414238211",
+          "reason": null
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 1702.6124827500898,
+      "phase": "running",
+      "step": 2,
+      "profile": "follow_market",
+      "open_recorder_orders": 8,
+      "markets": [
+        {
+          "market": "spot",
+          "connector": "okx",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80819.87614184421238442378442",
+          "reason": null
+        },
+        {
+          "market": "perpetual",
+          "connector": "okx_perpetual",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80780.78207893550454101950815",
+          "reason": null
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 1762.9774050000124,
+      "phase": "running",
+      "step": 2,
+      "profile": "follow_market",
+      "open_recorder_orders": 8,
+      "markets": [
+        {
+          "market": "spot",
+          "connector": "okx",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80800.41036330924567291984028",
+          "reason": null
+        },
+        {
+          "market": "perpetual",
+          "connector": "okx_perpetual",
+          "pair": "BTC-USDT",
+          "ready": true,
+          "admitted": true,
+          "reference_price": "80761.32571635620296026390863",
+          "reason": null
+        }
+      ]
+    }
+  ],
+  "admin_auth_and_schema": true,
+  "observation_session": {
+    "id": "c2bc296d-15a4-47d6-adf2-a94f10055cdb",
+    "request": {
+      "market_mode": "both",
+      "selection": "random",
+      "duration_seconds": 1800,
+      "profile_id": null,
+      "references": null,
+      "profile_ids": [
+        "follow_market",
+        "sideways",
+        "follow_token"
+      ],
+      "step_duration_seconds": 600
+    },
+    "config_hash": "6fd83e0185513794ccb523337341d811acca898e542fde9c331d2823a51effe6",
+    "profile_id": "follow_market",
+    "generation": 0,
+    "step_index": 0,
+    "status": "running",
+    "started_at": "2026-10-25T16:58:21.618277Z",
+    "expires_at": "2026-10-25T17:28:21.618277Z",
+    "step_expires_at": "2026-10-25T17:08:21.618277Z",
+    "anchors": {
+      "demo_btc_spot": {
+        "life": "80803.05",
+        "sources": {
+          "BTC-USDT": "80803.05",
+          "ETH-USDT": "2356.64"
+        }
+      },
+      "demo_btc_perpetual": {
+        "life": "80757.995",
+        "sources": {
+          "BTC-USDT": "80803.05",
+          "ETH-USDT": "2356.64"
+        }
+      }
+    }
+  },
+  "restart_preserved_anchors_and_deadline": true,
+  "observation_elapsed_seconds": 1801.5846168750431,
+  "random_steps_observed": [
+    0,
+    1,
+    2
+  ],
+  "expiry_cancelled_test_quotes": true,
+  "final_status": {
+    "bot_id": "okx-demo-btc",
+    "desired_state": "stopped",
+    "control_version": 27,
+    "acknowledged_version": 27,
+    "running": true,
+    "phase": "running",
+    "owner_available": true,
+    "heartbeat_age_seconds": 1.736759,
+    "session": {
+      "id": "c2bc296d-15a4-47d6-adf2-a94f10055cdb",
+      "request": {
+        "market_mode": "both",
+        "selection": "random",
+        "duration_seconds": 1800,
+        "profile_id": null,
+        "references": null,
+        "profile_ids": [
+          "follow_market",
+          "sideways",
+          "follow_token"
+        ],
+        "step_duration_seconds": 600
+      },
+      "config_hash": "6fd83e0185513794ccb523337341d811acca898e542fde9c331d2823a51effe6",
+      "profile_id": "follow_market",
+      "generation": 3,
+      "step_index": 2,
+      "status": "expired",
+      "started_at": "2026-10-25T16:58:21.618277Z",
+      "expires_at": "2026-10-25T17:28:21.618277Z",
+      "step_expires_at": "2026-10-25T17:28:21.618277Z",
+      "anchors": {
+        "demo_btc_spot": {
+          "life": "80832.15",
+          "sources": {
+            "BTC-USDT": "80832.15",
+            "ETH-USDT": "2356.67"
+          }
+        },
+        "demo_btc_perpetual": {
+          "life": "80793.05",
+          "sources": {
+            "BTC-USDT": "80832.15",
+            "ETH-USDT": "2356.67"
+          }
+        }
+      }
+    },
+    "observed_session": {
+      "id": "c2bc296d-15a4-47d6-adf2-a94f10055cdb",
+      "request": {
+        "market_mode": "both",
+        "selection": "random",
+        "duration_seconds": 1800,
+        "profile_id": null,
+        "references": null,
+        "profile_ids": [
+          "follow_market",
+          "sideways",
+          "follow_token"
+        ],
+        "step_duration_seconds": 600
+      },
+      "config_hash": "6fd83e0185513794ccb523337341d811acca898e542fde9c331d2823a51effe6",
+      "profile_id": "follow_market",
+      "generation": 2,
+      "step_index": 2,
+      "status": "running",
+      "started_at": "2026-10-25T16:58:21.618277Z",
+      "expires_at": "2026-10-25T17:28:21.618277Z",
+      "step_expires_at": "2026-10-25T17:28:21.618277Z",
+      "anchors": {
+        "demo_btc_spot": {
+          "life": "80832.15",
+          "sources": {
+            "BTC-USDT": "80832.15",
+            "ETH-USDT": "2356.67"
+          }
+        },
+        "demo_btc_perpetual": {
+          "life": "80793.05",
+          "sources": {
+            "BTC-USDT": "80832.15",
+            "ETH-USDT": "2356.67"
+          }
+        }
+      }
+    },
+    "markets": [
+      {
+        "market": "spot",
+        "connector": "okx",
+        "pair": "BTC-USDT",
+        "ready": true,
+        "admitted": true,
+        "reference_price": "80792.16858130327962761014482",
+        "reason": null
+      },
+      {
+        "market": "perpetual",
+        "connector": "okx_perpetual",
+        "pair": "BTC-USDT",
+        "ready": true,
+        "admitted": true,
+        "reference_price": "80753.08792105201873409884323",
+        "reason": null
+      }
+    ],
+    "server_time": "2026-10-25T17:28:23.218208Z",
+    "time_remaining_seconds": 0.0,
+    "error": null
+  },
+  "fills": {
+    "items": [],
+    "next_cursor": null
+  },
+  "statistics": {
+    "start_day": "2026-10-19",
+    "end_day": "2026-10-26",
+    "reporting_timezone": "UTC",
+    "server_time": "2026-10-25T17:28:23.446786Z",
+    "coverage": "observed_recorder_events",
+    "balance_scope": "account_last_observed",
+    "trade_storage_scale": 6,
+    "funding_precision": "legacy_float",
+    "markets": [
+      {
+        "market": "spot",
+        "connector": "okx",
+        "funding_status": "not_applicable",
+        "days": []
+      },
+      {
+        "market": "perpetual",
+        "connector": "okx_perpetual",
+        "funding_status": "observed_only",
+        "days": []
+      }
+    ],
+    "balances": [
+      {
+        "account_id": "[demo-account]",
+        "environment": "demo",
+        "currency": "BTC",
+        "reporting_timezone": "UTC",
+        "day": "2026-10-25",
+        "observed_at": "2026-10-25T17:28:08.654838Z",
+        "updated_at": "2026-10-25T17:28:13.428851Z",
+        "connector": "okx",
+        "source": "okx_account_balance",
+        "cash_balance": "1.000000000000000000",
+        "available_cash": "0.999390360000000000",
+        "equity": "1.000000000000000000",
+        "available_equity": "0.999390360000000000"
+      },
+      {
+        "account_id": "[demo-account]",
+        "environment": "demo",
+        "currency": "ETH",
+        "reporting_timezone": "UTC",
+        "day": "2026-10-25",
+        "observed_at": "2026-10-25T17:28:08.654902Z",
+        "updated_at": "2026-10-25T17:28:13.428942Z",
+        "connector": "okx",
+        "source": "okx_account_balance",
+        "cash_balance": "1.000000000000000000",
+        "available_cash": "1.000000000000000000",
+        "equity": "1.000000000000000000",
+        "available_equity": "1.000000000000000000"
+      },
+      {
+        "account_id": "[demo-account]",
+        "environment": "demo",
+        "currency": "OKB",
+        "reporting_timezone": "UTC",
+        "day": "2026-10-25",
+        "observed_at": "2026-10-25T17:28:08.654876Z",
+        "updated_at": "2026-10-25T17:28:13.428967Z",
+        "connector": "okx",
+        "source": "okx_account_balance",
+        "cash_balance": "100.000000000000000000",
+        "available_cash": "100.000000000000000000",
+        "equity": "100.000000000000000000",
+        "available_equity": "100.000000000000000000"
+      },
+      {
+        "account_id": "[demo-account]",
+        "environment": "demo",
+        "currency": "USDT",
+        "reporting_timezone": "UTC",
+        "day": "2026-10-25",
+        "observed_at": "2026-10-25T17:28:08.654891Z",
+        "updated_at": "2026-10-25T17:28:13.429027Z",
+        "connector": "okx",
+        "source": "okx_account_balance",
+        "cash_balance": "5000.000000000000000000",
+        "available_cash": "4900.766328557500000000",
+        "equity": "5000.000000000000000000",
+        "available_equity": "4900.766328557500000000"
+      }
+    ]
+  },
+  "positions": {
+    "markets": [
+      {
+        "market": "spot",
+        "connector": "okx",
+        "coverage": "not_applicable",
+        "observed_at": null,
+        "stale": true,
+        "source": "okx_account_positions",
+        "pair_observations": {},
+        "items": []
+      },
+      {
+        "market": "perpetual",
+        "connector": "okx_perpetual",
+        "coverage": "observed",
+        "observed_at": "2026-10-25T17:28:00.287444Z",
+        "stale": false,
+        "source": "okx_account_positions",
+        "pair_observations": {
+          "BTC-USDT": "2026-10-25T17:28:00.287444Z"
+        },
+        "items": []
+      }
+    ],
+    "server_time": "2026-10-25T17:28:23.471735Z",
+    "owner_available": true
+  },
+  "balance_summary": [
+    {
+      "identity_verified": true,
+      "currencies": [
+        "BTC",
+        "ETH",
+        "OKB",
+        "USDT"
+      ]
+    }
+  ],
+  "unverified": [
+    "Funding payment not required/forced during this observation",
+    "No natural fills observed; Demo fill/fee accounting remains unverified"
+  ],
+  "remaining_test_owned_quotes": 0,
+  "finished_at": "2026-10-25T17:28:25.639035+00:00",
+  "final_independent_check": {
+    "observed_at": "2026-10-25T17:28:57.296173+00:00",
+    "all_exchange_pending_orders": 0,
+    "retained_positions": [],
+    "cash_balances": {
+      "BTC": "1",
+      "OKB": "100",
+      "USDT": "5000",
+      "ETH": "1"
+    },
+    "database_orders": [
+      {
+        "market": "okx",
+        "last_status": "OrderCancelled",
+        "count": 156
+      },
+      {
+        "market": "okx_perpetual",
+        "last_status": "OrderCancelled",
+        "count": 144
+      }
+    ],
+    "database_fills": 0,
+    "database_timezone": "UTC",
+    "owner_released": true,
+    "halt": false,
+    "latest_recorded_order_precedes_session_expiry": true
+  },
+  "implementation_commit": "c9b858e36",
+  "fix_commits": [
+    "e9ab23687",
+    "c9b858e36"
+  ],
+  "offline_evidence": {
+    "path": "build/e2e-offline/20261025-235024-307a7a/result.json",
+    "image_id": "sha256:8401c10c2c5c50f4d426db6f2e8529506923fa77b02b0090f028e56c11c04fc2",
+    "passed": true,
+    "release_scope_complete": false
+  },
+  "fe_endpoint_probes": {
+    "observed_at": "2026-10-25T17:03:40.409606+00:00",
+    "endpoints": {
+      "/docs": 200,
+      "/openapi.json": 200,
+      "/profiles": 200,
+      "/reference-pairs": 200,
+      "/orders?pair=BTC-USDT&limit=50": 200,
+      "/fills?pair=BTC-USDT": 200,
+      "/balances": 200,
+      "/positions": 200,
+      "/performance": 200,
+      "/statistics/daily?pair=BTC-USDT": 200
+    },
+    "balances": {
+      "deduplicated_accounts": 1,
+      "identity_verified": true,
+      "currencies": [
+        "BTC",
+        "ETH",
+        "OKB",
+        "USDT"
+      ],
+      "cash_and_equity_fields_present": true
+    },
+    "positions": [
+      {
+        "market": "spot",
+        "observed_positions": 0
+      },
+      {
+        "market": "perpetual",
+        "observed_positions": 0
+      }
+    ]
+  },
+  "scope": {
+    "protocol_passed": true,
+    "new_full_load_soak_run": false,
+    "cloud_run_deployed": false,
+    "life_listing_verified": false,
+    "natural_fills_observed": false
+  },
+  "service_log_checks": {
+    "error_lines": 40,
+    "pending_task_destruction": 0,
+    "unawaited_coroutines": 0,
+    "unclosed_client_sessions": 0,
+    "unclosed_connectors": 0,
+    "service_clean_exits": [
+      "True",
+      "True"
+    ],
+    "duplicate_cancel_51400_error_lines": 40,
+    "all_duplicate_cancel_orders_have_terminal_cancel_events": true,
+    "other_error_lines": 0,
+    "followup": "Reduce duplicate cancellation requests/error noise while preserving terminal-state readback."
+  }
+}

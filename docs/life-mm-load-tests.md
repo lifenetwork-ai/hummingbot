@@ -3,6 +3,9 @@
 The original acceptance below is preserved for its recorded image. Subsequent
 cache/SQL and task-lifecycle changes, measurements and their own validation are
 tracked separately in [life-mm-optimization-review.md](life-mm-optimization-review.md).
+Dedicated-account exchange integration is tracked in
+[okx-demo-acceptance.md](okx-demo-acceptance.md); its conservative Demo observation
+is separate from this offline load gate.
 
 Run with the compiled environment and Docker available:
 

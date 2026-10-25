@@ -1,11 +1,29 @@
 # OKX Demo acceptance — P6
 
-Status: **in progress**. Setup and authenticated preflight have completed. The
-first real workflow found a reference-subscription defect before any order was
-created. Its regression tests and corrected-image local E2E pass. All three real
-spot cases then passed, but perpetual startup exposed a second metadata parsing
-defect. Its native regressions pass; final-image verification, the remaining
-matrix and the 30-minute observation are still open.
+Status: **the bounded Demo protocol passed**, completed on 2026-10-26 in
+Asia/Ho_Chi_Minh. Natural fill/fee, filled-position recovery and funding checks
+remain explicitly unverified. Two real integration defects were fixed with
+Red/Green regressions before the final run. Portable, credential-free evidence:
+[okx-demo-acceptance.json](okx-demo-acceptance.json).
+
+| 30-minute observation check | Observed result |
+| --- | --- |
+| Three profiles × spot/perpetual/both | 9/9 cases pass; 48 confirmed post-only quotes |
+| Admin control | 17 completed start/switch/stop receipts; matching retries return the same receipt |
+| Random/both session | 1,800-second configured duration; 1,801.585 seconds observed through expiry/cancellation |
+| Random steps | Steps 0/1/2; the three-profile pool happened to draw follow_market each time |
+| Graceful restart at minute 15 | Session, anchors, start and deadline preserved; both markets ready again |
+| Observational reconciliation | Both checks matched; each checked 12 spot and 12 perpetual orders |
+| Final exchange read after service stop | Zero pending orders; zero retained perpetual positions |
+| Demo cash | BTC 1, ETH 1, OKB 100, USDT 5,000; unchanged |
+| Final database | 300 cancelled orders, zero fills, UTC, owner released, no HALT |
+
+Of the 300 persisted orders, 12 belong to the earlier spot pilot and 288 to the
+final image: 144 spot and 144 perpetual (48 matrix quotes plus 240 observation
+quotes). History was preserved across fixes and reviewed recovery. The stopped
+service and PostgreSQL data are retained locally; the PostgreSQL container is
+still running. The final image's selected local E2E passed; no new full offline
+load/soak or Cloud Run deployment is claimed.
 
 ## Configuration and preflight
 
@@ -132,20 +150,111 @@ suites pass **201 tests and seven subtests** afterward. Evidence:
 `build/okx-demo/contract-metadata-red.log` and
 `build/okx-demo/contract-metadata-green.log`.
 
-The failed perpetual session has been given an explicit stop receipt through
-the existing control store. HALT remains pending a fresh exchange/DB review;
-historical orders and receipts are preserved. The updated standard image must
-pass local E2E before real Demo workflows resume.
+The metadata fix is committed as `c9b858e36`. The final standard image is
+`sha256:8401c10c2c5c50f4d426db6f2e8529506923fa77b02b0090f028e56c11c04fc2`;
+all nine reviewed runtime source hashes match the checkout. Its selected LIFE
+E2E matrix/recovery passes:
+`build/e2e-offline/20261025-235024-307a7a/result.json`. It has
+`release_scope_complete=false`; no new full load/soak is claimed for this image.
 
-## Remaining acceptance
+The failed perpetual session received an explicit stop through the existing
+control store. Before a second narrowly reviewed local Demo recovery, all 12
+recorded spot order IDs were re-read from OKX and confirmed cancelled with zero
+fill; there were no pending orders, positions or balance changes. The native
+corrected datasource also initialized a real BTC SWAP snapshot successfully.
+Under the ownership lock, only the known startup HALT/reason and teardown stop
+flag were reset. Order/receipt history was preserved. Evidence:
+`build/okx-demo/reviewed-recovery-after-metadata.json`.
+
+The final image completed all nine real profile/market combinations, with four
+exchange-confirmed post-only quotes in each single-market case and eight in each
+both-market case. Both-profile switches and matching command retries passed;
+test quotes cancelled on stop. The 30-minute random/both session completed, with
+two observational reconciliations returning `matched` independently for spot
+and perpetual, with no scope reasons or differences in either checked window.
+
+The authenticated FE probes return HTTP 200 for Swagger, OpenAPI, profiles,
+reference discovery, orders, fills, balances, positions, performance and daily
+statistics. Balances expose one verified Demo account with unique BTC/ETH/OKB/USDT
+currency observations and separate cash/equity fields, rather than duplicate
+collateral per connector. Both position projections are empty at this observation.
+Probe evidence: `build/okx-demo/fe-endpoints.json`.
+
+The observation crossed both scheduled 600-second step boundaries (a repeated
+follow_market draw is valid). At minute 15, a graceful container restart restored
+the same session, both markets' anchors, original start and expiry; the current
+health endpoint returned ready before acceptance continued. The driver refreshes
+Docker's dynamically republished loopback port after restart. No session deadline
+was extended, and no recovery HALT occurred during the healthy observation.
+Automatic expiry cancelled the quotes. An independent account read after the
+service stopped confirmed no pending orders or perpetual positions and unchanged
+cash; PostgreSQL confirms the expired/stopped session, UTC and released owner.
+The latest recorded order precedes the session expiry.
+
+Final local run: `build/okx-demo/acceptance-20261025T165603Z.json`. The portable
+artifact includes the final independent read, scoped reconciliation results,
+configuration hash, runtime image identity and FE probes, with account IDs masked.
+
+To reopen the same configured Demo service for FE work, start
+`hummingbot-okx-demo-postgres` and `hummingbot-okx-demo-bot`, then discover the
+current loopback port with `docker port hummingbot-okx-demo-bot 8080/tcp`.
+The container retains the private env and BTC catalogue mount; root `.env` and
+the shipped LIFE catalogue are separate. The expired session does not start new
+quotes until an explicit authenticated start command is accepted.
+
+## Post-observation cancellation fix
+
+The 30-minute image log contains 40 ERROR entries for duplicate perpetual
+cancellations returning `sCode=51400`. Each of those order IDs also has a
+successful cancellation event; final REST/DB readback confirms it is cancelled.
+There are no other ERROR entries, pending-task destruction, unawaited coroutine,
+unclosed client-session or unclosed connector diagnostics. Both process exits
+are clean. These counts belong to the observation image and are retained in the
+portable evidence rather than relabelled as zero errors.
+
+The perpetual adapter accepted `51603`/`51401` but omitted the `51400` response
+already handled by the upstream spot adapter. Adding it exposed a second race in
+the shared cancel path: a late HTTP acknowledgement could overwrite a terminal
+WS/REST state with `PENDING_CANCEL`. The shared path now skips that update for an
+already-done order. An asynchronous acknowledgement still leaves an open order
+pending until an authoritative terminal update; cancellation never fabricates a
+fill or terminal state. [OKX cancellation and order-state documentation](https://www.okx.com/docs-v5/en/#order-book-trading-trade-post-cancel-order).
+
+New regressions fail before the fixes and exercise pending-before-readback,
+repeated replies after cancellation, and concurrent CANCELED/FILLED observations.
+The full Cloud Run regression target passes **1,259 tests and nine subtests**
+(149 + 11 + 906 + 193). Evidence: `build/okx-demo/cancel-51400-red.log`,
+`cancel-terminal-race-red.log`, `cancel-51400-green-focused.log` and
+`cancel-race-regression.log` in the same directory.
+
+The rebuilt image's local E2E and a direct Demo probe against an already-cancelled
+order are pending. The 30-minute observation remains evidence for image
+`8401c10c2c5c...`; it will not be relabelled as a new soak of the cancellation fix.
+
+## Acceptance checklist
 
 - [x] Rebuild and verify the corrected standard image with local E2E.
-- [ ] Complete the nine real Demo profile/market cases, command retries,
+- [x] Complete the nine real Demo profile/market cases, command retries,
   switches, exchange-confirmed post-only quotes and cancellation.
-- [ ] Observe random/both for 30 real minutes, including restart with persisted
+- [x] Observe random/both for 30 real minutes, including restart with persisted
   anchors/deadline, random steps and automatic expiry/cancellation.
-- [ ] Compare recorded history, cash/equity labels, separate market statistics
+- [x] Compare recorded history, cash/equity labels, separate market statistics
   and bounded observational reconciliation with Demo responses.
-- [ ] Record naturally observed fills/funding, or mark them unverified if absent.
-- [ ] Record the final image/config hashes and held positions, update the plan
+- [x] Record naturally observed fills/funding, or mark them unverified if absent.
+- [x] Record the final image/config hashes and held positions, update the plan
   and commit the final evidence. No Cloud Run staging or OKX stress test is used.
+- [ ] Validate the post-observation cancellation fix in its rebuilt image with
+  local E2E and direct Demo terminal-response/readback checks.
+
+## Unverified Demo checks
+
+- [ ] Observe natural fills and confirm private-stream/recorder fee accounting
+  and restart with filled exposure against Demo. This run had zero fills and
+  zero perpetual positions; the existing local simulator covers these cases.
+- [ ] Observe a real Demo funding payment and compare the retained original
+  currency amount with the exchange. No payment was observed in this run.
+
+The three-profile matrix covers all profiles, while the long random sample
+happened to select only follow_market. BTC Demo integration does not verify LIFE
+listing availability, live fill quality or profitability. Original scale-six
+trade storage and legacy funding precision are unchanged.

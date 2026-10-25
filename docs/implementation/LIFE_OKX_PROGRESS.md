@@ -525,4 +525,41 @@ Demo metadata. Its float conversion prevented initializing BTC's order book;
 the service retained HALT without placing a SWAP order. The datasource now
 reuses the existing active/linear/SWAP filter and rejects unusable contract
 values. The affected suites pass 201 tests and seven subtests after Red evidence.
-The final standard image, remaining market cases and observation are pending.
+Commit `c9b858e36` records this fix. The final standard image passes the selected
+LIFE offline E2E/recovery. After reviewing all 12 closed order IDs, unchanged
+balances and no open orders/positions, the known failed-startup HALT was resolved
+explicitly with history preserved. The corrected datasource initializes a real
+Demo BTC SWAP snapshot, and the final image now places/cancels perpetual maker
+quotes. Remaining market cases and the observation are in progress.
+
+### P6 Demo protocol completed — 2026-10-26 (Asia/Ho_Chi_Minh)
+
+The final standard image `sha256:8401c10c2c5c50f4d426db6f2e8529506923fa77b02b0090f028e56c11c04fc2`
+passes the selected LIFE offline E2E/recovery and the nine real profile/market
+cases. Seventeen start/switch/stop receipts complete with matching idempotent
+retries. The random/both session ran for its real 1,800-second duration
+(1,801.585 seconds observed through cancellation), crossed both step boundaries,
+and preserved its anchors/start/deadline through a graceful minute-15 restart.
+Both scoped reconciliations matched spot and perpetual (12 orders per market in
+each window). FE probes return 200 and deduplicate the shared account correctly.
+
+The final image created 288 orders (144 spot/144 perpetual), all cancelled. The
+database retains those plus the earlier 12 cancelled pilot orders. Independent
+post-stop reads confirm zero pending orders, zero perpetual positions, unchanged
+BTC/ETH/OKB/USDT cash, UTC, an expired/stopped session, released owner and no HALT.
+The bot service is stopped and the dedicated PostgreSQL data/container retained.
+
+Natural fills/fee accounting, filled-position restart and funding payments are
+unverified on Demo because no fill/payment occurred; their checkboxes remain
+open. The long random sample drew follow_market three times from the full pool;
+the separate nine-case matrix covers all profiles. No new full load/soak or Cloud
+Run deployment is claimed. See [the completed report](../okx-demo-acceptance.md)
+and [portable sanitized evidence](../okx-demo-acceptance.json).
+
+Final log review retains 40 duplicate-cancel `51400` errors from that observation,
+each paired with a successful cancellation event and terminal REST/DB readback.
+The perpetual adapter's missing response mapping is fixed. A new regression also
+exposed late cancel acknowledgements overwriting CANCELED/FILLED state; the shared
+cancel path now preserves terminal observations. Full Cloud Run regression passes
+1,259 tests/nine subtests. Focused rebuilt-image validation remains in progress;
+the completed observation keeps its original image identity and error counts.

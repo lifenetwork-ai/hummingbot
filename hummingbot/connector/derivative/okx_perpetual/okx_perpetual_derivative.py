@@ -323,9 +323,13 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
         )
         data = cancel_result["data"][0]
         ret_code_ok = data["sCode"] == CONSTANTS.RET_CODE_OK
-        ret_code_order_not_exists = data["sCode"] == CONSTANTS.RET_CODE_CANCEL_FAILED_BECAUSE_ORDER_NOT_EXISTS
+        ret_code_order_not_active = data["sCode"] in (
+            CONSTANTS.RET_CODE_CANCEL_FAILED_BECAUSE_ORDER_NOT_EXISTS,
+            CONSTANTS.RET_CODE_CANCEL_FAILED_BECAUSE_ORDER_NOT_ACTIVE,
+        )
         ret_code_already_canceled = data["sCode"] == CONSTANTS.RET_CODE_ORDER_ALREADY_CANCELLED
-        if ret_code_ok or ret_code_order_not_exists or ret_code_already_canceled:
+        # The asynchronous tracker still requires WS/REST terminal-state readback.
+        if ret_code_ok or ret_code_order_not_active or ret_code_already_canceled:
             final_result = True
         else:
             raise IOError(f"Error cancelling order {order_id}: {cancel_result}")

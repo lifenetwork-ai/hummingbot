@@ -45,6 +45,51 @@ class OkxPerpetualDerivativeTests(
     def _is_logged(self, log_level: str, message: str) -> bool:
         return any(record.levelname == log_level and record.getMessage() == message for record in self.log_records)
 
+    async def test_cancel_51400_waits_for_terminal_readback_and_does_not_reopen_cancelled_order(self):
+        order = InFlightOrder(client_order_id="cancel-race", exchange_order_id="1", trading_pair=self.trading_pair,
+                              order_type=OrderType.LIMIT_MAKER, trade_type=TradeType.BUY, amount=Decimal("1"),
+                              price=Decimal("100"), creation_timestamp=1640780000)
+        order.current_state = OrderState.OPEN
+        self.exchange._order_tracker.start_tracking_order(order)
+        response = {"code": "1", "data": [{"sCode": "51400"}]}
+        with patch.object(self.exchange, "_api_post", AsyncMock(return_value=response)):
+            self.assertTrue(await self.exchange._execute_order_cancel_and_process_update(order))
+            await asyncio.sleep(0)
+            self.assertEqual(OrderState.PENDING_CANCEL, order.current_state)
+            self.assertFalse(order.is_done)
+            self.assertFalse(self.order_cancelled_logger.event_log)
+
+            status = self._order_status_request_canceled_mock_response(order)
+            with patch.object(self.exchange, "_request_order_update", AsyncMock(return_value=status)):
+                update = await self.exchange._request_order_status(order)
+            self.exchange._order_tracker.process_order_update(update)
+            await asyncio.sleep(0)
+            self.assertTrue(order.is_cancelled)
+
+            self.assertTrue(await self.exchange._execute_order_cancel_and_process_update(order))
+            await asyncio.sleep(0)
+            self.assertTrue(order.is_cancelled)
+            self.assertEqual(1, len(self.order_cancelled_logger.event_log))
+
+    async def test_cancel_ack_does_not_overwrite_concurrent_terminal_state(self):
+        for terminal_state in (OrderState.CANCELED, OrderState.FILLED):
+            with self.subTest(terminal_state=terminal_state):
+                order = InFlightOrder(client_order_id="cancel-ack-race", exchange_order_id="1", trading_pair=self.trading_pair,
+                                      order_type=OrderType.LIMIT_MAKER, trade_type=TradeType.BUY, amount=Decimal("1"),
+                                      price=Decimal("100"), creation_timestamp=1640780000)
+                order.current_state = OrderState.OPEN
+
+                async def acknowledge(*args):
+                    # A WS/REST terminal observation arrives before the HTTP ack.
+                    order.current_state = terminal_state
+                    return True
+
+                with patch.object(self.exchange, "_place_cancel", side_effect=acknowledge), patch.object(
+                        self.exchange._order_tracker, "process_order_update") as process_update:
+                    self.assertTrue(await self.exchange._execute_order_cancel_and_process_update(order))
+                    process_update.assert_not_called()
+                self.assertEqual(terminal_state, order.current_state)
+
     async def test_network_stop_retires_funding_payment_poller_before_restart(self):
         with patch.object(self.exchange, "_update_all_funding_payments", AsyncMock()):
             for _ in range(3):
