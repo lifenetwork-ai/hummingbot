@@ -2,8 +2,10 @@
 
 Status: **in progress**. Setup and authenticated preflight have completed. The
 first real workflow found a reference-subscription defect before any order was
-created. Its regression tests pass; the corrected image must be tested before
-resuming the workflow matrix and the 30-minute observation.
+created. Its regression tests and corrected-image local E2E pass. All three real
+spot cases then passed, but perpetual startup exposed a second metadata parsing
+defect. Its native regressions pass; final-image verification, the remaining
+matrix and the 30-minute observation are still open.
 
 ## Configuration and preflight
 
@@ -80,9 +82,64 @@ are also included in `make test-cloudrun-regression`. Red/Green evidence:
 `build/okx-demo/reference-reuse-red.log` and
 `build/okx-demo/reference-reuse-green.log`.
 
+The fix is committed as `e9ab23687`. The corrected standard image is
+`sha256:372ffe4d35561e281e93f3b6c55d96917885998f91b58b8e3a5947630f0b9d92`.
+Its eight reviewed runtime hashes match the checkout; only the provider changed
+from the optimization image. The corrected image passes the same selected
+offline E2E matrix and recovery checks:
+`build/e2e-offline/20261025-232028-c05107/result.json`.
+This remains a selected-scenario gate, not a new full load/soak certification.
+
+The previous failed startup's shutdown had left a durable HALT and a stop
+checkpoint. A first corrected-image restart correctly refused to trade; that
+attempt is `build/okx-demo/acceptance-20261025T162431Z.json`. Before an explicit
+local Demo recovery, exchange reads confirmed **zero pending orders, zero
+nonzero positions, and unchanged initial BTC/USDT balances**. The stopped owner
+was absent; all orders, fills, executor and position tables were empty, with no
+pending mutations, incomplete shutdown or risk-stop reason. Under the ownership
+advisory lock, the reviewed recovery removed the HALT and reset only the
+teardown stop flag, preserving other state/history. The service and acceptance
+driver do not automatically clear HALT. Review evidence:
+`build/okx-demo/reviewed-recovery.json`.
+
+## Real spot cases and perpetual metadata defect
+
+The corrected image completed spot/follow_market, spot/sideways and
+spot/follow_token (AVAX) against the real Demo account. Each case produced four
+exchange-confirmed `post_only` orders with buy and sell sides, recorded in
+PostgreSQL; all 12 orders were cancelled successfully. Same-key command retries
+returned the original receipts. Observed command application was about 3 seconds
+for start and 2 seconds for stop. No fill occurred. Evidence:
+`build/okx-demo/acceptance-20261025T163226Z.json`.
+
+That run then failed at perpetual startup before creating any SWAP order.
+The Demo instruments response included 187 rows; `TESTING-USDT-SWAP` had
+`state=preopen`, empty `ctType` and empty `ctVal`. The order-book datasource
+converted every returned contract value to float, so this unrelated row prevented
+initializing the valid BTC book. Broker reconciliation timed out and correctly
+retained HALT. The database still has the 12 cancelled spot orders and zero
+perpetual orders/fills. Observations and redacted service logs are retained in
+`build/okx-demo/contract-metadata-observation.json` and
+`build/okx-demo/perpetual-startup-service.log`.
+
+The datasource now reuses the connector's existing active/linear/SWAP instrument
+filter, then accepts only positive finite contract values. Valid contract-to-base
+book conversion is preserved. Unusable metadata for the requested contract
+cannot fabricate a snapshot or make its market ready. Two new regression methods
+cover unrelated malformed/preopen rows and seven invalid selected-contract
+values. They fail before the fix; the affected connector, Demo routing and MM
+suites pass **201 tests and seven subtests** afterward. Evidence:
+`build/okx-demo/contract-metadata-red.log` and
+`build/okx-demo/contract-metadata-green.log`.
+
+The failed perpetual session has been given an explicit stop receipt through
+the existing control store. HALT remains pending a fresh exchange/DB review;
+historical orders and receipts are preserved. The updated standard image must
+pass local E2E before real Demo workflows resume.
+
 ## Remaining acceptance
 
-- [ ] Rebuild and verify the corrected standard image with local E2E.
+- [x] Rebuild and verify the corrected standard image with local E2E.
 - [ ] Complete the nine real Demo profile/market cases, command retries,
   switches, exchange-confirmed post-only quotes and cancellation.
 - [ ] Observe random/both for 30 real minutes, including restart with persisted

@@ -404,6 +404,38 @@ class OKXPerpetualAPIOrderBookDataSourceTests(IsolatedAsyncioWrapperTestCase):
         return [base_url]
 
     # TODO: Check if unclosed client session should remain after test run
+    async def test_snapshot_ignores_unusable_unrelated_contract_metadata(self):
+        response = self.trading_rules_request_mock_response
+        selected = response["data"][0]
+        selected["ctVal"] = "0.01"
+        for index, value in enumerate(["", None, "invalid", "NaN", "Infinity", "0", "-1"]):
+            response["data"].append({**selected, "instId": f"UNRELATED{index}-USDT-SWAP", "ctVal": value})
+        response["data"].append({**selected, "instId": "PREOPEN-USDT-SWAP", "state": "preopen"})
+        self.data_source._request_trading_rules_info = AsyncMock(return_value=response)
+        self.data_source._request_order_book_snapshot = AsyncMock(return_value=self.get_rest_snapshot_msg())
+
+        order_book = await self.data_source.get_new_order_book(self.trading_pair)
+
+        self.assertEqual({self.ex_trading_pair: 0.01}, self.data_source._trading_rules)
+        self.assertAlmostEqual(0.30178218 * 0.01, next(order_book.bid_entries()).amount)
+        self.assertAlmostEqual(0.60038921 * 0.01, next(order_book.ask_entries()).amount)
+        self.assertEqual(1629966436396, order_book.snapshot_uid)
+
+    async def test_snapshot_rejects_unusable_selected_contract_without_requesting_depth(self):
+        for value in ["", None, "invalid", "NaN", "Infinity", "0", "-1"]:
+            with self.subTest(contract_value=value):
+                response = self.trading_rules_request_mock_response
+                response["data"][0]["ctVal"] = value
+                self.data_source._trading_rules.clear()
+                self.data_source._request_trading_rules_info = AsyncMock(return_value=response)
+                self.data_source._request_order_book_snapshot = AsyncMock(return_value=self.get_rest_snapshot_msg())
+
+                with self.assertRaises(KeyError):
+                    await self.data_source.get_new_order_book(self.trading_pair)
+
+                self.data_source._request_order_book_snapshot.assert_not_awaited()
+                self.assertFalse(self.data_source._trading_rules)
+
     @aioresponses()
     async def test_get_new_order_book_successful(self, mock_api):
         self.configure_trading_rules_response(mock_api)

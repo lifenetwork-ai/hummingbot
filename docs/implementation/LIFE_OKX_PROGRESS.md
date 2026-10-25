@@ -510,5 +510,19 @@ reference-book reuse defect when BTC is both target and benchmark. The run
 stopped before any order was recorded. Two new regressions fail before and pass
 after a small provider change that borrows an already tracked book. All 140
 affected tests pass; the reference tests are included in the Makefile gate.
-Corrected-image verification and real Demo workflows/30-minute observation
-remain open. See [the Demo report](../okx-demo-acceptance.md) for evidence and gaps.
+The corrected standard image passes the selected nine-case LIFE offline E2E
+and recovery. The previous failed attempt's durable HALT was reviewed separately
+against an empty exchange/DB and unchanged initial balances before explicit local
+Demo recovery; startup never clears it automatically. Real Demo workflows and
+the 30-minute observation remain open. See
+[the Demo report](../okx-demo-acceptance.md) for evidence and gaps.
+
+The next real run completed all three spot profiles, including AVAX following:
+12 exchange-confirmed post-only buy/sell orders were recorded and cancelled,
+with same-key receipt retries verified. No fills occurred. Perpetual startup
+then exposed an unrelated `TESTING-USDT-SWAP` preopen row with empty `ctVal` in
+Demo metadata. Its float conversion prevented initializing BTC's order book;
+the service retained HALT without placing a SWAP order. The datasource now
+reuses the existing active/linear/SWAP filter and rejects unusable contract
+values. The affected suites pass 201 tests and seven subtests after Red evidence.
+The final standard image, remaining market cases and observation are pending.

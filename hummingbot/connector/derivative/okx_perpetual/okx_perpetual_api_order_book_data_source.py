@@ -1,9 +1,11 @@
 import asyncio
+import math
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from hummingbot.connector.derivative.okx_perpetual import (
     okx_perpetual_constants as CONSTANTS,
+    okx_perpetual_utils as utils,
     okx_perpetual_web_utils as web_utils,
 )
 from hummingbot.core.data_type.common import TradeType
@@ -92,7 +94,14 @@ class OkxPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
         if not bool(self._trading_rules):
             resp = await self._request_trading_rules_info()
             for rule in resp["data"]:
-                self._trading_rules[rule["instId"]] = float(rule["ctVal"])
+                if not utils.is_exchange_information_valid(rule):
+                    continue
+                try:
+                    contract_value = float(rule.get("ctVal"))
+                except (TypeError, ValueError):
+                    continue
+                if contract_value > 0 and math.isfinite(contract_value):
+                    self._trading_rules[rule["instId"]] = contract_value
         return self._trading_rules
 
     async def _request_trading_rules_info(self) -> Dict[str, Any]:
