@@ -3,7 +3,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import and_, func, literal, select, text
+from sqlalchemy import and_, cast, column, func, select, text, values
 from sqlalchemy.dialects.postgresql import insert
 
 from hummingbot.model.daily_balance_snapshot import DailyBalanceSnapshot
@@ -25,7 +25,9 @@ def save_daily_balances(connection, accounts, reporting_timezone):
     """Called only inside a successful owner-fenced status transaction."""
     zone = ZoneInfo(reporting_timezone)
     table = DailyBalanceSnapshot.__table__
-    changed = 0
+    rows = []
+    keys = ("account_id", "environment", "currency", "reporting_timezone", "day", "observed_at",
+            "connector", "source", "cash_balance", "available_cash", "equity", "available_equity")
     for account in accounts:
         if not account.get("identity_verified") or not account.get("account_id"):
             continue
@@ -33,21 +35,27 @@ def save_daily_balances(connection, accounts, reporting_timezone):
             if not balance.get("present_in_latest_snapshot", True):
                 continue
             observed = datetime.fromtimestamp(float(balance["observed_at"]), timezone.utc)
-            values = {key: balance.get(key) for key in ("currency", "connector", "source", "cash_balance", "available_cash", "equity", "available_equity")}
-            values.update(account_id=account["account_id"], environment=account["environment"],
-                          reporting_timezone=reporting_timezone, day=observed.astimezone(zone).date(),
-                          observed_at=observed, updated_at=func.clock_timestamp())
-            expressions = [func.clock_timestamp() if key == "updated_at" else literal(value, type_=table.c[key].type)
-                           for key, value in values.items()]
-            fresh_observation = select(*expressions).where(
-                func.clock_timestamp() >= observed, func.clock_timestamp() - text("interval '60 seconds'") <= observed)
-            statement = insert(table).from_select(list(values), fresh_observation)
-            statement = statement.on_conflict_do_update(index_elements=list(table.primary_key.columns),
-                                                        set_={key: statement.excluded[key] for key in values if key not in table.primary_key.columns.keys()},
-                                                        where=and_(table.c.observed_at < statement.excluded.observed_at,
-                                                                   table.c.updated_at <= func.clock_timestamp() - text("interval '60 seconds'")))
-            changed += connection.execute(statement).rowcount
-    return changed
+            item = {key: balance.get(key) for key in keys}
+            item.update(account_id=account["account_id"], environment=account["environment"],
+                        reporting_timezone=reporting_timezone, day=observed.astimezone(zone).date(), observed_at=observed)
+            rows.append(tuple(item[key] for key in keys))
+    if not rows:
+        return 0
+    # One round trip for the complete observation. Freshness and update cadence
+    # still use the database clock inside the caller's owner-fenced transaction.
+    source = values(*(column(key, table.c[key].type) for key in keys), name="observed_balances").data(rows)
+    primary = [source.c[key.name] for key in table.primary_key.columns]
+    fresh = (select(*(cast(source.c[key], table.c[key].type) for key in keys), func.clock_timestamp()).where(
+        source.c.observed_at <= func.clock_timestamp(),
+        source.c.observed_at >= func.clock_timestamp() - text("interval '60 seconds'"))
+        .distinct(*primary).order_by(*primary, source.c.observed_at.desc()))
+    statement = insert(table).from_select([*keys, "updated_at"], fresh)
+    statement = statement.on_conflict_do_update(
+        index_elements=list(table.primary_key.columns),
+        set_={key: statement.excluded[key] for key in (*keys, "updated_at") if key not in table.primary_key.columns.keys()},
+        where=and_(table.c.observed_at < statement.excluded.observed_at,
+                   table.c.updated_at <= func.clock_timestamp() - text("interval '60 seconds'")))
+    return connection.execute(statement).rowcount
 
 
 FILL_SCOPE = """
@@ -65,6 +73,9 @@ def daily(engine, *, start_day=None, end_day=None, reporting_timezone, market="a
         raise ValueError("Unknown market")
     selected = tuple(MARKETS) if market == "all" else (market,)
     with engine.connect().execution_options(isolation_level="REPEATABLE READ") as connection, connection.begin():
+        # These bounded UI aggregates repeatedly paid more JIT compilation than
+        # execution. Keep the setting local to this read-only transaction.
+        connection.exec_driver_sql("SET LOCAL jit = off")
         now = connection.execute(select(func.clock_timestamp())).scalar_one()
         start, end, start_ms, end_ms = day_range(start_day, end_day, reporting_timezone, now)
         params = dict(markets=[MARKETS[key] for key in selected], start_ms=start_ms, end_ms=end_ms, tz=reporting_timezone, pair=pair)

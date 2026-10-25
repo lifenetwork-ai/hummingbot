@@ -122,7 +122,7 @@ def test_daily_totals_use_one_database_snapshot_during_concurrent_fill(daily_sto
     inserted = []
 
     def arrive_between_aggregates(connection, cursor, statement, *args):
-        if "FROM converted GROUP BY" in statement and not inserted:
+        if "AS fill_count" in statement and not inserted:
             inserted.append(True)
             add_fill(daily_store.engine, "concurrent", "okx", timestamp, "0.2", Decimal("0.2"))
 
@@ -136,3 +136,52 @@ def test_daily_totals_use_one_database_snapshot_during_concurrent_fill(daily_sto
     finally:
         event.remove(daily_store.engine, "after_cursor_execute", arrive_between_aggregates)
     assert daily_store.daily(start_day="2026-01-01", end_day="2026-01-02", reporting_timezone="UTC", market="spot")["markets"][0]["days"][0]["fill_count"] == 2
+
+
+def test_daily_multiple_fee_currencies_and_empty_fees_do_not_multiply_volumes(daily_store):
+    from sqlalchemy import update
+    timestamp = millis("2026-01-01T12:00:00+00:00")
+    for identity in ("multi", "empty", "percent"):
+        add_fill(daily_store.engine, identity, "okx", timestamp, "0", Decimal("0"))
+    with daily_store.engine.begin() as connection:
+        connection.execute(update(TradeFill).where(TradeFill.exchange_trade_id == "multi").values(trade_fee={
+            "percent": "0", "flat_fees": [{"token": "USDT", "amount": "0.123456789012345678"},
+                                          {"token": "LIFE", "amount": "2"},
+                                          {"token": "USDT", "amount": "-0.003456789012345678"}]}))
+        connection.execute(update(TradeFill).where(TradeFill.exchange_trade_id == "empty").values(
+            trade_fee={"percent": "0", "flat_fees": []}))
+        connection.execute(update(TradeFill).where(TradeFill.exchange_trade_id == "percent").values(
+            trade_type="SELL", trade_fee={"percent": "0.01", "flat_fees": []}, trade_fee_in_quote=None))
+    day = daily_store.daily(start_day="2026-01-01", end_day="2026-01-02", reporting_timezone="UTC", market="spot")["markets"][0]["days"][0]
+    assert day["fill_count"] == 3
+    assert (day["buy_volume_base"], day["sell_volume_base"], day["buy_volume_quote"], day["sell_volume_quote"]) == (
+        Decimal("20"), Decimal("10"), Decimal("2"), Decimal("1"))
+    assert (day["converted_fill_count"], day["unconverted_fill_count"], day["percentage_fee_fill_count"]) == (1, 2, 1)
+    assert day["fees"] == [dict(currency="LIFE", paid=Decimal("2"), rebates=Decimal("0"), net=Decimal("2")),
+                           dict(currency="USDT", paid=Decimal("0.123456789012345678"),
+                                rebates=Decimal("0.003456789012345678"), net=Decimal("0.12"))]
+
+
+def test_snapshot_batch_filters_ineligible_rows_and_keeps_latest_duplicate(daily_store):
+    from sqlalchemy import select
+
+    from hummingbot.model.admin_reporting import save_daily_balances
+    from hummingbot.model.daily_balance_snapshot import DailyBalanceSnapshot
+    observed = datetime.now(timezone.utc) - timedelta(seconds=10)
+
+    def balance(currency, offset=0, **fields):
+        return dict(currency=currency, connector="okx", source="okx_account_balance",
+                    observed_at=observed.timestamp() + offset, **fields)
+
+    accounts = [dict(account_id="17", identity_verified=True, environment="demo", balances=[
+        balance("LIFE", cash_balance="100"), balance("LIFE", 1, cash_balance="200"),
+        balance("LIFE", 100, cash_balance="999"), balance("STALE", -120), balance("FUTURE", 100),
+        balance("ABSENT", present_in_latest_snapshot=False), balance("NULL")]),
+        dict(account_id="unverified", identity_verified=False, environment="demo", balances=[balance("USDT")])]
+    with daily_store.engine.begin() as connection:
+        assert save_daily_balances(connection, accounts, "UTC") == 2
+        rows = connection.execute(select(DailyBalanceSnapshot).order_by(DailyBalanceSnapshot.currency)).mappings().all()
+        assert [row["currency"] for row in rows] == ["LIFE", "NULL"]
+        assert rows[0]["cash_balance"] == Decimal("200")
+        assert rows[1]["cash_balance"] is rows[1]["equity"] is None
+        assert save_daily_balances(connection, [], "UTC") == 0
