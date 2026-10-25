@@ -537,14 +537,33 @@ one four-book batch at the measurement boundary. Thresholds are unchanged after
 measurement; expected conflicts and injected-fault failures are reported separately.
 
 - [x] Define assertions before measuring. Record p50/p95/p99 API latency, command application time, event-loop lag/event age/backlog, recorder latency, CPU/peak RSS, DB pool waits/connections, query counts and errors.
-- [ ] Healthy reads/command acceptance: p95 ≤500ms, p99 ≤1s, no unexpected timeouts/5xx; the generator achieves its sustained offered rate. Measure actual application separately: healthy local stop/cancel ≤5s and start/switch ≤15s, not merely `202` or acknowledgement.
-- [ ] Burst backlog drains within 10s of returning to steady load; no sustained queue/pool/memory growth during soak; peak bot RSS ≤1.5 GiB. Save per-minute samples so a late leak is visible. Report unmet budgets and the bottleneck rather than silently lowering load or relaxing thresholds.
+- [x] Healthy aggregate reads/command acceptance (per-route timing reported separately): p95 ≤500ms, p99 ≤1s, no unexpected timeouts/5xx; the generator achieves its sustained offered rate. Measure actual application separately: healthy local stop/cancel ≤5s and start/switch ≤15s, not merely `202` or acknowledgement.
+- [x] Burst backlog drains within 10s of returning to steady load; no sustained queue/pool/memory growth during soak; peak bot RSS ≤1.5 GiB. Save per-minute samples so a late leak is visible. Report unmet budgets and the bottleneck rather than silently lowering load or relaxing thresholds.
 - [x] Reuse N+1/query-count regressions as page/history size increases; cached performance reads retain the existing cache behavior. Add cache/index changes only when these measurements justify them.
-- [ ] Include daily-snapshot writes and one rate-bounded reconciliation check during the local load profile; report polling must not multiply exchange calls or block quote/deadline handling. Date-range aggregation must remain bounded on the large-history fixtures.
-- [ ] Independent exchange ledger and PostgreSQL agree on unique fills/fees/positions. Retries never duplicate commands/orders or reset deadlines. No new sends are authorized after step/session revocation, expiry or HALT; already in-flight effects must reconcile.
-- [ ] Count expected conflict/fault responses separately. Fix demonstrated failures using regression tests, rerun the affected load profile, save sanitized JSON/report evidence and commit before P6.
+- [x] Include daily-snapshot writes and one rate-bounded reconciliation check during the local load profile; report polling must not multiply exchange calls or block quote/deadline handling. Date-range aggregation must remain bounded on the large-history fixtures.
+- [x] Independent exchange ledger and PostgreSQL agree on unique fills/fees/positions. Retries never duplicate commands/orders or reset deadlines. No new sends are authorized after step/session revocation, expiry or HALT; already in-flight effects must reconcile.
+- [x] Count expected conflict/fault responses separately. Fix demonstrated failures using regression tests, rerun the affected load profile, save sanitized JSON/report evidence and commit before P6.
+
+Accepted locally on 2026-10-25 with the standard deployment image, the complete
+six-scenario E2E matrix, 107 PostgreSQL tests and all regression/Swagger checks.
+Mixed (15 minutes): aggregate p95 **73ms**, p99 **545ms**. Soak (60 real minutes):
+p95 **74ms**, p99 **584ms**, 72,000 completed reads and 3,600 valid fills. All five
+fault windows pass; independent recorder/exchange comparison agrees on 4,890
+unique fills. Peak bot RSS **341 MiB**; burst backlog drains in **0.53s**.
+
+Evidence and per-route caveats: [load report](../life-mm-load-tests.md),
+[sanitized acceptance data](../life-mm-load-acceptance.json). Daily statistics
+cache misses remain approximately 1.1 seconds, so aggregate acceptance is not a
+per-endpoint latency guarantee. Upstream teardown pending-task diagnostics remain
+visible; no healthy HTTP failures/HALT or sustained resource growth was observed.
 
 ### P6 — Final acceptance against OKX Demo
+
+**Pending dedicated Demo configuration.** P1–P5 local gates have passed. No
+configured spot/perpetual Demo key set is present locally, and no OKX account
+was contacted. Supply dedicated Demo credentials through a separate env/secret
+configuration and a separate database before running this phase; see
+[Demo environment setup](../okx-environments.md). Do not send secrets in chat.
 
 OKX documents Demo API keys, the `x-simulated-trading: 1` REST header and separate
 demo WebSocket endpoints; REST may share the production host. Verify the account's

@@ -337,7 +337,7 @@ all four groups in `make test-cloudrun-regression` (143 + 11 + 886 + 88 tests);
 Swagger drift and pre-commit checks. The Make target now stops on the first
 failing group instead of allowing a later group to mask failure.
 
-## P5 — In progress
+## P5 — Load, recovery fixes and acceptance
 
 Run opt-in local mixed load, bursts, faults and a real 60-minute soak on the
 accepted deployment artifact. Record offered and achieved rates and the budgets
@@ -423,3 +423,50 @@ The runner now additionally compares the existing reconciliation projection of
 held-plus-active exposure, and rejects HALT during healthy profiles. Final image
 rebuild/E2E and the complete load/soak rerun remain open; no full P5 completion
 has been claimed from the intermediate measurements.
+
+Implementation/regression checkpoint committed as `1b7ca57b4`. The newly rebuilt
+standard image `sha256:3c096d7852aed5c490fe0d70742003259b0136c24ecfc8d4dbc42913ff8a06ba`
+(1,364,475,211 bytes) passes the complete six-scenario E2E matrix. Its current
+load evidence is `build/mm-load/20261025-080606-4367d6/result.json`.
+
+Warmup, mixed and bursts all pass, including independent recorder comparison and
+the existing V2 held-plus-active exposure projection. Mixed: 18,000 reads and
+900 added fills, p95 73 ms / p99 545 ms, 20 reads/s, ~100 updates/s, 1 valid fill/s.
+Bursts: p95 85 ms / p99 616 ms, concurrent retries/conflicts and actual command
+application meet budgets, positions restore correctly after long fill history.
+Daily snapshots, bounded observational checks and constant page query counts pass.
+The real 60-minute random/both soak is running; final fault rerun and completion
+evidence remain open. This entry does not mark P5 complete.
+
+
+### Final P5 acceptance — 2026-10-25
+
+**P5 passes.** Standard image
+`sha256:3c096d7852aed5c490fe0d70742003259b0136c24ecfc8d4dbc42913ff8a06ba`
+passes the entire six-scenario E2E matrix and the full opt-in load gate:
+5-minute warmup, 15-minute mixed, 90-second bursts, 60-minute random/both soak,
+and all five fault windows. All test containers/networks were cleaned up.
+
+Mixed: p95 73 ms / p99 545 ms. Soak: 72,000 completed reads, 3,600 valid fills,
+p95 74 ms / p99 584 ms, zero unexpected healthy HTTP errors and no healthy HALT.
+Peak RSS 341 MiB; first/last median RSS growth 14.55 MiB, median queue 2 → 2 and
+pool checkout p95 1.70 → 1.58 ms. Burst backlog drains in 0.53 seconds; actual
+switch/stop/start and concurrent retries/conflicts meet the declared budgets.
+All 4,890 native test fills/fees/units and both account/V2 exposure projections
+match the independent ledger. Random steps retain their session start/deadline.
+DB-delay and DB-loss restart both retain HALT.
+
+The plan checklist is updated. Evidence: [load report](../life-mm-load-tests.md),
+[portable sanitized data](../life-mm-load-acceptance.json), and full local
+`build/mm-load/20261025-080606-4367d6/result.json`. All 107 PG tests and regression
+groups 149 + 11 + 898 + 88 pass; Swagger and pre-commit pass. Daily cache-miss
+latency (~1.1 s) and upstream teardown pending-task diagnostics are reported
+explicitly; aggregate acceptance does not erase those follow-ups.
+
+### Remaining — P6 requires dedicated Demo configuration
+
+P1–P5 local gates are complete. P6 remains unchecked: dedicated spot/perpetual
+Demo credentials and isolated Demo DB configuration are absent. No OKX account
+or Cloud Run deployment was contacted. Dedicated account/instrument checks,
+spot/perpetual/both workflows and the 30-minute conservative Demo observation
+must still run after configuration; see [setup](../okx-environments.md).

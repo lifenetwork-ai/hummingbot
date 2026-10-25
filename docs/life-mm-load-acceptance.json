@@ -1,0 +1,853 @@
+{
+  "accepted_local_gate": true,
+  "accepted_on": "2026-10-25",
+  "implementation_commit": "1b7ca57b4",
+  "demo_account_tested": false,
+  "cloud_run_tested": false,
+  "evidence": "build/mm-load/20261025-080606-4367d6/result.json",
+  "e2e_evidence": "build/e2e-offline/20261025-075646-d838bf/result.json",
+  "image_id": "sha256:3c096d7852aed5c490fe0d70742003259b0136c24ecfc8d4dbc42913ff8a06ba",
+  "manifest": "sha256:9d92178bc17fa18718103687c9e3cc2d5209b6caca6c4353d5eefa086611f60b",
+  "image_size_bytes": 1364475211,
+  "architecture": {
+    "host_architecture": "arm64",
+    "image_architecture": "amd64",
+    "emulation": true,
+    "postgres_architecture": "arm64",
+    "postgres_image_id": "sha256:4cdc921837346b979fed007530cfba7e5e1f5bd17d1c8e8779356f3e6a19260e",
+    "postgres_version": "14.15",
+    "docker_host_resources": "cpus=8 memory_bytes=8218251264"
+  },
+  "limits": {
+    "bot_limits": {
+      "cpus": 1,
+      "memory_bytes": 2147483648
+    },
+    "postgres_limits": {
+      "cpus": 2,
+      "memory_bytes": 536870912
+    },
+    "simulator_limits": {
+      "cpus": 1,
+      "memory_bytes": 536870912
+    },
+    "client_limits": {
+      "cpus": 1,
+      "memory_bytes": 536870912
+    }
+  },
+  "fixture_rows": {
+    "orders": 100000,
+    "fills": 100000
+  },
+  "fixture_sha256": {
+    "controller-spot.yml": "6f4f0d567b54d9b1152c8e5f15b014d4d1d77f6d845b38bb8541e9e4f2449078",
+    "exchange.py": "7ae419a0016e19175e1322551a6f0f838fae57330747aa8d2e44dc6566887e74",
+    "pmm.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+    "load_service.py": "87f9ace7a3bda61cccabd5862667e349306e272cc0803e27232b6489e6b4a899",
+    "runtime_smoke.py": "e411af4cb8c0e11b1fa2af594eaa095f058d52f5e536940e82ba3f331ad162d4",
+    "life_mm_profiles.yaml": "68ec4621efb2e728a4cf24770e4ea4e5568560637ff544ecac4f238fbfa317fe",
+    "script-perpetual.yml": "a4eeed6b7576af41a387ae115122c9130bd55c9a43b8d40f9e8b86a023b95132",
+    "pmm-revised.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+    "fixtures.json": "913d0ace5b760d74be3fc9f0ca5c392d5e826513711055d590e07e4fbfc75afb",
+    "controller-perpetual.yml": "9e1479b071f476626f448df4aba8e0a75b9cc8eee0a623b6b9f9ce4fb3360b45",
+    "load_client.py": "138cf78cc76d31b84386cda8150a2db0e506e3a86063bf63601415d7adfbf7ab"
+  },
+  "driver_sha256": {
+    "scripts/test_mm_load.py": "16fbe44727551a419efcfebc0523b0cbaf60c16ee2f667b228f331c03598e841",
+    "scripts/mm_load_budgets.py": "0cae7dbde1ccc02a2ef4e6822e925ee507f3e917ec4207c00df7bfa54b033d2c",
+    "scripts/mm_load_faults.py": "48f937681bff9e6a4f4cf5c25862a3bdd673c2ce01657788c73245986e498e59",
+    "scripts/mm_load_ledger.py": "c929be5372d8565ffc2fc2ddbe2d3cfc6db897e2c89c95fe013975f83d2b94bf"
+  },
+  "latency_scope": "aggregate dispatch-inclusive healthy reads; per-route metrics retained; daily cache misses exceed 500ms",
+  "windows": {
+    "warmup": {
+      "duration_seconds": 300,
+      "requested_reads": 6000,
+      "completed_reads": 6000,
+      "completed_reads_per_second": 20.0,
+      "completed_reads_in_window_per_second": 20.0,
+      "market_updates_per_second": 99.99484872037034,
+      "valid_fills": 300,
+      "fills_per_second": 1.0,
+      "read_p50_ms": 14.082445999520132,
+      "read_p95_ms": 65.0600110002415,
+      "read_p99_ms": 556.1122209983296,
+      "unexpected_errors": 0,
+      "peak_rss_bytes": 330592256,
+      "command_accept_p95_ms": 30.4956250001851,
+      "command_accept_p99_ms": 30.4956250001851,
+      "command_seconds": {
+        "start": 3.155981583055109,
+        "switch": 3.2018577919807285,
+        "stop": 1.499696166953072
+      },
+      "expected_fill_candidate_conflicts": 0,
+      "exchange_account_reads": 7,
+      "ledger": {
+        "unique_exchange_fills": 300,
+        "unique_recorder_fills": 300,
+        "positions_matched": true,
+        "daily_snapshots": 3
+      },
+      "violations": [],
+      "per_route": {
+        "/status": {
+          "count": 546,
+          "p50": 10.553461999734282,
+          "p95": 22.824290001153713,
+          "p99": 38.753996001105406
+        },
+        "/orders?limit=1": {
+          "count": 546,
+          "p50": 13.910865000070771,
+          "p95": 28.540694000184885,
+          "p99": 44.5763600000646
+        },
+        "/orders?limit=100": {
+          "count": 546,
+          "p50": 23.909509000077378,
+          "p95": 45.017847000053735,
+          "p99": 110.29069399955915
+        },
+        "/orders?limit=500": {
+          "count": 546,
+          "p50": 50.62341599841602,
+          "p95": 99.99037499983388,
+          "p99": 195.3841740014468
+        },
+        "/fills?limit=100": {
+          "count": 546,
+          "p50": 14.896276999934344,
+          "p95": 57.31097299940302,
+          "p99": 146.3075489991752
+        },
+        "/fills?limit=500": {
+          "count": 545,
+          "p50": 43.466980998346116,
+          "p95": 113.53623199829599,
+          "p99": 169.46620199996687
+        },
+        "/balances": {
+          "count": 545,
+          "p50": 7.802553998772055,
+          "p95": 64.75495900122041,
+          "p99": 121.28809500063653
+        },
+        "/positions": {
+          "count": 545,
+          "p50": 7.3402039997745305,
+          "p95": 34.407383000143454,
+          "p99": 71.84963799954858
+        },
+        "/performance": {
+          "count": 545,
+          "p50": 7.780509000440361,
+          "p95": 22.860424000100465,
+          "p99": 46.98943900075392
+        },
+        "/reconciliation": {
+          "count": 545,
+          "p50": 10.105883999131038,
+          "p95": 29.859504000341985,
+          "p99": 58.84456900093937
+        },
+        "/statistics/daily": {
+          "count": 545,
+          "p50": 5.790097999124555,
+          "p95": 1035.0304249986948,
+          "p99": 1197.2279669989803
+        }
+      },
+      "history_query_max": {
+        "/api/v1/admin/orders?limit=1": 3,
+        "/api/v1/admin/orders?limit=100": 3,
+        "/api/v1/admin/orders?limit=500": 3,
+        "/api/v1/admin/fills?limit=100": 1,
+        "/api/v1/admin/fills?limit=500": 1,
+        "/api/v1/admin/performance": 1
+      },
+      "runtime_distributions": {
+        "pool_checkout_ms": {
+          "count": 7045,
+          "p50": 0.4604170007951325,
+          "p95": 1.537584001198411,
+          "p99": 12.990916999115143,
+          "max": 112.77829200116685
+        },
+        "sql_ms": {
+          "count": 12000,
+          "p50": 0.6599999996979022,
+          "p95": 3.901833999407245,
+          "p99": 11.584915999264922,
+          "max": 908.7363749986253
+        },
+        "handler_ms": {
+          "count": 6000,
+          "p50": 5.503042000782443,
+          "p95": 49.341040999934194,
+          "p99": 552.6756250001199,
+          "max": 1290.6317500001023
+        },
+        "event_loop_lag_ms": {
+          "count": 6345,
+          "p50": 3.3038074907381088,
+          "p95": 24.2015925978194,
+          "p99": 90.66478539352829,
+          "max": 460.8077541070088
+        },
+        "event_age_ms": {
+          "count": 12000,
+          "p50": 1.237060546875,
+          "p95": 21.893798828125,
+          "p99": 73.24658203125,
+          "max": 194.896484375
+        },
+        "book_backlog": {
+          "count": 12000,
+          "p50": 1,
+          "p95": 2,
+          "p99": 3,
+          "max": 11
+        },
+        "recorder_ms": {
+          "count": 299,
+          "p50": 17.13729100083583,
+          "p95": 37.91895900030795,
+          "p99": 57.56641700099863,
+          "max": 65.34920900048746
+        }
+      }
+    },
+    "mixed": {
+      "duration_seconds": 900,
+      "requested_reads": 18000,
+      "completed_reads": 18000,
+      "completed_reads_per_second": 20.0,
+      "completed_reads_in_window_per_second": 20.0,
+      "market_updates_per_second": 99.99947827668763,
+      "valid_fills": 900,
+      "fills_per_second": 1.0,
+      "read_p50_ms": 13.421116000245092,
+      "read_p95_ms": 72.54414999988512,
+      "read_p99_ms": 545.3796709989547,
+      "unexpected_errors": 0,
+      "peak_rss_bytes": 335933440,
+      "command_accept_p95_ms": 28.246334000868956,
+      "command_accept_p99_ms": 28.246334000868956,
+      "command_seconds": {
+        "start": 3.155981583055109,
+        "switch": 3.2018577919807285,
+        "stop": 1.499696166953072
+      },
+      "expected_fill_candidate_conflicts": 0,
+      "exchange_account_reads": 25,
+      "ledger": {
+        "unique_exchange_fills": 1200,
+        "unique_recorder_fills": 1200,
+        "positions_matched": true,
+        "daily_snapshots": 3
+      },
+      "violations": [],
+      "per_route": {
+        "/status": {
+          "count": 1637,
+          "p50": 9.879403000013554,
+          "p95": 25.93476299989561,
+          "p99": 52.6260300011927
+        },
+        "/orders?limit=1": {
+          "count": 1637,
+          "p50": 12.287343999560107,
+          "p95": 37.21724600109155,
+          "p99": 60.460606999185984
+        },
+        "/orders?limit=100": {
+          "count": 1637,
+          "p50": 22.36049500061199,
+          "p95": 45.416680000926135,
+          "p99": 63.70559499919182
+        },
+        "/orders?limit=500": {
+          "count": 1637,
+          "p50": 52.30858899994928,
+          "p95": 89.58710499973677,
+          "p99": 202.65152000138187
+        },
+        "/fills?limit=100": {
+          "count": 1636,
+          "p50": 15.572992000670638,
+          "p95": 51.02168600024015,
+          "p99": 157.10616300020774
+        },
+        "/fills?limit=500": {
+          "count": 1636,
+          "p50": 44.46379699948011,
+          "p95": 116.52264500116871,
+          "p99": 187.95567300003313
+        },
+        "/balances": {
+          "count": 1636,
+          "p50": 7.851718999518198,
+          "p95": 74.22811399919738,
+          "p99": 155.11666600104945
+        },
+        "/positions": {
+          "count": 1636,
+          "p50": 7.194189000074402,
+          "p95": 45.41208900081983,
+          "p99": 117.31111100016278
+        },
+        "/performance": {
+          "count": 1636,
+          "p50": 7.65103000048839,
+          "p95": 41.170832999341656,
+          "p99": 102.11257200171531
+        },
+        "/statistics/daily": {
+          "count": 1636,
+          "p50": 5.705769000996952,
+          "p95": 1049.5285610013525,
+          "p99": 1160.5324369993468
+        },
+        "/reconciliation": {
+          "count": 1636,
+          "p50": 9.188922000248567,
+          "p95": 30.154079000567435,
+          "p99": 49.0125350006565
+        }
+      },
+      "history_query_max": {
+        "/api/v1/admin/orders?limit=1": 3,
+        "/api/v1/admin/orders?limit=100": 3,
+        "/api/v1/admin/orders?limit=500": 3,
+        "/api/v1/admin/fills?limit=100": 1,
+        "/api/v1/admin/fills?limit=500": 1,
+        "/api/v1/admin/performance": 1
+      },
+      "runtime_distributions": {
+        "pool_checkout_ms": {
+          "count": 12000,
+          "p50": 0.4610420000972226,
+          "p95": 1.688542000920279,
+          "p99": 14.654041999165202,
+          "max": 56.671667000046
+        },
+        "sql_ms": {
+          "count": 12000,
+          "p50": 0.6533329997182591,
+          "p95": 4.656291999708628,
+          "p99": 28.31175000028452,
+          "max": 776.8049169990263
+        },
+        "handler_ms": {
+          "count": 12000,
+          "p50": 5.276249999951688,
+          "p95": 53.9747080001689,
+          "p99": 545.8144999993237,
+          "max": 1706.9419590006873
+        },
+        "event_loop_lag_ms": {
+          "count": 12000,
+          "p50": 3.8723995839973213,
+          "p95": 18.989999649420497,
+          "p99": 78.09351997275371,
+          "max": 213.09706733882194
+        },
+        "event_age_ms": {
+          "count": 12000,
+          "p50": 1.231201171875,
+          "p95": 23.52587890625,
+          "p99": 84.46826171875,
+          "max": 282.136962890625
+        },
+        "book_backlog": {
+          "count": 12000,
+          "p50": 1,
+          "p95": 2,
+          "p99": 4,
+          "max": 20
+        },
+        "recorder_ms": {
+          "count": 1198,
+          "p50": 15.988083001502673,
+          "p95": 34.705375001067296,
+          "p99": 69.05983400065452,
+          "max": 98.23249999863037
+        }
+      }
+    },
+    "bursts": {
+      "duration_seconds": 90,
+      "requested_reads": 1800,
+      "completed_reads": 1800,
+      "completed_reads_per_second": 20.0,
+      "completed_reads_in_window_per_second": 20.0,
+      "market_updates_per_second": 143.5095426496545,
+      "valid_fills": 90,
+      "fills_per_second": 1.0,
+      "read_p50_ms": 13.620577001347556,
+      "read_p95_ms": 85.41490999959933,
+      "read_p99_ms": 615.7141480016435,
+      "unexpected_errors": 0,
+      "peak_rss_bytes": 339996672,
+      "command_accept_p95_ms": 233.76079199988453,
+      "command_accept_p99_ms": 234.0095419986028,
+      "command_seconds": {
+        "switch": 3.7325748769999336,
+        "stop": 0.5440302090009936,
+        "start": 2.1494781260007585
+      },
+      "expected_fill_candidate_conflicts": 0,
+      "exchange_account_reads": 12,
+      "ledger": {
+        "unique_exchange_fills": 1290,
+        "unique_recorder_fills": 1290,
+        "positions_matched": true,
+        "daily_snapshots": 3
+      },
+      "violations": [],
+      "per_route": {
+        "/status": {
+          "count": 164,
+          "p50": 8.906541001124424,
+          "p95": 25.75332000014896,
+          "p99": 104.84209100104636
+        },
+        "/orders?limit=1": {
+          "count": 164,
+          "p50": 12.254306000613724,
+          "p95": 25.788803000978078,
+          "p99": 83.06796599936206
+        },
+        "/orders?limit=100": {
+          "count": 164,
+          "p50": 20.35302900003444,
+          "p95": 35.13784599999781,
+          "p99": 280.3916740012937
+        },
+        "/orders?limit=500": {
+          "count": 164,
+          "p50": 50.86076000043249,
+          "p95": 107.22262799936289,
+          "p99": 323.7262220009143
+        },
+        "/fills?limit=100": {
+          "count": 164,
+          "p50": 16.070716999820434,
+          "p95": 123.85340300170355,
+          "p99": 360.34021500017843
+        },
+        "/fills?limit=500": {
+          "count": 164,
+          "p50": 45.77232000156073,
+          "p95": 119.60797800020373,
+          "p99": 313.05446499936807
+        },
+        "/balances": {
+          "count": 164,
+          "p50": 7.995599000423681,
+          "p95": 72.60990999930073,
+          "p99": 257.7219650011102
+        },
+        "/positions": {
+          "count": 163,
+          "p50": 7.582234000437893,
+          "p95": 52.44997400041029,
+          "p99": 207.537049001985
+        },
+        "/performance": {
+          "count": 163,
+          "p50": 8.170528000846389,
+          "p95": 43.2717980020243,
+          "p99": 163.29938200033212
+        },
+        "/statistics/daily": {
+          "count": 163,
+          "p50": 6.427577000067686,
+          "p95": 1083.0590530003974,
+          "p99": 1191.6446809991612
+        },
+        "/reconciliation": {
+          "count": 163,
+          "p50": 9.17695200041635,
+          "p95": 27.610725999693386,
+          "p99": 124.18217300000833
+        }
+      },
+      "history_query_max": {
+        "/api/v1/admin/orders?limit=1": 3,
+        "/api/v1/admin/orders?limit=100": 3,
+        "/api/v1/admin/orders?limit=500": 3,
+        "/api/v1/admin/fills?limit=100": 1,
+        "/api/v1/admin/fills?limit=500": 1,
+        "/api/v1/admin/performance": 1
+      },
+      "runtime_distributions": {
+        "pool_checkout_ms": {
+          "count": 12000,
+          "p50": 0.4529170000751037,
+          "p95": 1.7158339996967698,
+          "p99": 14.939374999812571,
+          "max": 85.81899999990128
+        },
+        "sql_ms": {
+          "count": 12000,
+          "p50": 0.6437909996748203,
+          "p95": 4.651708999517723,
+          "p99": 16.629125000690692,
+          "max": 982.6824160008982
+        },
+        "handler_ms": {
+          "count": 12000,
+          "p50": 5.259583000224666,
+          "p95": 54.8038329998235,
+          "p99": 547.1224169996276,
+          "max": 1706.9419590006873
+        },
+        "event_loop_lag_ms": {
+          "count": 12000,
+          "p50": 3.776020754230558,
+          "p95": 20.338054513558745,
+          "p99": 83.01426059551886,
+          "max": 247.469877183903
+        },
+        "event_age_ms": {
+          "count": 12000,
+          "p50": 1.19140625,
+          "p95": 26.56787109375,
+          "p99": 113.374267578125,
+          "max": 346.5830078125
+        },
+        "book_backlog": {
+          "count": 12000,
+          "p50": 1,
+          "p95": 4,
+          "p99": 13,
+          "max": 44
+        },
+        "recorder_ms": {
+          "count": 1287,
+          "p50": 15.92312499997206,
+          "p95": 34.75100000105158,
+          "p99": 69.05983400065452,
+          "max": 98.23249999863037
+        }
+      }
+    },
+    "soak": {
+      "duration_seconds": 3600,
+      "requested_reads": 72000,
+      "completed_reads": 72000,
+      "completed_reads_per_second": 19.9993547700612,
+      "completed_reads_in_window_per_second": 19.99861111111111,
+      "market_updates_per_second": 99.94442072970357,
+      "valid_fills": 3600,
+      "fills_per_second": 1.0,
+      "read_p50_ms": 14.390096999704838,
+      "read_p95_ms": 74.21831799729262,
+      "read_p99_ms": 584.0134220015898,
+      "unexpected_errors": 0,
+      "peak_rss_bytes": 357740544,
+      "command_accept_p95_ms": 14.793542000916204,
+      "command_accept_p99_ms": 14.793542000916204,
+      "command_seconds": {
+        "start": 3.155981583055109,
+        "switch": 3.2018577919807285,
+        "stop": 1.499696166953072
+      },
+      "expected_fill_candidate_conflicts": 3,
+      "exchange_account_reads": 115,
+      "ledger": {
+        "unique_exchange_fills": 4890,
+        "unique_recorder_fills": 4890,
+        "positions_matched": true,
+        "daily_snapshots": 3
+      },
+      "violations": [],
+      "per_route": {
+        "/status": {
+          "count": 6546,
+          "p50": 10.47165699856123,
+          "p95": 30.26480299740797,
+          "p99": 63.859835998300696
+        },
+        "/orders?limit=1": {
+          "count": 6546,
+          "p50": 13.425956998617039,
+          "p95": 34.879368999099825,
+          "p99": 74.53464699938195
+        },
+        "/orders?limit=100": {
+          "count": 6546,
+          "p50": 22.723357998984284,
+          "p95": 42.15388800002984,
+          "p99": 79.45594600096229
+        },
+        "/orders?limit=500": {
+          "count": 6546,
+          "p50": 50.995517001865664,
+          "p95": 88.27285799998208,
+          "p99": 203.68627999778255
+        },
+        "/fills?limit=100": {
+          "count": 6546,
+          "p50": 16.304938999383012,
+          "p95": 62.20460299846309,
+          "p99": 184.3776079986128
+        },
+        "/fills?limit=500": {
+          "count": 6545,
+          "p50": 47.00787399815454,
+          "p95": 126.33638599800179,
+          "p99": 206.37538399932964
+        },
+        "/balances": {
+          "count": 6545,
+          "p50": 8.374134999030503,
+          "p95": 76.93268300135969,
+          "p99": 159.81381500023417
+        },
+        "/positions": {
+          "count": 6545,
+          "p50": 8.140504000039073,
+          "p95": 48.08814399802941,
+          "p99": 128.1044529969222
+        },
+        "/performance": {
+          "count": 6545,
+          "p50": 8.521502000803594,
+          "p95": 33.39755399792921,
+          "p99": 98.27094899810618
+        },
+        "/statistics/daily": {
+          "count": 6545,
+          "p50": 6.83508099973551,
+          "p95": 1074.48292799927,
+          "p99": 1190.6788819978829
+        },
+        "/reconciliation": {
+          "count": 6545,
+          "p50": 10.3008639998734,
+          "p95": 30.26316199975554,
+          "p99": 74.95750899943232
+        }
+      },
+      "history_query_max": {
+        "/api/v1/admin/orders?limit=1": 3,
+        "/api/v1/admin/orders?limit=100": 3,
+        "/api/v1/admin/orders?limit=500": 3,
+        "/api/v1/admin/fills?limit=100": 1,
+        "/api/v1/admin/fills?limit=500": 1,
+        "/api/v1/admin/performance": 1
+      },
+      "runtime_distributions": {
+        "pool_checkout_ms": {
+          "count": 12000,
+          "p50": 0.450999999884516,
+          "p95": 1.6048749967012554,
+          "p99": 15.609207999659702,
+          "max": 62.515500001609325
+        },
+        "sql_ms": {
+          "count": 12000,
+          "p50": 0.6376250021276064,
+          "p95": 5.38891600081115,
+          "p99": 17.606917001103284,
+          "max": 829.593541999202
+        },
+        "handler_ms": {
+          "count": 12000,
+          "p50": 5.694084000424482,
+          "p95": 50.32791600024211,
+          "p99": 562.5603340013186,
+          "max": 1352.6294590010366
+        },
+        "event_loop_lag_ms": {
+          "count": 12000,
+          "p50": 3.609716586652212,
+          "p95": 23.42276560739265,
+          "p99": 90.91917330806609,
+          "max": 345.7006083081069
+        },
+        "event_age_ms": {
+          "count": 12000,
+          "p50": 1.119140625,
+          "p95": 24.133544921875,
+          "p99": 95.04931640625,
+          "max": 232.915283203125
+        },
+        "book_backlog": {
+          "count": 12000,
+          "p50": 2,
+          "p95": 2,
+          "p99": 4,
+          "max": 12
+        },
+        "recorder_ms": {
+          "count": 4884,
+          "p50": 15.12383299996145,
+          "p95": 34.0081670001382,
+          "p99": 63.578457999028615,
+          "max": 250.76433399954112
+        }
+      }
+    }
+  },
+  "burst": {
+    "retries": 10,
+    "expected_conflicts": 10,
+    "retry_deadline_unchanged": true,
+    "burst_updates_per_second": 499.6386251902802
+  },
+  "burst_drain_seconds": 0.5322411060333252,
+  "soak_resource_trend": {
+    "minute_samples": 58,
+    "first_median_rss_bytes": 340652032,
+    "last_median_rss_bytes": 355905536,
+    "first_pool_checkout_p95_median_ms": 1.7000000007101335,
+    "last_pool_checkout_p95_median_ms": 1.5822499990463257,
+    "first_book_backlog_median": 2,
+    "last_book_backlog_median": 2
+  },
+  "soak_observed_steps": [
+    {
+      "observed_at": 1792892308.717256,
+      "id": "fa165470-dc80-4a17-8798-14f6b625e06f",
+      "step_index": 0,
+      "generation": 0,
+      "profile_id": "follow_token",
+      "status": "running",
+      "started_at": 1792891709.756481,
+      "expires_at": 1792898909.756481,
+      "phase": "running",
+      "context": "soak"
+    },
+    {
+      "observed_at": 1792892483.304778,
+      "id": "fa165470-dc80-4a17-8798-14f6b625e06f",
+      "step_index": 1,
+      "generation": 1,
+      "profile_id": "sideways",
+      "status": "running",
+      "started_at": 1792891709.756481,
+      "expires_at": 1792898909.756481,
+      "phase": "running",
+      "context": "soak"
+    },
+    {
+      "observed_at": 1792892979.476477,
+      "id": "fa165470-dc80-4a17-8798-14f6b625e06f",
+      "step_index": 2,
+      "generation": 2,
+      "profile_id": "sideways",
+      "status": "running",
+      "started_at": 1792891709.756481,
+      "expires_at": 1792898909.756481,
+      "phase": "running",
+      "context": "soak"
+    },
+    {
+      "observed_at": 1792893595.31304,
+      "id": "fa165470-dc80-4a17-8798-14f6b625e06f",
+      "step_index": 3,
+      "generation": 3,
+      "profile_id": "follow_market",
+      "status": "running",
+      "started_at": 1792891709.756481,
+      "expires_at": 1792898909.756481,
+      "phase": "running",
+      "context": "soak"
+    },
+    {
+      "observed_at": 1792894209.689558,
+      "id": "fa165470-dc80-4a17-8798-14f6b625e06f",
+      "step_index": 4,
+      "generation": 4,
+      "profile_id": "follow_token",
+      "status": "running",
+      "started_at": 1792891709.756481,
+      "expires_at": 1792898909.756481,
+      "phase": "running",
+      "context": "soak"
+    },
+    {
+      "observed_at": 1792894797.961858,
+      "id": "fa165470-dc80-4a17-8798-14f6b625e06f",
+      "step_index": 5,
+      "generation": 5,
+      "profile_id": "sideways",
+      "status": "running",
+      "started_at": 1792891709.756481,
+      "expires_at": 1792898909.756481,
+      "phase": "running",
+      "context": "soak"
+    }
+  ],
+  "faults": {
+    "feed": {
+      "passed_assertions": true,
+      "classification": "injected_fault_excluded_from_healthy_latency",
+      "duration_seconds": 45,
+      "http_status_counts": {
+        "200": 900
+      },
+      "expected_fault_errors": 0
+    },
+    "owner-restart": {
+      "passed_assertions": true,
+      "classification": "injected_fault_excluded_from_healthy_latency",
+      "duration_seconds": 45,
+      "http_status_counts": {
+        "200": 698
+      },
+      "expected_fault_errors": 202
+    },
+    "queued-expiry": {
+      "passed_assertions": true,
+      "classification": "injected_fault_excluded_from_healthy_latency",
+      "duration_seconds": 75,
+      "http_status_counts": {
+        "200": 1500
+      },
+      "expected_fault_errors": 0
+    },
+    "database-delay": {
+      "passed_assertions": true,
+      "classification": "injected_fault_excluded_from_healthy_latency",
+      "duration_seconds": 45,
+      "http_status_counts": {
+        "200": 710,
+        "503": 3
+      },
+      "expected_fault_errors": 190
+    },
+    "database-failure": {
+      "passed_assertions": true,
+      "classification": "injected_fault_excluded_from_healthy_latency",
+      "duration_seconds": 45,
+      "http_status_counts": {
+        "200": 771,
+        "503": 6
+      },
+      "expected_fault_errors": 129
+    }
+  },
+  "validation": {
+    "cloudrun_regression_groups": [
+      149,
+      11,
+      898,
+      88
+    ],
+    "postgres_tests": 107,
+    "swagger_drift": "passed",
+    "pre_commit": "passed"
+  },
+  "remaining": [
+    "Dedicated OKX Demo P6 credentials/instruments/account workflows and 30-minute observation are unverified.",
+    "Daily statistics cache-miss latency remains about 1.1 seconds on this fixture; aggregate gate does not certify per-route latency.",
+    "Upstream controller teardown still emits pending-task diagnostics; no healthy HALT, HTTP failures or sustained resource growth was observed.",
+    "Local emulated-container capacity does not establish Cloud SQL latency or live fill quality."
+  ]
+}
