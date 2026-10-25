@@ -45,6 +45,21 @@ class OkxPerpetualDerivativeTests(
     def _is_logged(self, log_level: str, message: str) -> bool:
         return any(record.levelname == log_level and record.getMessage() == message for record in self.log_records)
 
+    async def test_network_stop_retires_funding_payment_poller_before_restart(self):
+        with patch.object(self.exchange, "_update_all_funding_payments", AsyncMock()):
+            for _ in range(3):
+                poller = asyncio.create_task(self.exchange._funding_payment_polling_loop())
+                self.exchange._funding_fee_polling_task = poller
+                await asyncio.sleep(0)
+                try:
+                    await self.exchange.stop_network()
+                    self.assertTrue(poller.done())
+                    self.assertTrue(poller.cancelled())
+                    self.assertIsNone(self.exchange._funding_fee_polling_task)
+                finally:
+                    poller.cancel()
+                    await asyncio.gather(poller, return_exceptions=True)
+
     def test_rest_and_websocket_order_times_use_epoch_seconds(self):
         order = InFlightOrder(client_order_id="time-units", exchange_order_id="1", trading_pair=self.trading_pair,
                               order_type=OrderType.LIMIT, trade_type=TradeType.BUY, amount=Decimal("1"),

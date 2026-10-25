@@ -234,11 +234,15 @@ class PerpetualDerivativePyBase(ExchangePyBase, ABC):
         raise NotImplementedError
 
     async def stop_network(self):
+        tasks = [task for task in (self._funding_info_listener_task, self._funding_fee_polling_task) if task is not None]
+        for task in tasks:
+            task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        self._funding_info_listener_task = None
+        self._funding_fee_polling_task = None
         self._funding_fee_poll_notifier = asyncio.Event()
         self._perpetual_trading.stop()
-        if self._funding_info_listener_task is not None:
-            self._funding_info_listener_task.cancel()
-            self._funding_info_listener_task = None
         self._last_funding_fee_payment_ts.clear()
         await super().stop_network()
 
