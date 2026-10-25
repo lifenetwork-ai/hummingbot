@@ -1,4 +1,5 @@
 import asyncio
+import threading
 import time
 from datetime import date, datetime, timezone
 from types import SimpleNamespace
@@ -9,6 +10,35 @@ from multidict import MultiDict
 
 from hummingbot.cli.admin_api import AdminAPI
 from hummingbot.client.config.admin_config import AdminSettings
+
+
+@pytest.mark.asyncio
+async def test_cached_market_does_not_wait_for_another_markets_aggregate():
+    storage = MagicMock()
+    started, release = threading.Event(), threading.Event()
+
+    def aggregate(**filters):
+        if filters["market"] == "perpetual":
+            started.set()
+            assert release.wait(5)
+        return dict(start_day=date(2026, 1, 1), end_day=date(2026, 1, 2), reporting_timezone="UTC",
+                    server_time=datetime.now(timezone.utc), coverage="observed_recorder_events",
+                    balance_scope="account_last_observed", balances=[], markets=[])
+
+    storage.daily.side_effect = aggregate
+    api = AdminAPI(None, AdminSettings(statistics_cache_ttl_seconds=60), store=storage)
+    spot = SimpleNamespace(query=MultiDict(market="spot"))
+    warm = await api.daily(spot)
+    miss = asyncio.create_task(api.daily(SimpleNamespace(query=MultiDict(market="perpetual"))))
+    try:
+        assert await asyncio.to_thread(started.wait, 2)
+        hit = await asyncio.wait_for(api.daily(spot), timeout=.2)
+        assert hit.text == warm.text
+        assert storage.daily.call_count == 2
+        assert not miss.done()
+    finally:
+        release.set()
+        await miss
 
 
 @pytest.mark.asyncio

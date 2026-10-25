@@ -306,15 +306,17 @@ class AdminAPI:
     async def daily(self, request):
         query = self.query(request, DailyQuery)
         key = query.model_dump_json(), self.settings.reporting_timezone
-        # One loop owns this small read-only cache. Coalesce misses so FE polling
-        # cannot run the same large aggregate concurrently. Never cache failures
-        # or alter observation timestamps; trading/control do not read this cache.
-        async with self._daily_lock:
-            body = self._daily_cache.get(key)
-            if body is None:
-                row = await asyncio.to_thread(self.storage().daily, **query.model_dump(), reporting_timezone=self.settings.reporting_timezone)
-                body = DailyResponse.model_validate(row).model_dump(mode="json")
-                self._daily_cache[key] = body
+        # This loop owns the cache: hits need no lock and must not queue behind
+        # an unrelated slow aggregate. Serialize misses to bound database work,
+        # rechecking after admission so identical polls share the first result.
+        body = self._daily_cache.get(key)
+        if body is None:
+            async with self._daily_lock:
+                body = self._daily_cache.get(key)
+                if body is None:
+                    row = await asyncio.to_thread(self.storage().daily, **query.model_dump(), reporting_timezone=self.settings.reporting_timezone)
+                    body = DailyResponse.model_validate(row).model_dump(mode="json")
+                    self._daily_cache[key] = body
         return web.json_response(body)
 
     @staticmethod
