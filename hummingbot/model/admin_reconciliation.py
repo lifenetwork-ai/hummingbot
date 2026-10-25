@@ -106,6 +106,10 @@ def local_scope(store, request, cutoff_ms):
             connector=row.market, order_id=row.order_id, id=row.exchange_trade_id, amount=str(row.amount), price=str(row.price),
             fee=row.trade_fee, timestamp=row.timestamp) for row in rows[:1000]], truncated=truncated,
             control_version=state.control_version, session_generation=(state.mm_session or {}).get("generation"),
-            recovery_state=state.recovery_state)
+            # Funding coverage is observational: its background checkpoint must
+            # not invalidate an otherwise stable orders/fills/exposure check.
+            # Keep HALT and every other recovery change in the fingerprint.
+            recovery_state={key: value for key, value in (state.recovery_state or {}).items()
+                            if key != "funding_sync"})
         result["fingerprint"] = hashlib.sha256(json.dumps(result, sort_keys=True, default=str).encode()).hexdigest()
         return result

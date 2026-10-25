@@ -93,8 +93,19 @@ Only observed days appear; missing days are gaps. Fees include original-currency
 paid/rebate/net amounts, recorded USDT conversion coverage and explicit unavailable
 or ambiguous legacy conversions. Percentage-only original fee rates are counted
 as incomplete original-amount coverage. Funding is observed-only for perpetual
-and not applicable to spot. Preserve the documented scale-six trade storage and
-legacy float funding precision; Decimal output cannot recover lost precision.
+and not applicable to spot. PostgreSQL trade amounts use unscaled NUMERIC;
+`trade_storage_scale` is null. Identified funding bills preserve exact original
+USDT amounts; legacy float events remain explicitly unverified, since Decimal
+output cannot recover their lost precision. Unobserved funding buckets are null.
+
+`/status.funding_sync` and `/statistics/daily.funding_sync` expose the account/
+environment, covered interval, last successful sync, pending backfill, stale/error
+state and any interval outside the supported history window. Coverage describes
+completed committed reads, not an estimate from current positions. Unknown or
+incomplete coverage must remain visible in the UI. Reporting reads use PostgreSQL
+and the existing daily cache; they never initiate exchange requests. Funding
+checkpoint changes alone do not invalidate trading reconciliation; changes to
+HALT, orders, fills or other recovery state still do.
 
 The owner upserts the latest fresh account observation at most once a minute per
 account/environment/currency/timezone/day inside its successful fenced status

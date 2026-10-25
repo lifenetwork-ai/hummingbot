@@ -277,3 +277,30 @@ arriving while V2 cleanup snapshots positions retains HALT and requires operator
 position reconciliation. Arbitrary custom strategies/executor timers
 are not automatically reconstructed after a crash; the persistent HALT prevents
 silently resetting their risk state.
+
+## Funding while trading is stopped
+
+The same owner service observes configured and historically traded OKX USDT
+perpetual instruments using authenticated account-bill GETs. It continues while
+the strategy is stopped, expired, HALTed or spot-only. It never starts a strategy
+or sends trading/account mutations. `FUNDING_SYNC_INTERVAL_SECONDS` defaults to
+120 (allowed 1–3600); pending catch-up uses bounded batches of two pages with a
+one-second scheduling delay. Standby instances do not ingest bills.
+
+`funding_bills` stores exact NUMERIC amounts and exchange bill identity scoped by
+account/environment. The existing `funding_payments` event table is preserved;
+identified bills take precedence over overlapping legacy event groups in daily
+reports. The native last-payment poller/recorder is suppressed only on managed
+PostgreSQL perpetual connectors. Original file mode remains unchanged.
+
+Bill pages and their checkpoint in `bot_state.recovery_state.funding_sync` commit
+atomically under owner fencing. Restart replays an overlapping one-hour window,
+including bills for positions already closed. A conservative 89-day history limit
+is reported explicitly when exceeded. The recent/archive readers preserve their
+existing authentication, time synchronization and throttling. Historical rates
+are null when unavailable; current rates never substitute for settlement rates.
+
+The service must be running to poll. An absent container collects nothing until
+restart backfill; no separate watcher container or scheduler is required. The
+Cloud Run service needs its configured always-allocated CPU and a retained owner
+instance for continuous observation.

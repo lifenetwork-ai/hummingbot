@@ -56,3 +56,21 @@ def test_owner_unavailable_check_is_terminal_without_starting_a_strategy(pg_engi
     assert receipt["result"]["state"] == "unavailable"
     assert receipt["status"] == "failed"
     assert store.store.read()["control_version"] == 0
+
+
+def test_funding_checkpoint_does_not_invalidate_trading_reconciliation(checks):
+    from sqlalchemy import update
+
+    from hummingbot.core.admin_reconciliation import ReconciliationRequest
+    from hummingbot.model.bot_state import BotState
+    store, _ = checks
+    request = ReconciliationRequest(market="all")
+    before = store.reconciliation_scope(request, 0)
+    with store.engine.begin() as connection:
+        connection.execute(update(BotState).where(BotState.bot_id == store.bot_id).values(
+            recovery_state={"funding_sync": {"covered_until_ms": 1800000000000}}))
+    assert store.reconciliation_scope(request, 0)["fingerprint"] == before["fingerprint"]
+    with store.engine.begin() as connection:
+        connection.execute(update(BotState).where(BotState.bot_id == store.bot_id).values(
+            recovery_state={"funding_sync": {"covered_until_ms": 1800000120000}, "halt": True}))
+    assert store.reconciliation_scope(request, 0)["fingerprint"] != before["fingerprint"]
