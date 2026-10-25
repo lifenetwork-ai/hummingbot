@@ -589,10 +589,10 @@ reference (`e9ab23687`), and filtering unusable preopen contract metadata
 (`c9b858e36`). The affected suites pass 140 tests and 201 tests/seven subtests
 respectively; these suites overlap and are not a unique-test total.
 
-The final standard image passes selected LIFE offline E2E/recovery and all nine
+The observation image passes selected LIFE offline E2E/recovery and all nine
 real Demo profile/market cases. Its 30-minute random/both session completed with
 three steps, preserved anchors/deadline across restart, two matched spot/perpetual
-reconciliations and automatic expiry/cancellation. The final image created 288
+reconciliations and automatic expiry/cancellation. That image created 288
 orders; all are cancelled. The retained DB has 300 including the earlier 12-order
 pilot, zero fills, UTC, no HALT and no owner. Final exchange reads show no pending
 orders or perpetual positions and unchanged cash. No new full load/soak or Cloud
@@ -603,8 +603,11 @@ Run deployment was performed. See [Demo acceptance](../okx-demo-acceptance.md),
 Post-observation log review identified duplicate cancel response `51400` being
 misclassified as an error and a late-acknowledgement terminal-state race. The
 mapping and shared terminal guard now pass 1,259 regression tests/nine subtests;
-their rebuilt-image E2E and direct Demo response probe are pending. The recorded
-30-minute run retains its original image provenance.
+commit `32285f5c8` and standard image `17d530e26018...` pass rebuilt-image E2E,
+a direct Demo `51400`/terminal-readback probe under real PG ownership, and idle
+service startup/clean shutdown. The probe submits no new orders. The recorded
+30-minute run retains its original `8401c10c2c5c...` image provenance; no new full
+load/soak or 30-minute Demo run is claimed for the cancellation fix.
 
 OKX documents Demo API keys, the `x-simulated-trading: 1` REST header and separate
 demo WebSocket endpoints; REST may share the production host. Verify the account's
@@ -625,9 +628,10 @@ port 443 is already available. Checked 2026-10-25.
 - [x] Run a short 30-minute demo observation with conservative configured order frequency and existing exchange throttlers. Cancel test-owned quotes on completion and report retained positions as the stop policy requires. The stress/load driver remains local; do not stress-test OKX.
 - [x] Record sanitized results, selected demo instruments, account mode, image/config hashes and remaining gaps; update this plan and commit. Demo checks exchange integration, not LIFE listing availability, production fill quality or profitability. No Cloud Run staging is required.
 
+- [x] Finish rebuilt-image E2E and the direct known-terminal Demo cancellation probe for the post-observation fix; retain the original observation's image identity.
+
 Unverified Demo checks are deliberately kept open:
 
-- [ ] Finish rebuilt-image E2E and the direct known-terminal Demo cancellation probe for the post-observation fix; retain the original observation's image identity.
 - [ ] Observe natural fills and verify exchange/private-stream/recorder fees and recovery with filled exposure. This observation had zero fills/positions; local fixtures cover these paths.
 - [ ] Observe a Demo funding payment and verify its original-currency accounting against the exchange. No payment was observed in the bounded run.
 

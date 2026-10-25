@@ -1716,6 +1716,60 @@
     "duplicate_cancel_51400_error_lines": 40,
     "all_duplicate_cancel_orders_have_terminal_cancel_events": true,
     "other_error_lines": 0,
-    "followup": "Reduce duplicate cancellation requests/error noise while preserving terminal-state readback."
+    "followup": "Fixed and separately verified by post_observation_cancel_fix; original observation log counts retained."
+  },
+  "post_observation_cancel_fix": {
+    "implementation_commit": "32285f5c89409f928bc1aad7f0b4358c19ce1f2c",
+    "image_id": "sha256:17d530e26018da8c5d0e4f7c2f769fc29c28dd04f6a3c908f7f6f5568fa49023",
+    "source_sha256": {
+      "hummingbot/cli/admin_api.py": "fe16e3420f0866ce33b64a79e7ff3275b97fcaa18f1bfe3777e76d360dad16e2",
+      "hummingbot/model/admin_reporting.py": "940bd248e2e93e55c6def963c3602d9933197ed94a0222fcc78103a30ebf0d69",
+      "hummingbot/strategy_v2/controllers/controller_base.py": "890ee37f43c2229989fda948c93a808fa30ada5e44f08fd3180415715c05e688",
+      "hummingbot/strategy_v2/runnable_base.py": "60676eeb8b4e1035a85ee475f4a3ea3de8f5d7ad291e23404cfcf31c3ff97e8c",
+      "hummingbot/strategy/strategy_v2_base.py": "f8ce0fdd51cb0a36b64b79d244bab3e1b4e9541e7faba09a0c232b19b44672a8",
+      "hummingbot/data_feed/market_data_provider.py": "6b4f6603838629bd159b44f59bcb3ebe6f317803e09c776d8bb1e809bd1e472b",
+      "controllers/market_making/life_mm.py": "ff43b31afa388e03e9dbd6eb9fe8f856891be65503df933af4f333fca0d7cfe6",
+      "hummingbot/connector/perpetual_derivative_py_base.py": "e0a3d79112d16cf9ba2189b4051b34cf71327c237f99533001ea3593d0fc34fb",
+      "hummingbot/connector/derivative/okx_perpetual/okx_perpetual_api_order_book_data_source.py": "52ba4e0b12f2c8a19e52ebc6aac0e3a4d2bd18bc4539c2e2001205e8a461fbdd",
+      "hummingbot/connector/exchange_py_base.py": "1dd641f5b43d9fec4e9dea40e1f8953aaf5030a9b85c2d042b7409b8a4850db7",
+      "hummingbot/connector/derivative/okx_perpetual/okx_perpetual_derivative.py": "dca178b1252d6837d64c8f6a61dc97984e317585b3797c016994792bf6995393",
+      "hummingbot/connector/derivative/okx_perpetual/okx_perpetual_constants.py": "aeb64fe2e09d52762111a2e84f56b50f9601d4d1068eb99c67b2c43b6c3edc56"
+    },
+    "matches_checkout": true,
+    "native_regression_tests": 1259,
+    "native_subtests": 9,
+    "offline_evidence": {
+      "path": "build/e2e-offline/20261026-010051-890fb9/result.json",
+      "image_id": "sha256:17d530e26018da8c5d0e4f7c2f769fc29c28dd04f6a3c908f7f6f5568fa49023",
+      "passed": true,
+      "release_scope_complete": false
+    },
+    "direct_demo_probe": {
+      "environment": "demo",
+      "order_id": "93027a12dac34fBCBBCUT23a0db2150c",
+      "new_orders_submitted": 0,
+      "scope": "existing terminal order only",
+      "real_postgres_ownership_gate": true,
+      "new_risk_allowed": false,
+      "initial_exchange_state": "CANCELED",
+      "observed_s_code": "51400",
+      "state_after_ack_before_readback": "PENDING_CANCEL",
+      "state_after_authoritative_readback": "CANCELED",
+      "state_after_repeated_ack": "CANCELED",
+      "passed": true
+    },
+    "idle_service_smoke": {
+      "image_id": "sha256:17d530e26018da8c5d0e4f7c2f769fc29c28dd04f6a3c908f7f6f5568fa49023",
+      "startup_passed": true,
+      "desired_state": "stopped",
+      "session_status": "expired",
+      "running": false,
+      "trading_commands_submitted": 0,
+      "clean_exit": true,
+      "error_lines": 0
+    },
+    "orders_and_fills_unchanged": true,
+    "new_full_load_soak_run": false,
+    "new_30_minute_demo_run": false
   }
 }

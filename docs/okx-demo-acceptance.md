@@ -6,6 +6,13 @@ remain explicitly unverified. Two real integration defects were fixed with
 Red/Green regressions before the final run. Portable, credential-free evidence:
 [okx-demo-acceptance.json](okx-demo-acceptance.json).
 
+The currently retained runtime is
+`sha256:17d530e26018da8c5d0e4f7c2f769fc29c28dd04f6a3c908f7f6f5568fa49023`,
+code commit `32285f5c8`. It includes the cancellation fix discovered after the
+observation and passes full native regression, selected local E2E, a real fenced
+Demo terminal-response probe and idle startup/shutdown checks. The 30-minute
+numbers below retain their original `8401c10c2c5c...` image identity.
+
 | 30-minute observation check | Observed result |
 | --- | --- |
 | Three profiles × spot/perpetual/both | 9/9 cases pass; 48 confirmed post-only quotes |
@@ -19,7 +26,7 @@ Red/Green regressions before the final run. Portable, credential-free evidence:
 | Final database | 300 cancelled orders, zero fills, UTC, owner released, no HALT |
 
 Of the 300 persisted orders, 12 belong to the earlier spot pilot and 288 to the
-final image: 144 spot and 144 perpetual (48 matrix quotes plus 240 observation
+observation image: 144 spot and 144 perpetual (48 matrix quotes plus 240 observation
 quotes). History was preserved across fixes and reviewed recovery. The stopped
 service and PostgreSQL data are retained locally; the PostgreSQL container is
 still running. The final image's selected local E2E passed; no new full offline
@@ -150,7 +157,7 @@ suites pass **201 tests and seven subtests** afterward. Evidence:
 `build/okx-demo/contract-metadata-red.log` and
 `build/okx-demo/contract-metadata-green.log`.
 
-The metadata fix is committed as `c9b858e36`. The final standard image is
+The metadata fix is committed as `c9b858e36`. The observation image is
 `sha256:8401c10c2c5c50f4d426db6f2e8529506923fa77b02b0090f028e56c11c04fc2`;
 all nine reviewed runtime source hashes match the checkout. Its selected LIFE
 E2E matrix/recovery passes:
@@ -166,7 +173,7 @@ Under the ownership lock, only the known startup HALT/reason and teardown stop
 flag were reset. Order/receipt history was preserved. Evidence:
 `build/okx-demo/reviewed-recovery-after-metadata.json`.
 
-The final image completed all nine real profile/market combinations, with four
+The observation image completed all nine real profile/market combinations, with four
 exchange-confirmed post-only quotes in each single-market case and eight in each
 both-market case. Both-profile switches and matching command retries passed;
 test quotes cancelled on stop. The 30-minute random/both session completed, with
@@ -227,9 +234,22 @@ The full Cloud Run regression target passes **1,259 tests and nine subtests**
 `cancel-terminal-race-red.log`, `cancel-51400-green-focused.log` and
 `cancel-race-regression.log` in the same directory.
 
-The rebuilt image's local E2E and a direct Demo probe against an already-cancelled
-order are pending. The 30-minute observation remains evidence for image
-`8401c10c2c5c...`; it will not be relabelled as a new soak of the cancellation fix.
+Commit `32285f5c8` records the fix. The retained standard image
+`sha256:17d530e26018da8c5d0e4f7c2f769fc29c28dd04f6a3c908f7f6f5568fa49023`
+matches all 12 reviewed runtime source hashes and passes selected local LIFE E2E
+and recovery: `build/e2e-offline/20261026-010051-890fb9/result.json`.
+The direct Demo probe uses the real PostgreSQL ownership gate with new risk
+disabled and an expired/stopped session. An already-cancelled order returns the
+actual `51400`; its local state remains pending before readback, becomes CANCELED
+after authoritative REST readback, and stays CANCELED after a repeated reply.
+No new order is submitted. The same image starts an idle service with the
+persisted expired session and stops cleanly with zero ERROR lines; DB history
+remains 300 orders/zero fills and ownership is released.
+
+Evidence: `build/okx-demo/terminal-cancel-demo-probe.json`,
+`build/okx-demo/cancel-fixed-idle-smoke.json`, and the portable artifact's
+`post_observation_cancel_fix`. The 30-minute observation remains evidence for
+image `8401c10c2c5c...`; it is not relabelled as a new soak of this fix.
 
 ## Acceptance checklist
 
@@ -243,7 +263,7 @@ order are pending. The 30-minute observation remains evidence for image
 - [x] Record naturally observed fills/funding, or mark them unverified if absent.
 - [x] Record the final image/config hashes and held positions, update the plan
   and commit the final evidence. No Cloud Run staging or OKX stress test is used.
-- [ ] Validate the post-observation cancellation fix in its rebuilt image with
+- [x] Validate the post-observation cancellation fix in its rebuilt image with
   local E2E and direct Demo terminal-response/readback checks.
 
 ## Unverified Demo checks

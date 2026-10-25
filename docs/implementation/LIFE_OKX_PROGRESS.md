@@ -534,7 +534,7 @@ quotes. Remaining market cases and the observation are in progress.
 
 ### P6 Demo protocol completed — 2026-10-26 (Asia/Ho_Chi_Minh)
 
-The final standard image `sha256:8401c10c2c5c50f4d426db6f2e8529506923fa77b02b0090f028e56c11c04fc2`
+The observation image `sha256:8401c10c2c5c50f4d426db6f2e8529506923fa77b02b0090f028e56c11c04fc2`
 passes the selected LIFE offline E2E/recovery and the nine real profile/market
 cases. Seventeen start/switch/stop receipts complete with matching idempotent
 retries. The random/both session ran for its real 1,800-second duration
@@ -543,7 +543,7 @@ and preserved its anchors/start/deadline through a graceful minute-15 restart.
 Both scoped reconciliations matched spot and perpetual (12 orders per market in
 each window). FE probes return 200 and deduplicate the shared account correctly.
 
-The final image created 288 orders (144 spot/144 perpetual), all cancelled. The
+The observation image created 288 orders (144 spot/144 perpetual), all cancelled. The
 database retains those plus the earlier 12 cancelled pilot orders. Independent
 post-stop reads confirm zero pending orders, zero perpetual positions, unchanged
 BTC/ETH/OKB/USDT cash, UTC, an expired/stopped session, released owner and no HALT.
@@ -560,6 +560,12 @@ Final log review retains 40 duplicate-cancel `51400` errors from that observatio
 each paired with a successful cancellation event and terminal REST/DB readback.
 The perpetual adapter's missing response mapping is fixed. A new regression also
 exposed late cancel acknowledgements overwriting CANCELED/FILLED state; the shared
-cancel path now preserves terminal observations. Full Cloud Run regression passes
-1,259 tests/nine subtests. Focused rebuilt-image validation remains in progress;
-the completed observation keeps its original image identity and error counts.
+cancel path now preserves terminal observations. Commit `32285f5c8` records the
+fix, and full Cloud Run regression passes 1,259 tests/nine subtests. The retained
+standard image `17d530e26018...` passes selected local E2E/recovery, a real Demo
+`51400` probe with PG ownership/new risk disabled, and idle service startup/clean
+shutdown. The probe confirms pending-before-readback and terminal-state retention
+after a repeated reply, with no new orders. History remains 300 cancelled orders,
+zero fills, an expired/stopped session, no HALT and released ownership. The completed
+30-minute observation keeps its original image identity and 40 log entries; no
+new full load/soak or long Demo observation is claimed for the cancellation fix.
