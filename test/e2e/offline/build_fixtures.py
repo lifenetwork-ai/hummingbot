@@ -14,7 +14,7 @@ from hummingbot.core.data_type.in_flight_order import InFlightOrder
 def write_fixtures(path: Path):
     fixture = SimpleNamespace(base_asset="BTC", quote_asset="USDT", exchange_symbol_for_tokens=lambda base, quote: f"{base}-{quote}")
     instruments = OkxExchangeTests.all_symbols_request_mock_response.fget(fixture)
-    instruments["data"][0].update(tickSz="0.01", lotSz="0.000001", minSz="0.000001")
+    instruments["data"][0].update(tickSz="0.01", lotSz="0.00000001", minSz="0.00000001")
     balances = OkxExchangeTests.balance_request_mock_response_for_base_and_quote.fget(fixture)
     for details in balances["data"][0]["details"]:
         details.update(eq="10" if details["ccy"] == "BTC" else "10000",

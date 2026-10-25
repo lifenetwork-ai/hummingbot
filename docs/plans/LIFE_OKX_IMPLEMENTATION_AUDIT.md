@@ -22,6 +22,15 @@ tests plus 82 real-PostgreSQL tests pass. See
 and local image E2E/load/Demo acceptance remain open. The historical inventory and
 old phase mappings below are not a new audit of that implementation.
 
+Correctness follow-up (2026-10-26): real BTC Demo fills demonstrated that the
+upstream scaled-six decimal adapter discarded fractional quantities and could
+reject a legitimate fill replay. The fix reuses that adapter with unscaled
+PostgreSQL NUMERIC for its 15 fields, retaining the original SQLite format.
+Migration, daily reporting and exact reconciliation are covered by the current
+[plan's post-Demo checklist](LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md) and
+[runtime notes](../postgres-runtime.md#decimal-storage). This historical audit
+does not certify a new Cloud Run deployment or alter old Demo evidence.
+
 Reviewed: 2026-10-24 (Asia/Ho_Chi_Minh). Source: `2301ef6a6`.
 Scope: compare [the LIFE/OKX plan](LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md) with
 readable source and reproducible tests. No exchange calls, credentials, demo/live

@@ -172,7 +172,7 @@ The names below refer to existing Python model classes. Their SQL tables use the
 | `Metadata` | Retain useful metadata; do not use `local_db_version` to invoke the file-copy migrator |
 
 - [x] Inventory all registered/imported models; `get_declarative_base()` currently does not explicitly import every model in the directory.
-- [x] Retain the scaled-integer `SqliteDecimal` representation if its range/precision is sufficient. Test scale and overflow on PostgreSQL; change individual fields to `NUMERIC(p,s)` only with a demonstrated need and explicit data conversion.
+- [x] Resolve demonstrated precision loss: the BTC Demo showed scaled-six quantities being truncated. Reuse `SqliteDecimal` with exact, unscaled PostgreSQL `NUMERIC`, retain upstream SQLite behavior, and explicitly convert the 15 former BIGINT fields once in `013_preserve_decimal_precision.sql`. Derived fee/PnL values have no fixed database scale; historic lost digits cannot be recovered by migration.
 - [x] Preserve existing engine timestamp units; use UTC for new timestamps. Do not accidentally convert epoch milliseconds to seconds.
 - [x] Test JSON/Decimal/Enum serialization. Use JSONB for new structured state; change existing JSON columns only for specific query/index needs.
 - [x] Preserve `config_file_path` as the existing configuration identifier/path. Use stable relative names across revisions and exact query filters so histories from different configurations do not mix.

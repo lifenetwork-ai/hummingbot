@@ -45,6 +45,17 @@ async def test_fill_differences_are_reported(field, value, kind):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("field,kind", [("fillSz", "fill_quantity"), ("fillPx", "fill_price")])
+async def test_precision_sub_micro_difference_is_not_reported_as_matched(field, kind):
+    now, snapshot, connector = fixture()
+    original = connector._request_order_fills.return_value["data"][0][field]
+    connector._request_order_fills.return_value["data"][0][field] = str(Decimal(original) + Decimal("0.00000001"))
+    result = await check_market(connector, "spot", snapshot, ReconciliationRequest(), (None, False), now)
+    assert result["state"] != "matched"
+    assert kind in {row["kind"] for row in result["differences"]}
+
+
+@pytest.mark.asyncio
 async def test_full_fill_page_is_incomplete_and_uses_bill_cursor():
     now, snapshot, connector = fixture()
     fill = connector._request_order_fills.return_value["data"][0]

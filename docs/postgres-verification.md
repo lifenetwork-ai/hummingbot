@@ -261,8 +261,15 @@ been performed. Actual IAM, Secret Manager, exchange access/allowlisting and
 Cloud SQL/Cloud Run behavior require operator deployment inputs and remain
 unverified; staging is outside the agreed gates.
 
-The application still uses the original scale-six integer Decimal representation;
-the image assertions above use exactly representable values. This is not proof of
-arbitrary sub-micro precision across all exchange markets. No general live-executor
+The earlier image assertions above used the original scale-six integer Decimal
+representation and exactly representable values. The subsequent BTC Demo exposed
+truncation; the PostgreSQL precision follow-up now stores the 15 former scaled
+fields as unscaled NUMERIC, while preserving the upstream SQLite format. Its new
+checks cover 8-decimal partial fills, precise fee replay, ORM values beyond 18
+decimal places, natural-unit reporting and exact reconciliation. Previously
+discarded digits are not reconstructed. See
+[decimal operations](postgres-runtime.md#decimal-storage) and the
+[follow-up checklist](plans/LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md).
+No general live-executor
 or custom timer reconstruction after crashes is claimed: a persisted runtime marker
 forces HALT rather than silently resetting that risk state.

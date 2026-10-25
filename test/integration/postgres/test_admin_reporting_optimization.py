@@ -40,6 +40,9 @@ def test_reporting_large_history_measurement(pg_engine):
     finally:
         event.remove(pg_engine, "before_cursor_execute", capture)
     with pg_engine.begin() as connection:
+        # Measure the deliberately JIT-enabled baseline even when compilation
+        # exceeds the runtime budget. Actual daily() reads retain their 2s limit.
+        connection.exec_driver_sql("SET LOCAL statement_timeout='30s'")
         original_jit = connection.exec_driver_sql("SHOW jit").scalar_one()
         before = [connection.exec_driver_sql("EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) " + sql, params).scalar_one()
                   for sql, params in captured]

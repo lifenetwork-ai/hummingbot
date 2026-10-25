@@ -15,7 +15,7 @@ def ledger_violations(ledger, rows):
         key = row["market"], row["order_id"], row["exchange_trade_id"]
         if key in actual:
             errors.append("duplicate_recorder_fill")
-        actual[key] = tuple(Decimal(str(row[key])) / 1000000 for key in ("amount", "price", "trade_fee_in_quote"))
+        actual[key] = tuple(Decimal(str(row[key])) for key in ("amount", "price", "trade_fee_in_quote"))
         if "trade_fee" in row:
             fees = row["trade_fee"]
             original = sum((Decimal(str(fee["amount"])) for fee in fees.get("flat_fees", []) if fee["token"] == "USDT"), Decimal(0))

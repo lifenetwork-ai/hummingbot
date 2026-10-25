@@ -102,6 +102,46 @@ wait on/block writers, and the existing bootstrap deadline still applies.
 See [the performance review](postgres-performance-review.md) for measurements,
 query budgets and the decision to retain the existing in-memory caches.
 
+### Decimal storage
+
+PostgreSQL stores the existing `SqliteDecimal` fields as unscaled `NUMERIC`:
+order/fill quantities and prices, converted fill fees, position amounts/PnL and
+market-data values. Python reads/writes `Decimal`; there is no fixed database
+scale to round away BTC satoshis or derived fee digits. The upstream SQLite
+format retains its scaled-integer behavior. Funding and executor summary FLOAT
+columns are outside this quantity-storage change.
+
+`013_preserve_decimal_precision.sql` converts the 15 previous BIGINT fields by
+dividing their values by 1,000,000 exactly once. It checks the column type before
+conversion, so replay preserves already-unscaled values. Millisecond event
+timestamps stay BIGINT; the market-data collector's decimal-seconds timestamp
+is converted with its original scale. Previously truncated digits are not
+reconstructed. Daily reporting now sums natural units, and observational
+reconciliation reports any quantity/price difference instead of ignoring up to
+0.000001 BTC.
+
+For an existing scaled schema, stop all writers before applying this revision.
+An older scaled-integer revision is incompatible with the converted schema;
+schema validation must reject it. With auto migration disabled, apply migrations
+explicitly first. No existing Demo database is changed merely by editing or
+building this source. The scheduled funding observation retains its original
+image/schema until its bounded check finishes.
+
+Verification: 1,271 regression tests/nine subtests, 113 PostgreSQL tests and three
+extended precision checks pass. Image `1710edfec3fb...` passes all five applicable
+fresh-deployment offline scenarios, including nine LIFE profile/market cases.
+The spot scenario uses 8-decimal partial fills and 18-decimal fees through
+duplicate replay, restart and interrupted-transaction recovery. A 60-second
+diagnostic probe with 100,000 historical fills completes 20 reads/s, about 100
+market updates/s and one fill/s without budget violations: read p95 120.52ms,
+p99 622.44ms; 60 independent fills match the recorder and positions. History
+retains at most three queries per orders page and one per fills/performance read.
+This is not a new full load/soak, old-schema hot rollback or Cloud Run run.
+See [portable precision evidence](postgres-decimal-precision.json). Native local
+recorder p95 is 30.97ms over 25 transactions; cold daily statistics over 100,000
+fills use six queries, p95 1,289.85ms across 11 samples. Measurements overlapped
+other local test/image preparation and do not compare remote Cloud SQL latency.
+
 ## Existing databases
 
 Normal startup refuses mixed-case legacy tables even if canonical tables also

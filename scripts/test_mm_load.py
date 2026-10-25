@@ -23,7 +23,7 @@ from scripts.test_e2e_offline import Harness, docker, pin_manifest, poll  # noqa
 def seed_history(harness, count):
     """Reuse the PG performance fixture's generate_series bulk insert pattern.
 
-    Add recorder fills at the original scale six, dated yesterday and closed so
+    Add recorder fills in natural decimal units, dated yesterday and closed so
     the bounded current reconciliation scope does not include synthetic history.
     """
     assert 0 <= count <= 1000000
@@ -32,13 +32,13 @@ def seed_history(harness, count):
             creation_timestamp, order_type, amount, leverage, price, last_status, last_update_timestamp, creation_pending)
         SELECT 'load-history-' || n, 'load-history.yaml', 'v2_with_controllers',
             CASE WHEN n%2=0 THEN 'okx' ELSE 'okx_perpetual' END, 'LIFE-USDT', 'LIFE', 'USDT',
-            (extract(epoch from clock_timestamp())*1000)::bigint-86400000, 'LIMIT_MAKER',1000,1,100000,
+            (extract(epoch from clock_timestamp())*1000)::bigint-86400000, 'LIMIT_MAKER',0.001,1,0.1,
             'BuyOrderCompleted',(extract(epoch from clock_timestamp())*1000)::bigint-86400000,false
         FROM generate_series(1,{count}) n;
         INSERT INTO trade_fills (config_file_path,strategy,market,symbol,base_asset,quote_asset,timestamp,
             order_id,trade_type,order_type,price,amount,leverage,trade_fee,trade_fee_in_quote,exchange_trade_id,position)
         SELECT config_file_path,strategy,market,symbol,base_asset,quote_asset,creation_timestamp,id,'BUY',order_type,
-            price,amount,leverage,'{{"percent":"0","flat_fees":[{{"token":"USDT","amount":"0.000001"}}]}}'::json,1,id,'OPEN'
+            price,amount,leverage,'{{"percent":"0","flat_fees":[{{"token":"USDT","amount":"0.000001"}}]}}'::json,0.000001,id,'OPEN'
         FROM orders WHERE id LIKE 'load-history-%'; ANALYZE orders; ANALYZE trade_fills;
     """)
 
@@ -69,7 +69,7 @@ def read_metrics(harness, bot):
 
 def verify_ledger(harness, port, *, require_running=True):
     ledger = harness.ledger()
-    rows = json.loads(harness.sql("SELECT COALESCE(json_agg(t),'[]') FROM (SELECT market,order_id,exchange_trade_id,amount,price,trade_fee,trade_fee_in_quote FROM trade_fills WHERE config_file_path <> 'load-history.yaml') t"))
+    rows = json.loads(harness.sql("SELECT COALESCE(json_agg(t),'[]') FROM (SELECT market,order_id,exchange_trade_id,amount::text AS amount,price::text AS price,trade_fee,trade_fee_in_quote::text AS trade_fee_in_quote FROM trade_fills WHERE config_file_path <> 'load-history.yaml') t"))
     (harness.report / "recorder-load-fills.json").write_text(json.dumps(rows, indent=2))
     assert not ledger_violations(ledger, rows), "Independent fill/fee/unit comparison failed"
     assert not ledger["unknown"]

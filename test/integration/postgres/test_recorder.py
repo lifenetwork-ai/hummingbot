@@ -163,6 +163,36 @@ def test_conflicting_duplicate_fill_is_rejected(recording):
     assert not manager.persistence_healthy
 
 
+def test_precision_partial_fill_replay_and_exact_daily_totals(recording):
+    from hummingbot.model.admin_reporting import daily
+
+    recorder, manager, market = recording
+    amount = Decimal("0.00024818")
+    price = Decimal("80584.123456789012345678")
+    fee = Decimal("0.000000198544123456")
+    first = fill(amount=amount, price=price,
+                 trade_fee=AddedToCostTradeFee(flat_fees=[TokenAmount("USDT", fee)]))
+    # The real Demo failure also made replay look like a conflicting duplicate.
+    recorder._did_fill_order(MarketEvent.OrderFilled.value, market, first)
+    recorder._did_fill_order(MarketEvent.OrderFilled.value, market, first)
+    recorder._did_fill_order(MarketEvent.OrderFilled.value, market,
+                             fill(exchange_trade_id="fill-2", amount=Decimal("0.00000001"), price=price,
+                                  trade_fee=AddedToCostTradeFee(flat_fees=[TokenAmount("USDT", fee)])))
+    recorder._did_create_order(MarketEvent.BuyOrderCreated.value, market, create())
+    with manager.get_new_session() as session:
+        rows = session.query(TradeFill).order_by(TradeFill.exchange_trade_id).all()
+        assert len(rows) == 2
+        assert rows[0].amount == amount and rows[0].price == price
+        assert rows[1].amount == Decimal("0.00000001")
+        assert all(row.trade_fee_in_quote == fee for row in rows)
+    stats = daily(manager.engine, start_day="2023-11-14", end_day="2023-11-15", reporting_timezone="UTC")
+    day = stats["markets"][0]["days"][0]
+    assert day["buy_volume_base"] == Decimal("0.00024819")
+    assert day["buy_volume_quote"] == price * Decimal("0.00024819")
+    assert day["fee_in_usdt"] == fee * 2
+    assert manager.persistence_healthy and len(market.persisted_fills) == 2
+
+
 def test_actual_db_session_loss_before_commit_keeps_fill_replayable(recording):
     recorder, manager, market = recording
 
@@ -190,7 +220,7 @@ def test_actual_db_session_loss_before_commit_keeps_fill_replayable(recording):
         assert session.query(OrderStatus).count() == 1
 
 
-@pytest.mark.parametrize("price", [Decimal("10000000000000"), Decimal("Infinity")])
+@pytest.mark.parametrize("price", [Decimal("1E+131072"), Decimal("Infinity")])
 def test_decimal_overflow_rolls_back_and_never_marks_fill_persisted(recording, price):
     recorder, manager, market = recording
     with pytest.raises(StatementError):
@@ -251,7 +281,7 @@ def test_all_registered_models_roundtrip(pg_engine):
                 elif isinstance(kind, Date):
                     value = date(2026, 1, 2)
                 elif isinstance(kind, SqliteDecimal):
-                    value = Decimal("123.456789")
+                    value = Decimal("123.456789012345678901234567890123")
                 elif isinstance(kind, (BigInteger, Integer)):
                     value = 1700000000123 if isinstance(kind, BigInteger) else 1
                 elif isinstance(kind, Boolean):

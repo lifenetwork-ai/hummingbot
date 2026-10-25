@@ -201,7 +201,7 @@ def seed_orders(engine, count=100000):
                 quote_asset, creation_timestamp, order_type, amount, leverage, price,
                 last_status, last_update_timestamp, creation_pending)
             SELECT 'history-' || n, 'test.yml', 'pure_market_making', 'okx', 'BTC-USDT',
-                'BTC', 'USDT', 1700000000000 + n, 'LIMIT', 100000, 1, 100000000,
+                'BTC', 'USDT', 1700000000000 + n, 'LIMIT', 0.1, 1, 100,
                 'BuyOrderCompleted', 1700000001000 + n, n = :count
             FROM generate_series(1, :count) AS n
         """), {"count": count})

@@ -602,3 +602,48 @@ It checks stopped/no-HALT/unchanged position and config before startup, compares
 the real USDT funding bill with the recorder, then stops and restores config.
 Absence/mismatch leaves the funding checkbox open. No funding payment has been
 fabricated or marked passed in advance.
+
+### Post-Demo PostgreSQL decimal precision fix — 2026-10-26
+
+The owner authorized the correction before deployment. Red tests reproduced
+truncated BTC quantities, conflicting duplicate-fill replay and a one-satoshi
+quantity/price difference incorrectly reported as matched. The existing
+`SqliteDecimal` adapter now uses unscaled PostgreSQL NUMERIC with Python Decimal;
+its upstream SQLite format is unchanged. No new persistence framework or cache
+was added. SQL `013_preserve_decimal_precision.sql` converts the 15 old BIGINT
+fields once, without reconstructing lost digits. Daily reporting uses natural
+units, and reconciliation compares quantities/prices exactly. Existing funding
+and executor summary FLOAT columns are outside this scaled-decimal fix.
+
+Validation passes: **1,271 regression tests/nine subtests**, **113 PostgreSQL
+tests**, and three extended checks for migration replay, recorder partial-fill
+replay/reporting and all-model round trips beyond 18 fractional digits. The
+first full PG run exposed a diagnostic JIT-enabled EXPLAIN exceeding the runtime
+2s budget; only that deliberate baseline measurement now has a separate 30s
+budget. Actual application query budgets are unchanged.
+
+Rebuilt image `sha256:1710edfec3fb317d8435fc7957046d7454c210aa6fd68c5f963db323d771a648`
+is 1,364,481,469 bytes and its four runtime/migration hashes match the source.
+All five applicable offline scenarios pass across combined/selected runs:
+schema and spot (including 8-decimal partial fills and 18-decimal fees), V2 spot,
+V2 perpetual and the nine-case LIFE matrix/recovery. Initial image smoke/V2
+assertions still expected 13 scripts/scaled integer units; those fixtures were
+updated to 14/natural units before the affected reruns. The initial combined
+report remains marked failed; passing scenario evidence is linked separately.
+No compatible-old-image hot rollback is claimed for this schema change.
+
+A **60-second diagnostic load probe** with 100,000 historical fills passes at
+20 reads/s, ~100 market updates/s and one fill/s: read p95 **120.52ms**, p99
+**622.44ms**, no violations. Sixty exchange/recorder fills and positions match;
+orders use at most three queries, fills/performance one, with no new N+1. Native
+recorder p95 is **30.97ms** over 25 transactions (budget 100ms). Cold 100,000-fill
+daily statistics p95 is 1,289.85ms/11 samples and six queries. These local numbers
+overlapped test/image preparation; no full soak or Cloud Run performance claim
+is made. [Portable evidence](../postgres-decimal-precision.json) includes source
+hashes, individual offline reports, scope and probe metrics.
+
+The existing Demo database and five historical fills are unchanged. Its stopped
+container still uses the original `17d530e26018...` image so the scheduled
+07:00 Vietnam funding check can finish against a consistent image/schema. The
+precision image is for subsequent fresh runtime use; no new real Demo order or
+Cloud Run deployment was submitted during this correction.

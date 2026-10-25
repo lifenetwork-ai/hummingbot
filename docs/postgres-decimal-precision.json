@@ -1,0 +1,309 @@
+{
+  "purpose": "PostgreSQL scaled-decimal precision correction before deployment",
+  "passed": true,
+  "image_id": "sha256:1710edfec3fb317d8435fc7957046d7454c210aa6fd68c5f963db323d771a648",
+  "size_bytes": 1364481469,
+  "source_sha256": {
+    "hummingbot/model/decimal_type_decorator.py": "2423cc3e2bdc033b4e23f060aba8d25d80f1238656a5676dc2892bcf7cf7d2f7",
+    "hummingbot/model/admin_reporting.py": "93742cd0901f7c1dc09707ff6f88be1b68fa5aabb69939d3b8ea2abb9aacf484",
+    "hummingbot/core/admin_reconciliation.py": "dab30701d905d43d9600b2ec3c5ce25dcc9de8e4eb8ab16f4ffa2672ab09b11d",
+    "hummingbot/model/db_migration/postgres/scripts/013_preserve_decimal_precision.sql": "9b259c32fa9a25e05d049194f7130ac9a283b9f3a0894f58039a6f80945711c0"
+  },
+  "matches_worktree": true,
+  "scope": {
+    "new_full_load_soak_run": false,
+    "cloud_run_deployed": false,
+    "existing_demo_database_migrated": false,
+    "historical_lost_digits_reconstructed": false,
+    "old_scaled_image_rollback_verified": false,
+    "sqlite_format": "upstream scaled integer unchanged"
+  },
+  "storage": "Unscaled NUMERIC; no declared database scale; Python Decimal; 15 former BIGINT fields converted once",
+  "tests": {
+    "regression": 1271,
+    "regression_subtests": 9,
+    "postgres": 113,
+    "extra_current_precision_checks": 3,
+    "red_logs": [
+      "build/precision/decimal-red.log",
+      "build/precision/reconciliation-red.log",
+      "build/precision/recorder-red.log",
+      "build/precision/migration-red.log"
+    ],
+    "green_logs": [
+      "build/precision/regression.log",
+      "build/precision/postgres-final.log",
+      "build/precision/extended-green.log"
+    ]
+  },
+  "offline_scenarios": {
+    "schema": {
+      "result": "build/e2e-offline/20261026-034604-746904/result.json",
+      "metrics": {
+        "valid_startup_s": 10.725,
+        "valid_shutdown_s": 0.974,
+        "repaired_startup_s": 9.634,
+        "repaired_shutdown_s": 1.228,
+        "file_backend_rejected": true,
+        "empty_rejected": true,
+        "drift_rejected": true,
+        "repaired_schema_validated": true
+      }
+    },
+    "spot": {
+      "result": "build/e2e-offline/20261026-034604-746904/result.json",
+      "metrics": {
+        "first_startup_s": 10.644,
+        "second_startup_s": 11.046,
+        "local_steady_resources": "cpu=3.06% memory=241.6MiB / 2GiB",
+        "local_database": {
+          "select_one_p95_ms": 0.33724999957485124
+        },
+        "first_shutdown_s": 1.26,
+        "second_shutdown_s": 1.264,
+        "third_startup_s": 9.222,
+        "fourth_startup_s": 10.387,
+        "fifth_startup_s": 10.501,
+        "sixth_startup_s": 9.274,
+        "seventh_startup_s": 9.926,
+        "accepted_orders": 14,
+        "persisted_fills": 3,
+        "websocket_reconnect": true,
+        "interrupted_recorder_recovered": true
+      }
+    },
+    "v2-spot": {
+      "result": "build/e2e-offline/20261026-035331-fc77ad/result.json",
+      "metrics": {
+        "v2-first_startup_s": 14.178,
+        "first_shutdown_s": 1.287,
+        "v2-second_startup_s": 15.109,
+        "second_shutdown_s": 1.618,
+        "accepted_orders": 1,
+        "persisted_fills": 1,
+        "position_base": "0.1",
+        "pnl_peak_restored": "12.345678"
+      }
+    },
+    "v2-perpetual": {
+      "result": "build/e2e-offline/20261026-035332-f0dbcc/result.json",
+      "metrics": {
+        "v2-first_startup_s": 14.017,
+        "first_shutdown_s": 1.343,
+        "v2-second_startup_s": 14.741,
+        "second_shutdown_s": 1.505,
+        "accepted_orders": 1,
+        "persisted_fills": 1,
+        "position_base": "0.1",
+        "pnl_peak_restored": "12.345678"
+      }
+    },
+    "life-mm": {
+      "result": "build/e2e-offline/20261026-035331-304834/result.json",
+      "metrics": {
+        "mm-first_startup_s": 14.467,
+        "first_shutdown_s": 1.194,
+        "mm-restart_startup_s": 9.47,
+        "mm-db-restart_startup_s": 10.206,
+        "matrix": [
+          {
+            "mode": "spot",
+            "profile": "follow_market",
+            "count": 4
+          },
+          {
+            "mode": "spot",
+            "profile": "sideways",
+            "count": 4
+          },
+          {
+            "mode": "spot",
+            "profile": "follow_token",
+            "count": 4
+          },
+          {
+            "mode": "perpetual",
+            "profile": "follow_market",
+            "count": 4
+          },
+          {
+            "mode": "perpetual",
+            "profile": "sideways",
+            "count": 4
+          },
+          {
+            "mode": "perpetual",
+            "profile": "follow_token",
+            "count": 4
+          },
+          {
+            "mode": "both",
+            "profile": "follow_market",
+            "count": 8
+          },
+          {
+            "mode": "both",
+            "profile": "sideways",
+            "count": 8
+          },
+          {
+            "mode": "both",
+            "profile": "follow_token",
+            "count": 8
+          }
+        ],
+        "restart_anchors": true,
+        "weighted_reference": true,
+        "stale_both": true,
+        "fills": 2,
+        "random_steps": true,
+        "expiry": true,
+        "reconciliation": "matched",
+        "db_fault_halt": true
+      }
+    }
+  },
+  "offline_scope_note": "Schema and spot passed in the initial combined run. That run then stopped at legacy scaled-unit V2 harness assertions; corrected V2 spot/perpetual and LIFE scenarios passed separately on the same image. This is not an old-image hot rollback certification.",
+  "precision_partial_fills": {
+    "amounts": [
+      "0.04000001",
+      "0.05999999"
+    ],
+    "fees": [
+      "0.004000000000000001",
+      "0.005999999999999999"
+    ],
+    "expected_total_base": "0.1",
+    "expected_total_fee": "0.01",
+    "recorder_replay_and_restart_verified": true
+  },
+  "native_performance": {
+    "recorder_p95_ms": 30.97,
+    "synchronous_fill_transactions": 25,
+    "daily_100000_fills": {
+      "samples": 11,
+      "p50_ms": 922.6253749802709,
+      "p95_ms": 1289.8538338486105,
+      "python_peak_mib": 0.03616523742675781,
+      "queries": 6
+    },
+    "context": "Local measurements overlapped test/image preparation; not a before/after Cloud SQL comparison."
+  },
+  "load_probe": {
+    "result": "build/mm-load/20261026-034722-f9b9b3/result.json",
+    "duration_seconds": 60,
+    "history_fills": 100000,
+    "read_p95_ms": 120.52376800056663,
+    "read_p99_ms": 622.4397980004142,
+    "completed_reads_per_second": 20.0,
+    "market_updates_per_second": 99.97475070521668,
+    "fills_per_second": 1.0,
+    "ledger": {
+      "unique_exchange_fills": 60,
+      "unique_recorder_fills": 60,
+      "positions_matched": true,
+      "daily_snapshots": 3
+    },
+    "violations": [],
+    "exchange_account_reads": 1,
+    "peak_rss_bytes": 324308992,
+    "route_queries": {
+      "/startup": {
+        "calls": 1,
+        "queries": 0,
+        "min": 0,
+        "max": 0
+      },
+      "/live": {
+        "calls": 1,
+        "queries": 0,
+        "min": 0,
+        "max": 0
+      },
+      "/api/v1/admin/commands": {
+        "calls": 8,
+        "queries": 28,
+        "min": 2,
+        "max": 5
+      },
+      "/api/v1/admin/commands/{id}": {
+        "calls": 13,
+        "queries": 13,
+        "min": 1,
+        "max": 1
+      },
+      "/api/v1/admin/status": {
+        "calls": 102,
+        "queries": 102,
+        "min": 1,
+        "max": 1
+      },
+      "/api/v1/admin/orders?limit=1": {
+        "calls": 102,
+        "queries": 204,
+        "min": 2,
+        "max": 2
+      },
+      "/api/v1/admin/orders?limit=100": {
+        "calls": 102,
+        "queries": 306,
+        "min": 3,
+        "max": 3
+      },
+      "/api/v1/admin/fills?limit=100": {
+        "calls": 102,
+        "queries": 102,
+        "min": 1,
+        "max": 1
+      },
+      "/api/v1/admin/positions": {
+        "calls": 102,
+        "queries": 102,
+        "min": 1,
+        "max": 1
+      },
+      "/api/v1/admin/balances": {
+        "calls": 102,
+        "queries": 102,
+        "min": 1,
+        "max": 1
+      },
+      "/api/v1/admin/orders?limit=500": {
+        "calls": 102,
+        "queries": 306,
+        "min": 3,
+        "max": 3
+      },
+      "/api/v1/admin/fills?limit=500": {
+        "calls": 102,
+        "queries": 102,
+        "min": 1,
+        "max": 1
+      },
+      "/api/v1/admin/performance": {
+        "calls": 101,
+        "queries": 101,
+        "min": 1,
+        "max": 1
+      },
+      "/api/v1/admin/reconciliation": {
+        "calls": 115,
+        "queries": 115,
+        "min": 1,
+        "max": 1
+      },
+      "/api/v1/admin/statistics/daily": {
+        "calls": 100,
+        "queries": 54,
+        "min": 0,
+        "max": 6
+      },
+      "/api/v1/admin/reconciliation/check": {
+        "calls": 1,
+        "queries": 4,
+        "min": 4,
+        "max": 4
+      }
+    }
+  }
+}

@@ -281,7 +281,8 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
              description="durable creation acknowledgments")
         buy = next(order for order in orders if order["side"] == "buy")
         print("Offline E2E: partial/duplicate fills and separate CLI history", flush=True)
-        for number, amount, fee in ((1, "0.04", "0.004"), (2, "0.06", "0.006")):
+        for number, amount, fee in ((1, "0.04000001", "0.004000000000000001"),
+                                    (2, "0.05999999", "0.005999999999999999")):
             if number == 2:
                 subscriptions = len(self.ledger()["subscriptions"])
                 self.control(drop_ws=True)
@@ -292,10 +293,10 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
             poll(lambda: self.sql("SELECT count(*) FROM public.trade_fills") == str(number), description="deduplicated partial fill")
         self.control(replay_trade_id="1")
         totals = json.loads(self.sql("SELECT json_build_object('amount',sum(amount)::text,'fees',sum(trade_fee_in_quote)::text,'price',min(price)::text) FROM public.trade_fills"))
-        # Existing SqliteDecimal represents scale-six values in BIGINT on PG too.
-        assert Decimal(totals["amount"]) / 1000000 == Decimal("0.1")
-        assert Decimal(totals["fees"]) / 1000000 == Decimal("0.01")
-        assert Decimal(totals["price"]) / 1000000 == Decimal("99")
+        # PostgreSQL recorder decimals use natural units.
+        assert Decimal(totals["amount"]) == Decimal("0.1")
+        assert Decimal(totals["fees"]) == Decimal("0.01")
+        assert Decimal(totals["price"]) == Decimal("99")
         history = self.cli("history", "pmm.yml")
         assert "-0.01" in history and "last recorded fill" in history and "error:" not in history
         self.report.joinpath("history.txt").write_text(history)
@@ -385,8 +386,8 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         poll(lambda: self.state()["status"].get("phase") == "halted", description="interrupted recorder reconciliation HALT")
         assert http(seventh_port, "/ready")[0] == 503
         poll(lambda: self.sql("SELECT count(*) FROM public.trade_fills") == "3", description="exchange fill recovered after rolled back transaction")
-        assert self.sql("SELECT sum(amount) FROM public.trade_fills") == "140000"
-        assert self.sql("SELECT sum(trade_fee_in_quote) FROM public.trade_fills") == "14000"
+        assert Decimal(self.sql("SELECT sum(amount) FROM public.trade_fills")) == Decimal("0.14")
+        assert Decimal(self.sql("SELECT sum(trade_fee_in_quote) FROM public.trade_fills")) == Decimal("0.014")
         assert "-0.014" in self.cli("history", "pmm.yml")
         assert len(self.ledger()["accepted"]) == 14
         self.metrics["accepted_orders"] = 14
@@ -451,21 +452,21 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
             assert not self.state()["recovery_state"].get("pending_mutations")
         self.control(fill={"clOrdId": order["clOrdId"], "amount": order["sz"], "fee": "0.01"}, duplicate=True)
         poll(lambda: self.sql("SELECT count(*) FROM public.trade_fills") == "1", description="V2 unique fill persisted")
-        fill = json.loads(self.sql("SELECT row_to_json(f) FROM public.trade_fills f"))
-        assert Decimal(str(fill["amount"])) == Decimal("100000")
-        assert Decimal(str(fill["price"])) == Decimal("98990000")
-        assert Decimal(str(fill["trade_fee_in_quote"])) == Decimal("10000")
+        fill = json.loads(self.sql("SELECT row_to_json(f) FROM public.trade_fills f"), parse_float=Decimal)
+        assert Decimal(str(fill["amount"])) == Decimal("0.1")
+        assert Decimal(str(fill["price"])) == Decimal("98.99")
+        assert Decimal(str(fill["trade_fee_in_quote"])) == Decimal("0.01")
         assert fill["market"] == connector and fill["config_file_path"] == config
         assert 1700000000000 < fill["timestamp"] < 2000000000000, "Recorder timestamps must remain epoch milliseconds."
         history = self.cli("history", config)
         assert "-0.01" in history and "error:" not in history
         self.report.joinpath("history-v2.txt").write_text(history)
         self.cli("stop", "--expected-version", "1", "--timeout", "9", "--json")
-        held = json.loads(self.sql("SELECT row_to_json(p) FROM public.positions p LIMIT 1"))
+        held = json.loads(self.sql("SELECT row_to_json(p) FROM public.positions p LIMIT 1"), parse_float=Decimal)
         assert held["controller_id"] == controller_id and held["connector_name"] == connector
-        assert Decimal(str(held["amount"])) == Decimal("100000")
-        assert Decimal(str(held["breakeven_price"])) == Decimal("98990000")
-        assert Decimal(str(held["cum_fees_quote"])) == Decimal("10000")
+        assert Decimal(str(held["amount"])) == Decimal("0.1")
+        assert Decimal(str(held["breakeven_price"])) == Decimal("98.99")
+        assert Decimal(str(held["cum_fees_quote"])) == Decimal("0.01")
         # Reviewable test-only checkpoint seed while stopped: verify that the
         # existing controller's startup hook cannot erase the persisted risk peak.
         checkpoint = {"_is_stop_triggered": False, "drawdown_exited_controllers": [controller_id],

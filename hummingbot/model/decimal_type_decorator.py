@@ -1,12 +1,13 @@
 from decimal import Decimal
 
-from sqlalchemy import BigInteger, TypeDecorator
+from sqlalchemy import BigInteger, Numeric, TypeDecorator
 
 
 class SqliteDecimal(TypeDecorator):
-    """
-    This TypeDecorator use Sqlalchemy BigInteger as impl. It converts Decimalsfrom Python to Integers which is later
-    stored in Sqlite database.
+    """Exact PostgreSQL decimals with the upstream scaled-integer SQLite format.
+
+    PostgreSQL NUMERIC has no fixed scale: derived prices/fees must not be rounded
+    by storage. The constructor's scale applies only to existing SQLite files.
     """
     impl = BigInteger
     cache_ok = True
@@ -24,16 +25,32 @@ class SqliteDecimal(TypeDecorator):
     def python_type(self):
         return Decimal
 
+    def load_dialect_impl(self, dialect):
+        return dialect.type_descriptor(Numeric() if dialect.name == "postgresql" else BigInteger())
+
     def process_bind_param(self, value, dialect):
+        if dialect.name == "postgresql":
+            return self._finite_decimal(value)
         return self._convert_decimal(value)
 
     def process_result_value(self, value, dialect):
         if value is not None:
-            value = Decimal(value) / self.multiplier_int
+            value = Decimal(value) if dialect.name == "postgresql" else Decimal(value) / self.multiplier_int
         return value
 
     def process_literal_param(self, value, dialect):
-        return str(self._convert_decimal(value))
+        return str(self.process_bind_param(value, dialect))
+
+    @staticmethod
+    def _finite_decimal(value):
+        if value is None:
+            return None
+        # Existing market-data timestamps can arrive as floats. Preserve their
+        # decimal spelling instead of manufacturing binary float digits.
+        result = Decimal(str(value)) if isinstance(value, float) else Decimal(value)
+        if not result.is_finite():
+            raise ValueError("Recorded Decimal must be finite.")
+        return result
 
     def _convert_decimal(self, value: Decimal) -> int:
         if value is None:

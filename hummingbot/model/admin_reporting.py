@@ -83,14 +83,14 @@ def daily(engine, *, start_day=None, end_day=None, reporting_timezone, market="a
             SELECT *, (trade_fee_in_quote IS NOT NULL AND quote_asset = 'USDT'
                 AND NOT (trade_fee_in_quote = 0 AND has_original_fee)) AS valid_conversion FROM scoped)
             SELECT market, day, COUNT(*) AS fill_count, MAX(timestamp) AS last_event_ms,
-                SUM(CASE WHEN trade_type='BUY' THEN amount::numeric ELSE 0 END)/1000000 AS buy_volume_base,
-                SUM(CASE WHEN trade_type='SELL' THEN amount::numeric ELSE 0 END)/1000000 AS sell_volume_base,
-                SUM(CASE WHEN trade_type='BUY' THEN price::numeric*amount::numeric ELSE 0 END)/1000000000000 AS buy_volume_quote,
-                SUM(CASE WHEN trade_type='SELL' THEN price::numeric*amount::numeric ELSE 0 END)/1000000000000 AS sell_volume_quote,
+                SUM(CASE WHEN trade_type='BUY' THEN amount ELSE 0 END) AS buy_volume_base,
+                SUM(CASE WHEN trade_type='SELL' THEN amount ELSE 0 END) AS sell_volume_base,
+                SUM(CASE WHEN trade_type='BUY' THEN price*amount ELSE 0 END) AS buy_volume_quote,
+                SUM(CASE WHEN trade_type='SELL' THEN price*amount ELSE 0 END) AS sell_volume_quote,
                 COUNT(*) FILTER (WHERE valid_conversion) AS converted_fill_count,
                 COUNT(*) FILTER (WHERE NOT valid_conversion) AS unconverted_fill_count,
                 COUNT(*) FILTER (WHERE COALESCE((trade_fee::jsonb->>'percent')::numeric,0) <> 0) AS percentage_fee_fill_count,
-                SUM(trade_fee_in_quote::numeric) FILTER (WHERE valid_conversion)/1000000 AS fee_in_usdt
+                SUM(trade_fee_in_quote) FILTER (WHERE valid_conversion) AS fee_in_usdt
             FROM converted GROUP BY market, day ORDER BY market, day
         """), params).mappings().all()
         fees = connection.execute(text("WITH scoped AS (" + FILL_SCOPE + """)

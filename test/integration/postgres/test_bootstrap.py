@@ -86,7 +86,7 @@ def test_populated_previous_canonical_schema_adds_recovery_columns_without_data_
         bootstrap_postgres(pg_engine, auto_migrate=automatic)
     with pg_engine.connect() as connection:
         assert connection.execute(text("SELECT amount,price,creation_timestamp,creation_pending FROM public.orders")).one() == (
-            1000001, 99123456, 1720000000123, False)
+            Decimal("1.000001"), Decimal("99.123456"), 1720000000123, False)
         assert connection.execute(text("SELECT control_version,recovery_state FROM public.bot_state")).one() == (7, {})
         assert connection.execute(text("SELECT saved_state FROM public.market_states")).scalar() == {"tracked": True}
 
@@ -116,7 +116,7 @@ def test_auto_disabled_absent_and_valid_schema(pg_engine):
 
 @pytest.mark.parametrize("ddl,expected", [
     ("DROP INDEX public.idx_orders_config_file_path_creation_timestamp; CREATE INDEX idx_orders_config_file_path_creation_timestamp ON public.orders(market)", "index mismatch"),
-    ("ALTER TABLE public.orders ALTER COLUMN amount TYPE NUMERIC", "type/nullability mismatch"),
+    ("ALTER TABLE public.orders ALTER COLUMN amount TYPE NUMERIC(20,8)", "type/nullability mismatch"),
     ("ALTER TABLE public.orders DROP CONSTRAINT pk_orders CASCADE", "primary key mismatch"),
     ("ALTER TABLE public.bot_state ALTER COLUMN desired_state SET DEFAULT 'running'", "default mismatch"),
     ("ALTER TABLE public.bot_state DROP CONSTRAINT chk_bot_state_desired_state", "check constraint mismatch"),

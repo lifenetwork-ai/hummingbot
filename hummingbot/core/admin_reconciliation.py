@@ -108,7 +108,7 @@ async def check_market(connector, market, snapshot, request, expected, started_a
             quantity = Decimal(actual.get("accFillSz", "0"))
             if market == "perpetual":
                 quantity = connector._format_size_to_amount(local["pair"], quantity)
-            if abs(cumulative - quantity) > Decimal("0.000001"):
+            if cumulative != quantity:
                 result["differences"].append(_difference("order_cumulative", cumulative, quantity, **identity))
             local_status = {"BuyOrderCompleted": "filled", "SellOrderCompleted": "filled", "OrderCancelled": "canceled",
                             "OrderExpired": "canceled", "BuyOrderCreated": "live", "SellOrderCreated": "live", "OrderFailure": "failed"}.get(local["status"])
@@ -142,7 +142,7 @@ async def check_market(connector, market, snapshot, request, expected, started_a
             exchange_total = sum((Decimal(fill["fillSz"]) for fill in exchange_fills.values()), Decimal(0))
             if market == "perpetual":
                 exchange_total = connector._format_size_to_amount(local["pair"], exchange_total)
-            if abs(exchange_total - quantity) > Decimal("0.000001"):
+            if exchange_total != quantity:
                 result["reasons"].append("exchange_fill_coverage_incomplete")
             if local["created_at"].timestamp() < started_at.timestamp() - 3 * 86400 and cumulative:
                 result["reasons"].append("fills_endpoint_history_window")
@@ -157,8 +157,7 @@ async def check_market(connector, market, snapshot, request, expected, started_a
                     amount = abs(connector._format_size_to_amount(local["pair"], amount))
                 for kind, recorded, observed in (("fill_quantity", Decimal(local_fill["amount"]), amount),
                                                  ("fill_price", Decimal(local_fill["price"]), Decimal(actual_fill["fillPx"]))):
-                    # Recorder quantities/prices are stored at scale six.
-                    if abs(recorded - observed) > Decimal("0.000001"):
+                    if recorded != observed:
                         result["differences"].append(_difference(kind, recorded, observed, **fill_identity))
                 fee = local_fill["fee"]
                 flat = {}
@@ -204,7 +203,7 @@ async def check_market(connector, market, snapshot, request, expected, started_a
                             key = pair, connector.get_position_side(row).name
                             actual_positions[key] = actual_positions.get(key, Decimal(0)) + amount
                 for key in sorted(set(positions) | set(actual_positions)):
-                    if abs(positions.get(key, Decimal(0)) - actual_positions.get(key, Decimal(0))) > Decimal("0.000001"):
+                    if positions.get(key, Decimal(0)) != actual_positions.get(key, Decimal(0)):
                         result["differences"].append(_difference("position_quantity", positions.get(key, Decimal(0)), actual_positions.get(key, Decimal(0)), pair=key[0], side=key[1]))
                     result["positions_checked"] += 1
         result["exchange_observed_at"] = datetime.now(timezone.utc)

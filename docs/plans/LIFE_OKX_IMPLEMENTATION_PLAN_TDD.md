@@ -331,8 +331,9 @@ market series.
 - **Required narrow fix:** the recorder currently writes zero when quote-fee
   conversion fails. Preserve unavailable conversions for new fills and flag
   ambiguous legacy values; a failed conversion must not look like a free trade.
-  Respect existing scale-six trade storage and legacy floating-point funding
-  precision. Decimal-string output does not recover precision already lost.
+  PostgreSQL order/fill/position decimals now use unscaled NUMERIC following the
+  demonstrated BTC precision fix below. Legacy floating-point funding precision
+  is unchanged. Decimal-string output does not recover precision already lost.
 - Reuse fetched account fields for LIFE/USDT `cashBal`, `availBal`, `eq`, `availEq`
   where present, labeling unavailable fields. Both connectors can expose the same
   account balance; select one canonical account view and never add their USDT
@@ -646,6 +647,24 @@ Focused follow-up checklist:
 
 - [x] Observe natural fills and verify exchange/private-stream/recorder fees and recovery with filled exposure. Five natural maker fills, exact original fees/currencies, real SHORT recovery and matched reconciliation are recorded in the focused follow-up.
 - [ ] Observe a Demo funding payment and verify its original-currency accounting against the exchange. No payment was observed in the bounded run.
+
+### Post-Demo correctness — preserve recorded decimal quantities
+
+The owner authorized this fix before deployment after real Demo spot fills lost
+0.00000016–0.00000018 BTC each. The former tolerance masked these differences;
+replaying a truncated fill could also be rejected as conflicting economic data.
+
+- [x] Reproduce precision loss, duplicate-fill replay failure and sub-micro reconciliation false matches with failing tests.
+- [x] Reuse the existing decimal adapter with unscaled PostgreSQL NUMERIC; preserve upstream SQLite storage and reject non-finite values.
+- [x] Add replayable SQL converting all 15 scaled BIGINT fields once; test legacy rows, new precise values, replay and disabled-migration validation.
+- [x] Sum natural units in daily statistics and compare quantities/prices exactly in observational reconciliation.
+- [x] Test 8-decimal partial fills/fees/replay and round-trip every affected ORM field beyond 18 decimal places.
+- [x] Finish full PostgreSQL/regression verification and deployment-image offline precision/recovery checks; record evidence and commit. 1,271 regression tests/nine subtests, 113 PostgreSQL tests and three extended precision checks pass. The same rebuilt image passes schema/spot, V2 spot/perpetual and all nine LIFE cases across combined/selected runs, plus a 60-second/100,000-history-fill diagnostic load probe. See [portable precision evidence](../postgres-decimal-precision.json).
+
+Original Demo evidence remains historical: no old quantity is fabricated or
+silently repaired, and the existing funding watcher continues on its original
+image/schema. Existing funding/executor summary FLOAT fields are outside this
+targeted scaled-decimal fix. See [runtime details](../postgres-runtime.md#decimal-storage).
 
 ## 8. Scope kept out
 

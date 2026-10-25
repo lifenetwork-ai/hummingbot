@@ -10,6 +10,12 @@ Latest follow-up: [natural-fill evidence](okx-demo-fill-acceptance.json). The
 current account has no pending orders and retains a Demo SHORT of **0.0004 BTC**;
 the earlier zero-position/unchanged-cash figures below describe the original run.
 
+The subsequently authorized PostgreSQL precision fix is now implemented and
+locally verified in image `1710edfec3fb...`: [precision evidence](postgres-decimal-precision.json).
+The Demo observations below remain evidence for their original images and
+scaled schema. Their lost digits were not fabricated or backfilled, and the
+scheduled funding watcher continues on `17d530e26018...` with its unchanged DB.
+
 The currently retained runtime is
 `sha256:17d530e26018da8c5d0e4f7c2f769fc29c28dd04f6a3c908f7f6f5568fa49023`,
 code commit `32285f5c8`. It includes the cancellation fix discovered after the
