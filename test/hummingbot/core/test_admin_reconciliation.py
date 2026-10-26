@@ -16,12 +16,14 @@ def fixture():
         amount=Decimal("10"), price=Decimal("0.1"), status="BuyOrderCompleted", created_at=now - timedelta(seconds=10))],
         fills=[dict(connector="okx", order_id="order-1", id="fill-1", amount="10", price="0.1",
                     fee={"percent": "0", "flat_fees": [{"token": "USDT", "amount": "0.01"}]})])
-    detail = dict(ordId="17", clOrdId="order-1", state="filled", accFillSz="10", uTime=str(int(now.timestamp() * 1000) - 1000))
+    detail = dict(ordId="17", clOrdId="order-1", instId="LIFE-USDT", side="buy", ordType="post_only",
+                  sz="10", px="0.1", state="filled", accFillSz="10", uTime=str(int(now.timestamp() * 1000) - 1000))
     fill = dict(ordId="17", clOrdId="order-1", tradeId="fill-1", billId="bill-1", fillSz="10", fillPx="0.1",
                 fee="-0.01", feeCcy="USDT", ts=str(int(now.timestamp() * 1000) - 1000))
     connector = SimpleNamespace(client_order_id_prefix="order-", _api_get=AsyncMock(return_value={"code": "0", "data": []}),
                                 name="okx", _request_order_update=AsyncMock(return_value={"code": "0", "data": [detail]}),
-                                _request_order_fills=AsyncMock(return_value={"code": "0", "data": [fill]}))
+                                _request_order_fills=AsyncMock(return_value={"code": "0", "data": [fill]}),
+                                exchange_symbol_associated_to_pair=AsyncMock(return_value="LIFE-USDT"))
     return now, snapshot, connector
 
 
@@ -31,7 +33,93 @@ async def test_observational_check_matches_quantities_and_original_fees_without_
     result = await check_market(connector, "spot", snapshot, ReconciliationRequest(market="spot"), (None, False), now)
     assert result["state"] == "matched" and result["complete"]
     assert result["orders_checked"] == 1 and result["fills_checked"] == 1
-    assert set(vars(connector)) == {"client_order_id_prefix", "_api_get", "name", "_request_order_update", "_request_order_fills"}
+    assert set(vars(connector)) == {"client_order_id_prefix", "_api_get", "name", "_request_order_update", "_request_order_fills",
+                                    "exchange_symbol_associated_to_pair"}
+
+
+def open_order_fixture():
+    now, snapshot, connector = fixture()
+    snapshot["orders"][0]["status"] = "BuyOrderCreated"
+    snapshot["fills"] = []
+    connector._request_order_update.return_value["data"][0].update(state="live", accFillSz="0")
+    connector._request_order_fills.return_value = {"code": "0", "data": []}
+    return now, snapshot, connector
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("field,value,kind", [
+    ("instId", "BTC-USDT", "order_instrument"),
+    ("side", "sell", "order_side"),
+    ("sz", "10.00000001", "order_quantity"),
+    ("px", "0.10000001", "order_price"),
+    ("ordType", "limit", "order_type"),
+])
+async def test_open_order_with_matching_ids_but_wrong_working_terms_is_a_mismatch(field, value, kind):
+    now, snapshot, connector = open_order_fixture()
+    connector._request_order_update.return_value["data"][0][field] = value
+    result = await check_market(connector, "spot", snapshot, ReconciliationRequest(market="spot"), (None, False), now)
+    assert result["state"] == "mismatch", result
+    assert result["complete"]
+    assert kind in {row["kind"] for row in result["differences"]}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("field", ["instId", "side", "sz", "px", "ordType"])
+async def test_missing_working_order_terms_cannot_report_match(field):
+    now, snapshot, connector = open_order_fixture()
+    del connector._request_order_update.return_value["data"][0][field]
+    result = await check_market(connector, "spot", snapshot, ReconciliationRequest(market="spot"), (None, False), now)
+    assert result["state"] == "incomplete", result
+    assert "order_details_incomplete" in result["reasons"]
+
+
+@pytest.mark.asyncio
+async def test_market_order_has_base_currency_size_and_no_limit_price():
+    now, snapshot, connector = open_order_fixture()
+    snapshot["orders"][0].update(order_type="MARKET", price=Decimal("NaN"))
+    connector._request_order_update.return_value["data"][0].update(ordType="market", px="", tgtCcy="base_ccy")
+    result = await check_market(connector, "spot", snapshot, ReconciliationRequest(market="spot"), (None, False), now)
+    assert result["state"] == "matched", result
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("size_currency,state", [("quote_ccy", "mismatch"), ("", "incomplete")])
+async def test_spot_market_order_size_currency_is_checked(size_currency, state):
+    now, snapshot, connector = open_order_fixture()
+    snapshot["orders"][0].update(order_type="MARKET", price=Decimal("NaN"))
+    connector._request_order_update.return_value["data"][0].update(ordType="market", px="", tgtCcy=size_currency)
+    result = await check_market(connector, "spot", snapshot, ReconciliationRequest(market="spot"), (None, False), now)
+    assert result["state"] == state, result
+    if size_currency:
+        assert "order_size_currency" in {row["kind"] for row in result["differences"]}
+
+
+@pytest.mark.asyncio
+async def test_perpetual_order_quantity_uses_existing_contract_conversion():
+    from hummingbot.connector.derivative.okx_perpetual.okx_perpetual_derivative import OkxPerpetualDerivative
+
+    now, snapshot, fake = open_order_fixture()
+    snapshot["orders"][0]["connector"] = "okx_perpetual"
+    fake._request_order_update.return_value["data"][0].update(instId="LIFE-USDT-SWAP", sz="100")
+    connector = OkxPerpetualDerivative(trading_pairs=["LIFE-USDT"], trading_required=False)
+    connector._contract_sizes["LIFE-USDT"] = Decimal("0.1")
+    connector.exchange_symbol_associated_to_pair = AsyncMock(return_value="LIFE-USDT-SWAP")
+    connector._api_get = fake._api_get
+    connector._request_order_update = fake._request_order_update
+    connector._request_order_fills = fake._request_order_fills
+    result = await check_market(connector, "perpetual", snapshot, ReconciliationRequest(market="perpetual"), ({}, False), now)
+    assert result["state"] == "matched", result
+
+
+@pytest.mark.asyncio
+async def test_order_amendment_between_reads_is_incomplete_even_if_timestamp_is_unchanged():
+    now, snapshot, connector = open_order_fixture()
+    detail = connector._request_order_update.return_value["data"][0]
+    connector._request_order_update.side_effect = [
+        {"code": "0", "data": [detail]}, {"code": "0", "data": [{**detail, "px": "0.2"}]}]
+    result = await check_market(connector, "spot", snapshot, ReconciliationRequest(market="spot"), (None, False), now)
+    assert result["state"] == "incomplete", result
+    assert "exchange_changed_during_check" in result["reasons"]
 
 
 @pytest.mark.asyncio

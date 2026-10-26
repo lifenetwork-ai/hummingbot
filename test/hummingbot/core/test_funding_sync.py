@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from hummingbot.core.funding_sync import DAY_MS, FundingSync
+from hummingbot.core.funding_sync import DAY_MS, HISTORY_MS, OVERLAP_MS, FundingSync, public_status
 
 
 class Memory:
@@ -120,3 +120,82 @@ async def test_downtime_beyond_history_limit_marks_gap_and_does_not_loop_expired
     assert store.state['history_gap_from_ms'] == now - 190 * DAY_MS
     assert getter.call_args.args[1]['begin'] >= now - 89 * DAY_MS
     assert 'after' not in getter.call_args.args[1]
+
+
+@pytest.mark.asyncio
+async def test_continuously_observed_history_does_not_become_a_retention_gap():
+    now = 1800000000000
+    start = now - 200 * DAY_MS
+    store = Memory()
+    store.state = dict(account_id='account', environment='demo', pairs=['BTC-USDT'],
+                       covered_from_ms=start, covered_until_ms=now - 120000, pending=None)
+    getter = AsyncMock(side_effect=[{'code': '0', 'data': [{'uid': 'account'}]}, {'code': '0', 'data': []}])
+    await FundingSync(store, getter, environment='demo').sync('owner', 1, now_ms=now,
+                                                              pairs={'BTC-USDT'}, earliest_ms=start)
+    assert store.state['covered_from_ms'] == start
+    assert store.state['covered_until_ms'] == now
+    assert store.state.get('history_gap_from_ms') is None
+    assert store.state.get('history_gap_until_ms') is None
+
+
+@pytest.mark.asyncio
+async def test_expired_overlap_does_not_invent_an_inverted_history_gap():
+    now = 1800000000000
+    cutoff = now - HISTORY_MS
+    covered = cutoff + OVERLAP_MS // 2
+    store = Memory()
+    store.state = dict(account_id='account', environment='demo', pairs=['BTC-USDT'],
+                       covered_from_ms=now - 100 * DAY_MS, covered_until_ms=covered,
+                       pending=dict(begin=covered - OVERLAP_MS, end=covered + DAY_MS, after='3'))
+    getter = AsyncMock(side_effect=[{'code': '0', 'data': [{'uid': 'account'}]}, {'code': '0', 'data': []}])
+    await FundingSync(store, getter, environment='demo').sync('owner', 1, now_ms=now, pairs={'BTC-USDT'})
+    assert getter.call_args.args[1]['begin'] >= cutoff
+    assert 'after' not in getter.call_args.args[1]
+    assert store.state.get('history_gap_from_ms') is None
+    assert store.state.get('history_gap_until_ms') is None
+    assert store.state['covered_from_ms'] == now - 100 * DAY_MS
+
+
+@pytest.mark.asyncio
+async def test_retention_gap_begins_at_last_coverage_not_the_first_old_order():
+    now = 1800000000000
+    start, covered = now - 200 * DAY_MS, now - 100 * DAY_MS
+    store = Memory()
+    store.state = dict(account_id='account', environment='demo', pairs=['BTC-USDT'],
+                       covered_from_ms=start, covered_until_ms=covered, pending=None)
+    getter = AsyncMock(side_effect=[{'code': '0', 'data': [{'uid': 'account'}]}, {'code': '0', 'data': []}])
+    await FundingSync(store, getter, environment='demo').sync('owner', 1, now_ms=now,
+                                                              pairs={'BTC-USDT'}, earliest_ms=start)
+    assert store.state['history_gap_from_ms'] == covered
+    assert store.state['history_gap_until_ms'] == now - HISTORY_MS
+
+
+def test_hourly_funding_cadence_is_not_reported_overdue_after_ten_minutes():
+    now = 1800000000000
+    state = dict(covered_until_ms=now - 600000, last_success_ms=now - 600000,
+                 poll_interval_seconds=3600)
+    status = public_status(state, now_ms=now)
+    assert status['state'] == 'observed'
+    assert status['backfill_pending'] is False
+    assert status['stale'] is False
+    delayed = public_status(state, now_ms=now + 7200000)
+    assert delayed['backfill_pending'] is True and delayed['stale'] is True
+
+
+@pytest.mark.asyncio
+async def test_sync_persists_configured_cadence_and_repairs_gap_inside_complete_coverage():
+    now = 1800000000000
+    start = now - 200 * DAY_MS
+    store = Memory()
+    # Older versions marked already-observed history as missing once the first
+    # order aged beyond retention. The contiguous checkpoint proves this false.
+    store.state = dict(account_id='account', environment='demo', pairs=['BTC-USDT'],
+                       covered_from_ms=start, covered_until_ms=now - 120000,
+                       history_gap_from_ms=start, history_gap_until_ms=now - HISTORY_MS)
+    getter = AsyncMock(side_effect=[{'code': '0', 'data': [{'uid': 'account'}]}, {'code': '0', 'data': []}])
+    worker = FundingSync(store, getter, environment='demo', poll_interval_seconds=3600)
+    await worker.sync('owner', 1, now_ms=now, pairs={'BTC-USDT'}, earliest_ms=start)
+    assert store.state['poll_interval_seconds'] == 3600
+    assert store.state.get('history_gap_from_ms') is None
+    assert store.state.get('history_gap_until_ms') is None
+    assert public_status(store.state, now_ms=now + 600000)['state'] == 'observed'

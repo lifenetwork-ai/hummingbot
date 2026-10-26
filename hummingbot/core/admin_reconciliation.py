@@ -11,6 +11,8 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from hummingbot.connector.derivative.okx_perpetual import okx_perpetual_constants
+from hummingbot.connector.exchange.okx import okx_constants
 from hummingbot.core.bot_ownership import BotOwnership
 from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.core.data_type.in_flight_order import InFlightOrder
@@ -100,6 +102,29 @@ async def check_market(connector, market, snapshot, request, expected, started_a
             if str(actual.get("ordId")) != str(local["exchange_order_id"]) or actual.get("clOrdId") != local["id"]:
                 result["differences"].append(_difference("order_identity", local["exchange_order_id"], actual.get("ordId"), **identity))
                 continue
+            required = ("instId", "side", "sz", "ordType") + (("px",) if order.order_type.is_limit_type() else ())
+            if market == "spot" and order.order_type == OrderType.MARKET:
+                required += ("tgtCcy",)
+            if any(actual.get(key) in (None, "") for key in required):
+                result["reasons"].append("order_details_incomplete")
+                continue
+            symbol = await connector.exchange_symbol_associated_to_pair(trading_pair=local["pair"])
+            order_types = okx_constants.ORDER_TYPE_MAP if market == "spot" else okx_perpetual_constants.ORDER_TYPE_MAP
+            working_amount = Decimal(actual["sz"])
+            if market == "perpetual":
+                working_amount = connector._format_size_to_amount(local["pair"], working_amount)
+            terms = [("order_instrument", symbol, actual["instId"]),
+                     ("order_side", order.trade_type.name.lower(), actual["side"]),
+                     ("order_type", order_types[order.order_type], actual["ordType"]),
+                     ("order_quantity", order.amount, working_amount)]
+            if order.order_type.is_limit_type():
+                terms.append(("order_price", order.price, Decimal(actual["px"])))
+            elif market == "spot":
+                # The existing OKX connector always submits market quantities in base currency.
+                terms.append(("order_size_currency", "base_ccy", actual["tgtCcy"]))
+            for kind, recorded, observed in terms:
+                if recorded != observed:
+                    result["differences"].append(_difference(kind, recorded, observed, **identity))
             if int(actual.get("uTime", "0")) > int(started_at.timestamp() * 1000):
                 result["reasons"].append("exchange_changed_during_check")
             result["orders_checked"] += 1
@@ -175,7 +200,8 @@ async def check_market(connector, market, snapshot, request, expected, started_a
             final_rows = final_response.get("data", [])
             if str(final_response.get("code")) != "0" or len(final_rows) != 1:
                 result["reasons"].append("final_order_read_unavailable")
-            elif any(final_rows[0].get(key) != actual.get(key) for key in ("ordId", "clOrdId", "state", "accFillSz", "uTime")):
+            elif any(final_rows[0].get(key) != actual.get(key) for key in
+                     ("ordId", "clOrdId", "instId", "side", "ordType", "sz", "px", "tgtCcy", "state", "accFillSz", "uTime")):
                 result["reasons"].append("exchange_changed_during_check")
         if market == "perpetual":
             positions, unsettled = expected

@@ -54,6 +54,23 @@ class BotStateStore:
             conditions = [BotState.bot_id == self.bot_id, BotState.control_version == expected_version]
             if desired_state == "running" and config_file_path is None:
                 conditions.append(BotState.config_file_path.isnot(None))
+            row = connection.execute(select(BotState.mm_session).where(*conditions)
+                                     .with_for_update()).mappings().first()
+            if row is None:
+                raise ControlConflict("Control version changed; read status and submit the intended command again.")
+            if config_file_path is not None:
+                # An explicit legacy YAML selection replaces the MM intent.
+                # Its former session must not keep future admin starts blocked.
+                values["mm_session"] = None
+            elif desired_state == "stopped" and row["mm_session"]:
+                from hummingbot.core.mm_session import MMSession
+                session = MMSession.model_validate(row["mm_session"])
+                if session.status in ("preparing", "running"):
+                    # The CLI and admin API share the same stop handshake:
+                    # revoke this generation now; the owner confirms cleanup.
+                    session.status = "stopping"
+                    session.generation += 1
+                    values["mm_session"] = session.model_dump(mode="json")
             result = connection.execute(update(BotState).where(*conditions).values(**values)
                                         .returning(BotState.control_version)).scalar()
             if result is None:

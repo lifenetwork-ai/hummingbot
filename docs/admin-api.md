@@ -121,6 +121,9 @@ Each market's exchange reads have a 20-second deadline and reuse connector
 throttlers/read helpers. Fill pagination uses OKX `billId`; position quantities
 use the existing contract metadata conversion. Active and held perpetual exposure
 are compared as separate long/short legs.
+Order comparisons include instrument, side, original quantity, type and limit
+price, plus base-currency sizing for spot market orders. Missing required terms
+make a check incomplete; changed terms between reads invalidate its snapshot.
 
 GET `/reconciliation` reads the latest stored result; polling does not contact OKX.
 Report states are `not_checked`, `checking`, `matched`, `mismatch`, `incomplete`

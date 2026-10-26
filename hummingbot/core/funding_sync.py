@@ -13,25 +13,27 @@ OVERLAP_MS = 3600000
 
 def public_status(state, *, now_ms=None, error=None):
     until = state.get("covered_until_ms")
+    interval_ms = state.get("poll_interval_seconds", 120) * 1000
     error = error or state.get("last_error")
     return dict(state="unavailable" if error else ("backfilling" if state.get("pending") or
-                (now_ms is not None and until is not None and until < now_ms - 120000) else
+                (now_ms is not None and until is not None and until < now_ms - interval_ms) else
                 "observed" if until is not None else "waiting"),
                 account_id=state.get("account_id"), environment=state.get("environment"),
                 pairs=state.get("pairs", []), covered_from_ms=state.get("covered_from_ms"),
                 covered_until_ms=until, last_success_ms=state.get("last_success_ms"),
-                backfill_pending=bool(state.get("pending")) or bool(now_ms and until and until < now_ms - 120000),
+                backfill_pending=bool(state.get("pending")) or bool(now_ms and until and until < now_ms - interval_ms),
                 history_gap_from_ms=state.get("history_gap_from_ms"), history_gap_until_ms=state.get("history_gap_until_ms"),
-                stale=state.get("last_success_ms") is None or bool(now_ms and now_ms - state["last_success_ms"] > 300000),
+                stale=state.get("last_success_ms") is None or bool(now_ms and now_ms - state["last_success_ms"] > max(300000, 2 * interval_ms)),
                 error=error, source="okx_account_bills")
 
 
 class FundingSync:
-    def __init__(self, store, getter, *, environment, max_pages=2):
-        if environment not in ("demo", "live") or not 1 <= max_pages <= 5:
+    def __init__(self, store, getter, *, environment, max_pages=2, poll_interval_seconds=120):
+        if environment not in ("demo", "live") or not 1 <= max_pages <= 5 or not 1 <= poll_interval_seconds <= 3600:
             raise ValueError("Invalid funding observer bounds")
         self.store, self.getter, self.environment = store, getter, environment
         self.max_pages, self.account_id = max_pages, None
+        self.poll_interval_seconds = poll_interval_seconds
 
     async def get(self, path, params):
         response = await asyncio.wait_for(self.getter(path, params), timeout=10)
@@ -53,26 +55,42 @@ class FundingSync:
             state = {}
         state = copy.deepcopy(state)
         cutoff = now_ms - HISTORY_MS
-        if state.get("covered_until_ms", cutoff) < cutoff or (state.get("pending") or {}).get("begin", cutoff) < cutoff:
-            state.update(history_gap_from_ms=state.get("covered_until_ms", cutoff), history_gap_until_ms=cutoff,
-                         covered_from_ms=cutoff, covered_until_ms=cutoff, pending=None)
+        gap_from, gap_until = state.get("history_gap_from_ms"), state.get("history_gap_until_ms")
+        if gap_from is not None and gap_until is not None and (
+                gap_from >= gap_until or
+                state.get("covered_from_ms", now_ms) <= gap_from < gap_until <= state.get("covered_until_ms", 0)):
+            # Repair earlier checkpoints that mistook retained, already-observed
+            # history (or an expired overlap) for missing settlements.
+            state.pop("history_gap_from_ms", None)
+            state.pop("history_gap_until_ms", None)
+
+        def history_gap(begin, end):
+            state["history_gap_from_ms"] = min(begin, state.get("history_gap_from_ms", begin))
+            state["history_gap_until_ms"] = max(end, state.get("history_gap_until_ms", end))
+
+        requested = min(earliest_ms if earliest_ms is not None else now_ms - 7 * DAY_MS, now_ms)
+        lower = max(requested, cutoff)
         # A newly introduced pair needs its own bounded historical sweep. Replay
         # existing pairs through the same account pages instead of N pair calls.
         if not set(pairs) <= set(state.get("pairs", [])):
-            state.pop("pending", None)
-            state.pop("covered_until_ms", None)
-            state.pop("covered_from_ms", None)
-        requested = min(earliest_ms if earliest_ms is not None else now_ms - 7 * DAY_MS, now_ms)
-        lower = max(requested, now_ms - HISTORY_MS)
+            state.update(pending=None, covered_from_ms=lower, covered_until_ms=lower)
+            if requested < lower:
+                history_gap(requested, lower)
+        elif state.get("covered_until_ms", cutoff) < cutoff:
+            # A downtime gap starts where successful coverage ended, not at the
+            # first historical order. Persisted old coverage does not expire.
+            history_gap(state["covered_until_ms"], cutoff)
+            state.update(covered_from_ms=cutoff, covered_until_ms=cutoff, pending=None)
+        elif (state.get("pending") or {}).get("begin", cutoff) < cutoff:
+            state["pending"] = None  # Only the already-covered overlap expired.
         state.update(account_id=self.account_id, environment=self.environment,
+                     poll_interval_seconds=self.poll_interval_seconds,
                      pairs=sorted(set(pairs) | set(state.get("pairs", []))))
-        if requested < lower:
-            state.update(history_gap_from_ms=requested, history_gap_until_ms=lower)
         state.setdefault("covered_from_ms", lower)
         state.setdefault("covered_until_ms", lower)
         pending = state.get("pending")
         if not pending:
-            begin = max(state["covered_from_ms"], state["covered_until_ms"] - OVERLAP_MS)
+            begin = max(state["covered_from_ms"], state["covered_until_ms"] - OVERLAP_MS, cutoff)
             pending = dict(begin=begin, end=min(now_ms, begin + DAY_MS), after=None)
         if pending["begin"] >= pending["end"]:
             return state

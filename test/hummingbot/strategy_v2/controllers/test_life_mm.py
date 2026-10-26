@@ -9,6 +9,8 @@ from pydantic import ValidationError
 from controllers.market_making.life_mm import LifeMMConfig, LifeMMController
 from hummingbot.core.data_type.common import OrderType, PositionMode, PositionSide, TradeType
 from hummingbot.core.data_type.order_book import OrderBook
+from hummingbot.strategy_v2.models.base import RunnableStatus
+from hummingbot.strategy_v2.models.executors import CloseType
 
 
 def configuration(**updates):
@@ -326,3 +328,84 @@ async def test_public_reference_connector_fetches_existing_instrument_metadata()
     controller.market_data_provider.acquire_order_books = AsyncMock(return_value={"BTC-USDT": True})
     await controller.on_start()
     connector._update_trading_rules.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("account_balance", [Decimal("1000"), Decimal("1100")])
+async def test_partial_spot_fill_keeps_active_entry_reserved_until_hold(account_balance):
+    controller, _ = make_controller(configuration(max_base_inventory="1700", buy_spreads=[0.01, 0.02]))
+    await controller.update_processed_data()
+    connector = controller.market_data_provider.get_connector_with_fallback.return_value
+    connector.get_balance.side_effect = lambda asset: account_balance if asset == "LIFE" else Decimal("1000")
+    entry = controller.get_executor_config("buy_0", Decimal("0.099"), Decimal("600"))
+    partial = SimpleNamespace(id="partial", is_active=True, is_trading=True, status=RunnableStatus.RUNNING, config=entry,
+                              custom_info={"level_id": "buy_0"}, close_type=None, close_timestamp=None)
+    controller.executors_info = [partial]
+    # A 100-LIFE fill has happened, with 500 still resting. The account snapshot
+    # may or may not yet contain the fill; neither case releases the reservation.
+    assert all(action.executor_config.side != TradeType.BUY for action in controller.create_actions_proposal())
+    assert controller._exposure()[0] == account_balance + Decimal("600")
+    # is_active turns false as soon as keep_position begins shutdown, before
+    # cancel ACK; the remainder must stay reserved through this window.
+    partial.is_active = False
+    partial.is_trading = False
+    partial.status = RunnableStatus.SHUTTING_DOWN
+    partial.close_type = CloseType.POSITION_HOLD
+    assert all(action.executor_config.side != TradeType.BUY for action in controller.create_actions_proposal())
+    assert controller._exposure()[0] == account_balance + Decimal("600")
+
+    # Cancel ACK and final account state leave the 100-base fill in the balance;
+    # the original 600-base reservation must not remain after the hold completes.
+    partial.status = RunnableStatus.TERMINATED
+    connector.get_balance.side_effect = lambda asset: Decimal("1100") if asset == "LIFE" else Decimal("1000")
+    assert controller._exposure()[0] == Decimal("1100")
+    assert any(action.executor_config.side == TradeType.BUY for action in controller.create_actions_proposal())
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("side", [TradeType.BUY, TradeType.SELL])
+@pytest.mark.parametrize("account_fill", [Decimal("0"), Decimal("100")])
+async def test_partial_perpetual_fill_reserves_full_entry_against_gross_cap(side, account_fill):
+    controller, _ = make_controller(configuration(
+        connector_name="okx_perpetual", max_gross_base="1500",
+        buy_spreads=[0.01, 0.02] if side == TradeType.BUY else [0.01],
+        sell_spreads=[0.01, 0.02] if side == TradeType.SELL else [0.01]))
+    controller._account_ready = True
+    controller.market_data_provider.get_order_book.side_effect = None
+    controller.market_data_provider.get_order_book.return_value = SimpleNamespace(snapshot_uid=1000000, last_diff_uid=1000000)
+    connector = controller.market_data_provider.get_connector_with_fallback.return_value
+    connector.account_positions = {
+        "long": SimpleNamespace(trading_pair="LIFE-USDT", position_side=PositionSide.LONG,
+                                amount=account_fill if side == TradeType.BUY else Decimal("700")),
+        "short": SimpleNamespace(trading_pair="LIFE-USDT", position_side=PositionSide.SHORT,
+                                 amount=account_fill if side == TradeType.SELL else Decimal("700")),
+    }
+    await controller.update_processed_data()
+    level = "buy_0" if side == TradeType.BUY else "sell_0"
+    entry = controller.get_executor_config(level, Decimal("0.1"), Decimal("600"))
+    partial = SimpleNamespace(id="partial", is_active=True, is_trading=True, status=RunnableStatus.RUNNING,
+                              config=entry, custom_info={"level_id": level}, close_type=None, close_timestamp=None)
+    controller.executors_info = [partial]
+    # Gross exposure must not net opposite positions or discard the 500-base
+    # remaining entry merely because its first 100-base partial fill arrived.
+    assert controller.create_actions_proposal() == []
+    assert sum(controller._exposure()) == Decimal("1300") + account_fill
+    partial.is_active = False
+    partial.is_trading = False
+    partial.status = RunnableStatus.SHUTTING_DOWN
+    partial.close_type = CloseType.POSITION_HOLD
+    assert controller.create_actions_proposal() == []
+    assert sum(controller._exposure()) == Decimal("1300") + account_fill
+    partial.status = RunnableStatus.TERMINATED
+    connector.account_positions["long" if side == TradeType.BUY else "short"].amount = Decimal("100")
+    assert sum(controller._exposure()) == Decimal("800")
+    assert controller.create_actions_proposal()
+
+
+@pytest.mark.asyncio
+async def test_decimal_quote_spreads_respect_exact_price_bounds():
+    controller, _ = make_controller(configuration(min_price="0.099", max_price="0.101"))
+    await controller.update_processed_data()
+    assert controller.processed_data["ready"]
+    assert controller.get_price_and_amount("buy_0")[0] == Decimal("0.099")
+    assert controller.get_price_and_amount("sell_0")[0] == Decimal("0.101")

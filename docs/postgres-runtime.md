@@ -276,6 +276,8 @@ the strategy is stopped, expired, HALTed or spot-only. It never starts a strateg
 or sends trading/account mutations. `FUNDING_SYNC_INTERVAL_SECONDS` defaults to
 120 (allowed 1–3600); pending catch-up uses bounded batches of two pages with a
 one-second scheduling delay. Standby instances do not ingest bills.
+The checkpoint records that cadence: coverage is overdue after one configured
+interval, and the stale threshold is the greater of five minutes or two intervals.
 
 `funding_bills` stores exact NUMERIC amounts and exchange bill identity scoped by
 account/environment. The existing `funding_payments` event table is preserved;
@@ -286,7 +288,9 @@ PostgreSQL perpetual connectors. Original file mode remains unchanged.
 Bill pages and their checkpoint in `bot_state.recovery_state.funding_sync` commit
 atomically under owner fencing. Restart replays an overlapping one-hour window,
 including bills for positions already closed. A conservative 89-day history limit
-is reported explicitly when exceeded. The recent/archive readers preserve their
+applies to missing reads, while already-observed history remains valid. A downtime
+gap starts at the last committed coverage, and an expired overlap is trimmed
+without labelling already-covered history missing. The recent/archive readers preserve their
 existing authentication, time synchronization and throttling. Historical rates
 are null when unavailable; current rates never substitute for settlement rates.
 

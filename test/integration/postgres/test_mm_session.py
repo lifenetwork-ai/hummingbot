@@ -2,6 +2,8 @@ import asyncio
 import random
 from concurrent.futures import ThreadPoolExecutor
 from test.hummingbot.client.config.test_mm_profiles import CATALOGUE
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from sqlalchemy import text
@@ -142,3 +144,65 @@ def test_owner_restart_preserves_anchor_deadline_and_fences_previous_owner(sessi
         assert store.read()["mm_session"] == before
     finally:
         successor.release()
+
+
+def test_cli_stop_revokes_mm_generation_and_allows_new_admin_session_after_owner_cleanup(sessions, monkeypatch):
+    from hummingbot.cli.service import ServiceHost
+    from hummingbot.client.config.runtime_config import RuntimeSettings
+    from hummingbot.core import order_submission_guard
+
+    store, catalogue = sessions
+    request = MMSessionRequest(market_mode="spot", profile_id="sideways", duration_seconds=60)
+    first = store.request_mm_session(action="start", expected_version=0, catalogue=catalogue, request=request)
+    owner = BotOwnership(store.engine, "hummingbot")
+    assert owner.try_acquire()
+    try:
+        store.control(expected_version=1, desired_state="stopped")
+        pending = store.read()["mm_session"]
+        assert pending["status"] == "stopping"
+        assert pending["generation"] == 1
+        with pytest.raises(ControlConflict, match="active"):
+            store.request_mm_session(action="start", expected_version=2, catalogue=catalogue, request=request)
+
+        monkeypatch.setattr(order_submission_guard, "install_guard", lambda owner: None)
+        host = ServiceHost(RuntimeSettings.from_environment({"DATABASE_URL": "postgresql://unused/test"}),
+                           asyncio.Event(), MagicMock())
+        host.store, host.owner = store, owner
+        host.hb = SimpleNamespace(trading_core=SimpleNamespace())
+        host.stop_core = AsyncMock(return_value=True)
+        host.poll_reconciliation = AsyncMock()
+        host.poll_funding = MagicMock()
+        host.snapshot = MagicMock(return_value={"running": False, "phase": "stopped"})
+        asyncio.run(host.observe_once())
+        assert host.phase == "stopped"
+        assert store.read()["mm_session"]["status"] == "stopped"
+        assert store.read()["acknowledged_version"] == 2
+        second = store.request_mm_session(action="start", expected_version=2, catalogue=catalogue, request=request)
+        assert second["session_id"] != first["session_id"]
+    finally:
+        owner.release()
+
+
+@pytest.mark.parametrize("desired", ["running", "stopped"])
+def test_explicit_legacy_selection_replaces_mm_snapshot_without_leaving_admin_start_blocked(sessions, desired):
+    store, catalogue = sessions
+    request = MMSessionRequest(market_mode="spot", profile_id="sideways", duration_seconds=60)
+    store.request_mm_session(action="start", expected_version=0, catalogue=catalogue, request=request)
+    store.control(expected_version=1, desired_state=desired,
+                  config_file_path="legacy.yml", config_type="controller")
+    row = store.read()
+    assert row["config_type"] == "controller"
+    assert row["mm_session"] is None
+    store.control(expected_version=2, desired_state="stopped")
+    store.request_mm_session(action="start", expected_version=3, catalogue=catalogue, request=request)
+
+
+def test_cli_stop_preserves_recovery_halt(sessions):
+    store, catalogue = sessions
+    store.request_mm_session(action="start", expected_version=0, catalogue=catalogue,
+                             request=MMSessionRequest(market_mode="spot", profile_id="sideways", duration_seconds=60))
+    with store.engine.begin() as connection:
+        connection.execute(text("UPDATE bot_state SET recovery_state = '{\"halt\": true, \"reason\": \"review\"}'::jsonb"))
+    store.control(expected_version=1, desired_state="stopped")
+    assert store.read()["recovery_state"] == {"halt": True, "reason": "review"}
+    assert store.read()["mm_session"]["status"] == "stopping"

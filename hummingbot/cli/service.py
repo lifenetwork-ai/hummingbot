@@ -225,6 +225,10 @@ class ServiceHost:
         self.log.info("Service bootstrap completed bot=%s revision=%s", self.settings.bot_id, self.revision)
 
     async def validate_selection(self, row):
+        # A stopped service must remain available for control even when its
+        # previous revision's YAML or connector credentials were removed.
+        if row["desired_state"] == "stopped":
+            return
         from hummingbot.cli.strategy_configs import config_path, read_yaml
         from hummingbot.client import settings
         from hummingbot.client.config.config_helpers import all_configs_complete, load_strategy_config_map_from_file
@@ -234,8 +238,6 @@ class ServiceHost:
         from hummingbot.core.order_submission_guard import SUPPORTED_CONNECTORS
         from hummingbot.core.trading_core import TradingCore
         name, kind = row["config_file_path"], row["config_type"]
-        if name is None and row["desired_state"] == "stopped":
-            return
         if (kind not in self.catalogue or name not in self.catalogue[kind] or Path(name).name != name):
             raise RuntimeConfigurationError("Selected YAML configuration is not in this revision's deployed config set.")
         settings.required_exchanges.clear()
@@ -360,12 +362,22 @@ class ServiceHost:
             self.phase = "stopping"
             if not await self.stop_core():
                 raise RuntimeError("Service cleanup did not complete; process exit is required.")
+            latest = self.owner.check_owner()
+            if latest["control_version"] != version or latest.get("mm_session") != row.get("mm_session"):
+                return
+            row = latest
             self.applied_version = version
             self.applied_mm_identity = mm_identity
             self.error = None
             self.halt_requested = False
             try:
                 await self.validate_selection(row)
+                # Cleanup and configuration loading can both yield to a newer
+                # stop/switch. Never prepare an engine from the old intent.
+                latest = self.owner.check_owner()
+                if latest["control_version"] != version or latest.get("mm_session") != row.get("mm_session"):
+                    return
+                row = latest
                 if row["desired_state"] == "running":
                     self.owner.prepare(version, row["config_file_path"])
                     self.hb.trading_core.before_strategy_start = self.owner.reconcile
@@ -464,7 +476,8 @@ class ServiceHost:
             reader = FundingReader.from_environment()
             if self.funding_sync is None:
                 self.funding_sync = FundingSync(self.funding_store, reader,
-                                                environment=reader.connector.trading_environment)
+                                                environment=reader.connector.trading_environment,
+                                                poll_interval_seconds=self.funding_interval)
             else:
                 self.funding_sync.getter = reader
             self.funding_state = await self.funding_sync.sync(

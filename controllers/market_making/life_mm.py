@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from controllers.market_making import pmm_simple
 from hummingbot.core.data_type.common import OrderType, PositionMode, PositionSide, PriceType, TradeType
+from hummingbot.strategy_v2.models.base import RunnableStatus
 from hummingbot.strategy_v2.models.executor_actions import StopExecutorAction
 
 
@@ -216,10 +217,12 @@ class LifeMMController(pmm_simple.PMMSimpleController):
                          if position.trading_pair == self.config.trading_pair]
             long = sum((abs(position.amount) for position in positions if position.position_side == PositionSide.LONG), Decimal("0"))
             short = sum((abs(position.amount) for position in positions if position.position_side == PositionSide.SHORT), Decimal("0"))
-        # Include not-yet-placed entries. Partial fills may be counted conservatively
-        # until their executor enters is_trading; never net away opposing exposure.
+        # Reserve each active entry through cancellation/hold. is_trading becomes
+        # true on the first partial fill, while the remainder can still fill and
+        # account updates may lag. Counting its full amount is conservative until
+        # the executor terminates; then only the account exposure remains.
         for executor in self.executors_info:
-            if executor.is_active and not executor.is_trading:
+            if executor.is_active or executor.status == RunnableStatus.SHUTTING_DOWN:
                 if executor.config.side == TradeType.BUY:
                     long += executor.config.amount
                 elif self.config.connector_name == "okx_perpetual":

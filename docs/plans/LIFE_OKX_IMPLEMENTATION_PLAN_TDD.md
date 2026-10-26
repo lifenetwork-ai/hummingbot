@@ -4,6 +4,7 @@ Updated: 2026-10-26 (Asia/Ho_Chi_Minh). Implementation baseline: `2d1dc0b7b`.
 Status: P1–P7 implementation and required local/Demo acceptance complete,
 including the actual funding settlement and cold-restart deduplication check.
 See [funding acceptance evidence](../../reports/okx-demo-funding.json).
+Post-completion logic-flow review is in progress; its checklist follows P7.
 The [previous audit](../../reports/LIFE_OKX_IMPLEMENTATION_AUDIT.md) covers historical scope;
 this document is the current delivery checklist.
 
@@ -737,6 +738,23 @@ p99 **676.13ms**, zero unexpected errors/violations. Sixty unique fills and two
 identified funding bills match the independent ledger. This is a bounded local
 probe, not a new full soak or Cloud Run benchmark. Earlier failed runs remain
 recorded with their fixes/limits in [portable evidence](../../reports/funding-backfill-evidence.json).
+
+### Post-completion logic-flow review — 2026-10-26
+
+Reuse the existing service, control state, controller, reconciler and funding
+checkpoint. Detailed reproduction and scope: [logic-flow review](../../reports/life-mm-logic-review.md).
+
+- [x] Reproduce partial-fill/cancellation exposure release, reserve entries through cancel acknowledgement, and verify terminal hold releases the temporary reservation.
+- [x] Reproduce decimal-spread boundary rejection and preserve exact configured bid/ask prices through the shared MM helper.
+- [x] Reproduce superseded start/switch during cleanup/config loading and re-read current owner/control intent before preparing a strategy.
+- [x] Align CLI stop with MM stopping/generation fencing; explicit legacy selection replaces the old MM snapshot without clearing HALT.
+- [x] Keep stopped-service controls available when an older revision's selected YAML/credentials are absent; running selections still require validation.
+- [x] Reproduce false reconciliation matches for amended/wrong/missing order terms, including perpetual contract and spot market quantity units.
+- [x] Preserve already-observed funding history, report actual downtime gaps, trim expired overlap and repair false covered-history gaps.
+- [x] Persist configured funding cadence and use it for overdue/stale reporting.
+- [x] Pass the full native regression, real PostgreSQL and Swagger checks after consolidation.
+- [ ] Verify the rebuilt image across all offline schema/spot/V2/MM/funding/upgrade scenarios.
+- [ ] Run the isolated bounded load probe, retain image/source identities and publish final evidence; preserve historical Demo evidence under its original image.
 
 ## 8. Scope kept out
 
