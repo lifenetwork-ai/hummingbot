@@ -8,6 +8,11 @@ Post-completion logic-flow review is complete; its checklist follows P7.
 The [previous audit](../../reports/LIFE_OKX_IMPLEMENTATION_AUDIT.md) covers historical scope;
 this document is the current delivery checklist.
 
+The separate [incremental enhancements plan](LIFE_OKX_MM_ENHANCEMENTS_TDD_PLAN.md)
+defines proposed quote guards, risk-limit extensions, spot inventory skew,
+transition history/liquidity observations and adaptive spreads. Those additions
+have not started and do not reopen this completed baseline's acceptance items.
+
 ## 1. Required behavior
 
 Run the existing Hummingbot MM engine with three selectable reference profiles:
