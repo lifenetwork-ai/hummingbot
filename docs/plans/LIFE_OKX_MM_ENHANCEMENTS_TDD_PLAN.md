@@ -62,6 +62,24 @@ new profile may clear HALT. Stop/switch/expiry cancel quotes and preserve filled
 spot inventory and perpetual positions; this work must not introduce automatic
 market liquidation or market rebalancing.
 
+### Compatibility review against the baseline
+
+The phases are extensions, not drop-in configuration changes. The following
+integration gaps must be resolved in their owning phase before acceptance:
+
+| Baseline behavior | Required adaptation |
+|---|---|
+| `BotOwnership._check_mm_authority()` calls one boolean `mm_ready_check()` for all placements | Keep shared readiness for feed/session failures; add a small order-aware decision for BUY-only spending restrictions. Exhausting a BUY cap must not revoke the whole session or block permitted SELL/cancel operations |
+| Runner global drawdown iterates current controllers; orchestrator performance skips held positions outside current strategy markets | E2a must explicitly cover retained disabled-market exposure or reject admission for missing valuation. Passing thresholds into the runner alone is insufficient |
+| Runner controller drawdown only selects active executors with `not is_trading`, and stop actions default to closing positions | E2a must use the MM position-preserving service stop path and handle partial-fill remainders, preserving legacy caller behavior |
+| `orders` / `trade_fills` have no account/environment identity; one `BOT_ID` per DB is already enforced | E2b must establish and enforce a single account/environment binding for the existing DB before interpreting its fills. Do not claim multi-account attribution from market/pair filters |
+| PMM V1 derives skew range from one base-denominated `order_amount`; LIFE uses weighted quote allocations | E3 must adapt the range to the actual baseline LIFE level quantities. Copying the method or using one arbitrary level amount changes its meaning |
+| `update_reference()` replaces `processed_data`, sets multiplier to 1, and is called by runtime/final-send readiness checks | E1/E5 need one coherent observation/policy composition path. Repeated checks must not reset spread policy, advance a recovery timer by call count, or perform expensive indicator work |
+| Public books and private order updates have no shared atomic snapshot; candle feeds include the forming candle | E1 must treat own-order subtraction as conservative observation with explicit ambiguity; E5 must select completed intervals explicitly rather than use the last row unconditionally |
+
+These gaps do not authorize replacing the existing guard, tracker, accounting or
+execution systems. Add the smallest tested adapters at these extension points.
+
 ## 3. Configuration and API contract
 
 Strategy policy belongs in the existing YAML/catalogue and effective session
@@ -98,6 +116,9 @@ changes use the existing explicit switch lifecycle, with idempotency and expecte
 version checks. A running session's saved configuration remains authoritative
 across restart/revision changes. Decode older saved sessions with new features
 disabled, without resetting anchors, deadlines or risk checkpoints.
+Preserve the stored config hash of an older session; do not recompute it from a
+model dump that now includes new default fields. New sessions hash their fully
+resolved policy under an explicit schema/version convention.
 
 Durable risk limits, event history and these admin controls target the existing
 PostgreSQL service mode. Preserve the original file-mode defaults; reject an
@@ -128,6 +149,10 @@ report `market_price_unavailable` and block quoting. A known-order-filtered book
 is an observation, not proof of an independent fair value. Do not claim to exclude
 unknown/manual orders or quotes from other accounts. Bound book traversal and
 report insufficient coverage instead of scanning indefinitely.
+Private-order and public-book timestamps do not establish an atomic common
+snapshot. Define conservative handling of pending creates/cancels, depth smaller
+than tracked own remainder and fill/book update reordering; do not promise exact
+external liquidity reconstruction from these streams.
 
 An empty/own-only listing book cannot satisfy an enabled market-price guard.
 The existing explicit `initial_anchor` remains a bootstrap option when that guard
@@ -143,6 +168,7 @@ neither deadline is extended. Recovery HALT always takes precedence.
 - [ ] **Red:** threshold equality/exceedance, invalid Decimal inputs, manual range bounds, breakout, stale/crossed/empty/own-only books and insufficient filtered depth.
 - [ ] **Red:** own partial fills/cancel races, inconsistent book/order snapshots, both-market failure, expiry during recovery and restart without recapturing anchors.
 - [ ] **Green:** implement a bounded observation/decision helper; reuse cancellation and feed subscriptions; recheck authorization after throttling so queued new orders cannot ignore a failed guard.
+- [ ] **Green:** separate sampling/state transitions from repeatable readiness checks; make recovery depend on elapsed time and distinct valid observations, not the number of calls to `update_reference()`.
 - [ ] **Green:** expose guard reason, source quality and observation timestamps; test that cancellation remains permitted while new placement is blocked.
 - [ ] **Verify/commit:** focused controller/config/guard tests, real-PG lifecycle coverage and simulator fault cases pass; update guide/Swagger and record evidence.
 
@@ -171,6 +197,9 @@ not random generation or a newly assigned session ID. Start/switch/stop/restart
 must not reset a breached limit. Preserve existing explicit operator recovery;
 do not add an automatic risk reset endpoint. Loss-triggered shutdown must retain
 positions and use the bounded service shutdown path, including partial fills.
+The baseline controller stop branch does not satisfy this contract: it excludes
+partially trading executors and uses default stop actions. Add an MM-specific
+adapter to the existing service risk-stop path before enabling these thresholds.
 
 - [ ] **Red:** threshold wiring, peak initialization, finite values, equality/breach and global/per-controller scopes against the actual existing report semantics.
 - [ ] **Red:** risk-stop execution preserves positions; no unintended market closes, manual-kill restart or new sends after the stop decision.
@@ -184,6 +213,15 @@ This limit controls spot cash consumption; it is separate from outstanding quote
 allocation, drawdown and perpetual margin/exposure. Apply it per bot/account/
 environment/trading pair across sessions and random steps. Switching to perpetual
 and back must not erase recent spot spending.
+
+The first delivery supports the existing single-bot DB with one verified OKX
+account/environment binding persisted in the bot's risk state. Reject a changed
+account or demo/live environment against that bound history; market/pair filters
+cannot separate them in the current recorder schema. Legacy unbound history is
+unknown until its origin is established or it has aged outside a fully observed,
+reconciled window. Never retroactively label it using the current credentials.
+Multi-account reuse of the same recorder history would require explicit order
+attribution and is outside this phase.
 
 Use committed spot fills in the UTC half-open window `[now - window, now)`:
 buy consideration minus sell consideration, plus actual USDT-denominated fees
@@ -202,6 +240,11 @@ lifetime. Reserve before parallel executor submissions can consume the same
 capacity; recheck at the existing final send gate. Reconcile fill-to-reservation
 handoff without undercounting, and release only proven terminal/unsent remainder.
 This bounds admitted risk; it cannot undo requests already in flight at a breach.
+Key reservations by the existing client order identity. Rechecking the same order
+must count its reservation once, not reserve it again or add it as another new
+proposal. A BUY-only denial uses order-aware authorization; it must not set the
+global boolean readiness gate false. Preserve existing ownership/HALT checks for
+every permitted order and cancellation.
 
 Derive durable cashflow from existing rows, using bounded incremental reads and
 an in-process projection. Rebuild before admission after restart. Do not create
@@ -210,7 +253,9 @@ Use existing indexes first; add a simple idempotent index only if query evidence
 requires it. Recorder/DB uncertainty keeps new spending blocked.
 
 - [ ] **Red:** exact Decimal buys/sells, USDT fees/rebates, base/third-currency fees, window edges, duplicate/out-of-order fills and multiple same-timestamp fill identities.
+- [ ] **Red:** bound account/environment mismatch, unbound legacy history and restart cannot mix demo/live or another account's cashflow into the allowance.
 - [ ] **Red:** concurrent levels, partial fills, cancel timeout, delayed recorder writes, throttled placement and reserve-to-fill handoff cannot bypass the cap.
+- [ ] **Red:** repeated pre-intent/final-transport authorization counts one reservation once; BUY-only rejection does not block a funded SELL or require recovery for a proven unsent order.
 - [ ] **Red:** switch/restart/market-mode changes retain the rolling window; disabled behavior is unchanged; cap exhaustion blocks buys while funded sells remain possible.
 - [ ] **Green:** implement a small projection/reservation extension on existing recorder/owner paths and expose used/reserved/remaining capacity plus freshness.
 - [ ] **Verify/commit:** real-PG reconstruction/deduplication and simulator accounting tests pass; measure query count and hot-path cost with large historical data.
@@ -233,6 +278,12 @@ total quote budget, then apply outflow/exposure/balance caps and exchange roundi
 Never redistribute a rejected allocation back onto the blocked side or round up
 through a cap. Zero-sized/below-minimum levels are skipped. Perpetual keeps its
 current long/short/gross limits and does not use spot ratio skew.
+
+LIFE has no PMM V1 `order_amount`. Derive the skew range from the sum of the
+unskewed LIFE level amounts at their actual proposed prices, using the existing
+quote-to-base conversion. Reuse the compatible ratio/interpolation calculation;
+do not copy its base-order sizing assumption. Preserve the upstream caller's
+numerical behavior while keeping final LIFE quantities and cap checks in Decimal.
 
 - [ ] **Red:** neutral/underweight/overweight inventory, zero/invalid valuation, empty balances, stale account data and shared-collateral observations.
 - [ ] **Red:** all proposed levels together respect quote budget, rolling outflow and available base/quote after skew, rounding and partial-fill reservations.
@@ -301,6 +352,12 @@ volatility uses the configured floor. Bound the multiplier, keep levels ordered,
 validate resulting spread/price bounds and retain total quote capital/exposure
 limits. Evaluate on new completed candles and reuse subscriptions; do not scan a
 DataFrame or fetch REST data for every quote/FE request.
+Current candle rows may still be forming; choose completed intervals using the
+provider's timestamp/interval semantics and test boundary/reordered updates.
+Compose the cached multiplier/fee floor with reference updates so a service or
+send-gate `update_reference()` call cannot overwrite it with multiplier 1. Final
+checks validate freshness/version of the same composed decision without running
+NATR or copying the full book again for each order.
 
 - [ ] **Red:** fee currencies/rebates, unknown fee basis, one-sided/two-sided spread semantics and Decimal/tick-rounding boundaries.
 - [ ] **Red:** insufficient/stale/flat candles, NaN/infinite indicators, shocks, multiplier caps and final quote limits.
