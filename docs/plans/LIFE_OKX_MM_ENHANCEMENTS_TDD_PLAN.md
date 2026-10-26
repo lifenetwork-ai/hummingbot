@@ -2,7 +2,7 @@
 
 Date: 2026-10-26 (Asia/Ho_Chi_Minh).
 Status: E0, E1, E2a and E2b complete with local verification.
-E2c–E6 have not started.
+E2c is complete and locally verified; E3–E6 have not started.
 Only verified checklist items are marked complete.
 Baseline: `1867159e7`.
 Implementation priority: service availability, explainable trading decisions and
@@ -404,7 +404,7 @@ reconstruction and prevents a new binding HALT from reopening orders. Defaults
 remain disabled; no fill table, index, cache service or reset API
 was added. See the [guide](../life-mm-spot-outflow.md),
 [report](../../reports/life-mm-e2b-spot-outflow.md) and
-[evidence](../../reports/life-mm-e2b-spot-outflow.json). E2c–E6 remain open.
+[evidence](../../reports/life-mm-e2b-spot-outflow.json). E3–E6 remain open.
 
 ### E2c — Listing bootstrap without outside two-sided liquidity
 
@@ -460,12 +460,26 @@ reports `configured_anchor` / `reference_model` / `market_book`, bootstrap time
 remaining, qualification progress and the blocking reason. Model-based bootstrap
 prices are not labelled market-confirmed or guaranteed fair value.
 
-- [ ] **Red:** empty/own-only fresh listing books can bootstrap with complete policy; missing anchor/limits, stale feeds, unavailable instruments or HALT cannot.
-- [ ] **Red:** quote levels, both-market budgets, partial-fill reservations and bootstrap duration respect all E2 limits; widening spread cannot escape the anchor band.
-- [ ] **Red:** own quotes cannot move the original anchor or establish external qualification; intermittent depth resets qualification dwell time.
-- [ ] **Red:** expiry while throttled, restart, random/manual switch and revision changes cannot extend/re-arm bootstrap; later fresh market data recovers without a new bootstrap episode.
-- [ ] **Green:** extend existing state/config/admission paths and expose the guard state/reason; persist qualification/deadline before changing authorization.
-- [ ] **Verify/commit:** real-PG replay and offline listing-to-market transitions pass with the independent simulator, including both-market readiness and no forced fills.
+- [x] **Red:** empty/own-only fresh listing books can bootstrap with complete policy; missing anchor/limits, stale feeds, unavailable instruments or HALT cannot.
+- [x] **Red:** quote levels, both-market budgets, partial-fill reservations and bootstrap duration respect all E2 limits; widening spread cannot escape the anchor band.
+- [x] **Red:** own quotes cannot move the original anchor or establish external qualification; intermittent depth resets qualification dwell time.
+- [x] **Red:** expiry while throttled, restart, random/manual switch and revision changes cannot extend/re-arm bootstrap; later fresh market data recovers without a new bootstrap episode.
+- [x] **Green:** extend existing state/config/admission paths and expose the guard state/reason; persist qualification/deadline before changing authorization.
+- [x] **Verify/commit:** real-PG replay and offline listing-to-market transitions pass with the independent simulator, including both-market readiness and no forced fills.
+
+E2c is complete. Final native regression passed 1483 tests and eleven subtests;
+real-PG verification passed the 166-case full regression plus ten final bootstrap
+cases (171 unique cases across the runs). Final image listing/qualification E2E
+and the combined enabled sixty-second diagnostic passed. It uses 1 CPU/2 GiB,
+100000 historical orders/fills, 1200 successful reads, zero unexpected errors,
+p95 57.74ms / p99 296.04ms and sixty matching fills. The image scenario injects
+**zero fills** to qualify listing liquidity. It also proves clean stop after
+qualified outside-depth loss; the initially failing report/shutdown path was
+fixed with Red/Green coverage. See [report](../../reports/life-mm-e2c-listing-bootstrap.md),
+[evidence](../../reports/life-mm-e2c-listing-bootstrap.json) and
+[operational guide](../life-mm-listing-bootstrap.md). Production defaults remain
+disabled. E3–E6, the final all-feature image matrix/soak and external Demo checks
+remain open; this diagnostic does not close E6.
 
 ## 6. E3 — Spot inventory skew
 

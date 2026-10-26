@@ -30,10 +30,21 @@ class SidewaysRange(BaseModel):
         return self
 
 
+class BootstrapConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    duration_seconds: int = Field(gt=0, le=86400, strict=True)
+    max_anchor_move_bps: Decimal = Field(gt=0, lt=10000, allow_inf_nan=False)
+    max_quote: Decimal = Field(gt=0, allow_inf_nan=False)
+    min_external_depth_quote: Decimal = Field(gt=0, allow_inf_nan=False)
+    max_market_spread_bps: Decimal = Field(gt=0, lt=10000, allow_inf_nan=False)
+    qualification_seconds: Decimal = Field(gt=0, le=3600, allow_inf_nan=False)
+
+
 class QuoteGuardConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     enabled: bool = False
-    mode: Literal["strict"] = "strict"
+    mode: Literal["strict", "bootstrap_then_market"] = "strict"
+    bootstrap: Optional[BootstrapConfig] = None
     max_deviation_bps: Optional[Decimal] = Field(default=None, gt=0, lt=10000, allow_inf_nan=False)
     resume_deviation_bps: Optional[Decimal] = Field(default=None, ge=0, lt=10000, allow_inf_nan=False)
     recovery_delay_seconds: Decimal = Field(default=Decimal("5"), ge=0, le=3600, allow_inf_nan=False)
@@ -42,6 +53,10 @@ class QuoteGuardConfig(BaseModel):
 
     @model_validator(mode="after")
     def explicit_thresholds(self):
+        if self.mode == "bootstrap_then_market" and (not self.enabled or self.bootstrap is None):
+            raise ValueError("Bootstrap requires enabled guards and an explicit complete policy")
+        if self.mode == "strict" and self.bootstrap is not None:
+            raise ValueError("Bootstrap settings require bootstrap_then_market mode")
         if self.enabled and (self.max_deviation_bps is None or self.resume_deviation_bps is None
                              or self.resume_deviation_bps >= self.max_deviation_bps):
             raise ValueError("Enabled guards require explicit deviation and tighter resume thresholds")
@@ -55,6 +70,10 @@ class MarketObservation:
     observed_at: float
     token: tuple = ()
     detail: Optional[str] = None
+    external_bid_quote: Decimal = Decimal("0")
+    external_ask_quote: Decimal = Decimal("0")
+    market_spread_bps: Optional[Decimal] = None
+    bootstrap_eligible: bool = False
 
     @property
     def quality(self):
@@ -114,7 +133,8 @@ def observe_market(connector, book, pair, *, now, max_age_seconds, max_levels, m
                 ambiguous[index].add(projected)
             own[index][projected] = own[index].get(projected, Decimal("0")) + amount
         rows = []
-        best = []
+        best, depths = [], []
+        missing_detail = None
         rules = getattr(connector, "trading_rules", {})
         rule = rules.get(pair)
         minimum = max(_decimal(getattr(rule, "min_order_size", 0)),
@@ -122,14 +142,12 @@ def observe_market(connector, book, pair, *, now, max_age_seconds, max_levels, m
         for index, entries in enumerate((book.bid_entries(), book.ask_entries())):
             levels = tuple((_decimal(row.price), _decimal(row.amount)) for row in islice(entries, max_levels))
             rows.append(levels)
-            candidate, seen = None, set()
+            candidate, seen, depth = None, set(), Decimal("0")
             previous = None
             for price, quantity in levels:
                 if price <= 0 or quantity <= 0 or (previous is not None and (price >= previous if index == 0 else price <= previous)):
                     raise ValueError("invalid_book")
                 previous = price
-                if candidate is not None:
-                    continue
                 seen.add(price)
                 remaining = quantity - own[index].get(price, Decimal("0"))
                 if remaining < 0:
@@ -140,19 +158,26 @@ def observe_market(connector, book, pair, *, now, max_age_seconds, max_levels, m
                 # error, including very large quantities with tiny tick sizes.
                 noise = Decimal(str(math.ulp(float(quantity)))) * 2
                 if remaining > noise and remaining >= minimum:
-                    candidate = price
+                    depth += remaining * price
+                    if candidate is None:
+                        candidate = price
             if candidate is None:
-                raise ValueError("depth_limit" if len(levels) == max_levels else "empty_or_filtered_depth")
-            if any(price not in seen and price not in ambiguous[index]
-                   and (price >= candidate if index == 0 else price <= candidate) for price in own[index]):
+                missing_detail = "depth_limit" if len(levels) == max_levels else (missing_detail or "empty_or_filtered_depth")
+            if candidate is not None and any(price not in seen and price not in ambiguous[index]
+                                             and (price >= candidate if index == 0 else price <= candidate) for price in own[index]):
                 raise ValueError("inconsistent_own_depth")
             best.append(candidate)
-        if rows[0][0][0] >= rows[1][0][0] or best[0] >= best[1]:
+            depths.append(depth)
+        if ((rows[0] and rows[1] and rows[0][0][0] >= rows[1][0][0])
+                or (None not in best and best[0] >= best[1])):
             raise ValueError("crossed_book")
         if ids != (book.snapshot_uid, book.last_diff_uid) or orders != _orders(connector, pair, max_orders):
             raise ValueError("inconsistent_observation")
-        return MarketObservation((best[0] + best[1]) / 2, book_at, now, (ids, tuple(rows)),
-                                 "conservative_own_quantity_bound" if any(ambiguous) else None)
+        mid = (best[0] + best[1]) / 2 if None not in best else None
+        spread = (best[1] - best[0]) / mid * 10000 if mid is not None else None
+        return MarketObservation(mid, book_at, now, (ids, tuple(rows)),
+                                 missing_detail if mid is None else ("conservative_own_quantity_bound" if any(ambiguous) else None),
+                                 depths[0], depths[1], spread, missing_detail != "depth_limit")
     except (ValueError, ArithmeticError, TypeError, AttributeError, OverflowError) as error:
         known = {"stale_book", "own_order_limit", "invalid_own_order", "invalid_book", "inconsistent_own_depth",
                  "empty_or_filtered_depth", "depth_limit", "crossed_book", "inconsistent_observation"}

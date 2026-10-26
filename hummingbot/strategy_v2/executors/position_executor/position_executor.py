@@ -113,7 +113,7 @@ class PositionExecutor(ExecutorBase):
 
         :return: The filled amount of the open order in quote currency.
         """
-        return self.open_filled_amount * self.entry_price
+        return self.open_filled_amount * self.entry_price if self.open_filled_amount else Decimal("0")
 
     @property
     def close_filled_amount(self) -> Decimal:
@@ -131,7 +131,7 @@ class PositionExecutor(ExecutorBase):
 
         :return: The filled amount of the close order in quote currency.
         """
-        return self.close_filled_amount * self.close_price
+        return self.close_filled_amount * self.close_price if self.close_filled_amount else Decimal("0")
 
     @property
     def filled_amount(self) -> Decimal:
@@ -177,6 +177,8 @@ class PositionExecutor(ExecutorBase):
         """
         if self._open_order and self._open_order.is_done:
             return self._open_order.average_executed_price
+        elif self.config.use_configured_entry_price:
+            return self.config.entry_price
         elif self.config.triple_barrier_config.open_order_type == OrderType.LIMIT_MAKER:
             if self.config.side == TradeType.BUY:
                 best_bid = self.get_price(self.config.connector_name, self.config.trading_pair, PriceType.BestBid)
@@ -246,6 +248,8 @@ class PositionExecutor(ExecutorBase):
 
         :return: The trade pnl in quote asset.
         """
+        if self.open_filled_amount == 0:
+            return Decimal("0")
         return self.trade_pnl_pct * self.open_filled_amount * self.entry_price
 
     def get_net_pnl_quote(self) -> Decimal:
@@ -418,8 +422,8 @@ class PositionExecutor(ExecutorBase):
         :return: True if the close price is within the activation bounds, False otherwise.
         """
         activation_bounds = self.config.activation_bounds
-        mid_price = self.get_price(self.config.connector_name, self.config.trading_pair, PriceType.MidPrice)
         if activation_bounds:
+            mid_price = self.get_price(self.config.connector_name, self.config.trading_pair, PriceType.MidPrice)
             if order_type.is_limit_type():
                 if side == TradeType.BUY:
                     return order_price >= mid_price * (1 - activation_bounds[0])
@@ -717,13 +721,14 @@ class PositionExecutor(ExecutorBase):
             self.logger().error(f"Take profit order failed {event.order_id}. Retrying {self._current_retries}/{self._max_retries}")
 
     def get_custom_info(self) -> Dict:
+        unfilled_managed = not self.filled_amount and (self.config.mm_session_id is not None or self.config.use_configured_entry_price)
         return {
             "level_id": self.config.level_id,
-            "current_position_average_price": self.entry_price,
+            "current_position_average_price": None if unfilled_managed else self.entry_price,
             "side": self.config.side,
             "current_retries": self._current_retries,
             "max_retries": self._max_retries,
-            "close_price": self.close_price,
+            "close_price": None if unfilled_managed else self.close_price,
             "open_order_last_update": self._open_order.last_update_timestamp if self._open_order else None,
             "order_ids": [order.order_id for order in [self._open_order, self._close_order, self._take_profit_limit_order] if order],
             "held_position_orders": self._held_position_orders,

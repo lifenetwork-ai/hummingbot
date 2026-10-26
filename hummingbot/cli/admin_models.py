@@ -129,9 +129,33 @@ class SessionState(APIModel):
     anchors: Dict[str, ReferenceAnchors]
 
 
+class BootstrapGuardStatus(APIModel):
+    state: Literal["bootstrap", "market_guarded", "waiting"]
+    price_source: Literal["configured_anchor", "reference_model", "market_book"] = Field(
+        description="Configured/model anchor is not independent market fair value.")
+    anchor: Decimal
+    lower_price: Decimal
+    upper_price: Decimal
+    max_quote: Decimal
+    started_at: Optional[UTCDateTime]
+    expires_at: Optional[UTCDateTime]
+    remaining_seconds: Optional[float]
+    market_qualified: bool
+    qualification_started_at: Optional[UTCDateTime]
+    qualification_valid_samples: int
+    qualification_ready: bool
+    external_bid_quote: Decimal
+    external_ask_quote: Decimal
+    market_spread_bps: Optional[Decimal]
+    market_breakout_available: bool
+
+
 class QuoteGuardStatus(APIModel):
     enabled: bool
-    mode: Literal["strict"]
+    mode: Literal["strict", "bootstrap_then_market"]
+    bootstrap: Optional[BootstrapGuardStatus] = None
+    can_admit: bool = False
+    qualification_pending: bool = False
     ready: bool
     reason_code: Optional[str]
     data_quality: Literal["known_order_filtered", "unavailable"] = Field(

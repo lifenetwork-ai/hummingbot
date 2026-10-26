@@ -992,3 +992,37 @@ class TestPositionExecutor(IsolatedAsyncioWrapperTestCase):
         # The forced-shutdown path must retain that same partial fill exactly once.
         executor.force_stop_with_position_hold()
         self.assertEqual(len(executor._held_position_orders), 1)
+
+    def test_listing_configured_maker_price_without_order_book(self):
+        data = self.get_position_config_market_long().model_dump()
+        data.update(use_configured_entry_price=True, triple_barrier_config=TripleBarrierConfig(open_order_type=OrderType.LIMIT_MAKER))
+        config = PositionExecutorConfig.model_validate(data)
+        executor = PositionExecutor(self.strategy, config)
+        with patch.object(executor, "get_price", side_effect=EnvironmentError("empty book")):
+            self.assertIsNone(executor.executor_info.custom_info["close_price"])
+            self.assertEqual(executor.executor_info.filled_amount_quote, Decimal("0"))
+            self.assertEqual(executor.entry_price, Decimal("100"))
+            self.assertTrue(executor._is_within_activation_bounds(config.entry_price, config.side, OrderType.LIMIT_MAKER))
+            self.assertEqual(executor.trade_pnl_quote, Decimal("0"))
+
+    def test_unfilled_maker_has_known_zero_pnl_even_with_missing_book(self):
+        config = self.get_position_config_market_long()
+        config.triple_barrier_config.open_order_type = OrderType.LIMIT_MAKER
+        executor = PositionExecutor(self.strategy, config)
+        with patch.object(executor, "get_price", side_effect=EnvironmentError("empty book")):
+            self.assertEqual(executor.trade_pnl_quote, Decimal("0"))
+
+    def test_managed_unfilled_market_guarded_executor_reports_survive_lost_book(self):
+        config = self.get_position_config_market_long()
+        config.mm_session_id, config.mm_generation = "session", 0
+        config.triple_barrier_config.open_order_type = OrderType.LIMIT_MAKER
+        executor = PositionExecutor(self.strategy, config)
+        for unavailable in (Decimal("NaN"), EnvironmentError("empty book")):
+            with self.subTest(unavailable=type(unavailable).__name__):
+                with patch.object(executor, "get_price", **({"side_effect": unavailable} if isinstance(unavailable, Exception)
+                                                            else {"return_value": unavailable})):
+                    info = executor.executor_info
+                    self.assertEqual(info.filled_amount_quote, Decimal("0"))
+                    self.assertEqual(info.net_pnl_quote, Decimal("0"))
+                    self.assertIsNone(info.custom_info["current_position_average_price"])
+                    self.assertIsNone(info.custom_info["close_price"])

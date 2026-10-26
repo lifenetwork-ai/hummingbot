@@ -898,3 +898,31 @@ and diagnostic prior-image measurements are retained. No Cloud Run deployment,
 new sixty-minute/upgrade gate or real Demo operation is claimed. See
 [E2b report](../life-mm-e2b-spot-outflow.md) and
 [evidence](../life-mm-e2b-spot-outflow.json).
+
+
+## E2c — Bounded listing bootstrap (complete)
+
+Added explicit `bootstrap_then_market` through existing LIFE MM observation,
+PositionExecutor, owner pre-intent/final-send and session admission paths. Original
+anchor/band, first clock and one-way qualification persist in the existing recovery
+row; session/clock activation is atomic. Restart/profile/random/new session cannot
+renew it. Both markets require joint readiness. Existing drawdown, spot outflow,
+exposure and post-only limits remain authoritative; no new schema, service or cache.
+
+TDD caught missing-book executor reads, sparse qualification/depth-limit errors,
+a full-book crossing projection and a position-hold valuation gap. The first image
+case then exposed unfilled market-guarded report/shutdown failure after outside
+liquidity loss; Red/Green tests fixed it, and the final image repeats the full case,
+including clean stop with the service still alive. Qualification injects no fills.
+
+Final native regression: 1483 tests/11 subtests; focused: 93 tests/2 subtests with
+RuntimeWarning as errors. Full PG: 166; final bootstrap PG: 10 (171 unique cases
+across runs). The final Linux amd64 image is 1364711274 bytes with 29 matching
+packaged source/config/contract hashes. The enabled 60-second diagnostic with
+100000 historical rows and 1 CPU/2 GiB passed p95 57.74ms / p99 296.04ms, 1200
+HTTP 200 reads, zero unexpected errors and sixty matching fills/positions.
+
+Checklist and evidence: [enhancements plan](../../docs/plans/LIFE_OKX_MM_ENHANCEMENTS_TDD_PLAN.md),
+[E2c report](../life-mm-e2c-listing-bootstrap.md), [JSON evidence](../life-mm-e2c-listing-bootstrap.json).
+Defaults remain disabled. E3–E6/full final image matrix/soak remain open. No external
+OKX account or deployment was used.

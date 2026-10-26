@@ -107,6 +107,8 @@ class ServiceHost:
         result = {"script_file_name": "v2_with_controllers.py", "controller_config_overrides": overrides}
         if session.catalogue.outflow_policy() is not None:
             result["mm_spot_outflow_policy"] = session.catalogue.outflow_policy()
+        if session.catalogue.bootstrap_policies() is not None:
+            result["mm_bootstrap_policies"] = session.catalogue.bootstrap_policies()
         policy = session.catalogue.drawdown_policy()
         if policy is not None:
             result.update(max_global_drawdown_quote=policy["max_global_drawdown_quote"],
@@ -134,7 +136,7 @@ class ServiceHost:
         # Both adapters may expose the same collateral. Never add them together.
         return min(available)
 
-    def mm_runtime_ready(self):
+    def mm_runtime_ready(self, *, allow_bootstrap_start=False):
         self.mm_readiness_reason = None
 
         def waiting(reason):
@@ -155,11 +157,15 @@ class ServiceHost:
                         != (self.mm_session.id, self.mm_session.generation)):
                     return waiting("session_identity_mismatch")
                 controller.update_reference()
-                if not controller.processed_data.get("ready"):
+                if not (controller.processed_data.get("ready") or (allow_bootstrap_start
+                        and (controller.processed_data.get("quote_guard") or {}).get("can_admit"))):
                     reason = controller.processed_data.get("reason", "").split(":", 1)[0]
                     known = {"perpetual_account_not_confirmed", "reference_pair_unavailable", "stale_reference",
                              "invalid_book", "reference_out_of_bounds", "quote_out_of_bounds", "market_price_unavailable",
-                             "reference_deviation", "sideways_breakout", "guard_recovering"}
+                             "reference_deviation", "sideways_breakout", "guard_recovering",
+                             "bootstrap_binding_unavailable", "bootstrap_not_started", "bootstrap_checkpoint_pending",
+                             "bootstrap_expired", "bootstrap_band", "bootstrap_range", "bootstrap_quote_crossing",
+                             "market_liquidity_unqualified", "bootstrap_anchor_mismatch"}
                     return waiting(reason if reason in known else "market_data_unavailable")
                 if not controller.market_data_provider.ready:
                     return waiting("market_data_unavailable")
@@ -221,9 +227,15 @@ class ServiceHost:
         return self.runtime_problem() is None
 
     async def admit_mm_session(self):
-        if self.mm_session is None or self.mm_session.status not in ("preparing", "running") or not self.mm_runtime_ready():
+        if self.mm_session is None or self.mm_session.status not in ("preparing", "running"):
+            return False
+        bootstrap = getattr(self.owner, "listing_bootstrap", None)
+        if bootstrap is not None and not bootstrap.sync_qualification():
+            return False
+        if not self.mm_runtime_ready(allow_bootstrap_start=True):
             return False
         controllers = self._mm_controllers()
+        anchors = None
         if self.mm_session.status == "preparing":
             supported = {}
             for controller in controllers:
@@ -244,14 +256,21 @@ class ServiceHost:
                 controller._life_anchor = None
                 controller._source_anchors = {} if sources is None else dict(sources)
                 controller.update_reference()
-                if not controller.processed_data.get("ready"):
+                if not (controller.processed_data.get("ready")
+                        or (controller.processed_data.get("quote_guard") or {}).get("can_admit")):
                     return False
                 sources = controller._source_anchors
             anchors = {controller.config.id: controller.reference_state() for controller in controllers}
+        if anchors is not None or (bootstrap is not None and bootstrap.needs_start()):
             self.mm_session = self.store.update_mm_session(
                 owner_uuid=self.owner.owner_uuid, owner_generation=self.owner.generation, version=self.applied_version,
                 session_id=self.mm_session.id, generation=self.mm_session.generation,
-                change=lambda session, now: session.ready(now=now, anchors=anchors))
+                change=lambda session, now: session.ready(now=now, anchors=anchors) if anchors is not None else None,
+                **({"risk_change": bootstrap.start_admission} if bootstrap is not None else {}))
+            if bootstrap is not None:
+                bootstrap.refresh()
+        if not self.mm_runtime_ready():
+            return False
         for controller in controllers:
             controller.admit_session(self.mm_session.id, self.mm_session.generation)
         return True

@@ -270,7 +270,9 @@ class ExecutorOrchestrator:
         required = {(identity, position.connector_name, position.trading_pair)
                     for identity, positions in self.positions_held.items() for position in positions if position.net_amount_base}
         required.update((identity, executor.config.connector_name, executor.config.trading_pair)
-                        for identity, executors in self.active_executors.items() for executor in executors)
+                        for identity, executors in self.active_executors.items() for executor in executors
+                        if executor.executor_info.filled_amount_quote
+                        or (isinstance(executor, PositionExecutor) and executor.open_filled_amount))
         try:
             for identity, connector, pair in required:
                 self._mm_mark_price(identity, connector, pair)

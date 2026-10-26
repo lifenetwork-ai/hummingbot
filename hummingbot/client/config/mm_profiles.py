@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from controllers.market_making.life_mm import LifeMMConfig, ReferencePair
 from hummingbot.client.config.config_helpers import load_yml_into_dict
+from hummingbot.core.listing_bootstrap import BootstrapMarketPolicy, canonical_policy
 from hummingbot.core.mm_drawdown import MMDrawdownMarket, drawdown_policy
 from hummingbot.core.spot_outflow import SpotOutflowConfig, SpotOutflowPolicy
 from hummingbot.strategy_v2.utils.quote_guard import SidewaysRange
@@ -54,6 +55,14 @@ class MMProfilesConfig(BaseModel):
     max_controller_drawdown_quote: Optional[Decimal] = Field(default=None, gt=0, allow_inf_nan=False)
     spot_outflow: Optional[SpotOutflowConfig] = None
 
+    def bootstrap_policies(self):
+        values = {}
+        for template in self.markets.values():
+            if template.quote_guards.mode == "bootstrap_then_market":
+                fields = {name: getattr(template, name) for name in BootstrapMarketPolicy.model_fields}
+                values[template.id] = canonical_policy(BootstrapMarketPolicy(**fields).model_dump())
+        return values or None
+
     def outflow_policy(self):
         if self.spot_outflow is None:
             return None
@@ -78,6 +87,14 @@ class MMProfilesConfig(BaseModel):
     @model_validator(mode="after")
     def validate_catalogue(self):
         self.outflow_policy()
+        bootstrap = self.bootstrap_policies()
+        if bootstrap is not None:
+            if self.max_global_drawdown_quote is None or self.spot_outflow is None:
+                raise ValueError("Bootstrap requires existing global drawdown and spot outflow protection")
+            spot = self.markets.get("spot")
+            if (spot is not None and spot.quote_guards.mode == "bootstrap_then_market"
+                    and spot.quote_guards.bootstrap.duration_seconds > self.spot_outflow.window_seconds):
+                raise ValueError("Spot bootstrap duration cannot exceed its outflow window")
         if not self.profiles or not self.markets:
             raise ValueError("Profiles and market templates cannot be empty")
         if not self.min_duration_seconds <= self.default_duration_seconds <= self.max_duration_seconds:

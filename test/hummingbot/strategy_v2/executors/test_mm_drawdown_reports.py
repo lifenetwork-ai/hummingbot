@@ -41,6 +41,16 @@ def held():
     return position
 
 
+def test_unfilled_executor_has_known_zero_exposure_without_an_empty_book_valuation():
+    item = orchestrator(price="NaN", book_time=0)
+    config = SimpleNamespace(connector_name="okx_perpetual", trading_pair="LIFE-USDT")
+    item.active_executors["life_perpetual"] = [SimpleNamespace(config=config, executor_info=SimpleNamespace(
+        config=config, filled_amount_quote=Decimal("0")))]
+    assert item.mm_valuation_ready()
+    item.active_executors["life_perpetual"][0].executor_info.filled_amount_quote = Decimal("1")
+    assert not item.mm_valuation_ready()
+
+
 def test_retained_disabled_market_and_held_fees_remain_in_the_existing_mm_report():
     item = orchestrator()
     item.positions_held["life_perpetual"] = [held()]
@@ -111,3 +121,14 @@ def test_flat_held_history_has_known_realized_pnl_without_requiring_a_market_pri
     position.net_amount_base = Decimal("0")
     item.positions_held["life_perpetual"] = [position]
     assert item.generate_performance_report("life_perpetual").global_pnl_quote == Decimal("2")
+
+
+def test_pending_position_hold_still_requires_a_mark_even_with_zero_reported_trade_volume():
+    from hummingbot.strategy_v2.executors.position_executor.position_executor import PositionExecutor
+    item = orchestrator(price='NaN', book_time=0)
+    executor = MagicMock(spec=PositionExecutor)
+    executor.config = SimpleNamespace(connector_name='okx_perpetual', trading_pair='LIFE-USDT')
+    executor.executor_info.filled_amount_quote = Decimal('0')  # POSITION_HOLD excludes volume from active report.
+    executor.open_filled_amount = Decimal('1')  # Exposure has not reached positions_held yet.
+    item.active_executors['life_perpetual'] = [executor]
+    assert not item.mm_valuation_ready()

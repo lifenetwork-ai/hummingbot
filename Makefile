@@ -69,6 +69,7 @@ test-cloudrun-regression:
 		test/hummingbot/core/utils/test_read_retry.py \
 		test/hummingbot/strategy_v2/controllers/test_life_mm.py \
 		test/hummingbot/strategy_v2/controllers/test_quote_guard.py \
+		test/hummingbot/strategy_v2/controllers/test_listing_bootstrap.py \
 		test/hummingbot/strategy_v2/controllers/test_life_startup_availability.py \
 		test/hummingbot/strategy_v2/controllers/test_reference_subscriptions.py \
 		test/hummingbot/strategy_v2/controllers/test_controller_base.py \

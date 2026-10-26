@@ -65,7 +65,7 @@ class BotStateStore:
             bound = (row["recovery_state"] or {}).get("strategy_checkpoints", {}).get("life_mm_profiles.yaml", {}).get("mm_drawdown_policy")
             if bound is not None and desired_state != "stopped":
                 raise ControlConflict("Armed MM drawdown requires admin MM commands; policy/scope changes need operator review.")
-            if (row["recovery_state"] or {}).get("spot_outflow") and desired_state != "stopped":
+            if any((row["recovery_state"] or {}).get(key) for key in ("spot_outflow", "listing_bootstrap")) and desired_state != "stopped":
                 raise ControlConflict("Armed spot_outflow requires admin MM commands and its bound policy.")
             if config_file_path is not None:
                 # An explicit legacy YAML selection replaces the MM intent.
@@ -140,6 +140,9 @@ class BotStateStore:
             bound = (row["recovery_state"] or {}).get("strategy_checkpoints", {}).get("life_mm_profiles.yaml", {}).get("mm_drawdown_policy")
             if action != "stop" and bound is not None and bound != catalogue.drawdown_policy():
                 raise ControlConflict("Drawdown policy/scope is already bound; operator-reviewed maintenance is required to change it")
+            bootstrap = (row["recovery_state"] or {}).get("listing_bootstrap")
+            if action != "stop" and bootstrap is not None and bootstrap.get("policies") != catalogue.bootstrap_policies():
+                raise ControlConflict("listing_bootstrap policy is already bound; operator-reviewed maintenance is required")
             outflow = (row["recovery_state"] or {}).get("spot_outflow")
             if action != "stop" and outflow is not None and outflow.get("policy") != catalogue.outflow_policy():
                 raise ControlConflict("spot_outflow policy is already bound; operator-reviewed maintenance is required to change it")
@@ -159,7 +162,7 @@ class BotStateStore:
             connection.execute(update(BotState).where(BotState.bot_id == self.bot_id).values(**values))
             return {"control_version": expected_version + 1, "session_id": effective.id, "generation": effective.generation}
 
-    def update_mm_session(self, *, owner_uuid, owner_generation, version, session_id, generation, change):
+    def update_mm_session(self, *, owner_uuid, owner_generation, version, session_id, generation, change, risk_change=None):
         from hummingbot.core.mm_session import MMSession
         with self.engine.begin() as connection:
             row = connection.execute(select(BotState).where(
@@ -176,6 +179,11 @@ class BotStateStore:
             if (row["recovery_state"] or {}).get("halt") and session.status in ("preparing", "running"):
                 raise ControlConflict("Recovery HALT blocks session activation or a new draw")
             values = {"mm_session": session.model_dump(mode="json")}
+            if risk_change is not None:
+                from copy import deepcopy
+                recovery = deepcopy(row["recovery_state"] or {})
+                risk_change(recovery, session, now)
+                values["recovery_state"] = recovery
             if session.status in ("stopping", "stopped", "expired"):
                 values["desired_state"] = "stopped"
             connection.execute(update(BotState).where(BotState.bot_id == self.bot_id).values(**values))

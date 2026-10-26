@@ -904,6 +904,85 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
                                             used_quote=str(after_sell), effective_config_sha256=hashlib.sha256(path.read_bytes()).hexdigest())
         path.write_bytes(original)
 
+    def bootstrap_scenario(self):
+        print("Offline E2E: bounded empty/own-only listing, expiry, restart and market qualification", flush=True)
+        import yaml
+        path = self.assets / "life_mm_profiles.yaml"
+        original = path.read_bytes()
+        profiles = yaml.safe_load(path.read_text())
+        profiles.update(max_global_drawdown_quote="20", spot_outflow=dict(
+            window_seconds=300, max_net_outflow_quote="100", fee_allowance_rate=".01"))
+        for market in profiles["markets"].values():
+            market.update(initial_anchor=".1", quote_guards=dict(
+                enabled=True, mode="bootstrap_then_market", max_deviation_bps="200", resume_deviation_bps="100",
+                recovery_delay_seconds="1", bootstrap=dict(duration_seconds=30, max_anchor_move_bps="500",
+                                                           max_quote="50", min_external_depth_quote="100",
+                                                           max_market_spread_bps="250", qualification_seconds="2")))
+        path.write_text(yaml.safe_dump(profiles))
+        self.report.joinpath("effective-bootstrap-profiles.yaml").write_bytes(path.read_bytes())
+        self.env.update(ADMIN_API_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin")
+        for field, value in (("API_KEY", "offline-key"), ("SECRET_KEY", "offline-secret"), ("PASSPHRASE", "offline-pass")):
+            self.env["HBOT_OKX_PERPETUAL_" + field] = value
+        empty = {instrument: dict(bids=[], asks=[]) for instrument in ("LIFE-USDT", "LIFE-USDT-SWAP")}
+        self.control(book_overrides=empty, include_own_orders=True)
+        first, port = self.start("bootstrap")
+        self.mm_command(port, "start", market_mode="both", selection="fixed", profile_id="sideways", duration_seconds=600)
+
+        def live():
+            return [row for row in self.ledger()["orders"] if row["state"] in ("live", "partially_filled")]
+
+        def guards():
+            return [market.get("quote_guard") or {} for market in self.admin(port, "/status")[1].get("markets", [])]
+
+        def episode():
+            return self.state()["recovery_state"].get("listing_bootstrap")
+
+        poll(lambda: len(live()) == 8, timeout=60, description="both empty markets quote bounded post-only levels")
+        armed = episode()
+        for instrument in empty:
+            rows = [row for row in live() if row["instId"] == instrument]
+            assert all(Decimal(".095") <= Decimal(row["px"]) <= Decimal(".105") for row in rows)
+            # SWAP wire size is contracts; the existing LIFE fixture uses 0.01 base per contract.
+            assert sum(Decimal(row["px"]) * Decimal(row["sz"])
+                       * (Decimal(".01") if instrument.endswith("-SWAP") else 1) for row in rows) <= 50
+        assert len(guards()) == 2 and all(g["bootstrap"]["state"] == "bootstrap" for g in guards())
+        assert not any(value["market_qualified"] for value in armed["episodes"].values())
+        self.mm_command(port, "stop")
+        self.terminate(first)
+        _, port = self.start("bootstrap-restart", auto_migrate=False)
+        self.mm_command(port, "start", market_mode="both", selection="fixed", profile_id="follow_token", duration_seconds=600)
+        poll(lambda: len(live()) == 8 or any(g.get("reason_code") == "bootstrap_expired" for g in guards()),
+             description="new session/revision reuses original listing clocks")
+        assert episode() == armed
+        poll(lambda: not live() and len(guards()) == 2
+             and all(g.get("reason_code") == "bootstrap_expired" for g in guards()),
+             timeout=60, description="original listing deadline cancels both legs without restarting process")
+        assert episode() == armed and not self.ledger()["fills"]
+        # A single fresh leg cannot admit the other; no fills are injected to qualify.
+        qualified = dict(bids=[[".099", "200000"]], asks=[[".101", "200000"]])
+        self.control(book_overrides={"LIFE-USDT": qualified, "LIFE-USDT-SWAP": empty["LIFE-USDT-SWAP"]})
+        poll(lambda: episode()["episodes"]["life_spot"]["market_qualified"], description="spot qualification checkpoint")
+        assert not live()
+        self.control(book_overrides={instrument: qualified for instrument in empty})
+        poll(lambda: len(guards()) == 2 and all(g["bootstrap"]["state"] == "market_guarded" for g in guards())
+             and len(live()) == 8, description="both independent books qualify and resume original model anchors")
+        final = episode()
+        assert all(value["market_qualified"] for value in final["episodes"].values())
+        for key in armed["episodes"]:
+            assert final["episodes"][key]["expires_at"] == armed["episodes"][key]["expires_at"]
+        self.control(book_overrides=empty)
+        poll(lambda: not live() and all(g.get("reason_code") == "market_liquidity_unqualified" for g in guards()),
+             description="qualified liquidity loss waits rather than rearming bootstrap")
+        assert not self.ledger()["fills"] and not self.state()["recovery_state"].get("halt")
+        self.mm_command(port, "stop")
+        assert http(port, "/startup")[0] == 200  # Missing outside depth cannot kill the service on stop.
+        self.metrics["listing_bootstrap"] = dict(empty_and_own_only=True, both_market_budgets=True,
+                                                 original_band_and_clock=True, clean_restart_and_new_session=True, expiry_cancels=True,
+                                                 partial_market_cannot_admit=True, durable_qualification=True, lost_depth_never_rearms=True,
+                                                 forced_fills=0, clean_stop_after_lost_depth=True,
+                                                 effective_config_sha256=hashlib.sha256(path.read_bytes()).hexdigest())
+        path.write_bytes(original)
+
     def availability_scenario(self):
         print("Offline E2E: service availability and automatic read/feed recovery", flush=True)
         self.env.update(ADMIN_API_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin")
@@ -1101,7 +1180,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--image", default="hummingbot-cloudrun:local")
-    parser.add_argument("--scenario", choices=("all", "spot", "v2-spot", "v2-perpetual", "schema", "upgrade", "life-mm", "life-mm-recovery", "funding", "availability", "quote-guards", "drawdown", "spot-outflow"), default="all")
+    parser.add_argument("--scenario", choices=("all", "spot", "v2-spot", "v2-perpetual", "schema", "upgrade", "life-mm", "life-mm-recovery", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap"), default="all")
     parser.add_argument("--previous-image", help="Cached compatible prior image; required for the release upgrade gate.")
     parser.add_argument("--trading-env", choices=("live", "demo"), default="live", help="Local simulator routing mode; never contacts OKX.")
     args = parser.parse_args()
@@ -1141,7 +1220,7 @@ def main():
                            f"type=bind,source={assets},target=/test-assets,readonly",
                            image, "python", "/test-assets/runtime_smoke.py", timeout=90)
             result["runtime_smoke"] = json.loads(smoke.stdout)
-            scenarios = ("schema", "spot", "v2-spot", "v2-perpetual", "life-mm", "funding", "availability", "quote-guards", "drawdown", "spot-outflow") if args.scenario == "all" else (args.scenario,)
+            scenarios = ("schema", "spot", "v2-spot", "v2-perpetual", "life-mm", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap") if args.scenario == "all" else (args.scenario,)
             if args.scenario == "all" and previous_image:
                 scenarios += ("upgrade",)
             result["scenarios"] = {}
@@ -1163,6 +1242,8 @@ def main():
                         harness.quote_guard_scenario()
                     elif scenario == "drawdown":
                         harness.drawdown_scenario()
+                    elif scenario == "listing-bootstrap":
+                        harness.bootstrap_scenario()
                     elif scenario == "spot-outflow":
                         harness.outflow_scenario()
                     elif scenario == "upgrade":

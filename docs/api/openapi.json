@@ -167,6 +167,202 @@
         "title": "BalancesResponse",
         "type": "object"
       },
+      "BootstrapConfigOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "duration_seconds": {
+            "exclusiveMinimum": 0,
+            "maximum": 86400,
+            "title": "Duration Seconds",
+            "type": "integer"
+          },
+          "max_anchor_move_bps": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Max Anchor Move Bps",
+            "type": "string"
+          },
+          "max_market_spread_bps": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Max Market Spread Bps",
+            "type": "string"
+          },
+          "max_quote": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Max Quote",
+            "type": "string"
+          },
+          "min_external_depth_quote": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Min External Depth Quote",
+            "type": "string"
+          },
+          "qualification_seconds": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Qualification Seconds",
+            "type": "string"
+          }
+        },
+        "required": [
+          "duration_seconds",
+          "max_anchor_move_bps",
+          "max_quote",
+          "min_external_depth_quote",
+          "max_market_spread_bps",
+          "qualification_seconds"
+        ],
+        "title": "BootstrapConfig",
+        "type": "object"
+      },
+      "BootstrapGuardStatusOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "anchor": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Anchor",
+            "type": "string"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "external_ask_quote": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "External Ask Quote",
+            "type": "string"
+          },
+          "external_bid_quote": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "External Bid Quote",
+            "type": "string"
+          },
+          "lower_price": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Lower Price",
+            "type": "string"
+          },
+          "market_breakout_available": {
+            "title": "Market Breakout Available",
+            "type": "boolean"
+          },
+          "market_qualified": {
+            "title": "Market Qualified",
+            "type": "boolean"
+          },
+          "market_spread_bps": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Market Spread Bps"
+          },
+          "max_quote": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Max Quote",
+            "type": "string"
+          },
+          "price_source": {
+            "description": "Configured/model anchor is not independent market fair value.",
+            "enum": [
+              "configured_anchor",
+              "reference_model",
+              "market_book"
+            ],
+            "title": "Price Source",
+            "type": "string"
+          },
+          "qualification_ready": {
+            "title": "Qualification Ready",
+            "type": "boolean"
+          },
+          "qualification_started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Qualification Started At"
+          },
+          "qualification_valid_samples": {
+            "title": "Qualification Valid Samples",
+            "type": "integer"
+          },
+          "remaining_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remaining Seconds"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "state": {
+            "enum": [
+              "bootstrap",
+              "market_guarded",
+              "waiting"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "upper_price": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Upper Price",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "price_source",
+          "anchor",
+          "lower_price",
+          "upper_price",
+          "max_quote",
+          "started_at",
+          "expires_at",
+          "remaining_seconds",
+          "market_qualified",
+          "qualification_started_at",
+          "qualification_valid_samples",
+          "qualification_ready",
+          "external_bid_quote",
+          "external_ask_quote",
+          "market_spread_bps",
+          "market_breakout_available"
+        ],
+        "title": "BootstrapGuardStatus",
+        "type": "object"
+      },
       "CloseTypeOutput": {
         "enum": [
           1,
@@ -2694,6 +2890,17 @@
       "QuoteGuardConfigOutput": {
         "additionalProperties": false,
         "properties": {
+          "bootstrap": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BootstrapConfigOutput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
           "enabled": {
             "default": false,
             "title": "Enabled",
@@ -2727,8 +2934,11 @@
             "type": "integer"
           },
           "mode": {
-            "const": "strict",
             "default": "strict",
+            "enum": [
+              "strict",
+              "bootstrap_then_market"
+            ],
             "title": "Mode",
             "type": "string"
           },
@@ -2769,6 +2979,22 @@
               }
             ],
             "title": "Book Observed At"
+          },
+          "bootstrap": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BootstrapGuardStatusOutput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "can_admit": {
+            "default": false,
+            "title": "Can Admit",
+            "type": "boolean"
           },
           "data_quality": {
             "description": "Known-order filtering is a bounded observation, not proof of independent fair value.",
@@ -2824,9 +3050,17 @@
             "title": "Market Mid"
           },
           "mode": {
-            "const": "strict",
+            "enum": [
+              "strict",
+              "bootstrap_then_market"
+            ],
             "title": "Mode",
             "type": "string"
+          },
+          "qualification_pending": {
+            "default": false,
+            "title": "Qualification Pending",
+            "type": "boolean"
           },
           "ready": {
             "title": "Ready",

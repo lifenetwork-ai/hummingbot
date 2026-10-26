@@ -83,6 +83,7 @@ class PositionExecutorConfig(ExecutorConfigBase):
     triple_barrier_config: TripleBarrierConfig = TripleBarrierConfig()
     leverage: int = 1
     activation_bounds: Optional[List[Decimal]] = None
+    use_configured_entry_price: bool = False
     level_id: Optional[str] = None
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -96,4 +97,7 @@ class PositionExecutorConfig(ExecutorConfigBase):
         require_positive("entry_price", self.entry_price)
         require_at_least("leverage", self.leverage, 1)
         require_all_positive("activation_bounds", self.activation_bounds)
+        if self.use_configured_entry_price and (self.entry_price is None or self.activation_bounds
+                                                or self.triple_barrier_config.open_order_type != OrderType.LIMIT_MAKER):
+            raise ValueError("Configured maker price requires explicit price, LIMIT_MAKER and no activation bounds")
         return self

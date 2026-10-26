@@ -8,6 +8,7 @@ from pydantic import Field, model_validator
 from hummingbot.client.hummingbot_application import HummingbotApplication
 from hummingbot.connector.connector_base import ConnectorBase
 from hummingbot.core.event.events import MarketOrderFailureEvent
+from hummingbot.core.listing_bootstrap import BootstrapMarketPolicy
 from hummingbot.core.mm_drawdown import MMDrawdownMarket, drawdown_policy
 from hummingbot.core.spot_outflow import SpotOutflowPolicy
 from hummingbot.core.utils.read_retry import retry_delay, transient_read
@@ -24,10 +25,15 @@ class V2WithControllersConfig(StrategyV2ConfigBase):
     max_controller_drawdown_quote: Optional[Decimal] = Field(default=None, allow_inf_nan=True)
     mm_drawdown_scope: Optional[Dict[str, MMDrawdownMarket]] = None
     mm_spot_outflow_policy: Optional[SpotOutflowPolicy] = None
+    mm_bootstrap_policies: Optional[Dict[str, BootstrapMarketPolicy]] = None
     mm_drawdown_max_data_age_seconds: Decimal = Field(default=Decimal("10"), gt=0, allow_inf_nan=False)
 
     @model_validator(mode="after")
     def validate_mm_drawdown(self):
+        if self.mm_bootstrap_policies is not None and (not 1 <= len(self.mm_bootstrap_policies) <= 2
+                                                       or self.max_global_drawdown_quote is None
+                                                       or self.mm_drawdown_scope is None or self.mm_spot_outflow_policy is None):
+            raise ValueError("Listing bootstrap requires bounded managed drawdown and spot outflow policy")
         if self.mm_drawdown_scope is not None:
             limits = (self.max_global_drawdown_quote, self.max_controller_drawdown_quote)
             if (not self.mm_drawdown_scope or len(self.mm_drawdown_scope) > 2 or all(value is None for value in limits)
@@ -56,7 +62,7 @@ class V2WithControllers(StrategyV2Base):
     performance_report_interval: int = 1
 
     def __init__(self, connectors: Dict[str, ConnectorBase], config: V2WithControllersConfig):
-        if config.mm_drawdown_scope or config.mm_spot_outflow_policy:
+        if config.mm_drawdown_scope or config.mm_spot_outflow_policy or config.mm_bootstrap_policies:
             from hummingbot.client.config.runtime_config import postgres_requested
             if not postgres_requested():
                 raise ValueError("Managed MM drawdown requires PostgreSQL service ownership")

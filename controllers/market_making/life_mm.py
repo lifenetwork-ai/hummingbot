@@ -1,7 +1,7 @@
 """LIFE reference configuration on the existing simple V2 market maker."""
 import asyncio
 import time
-from decimal import Decimal
+from decimal import ROUND_DOWN, Decimal, localcontext
 from typing import Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -11,6 +11,7 @@ from hummingbot.core.data_type.common import OrderType, PositionMode, PositionSi
 from hummingbot.core.utils.read_retry import retry_delay, transient_read
 from hummingbot.strategy_v2.models.base import RunnableStatus
 from hummingbot.strategy_v2.models.executor_actions import StopExecutorAction
+from hummingbot.strategy_v2.utils.listing_bootstrap import ListingBootstrap
 from hummingbot.strategy_v2.utils.quote_guard import (
     MarketObservation,
     QuoteGuard,
@@ -67,6 +68,9 @@ class LifeMMConfig(pmm_simple.PMMSimpleConfig):
 
     @model_validator(mode="after")
     def validate_mm_policy(self):
+        if self.quote_guards.mode == "bootstrap_then_market":
+            if self.initial_anchor is None or self.quote_guards.bootstrap.max_quote > self.total_amount_quote:
+                raise ValueError("Bootstrap requires initial_anchor and a budget within ordinary quote allocation")
         if self.quote_guards.enabled and self.max_data_age_seconds > 30:
             raise ValueError("Strict guard freshness cannot exceed the existing 30-second terminal-order cache")
         if self.sideways_range is not None:
@@ -74,6 +78,9 @@ class LifeMMConfig(pmm_simple.PMMSimpleConfig):
                 raise ValueError("Manual range requires sideways with enabled strict quote guards")
             if not self.min_price <= self.sideways_range.lower_price < self.sideways_range.upper_price <= self.max_price:
                 raise ValueError("Sideways range must be within absolute price bounds")
+            if (self.quote_guards.mode == "bootstrap_then_market"
+                    and not self.sideways_range.lower_price <= self.initial_anchor <= self.sideways_range.upper_price):
+                raise ValueError("Bootstrap anchor must be inside the manual sideways range")
         if (self.mm_session_id is None) != (self.mm_generation is None) or self.mm_session_id == "":
             raise ValueError("MM session identity and generation must be supplied together")
         if self.scenario == "sideways":
@@ -124,7 +131,12 @@ class LifeMMConfig(pmm_simple.PMMSimpleConfig):
 
 class LifeMMController(pmm_simple.PMMSimpleController):
     def __init__(self, config: LifeMMConfig, *args, **kwargs):
+        if config.quote_guards.mode == "bootstrap_then_market" and (not config.runtime_config_managed or not config.mm_session_id):
+            raise ValueError("Listing bootstrap requires managed MM session ownership")
         super().__init__(config, *args, **kwargs)
+        self._bootstrap = (ListingBootstrap(config.quote_guards, anchor=config.initial_anchor, sideways_range=config.sideways_range,
+                                            max_gap_seconds=config.max_data_age_seconds)
+                           if config.quote_guards.mode == "bootstrap_then_market" else None)
         self._life_anchor = config.saved_life_anchor
         self._source_anchors = dict(config.saved_source_anchors)
         self._stops_requested = set()
@@ -134,6 +146,41 @@ class LifeMMController(pmm_simple.PMMSimpleController):
         self._startup_stage = "not_started"
         self._startup_retry_sleep = asyncio.sleep
         self._quote_guard = QuoteGuard(config.quote_guards, config.sideways_range)
+
+    def restore_bootstrap_episode(self, episode):
+        if self._bootstrap is not None:
+            self._bootstrap.restore(episode or dict(started_at=None, expires_at=None, market_qualified=False),
+                                    bound=episode is not None)
+
+    def quote_price_valid(self, price, *, bootstrap=None):
+        if not price.is_finite() or not self.config.min_price <= price <= self.config.max_price:
+            return False
+        bootstrap = self._bootstrap is not None and not self._bootstrap.market_qualified if bootstrap is None else bootstrap
+        if bootstrap:
+            if not self._bootstrap.lower_price <= price <= self._bootstrap.upper_price:
+                return False
+            limits = self.config.sideways_range
+            if limits is not None and not limits.lower_price <= price <= limits.upper_price:
+                return False
+        return True
+
+    def check_maker_crossing(self, price, side):
+        if self._bootstrap is None:
+            return
+        book = self.market_data_provider.get_order_book(self.config.connector_name, self.config.trading_pair)
+        opposite = book.ask_entries() if side == TradeType.BUY else book.bid_entries()
+        first = next(iter(opposite), None)
+        if first is not None:
+            best = Decimal(str(first.price))
+            if not best.is_finite() or (price >= best if side == TradeType.BUY else price <= best):
+                raise ValueError("bootstrap_quote_crossing")
+
+    def _evaluate_guard(self, observation, reference, sample):
+        if self._bootstrap is None:
+            return self._quote_guard.evaluate(observation, reference, time.monotonic(), sample=sample)
+        return self._bootstrap.evaluate(observation, reference, time.monotonic(), sample=sample,
+                                        reference_model=bool(self.config.references),
+                                        configured_anchor=self._life_anchor == self.config.initial_anchor)
 
     def admit_session(self, session_id, generation):
         if (session_id, generation) != (self.config.mm_session_id, self.config.mm_generation):
@@ -199,41 +246,58 @@ class LifeMMController(pmm_simple.PMMSimpleController):
                     connector, book, self.config.trading_pair, now=self.market_data_provider.time(),
                     max_age_seconds=self.config.max_data_age_seconds, max_levels=self.config.quote_guards.max_book_levels,
                     max_orders=self.config.quote_guards.max_own_orders)
-                if observation.market_mid is None:
-                    guard_status = self._quote_guard.evaluate(observation, Decimal("1"), time.monotonic(), sample=sample_guard)
+                if observation.market_mid is None and self._bootstrap is None:
+                    guard_status = self._evaluate_guard(observation, Decimal("1"), sample_guard)
                     raise ValueError("market_price_unavailable")
             life_price = (observation.market_mid if observation is not None else
                           self._fresh_price(self.config.connector_name, self.config.trading_pair, self.config.initial_anchor))
             sources = {ref.pair: self._fresh_price(self.config.reference_connector, ref.pair)
                        for ref in self.config.references}
+            if self._bootstrap is not None and not self._bootstrap.market_qualified:
+                life_price = self.config.initial_anchor
+                if self._life_anchor is not None and self._life_anchor != life_price:
+                    raise ValueError("bootstrap_anchor_mismatch")
             life_anchor = self._life_anchor or life_price
+            if life_anchor is None:
+                raise ValueError("market_price_unavailable")
             source_anchors = self._source_anchors or sources
             reference = life_anchor * (1 + sum(
                 ref.weight * (sources[ref.pair] / source_anchors[ref.pair] - 1) for ref in self.config.references))
             if not reference.is_finite() or not self.config.min_price <= reference <= self.config.max_price:
                 raise ValueError("reference_out_of_bounds")
             if observation is not None:
-                guard_status = self._quote_guard.evaluate(observation, reference, time.monotonic(), sample=sample_guard)
-                if not guard_status["ready"]:
+                guard_status = self._evaluate_guard(observation, reference, sample_guard)
+                if not guard_status["ready"] and not guard_status.get("can_admit"):
                     raise ValueError(guard_status["reason_code"])
             self.processed_data = {"reference_price": reference, "spread_multiplier": spread_multiplier, "ready": False,
                                    "quote_guard": guard_status}
             for level in self.get_not_active_levels_ids([]):
                 price, _ = self.get_price_and_amount(level)
-                if not self.config.min_price <= price <= self.config.max_price:
+                if not self.quote_price_valid(price):
                     raise ValueError("quote_out_of_bounds")
+                if self._bootstrap is not None and not self._bootstrap.market_qualified:
+                    connector = self.market_data_provider.get_connector_with_fallback(self.config.connector_name)
+                    price = connector.quantize_order_price(self.config.trading_pair, price)
+                    if not self.quote_price_valid(price):
+                        raise ValueError("quote_out_of_bounds")
+                    self.check_maker_crossing(price, self.get_trade_type_from_level_id(level))
             # Capture the complete basket together; a missing member never saves partial anchors.
             self._life_anchor, self._source_anchors = life_anchor, dict(source_anchors)
-            self.processed_data["ready"] = True
+            self.processed_data["ready"] = guard_status is None or guard_status["ready"]
+            if not self.processed_data["ready"]:
+                self.processed_data["reason"] = guard_status["reason_code"]
         except Exception as error:
             reason = str(error).split(":", 1)[0]
             known = {"perpetual_account_not_confirmed", "reference_pair_unavailable", "stale_reference",
                      "invalid_book", "reference_out_of_bounds", "quote_out_of_bounds", "market_price_unavailable",
-                     "reference_deviation", "sideways_breakout", "guard_recovering"}
+                     "reference_deviation", "sideways_breakout", "guard_recovering",
+                     "bootstrap_binding_unavailable", "bootstrap_not_started", "bootstrap_checkpoint_pending",
+                     "bootstrap_expired", "bootstrap_band", "bootstrap_range", "bootstrap_quote_crossing",
+                     "market_liquidity_unqualified", "bootstrap_anchor_mismatch"}
             if self.config.quote_guards.enabled and guard_status is None:
-                guard_status = self._quote_guard.evaluate(
+                guard_status = self._evaluate_guard(
                     MarketObservation(None, None, self.market_data_provider.time(), detail="required_data_unavailable"),
-                    Decimal("1"), time.monotonic())
+                    Decimal("1"), False)
                 guard_status["reason_code"] = reason if reason in known else "market_price_unavailable"
             self.processed_data = {"ready": False, "reason": str(error) if reason in known else type(error).__name__,
                                    "spread_multiplier": spread_multiplier, "quote_guard": guard_status,
@@ -428,8 +492,20 @@ class LifeMMController(pmm_simple.PMMSimpleController):
                 self.config.reference_connector, references, self)
         super().on_stop()
 
+    def get_price_and_amount(self, level_id):
+        price, amount = super().get_price_and_amount(level_id)
+        if self._bootstrap is not None and not self._bootstrap.market_qualified:
+            side = self.get_trade_type_from_level_id(level_id)
+            _, allocations = self.config.get_spreads_and_amounts_in_quote(side)
+            with localcontext() as context:
+                context.rounding = ROUND_DOWN
+                amount = (Decimal(allocations[int(self.get_level_from_level_id(level_id))])
+                          * self.config.quote_guards.bootstrap.max_quote / self.config.total_amount_quote / price)
+        return price, amount
+
     def get_executor_config(self, level_id, price, amount):
-        if not self.config.min_price <= price <= self.config.max_price:
+        if not self.quote_price_valid(price):
             return None
         return super().get_executor_config(level_id, price, amount).model_copy(update={
-            "mm_session_id": self.config.mm_session_id, "mm_generation": self.config.mm_generation})
+            "mm_session_id": self.config.mm_session_id, "mm_generation": self.config.mm_generation,
+            "use_configured_entry_price": self._bootstrap is not None and not self._bootstrap.market_qualified})

@@ -48,8 +48,9 @@ explicit finite thresholds with `0 <= resume_deviation_bps < max_deviation_bps <
 10000`. Recovery defaults to five seconds (allowed 0–3600). Inclusive manual outer
 bounds must contain the tighter inclusive resume range and lie within absolute
 price limits. A range on a non-sideways profile, shared market template or disabled
-guard is rejected. Only `strict` is supported; `initial_anchor` cannot bypass an
-empty/own-only market. Listing bootstrap belongs to E2c with spending protection.
+guard is rejected. `strict` never uses `initial_anchor` to bypass an empty/own-only market.
+Explicit [listing bootstrap](life-mm-listing-bootstrap.md) adds a finite,
+durably bound episode with the existing spending/drawdown protection.
 The existing catalogue validates every profile against every configured market;
 a manual-range profile therefore requires guards enabled on those market templates.
 

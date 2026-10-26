@@ -50,6 +50,7 @@ class BotOwnership:
         self.runtime_ready_check = None
         self.intent_scopes = {}
         self.spot_outflow = None
+        self.listing_bootstrap = None
 
     def try_acquire(self) -> bool:
         if self.lost:
@@ -167,6 +168,8 @@ class BotOwnership:
         self.active_intents.intersection_update(ids)
         self.sent_intents.intersection_update(ids)
         self.intent_scopes = {key: value for key, value in self.intent_scopes.items() if key in ids}
+        if self.listing_bootstrap is not None:
+            self.listing_bootstrap.deadlines = {key: value for key, value in self.listing_bootstrap.deadlines.items() if key in ids}
         for order_id, market in pending:
             connector = next((value for value in self.connectors.values() if value.display_name == market), None)
             tracked = connector.in_flight_orders.get(order_id) if connector is not None else None
@@ -189,6 +192,8 @@ class BotOwnership:
                 or recorder.config_file_path != self.config_file_path or connector not in recorder._markets):
             raise SubmissionBlocked("The active recorder/configuration does not match the service owner.")
         self._check_intents(recorder)
+        if self.listing_bootstrap is not None:
+            self.listing_bootstrap.before_order(connector, order, row)
         if self.spot_outflow is not None:
             self.spot_outflow.before_order(connector, order, row)
         recorder.record_order_intent(connector, order)
@@ -222,6 +227,8 @@ class BotOwnership:
                     self.spot_outflow.release_unsent(order.client_order_id)
                 self.active_intents.discard(order.client_order_id)
                 self.intent_scopes.pop(order.client_order_id, None)
+                if self.listing_bootstrap is not None:
+                    self.listing_bootstrap.deadlines.pop(order.client_order_id, None)
             except Exception:
                 self.require_recovery("An unsent order intent could not be resolved durably.")
 
@@ -267,6 +274,7 @@ class BotOwnership:
             self._check_intents(recorder)
             if client_id not in self.active_intents or client_id in self.sent_intents:
                 raise SubmissionBlocked("Order identity is absent or was already sent; reconcile instead of retrying.")
+            bootstrap_deadline = self.listing_bootstrap.authorize(data, row) if self.listing_bootstrap is not None else None
             if self.spot_outflow is not None:
                 self.spot_outflow.authorize(data, row)
             # OKX's documented expTime deadline also constrains a process paused
@@ -276,6 +284,8 @@ class BotOwnership:
             try:
                 now = datetime.fromisoformat(stamp.replace("Z", "+00:00")).timestamp() if stamp else time.time()
                 expiry = int(now * 1000) + 5000
+                if bootstrap_deadline is not None:
+                    expiry = min(expiry, int(bootstrap_deadline * 1000))
                 if "expTime" in headers:
                     expiry = min(expiry, int(headers["expTime"]))
                 if row["config_type"] == "mm-session":
@@ -464,6 +474,15 @@ class BotOwnership:
             self.reconciling = True
             try:
                 await self.spot_outflow.initialize()
+                policies = getattr(core.strategy.config, "mm_bootstrap_policies", None)
+                if policies:
+                    from hummingbot.core.listing_bootstrap import ListingBootstrapGuard
+                    self.listing_bootstrap = ListingBootstrapGuard(
+                        self, {key: value.model_dump() for key, value in policies.items()}, core.strategy.controllers)
+                    self.listing_bootstrap.bind_if_ready()
+                elif final_state.get("listing_bootstrap"):
+                    self.require_recovery("bootstrap_policy_unavailable")
+                    raise SubmissionBlocked("Armed listing_bootstrap requires its original policy")
             finally:
                 self.reconciling = False
             if (self.check_owner()["recovery_state"] or {}).get("halt"):
