@@ -550,12 +550,30 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
                 assert {order["instId"] for order in orders} == ({"LIFE-USDT", "LIFE-USDT-SWAP"} if mode == "both" else
                                                                  {"LIFE-USDT" if mode == "spot" else "LIFE-USDT-SWAP"})
                 assert all(order["ordType"] == "post_only" and order["side"] in ("buy", "sell") for order in orders)
+                for instrument in {order["instId"] for order in orders}:
+                    for side, prices in (("buy", {Decimal("0.099"), Decimal("0.098")}),
+                                         ("sell", {Decimal("0.101"), Decimal("0.102")})):
+                        assert {Decimal(order["px"]) for order in orders if order["instId"] == instrument and order["side"] == side} == prices
                 runtime = self.admin(port, "/status")[1]
                 assert len(runtime["markets"]) == (2 if mode == "both" else 1)
                 assert all(Decimal(item["reference_price"]) == Decimal("0.1") for item in runtime["markets"])
                 cases.append(dict(mode=mode, profile=profile, count=count))
                 self.mm_command(port, "stop")
                 assert all(order["state"] in ("filled", "canceled") for order in self.ledger()["orders"])
+        # Generic CLI control and the admin MM API must share one stop handshake.
+        # A legacy YAML selection then replaces, rather than strands, MM state.
+        self.mm_command(port, "start", market_mode="both", selection="fixed", profile_id="sideways", duration_seconds=600)
+        poll(lambda: sum(order["state"] == "live" for order in self.ledger()["orders"]) == 8,
+             description="working MM quotes before generic CLI stop")
+        self.cli("stop", "--expected-version", str(self.state()["control_version"]), "--timeout", "9", "--json")
+        assert self.state()["mm_session"]["status"] == "stopped"
+        assert all(order["state"] in ("filled", "canceled") for order in self.ledger()["orders"])
+        self.cli("start", "pmm.yml", "--expected-version", str(self.state()["control_version"]), "--timeout", "0", "--json")
+        self.wait_running(port)
+        assert self.state()["mm_session"] is None
+        poll(lambda: sum(order["state"] == "live" for order in self.ledger()["orders"]) == 2,
+             description="working legacy quotes after replacing MM selection")
+        self.cli("stop", "--expected-version", str(self.state()["control_version"]), "--timeout", "9", "--json")
         # Shared basket reference response, fixed anchors and clean process restart.
         self.mm_command(port, "start", market_mode="both", selection="fixed", profile_id="follow_market", duration_seconds=600)
         session = self.state()["mm_session"]
@@ -638,7 +656,8 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         expected_header = "1" if self.env["OKX_TRADING_ENV"] == "demo" else None
         assert all(row["simulated"] == expected_header for row in self.ledger()["requests"]
                    if row["path"].startswith(("/api/v5/trade/", "/api/v5/account/")))
-        self.metrics.update(matrix=cases, restart_anchors=True, weighted_reference=True, stale_both=True,
+        self.metrics.update(matrix=cases, cli_mm_stop=True, legacy_replaces_mm=True, exact_quote_levels=matrix,
+                            restart_anchors=True, weighted_reference=True, stale_both=True,
                             fills=2, random_steps=True, expiry=True, expiry_funding=True, reconciliation="matched", db_fault_halt=True)
 
     def funding_scenario(self):
