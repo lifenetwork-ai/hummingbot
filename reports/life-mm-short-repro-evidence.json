@@ -1,0 +1,1212 @@
+{
+  "status": "Short probes passed; original long-run timeout cluster not reproduced and remains open.",
+  "source_commit": "ca1a0d77aee4d6e3cb8038c614ecb9e834c7fbf3",
+  "diagnostic_image": {
+    "parent_image_id": "sha256:868cc6642d2aa1c272c69a5dc8707509a78eee676c1f18ef0218efcb6c621a35",
+    "image_id": "sha256:689a2cbcebd8e7ea9b63dccd51579487daccbb5d6dbdc1221c248adaafaaf5a7",
+    "source_commit": "ca1a0d77aee4d6e3cb8038c614ecb9e834c7fbf3",
+    "diagnostic_overlay": true,
+    "admin_models_sha256": "5b5cb1898d0ebdaeb7cdf9ff7c2f83944994356a67177c33cbedf7bc4117374c"
+  },
+  "native_serialization": {
+    "rows": 500,
+    "iterations": 100,
+    "repeats": 5,
+    "clock": "thread_time_ns",
+    "json_outputs_equal": true,
+    "per_page_cpu_ms": {
+      "baseline": {
+        "OrdersPage": [
+          5.492854589999999,
+          5.59708333,
+          5.471676250000001,
+          5.48812959,
+          5.48294833
+        ],
+        "FillsPage": [
+          9.43512584,
+          8.60838209,
+          8.88983708,
+          8.58694292,
+          8.62750708
+        ]
+      },
+      "current": {
+        "OrdersPage": [
+          1.98075625,
+          1.94076333,
+          1.9388833399999998,
+          1.95365667,
+          1.9483154200000001
+        ],
+        "FillsPage": [
+          2.4641925000000002,
+          2.45966708,
+          2.45872291,
+          2.43788875,
+          2.4574433300000003
+        ]
+      }
+    },
+    "median_cpu_ms": {
+      "baseline": {
+        "OrdersPage": 5.48812959,
+        "FillsPage": 8.62750708
+      },
+      "current": {
+        "OrdersPage": 1.9483154200000001,
+        "FillsPage": 2.45872291
+      }
+    },
+    "source_sha256": {
+      "baseline": "5c395ee271586585a12bf8a14453ab817fe32aab0516328bb21555f44b226dc4",
+      "current": "5b5cb1898d0ebdaeb7cdf9ff7c2f83944994356a67177c33cbedf7bc4117374c"
+    },
+    "scope": "Synchronous serialization CPU only; excludes validation, DB, network and live event-loop scheduling."
+  },
+  "container_serialization": {
+    "rows": 500,
+    "iterations": 100,
+    "repeats": 5,
+    "clock": "thread_time_ns",
+    "json_outputs_equal": true,
+    "per_page_cpu_ms": {
+      "baseline": {
+        "OrdersPage": [
+          8.46904537,
+          8.58283371,
+          8.57970203,
+          8.65207287,
+          9.38254954
+        ],
+        "FillsPage": [
+          15.03607119,
+          13.57917578,
+          14.11881079,
+          13.79915246,
+          13.37241577
+        ]
+      },
+      "current": {
+        "OrdersPage": [
+          2.9638966499999997,
+          2.88362666,
+          2.88752373,
+          2.9473454099999996,
+          3.0827529
+        ],
+        "FillsPage": [
+          4.35552874,
+          3.88390208,
+          6.74867415,
+          4.01639498,
+          4.92528289
+        ]
+      }
+    },
+    "median_cpu_ms": {
+      "baseline": {
+        "OrdersPage": 8.58283371,
+        "FillsPage": 13.79915246
+      },
+      "current": {
+        "OrdersPage": 2.9473454099999996,
+        "FillsPage": 4.35552874
+      }
+    },
+    "source_sha256": {
+      "baseline": "5c395ee271586585a12bf8a14453ab817fe32aab0516328bb21555f44b226dc4",
+      "current": "5b5cb1898d0ebdaeb7cdf9ff7c2f83944994356a67177c33cbedf7bc4117374c"
+    },
+    "scope": "Synchronous serialization CPU only; excludes validation, DB, network and live event-loop scheduling.",
+    "image_id": "sha256:689a2cbcebd8e7ea9b63dccd51579487daccbb5d6dbdc1221c248adaafaaf5a7",
+    "cpus": 1,
+    "memory_bytes": 536870912,
+    "network": "none",
+    "architecture": "amd64"
+  },
+  "executor_report_replay": {
+    "generation": 4,
+    "recorded_executors": 80,
+    "held_executor_ids": 40,
+    "position_buckets": 3,
+    "iterations": 100,
+    "median_cpu_ms": 3.09175,
+    "max_cpu_ms": 5.052458,
+    "snapshot_sha256": "b98cb0b547279c4ad6de2f781af75051adc19c4a9cb925bb224d370487828b2d",
+    "orchestrator_sha256": "7b593eeb5d6dde190007ae558331ca2becf6625e4f33b44d903cee1b3cc01e0f",
+    "scope": "Stored terminal DTO batch and existing report math; excludes live executor PnL properties, clock scheduling, DB, network and current in-flight state. Not an exact process replay."
+  },
+  "verification": {
+    "cli_tests_passed": 457,
+    "postgres_tests_passed": 8,
+    "postgres_tests_deselected": 119,
+    "swagger_unchanged": true,
+    "red_logs": [
+      "build/load-repro/timing-red.log",
+      "build/load-repro/utc-red.log"
+    ]
+  },
+  "runs": {
+    "before_trace": {
+      "image_id": "sha256:868cc6642d2aa1c272c69a5dc8707509a78eee676c1f18ef0218efcb6c621a35",
+      "diagnostic": true,
+      "tracing": true,
+      "bot_limits": {
+        "cpus": 1,
+        "memory_bytes": 2147483648
+      },
+      "postgres_limits": {
+        "cpus": 2,
+        "memory_bytes": 536870912
+      },
+      "client_limits": {
+        "cpus": 1,
+        "memory_bytes": 536870912
+      },
+      "simulator_limits": {
+        "cpus": 1,
+        "memory_bytes": 536870912
+      },
+      "postgres_image_id": "sha256:4cdc921837346b979fed007530cfba7e5e1f5bd17d1c8e8779356f3e6a19260e",
+      "postgres_version": "14.15",
+      "docker_host_resources": "cpus=8 memory_bytes=8218251264",
+      "history_orders": 100000,
+      "history_fills": 100000,
+      "source_sha256": {
+        "scripts/test_mm_load.py": "36fbe5191a4ad9c6a544387bfc24848d9355190c4401551e2133444c352b380a",
+        "scripts/test_e2e_offline.py": "f28f8738f2ac36509a1c3e0ed874df49b54b7035573aca2a08e3d73056a3a026",
+        "scripts/analyze_mm_load_trace.py": "959aaf69153f0c30ef832c6571d6390ae7bb8f1f03c665752c25e188fc5cb5f9",
+        "scripts/mm_load_budgets.py": "0cae7dbde1ccc02a2ef4e6822e925ee507f3e917ec4207c00df7bfa54b033d2c",
+        "scripts/mm_load_faults.py": "48f937681bff9e6a4f4cf5c25862a3bdd673c2ce01657788c73245986e498e59",
+        "scripts/mm_load_ledger.py": "db8e38ee2948211cc5154a144472c22676571a1efd66e3cd58bb284fbc227458"
+      },
+      "fixture_sha256": {
+        "controller-spot.yml": "6f4f0d567b54d9b1152c8e5f15b014d4d1d77f6d845b38bb8541e9e4f2449078",
+        "exchange.py": "314867066a59821d207c09dae7c77c955db02289e8ceb4e255348149fd389038",
+        "pmm.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+        "load_service.py": "4a0f0c15f0f311f64d8288b774a6fd05f7883ff9840d30e13ac63b4a2d66d8f6",
+        "runtime_smoke.py": "5e378bb3c2efdbc1fa156eeae25756fb676d0fdc90b2e895868a7da4e6359e1b",
+        "life_mm_profiles.yaml": "68ec4621efb2e728a4cf24770e4ea4e5568560637ff544ecac4f238fbfa317fe",
+        "load_trace.py": "0469550580134e390453ad1fd75513a9a43163493c53d5a260f2ea6d6003b0fe",
+        "script-perpetual.yml": "a4eeed6b7576af41a387ae115122c9130bd55c9a43b8d40f9e8b86a023b95132",
+        "pmm-revised.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+        "fixtures.json": "92308feed4a3a84939942c334c2d78696fbfff684eabe6ea3f7abf0391fe0e06",
+        "controller-perpetual.yml": "9e1479b071f476626f448df4aba8e0a75b9cc8eee0a623b6b9f9ce4fb3360b45",
+        "load_client.py": "447eb57154a9f055c5362140d10eca2312aa2a1e2e70894efbf7efb64ebb3f0f"
+      },
+      "passed": true,
+      "raw_directory": "build/mm-load/20261026-104604-3a593a",
+      "result_sha256": "c3454d4336f4c5cef20e13a43d5c47024f534adb3d0c38811b0aaaa972e7ab15",
+      "measurements": {
+        "duration_seconds": 60,
+        "read_p95_ms": 123.63633699999355,
+        "read_p99_ms": 578.8950540000002,
+        "requested_reads": 1200,
+        "completed_reads": 1200,
+        "completed_reads_per_second": 20.0,
+        "unexpected_errors": 0,
+        "errors": [],
+        "market_updates_per_second": 99.98816906154333,
+        "fills_per_second": 1.0,
+        "peak_rss_bytes": 330964992,
+        "ledger": {
+          "unique_exchange_fills": 60,
+          "unique_recorder_fills": 60,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "violations": []
+      },
+      "stage_distributions": {
+        "pool_queue_ms": {
+          "count": 1548,
+          "p50": 0.021208,
+          "p95": 0.07125,
+          "p99": 0.410708,
+          "max": 33.578458
+        },
+        "pool_queue_cpu_ms": {
+          "count": 1548,
+          "p50": 0.024709,
+          "p95": 0.074708,
+          "p99": 0.174416,
+          "max": 0.801667
+        },
+        "rollback_ms": {
+          "count": 2124,
+          "p50": 0.135583,
+          "p95": 1.183708,
+          "p99": 8.096125,
+          "max": 58.65325
+        },
+        "rollback_cpu_ms": {
+          "count": 2124,
+          "p50": 0.072416,
+          "p95": 0.269375,
+          "p99": 0.531792,
+          "max": 1.320749
+        },
+        "db_connect_ms": {
+          "count": 8,
+          "p50": 26.934833,
+          "p95": 111.668958,
+          "p99": 111.668958,
+          "max": 111.668958
+        },
+        "db_connect_cpu_ms": {
+          "count": 8,
+          "p50": 13.472708,
+          "p95": 51.748124,
+          "p99": 51.748124,
+          "max": 51.748124
+        },
+        "pool_checkout_ms": {
+          "count": 1548,
+          "p50": 0.582667,
+          "p95": 4.50575,
+          "p99": 26.47475,
+          "max": 112.37375
+        },
+        "pool_checkout_cpu_ms": {
+          "count": 1548,
+          "p50": 0.325792,
+          "p95": 0.936415,
+          "p99": 2.027583,
+          "max": 52.233455
+        },
+        "sql_ms": {
+          "count": 4509,
+          "p50": 0.7487919999960013,
+          "p95": 5.522749999997245,
+          "p99": 20.427625000003502,
+          "max": 693.6466249999995
+        },
+        "db_ping_ms": {
+          "count": 1540,
+          "p50": 0.424875,
+          "p95": 3.382042,
+          "p99": 19.029333,
+          "max": 50.365625
+        },
+        "db_ping_cpu_ms": {
+          "count": 1540,
+          "p50": 0.187916,
+          "p95": 0.507084,
+          "p99": 0.88704,
+          "max": 3.422793
+        },
+        "commit_ms": {
+          "count": 1276,
+          "p50": 0.186166,
+          "p95": 1.525416,
+          "p99": 7.090042,
+          "max": 80.3815
+        },
+        "commit_cpu_ms": {
+          "count": 1276,
+          "p50": 0.081,
+          "p95": 0.228,
+          "p99": 0.386209,
+          "max": 1.721167
+        },
+        "handler_ms": {
+          "count": 1154,
+          "p50": 6.524084000005814,
+          "p95": 81.14537600000915,
+          "p99": 575.4283340000086,
+          "max": 1423.1302510000035
+        },
+        "event_loop_lag_ms": {
+          "count": 1512,
+          "p50": 2.5696980039526807,
+          "p95": 44.01280000097074,
+          "p99": 132.63618000164,
+          "max": 364.5160870004531
+        },
+        "response_serialization_ms": {
+          "count": 1074,
+          "p50": 0.306292,
+          "p95": 14.54775,
+          "p99": 30.540625,
+          "max": 165.2195
+        },
+        "response_serialization_cpu_ms": {
+          "count": 1074,
+          "p50": 0.309417,
+          "p95": 14.341958,
+          "p99": 30.537249,
+          "max": 164.777664
+        },
+        "response_validation_ms": {
+          "count": 1365,
+          "p50": 0.077042,
+          "p95": 4.446125,
+          "p99": 10.056458,
+          "max": 118.308
+        },
+        "response_validation_cpu_ms": {
+          "count": 1365,
+          "p50": 0.083333,
+          "p95": 4.448042,
+          "p99": 10.066417,
+          "max": 106.286583
+        },
+        "event_age_ms": {
+          "count": 5814,
+          "p50": 1.35009765625,
+          "p95": 47.44384765625,
+          "p99": 127.55615234375,
+          "max": 237.688232421875
+        },
+        "book_backlog": {
+          "count": 5814,
+          "p50": 1,
+          "p95": 2,
+          "p99": 5,
+          "max": 14
+        },
+        "executor_reports_ms": {
+          "count": 65,
+          "p50": 3.464542,
+          "p95": 6.017458,
+          "p99": 16.414084,
+          "max": 16.414084
+        },
+        "executor_reports_cpu_ms": {
+          "count": 65,
+          "p50": 3.471583,
+          "p95": 6.027417,
+          "p99": 10.295168,
+          "max": 10.295168
+        },
+        "executor_update_ms": {
+          "count": 65,
+          "p50": 3.58375,
+          "p95": 6.312084,
+          "p99": 16.59975,
+          "max": 16.59975
+        },
+        "executor_update_cpu_ms": {
+          "count": 65,
+          "p50": 3.566584,
+          "p95": 6.162917,
+          "p99": 10.468251,
+          "max": 10.468251
+        },
+        "recorder_ms": {
+          "count": 57,
+          "p50": 18.583042,
+          "p95": 68.508916,
+          "p99": 102.340875,
+          "max": 102.340875
+        },
+        "recorder_cpu_ms": {
+          "count": 57,
+          "p50": 12.153543,
+          "p95": 28.044919,
+          "p99": 43.794457,
+          "max": 43.794457
+        }
+      }
+    },
+    "before_plain": {
+      "image_id": "sha256:868cc6642d2aa1c272c69a5dc8707509a78eee676c1f18ef0218efcb6c621a35",
+      "diagnostic": true,
+      "tracing": false,
+      "bot_limits": {
+        "cpus": 1,
+        "memory_bytes": 2147483648
+      },
+      "postgres_limits": {
+        "cpus": 2,
+        "memory_bytes": 536870912
+      },
+      "client_limits": {
+        "cpus": 1,
+        "memory_bytes": 536870912
+      },
+      "simulator_limits": {
+        "cpus": 1,
+        "memory_bytes": 536870912
+      },
+      "postgres_image_id": "sha256:4cdc921837346b979fed007530cfba7e5e1f5bd17d1c8e8779356f3e6a19260e",
+      "postgres_version": "14.15",
+      "docker_host_resources": "cpus=8 memory_bytes=8218251264",
+      "history_orders": 100000,
+      "history_fills": 100000,
+      "source_sha256": {
+        "scripts/test_mm_load.py": "36fbe5191a4ad9c6a544387bfc24848d9355190c4401551e2133444c352b380a",
+        "scripts/test_e2e_offline.py": "f28f8738f2ac36509a1c3e0ed874df49b54b7035573aca2a08e3d73056a3a026",
+        "scripts/analyze_mm_load_trace.py": "959aaf69153f0c30ef832c6571d6390ae7bb8f1f03c665752c25e188fc5cb5f9",
+        "scripts/mm_load_budgets.py": "0cae7dbde1ccc02a2ef4e6822e925ee507f3e917ec4207c00df7bfa54b033d2c",
+        "scripts/mm_load_faults.py": "48f937681bff9e6a4f4cf5c25862a3bdd673c2ce01657788c73245986e498e59",
+        "scripts/mm_load_ledger.py": "db8e38ee2948211cc5154a144472c22676571a1efd66e3cd58bb284fbc227458"
+      },
+      "fixture_sha256": {
+        "controller-spot.yml": "6f4f0d567b54d9b1152c8e5f15b014d4d1d77f6d845b38bb8541e9e4f2449078",
+        "exchange.py": "314867066a59821d207c09dae7c77c955db02289e8ceb4e255348149fd389038",
+        "pmm.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+        "load_service.py": "4a0f0c15f0f311f64d8288b774a6fd05f7883ff9840d30e13ac63b4a2d66d8f6",
+        "runtime_smoke.py": "5e378bb3c2efdbc1fa156eeae25756fb676d0fdc90b2e895868a7da4e6359e1b",
+        "life_mm_profiles.yaml": "68ec4621efb2e728a4cf24770e4ea4e5568560637ff544ecac4f238fbfa317fe",
+        "load_trace.py": "0469550580134e390453ad1fd75513a9a43163493c53d5a260f2ea6d6003b0fe",
+        "script-perpetual.yml": "a4eeed6b7576af41a387ae115122c9130bd55c9a43b8d40f9e8b86a023b95132",
+        "pmm-revised.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+        "fixtures.json": "92308feed4a3a84939942c334c2d78696fbfff684eabe6ea3f7abf0391fe0e06",
+        "controller-perpetual.yml": "9e1479b071f476626f448df4aba8e0a75b9cc8eee0a623b6b9f9ce4fb3360b45",
+        "load_client.py": "447eb57154a9f055c5362140d10eca2312aa2a1e2e70894efbf7efb64ebb3f0f"
+      },
+      "passed": true,
+      "raw_directory": "build/mm-load/20261026-104809-9ce4a6",
+      "result_sha256": "ee2b408f2984f749d1a16c522f5bfd4867f56ffbde55151cc28dc4acf960eb5b",
+      "measurements": {
+        "duration_seconds": 60,
+        "read_p95_ms": 79.47810599998206,
+        "read_p99_ms": 560.5003560000057,
+        "requested_reads": 1200,
+        "completed_reads": 1200,
+        "completed_reads_per_second": 19.89774366207515,
+        "unexpected_errors": 0,
+        "errors": [],
+        "market_updates_per_second": 99.94658498683157,
+        "fills_per_second": 1.0,
+        "peak_rss_bytes": 324157440,
+        "ledger": {
+          "unique_exchange_fills": 60,
+          "unique_recorder_fills": 60,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "violations": []
+      },
+      "stage_distributions": {
+        "pool_queue_ms": {
+          "count": 1608,
+          "p50": 0.008208,
+          "p95": 0.018958,
+          "p99": 0.048709,
+          "max": 0.399958
+        },
+        "pool_queue_cpu_ms": {
+          "count": 1608,
+          "p50": 0.0125,
+          "p95": 0.029458,
+          "p99": 0.0625,
+          "max": 0.414542
+        },
+        "rollback_ms": {
+          "count": 2203,
+          "p50": 0.113375,
+          "p95": 0.468166,
+          "p99": 2.167625,
+          "max": 53.386542
+        },
+        "rollback_cpu_ms": {
+          "count": 2203,
+          "p50": 0.048084,
+          "p95": 0.131,
+          "p99": 0.210834,
+          "max": 1.878
+        },
+        "db_connect_ms": {
+          "count": 8,
+          "p50": 21.709834,
+          "p95": 51.403125,
+          "p99": 51.403125,
+          "max": 51.403125
+        },
+        "db_connect_cpu_ms": {
+          "count": 8,
+          "p50": 11.001707,
+          "p95": 46.346543,
+          "p99": 46.346543,
+          "max": 46.346543
+        },
+        "pool_checkout_ms": {
+          "count": 1606,
+          "p50": 0.436833,
+          "p95": 1.493916,
+          "p99": 11.267834,
+          "max": 51.9
+        },
+        "pool_checkout_cpu_ms": {
+          "count": 1606,
+          "p50": 0.213375,
+          "p95": 0.465708,
+          "p99": 0.75125,
+          "max": 46.550377
+        },
+        "sql_ms": {
+          "count": 4839,
+          "p50": 0.6813749999992069,
+          "p95": 3.0895840000084718,
+          "p99": 17.490541000000803,
+          "max": 425.78324999999495
+        },
+        "db_ping_ms": {
+          "count": 1598,
+          "p50": 0.374625,
+          "p95": 1.191334,
+          "p99": 6.796167,
+          "max": 51.683334
+        },
+        "db_ping_cpu_ms": {
+          "count": 1598,
+          "p50": 0.1575,
+          "p95": 0.344708,
+          "p99": 0.51925,
+          "max": 1.092498
+        },
+        "commit_ms": {
+          "count": 1392,
+          "p50": 0.164917,
+          "p95": 1.325208,
+          "p99": 4.420583,
+          "max": 47.172791
+        },
+        "commit_cpu_ms": {
+          "count": 1392,
+          "p50": 0.058417,
+          "p95": 0.140667,
+          "p99": 0.219208,
+          "max": 2.330374
+        },
+        "handler_ms": {
+          "count": 1178,
+          "p50": 4.59766699998454,
+          "p95": 49.69029099999034,
+          "p99": 288.7687500000027,
+          "max": 837.6381260000016
+        },
+        "event_loop_lag_ms": {
+          "count": 1512,
+          "p50": 2.3866779942238736,
+          "p95": 31.24566899904835,
+          "p99": 159.31429499835303,
+          "max": 523.2341329961798
+        },
+        "response_serialization_ms": {
+          "count": 1099,
+          "p50": 0.217666,
+          "p95": 13.537291,
+          "p99": 17.090833,
+          "max": 144.15075
+        },
+        "response_serialization_cpu_ms": {
+          "count": 1099,
+          "p50": 0.2205,
+          "p95": 13.453959,
+          "p99": 17.13575,
+          "max": 143.384832
+        },
+        "response_validation_ms": {
+          "count": 1378,
+          "p50": 0.050959,
+          "p95": 4.369459,
+          "p99": 5.497209,
+          "max": 101.79075
+        },
+        "response_validation_cpu_ms": {
+          "count": 1378,
+          "p50": 0.05525,
+          "p95": 4.373583,
+          "p99": 5.510459,
+          "max": 101.795708
+        },
+        "event_age_ms": {
+          "count": 5867,
+          "p50": 1.2822265625,
+          "p95": 25.30908203125,
+          "p99": 110.131591796875,
+          "max": 367.963134765625
+        },
+        "book_backlog": {
+          "count": 5867,
+          "p50": 1,
+          "p95": 2,
+          "p99": 4,
+          "max": 14
+        },
+        "executor_reports_ms": {
+          "count": 67,
+          "p50": 3.303708,
+          "p95": 6.850666,
+          "p99": 14.974375,
+          "max": 14.974375
+        },
+        "executor_reports_cpu_ms": {
+          "count": 67,
+          "p50": 3.311333,
+          "p95": 6.859542,
+          "p99": 8.197458,
+          "max": 8.197458
+        },
+        "executor_update_ms": {
+          "count": 67,
+          "p50": 3.371167,
+          "p95": 6.910417,
+          "p99": 15.072417,
+          "max": 15.072417
+        },
+        "executor_update_cpu_ms": {
+          "count": 67,
+          "p50": 3.372,
+          "p95": 6.910541,
+          "p99": 8.279291,
+          "max": 8.279291
+        },
+        "recorder_ms": {
+          "count": 57,
+          "p50": 17.080541,
+          "p95": 41.974875,
+          "p99": 122.471709,
+          "max": 122.471709
+        },
+        "recorder_cpu_ms": {
+          "count": 57,
+          "p50": 10.893292,
+          "p95": 15.899252,
+          "p99": 117.972917,
+          "max": 117.972917
+        }
+      }
+    },
+    "after_trace": {
+      "image_id": "sha256:689a2cbcebd8e7ea9b63dccd51579487daccbb5d6dbdc1221c248adaafaaf5a7",
+      "diagnostic": true,
+      "tracing": true,
+      "bot_limits": {
+        "cpus": 1,
+        "memory_bytes": 2147483648
+      },
+      "postgres_limits": {
+        "cpus": 2,
+        "memory_bytes": 536870912
+      },
+      "client_limits": {
+        "cpus": 1,
+        "memory_bytes": 536870912
+      },
+      "simulator_limits": {
+        "cpus": 1,
+        "memory_bytes": 536870912
+      },
+      "postgres_image_id": "sha256:4cdc921837346b979fed007530cfba7e5e1f5bd17d1c8e8779356f3e6a19260e",
+      "postgres_version": "14.15",
+      "docker_host_resources": "cpus=8 memory_bytes=8218251264",
+      "history_orders": 100000,
+      "history_fills": 100000,
+      "source_sha256": {
+        "scripts/test_mm_load.py": "36fbe5191a4ad9c6a544387bfc24848d9355190c4401551e2133444c352b380a",
+        "scripts/test_e2e_offline.py": "f28f8738f2ac36509a1c3e0ed874df49b54b7035573aca2a08e3d73056a3a026",
+        "scripts/analyze_mm_load_trace.py": "959aaf69153f0c30ef832c6571d6390ae7bb8f1f03c665752c25e188fc5cb5f9",
+        "scripts/mm_load_budgets.py": "0cae7dbde1ccc02a2ef4e6822e925ee507f3e917ec4207c00df7bfa54b033d2c",
+        "scripts/mm_load_faults.py": "48f937681bff9e6a4f4cf5c25862a3bdd673c2ce01657788c73245986e498e59",
+        "scripts/mm_load_ledger.py": "db8e38ee2948211cc5154a144472c22676571a1efd66e3cd58bb284fbc227458"
+      },
+      "fixture_sha256": {
+        "controller-spot.yml": "6f4f0d567b54d9b1152c8e5f15b014d4d1d77f6d845b38bb8541e9e4f2449078",
+        "exchange.py": "314867066a59821d207c09dae7c77c955db02289e8ceb4e255348149fd389038",
+        "pmm.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+        "load_service.py": "4a0f0c15f0f311f64d8288b774a6fd05f7883ff9840d30e13ac63b4a2d66d8f6",
+        "runtime_smoke.py": "5e378bb3c2efdbc1fa156eeae25756fb676d0fdc90b2e895868a7da4e6359e1b",
+        "life_mm_profiles.yaml": "68ec4621efb2e728a4cf24770e4ea4e5568560637ff544ecac4f238fbfa317fe",
+        "load_trace.py": "0469550580134e390453ad1fd75513a9a43163493c53d5a260f2ea6d6003b0fe",
+        "script-perpetual.yml": "a4eeed6b7576af41a387ae115122c9130bd55c9a43b8d40f9e8b86a023b95132",
+        "pmm-revised.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+        "fixtures.json": "92308feed4a3a84939942c334c2d78696fbfff684eabe6ea3f7abf0391fe0e06",
+        "controller-perpetual.yml": "9e1479b071f476626f448df4aba8e0a75b9cc8eee0a623b6b9f9ce4fb3360b45",
+        "load_client.py": "447eb57154a9f055c5362140d10eca2312aa2a1e2e70894efbf7efb64ebb3f0f"
+      },
+      "passed": true,
+      "raw_directory": "build/mm-load/20261026-105756-93f2e4",
+      "result_sha256": "71f6640b4404319317856513d546fd48608845d72083e8dccb0f706bae839474",
+      "measurements": {
+        "duration_seconds": 60,
+        "read_p95_ms": 52.06026899998051,
+        "read_p99_ms": 179.4661089999181,
+        "requested_reads": 1200,
+        "completed_reads": 1200,
+        "completed_reads_per_second": 19.98092905407246,
+        "unexpected_errors": 0,
+        "errors": [],
+        "market_updates_per_second": 99.96687780820841,
+        "fills_per_second": 1.0,
+        "peak_rss_bytes": 329445376,
+        "ledger": {
+          "unique_exchange_fills": 60,
+          "unique_recorder_fills": 60,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "violations": []
+      },
+      "stage_distributions": {
+        "pool_queue_ms": {
+          "count": 1606,
+          "p50": 0.019709,
+          "p95": 0.051167,
+          "p99": 0.26,
+          "max": 4.766417
+        },
+        "pool_queue_cpu_ms": {
+          "count": 1606,
+          "p50": 0.022791,
+          "p95": 0.057875,
+          "p99": 0.120083,
+          "max": 0.218333
+        },
+        "rollback_ms": {
+          "count": 2201,
+          "p50": 0.132625,
+          "p95": 0.632,
+          "p99": 1.767417,
+          "max": 38.972417
+        },
+        "rollback_cpu_ms": {
+          "count": 2201,
+          "p50": 0.068251,
+          "p95": 0.166542,
+          "p99": 0.273041,
+          "max": 1.190833
+        },
+        "db_connect_ms": {
+          "count": 5,
+          "p50": 13.01175,
+          "p95": 94.89825,
+          "p99": 94.89825,
+          "max": 94.89825
+        },
+        "db_connect_cpu_ms": {
+          "count": 5,
+          "p50": 10.206126,
+          "p95": 47.620459,
+          "p99": 47.620459,
+          "max": 47.620459
+        },
+        "pool_checkout_ms": {
+          "count": 1606,
+          "p50": 0.536958,
+          "p95": 1.712875,
+          "p99": 11.464375,
+          "max": 95.2735
+        },
+        "pool_checkout_cpu_ms": {
+          "count": 1606,
+          "p50": 0.302375,
+          "p95": 0.713291,
+          "p99": 1.017959,
+          "max": 47.9915
+        },
+        "sql_ms": {
+          "count": 4843,
+          "p50": 0.6813749999992069,
+          "p95": 2.602125000066735,
+          "p99": 17.620833000023595,
+          "max": 492.9576670000415
+        },
+        "db_ping_ms": {
+          "count": 1601,
+          "p50": 0.405625,
+          "p95": 1.323667,
+          "p99": 9.525459,
+          "max": 40.794459
+        },
+        "db_ping_cpu_ms": {
+          "count": 1601,
+          "p50": 0.177875,
+          "p95": 0.400292,
+          "p99": 0.589499,
+          "max": 17.809875
+        },
+        "commit_ms": {
+          "count": 1392,
+          "p50": 0.174709,
+          "p95": 1.300708,
+          "p99": 8.797916,
+          "max": 46.045166
+        },
+        "commit_cpu_ms": {
+          "count": 1392,
+          "p50": 0.077167,
+          "p95": 0.143583,
+          "p99": 0.250375,
+          "max": 0.546378
+        },
+        "handler_ms": {
+          "count": 1176,
+          "p50": 5.091290999985176,
+          "p95": 40.08045900002344,
+          "p99": 151.32554199999504,
+          "max": 700.0999580000098
+        },
+        "event_loop_lag_ms": {
+          "count": 1513,
+          "p50": 2.390819052379811,
+          "p95": 24.45920106652011,
+          "p99": 140.47883900957459,
+          "max": 353.54004700877795
+        },
+        "response_serialization_ms": {
+          "count": 1097,
+          "p50": 0.150208,
+          "p95": 3.876292,
+          "p99": 4.897792,
+          "max": 10.853791
+        },
+        "response_serialization_cpu_ms": {
+          "count": 1097,
+          "p50": 0.153084,
+          "p95": 3.877708,
+          "p99": 4.9025,
+          "max": 10.003084
+        },
+        "response_validation_ms": {
+          "count": 1378,
+          "p50": 0.068542,
+          "p95": 4.194,
+          "p99": 4.745625,
+          "max": 118.730375
+        },
+        "response_validation_cpu_ms": {
+          "count": 1378,
+          "p50": 0.073083,
+          "p95": 4.196375,
+          "p99": 4.748625,
+          "max": 118.401915
+        },
+        "event_age_ms": {
+          "count": 5862,
+          "p50": 1.192626953125,
+          "p95": 18.78076171875,
+          "p99": 73.3037109375,
+          "max": 274.527587890625
+        },
+        "book_backlog": {
+          "count": 5862,
+          "p50": 1,
+          "p95": 2,
+          "p99": 3,
+          "max": 8
+        },
+        "executor_reports_ms": {
+          "count": 66,
+          "p50": 3.192375,
+          "p95": 5.590916,
+          "p99": 10.314833,
+          "max": 10.314833
+        },
+        "executor_reports_cpu_ms": {
+          "count": 66,
+          "p50": 3.19625,
+          "p95": 5.602333,
+          "p99": 10.333583,
+          "max": 10.333583
+        },
+        "executor_update_ms": {
+          "count": 66,
+          "p50": 3.272792,
+          "p95": 5.882042,
+          "p99": 10.562333,
+          "max": 10.562333
+        },
+        "executor_update_cpu_ms": {
+          "count": 66,
+          "p50": 3.273167,
+          "p95": 5.74275,
+          "p99": 10.562333,
+          "max": 10.562333
+        },
+        "recorder_ms": {
+          "count": 57,
+          "p50": 16.917792,
+          "p95": 27.595625,
+          "p99": 48.947,
+          "max": 48.947
+        },
+        "recorder_cpu_ms": {
+          "count": 57,
+          "p50": 10.912588,
+          "p95": 15.769584,
+          "p99": 17.570958,
+          "max": 17.570958
+        }
+      }
+    },
+    "after_plain": {
+      "image_id": "sha256:689a2cbcebd8e7ea9b63dccd51579487daccbb5d6dbdc1221c248adaafaaf5a7",
+      "diagnostic": true,
+      "tracing": false,
+      "bot_limits": {
+        "cpus": 1,
+        "memory_bytes": 2147483648
+      },
+      "postgres_limits": {
+        "cpus": 2,
+        "memory_bytes": 536870912
+      },
+      "client_limits": {
+        "cpus": 1,
+        "memory_bytes": 536870912
+      },
+      "simulator_limits": {
+        "cpus": 1,
+        "memory_bytes": 536870912
+      },
+      "postgres_image_id": "sha256:4cdc921837346b979fed007530cfba7e5e1f5bd17d1c8e8779356f3e6a19260e",
+      "postgres_version": "14.15",
+      "docker_host_resources": "cpus=8 memory_bytes=8218251264",
+      "history_orders": 100000,
+      "history_fills": 100000,
+      "source_sha256": {
+        "scripts/test_mm_load.py": "36fbe5191a4ad9c6a544387bfc24848d9355190c4401551e2133444c352b380a",
+        "scripts/test_e2e_offline.py": "f28f8738f2ac36509a1c3e0ed874df49b54b7035573aca2a08e3d73056a3a026",
+        "scripts/analyze_mm_load_trace.py": "959aaf69153f0c30ef832c6571d6390ae7bb8f1f03c665752c25e188fc5cb5f9",
+        "scripts/mm_load_budgets.py": "0cae7dbde1ccc02a2ef4e6822e925ee507f3e917ec4207c00df7bfa54b033d2c",
+        "scripts/mm_load_faults.py": "48f937681bff9e6a4f4cf5c25862a3bdd673c2ce01657788c73245986e498e59",
+        "scripts/mm_load_ledger.py": "db8e38ee2948211cc5154a144472c22676571a1efd66e3cd58bb284fbc227458"
+      },
+      "fixture_sha256": {
+        "controller-spot.yml": "6f4f0d567b54d9b1152c8e5f15b014d4d1d77f6d845b38bb8541e9e4f2449078",
+        "exchange.py": "314867066a59821d207c09dae7c77c955db02289e8ceb4e255348149fd389038",
+        "pmm.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+        "load_service.py": "4a0f0c15f0f311f64d8288b774a6fd05f7883ff9840d30e13ac63b4a2d66d8f6",
+        "runtime_smoke.py": "5e378bb3c2efdbc1fa156eeae25756fb676d0fdc90b2e895868a7da4e6359e1b",
+        "life_mm_profiles.yaml": "68ec4621efb2e728a4cf24770e4ea4e5568560637ff544ecac4f238fbfa317fe",
+        "load_trace.py": "0469550580134e390453ad1fd75513a9a43163493c53d5a260f2ea6d6003b0fe",
+        "script-perpetual.yml": "a4eeed6b7576af41a387ae115122c9130bd55c9a43b8d40f9e8b86a023b95132",
+        "pmm-revised.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+        "fixtures.json": "92308feed4a3a84939942c334c2d78696fbfff684eabe6ea3f7abf0391fe0e06",
+        "controller-perpetual.yml": "9e1479b071f476626f448df4aba8e0a75b9cc8eee0a623b6b9f9ce4fb3360b45",
+        "load_client.py": "447eb57154a9f055c5362140d10eca2312aa2a1e2e70894efbf7efb64ebb3f0f"
+      },
+      "passed": true,
+      "raw_directory": "build/mm-load/20261026-105939-426da7",
+      "result_sha256": "f0ee4ac4136667550b47da8d708d492a05a6d019409e783f1511cb709811f841",
+      "measurements": {
+        "duration_seconds": 60,
+        "read_p95_ms": 45.26586099996166,
+        "read_p99_ms": 139.22830199999225,
+        "requested_reads": 1200,
+        "completed_reads": 1200,
+        "completed_reads_per_second": 19.96228359873116,
+        "unexpected_errors": 0,
+        "errors": [],
+        "market_updates_per_second": 100.00677866306445,
+        "fills_per_second": 1.0,
+        "peak_rss_bytes": 321466368,
+        "ledger": {
+          "unique_exchange_fills": 60,
+          "unique_recorder_fills": 60,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "violations": []
+      },
+      "stage_distributions": {
+        "pool_queue_ms": {
+          "count": 1617,
+          "p50": 0.007334,
+          "p95": 0.02025,
+          "p99": 0.029,
+          "max": 0.111541
+        },
+        "pool_queue_cpu_ms": {
+          "count": 1617,
+          "p50": 0.011084,
+          "p95": 0.030209,
+          "p99": 0.042708,
+          "max": 0.124083
+        },
+        "rollback_ms": {
+          "count": 2218,
+          "p50": 0.11075,
+          "p95": 0.308084,
+          "p99": 1.090625,
+          "max": 48.167792
+        },
+        "rollback_cpu_ms": {
+          "count": 2218,
+          "p50": 0.046875,
+          "p95": 0.110125,
+          "p99": 0.158625,
+          "max": 0.340456
+        },
+        "db_connect_ms": {
+          "count": 5,
+          "p50": 10.869917,
+          "p95": 104.261791,
+          "p99": 104.261791,
+          "max": 104.261791
+        },
+        "db_connect_cpu_ms": {
+          "count": 5,
+          "p50": 8.650833,
+          "p95": 46.078123,
+          "p99": 46.078123,
+          "max": 46.078123
+        },
+        "pool_checkout_ms": {
+          "count": 1616,
+          "p50": 0.41975,
+          "p95": 1.262584,
+          "p99": 8.656,
+          "max": 104.522167
+        },
+        "pool_checkout_cpu_ms": {
+          "count": 1616,
+          "p50": 0.201582,
+          "p95": 0.483709,
+          "p99": 0.686749,
+          "max": 46.274289
+        },
+        "sql_ms": {
+          "count": 4862,
+          "p50": 0.6319579999853886,
+          "p95": 2.2778750000043146,
+          "p99": 8.133917000009205,
+          "max": 389.4899169999917
+        },
+        "db_ping_ms": {
+          "count": 1611,
+          "p50": 0.365334,
+          "p95": 1.068292,
+          "p99": 6.724375,
+          "max": 15.709292
+        },
+        "db_ping_cpu_ms": {
+          "count": 1611,
+          "p50": 0.152084,
+          "p95": 0.354833,
+          "p99": 0.49325,
+          "max": 1.292411
+        },
+        "commit_ms": {
+          "count": 1396,
+          "p50": 0.1465,
+          "p95": 1.301584,
+          "p99": 4.013667,
+          "max": 43.716958
+        },
+        "commit_cpu_ms": {
+          "count": 1396,
+          "p50": 0.052832,
+          "p95": 0.098875,
+          "p99": 0.127458,
+          "max": 0.237582
+        },
+        "handler_ms": {
+          "count": 1187,
+          "p50": 5.113749999964057,
+          "p95": 37.7869170000622,
+          "p99": 128.80687499989563,
+          "max": 623.7250839999433
+        },
+        "event_loop_lag_ms": {
+          "count": 1512,
+          "p50": 1.366775050655633,
+          "p95": 13.630616065483991,
+          "p99": 78.04829500662436,
+          "max": 316.2974620086061
+        },
+        "response_serialization_ms": {
+          "count": 1107,
+          "p50": 0.122042,
+          "p95": 3.887375,
+          "p99": 4.132875,
+          "max": 94.197916
+        },
+        "response_serialization_cpu_ms": {
+          "count": 1107,
+          "p50": 0.124833,
+          "p95": 3.887125,
+          "p99": 4.097958,
+          "max": 94.136792
+        },
+        "response_validation_ms": {
+          "count": 1392,
+          "p50": 0.045916,
+          "p95": 4.137041,
+          "p99": 4.368958,
+          "max": 8.178542
+        },
+        "response_validation_cpu_ms": {
+          "count": 1392,
+          "p50": 0.049084,
+          "p95": 4.13775,
+          "p99": 4.372709,
+          "max": 8.202625
+        },
+        "event_age_ms": {
+          "count": 5916,
+          "p50": 1.13037109375,
+          "p95": 12.5498046875,
+          "p99": 57.409423828125,
+          "max": 249.5380859375
+        },
+        "book_backlog": {
+          "count": 5916,
+          "p50": 1,
+          "p95": 2,
+          "p99": 2,
+          "max": 8
+        },
+        "executor_reports_ms": {
+          "count": 67,
+          "p50": 3.120416,
+          "p95": 6.329208,
+          "p99": 8.457458,
+          "max": 8.457458
+        },
+        "executor_reports_cpu_ms": {
+          "count": 67,
+          "p50": 3.123875,
+          "p95": 6.156334,
+          "p99": 8.274083,
+          "max": 8.274083
+        },
+        "executor_update_ms": {
+          "count": 67,
+          "p50": 3.152167,
+          "p95": 6.390834,
+          "p99": 8.524417,
+          "max": 8.524417
+        },
+        "executor_update_cpu_ms": {
+          "count": 67,
+          "p50": 3.152667,
+          "p95": 6.217334,
+          "p99": 8.33075,
+          "max": 8.33075
+        },
+        "recorder_ms": {
+          "count": 58,
+          "p50": 14.791875,
+          "p95": 22.803208,
+          "p99": 24.29675,
+          "max": 24.29675
+        },
+        "recorder_cpu_ms": {
+          "count": 58,
+          "p50": 9.405417,
+          "p95": 14.022043,
+          "p99": 15.756501,
+          "max": 15.756501
+        }
+      }
+    }
+  },
+  "scope": "Four isolated 60-second probes; not a replay of the entire 49-minute process or a replacement for final soak acceptance.",
+  "all_probe_fixtures_identical": true,
+  "tool_sha256": {
+    "scripts/benchmark_admin_serialization.py": "6f7c11a0bbb77bba1b16a8346b89e07455821517fa2594fd3cd04869ca0d7408",
+    "scripts/replay_mm_executor_reports.py": "9d12c2335829280135651e75b7d3cf5661e815c64fa9776e6caadb5b684dfd68",
+    "test/e2e/offline/load_trace.py": "0469550580134e390453ad1fd75513a9a43163493c53d5a260f2ea6d6003b0fe",
+    "test/e2e/offline/load_service.py": "4a0f0c15f0f311f64d8288b774a6fd05f7883ff9840d30e13ac63b4a2d66d8f6"
+  }
+}

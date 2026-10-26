@@ -119,3 +119,19 @@ For complete diagnostic windows even after latency-budget violations, use
 `--profile soak`). `--keep-going` preserves failures and the final nonzero exit.
 The analyzer retains up to twenty slowest requests plus twenty failed requests,
 so timeouts keep their server correlation when queued successes rank slower.
+
+
+## Quick CPU replay before long-run acceptance
+
+`python scripts/benchmark_admin_serialization.py --baseline <previous-admin-models.py> --output <result.json>`
+compares the real order/fill DTO implementations with counterbalanced repetitions
+and identical JSON outputs. `scripts/replay_mm_executor_reports.py` reuses the
+existing report math on a stored offline executor batch without starting actors
+or a database. These isolate small stages; their scope excludes live scheduling
+and does not replace the zero-error soak gate. Commands, excluded state and the
+measured iteration are in the [short diagnostic review](../reports/life-mm-short-repro-review.md).
+
+The test wrapper also measures separate pool queue/connect/pre-ping operations
+and wall/thread CPU for executor reports and response validation/serialization.
+Synchronous stage CPU includes child work; operation timings include scheduling.
+Maxima from different calls must not be added.
