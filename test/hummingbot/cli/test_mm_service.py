@@ -80,6 +80,22 @@ async def test_drawdown_thresholds_are_wired_to_existing_runner_without_an_inact
 
 
 @pytest.mark.asyncio
+async def test_outflow_policy_survives_perpetual_selection_without_a_global_buy_cap_gate():
+    host, _, _ = await setup_host()
+    data = host.mm_session.catalogue.model_dump(mode="json")
+    data["spot_outflow"] = dict(window_seconds=60, max_net_outflow_quote="20", fee_allowance_rate=".001")
+    host.mm_session.catalogue = MMProfilesConfig.model_validate(data)
+    host.mm_session.request.market_mode = "perpetual"
+    effective = host.mm_effective_config(host.mm_session)
+    assert effective["mm_spot_outflow_policy"]["trading_pair"] == "LIFE-USDT"
+    assert len(effective["controller_config_overrides"]) == 1
+    # Scope of this limit is BUY authorization, not shared MM readiness.
+    host.mm_session.request.market_mode = "both"
+    host.owner.spot_outflow = SimpleNamespace(status=lambda: dict(ready=False, remaining_quote=0))
+    assert host.mm_runtime_ready()
+
+
+@pytest.mark.asyncio
 async def test_both_runtime_gate_rejects_one_stale_market():
     host, controllers, provider = await setup_host()
     assert host.mm_runtime_ready()

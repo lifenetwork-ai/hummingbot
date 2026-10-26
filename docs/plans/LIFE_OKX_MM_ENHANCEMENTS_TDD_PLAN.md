@@ -1,8 +1,8 @@
 # LIFE / OKX MM: Incremental Enhancements — TDD Plan
 
 Date: 2026-10-26 (Asia/Ho_Chi_Minh).
-Status: E0, E1 and E2a complete with local unit/PostgreSQL/image fault/load verification;
-E2b–E6 have not started.
+Status: E0, E1, E2a and E2b complete with local verification.
+E2c–E6 have not started.
 Only verified checklist items are marked complete.
 Baseline: `1867159e7`.
 Implementation priority: service availability, explainable trading decisions and
@@ -379,13 +379,32 @@ a duplicate fill table, scan all history per tick or query OKX from FE polls.
 Use existing indexes first; add a simple idempotent index only if query evidence
 requires it. Recorder/DB uncertainty keeps new spending blocked.
 
-- [ ] **Red:** exact Decimal buys/sells, USDT fees/rebates, base/third-currency fees, window edges, duplicate/out-of-order fills and multiple same-timestamp fill identities.
-- [ ] **Red:** bound account/environment mismatch, unbound legacy history and restart cannot mix demo/live or another account's cashflow into the allowance.
-- [ ] **Red:** concurrent levels, partial fills, cancel timeout, delayed recorder writes, throttled placement and reserve-to-fill handoff cannot bypass the cap.
-- [ ] **Red:** repeated pre-intent/final-transport authorization counts one reservation once; BUY-only rejection does not block a funded SELL or require recovery for a proven unsent order.
-- [ ] **Red:** switch/restart/market-mode changes retain the rolling window; disabled behavior is unchanged; cap exhaustion blocks buys while funded sells remain possible.
-- [ ] **Green:** implement a small projection/reservation extension on existing recorder/owner paths and expose used/reserved/remaining capacity plus freshness.
-- [ ] **Verify/commit:** real-PG reconstruction/deduplication and simulator accounting tests pass; measure query count and hot-path cost with large historical data.
+- [x] **Red:** exact Decimal buys/sells, USDT fees/rebates, base/third-currency fees, window edges, duplicate/out-of-order fills and multiple same-timestamp fill identities.
+- [x] **Red:** bound account/environment mismatch, unbound legacy history and restart cannot mix demo/live or another account's cashflow into the allowance.
+- [x] **Red:** concurrent levels, partial fills, cancel timeout, delayed recorder writes, throttled placement and reserve-to-fill handoff cannot bypass the cap.
+- [x] **Red:** repeated pre-intent/final-transport authorization counts one reservation once; BUY-only rejection does not block a funded SELL or require recovery for a proven unsent order.
+- [x] **Red:** switch/restart/market-mode changes retain the rolling window; disabled behavior is unchanged; cap exhaustion blocks buys while funded sells remain possible.
+- [x] **Green:** implement a small projection/reservation extension on existing recorder/owner paths and expose used/reserved/remaining capacity plus freshness.
+- [x] **Verify/commit:** real-PG reconstruction/deduplication and simulator accounting tests pass; measure query count and hot-path cost with large historical data.
+
+E2b verification: 1452 native tests/nine subtests and 161 full-suite PostgreSQL
+tests passed, including thirteen outflow cases. Ten image E2E regression groups
+passed; the final enabled-only startup-authority/HALT fix was verified again with
+the enabled outflow image scenario and combined load on the final artifact.
+The combined outflow, drawdown and strict-guard sixty-second probe passed unchanged
+budgets: p95 52.18ms / p99 327.89ms, 1200 HTTP 200 responses and zero unexpected errors; sixty fills and
+positions matched the independent ledger. A 100001-fill current-window rebuild
+used bounded queries; 1000 subsequent reservation/status pairs added zero SQL.
+Native rebuild/hot-path observations ranged 1.92–3.21 seconds / 19–34ms across
+the recorded runs; the separate 100000-fill expiry burst took 234.47ms locally.
+These diagnostics do not replace E6's 1-CPU active-window/soak acceptance.
+Upper-edge pending debit and per-order dedupe bounds have explicit Red/Green
+tests. A real-PG Red/Green startup test also keeps setup permission during
+reconstruction and prevents a new binding HALT from reopening orders. Defaults
+remain disabled; no fill table, index, cache service or reset API
+was added. See the [guide](../life-mm-spot-outflow.md),
+[report](../../reports/life-mm-e2b-spot-outflow.md) and
+[evidence](../../reports/life-mm-e2b-spot-outflow.json). E2c–E6 remain open.
 
 ### E2c — Listing bootstrap without outside two-sided liquidity
 
@@ -577,7 +596,7 @@ exchange load test or Cloud Run staging is required.
 - [ ] Exercise E0's failure matrix through the full service process: inject optional report/snapshot errors, read timeouts, WS loss, transient startup failure, dead controller task and candle outage. Assert expected API/process availability, classified quote restrictions and automatic recovery; no unexplained exit or indefinite unreported readiness wait is accepted.
 - [ ] Run bootstrap on a fresh empty/own-only market, then introduce qualified outside depth. Verify bounded quoting, qualification transition, expiry/wait recovery and persisted state across restart/profile switches; never inject fills merely to make the bootstrap qualify.
 - [ ] Extend the healthy workload with valid external book depth/candle data and bounded event/liquidity reads. Certify enabled features rather than disabling guards to obtain a pass; keep deliberate guard/fault windows separate from healthy latency/error gates.
-- [ ] Measure query counts, synchronous CPU, event-loop lag, DB checkout and reporting cost with the existing 100,000-order/fill fixture. Confirm no per-level/per-row N+1, unbounded caches or per-request exchange calls; optimize demonstrated regressions only.
+- [ ] Measure query counts, synchronous CPU, event-loop lag, DB checkout and reporting cost with the existing 100,000-order/fill fixture. Include an active outflow window and same-timestamp expiry burst under the bot's 1-CPU limit; the E2b native helper timing is not container certification. Confirm no per-level/per-row N+1, unbounded caches or per-request exchange calls; optimize demonstrated regressions only.
 - [ ] Run short diagnostics during development, then the unchanged full mixed/burst and sixty-minute zero-error soak gates once the final implementation/image is stable. Preserve original resource, latency, growth and accounting budgets; record any fixture/read-mix additions explicitly.
 - [ ] Finally run opt-in OKX Demo integration on available instruments: enabled guards, normal maker quoting, switch/stop/restart, actual order/fill/fee comparison and both-market behavior. Use local simulation for deterministic risk breaches that Demo cannot safely/reliably reproduce; label those scopes separately.
 - [ ] Update operational guides, handler annotations and generated Swagger; record sanitized results under `reports/`, large raw artifacts under ignored `build/`, and link evidence beside completed phase checkboxes.

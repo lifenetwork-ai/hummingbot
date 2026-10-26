@@ -25,6 +25,25 @@ def host():
     return item
 
 
+def test_outflow_snapshot_uses_decimal_strings_and_utc_without_a_custom_encoder():
+    from hummingbot.core.spot_outflow import SpotOutflowConfig, SpotOutflowProjection
+    from hummingbot.core.spot_outflow_guard import SpotOutflowGuard
+    item = host()
+    owner = MagicMock()
+    owner.spot_outflow = SpotOutflowGuard(owner, dict(window_seconds=10, max_net_outflow_quote="100",
+                                                      fee_allowance_rate=".01", trading_pair="LIFE-USDT"))
+    owner.spot_outflow.projection = SpotOutflowProjection(
+        SpotOutflowConfig(window_seconds=10, max_net_outflow_quote="100", fee_allowance_rate=".01"),
+        "LIFE-USDT", coverage_start_ms=0)
+    owner.spot_outflow.projection.advance(20000)
+    owner.spot_outflow.reason_code = None
+    item.owner = owner
+    result = item.snapshot()
+    json.dumps(result, allow_nan=False)
+    assert result["spot_outflow"]["remaining_quote"] == "100"
+    assert result["spot_outflow"]["observed_at"] == "1970-01-01T00:00:20Z"
+
+
 @pytest.mark.asyncio
 async def test_final_shutdown_snapshot_persists_drawdown_as_json_without_a_custom_serializer():
     from test.hummingbot.strategy_v2.test_mm_drawdown import runner

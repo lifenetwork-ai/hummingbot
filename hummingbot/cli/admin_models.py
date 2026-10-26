@@ -11,6 +11,7 @@ from hummingbot.client.config.mm_profiles import MarketMode, MMProfilesConfig
 from hummingbot.core.admin_reconciliation import ReconciliationRequest
 from hummingbot.core.mm_drawdown import MMDrawdownMarket
 from hummingbot.core.mm_session import MMSessionRequest, MMSessionStatus
+from hummingbot.core.spot_outflow import SpotOutflowPolicy
 from hummingbot.strategy_v2.models.executors import CloseType
 from hummingbot.strategy_v2.models.executors_info import PerformanceReport
 
@@ -198,7 +199,34 @@ class DrawdownStatus(APIModel):
     operator_action_required: bool
 
 
+class SpotOutflowBinding(APIModel):
+    account_id: str
+    environment: Literal["live", "demo"]
+    trading_pair: str
+
+
+class SpotOutflowStatus(APIModel):
+    ready: bool
+    stale: bool
+    buy_allowed: bool
+    reason_code: Optional[str]
+    observed_at: Optional[UTCDateTime]
+    policy: SpotOutflowPolicy
+    binding: Optional[SpotOutflowBinding]
+    recorded_net_outflow_quote: Optional[Decimal]
+    reserved_quote: Optional[Decimal]
+    remaining_quote: Optional[Decimal]
+    non_usdt_fees: Dict[str, Decimal]
+    window_start_ms: Optional[int]
+    window_end_ms: Optional[int]
+    coverage_start_ms: Optional[int]
+    fill_count: int
+    last_buy_denial: Optional[str] = None
+    pending_terminal_orders: int = 0
+
+
 class StatusResponse(APIModel):
+    spot_outflow: Optional[SpotOutflowStatus] = None
     drawdown: Optional[DrawdownStatus] = None
     service: Optional[ServiceStatus] = None
     funding_sync: Optional[FundingSyncStatus] = None

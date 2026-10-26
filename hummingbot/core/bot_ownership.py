@@ -49,6 +49,7 @@ class BotOwnership:
         self.mm_ready_check = None
         self.runtime_ready_check = None
         self.intent_scopes = {}
+        self.spot_outflow = None
 
     def try_acquire(self) -> bool:
         if self.lost:
@@ -188,6 +189,8 @@ class BotOwnership:
                 or recorder.config_file_path != self.config_file_path or connector not in recorder._markets):
             raise SubmissionBlocked("The active recorder/configuration does not match the service owner.")
         self._check_intents(recorder)
+        if self.spot_outflow is not None:
+            self.spot_outflow.before_order(connector, order, row)
         recorder.record_order_intent(connector, order)
         self.active_intents.add(order.client_order_id)
         self.intent_scopes[order.client_order_id] = scope
@@ -215,6 +218,8 @@ class BotOwnership:
                 from hummingbot.connector.markets_recorder import MarketsRecorder
                 recorder = MarketsRecorder._shared_instance
                 recorder.reject_unsent_order(connector, order.client_order_id)
+                if self.spot_outflow is not None:
+                    self.spot_outflow.release_unsent(order.client_order_id)
                 self.active_intents.discard(order.client_order_id)
                 self.intent_scopes.pop(order.client_order_id, None)
             except Exception:
@@ -262,6 +267,8 @@ class BotOwnership:
             self._check_intents(recorder)
             if client_id not in self.active_intents or client_id in self.sent_intents:
                 raise SubmissionBlocked("Order identity is absent or was already sent; reconcile instead of retrying.")
+            if self.spot_outflow is not None:
+                self.spot_outflow.authorize(data, row)
             # OKX's documented expTime deadline also constrains a process paused
             # after this gate but before transport. It does not replace recovery.
             headers = dict(request.headers or {})
@@ -447,7 +454,31 @@ class BotOwnership:
         final_state = self.check_owner()["recovery_state"] or {}
         if final_state.get("halt") or final_state.get("pending_mutations"):
             raise SubmissionBlocked("Reconciliation has unresolved durable effects.")
+        from hummingbot.core.spot_outflow import SpotOutflowPolicy
+        policy = getattr(getattr(core.strategy, "config", None), "mm_spot_outflow_policy", None)
+        if isinstance(policy, SpotOutflowPolicy):
+            from hummingbot.core.spot_outflow_guard import SpotOutflowGuard
+            self.spot_outflow = SpotOutflowGuard(self, policy.model_dump(mode="json"))
+            # Controllers may still finish account setup while a large window
+            # is reconstructed. Keep setup permission without admitting orders.
+            self.reconciling = True
+            try:
+                await self.spot_outflow.initialize()
+            finally:
+                self.reconciling = False
+            if (self.check_owner()["recovery_state"] or {}).get("halt"):
+                raise SubmissionBlocked("spot_outflow binding requires recovery before new orders")
+        elif final_state.get("spot_outflow"):
+            self.require_recovery("spot_outflow_policy_unavailable")
+            raise SubmissionBlocked("Armed spot_outflow requires its original managed policy")
         self.allow_new_orders = True
+
+    def fill_committed(self, row):
+        if self.spot_outflow is not None:
+            try:
+                self.spot_outflow.fill_committed(row)
+            except (ValueError, TypeError, KeyError, ArithmeticError):
+                self.spot_outflow.reason_code = "spot_outflow_fill_invalid"
 
     @staticmethod
     async def _refresh_orders(connector, orders):
@@ -601,6 +632,8 @@ class BotOwnership:
                     await asyncio.sleep(0.1)
                     await self._refresh_orders(connector, [order for order in orders if not order.is_done])
             core.trade_fill_db.assert_persistence_healthy()
+            if self.spot_outflow is not None:
+                await self.spot_outflow.reconcile_terminal(all_orders=True)
             if held_snapshot and any(order.executed_amount_base != execution_before_stop[order.client_order_id]
                                      for _, orders in tracked for order in orders):
                 self.require_recovery("A fill arrived during position checkpoint cleanup; operator reconciliation is required.")

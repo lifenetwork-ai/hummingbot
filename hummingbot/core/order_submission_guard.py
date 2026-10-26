@@ -86,6 +86,17 @@ def order_failed(connector, order) -> None:
         _guard.order_failed(connector, order)
 
 
+def fill_committed(row) -> None:
+    if postgres_requested() and _guard is not None:
+        _guard.fill_committed(row)
+
+
+def spot_buy_preview(connector, amount, price):
+    if not postgres_requested() or _guard is None or _guard.spot_outflow is None:
+        return True
+    return _guard.spot_outflow.preview(connector, amount, price)
+
+
 def fence_session(session) -> None:
     guard = active_guard()
     if guard is not None:

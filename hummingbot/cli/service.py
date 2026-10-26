@@ -66,6 +66,9 @@ class ServiceHost:
         self.mm_session = None
         self.mm_readiness_reason = None
         self.mm_drawdown_state = None
+        self.spot_outflow_state = None
+        self.outflow_task = None
+        self.next_outflow_poll = 0
         self.applied_mm_identity = None
         self.catalogue = {}
         self.config_hashes = {}
@@ -102,6 +105,8 @@ class ServiceHost:
             })
             overrides.append(effective.model_dump(mode="json"))
         result = {"script_file_name": "v2_with_controllers.py", "controller_config_overrides": overrides}
+        if session.catalogue.outflow_policy() is not None:
+            result["mm_spot_outflow_policy"] = session.catalogue.outflow_policy()
         policy = session.catalogue.drawdown_policy()
         if policy is not None:
             result.update(max_global_drawdown_quote=policy["max_global_drawdown_quote"],
@@ -402,6 +407,9 @@ class ServiceHost:
     async def stop_core(self):
         self.running = False
         self.owner.allow_new_orders = False
+        if self.outflow_task is not None and not self.outflow_task.done():
+            self.outflow_task.cancel()
+            await asyncio.gather(self.outflow_task, return_exceptions=True)
         strategy = self.hb.trading_core.strategy
         if strategy is not None and isinstance(getattr(getattr(strategy, "config", None), "mm_drawdown_scope", None), dict):
             self.mm_drawdown_state = strategy.mm_drawdown_status()
@@ -422,10 +430,14 @@ class ServiceHost:
             self.observer_progress_at = time.monotonic()
 
     def snapshot(self):
-        from hummingbot.cli.admin_models import DrawdownStatus
+        from hummingbot.cli.admin_models import DrawdownStatus, SpotOutflowStatus
         from hummingbot.cli.admin_observations import capture_reporting
         from hummingbot.core.funding_sync import public_status
         core = self.hb.trading_core
+        from hummingbot.core.spot_outflow_guard import SpotOutflowGuard
+        outflow = getattr(self.owner, "spot_outflow", None)
+        if isinstance(outflow, SpotOutflowGuard):
+            self.spot_outflow_state = outflow.status()
         strategy = core.strategy
         if strategy is not None and isinstance(getattr(getattr(strategy, "config", None), "mm_drawdown_scope", None), dict):
             self.mm_drawdown_state = strategy.mm_drawdown_status()
@@ -462,6 +474,7 @@ class ServiceHost:
                 "balances": balances, "reporting_unavailable": reporting_unavailable,
                 "availability": self.service_status(persisted=True),
                 "mm_drawdown": DrawdownStatus.model_validate(self.mm_drawdown_state).model_dump(mode="json") if self.mm_drawdown_state is not None else None,
+                "spot_outflow": SpotOutflowStatus.model_validate(self.spot_outflow_state).model_dump(mode="json") if self.spot_outflow_state is not None else None,
                 "mm_session": self.mm_session.model_dump(mode="json", exclude={"catalogue"}) if self.mm_session else None,
                 "mm_markets": [{"market": "spot" if controller.config.connector_name == "okx" else "perpetual",
                                 "connector": controller.config.connector_name, "pair": controller.config.trading_pair,
@@ -484,6 +497,14 @@ class ServiceHost:
         install_guard(self.owner)
         self.owner.runtime_ready_check = self.runtime_healthy
         row = self.owner.check_owner()
+        guard = getattr(self.owner, "spot_outflow", None)
+        if guard is None:
+            from hummingbot.core.spot_outflow_guard import checkpoint_outflow_status
+            self.spot_outflow_state = checkpoint_outflow_status((row["recovery_state"] or {}).get("spot_outflow"))
+        if hasattr(guard, "projection") and guard.projection is not None:
+            from hummingbot.core.spot_outflow_guard import SpotOutflowGuard
+            if isinstance(guard, SpotOutflowGuard):
+                guard.projection.advance(int(row["database_now"] * 1000))
         from hummingbot.core.mm_drawdown import checkpoint_drawdown_status
         checkpoint = (row["recovery_state"] or {}).get("strategy_checkpoints", {}).get("life_mm_profiles.yaml", {})
         if getattr(self.hb.trading_core, "strategy", None) is None:
@@ -594,6 +615,35 @@ class ServiceHost:
         self.publish_status(version)
         await self.poll_reconciliation()
         self.poll_funding()
+        self.poll_outflow()
+
+    def poll_outflow(self):
+        from hummingbot.core.spot_outflow_guard import SpotOutflowGuard
+        guard = getattr(self.owner, "spot_outflow", None)
+        if (not isinstance(guard, SpotOutflowGuard) or (self.outflow_task is not None and not self.outflow_task.done())
+                or time.monotonic() < self.next_outflow_poll):
+            return
+        self.next_outflow_poll = time.monotonic() + 1
+
+        async def observe():
+            try:
+                if guard.projection is None:
+                    await guard.initialize()
+                await guard.reconcile_terminal()
+                if guard.reason_code == "spot_outflow_observation_unavailable":
+                    guard.reason_code = None
+                if guard.terminal_pending:
+                    self.next_outflow_poll = time.monotonic() + self.availability.fail(
+                        "spot_outflow", "spot_outflow_terminal_unavailable", retry=True)
+                else:
+                    self.availability.clear("spot_outflow")
+            except Exception as error:
+                self.owner.check_owner()
+                self.hb.trading_core.trade_fill_db.assert_persistence_healthy()
+                guard.reason_code = "spot_outflow_observation_unavailable"
+                self.next_outflow_poll = time.monotonic() + self.availability.fail(
+                    "spot_outflow", "spot_outflow_observation_unavailable", error, retry=True)
+        self.outflow_task = asyncio.create_task(observe())
 
     def publish_status(self, version):
         """Publish control every tick; optional daily checkpoints at most once/minute."""

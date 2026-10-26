@@ -200,12 +200,18 @@ class AdminAPI:
         service = snapshot.get("availability")
         if service is not None:
             service = {**service, "stale": not owner_available}
+        outflow = snapshot.get("spot_outflow")
+        if outflow is not None and not owner_available:
+            outflow = {**outflow, "ready": False, "buy_allowed": False, "stale": True,
+                       "reason_code": "spot_outflow_owner_unavailable", "recorded_net_outflow_quote": None,
+                       "reserved_quote": None, "remaining_quote": None}
         model = StatusResponse(service=service, bot_id=row["bot_id"], desired_state=row["desired_state"], control_version=row["control_version"],
                                acknowledged_version=row["acknowledged_version"], owner_available=owner_available,
                                heartbeat_age_seconds=age, running=owner_available and bool(snapshot.get("running")),
                                phase=snapshot.get("phase", "unknown") if owner_available else "owner_unavailable",
                                session=session, observed_session=snapshot.get("mm_session"), markets=snapshot.get("mm_markets") or [],
                                drawdown=snapshot.get("mm_drawdown"),
+                               spot_outflow=outflow,
                                server_time=datetime.fromtimestamp(now, tz=timezone.utc) if now is not None else None,
                                time_remaining_seconds=remaining, error=snapshot.get("error"),
                                funding_sync=({**snapshot["funding_sync"], **({"state": "unavailable", "error": "owner_unavailable"} if not owner_available else {})}

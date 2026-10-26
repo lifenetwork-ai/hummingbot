@@ -57,6 +57,12 @@ explicitly sets test-only global/controller limits and can be combined with
 `--strict-guards`. The effective YAML is retained; production limits remain
 disabled by default. It is a short diagnostic, not a replacement for E6.
 
+E2b adds `--scenario spot-outflow` to the image matrix: partial BUY, fee/rebate,
+BUY-only cap, funded SELL recovery, terminal proof, cold restart and market-mode
+changes. Probe-only `--spot-outflow` enables explicit spending limits and binds
+the empty test DB before seeding yesterday's historical rows. It can be combined
+with `--drawdown --strict-guards`; it never bypasses the legacy-origin wait.
+
 The bot has 1 CPU and 2 GiB; PostgreSQL has 2 CPUs / 512 MiB; simulator and load
 client each have 1 CPU / 512 MiB. Swap limits equal memory limits. Record the host
 architecture, amd64 emulation, immutable image identity, source/fixture hashes

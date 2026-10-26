@@ -535,8 +535,12 @@ class MarketsRecorder:
                         raise ValueError("Duplicate fill identity has conflicting economic values.")
                     self.save_market_states(self._config_file_path, market, session=session)
                 else:
-                    self._store_fill(session, market, evt, order_record, timestamp, event_type.name, base_asset, quote_asset)
+                    existing_fill = self._store_fill(session, market, evt, order_record, timestamp, event_type.name, base_asset, quote_asset)
+                committed = {key: getattr(existing_fill, key) for key in (
+                    "market", "symbol", "timestamp", "order_id", "exchange_trade_id", "trade_type", "price", "amount", "trade_fee")}
         # A failed commit must never acknowledge persistence to connector reconciliation.
+        from hummingbot.core.order_submission_guard import fill_committed
+        fill_committed(committed)
         market.add_trade_fills_from_market_recorder({
             TradeFillOrderDetails(market.display_name, evt.exchange_trade_id, evt.trading_pair)
         })
@@ -593,6 +597,7 @@ class MarketsRecorder:
         )
         session.add(trade_fill_record)
         self.save_market_states(self._config_file_path, market, session=session)
+        return trade_fill_record
 
     def _did_complete_funding_payment(self,
                                       event_tag: int,

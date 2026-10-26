@@ -320,6 +320,10 @@ class LifeMMController(pmm_simple.PMMSimpleController):
                 proposed_long = long + config.amount if is_buy else long
                 proposed_short = short + config.amount if not is_buy and self.config.connector_name == "okx_perpetual" else short
                 required_quote = config.amount * config.entry_price / config.leverage
+                if self.config.runtime_config_managed and self.config.connector_name == "okx" and is_buy:
+                    from hummingbot.core.order_submission_guard import spot_buy_preview
+                    if not spot_buy_preview(connector, config.amount, config.entry_price):
+                        continue
                 if not self._within_caps(proposed_long, proposed_short):
                     continue
                 if self.config.connector_name == "okx" and not is_buy:

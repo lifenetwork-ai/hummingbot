@@ -9,6 +9,8 @@ max_total_amount_quote: "200"
 # Once armed, policy and peaks persist across sessions/restarts. See docs/life-mm-drawdown.md.
 max_global_drawdown_quote: null
 max_controller_drawdown_quote: null
+# Optional rolling spot USDT outflow. Explicit window/cap/fee allowance required.
+spot_outflow: null
 # Profile IDs match their scenario names. Reference pairs remain configurable.
 profiles:
   follow_market:

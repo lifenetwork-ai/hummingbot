@@ -1842,6 +1842,17 @@
             "default": "okx",
             "title": "Reference Connector",
             "type": "string"
+          },
+          "spot_outflow": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SpotOutflowConfigOutput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
           }
         },
         "required": [
@@ -3969,6 +3980,266 @@
         "title": "SidewaysRange",
         "type": "object"
       },
+      "SpotOutflowBindingOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "title": "Account Id",
+            "type": "string"
+          },
+          "environment": {
+            "enum": [
+              "live",
+              "demo"
+            ],
+            "title": "Environment",
+            "type": "string"
+          },
+          "trading_pair": {
+            "title": "Trading Pair",
+            "type": "string"
+          }
+        },
+        "required": [
+          "account_id",
+          "environment",
+          "trading_pair"
+        ],
+        "title": "SpotOutflowBinding",
+        "type": "object"
+      },
+      "SpotOutflowConfigOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "fee_allowance_rate": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Fee Allowance Rate",
+            "type": "string"
+          },
+          "max_net_outflow_quote": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Max Net Outflow Quote",
+            "type": "string"
+          },
+          "window_seconds": {
+            "exclusiveMinimum": 0,
+            "maximum": 604800,
+            "title": "Window Seconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "window_seconds",
+          "max_net_outflow_quote",
+          "fee_allowance_rate"
+        ],
+        "title": "SpotOutflowConfig",
+        "type": "object"
+      },
+      "SpotOutflowPolicyOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "fee_allowance_rate": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Fee Allowance Rate",
+            "type": "string"
+          },
+          "max_net_outflow_quote": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Max Net Outflow Quote",
+            "type": "string"
+          },
+          "trading_pair": {
+            "pattern": "^[A-Z0-9][A-Z0-9._]*-USDT$",
+            "title": "Trading Pair",
+            "type": "string"
+          },
+          "window_seconds": {
+            "exclusiveMinimum": 0,
+            "maximum": 604800,
+            "title": "Window Seconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "window_seconds",
+          "max_net_outflow_quote",
+          "fee_allowance_rate",
+          "trading_pair"
+        ],
+        "title": "SpotOutflowPolicy",
+        "type": "object"
+      },
+      "SpotOutflowStatusOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "binding": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SpotOutflowBindingOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "buy_allowed": {
+            "title": "Buy Allowed",
+            "type": "boolean"
+          },
+          "coverage_start_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage Start Ms"
+          },
+          "fill_count": {
+            "title": "Fill Count",
+            "type": "integer"
+          },
+          "last_buy_denial": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Last Buy Denial"
+          },
+          "non_usdt_fees": {
+            "additionalProperties": {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            "title": "Non Usdt Fees",
+            "type": "object"
+          },
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "pending_terminal_orders": {
+            "default": 0,
+            "title": "Pending Terminal Orders",
+            "type": "integer"
+          },
+          "policy": {
+            "$ref": "#/components/schemas/SpotOutflowPolicyOutput"
+          },
+          "ready": {
+            "title": "Ready",
+            "type": "boolean"
+          },
+          "reason_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Code"
+          },
+          "recorded_net_outflow_quote": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recorded Net Outflow Quote"
+          },
+          "remaining_quote": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remaining Quote"
+          },
+          "reserved_quote": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reserved Quote"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "window_end_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window End Ms"
+          },
+          "window_start_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window Start Ms"
+          }
+        },
+        "required": [
+          "ready",
+          "stale",
+          "buy_allowed",
+          "reason_code",
+          "observed_at",
+          "policy",
+          "binding",
+          "recorded_net_outflow_quote",
+          "reserved_quote",
+          "remaining_quote",
+          "non_usdt_fees",
+          "window_start_ms",
+          "window_end_ms",
+          "coverage_start_ms",
+          "fill_count"
+        ],
+        "title": "SpotOutflowStatus",
+        "type": "object"
+      },
       "StartCommand": {
         "additionalProperties": false,
         "properties": {
@@ -4317,6 +4588,17 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/SessionStateOutput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "spot_outflow": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SpotOutflowStatusOutput"
               },
               {
                 "type": "null"

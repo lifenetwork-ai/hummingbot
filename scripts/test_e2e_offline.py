@@ -841,6 +841,69 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
                                         effective_config_sha256=hashlib.sha256(path.read_bytes()).hexdigest())
         path.write_bytes(original_profiles)
 
+    def outflow_scenario(self):
+        print("Offline E2E: spot outflow BUY-only admission, committed fills and durable binding", flush=True)
+        import yaml
+        path = self.assets / "life_mm_profiles.yaml"
+        original = path.read_bytes()
+        profiles = yaml.safe_load(path.read_text())
+        profiles["spot_outflow"] = dict(window_seconds=300, max_net_outflow_quote="30", fee_allowance_rate=".01")
+        path.write_text(yaml.safe_dump(profiles))
+        self.report.joinpath("effective-outflow-profiles.yaml").write_bytes(path.read_bytes())
+        self.env.update(ADMIN_API_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin")
+        for field, value in (("API_KEY", "offline-key"), ("SECRET_KEY", "offline-secret"), ("PASSPHRASE", "offline-pass")):
+            self.env["HBOT_OKX_PERPETUAL_" + field] = value
+        first, port = self.start("outflow")
+        self.mm_command(port, "start", market_mode="both", selection="fixed", profile_id="sideways", duration_seconds=600)
+
+        def live(instrument, side):
+            return [row for row in self.ledger()["orders"] if row["instId"] == instrument and row["side"] == side
+                    and row["state"] in ("live", "partially_filled")]
+
+        def flow():
+            return self.admin(port, "/status")[1].get("spot_outflow") or {}
+
+        poll(lambda: len(live("LIFE-USDT", "buy")) == 1 and len(live("LIFE-USDT", "sell")) == 2,
+             description="only one spot BUY fits the outflow cap; both funded sells remain")
+        poll(lambda: len(live("LIFE-USDT-SWAP", "buy")) == 2, description="spot cap leaves perpetual admission intact")
+        assert flow()["ready"] and Decimal(flow()["reserved_quote"]) <= 30
+        buy = live("LIFE-USDT", "buy")[0]
+        amount = Decimal(buy["sz"]) / 2
+        self.control(fill={"clOrdId": buy["clOrdId"], "amount": str(amount), "fee": ".001"}, duplicate=True)
+        expected = amount * Decimal(buy["px"]) + Decimal(".001")
+        poll(lambda: flow().get("recorded_net_outflow_quote") is not None
+             and Decimal(flow()["recorded_net_outflow_quote"]) == expected, description="committed partial BUY and original USDT fee")
+        self.mm_command(port, "stop")
+        assert Decimal(flow()["reserved_quote"]) == 0
+        assert self.sql("SELECT count(*) FROM trade_fills") == "1"
+        binding = self.state()["recovery_state"]["spot_outflow"]
+        self.terminate(first)
+        _, port = self.start("outflow-restart", auto_migrate=False)
+        self.mm_command(port, "start", market_mode="perpetual", selection="fixed", profile_id="sideways", duration_seconds=600)
+        poll(lambda: flow().get("ready") and Decimal(flow()["recorded_net_outflow_quote"]) == expected,
+             description="restarted perpetual-only session still covers prior spot outflow")
+        self.mm_command(port, "switch", market_mode="spot", selection="fixed", profile_id="sideways", duration_seconds=600)
+        poll(lambda: len(live("LIFE-USDT", "sell")) == 2, description="funded spot sells continue while BUY levels exceed remaining cap")
+        assert not live("LIFE-USDT", "buy")
+        assert self.state()["status"]["phase"] == "running" and not self.state()["recovery_state"].get("halt")
+        assert self.state()["recovery_state"]["spot_outflow"] == binding
+        sell = live("LIFE-USDT", "sell")[0]
+        sell_amount = Decimal("100")
+        self.control(fill={"clOrdId": sell["clOrdId"], "amount": str(sell_amount), "fee": "-.001"}, duplicate=True)
+        after_sell = expected - sell_amount * Decimal(sell["px"]) - Decimal(".001")
+        poll(lambda: flow().get("recorded_net_outflow_quote") is not None
+             and Decimal(flow()["recorded_net_outflow_quote"]) == after_sell, description="only committed SELL proceeds and actual rebate fund new capacity")
+        poll(lambda: len(live("LIFE-USDT", "buy")) == 1, timeout=45, description="BUY level resumes after committed SELL cashflow")
+        assert Decimal(flow()["recorded_net_outflow_quote"]) + Decimal(flow()["reserved_quote"]) <= 30
+        self.mm_command(port, "stop")
+        assert Decimal(flow()["reserved_quote"]) == 0
+        assert self.sql("SELECT count(*) FROM trade_fills") == "2" and not self.ledger()["unknown"]
+        self.metrics["spot_outflow"] = dict(buy_only_cap=True, perpetual_unaffected=True, funded_sells_continue=True,
+                                            partial_commit=True, original_usdt_fee_and_rebate=True, duplicates=2,
+                                            terminal_proof_releases=True, restart_and_mode_switch=True, bound_identity=True,
+                                            used_quote=str(after_sell), effective_config_sha256=hashlib.sha256(path.read_bytes()).hexdigest())
+        path.write_bytes(original)
+
     def availability_scenario(self):
         print("Offline E2E: service availability and automatic read/feed recovery", flush=True)
         self.env.update(ADMIN_API_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin")
@@ -1038,7 +1101,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--image", default="hummingbot-cloudrun:local")
-    parser.add_argument("--scenario", choices=("all", "spot", "v2-spot", "v2-perpetual", "schema", "upgrade", "life-mm", "life-mm-recovery", "funding", "availability", "quote-guards", "drawdown"), default="all")
+    parser.add_argument("--scenario", choices=("all", "spot", "v2-spot", "v2-perpetual", "schema", "upgrade", "life-mm", "life-mm-recovery", "funding", "availability", "quote-guards", "drawdown", "spot-outflow"), default="all")
     parser.add_argument("--previous-image", help="Cached compatible prior image; required for the release upgrade gate.")
     parser.add_argument("--trading-env", choices=("live", "demo"), default="live", help="Local simulator routing mode; never contacts OKX.")
     args = parser.parse_args()
@@ -1078,7 +1141,7 @@ def main():
                            f"type=bind,source={assets},target=/test-assets,readonly",
                            image, "python", "/test-assets/runtime_smoke.py", timeout=90)
             result["runtime_smoke"] = json.loads(smoke.stdout)
-            scenarios = ("schema", "spot", "v2-spot", "v2-perpetual", "life-mm", "funding", "availability", "quote-guards", "drawdown") if args.scenario == "all" else (args.scenario,)
+            scenarios = ("schema", "spot", "v2-spot", "v2-perpetual", "life-mm", "funding", "availability", "quote-guards", "drawdown", "spot-outflow") if args.scenario == "all" else (args.scenario,)
             if args.scenario == "all" and previous_image:
                 scenarios += ("upgrade",)
             result["scenarios"] = {}
@@ -1100,6 +1163,8 @@ def main():
                         harness.quote_guard_scenario()
                     elif scenario == "drawdown":
                         harness.drawdown_scenario()
+                    elif scenario == "spot-outflow":
+                        harness.outflow_scenario()
                     elif scenario == "upgrade":
                         harness.upgrade_scenario(previous_image)
                     elif scenario in ("life-mm", "life-mm-recovery"):

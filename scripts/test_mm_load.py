@@ -165,12 +165,15 @@ def main():
     parser.add_argument("--trace", action="store_true", help="Bounded request/SQL/commit/loop-stack/PG-wait traces; no parameters or credentials")
     parser.add_argument("--strict-guards", action="store_true", help="Probe-only explicit strict-guard fixture; production defaults remain disabled")
     parser.add_argument("--drawdown", action="store_true", help="Probe-only explicit drawdown limits; production defaults remain disabled")
+    parser.add_argument("--spot-outflow", action="store_true", help="Probe-only explicit outflow policy, bound on an empty DB before historical seeding")
     parser.add_argument("--keep-going", action="store_true", help="Continue healthy windows after budget violations; final result still fails")
     args = parser.parse_args()
     if args.strict_guards and args.profile != "probe":
         parser.error("--strict-guards currently certifies the short probe only")
     if args.drawdown and args.profile != "probe":
         parser.error("--drawdown currently certifies the short probe only")
+    if args.spot_outflow and args.profile != "probe":
+        parser.error("--spot-outflow currently certifies the short probe only")
     metadata = json.loads(docker("image", "inspect", args.image).stdout)[0]
     assert metadata["Architecture"] == "amd64"
     # Cached immutable digest from P4 needs no registry/network preparation again.
@@ -184,7 +187,7 @@ def main():
                     bot_limits=dict(cpus=1, memory_bytes=2 * 1024**3), postgres_limits=dict(cpus=2, memory_bytes=512 * 1024**2),
                     simulator_limits=dict(cpus=1, memory_bytes=512 * 1024**2), client_limits=dict(cpus=1, memory_bytes=512 * 1024**2),
                     history_orders=args.history_rows, history_fills=args.history_rows, funding_sync_interval_seconds=5,
-                    tracing=args.trace, strict_quote_guards=args.strict_guards, drawdown=args.drawdown,
+                    tracing=args.trace, strict_quote_guards=args.strict_guards, drawdown=args.drawdown, spot_outflow=args.spot_outflow,
                     continue_after_budget_failure=args.keep_going, windows={})
     evidence["source_sha256"] = {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest() for path in (
         ROOT / "scripts/test_mm_load.py", ROOT / "scripts/test_e2e_offline.py", ROOT / "scripts/analyze_mm_load_trace.py",
@@ -193,6 +196,12 @@ def main():
         with tempfile.TemporaryDirectory(prefix="hbot-mm-load-") as directory:
             assets = Path(directory)
             assets_for(assets)
+            if args.spot_outflow:
+                import yaml
+                config_path = assets / "life_mm_profiles.yaml"
+                profiles = yaml.safe_load(config_path.read_text())
+                profiles["spot_outflow"] = dict(window_seconds=3600, max_net_outflow_quote="100000", fee_allowance_rate=".01")
+                config_path.write_text(yaml.safe_dump(profiles))
             if args.drawdown:
                 import yaml
                 config_path = assets / "life_mm_profiles.yaml"
@@ -242,6 +251,13 @@ def main():
                 docker("update", "--memory", "2g", "--memory-swap", "2g", bot)
                 poll(lambda: bool(harness.state().get("status")), description="load owner status")
                 print(f"Local load evidence: {report}", flush=True)
+                if args.spot_outflow:
+                    # Establish the verified empty-DB origin, not a relabelled
+                    # legacy history or a test-only bypass of warmup.
+                    command(harness, port, "start", market_mode="spot", selection="fixed", profile_id="sideways", duration_seconds=600)
+                    poll(lambda: bool((harness.state()["recovery_state"].get("spot_outflow") or {}).get("binding")),
+                         description="verified empty-DB outflow binding before historical fixture insertion")
+                    command(harness, port, "stop")
                 seed_history(harness, args.history_rows)
                 bill_time = int(time.time() * 1000) - 1000
                 harness.control(funding_bills=[dict(billId=str(i), type="8", subType="174" if value[0] != "-" else "173",

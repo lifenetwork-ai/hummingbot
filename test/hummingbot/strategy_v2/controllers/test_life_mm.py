@@ -44,6 +44,19 @@ def make_controller(config):
 
 
 @pytest.mark.asyncio
+async def test_spot_outflow_rejection_skips_buy_proposals_but_keeps_funded_sells(monkeypatch):
+    controller, _ = make_controller(configuration(runtime_config_managed=True))
+    await controller.update_processed_data()
+    import hummingbot.core.order_submission_guard as gates
+    monkeypatch.setattr(gates, "postgres_requested", lambda: True)
+    preview = MagicMock(return_value=False)
+    monkeypatch.setattr(gates, "_guard", SimpleNamespace(spot_outflow=SimpleNamespace(preview=preview)))
+    actions = controller.create_actions_proposal()
+    assert actions and all(action.executor_config.side == TradeType.SELL for action in actions)
+    preview.assert_called()
+
+
+@pytest.mark.asyncio
 async def test_weighted_returns_use_saved_life_and_source_anchors():
     config = configuration(scenario="follow_market", references=[
         {"pair": "BTC-USDT", "weight": "0.6"}, {"pair": "ETH-USDT", "weight": "0.4"}])

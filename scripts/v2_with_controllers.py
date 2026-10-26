@@ -9,6 +9,7 @@ from hummingbot.client.hummingbot_application import HummingbotApplication
 from hummingbot.connector.connector_base import ConnectorBase
 from hummingbot.core.event.events import MarketOrderFailureEvent
 from hummingbot.core.mm_drawdown import MMDrawdownMarket, drawdown_policy
+from hummingbot.core.spot_outflow import SpotOutflowPolicy
 from hummingbot.core.utils.read_retry import retry_delay, transient_read
 from hummingbot.strategy.strategy_v2_base import StrategyV2Base, StrategyV2ConfigBase
 from hummingbot.strategy_v2.models.base import RunnableStatus
@@ -22,6 +23,7 @@ class V2WithControllersConfig(StrategyV2ConfigBase):
     max_global_drawdown_quote: Optional[Decimal] = Field(default=None, allow_inf_nan=True)
     max_controller_drawdown_quote: Optional[Decimal] = Field(default=None, allow_inf_nan=True)
     mm_drawdown_scope: Optional[Dict[str, MMDrawdownMarket]] = None
+    mm_spot_outflow_policy: Optional[SpotOutflowPolicy] = None
     mm_drawdown_max_data_age_seconds: Decimal = Field(default=Decimal("10"), gt=0, allow_inf_nan=False)
 
     @model_validator(mode="after")
@@ -54,7 +56,7 @@ class V2WithControllers(StrategyV2Base):
     performance_report_interval: int = 1
 
     def __init__(self, connectors: Dict[str, ConnectorBase], config: V2WithControllersConfig):
-        if config.mm_drawdown_scope:
+        if config.mm_drawdown_scope or config.mm_spot_outflow_policy:
             from hummingbot.client.config.runtime_config import postgres_requested
             if not postgres_requested():
                 raise ValueError("Managed MM drawdown requires PostgreSQL service ownership")

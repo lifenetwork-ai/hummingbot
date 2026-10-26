@@ -12,6 +12,12 @@ PnL is `null`; known peaks and confirmed breach remain visible. This metric
 includes reported trade fees and excludes funding; it is not account equity.
 See [managed MM drawdown](life-mm-drawdown.md) for configuration and bound policy.
 
+Optional `status.spot_outflow` exposes the bound rolling spot USDT policy,
+committed/reserved/remaining capacity, original non-USDT fees and BUY-only
+coverage/denial reasons. Capacity loss does not stop funded SELL or perpetual
+admission. See [spot outflow](life-mm-spot-outflow.md) for provenance, window and
+terminal-proof semantics. Owner-unavailable observations are marked stale.
+
 The existing aiohttp service exposes `/api/v1/admin`. Configure
 `ADMIN_API_ENABLED=true`, `ADMIN_API_USERNAME` and `ADMIN_API_PASSWORD` through
 the existing `.env` loader or injected deployment secrets. There are no usable

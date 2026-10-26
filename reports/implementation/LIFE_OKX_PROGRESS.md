@@ -862,3 +862,39 @@ fills/positions. Observed RSS was 328,478,720 bytes on a 1 CPU/2 GiB bot.
 E2b–E6 remain open; no new sixty-minute, upgrade, Cloud Run or real Demo gate is
 claimed. See [E2a report](../life-mm-e2a-drawdown.md) and
 [evidence](../life-mm-e2a-drawdown.json).
+
+### Incremental enhancements E2b — 2026-10-26
+
+Optional rolling spot net USDT outflow now uses committed recorder fills,
+original fee currencies, bounded in-process projection and client-ID BUY
+reservations on the existing pre-intent/final-transport gates. Partial fills do
+not release capacity before commit. Read-only terminal proof uses existing
+connector APIs/parser and recorder deduplication. Funded SELL/perpetual admission
+and cancellation retain their ordinary checks. No new fill table, index, ledger,
+Redis service, environment variable or reset endpoint was added; defaults are null.
+
+The existing recovery state binds verified account/environment/pair and policy.
+Unknown legacy origin waits a full observed window; restart/profile/random/market
+changes cannot reset the allowance. Red/Green also covers upper-edge committed
+debit protection, per-order dedupe bounds and a final startup race: setup authority
+must survive async reconstruction, and a binding HALT cannot reopen order permission.
+
+Final verification: 1452 native tests/nine subtests, 93 overlapping focused cases
+with RuntimeWarning treated as errors and 161 full-suite PostgreSQL tests passed.
+Ten E2E regression groups passed on the prior image. The final enabled-only owner
+startup fix was reverified with the enabled outflow image case and combined load;
+the two artifact identities remain separate in the evidence. Twenty-five checked
+runtime/config/contract files match final image
+`sha256:cad5a536266c58aa61dfad61afa04ff3df601e329af4dbe408f07f0bb5b62cff`
+(1364671166 bytes).
+
+The final outflow/drawdown/strict-guard sixty-second probe passed unchanged budgets:
+p95 52.18ms / p99 327.89ms, 1200 HTTP 200 responses, zero unexpected errors and
+sixty matching fills/positions. A 100001-current-fill rebuild used bounded queries;
+1000 reservation/status checks added zero SQL. Recorded native rebuild/hot-path
+times ranged 1.92–3.21 seconds / 19–34ms; 100000-fill burst expiry took 234.47ms.
+The E6 1-CPU active-window/expiry and full-soak gate remains open. Fixture errors
+and diagnostic prior-image measurements are retained. No Cloud Run deployment,
+new sixty-minute/upgrade gate or real Demo operation is claimed. See
+[E2b report](../life-mm-e2b-spot-outflow.md) and
+[evidence](../life-mm-e2b-spot-outflow.json).

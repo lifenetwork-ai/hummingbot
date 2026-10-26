@@ -65,6 +65,8 @@ class BotStateStore:
             bound = (row["recovery_state"] or {}).get("strategy_checkpoints", {}).get("life_mm_profiles.yaml", {}).get("mm_drawdown_policy")
             if bound is not None and desired_state != "stopped":
                 raise ControlConflict("Armed MM drawdown requires admin MM commands; policy/scope changes need operator review.")
+            if (row["recovery_state"] or {}).get("spot_outflow") and desired_state != "stopped":
+                raise ControlConflict("Armed spot_outflow requires admin MM commands and its bound policy.")
             if config_file_path is not None:
                 # An explicit legacy YAML selection replaces the MM intent.
                 # Its former session must not keep future admin starts blocked.
@@ -138,6 +140,9 @@ class BotStateStore:
             bound = (row["recovery_state"] or {}).get("strategy_checkpoints", {}).get("life_mm_profiles.yaml", {}).get("mm_drawdown_policy")
             if action != "stop" and bound is not None and bound != catalogue.drawdown_policy():
                 raise ControlConflict("Drawdown policy/scope is already bound; operator-reviewed maintenance is required to change it")
+            outflow = (row["recovery_state"] or {}).get("spot_outflow")
+            if action != "stop" and outflow is not None and outflow.get("policy") != catalogue.outflow_policy():
+                raise ControlConflict("spot_outflow policy is already bound; operator-reviewed maintenance is required to change it")
             if action == "stop":
                 current.status = "stopping"
                 current.generation += 1

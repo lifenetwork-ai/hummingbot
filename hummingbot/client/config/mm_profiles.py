@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from controllers.market_making.life_mm import LifeMMConfig, ReferencePair
 from hummingbot.client.config.config_helpers import load_yml_into_dict
 from hummingbot.core.mm_drawdown import MMDrawdownMarket, drawdown_policy
+from hummingbot.core.spot_outflow import SpotOutflowConfig, SpotOutflowPolicy
 from hummingbot.strategy_v2.utils.quote_guard import SidewaysRange
 
 Scenario = Literal["follow_market", "sideways", "follow_token"]
@@ -51,6 +52,17 @@ class MMProfilesConfig(BaseModel):
     max_total_amount_quote: Decimal = Field(gt=0, allow_inf_nan=False)
     max_global_drawdown_quote: Optional[Decimal] = Field(default=None, gt=0, allow_inf_nan=False)
     max_controller_drawdown_quote: Optional[Decimal] = Field(default=None, gt=0, allow_inf_nan=False)
+    spot_outflow: Optional[SpotOutflowConfig] = None
+
+    def outflow_policy(self):
+        if self.spot_outflow is None:
+            return None
+        if "spot" not in self.markets:
+            raise ValueError("Spot outflow requires a stable spot market template")
+        policy = SpotOutflowPolicy(**self.spot_outflow.model_dump(), trading_pair=self.markets["spot"].trading_pair).model_dump(mode="json")
+        for field in ("max_net_outflow_quote", "fee_allowance_rate"):
+            policy[field] = format(Decimal(policy[field]).normalize(), "f")
+        return policy
 
     def drawdown_policy(self):
         if self.max_global_drawdown_quote is None and self.max_controller_drawdown_quote is None:
@@ -65,6 +77,7 @@ class MMProfilesConfig(BaseModel):
 
     @model_validator(mode="after")
     def validate_catalogue(self):
+        self.outflow_policy()
         if not self.profiles or not self.markets:
             raise ValueError("Profiles and market templates cannot be empty")
         if not self.min_duration_seconds <= self.default_duration_seconds <= self.max_duration_seconds:
