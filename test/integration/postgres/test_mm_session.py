@@ -62,6 +62,30 @@ def test_stop_revokes_session_without_waiting_for_owner(sessions):
     assert row["control_version"] == 2
 
 
+def test_cli_mm_stop_model_loading_does_not_block_owner_heartbeat(sessions, monkeypatch):
+    import builtins
+
+    store, catalogue = sessions
+    store.request_mm_session(action="start", expected_version=0, catalogue=catalogue,
+                             request=MMSessionRequest(market_mode="spot", profile_id="sideways", duration_seconds=60))
+    with store.engine.begin() as connection:
+        connection.execute(text("UPDATE bot_state SET owner_uuid='review-owner', owner_generation=1"))
+    original_import = builtins.__import__
+    heartbeats = []
+
+    def cold_model_import(name, *args, **kwargs):
+        if name == "hummingbot.core.mm_session":
+            # A cold CLI process can spend seconds loading model dependencies.
+            # A separate owner connection must still publish during that work.
+            heartbeats.append(store.publish(owner_uuid="review-owner", owner_generation=1,
+                                            version=1, status={"running": True}))
+        return original_import(name, *args, **kwargs)
+    monkeypatch.setattr(builtins, "__import__", cold_model_import)
+    assert store.control(expected_version=1, desired_state="stopped") == 2
+    assert heartbeats and all(heartbeats)
+    assert store.read()["mm_session"]["status"] == "stopping"
+
+
 def test_stale_session_id_cannot_switch_current_session(sessions):
     store, catalogue = sessions
     request = MMSessionRequest(market_mode="spot", profile_id="sideways", duration_seconds=60)

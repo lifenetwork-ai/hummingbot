@@ -50,6 +50,10 @@ class BotStateStore:
             if not config_file_path or config_type not in ("v1-strategy", "v2-script", "controller"):
                 raise ValueError("A configuration requires a valid file identity and type.")
             values.update(config_file_path=config_file_path, config_type=config_type)
+        if desired_state == "stopped" and config_file_path is None:
+            # A cold CLI can spend seconds importing model dependencies. Load
+            # them before locking the row needed by the owner's heartbeat.
+            from hummingbot.core.mm_session import MMSession
         with self.engine.begin() as connection:
             conditions = [BotState.bot_id == self.bot_id, BotState.control_version == expected_version]
             if desired_state == "running" and config_file_path is None:
@@ -63,7 +67,6 @@ class BotStateStore:
                 # Its former session must not keep future admin starts blocked.
                 values["mm_session"] = None
             elif desired_state == "stopped" and row["mm_session"]:
-                from hummingbot.core.mm_session import MMSession
                 session = MMSession.model_validate(row["mm_session"])
                 if session.status in ("preparing", "running"):
                     # The CLI and admin API share the same stop handshake:

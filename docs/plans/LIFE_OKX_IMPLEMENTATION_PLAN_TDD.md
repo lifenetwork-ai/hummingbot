@@ -747,12 +747,12 @@ checkpoint. Detailed reproduction and scope: [logic-flow review](../../reports/l
 - [x] Reproduce partial-fill/cancellation exposure release, reserve entries through cancel acknowledgement, and verify terminal hold releases the temporary reservation.
 - [x] Reproduce decimal-spread boundary rejection and preserve exact configured bid/ask prices through the shared MM helper.
 - [x] Reproduce superseded start/switch during cleanup/config loading and re-read current owner/control intent before preparing a strategy.
-- [x] Align CLI stop with MM stopping/generation fencing; explicit legacy selection replaces the old MM snapshot without clearing HALT.
+- [x] Align CLI stop with MM stopping/generation fencing; explicit legacy selection replaces the old MM snapshot without clearing HALT. Load models before taking the control-row lock so cold CLI startup cannot block heartbeat.
 - [x] Keep stopped-service controls available when an older revision's selected YAML/credentials are absent; running selections still require validation.
 - [x] Reproduce false reconciliation matches for amended/wrong/missing order terms, including perpetual contract and spot market quantity units.
 - [x] Preserve already-observed funding history, report actual downtime gaps, trim expired overlap and repair false covered-history gaps.
 - [x] Persist configured funding cadence and use it for overdue/stale reporting.
-- [x] Pass the full native regression, real PostgreSQL and Swagger checks after consolidation.
+- [ ] Pass the full native regression, real PostgreSQL and Swagger checks after consolidation.
 - [ ] Verify the rebuilt image across all offline schema/spot/V2/MM/funding/upgrade scenarios.
 - [ ] Run the isolated bounded load probe, retain image/source identities and publish final evidence; preserve historical Demo evidence under its original image.
 
