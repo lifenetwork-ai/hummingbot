@@ -5,10 +5,10 @@ The unchanged sixty-minute load gate **passed** on the rebuilt Cloud Run image:
 All independent-ledger, position, funding and resource-growth assertions passed.
 The runner exited zero with no budget violations.
 
-This closes the one-hour acceptance subtask. The historical ten-timeout cluster
-was not reproduced, and its exact cause is not established. Its controlled
-reproduction remains a separate open checklist item; a passing retest must not
-be presented as proof of the historical cause.
+The user accepted this passing gate on 2026-10-26 and requested closure without
+further timeout reproduction. The acceptance and reproduction follow-up are
+closed. The historical ten-timeout cluster was not reproduced, and its exact
+cause is not established; accepted closure does not change that evidence.
 
 [Portable evidence](life-mm-soak-retest-evidence.json) records the full artifact,
 measurements, source/fixture/trace hashes and explicit closure fields.
@@ -102,12 +102,12 @@ inclusive; async CPU and nested wall times must not be added.
 
 - **Closed:** Red/Green verification for the confirmed UTC/serialization change.
 - **Closed:** full-image, unchanged sixty-minute zero-error acceptance gate.
-- **Open:** reproduce the original timeout cluster under controlled traced/untraced
-  conditions. The short parent probes and this retest did not reproduce it;
-  neither profile handover nor a single CPU/DB component is proven as its cause.
+- **Closed by user decision (2026-10-26):** no further timeout-cluster reproduction
+  is required after the passing gate. The short parent probes and this retest
+  did not reproduce it; its historical cause remains unproven.
 
 The [implementation plan](../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md)
-separates these conditions so that completed acceptance and unresolved
-reproduction are both explicit. No additional hour-long untraced control was run.
+records the passing acceptance and the user-approved closure of further
+reproduction separately from the unproven historical cause. No additional hour-long untraced control was run.
 This verification used the local simulator and disposable PostgreSQL; historical
 OKX Demo evidence retains its original image and scope.

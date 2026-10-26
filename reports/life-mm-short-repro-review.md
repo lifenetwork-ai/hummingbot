@@ -1,12 +1,13 @@
 # Short MM latency reproduction and UTC serialization fix
 
 Subsequent result: the [full-image sixty-minute gate passed](life-mm-soak-retest.md).
-Historical timeout-cluster reproduction remains open. The scope below records the earlier short iteration.
+The user closed the remaining reproduction follow-up on 2026-10-26 after accepting the passing full-image gate. The scope below records the earlier short iteration.
 
 The original ten-timeout cluster **was not reproduced** by four short probes.
 A measured serialization cost was reduced and a nested UTC contract bug was
-fixed with Red/Green tests. The prior sixty-minute soak failure remains open;
-these results do not close that acceptance gate.
+fixed with Red/Green tests. At this short-iteration checkpoint, the prior
+sixty-minute failure remained open; the subsequent passing gate and user closure
+are linked above.
 
 [Portable evidence](life-mm-short-repro-evidence.json) includes source/image
 hashes, matched fixture hashes, stage timings, both CPU replays and all probes.
@@ -108,8 +109,8 @@ The patched image is a diagnostic derivative of
 with only the reviewed Python DTO file overlaid and hash-verified. Its ID is
 `sha256:689a2cbcebd8e7ea9b63dccd51579487daccbb5d6dbdc1221c248adaafaaf5a7`.
 This iteration did not rebuild/pin a final Cloud Run deployment manifest or run
-another one-hour soak. The existing timeout reproduction and final zero-error
-soak checklist item remains open.
+another one-hour soak. Both follow-ups were open at this checkpoint; the
+subsequent full-image retest passed and the user closed further reproduction.
 
 The next diagnostic target is the original pool/event-loop stall under concurrent
 reads, using the separated stage measurements. A further fix should follow a

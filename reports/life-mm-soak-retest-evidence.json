@@ -1022,7 +1022,12 @@
     "historical_timeout_cluster_deterministically_reproduced": false,
     "exact_historical_cause_proven": false,
     "control": "Short traced/untraced parent and patch probes; no paired untraced full-hour run.",
-    "limits": "Random step choices vary between runs. Stage distributions are rolling snapshots; thread CPU is inclusive. A passing gate does not establish the historical cause."
+    "limits": "Random step choices vary between runs. Stage distributions are rolling snapshots; thread CPU is inclusive. A passing gate does not establish the historical cause.",
+    "followup_closed": true,
+    "additional_reproduction_required": false,
+    "closed_by": "user",
+    "closure_date": "2026-10-26",
+    "decision": "User accepted the passing full-image sixty-minute zero-error gate and requested closure without further reproduction. Historical measurements and unproven cause are unchanged."
   },
   "session_observations_count": 48,
   "observed_steps": [

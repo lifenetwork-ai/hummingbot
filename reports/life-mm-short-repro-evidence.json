@@ -1,5 +1,5 @@
 {
-  "status": "Short probes passed; original long-run timeout cluster not reproduced and remains open.",
+  "status": "Historical short probes passed; subsequent full-image one-hour gate passed and user closed further reproduction.",
   "source_commit": "ca1a0d77aee4d6e3cb8038c614ecb9e834c7fbf3",
   "diagnostic_image": {
     "parent_image_id": "sha256:868cc6642d2aa1c272c69a5dc8707509a78eee676c1f18ef0218efcb6c621a35",
@@ -1208,5 +1208,12 @@
     "scripts/replay_mm_executor_reports.py": "9d12c2335829280135651e75b7d3cf5661e815c64fa9776e6caadb5b684dfd68",
     "test/e2e/offline/load_trace.py": "0469550580134e390453ad1fd75513a9a43163493c53d5a260f2ea6d6003b0fe",
     "test/e2e/offline/load_service.py": "4a0f0c15f0f311f64d8288b774a6fd05f7883ff9840d30e13ac63b4a2d66d8f6"
+  },
+  "subsequent_closure": {
+    "closed_by": "user",
+    "closure_date": "2026-10-26",
+    "additional_reproduction_required": false,
+    "evidence": "life-mm-soak-retest-evidence.json",
+    "historical_cause_proven": false
   }
 }
