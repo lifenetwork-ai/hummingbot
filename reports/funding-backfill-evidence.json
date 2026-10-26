@@ -259,8 +259,8 @@
     }
   ],
   "demo": {
-    "state": "pending_actual_settlement",
-    "actual_payment_verified": false,
+    "state": "passed",
+    "actual_payment_verified": true,
     "authenticated_get_preflight": {
       "environment": "demo",
       "scope": "authenticated GET readers only; no persisted payments or trading commands",
@@ -323,7 +323,10 @@
     },
     "private_pre_migration_backup_saved": true,
     "strategy_commands": [],
-    "original_quote_based_helper_retired": true
+    "original_quote_based_helper_retired": true,
+    "artifact": "reports/okx-demo-funding.json",
+    "finished_at": "2026-10-26T00:01:32.620179+00:00",
+    "restart_deduplicated": true
   },
   "scope": {
     "new_full_soak": false,

@@ -179,7 +179,7 @@ The names below refer to existing Python model classes. Their SQL tables use the
 - [x] Remove the loop that drops all foreign keys in SQLConnectionManager. Handle events arriving before their order through a deliberate placeholder/upsert or a narrowly unenforced relationship, with behavioral tests.
 - [x] Prefer existing `Order` and `MarketState` records for pending/unknown state and recovery. Add missing columns only when necessary; do not introduce an event store, outbox or order journal by default.
 - [x] Funding follow-up implementation/local verification: reuse `funding_payments`, bot-state checkpoints and the current owner/service; add the narrow `funding_bills` companion with exact NUMERIC amounts, account/environment/bill identity and transactional checkpoints through `014_create_funding_bills.sql`. Legacy deduplication, stopped/closed-position catch-up, API coverage, full image E2E and the bounded local load probe pass. No extra service/container is required. [LIFE/OKX P7](LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md#p7--durable-funding-observation-and-restart-backfill-tdd), [evidence](../../reports/funding-backfill-evidence.json).
-- [ ] Funding Demo acceptance: observe an actual settlement through P7, compare exact original amount/time with DB/daily totals, and cold-restart to verify deduplication. Keep open until a real bill is verified; P7 tracks the scheduled 07:00 Vietnam observation.
+- [x] Funding Demo acceptance: observe an actual settlement through P7, compare exact original amount/time with DB/daily totals, and cold-restart to verify deduplication. Keep open until a real bill is verified; P7 tracks the scheduled 07:00 Vietnam observation.
 
 ### 4.2. Durable bot control state
 

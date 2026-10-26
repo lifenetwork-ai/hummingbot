@@ -2,7 +2,7 @@
 
 Status: **the bounded Demo protocol passed**, completed on 2026-10-26 in
 Asia/Ho_Chi_Minh. A subsequent focused run verified natural fills, original fees
-and filled-position recovery; funding settlement remains pending. Two real integration defects were fixed with
+and filled-position recovery; the P7 follow-up also verified funding settlement. Two real integration defects were fixed with
 Red/Green regressions before the final run. Portable, credential-free evidence:
 [okx-demo-acceptance.json](okx-demo-acceptance.json).
 
@@ -286,8 +286,8 @@ image `8401c10c2c5c...`; it is not relabelled as a new soak of this fix.
 - [x] Observe natural fills and confirm private-stream/recorder fee accounting
   and restart with filled exposure against Demo. The focused follow-up below
   verifies both markets and a persisted perpetual SHORT.
-- [ ] Observe a real Demo funding payment and compare the retained original
-  currency amount with the exchange. No payment was observed in this run.
+- [x] Observe a real Demo funding payment and compare its original currency amount
+  with exact PostgreSQL storage and the daily API. The P7 follow-up also verified restart deduplication.
 
 The three-profile matrix covers all profiles, while the long random sample
 happened to select only follow_market. BTC Demo integration does not verify LIFE
@@ -341,7 +341,7 @@ Local diagnostics: `build/okx-demo/fill-acceptance-20261025T202131Z.json`,
 
 ## Scheduled funding observation
 
-Funding status: **scheduled; payment remains unverified**.
+Funding status: **verified against an actual Demo bill, exact PostgreSQL storage and daily totals, including restart deduplication**.
 
 The Demo-header BTC-USDT-SWAP response reports the next settlement at
 **2026-10-26 00:00 UTC** (**07:00 Asia/Ho_Chi_Minh**). The actual Demo account
@@ -376,3 +376,9 @@ The helper runs locally under `caffeinate` so this Mac/Docker must remain availa
 it is acceptance infrastructure, not a required Cloud Run watcher/container.
 The service feature itself polls while its owner process exists and backfills
 after downtime. No new exchange orders are needed for this follow-up.
+
+### P7 actual settlement result
+
+P7 funding settlement verified at 2026-10-26T00:01:32.620179+00:00: Demo bill 4042315866684412230 reports 0.0032045728 USDT at UTC epoch-ms 1792972800651. Exact funding_bills and daily API totals match. The same stopped service was cold-restarted and the bill was ingested again without duplication. Orders/fills remain 320/5; no strategy or exchange trading command was submitted. The service stopped and released ownership after observation.
+
+Portable evidence: [okx-demo-funding.json](okx-demo-funding.json).

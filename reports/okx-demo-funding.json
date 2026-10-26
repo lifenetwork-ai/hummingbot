@@ -1,0 +1,270 @@
+{
+  "environment": "demo",
+  "image_id": "sha256:f6af2bf561c6713641508e50ff20303704101c4252d3f3f383cc8d394d1a409e",
+  "implementation_commit": "7dee5ffe4",
+  "passed": true,
+  "state": "funding_matched",
+  "observer": "P7 owner service while desired_state=stopped",
+  "new_orders_allowed": false,
+  "commands": [],
+  "scheduled_start_utc": "2026-10-25T23:02:46.050677+00:00",
+  "deadline_utc": "2026-10-26T00:06:00+00:00",
+  "before": {
+    "orders": 320,
+    "fills": 5,
+    "legacy_payments": 0,
+    "payments": [],
+    "owner_released": false,
+    "desired_state": "stopped",
+    "halt": false,
+    "database_timezone": "UTC"
+  },
+  "observed_at": "2026-10-26T00:01:22.333857+00:00",
+  "funding_sync": {
+    "state": "observed",
+    "account_id": "[demo-account]",
+    "environment": "demo",
+    "pairs": [
+      "BTC-USDT"
+    ],
+    "covered_from_ms": 1792947411000,
+    "covered_until_ms": 1792972870800,
+    "last_success_ms": 1792972870800,
+    "backfill_pending": false,
+    "stale": false,
+    "history_gap_from_ms": null,
+    "history_gap_until_ms": null,
+    "error": null,
+    "legacy_history_unverified": null,
+    "source": "okx_account_bills"
+  },
+  "current_database": {
+    "orders": 320,
+    "fills": 5,
+    "legacy_payments": 0,
+    "payments": [
+      {
+        "account_id": "[demo-account]",
+        "environment": "demo",
+        "bill_id": "4042315866684412230",
+        "symbol": "BTC-USDT",
+        "timestamp": 1792972800651,
+        "currency": "USDT",
+        "amount": "0.0032045728",
+        "rate": null
+      }
+    ],
+    "owner_released": false,
+    "desired_state": "stopped",
+    "halt": false,
+    "database_timezone": "UTC"
+  },
+  "actual_bills": [
+    {
+      "billId": "4042315866684412230",
+      "instId": "BTC-USDT-SWAP",
+      "ts": "1792972800651",
+      "pnl": "0.0032045728",
+      "ccy": "USDT",
+      "type": "8",
+      "subType": "174"
+    }
+  ],
+  "daily": {
+    "start_day": "2026-10-26",
+    "end_day": "2026-10-27",
+    "reporting_timezone": "UTC",
+    "server_time": "2026-10-26T00:01:22.528877Z",
+    "coverage": "observed_recorder_events",
+    "balance_scope": "account_last_observed",
+    "trade_storage_scale": null,
+    "funding_precision": "decimal_bills_with_legacy_float",
+    "funding_sync": {
+      "state": "observed",
+      "account_id": "[demo-account]",
+      "environment": "demo",
+      "pairs": [
+        "BTC-USDT"
+      ],
+      "covered_from_ms": 1792947411000,
+      "covered_until_ms": 1792972870800,
+      "last_success_ms": 1792972870800,
+      "backfill_pending": false,
+      "stale": false,
+      "history_gap_from_ms": null,
+      "history_gap_until_ms": null,
+      "error": null,
+      "legacy_history_unverified": false,
+      "source": "okx_account_bills"
+    },
+    "markets": [
+      {
+        "market": "perpetual",
+        "connector": "okx_perpetual",
+        "funding_status": "observed_only",
+        "days": [
+          {
+            "day": "2026-10-26",
+            "observed_at": "2026-10-26T00:01:22.528877Z",
+            "last_event_at": "2026-10-26T00:00:00.651000Z",
+            "fill_count": 0,
+            "buy_volume_base": "0",
+            "sell_volume_base": "0",
+            "buy_volume_quote": "0",
+            "sell_volume_quote": "0",
+            "converted_fill_count": 0,
+            "unconverted_fill_count": 0,
+            "percentage_fee_fill_count": 0,
+            "fee_in_usdt": null,
+            "fees": [],
+            "funding_paid": "0",
+            "funding_received": "0.0032045728",
+            "source": "recorder_tables"
+          }
+        ]
+      }
+    ],
+    "balances": []
+  },
+  "matched_bill": {
+    "billId": "4042315866684412230",
+    "instId": "BTC-USDT-SWAP",
+    "ts": "1792972800651",
+    "pnl": "0.0032045728",
+    "ccy": "USDT",
+    "type": "8",
+    "subType": "174"
+  },
+  "matched_payment": {
+    "account_id": "[demo-account]",
+    "environment": "demo",
+    "bill_id": "4042315866684412230",
+    "symbol": "BTC-USDT",
+    "timestamp": 1792972800651,
+    "currency": "USDT",
+    "amount": "0.0032045728",
+    "rate": null
+  },
+  "all_matched_payments": [
+    {
+      "account_id": "[demo-account]",
+      "environment": "demo",
+      "bill_id": "4042315866684412230",
+      "symbol": "BTC-USDT",
+      "timestamp": 1792972800651,
+      "currency": "USDT",
+      "amount": "0.0032045728",
+      "rate": null
+    }
+  ],
+  "restart_deduplicated": true,
+  "restart_status": {
+    "funding_sync": {
+      "state": "observed",
+      "account_id": "[demo-account]",
+      "environment": "demo",
+      "pairs": [
+        "BTC-USDT"
+      ],
+      "covered_from_ms": 1792947411000,
+      "covered_until_ms": 1792972890158,
+      "last_success_ms": 1792972890158,
+      "backfill_pending": false,
+      "stale": false,
+      "history_gap_from_ms": null,
+      "history_gap_until_ms": null,
+      "error": null,
+      "legacy_history_unverified": null,
+      "source": "okx_account_bills"
+    },
+    "bot_id": "okx-demo-btc",
+    "desired_state": "stopped",
+    "control_version": 33,
+    "acknowledged_version": 33,
+    "running": false,
+    "phase": "stopped",
+    "owner_available": true,
+    "heartbeat_age_seconds": 0.029056,
+    "session": {
+      "id": "24b0eaf4-1739-4ef9-848c-dbe1bf684300",
+      "request": {
+        "market_mode": "perpetual",
+        "selection": "fixed",
+        "duration_seconds": 900,
+        "profile_id": "sideways",
+        "references": null,
+        "profile_ids": null,
+        "step_duration_seconds": null
+      },
+      "config_hash": "3ce30d454e7050e9b76a92591367058a091ef990da4eaa631c82891117cbb081",
+      "profile_id": "sideways",
+      "generation": 1,
+      "step_index": 0,
+      "status": "stopped",
+      "started_at": "2026-10-25T20:24:15.557831Z",
+      "expires_at": "2026-10-25T20:39:15.557831Z",
+      "step_expires_at": "2026-10-25T20:39:15.557831Z",
+      "anchors": {
+        "demo_btc_perpetual": {
+          "life": "80551.405",
+          "sources": {}
+        }
+      }
+    },
+    "observed_session": {
+      "id": "24b0eaf4-1739-4ef9-848c-dbe1bf684300",
+      "request": {
+        "market_mode": "perpetual",
+        "selection": "fixed",
+        "duration_seconds": 900,
+        "profile_id": "sideways",
+        "references": null,
+        "profile_ids": null,
+        "step_duration_seconds": null
+      },
+      "config_hash": "3ce30d454e7050e9b76a92591367058a091ef990da4eaa631c82891117cbb081",
+      "profile_id": "sideways",
+      "generation": 1,
+      "step_index": 0,
+      "status": "stopped",
+      "started_at": "2026-10-25T20:24:15.557831Z",
+      "expires_at": "2026-10-25T20:39:15.557831Z",
+      "step_expires_at": "2026-10-25T20:39:15.557831Z",
+      "anchors": {
+        "demo_btc_perpetual": {
+          "life": "80551.405",
+          "sources": {}
+        }
+      }
+    },
+    "markets": [],
+    "server_time": "2026-10-26T00:01:31.243214Z",
+    "time_remaining_seconds": 0.0,
+    "error": null
+  },
+  "no_new_orders_or_fills": true,
+  "no_strategy_commands": true,
+  "final_database": {
+    "orders": 320,
+    "fills": 5,
+    "legacy_payments": 0,
+    "payments": [
+      {
+        "account_id": "[demo-account]",
+        "environment": "demo",
+        "bill_id": "4042315866684412230",
+        "symbol": "BTC-USDT",
+        "timestamp": 1792972800651,
+        "currency": "USDT",
+        "amount": "0.0032045728",
+        "rate": null
+      }
+    ],
+    "owner_released": true,
+    "desired_state": "stopped",
+    "halt": false,
+    "database_timezone": "UTC"
+  },
+  "pending_after": [],
+  "finished_at": "2026-10-26T00:01:32.620179+00:00"
+}

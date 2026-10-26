@@ -739,3 +739,9 @@ The local bounded acceptance helper will compare the 07:00 Vietnam settlement
 with exact DB/daily totals, cold-restart the stopped service to verify replay,
 and then stop/release ownership. Actual Demo funding items remain open until a
 real bill passes those checks; a successful empty read is not payment evidence.
+
+### P7 actual settlement acceptance
+
+P7 funding settlement verified at 2026-10-26T00:01:32.620179+00:00: Demo bill 4042315866684412230 reports 0.0032045728 USDT at UTC epoch-ms 1792972800651. Exact funding_bills and daily API totals match. The same stopped service was cold-restarted and the bill was ingested again without duplication. Orders/fills remain 320/5; no strategy or exchange trading command was submitted. The service stopped and released ownership after observation.
+
+[Portable evidence](../okx-demo-funding.json).

@@ -648,7 +648,7 @@ port 443 is already available. Checked 2026-10-25.
 Focused follow-up checklist:
 
 - [x] Observe natural fills and verify exchange/private-stream/recorder fees and recovery with filled exposure. Five natural maker fills, exact original fees/currencies, real SHORT recovery and matched reconciliation are recorded in the focused follow-up.
-- [ ] Observe a Demo funding payment and verify its original-currency accounting against the exchange. No payment was observed in the bounded run.
+- [x] Observe a Demo funding payment and verify its original-currency accounting against the exchange. P7 matched the actual bill, exact DB and daily totals, then verified cold-restart deduplication; see reports/okx-demo-funding.json.
 
 ### Post-Demo correctness — preserve recorded decimal quantities
 
@@ -670,7 +670,7 @@ targeted scaled-decimal fix. See [runtime details](../postgres-runtime.md#decima
 
 ### P7 — Durable funding observation and restart backfill (TDD)
 
-**Status: local implementation and image E2E/load probe verified; actual Demo settlement remains open.** The owner requested this follow-up before deployment.
+**Status: implementation, local/image verification and actual Demo settlement/restart acceptance complete.** The owner requested this follow-up before deployment.
 Reuse the existing service, OKX authenticated REST readers/throttlers, recorder,
 PostgreSQL ownership, SQL runner and reporting handlers. No separate watcher
 container, Cloud Scheduler, queue, Redis or general accounting framework is needed.
@@ -718,7 +718,7 @@ the recent endpoint alone does not promise complete lifetime history.
 - [x] Pass targeted unit tests and disposable real-PostgreSQL tests for exact amounts, original currencies, event times, migration replay, transactional cursor advancement, uniqueness and owner fencing. Keep upstream file-mode regressions green.
 - [x] Extend the existing internal-network E2E simulator: stop/expire with a held position, inject multiple funding bills while stopped, restart, replay pages and verify the database plus daily API totals exactly. Include closed-position catch-up, delayed bills, owner handover, unavailable/history-limited responses and DB failure without new exchange trading mutations.
 - [x] Run the existing local load probe with the funding reader active. Verify bounded REST/DB calls across many pairs and FE polls, no N+1, no duplicate totals, no leaked tasks/connections and unchanged trading/API budgets. Save sanitized evidence, update this checklist/progress and commit.
-- [ ] Finally run opt-in OKX Demo acceptance using the completed implementation: compare an actual bill with DB/daily totals, repeat ingestion and restart to prove deduplication/backfill. If no real settlement is available, keep this item open. The original-image 07:00 watcher does not certify P7. No Cloud Run staging or exchange load test is required.
+- [x] Finally run opt-in OKX Demo acceptance using the completed implementation: compare an actual bill with DB/daily totals, repeat ingestion and restart to prove deduplication/backfill. If no real settlement is available, keep this item open. The original-image 07:00 watcher does not certify P7. No Cloud Run staging or exchange load test is required.
 
 Local verification: **1,286 regression tests/nine subtests**, **121 full PostgreSQL
 tests**, then **17 targeted PostgreSQL tests** after one additional regression
@@ -753,3 +753,5 @@ integration results. Existing ownership, persistence, recovery and risk protecti
 remain required; unavailable Demo/LIFE checks must remain explicitly open. P7 is
 an additional required funding-accounting follow-up before calling the new
 idle/restart funding behavior complete; prior P1–P6 evidence does not mark it done.
+
+P7 final Demo evidence: P7 funding settlement verified at 2026-10-26T00:01:32.620179+00:00: Demo bill 4042315866684412230 reports 0.0032045728 USDT at UTC epoch-ms 1792972800651. Exact funding_bills and daily API totals match. The same stopped service was cold-restarted and the bill was ingested again without duplication. Orders/fills remain 320/5; no strategy or exchange trading command was submitted. The service stopped and released ownership after observation. See [portable result](../../reports/okx-demo-funding.json).
