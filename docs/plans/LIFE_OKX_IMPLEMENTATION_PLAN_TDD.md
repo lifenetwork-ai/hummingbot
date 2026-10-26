@@ -1,8 +1,9 @@
 # LIFE / OKX: Market-Making MVP Plan
 
-Updated: 2026-10-25 (Asia/Ho_Chi_Minh). Runtime baseline: `2d1dc0b7b`.
-Status: P1 controller/configuration and P2 session/service integration implemented
-and locally tested; P3 admin API and subsequent acceptance phases remain open.
+Updated: 2026-10-26 (Asia/Ho_Chi_Minh). Implementation baseline: `2d1dc0b7b`.
+Status: P1–P7 implementation and required local/Demo acceptance complete,
+including the actual funding settlement and cold-restart deduplication check.
+See [funding acceptance evidence](../../reports/okx-demo-funding.json).
 The [previous audit](../../reports/LIFE_OKX_IMPLEMENTATION_AUDIT.md) covers historical scope;
 this document is the current delivery checklist.
 
@@ -584,7 +585,7 @@ are in the separate report.
 
 ### P6 — Final acceptance against OKX Demo
 
-**Demo protocol, natural fills/fees and filled-exposure restart passed; funding settlement remains open.** P1–P5
+**Demo protocol, natural fills/fees, filled-exposure restart and funding settlement passed.** P1–P5
 local gates have passed. Dedicated Demo setup uses isolated UTC PostgreSQL,
 Futures/Hedge/Cross 1x, explicit BTC-USDT trading and AVAX-USDT single-token
 following. Two real defects were fixed with TDD: reusing a target book as a
