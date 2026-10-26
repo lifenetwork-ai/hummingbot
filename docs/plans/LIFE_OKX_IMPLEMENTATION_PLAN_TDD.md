@@ -4,7 +4,7 @@ Updated: 2026-10-26 (Asia/Ho_Chi_Minh). Implementation baseline: `2d1dc0b7b`.
 Status: P1–P7 implementation and required local/Demo acceptance complete,
 including the actual funding settlement and cold-restart deduplication check.
 See [funding acceptance evidence](../../reports/okx-demo-funding.json).
-Post-completion logic-flow review is in progress; its checklist follows P7.
+Post-completion logic-flow review is complete; its checklist follows P7.
 The [previous audit](../../reports/LIFE_OKX_IMPLEMENTATION_AUDIT.md) covers historical scope;
 this document is the current delivery checklist.
 
@@ -752,9 +752,9 @@ checkpoint. Detailed reproduction and scope: [logic-flow review](../../reports/l
 - [x] Reproduce false reconciliation matches for amended/wrong/missing order terms, including perpetual contract and spot market quantity units.
 - [x] Preserve already-observed funding history, report actual downtime gaps, trim expired overlap and repair false covered-history gaps.
 - [x] Persist configured funding cadence and use it for overdue/stale reporting.
-- [ ] Pass the full native regression, real PostgreSQL and Swagger checks after consolidation.
-- [ ] Verify the rebuilt image across all offline schema/spot/V2/MM/funding/upgrade scenarios.
-- [ ] Run the isolated bounded load probe, retain image/source identities and publish final evidence; preserve historical Demo evidence under its original image.
+- [x] Pass the full native regression, real PostgreSQL and Swagger checks after consolidation.
+- [x] Verify the rebuilt image across all offline schema/spot/V2/MM/funding/upgrade scenarios.
+- [x] Run the isolated bounded load probe, retain image/source identities and publish final evidence; preserve historical Demo evidence under its original image.
 
 ## 8. Scope kept out
 

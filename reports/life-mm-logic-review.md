@@ -1,7 +1,7 @@
 # LIFE MM logic-flow review — 2026-10-26
 
-Status: the initial consolidated checks pass; final checks and image verification
-are being repeated after the cold-CLI lock regression found during E2E. The implementation
+Status: fixes, final native/real-PostgreSQL checks, rebuilt-image E2E and the
+isolated load probe pass. All review checklist items are complete. The implementation
 reuses the existing service, MM controller, control store, connector helpers and
 funding checkpoint. No new framework, storage table or cache is needed.
 
@@ -34,9 +34,9 @@ and the final tested image.
 The consolidated native regression passes **1,321 tests and nine subtests**:
 149 configuration, 11 performance, 931 CLI/model/connector/engine/V2 and 230
 controller/session/transport/funding tests. Existing deprecation warnings remain.
-The initial **126 PostgreSQL tests** pass against a fresh disposable database.
-The additional cold-import regression brings the final suite to 127 tests; that
-rerun is in progress. The 13 funding cases pass after formatting-only corrections.
+The final **127 PostgreSQL tests** pass against a fresh disposable database,
+including the cold-import heartbeat regression. The 13 funding cases also pass
+after formatting-only corrections.
 
 ## Findings from the first image attempts
 
@@ -51,8 +51,8 @@ imported `MMSession` while holding `SELECT ... FOR UPDATE`; cold dependency load
 blocked the service heartbeat long enough to close the process. A deterministic
 real-PG Red test now publishes from another connection during that import.
 Loading the model before taking the transaction lock passes this test and the
-53-case targeted control/ownership/service selection. The final image must be
-rebuilt and reverified after this correction.
+53-case targeted control/ownership/service selection. The rebuilt final image
+passes the same CLI/MM/legacy transition through the real service.
 
 ## Behavior and verification limits
 
@@ -70,3 +70,36 @@ are part of this follow-up.
 
 Operational contracts: [admin reconciliation](../docs/admin-api.md#observational-reconciliation),
 [funding observation](../docs/postgres-runtime.md#funding-while-trading-is-stopped).
+
+## Final image and load verification
+
+Runtime source commit `ed98eaf18e`, image `sha256:92e9e94f1606e6aac623ba9a8e4e8e4ea15b30917f5d791cc3c7e759a62ac4fe`
+(1,364,516,628 bytes), with all 19 checked runtime/migration hashes matching source.
+All seven offline groups pass in one combined run: schema, spot, V2 spot,
+V2 perpetual, LIFE MM, funding and compatible-image upgrade/rollback. The LIFE
+matrix includes all nine profile/market combinations, exact quote levels, CLI
+MM stop acknowledgement, legacy selection replacing MM state, and a new admin
+MM start afterward. Existing recovery, funding and owner/fault checks remain active.
+
+The isolated **60-second diagnostic probe** uses 100,000 historical orders/fills,
+20 completed reads/s, approximately 100 book updates/s and one fill/s. Aggregate
+read p95 is **164.07ms**, p99 **756.60ms**, with zero unexpected errors or
+budget violations. Sixty unique fills and two exact funding bills match the
+independent exchange ledger, and positions match. This supplements the logic
+regressions; it is not a new full soak or Cloud Run benchmark.
+
+[Portable evidence](life-mm-logic-review-evidence.json) retains image/source
+identities, harness hashes, Red/Green logs and both unsuccessful image attempts.
+The accepted image is available locally as `hummingbot-cloudrun:local`.
+
+### Probe variability and comparison
+
+The first probe of the final image had no errors or ledger differences but missed
+the p99 budget: p95 452.14ms, p99 1,053.14ms against the unchanged 500/1,000ms
+thresholds. A subsequent sequential comparison measured the previous image at
+p95 207.03ms / p99 720.91ms and the fixed image at p95 164.07ms / p99 756.60ms;
+both comparison runs pass. The earlier failure remains in the portable evidence.
+These short observations show run-to-run tail variation; they neither establish
+a cause for the first spike nor demonstrate a sustained performance improvement.
+SQL query budgets remain bounded: orders at most three statements,
+fills/performance one, daily statistics six. No extra cache was introduced.

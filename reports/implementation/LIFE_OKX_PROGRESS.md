@@ -745,3 +745,31 @@ real bill passes those checks; a successful empty read is not payment evidence.
 P7 funding settlement verified at 2026-10-26T00:01:32.620179+00:00: Demo bill 4042315866684412230 reports 0.0032045728 USDT at UTC epoch-ms 1792972800651. Exact funding_bills and daily API totals match. The same stopped service was cold-restarted and the bill was ingested again without duplication. Orders/fills remain 320/5; no strategy or exchange trading command was submitted. The service stopped and released ownership after observation.
 
 [Portable evidence](../okx-demo-funding.json).
+
+### Post-completion logic-flow review — 2026-10-26
+
+Eight confirmed flow defects were reproduced Red and fixed using existing
+service/control/controller/reconciliation/funding helpers. Added regression cases:
+35 native and five real-PostgreSQL cases. Coverage includes partial-fill/cancel
+exposure reservation, exact spread boundaries, superseded start/switch, CLI/MM/
+legacy transitions, stopped bootstrap with missing old YAML, working-order terms,
+funding retention coverage and configured cadence.
+
+The image run additionally exposed cold MM-model loading inside the CLI control
+row lock. A real-PG heartbeat regression fails before moving import outside the
+transaction and passes afterward. The final consolidated suites pass **1,321
+native tests/nine subtests** and **127 PostgreSQL tests**, with Swagger and scoped
+hooks green. Existing deprecation warnings remain.
+
+Final runtime source `ed98eaf18e`, image `sha256:92e9e94f1606e6aac623ba9a8e4e8e4ea15b30917f5d791cc3c7e759a62ac4fe` (1,364,516,628 bytes), matches
+all 19 checked runtime/SQL hashes. Seven combined offline groups pass, including
+nine MM cases, exact wire quotes and the real CLI-stop/legacy/new-MM handshake.
+The isolated 60-second probe passes at 20 reads/s, ~100 updates/s and one fill/s:
+p95 **164.07ms**, p99 **756.60ms**, with exact fill/funding/position ledgers.
+
+The first V2 fixture kept the old float-rounded 98.99 expectation; it now verifies
+the exact 99 order/fill/held-position price. Both failed image attempts remain
+retained. No new full soak, cloud deployment or real Demo account operation was
+performed; original Demo evidence keeps its own image. Conservative full-entry
+reservation can temporarily reduce quoting until terminal hold. See the
+[review](../life-mm-logic-review.md) and [portable evidence](../life-mm-logic-review-evidence.json).

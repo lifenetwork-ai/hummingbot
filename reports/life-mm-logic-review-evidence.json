@@ -1,0 +1,407 @@
+{
+  "review_date": "2026-10-26",
+  "source_commit": "ed98eaf18eeba375a598ffb96befee7c3f0cc895",
+  "image": {
+    "source_commit": "ed98eaf18eeba375a598ffb96befee7c3f0cc895",
+    "image_id": "sha256:92e9e94f1606e6aac623ba9a8e4e8e4ea15b30917f5d791cc3c7e759a62ac4fe",
+    "size_bytes": 1364516628,
+    "reference": "127.0.0.1:56785/hummingbot@sha256:d0dc41fd109176fd011cfec477e1070e4e8d754a21f03deffe2054b22c37dcb1",
+    "source_sha256": {
+      "controllers/market_making/life_mm.py": "541b6a6da2d9a6ab4d8e622a5463a7e5f242f555a1175e20b4f29398d596b4d3",
+      "hummingbot/cli/admin_api.py": "7d2877e1a04540bffcfc76b3810e9f8bdb4e22d83fbffd268dfb1ca4df91fe6a",
+      "hummingbot/cli/admin_models.py": "5c395ee271586585a12bf8a14453ab817fe32aab0516328bb21555f44b226dc4",
+      "hummingbot/cli/service.py": "495ff9a81570d718d983a9b5e5f26aff3b46724da297949bc648bf9b22a28f5f",
+      "hummingbot/client/config/defaults.py": "6e4ab14700beeeecfdb71bb054b0fff66e1b46e2e555c60f52b94d75553c3f29",
+      "hummingbot/connector/derivative/okx_perpetual/okx_perpetual_constants.py": "a9b3e7d4ac41105c6359f293572e25a7f79bb8e4a380a607888999a164a1d63e",
+      "hummingbot/connector/derivative/okx_perpetual/okx_perpetual_web_utils.py": "d45067c462bfd4bb05e476c7ea921aac0a421c1d2cb32b7faa3d3e527f2f25ff",
+      "hummingbot/connector/markets_recorder.py": "93962317fd588361a9737af979ce22b68f9c91b01c76f1b13f6e2f46602fb673",
+      "hummingbot/connector/perpetual_derivative_py_base.py": "294ceca9f1f794e7f447d3cb01aa65a15c235891aa1ee3c21512d3a1a40bd29c",
+      "hummingbot/core/admin_reconciliation.py": "11da3ea9c6ea1a68e98caad32c4236beefd7a1fc4deae7b046ea0d6332cdbbbb",
+      "hummingbot/core/connector_manager.py": "98fa67bbc0ce80206d9051edb5660caba2717b55447d6cc686fcb6ced4789b84",
+      "hummingbot/core/funding_sync.py": "db321cd76530defe8230ee6dbac0eb7ab12fa6d47e832050aeb183cdef386060",
+      "hummingbot/model/__init__.py": "854edea6b5ccb5f4031ac227ba10eb7c42d41cd0aa881304c04ddbc91d20baa3",
+      "hummingbot/model/admin_reconciliation.py": "296e373f7f1a27ae668052fc8cb341dc1bd82a0ab516314f5af3591afd2df238",
+      "hummingbot/model/admin_reporting.py": "56a2a94582d891117a560d0ebde7493efcee4599233d40ca1589325c797fb782",
+      "hummingbot/model/bot_state_store.py": "b3517e59b59bf44c0e6720b75404afb8878c9382b89bf337c1fbdc76233386fc",
+      "hummingbot/model/db_migration/postgres/scripts/014_create_funding_bills.sql": "53e0b92d06650b15661fdd9b99e8942409147e11619bbc21c1b48c33fd8429b2",
+      "hummingbot/model/funding_bill.py": "830a035cb1a369f0dbff1fdd76fca2156a4eedee4a9782f037971ca81c784028",
+      "hummingbot/strategy_v2/controllers/market_making_controller_base.py": "5bd179617368ccaebfc160316cbb18b855b4c39e2e235e7a15a5d78a5233e0ec"
+    },
+    "matches_worktree": true
+  },
+  "findings": [
+    {
+      "id": "entry_exposure",
+      "fix": "Preserve active/shutting-down entry reservations through partial fill and cancel acknowledgement",
+      "status": "fixed_with_red_green"
+    },
+    {
+      "id": "decimal_spread",
+      "fix": "Keep exact configured quote boundaries",
+      "status": "fixed_with_red_green"
+    },
+    {
+      "id": "superseded_control",
+      "fix": "Do not prepare a strategy from control superseded during cleanup or validation",
+      "status": "fixed_with_red_green"
+    },
+    {
+      "id": "cli_mm_legacy_transition",
+      "fix": "CLI stop shares MM generation fencing; explicit legacy selection replaces MM state",
+      "status": "fixed_with_red_green"
+    },
+    {
+      "id": "stopped_bootstrap",
+      "fix": "Stopped controls survive removal of old YAML/credentials",
+      "status": "fixed_with_red_green"
+    },
+    {
+      "id": "order_terms_reconciliation",
+      "fix": "Validate order economics, quantity units and stability, not only IDs/status/fills",
+      "status": "fixed_with_red_green"
+    },
+    {
+      "id": "funding_coverage",
+      "fix": "Preserve proven history, trim expired overlap and locate actual downtime gaps",
+      "status": "fixed_with_red_green"
+    },
+    {
+      "id": "funding_cadence",
+      "fix": "Use persisted configured poll cadence for overdue/stale status",
+      "status": "fixed_with_red_green"
+    }
+  ],
+  "native": {
+    "regression_tests": 1321,
+    "subtests": 9,
+    "postgres_tests": 127,
+    "added_native_cases": 35,
+    "added_postgres_cases": 5,
+    "swagger_check": true,
+    "hooks_passed": true
+  },
+  "full_offline_e2e": {
+    "artifact": "build/e2e-offline/20261026-080128-0b3263/result.json",
+    "passed": true,
+    "registry_manifest_digest": "sha256:d0dc41fd109176fd011cfec477e1070e4e8d754a21f03deffe2054b22c37dcb1",
+    "runtime_smoke": {
+      "passed": true,
+      "numba_jit": true,
+      "ta_lib": true,
+      "tls_trust": true,
+      "connector_count": 63,
+      "sql_scripts": 15,
+      "build_tools_absent": true,
+      "cli_version": "hbot 2.17.0",
+      "environment_bytes": 1264264546
+    },
+    "scenarios": {
+      "schema": {
+        "passed": true,
+        "metrics": {
+          "valid_startup_s": 13.289,
+          "valid_shutdown_s": 0.887,
+          "repaired_startup_s": 9.002,
+          "repaired_shutdown_s": 0.974,
+          "file_backend_rejected": true,
+          "empty_rejected": true,
+          "drift_rejected": true,
+          "repaired_schema_validated": true
+        }
+      },
+      "spot": {
+        "passed": true,
+        "metrics": {
+          "first_startup_s": 10.406,
+          "second_startup_s": 12.721,
+          "local_steady_resources": "cpu=5.04% memory=241.6MiB / 2GiB",
+          "local_database": {
+            "select_one_p95_ms": 0.32500000088475645
+          },
+          "first_shutdown_s": 1.049,
+          "second_shutdown_s": 1.082,
+          "third_startup_s": 9.324,
+          "fourth_startup_s": 9.354,
+          "fifth_startup_s": 9.679,
+          "sixth_startup_s": 9.41,
+          "seventh_startup_s": 10.89,
+          "accepted_orders": 14,
+          "persisted_fills": 3,
+          "websocket_reconnect": true,
+          "interrupted_recorder_recovered": true
+        }
+      },
+      "v2-spot": {
+        "passed": true,
+        "metrics": {
+          "v2-first_startup_s": 9.636,
+          "first_shutdown_s": 1.529,
+          "v2-second_startup_s": 10.037,
+          "second_shutdown_s": 1.294,
+          "accepted_orders": 1,
+          "persisted_fills": 1,
+          "position_base": "0.1",
+          "pnl_peak_restored": "12.345678"
+        }
+      },
+      "v2-perpetual": {
+        "passed": true,
+        "metrics": {
+          "v2-first_startup_s": 11.401,
+          "first_shutdown_s": 1.424,
+          "v2-second_startup_s": 8.861,
+          "second_shutdown_s": 1.301,
+          "accepted_orders": 1,
+          "persisted_fills": 1,
+          "position_base": "0.1",
+          "pnl_peak_restored": "12.345678"
+        }
+      },
+      "life-mm": {
+        "passed": true,
+        "metrics": {
+          "mm-first_startup_s": 9.316,
+          "first_shutdown_s": 1.274,
+          "mm-restart_startup_s": 9.076,
+          "mm-db-restart_startup_s": 9.355,
+          "matrix": [
+            {
+              "mode": "spot",
+              "profile": "follow_market",
+              "count": 4
+            },
+            {
+              "mode": "spot",
+              "profile": "sideways",
+              "count": 4
+            },
+            {
+              "mode": "spot",
+              "profile": "follow_token",
+              "count": 4
+            },
+            {
+              "mode": "perpetual",
+              "profile": "follow_market",
+              "count": 4
+            },
+            {
+              "mode": "perpetual",
+              "profile": "sideways",
+              "count": 4
+            },
+            {
+              "mode": "perpetual",
+              "profile": "follow_token",
+              "count": 4
+            },
+            {
+              "mode": "both",
+              "profile": "follow_market",
+              "count": 8
+            },
+            {
+              "mode": "both",
+              "profile": "sideways",
+              "count": 8
+            },
+            {
+              "mode": "both",
+              "profile": "follow_token",
+              "count": 8
+            }
+          ],
+          "cli_mm_stop": true,
+          "legacy_replaces_mm": true,
+          "exact_quote_levels": true,
+          "restart_anchors": true,
+          "weighted_reference": true,
+          "stale_both": true,
+          "fills": 2,
+          "random_steps": true,
+          "expiry": true,
+          "expiry_funding": true,
+          "reconciliation": "matched",
+          "db_fault_halt": true
+        }
+      },
+      "funding": {
+        "passed": true,
+        "metrics": {
+          "funding-first_startup_s": 10.483,
+          "first_shutdown_s": 1.355,
+          "funding-restart_startup_s": 8.865,
+          "funding-standby_startup_s": 8.82,
+          "restart_shutdown_s": 2.416,
+          "funding-db-recovery_startup_s": 9.027,
+          "identified_bills": 6,
+          "original_amounts_exact": true,
+          "same_timestamp_bills": true,
+          "stopped_observation": true,
+          "closed_position_backfill": true,
+          "repeated_pages_idempotent": true,
+          "legacy_not_double_counted": true,
+          "owner_handover": true,
+          "unavailable_visible": true,
+          "db_failure_backfill": true,
+          "no_trading_mutations_after_stop": true
+        }
+      },
+      "upgrade": {
+        "passed": true,
+        "metrics": {
+          "old_startup_s": 10.734,
+          "new_startup_s": 10.455,
+          "old_shutdown_s": 1.524,
+          "new_shutdown_s": 1.103,
+          "rollback_startup_s": 9.037,
+          "rollback_shutdown_s": 2.405,
+          "previous_manifest_digest": "sha256:51d911be18d853d0430cc0c6d7dcc5b451d0df4d4da351f73c1a77fcb20a8879",
+          "additive_fixture": "nullable test-only orders.offline_upgrade_note",
+          "rollback_preserved_economics": true
+        }
+      }
+    }
+  },
+  "load_probe": {
+    "artifact": "build/mm-load/20261026-082048-9ffd2d/result.json",
+    "diagnostic_only": true,
+    "history_orders": 100000,
+    "history_fills": 100000,
+    "funding_sync_interval_seconds": 5,
+    "declared_read_p95_ms": 500,
+    "declared_read_p99_ms": 1000,
+    "runner_source_sha256": {
+      "scripts/test_mm_load.py": "860a57e83d1a391023023e698fcd79cecb85446a585425cc8a65a339177ed6b3",
+      "scripts/mm_load_budgets.py": "0cae7dbde1ccc02a2ef4e6822e925ee507f3e917ec4207c00df7bfa54b033d2c",
+      "scripts/mm_load_faults.py": "48f937681bff9e6a4f4cf5c25862a3bdd673c2ce01657788c73245986e498e59",
+      "scripts/mm_load_ledger.py": "db8e38ee2948211cc5154a144472c22676571a1efd66e3cd58bb284fbc227458"
+    },
+    "host_architecture": "arm64",
+    "image_architecture": "amd64",
+    "emulation": true,
+    "bot_limits": {
+      "cpus": 1,
+      "memory_bytes": 2147483648
+    },
+    "duration_seconds": 60,
+    "read_p95_ms": 164.07434299617307,
+    "read_p99_ms": 756.604353991861,
+    "completed_reads_per_second": 20.0,
+    "market_updates_per_second": 99.94037400048646,
+    "fills_per_second": 1.0,
+    "unexpected_errors": 0,
+    "violations": [],
+    "ledger": {
+      "unique_exchange_fills": 60,
+      "unique_recorder_fills": 60,
+      "positions_matched": true,
+      "identified_funding_bills": 2,
+      "daily_snapshots": 3
+    }
+  },
+  "raw_evidence_sha256": {
+    "build/logic-review/funding/red.log": "3e34e9868f9750771e11f5d97701fae239ef1c9de5c00169136ab685f6f73c07",
+    "build/logic-review/funding/green.log": "a00edb0a509120aa2174f56b92d0aade62a36dabd4534eb139db163f9270dab9",
+    "build/logic-review/execution/partial-and-price-red.log": "57aefa81d0336b63cd604f849ceb9f36512bb9b505085aa3593162b9eaaf1e76",
+    "build/logic-review/execution/cancel-reservation-red.log": "6a17206ecd410a2d56182fd12bee43745bedd7041d1395c74db28056e0cfa17e",
+    "build/logic-review/execution/execution-green.log": "46f3d107b62660a8370ee4a6aec031585286d387ac6ca0d5f24bf32f030d24bd",
+    "build/logic-review/lifecycle/red-native.log": "09dda3fa65d9d9af6c876e1a6867658c7d372e8e439dec04ea24059bf5370aa4",
+    "build/logic-review/lifecycle/red-postgres.log": "993cea24ab439803411aa210b93d9841aa8630c82de2380ecff7554e0f5c907f",
+    "build/logic-review/lifecycle/green-native.log": "51430ef1c512f68ce2abd4b12e89cbbfa8530692b6ee1f50d22fb2aac22f860a",
+    "build/logic-review/lifecycle/green-postgres.log": "516a8f4a8aba8b60be59c468b28151b716b7f8172b454df3c9d6ddb06e661c1e",
+    "build/logic-review/lifecycle/cold-import-red.log": "e0efd3a43715e174784680c8483f362e84e87285e66ad1fb4450123fb1acefae",
+    "build/logic-review/lifecycle/cold-import-green.log": "6bd891000f0858b6d75770a114b29d0ffc57c51c4708d92cf4d9254ac38201eb",
+    "build/logic-review/reporting/reconciliation-red.txt": "658ed35783b7a6846d479e29926ee6b7c2cb18c871513189a0f617123923f592",
+    "build/logic-review/reporting/market-size-red.txt": "648aa0d29c96c2cfa8a7ee30bed6db8883fea98ab596a69e66c7a155c0fbdd20",
+    "build/logic-review/reporting/admin-green.txt": "c7ce3f072eedd5d3ce96e35ba148788721f3a5104bf73cee08df38e037731724",
+    "build/logic-review/regression.log": "dd6a42c1301f30e4fff56d5ea0f11f0f754dbea237a958d5d652f0ffb46d1c75",
+    "build/logic-review/postgres.log": "6ac019e2f2907052b82221519f5fc8bffdd6c190e293651a3cbd006943db6af4"
+  },
+  "earlier_verification_attempts": [
+    {
+      "artifact": "build/e2e-offline/20261026-073839-7f4db4/result.json",
+      "passed": false,
+      "reason": "The new CLI/MM stop test exposed model loading inside the control row lock, blocking the owner heartbeat. Reproduced Red with real PG; model import moved before the transaction."
+    },
+    {
+      "artifact": "build/e2e-offline/20261026-073221-cdf158/result.json",
+      "passed": false,
+      "reason": "The V2 fixture expected the prior float-rounded 98.99 price. Its order, fill and position assertions now require the mathematically exact 99 price; the same runtime image is rerun with updated external harness."
+    }
+  ],
+  "harness_sha256": {
+    "scripts/test_e2e_offline.py": "7f0fe0aa82a9781bb404b68c656ffa913919462628a740fa9322f29ab80ee8c0",
+    "scripts/test_mm_load.py": "860a57e83d1a391023023e698fcd79cecb85446a585425cc8a65a339177ed6b3",
+    "scripts/mm_load_ledger.py": "db8e38ee2948211cc5154a144472c22676571a1efd66e3cd58bb284fbc227458",
+    "test/e2e/offline/exchange.py": "314867066a59821d207c09dae7c77c955db02289e8ceb4e255348149fd389038"
+  },
+  "limits": {
+    "conservative_entry_reservation_may_temporarily_double_count_filled_quantity": true,
+    "atomic_fill_balance_sequencing_added": false,
+    "new_full_soak": false,
+    "real_exchange_calls": false,
+    "demo_service_or_database_modified": false,
+    "cloud_deployment": false,
+    "historical_demo_evidence_relabelled": false,
+    "single_probe_is_not_sustained_capacity_evidence": true
+  },
+  "probe_comparison": [
+    {
+      "role": "fixed_initial",
+      "artifact": "build/mm-load/20261026-081403-ef7e25/result.json",
+      "image_id": "sha256:92e9e94f1606e6aac623ba9a8e4e8e4ea15b30917f5d791cc3c7e759a62ac4fe",
+      "passed": false,
+      "read_p95_ms": 452.1400049998192,
+      "read_p99_ms": 1053.1397740051034,
+      "unexpected_errors": 0,
+      "violations": [
+        "read_p99"
+      ],
+      "completed_reads_per_second": 20.0,
+      "ledger": {
+        "unique_exchange_fills": 60,
+        "unique_recorder_fills": 60,
+        "positions_matched": true,
+        "identified_funding_bills": 2,
+        "daily_snapshots": 3
+      }
+    },
+    {
+      "role": "baseline",
+      "artifact": "build/mm-load/20261026-081859-8f46c4/result.json",
+      "image_id": "sha256:f6af2bf561c6713641508e50ff20303704101c4252d3f3f383cc8d394d1a409e",
+      "passed": true,
+      "read_p95_ms": 207.03473199682776,
+      "read_p99_ms": 720.90898299939,
+      "unexpected_errors": 0,
+      "violations": [],
+      "completed_reads_per_second": 19.953864936927605,
+      "ledger": {
+        "unique_exchange_fills": 60,
+        "unique_recorder_fills": 60,
+        "positions_matched": true,
+        "identified_funding_bills": 2,
+        "daily_snapshots": 3
+      }
+    },
+    {
+      "role": "fixed_repeat",
+      "artifact": "build/mm-load/20261026-082048-9ffd2d/result.json",
+      "image_id": "sha256:92e9e94f1606e6aac623ba9a8e4e8e4ea15b30917f5d791cc3c7e759a62ac4fe",
+      "passed": true,
+      "read_p95_ms": 164.07434299617307,
+      "read_p99_ms": 756.604353991861,
+      "unexpected_errors": 0,
+      "violations": [],
+      "completed_reads_per_second": 20.0,
+      "ledger": {
+        "unique_exchange_fills": 60,
+        "unique_recorder_fills": 60,
+        "positions_matched": true,
+        "identified_funding_bills": 2,
+        "daily_snapshots": 3
+      }
+    }
+  ]
+}
