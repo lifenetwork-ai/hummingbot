@@ -781,9 +781,11 @@ P7 final Demo evidence: P7 funding settlement verified at 2026-10-26T00:01:32.62
 - [x] Run the five-minute warmup plus fifteen-minute mixed workload and a separate sixty-minute random-session soak with traces and unchanged budgets.
 - [x] Publish image identity, all passing/failing windows, trace loss/overhead and supported causes under `reports/`; distinguish observed causes from hypotheses.
 
-- [ ] Reproduce the extended traced-soak API timeout cluster under controlled traced/untraced conditions, use Red/Green tests for any confirmed runtime fix, and repeat the unchanged sixty-minute zero-error load gate. The completed mixed profile does not close this acceptance item.
+- [ ] Reproduce the extended traced-soak API timeout cluster under controlled traced/untraced conditions. Short parent probes and the patched full-image retest did not reproduce the ten-timeout cluster; this reproduction condition remains open.
+- [x] Use Red/Green tests for the confirmed UTC/serialization runtime fix; preserve Decimal precision and the OpenAPI contract.
+- [x] Repeat the unchanged sixty-minute zero-error load gate on a full rebuilt/pinned Cloud Run image: 72,000 HTTP 200 responses, zero errors, p95 67.77 ms, p99 355.03 ms; ledger/position/funding/resource assertions passed. The earlier mixed profile alone was not used to close this gate.
 
-Traced follow-up results: fixed mixed p95/p99 158.88/830.72 ms passed; the completed sixty-minute soak failed at p99 1,250.96 ms with ten client timeouts. Fill/fee/position and resource-growth checks passed. See [the traced load review](../../reports/life-mm-trace-load-review.md) and [portable evidence](../../reports/life-mm-trace-load-evidence.json). The timeout remediation/retest item above remains open.
+Traced follow-up results: fixed mixed p95/p99 158.88/830.72 ms passed; the completed sixty-minute soak failed at p99 1,250.96 ms with ten client timeouts. Fill/fee/position and resource-growth checks passed. See [the traced load review](../../reports/life-mm-trace-load-review.md) and [portable evidence](../../reports/life-mm-trace-load-evidence.json). This is historical failed-run evidence; the subsequent passing full-image gate is recorded in section 9.2. Timeout-cluster reproduction remains open.
 
 ### 9.1 Short diagnostic iteration
 
@@ -792,4 +794,11 @@ Traced follow-up results: fixed mixed p95/p99 158.88/830.72 ms passed; the compl
 - [x] Reproduce nested mapping timestamps escaping UTC normalization; replace wildcard serialization with Pydantic datetime-only serializers and verify exact Decimal/UTC/OpenAPI behavior.
 - [x] Compare parent/patched images with identical-fixture sixty-second traced/untraced probes; retain all results, source hashes and diagnostic-image scope.
 
-Short probes all passed, but neither parent probe reproduced the historical ten-timeout cluster. The controlled one-CPU CPU replay reduced 500-row serialization CPU by 65.66% (orders) / 68.44% (fills). CLI tests: 457 passed; selected PostgreSQL tests: 8 passed. The existing timeout reproduction and final sixty-minute zero-error acceptance item remains open. See [short diagnostic review](../../reports/life-mm-short-repro-review.md) and [portable evidence](../../reports/life-mm-short-repro-evidence.json).
+Short probes all passed, but neither parent probe reproduced the historical ten-timeout cluster. The controlled one-CPU CPU replay reduced 500-row serialization CPU by 65.66% (orders) / 68.44% (fills). CLI tests: 457 passed; selected PostgreSQL tests: 8 passed. At this short-iteration checkpoint, timeout reproduction and the final one-hour gate were still open; section 9.2 records the later passing gate. See [short diagnostic review](../../reports/life-mm-short-repro-review.md) and [portable evidence](../../reports/life-mm-short-repro-evidence.json).
+
+### 9.2 Full-image sixty-minute retest
+
+- [x] Rebuild the complete Cloud Run target, verify 23 runtime/SQL source hashes and pin the actual tested manifest.
+- [x] Run the complete 3,600-second traced random/both profile with unchanged resources and budgets; retain successful and historical failed evidence.
+- [x] Reconcile all 3,600 fills, prices/fees, positions, two funding bills and daily records; pass 58-sample resource-growth and existing query-count checks.
+- [x] Publish the [full retest report](../../reports/life-mm-soak-retest.md) and [portable evidence](../../reports/life-mm-soak-retest-evidence.json). Gate passed at p95/p99 67.77/355.03 ms with zero errors. Original cluster reproduction above remains open and is not implied by the passing gate.

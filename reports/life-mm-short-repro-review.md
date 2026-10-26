@@ -1,5 +1,8 @@
 # Short MM latency reproduction and UTC serialization fix
 
+Subsequent result: the [full-image sixty-minute gate passed](life-mm-soak-retest.md).
+Historical timeout-cluster reproduction remains open. The scope below records the earlier short iteration.
+
 The original ten-timeout cluster **was not reproduced** by four short probes.
 A measured serialization cost was reduced and a nested UTC contract bug was
 fixed with Red/Green tests. The prior sixty-minute soak failure remains open;

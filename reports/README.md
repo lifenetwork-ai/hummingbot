@@ -8,6 +8,7 @@ does not certify a later image. Operational guides and plans live in [docs/](../
 | Report | Associated artifact or scope |
 |---|---|
 | [LIFE / OKX progress](implementation/LIFE_OKX_PROGRESS.md) | Phase history and Red/Green verification |
+| [Full-image soak retest](life-mm-soak-retest.md) | [Gate evidence](life-mm-soak-retest-evidence.json); sixty-minute gate passed, historical timeout reproduction remains open |
 | [Short diagnostic iteration](life-mm-short-repro-review.md) | [CPU/probe evidence](life-mm-short-repro-evidence.json); datetime-only serialization and nested UTC fix; timeout cluster remains open |
 | [Extended traced load review](life-mm-trace-load-review.md) | [Portable trace evidence](life-mm-trace-load-evidence.json); mixed passed, sixty-minute soak failed p99/timeouts |
 | [MM logic-flow review](life-mm-logic-review.md) | [TDD/image/load evidence](life-mm-logic-review-evidence.json) for control, exposure, reconciliation and funding |

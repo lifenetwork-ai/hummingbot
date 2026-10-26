@@ -1,0 +1,1102 @@
+{
+  "generated_utc": "2026-10-26T05:26:49Z",
+  "image": {
+    "image_id": "sha256:518e45bddf878d66d4439f19cc4d9ee9a06f151b8e453c1489af41784442e53d",
+    "reference": "127.0.0.1:56273/hummingbot@sha256:751be9c5a0d7ef895193bf7b3d86b400497cfc5c09d99f8987047267142708d8",
+    "size_bytes": 1364533218,
+    "source_commit": "8cfc9d56c244ab0a9526c71eece2d4b1ebdb3af7",
+    "source_sha256": {
+      "controllers/market_making/life_mm.py": "541b6a6da2d9a6ab4d8e622a5463a7e5f242f555a1175e20b4f29398d596b4d3",
+      "hummingbot/cli/admin_api.py": "7d2877e1a04540bffcfc76b3810e9f8bdb4e22d83fbffd268dfb1ca4df91fe6a",
+      "hummingbot/cli/admin_models.py": "5b5cb1898d0ebdaeb7cdf9ff7c2f83944994356a67177c33cbedf7bc4117374c",
+      "hummingbot/cli/service.py": "495ff9a81570d718d983a9b5e5f26aff3b46724da297949bc648bf9b22a28f5f",
+      "hummingbot/client/config/defaults.py": "6e4ab14700beeeecfdb71bb054b0fff66e1b46e2e555c60f52b94d75553c3f29",
+      "hummingbot/connector/derivative/okx_perpetual/okx_perpetual_constants.py": "a9b3e7d4ac41105c6359f293572e25a7f79bb8e4a380a607888999a164a1d63e",
+      "hummingbot/connector/derivative/okx_perpetual/okx_perpetual_web_utils.py": "d45067c462bfd4bb05e476c7ea921aac0a421c1d2cb32b7faa3d3e527f2f25ff",
+      "hummingbot/connector/markets_recorder.py": "93962317fd588361a9737af979ce22b68f9c91b01c76f1b13f6e2f46602fb673",
+      "hummingbot/connector/perpetual_derivative_py_base.py": "294ceca9f1f794e7f447d3cb01aa65a15c235891aa1ee3c21512d3a1a40bd29c",
+      "hummingbot/core/admin_reconciliation.py": "11da3ea9c6ea1a68e98caad32c4236beefd7a1fc4deae7b046ea0d6332cdbbbb",
+      "hummingbot/core/connector_manager.py": "98fa67bbc0ce80206d9051edb5660caba2717b55447d6cc686fcb6ced4789b84",
+      "hummingbot/core/funding_sync.py": "db321cd76530defe8230ee6dbac0eb7ab12fa6d47e832050aeb183cdef386060",
+      "hummingbot/model/__init__.py": "854edea6b5ccb5f4031ac227ba10eb7c42d41cd0aa881304c04ddbc91d20baa3",
+      "hummingbot/model/admin_reconciliation.py": "296e373f7f1a27ae668052fc8cb341dc1bd82a0ab516314f5af3591afd2df238",
+      "hummingbot/model/admin_reporting.py": "56a2a94582d891117a560d0ebde7493efcee4599233d40ca1589325c797fb782",
+      "hummingbot/model/bot_state_store.py": "b3517e59b59bf44c0e6720b75404afb8878c9382b89bf337c1fbdc76233386fc",
+      "hummingbot/model/db_migration/postgres/connection.py": "2558924fb2aa76eca78593d701766a97a53dec5213c642cfc4956daf3da64357",
+      "hummingbot/model/db_migration/postgres/scripts/014_create_funding_bills.sql": "53e0b92d06650b15661fdd9b99e8942409147e11619bbc21c1b48c33fd8429b2",
+      "hummingbot/model/funding_bill.py": "830a035cb1a369f0dbff1fdd76fca2156a4eedee4a9782f037971ca81c784028",
+      "hummingbot/model/sql_connection_manager.py": "517cf54b8b1aabf8d7044a3108a0921ee6c79eb24b6dd30ca722e4ef9dd4f684",
+      "hummingbot/strategy/strategy_v2_base.py": "f8ce0fdd51cb0a36b64b79d244bab3e1b4e9541e7faba09a0c232b19b44672a8",
+      "hummingbot/strategy_v2/controllers/market_making_controller_base.py": "5bd179617368ccaebfc160316cbb18b855b4c39e2e235e7a15a5d78a5233e0ec",
+      "hummingbot/strategy_v2/executors/executor_orchestrator.py": "7b593eeb5d6dde190007ae558331ca2becf6625e4f33b44d903cee1b3cc01e0f"
+    },
+    "full_cloudrun_build": true
+  },
+  "passed": true,
+  "raw_directory": "build/mm-load/20261026-112040-e7529b",
+  "result_sha256": "53fba5d2e99c01f868d1427fb70cd1e6610f7aa5403c7df07b11b47287d48c3e",
+  "previous_failed_soak": {
+    "raw_directory": "build/mm-load/20261026-092449-630a24",
+    "image_id": "sha256:868cc6642d2aa1c272c69a5dc8707509a78eee676c1f18ef0218efcb6c621a35",
+    "measurements": {
+      "duration_seconds": 3600,
+      "window_start_utc": 1792981529.2484243,
+      "requested_reads": 72000,
+      "completed_reads": 72000,
+      "completed_reads_per_second": 19.997562463193272,
+      "read_p50_ms": 13.651197999934084,
+      "read_p95_ms": 345.90613000000303,
+      "read_p99_ms": 1250.955036999585,
+      "unexpected_errors": 10,
+      "errors": [
+        {
+          "path": "/orders?limit=500",
+          "error": "TimeoutError"
+        },
+        {
+          "path": "/fills?limit=500",
+          "error": "TimeoutError"
+        },
+        {
+          "path": "/positions",
+          "error": "TimeoutError"
+        },
+        {
+          "path": "/balances",
+          "error": "TimeoutError"
+        },
+        {
+          "path": "/performance",
+          "error": "TimeoutError"
+        },
+        {
+          "path": "/orders?limit=100",
+          "error": "TimeoutError"
+        },
+        {
+          "path": "/fills?limit=100",
+          "error": "TimeoutError"
+        },
+        {
+          "path": "/reconciliation",
+          "error": "TimeoutError"
+        },
+        {
+          "path": "/status",
+          "error": "TimeoutError"
+        },
+        {
+          "path": "/statistics/daily",
+          "error": "TimeoutError"
+        }
+      ],
+      "statuses": {
+        "200": 71990
+      },
+      "queued_reads_at_generation_end": 9,
+      "completed_reads_in_window": 71981,
+      "completed_reads_in_window_per_second": null,
+      "backlog_drain_seconds": null,
+      "market_measurement_seconds": null,
+      "market_updates_per_second": 99.97183075541214,
+      "fills_per_second": 0.9983333333333333,
+      "valid_fills": 3594,
+      "peak_rss_bytes": 366145536,
+      "command_seconds": {
+        "start": 3.8853427080903202,
+        "switch": 3.891976125072688,
+        "stop": 1.4352368749678135
+      },
+      "command_accept_p95_ms": 40.47549999995681,
+      "command_accept_p99_ms": 40.47549999995681,
+      "ledger": {
+        "unique_exchange_fills": 3594,
+        "unique_recorder_fills": 3594,
+        "positions_matched": true,
+        "identified_funding_bills": 2,
+        "daily_snapshots": 3
+      },
+      "violations": [
+        "errors",
+        "read_p99"
+      ],
+      "per_route": {
+        "/status": {
+          "count": 6546,
+          "p50": 9.102585000164254,
+          "p95": 165.10518599989155,
+          "p99": 1149.70517200004
+        },
+        "/orders?limit=1": {
+          "count": 6546,
+          "p50": 11.457120999921244,
+          "p95": 182.11251200045808,
+          "p99": 1164.5961820004231
+        },
+        "/orders?limit=100": {
+          "count": 6546,
+          "p50": 20.54335799994078,
+          "p95": 194.95241999993596,
+          "p99": 1177.9805790001774
+        },
+        "/orders?limit=500": {
+          "count": 6546,
+          "p50": 50.273713000024145,
+          "p95": 325.65172099975825,
+          "p99": 1315.7848640003067
+        },
+        "/fills?limit=100": {
+          "count": 6546,
+          "p50": 15.386717000183125,
+          "p95": 275.0218119999772,
+          "p99": 1276.227414999994
+        },
+        "/fills?limit=500": {
+          "count": 6545,
+          "p50": 45.93382500024745,
+          "p95": 339.6906590000981,
+          "p99": 1296.645852000438
+        },
+        "/balances": {
+          "count": 6545,
+          "p50": 7.873151999774564,
+          "p95": 278.7113650001629,
+          "p99": 1247.409162000622
+        },
+        "/positions": {
+          "count": 6545,
+          "p50": 7.210288000351284,
+          "p95": 250.79092399982983,
+          "p99": 1217.5225379996846
+        },
+        "/performance": {
+          "count": 6545,
+          "p50": 7.600561999424826,
+          "p95": 224.0456469999117,
+          "p99": 1190.0069989997064
+        },
+        "/reconciliation": {
+          "count": 6545,
+          "p50": 8.702967000090212,
+          "p95": 193.90149600076256,
+          "p99": 1144.3505879997247
+        },
+        "/statistics/daily": {
+          "count": 6545,
+          "p50": 5.283825000333309,
+          "p95": 664.2195140002514,
+          "p99": 1607.0019949997913
+        }
+      },
+      "exchange_account_reads": 111,
+      "rate_scope": "observed; random-step admission gaps are intentional; fixed mixed window enforces rates"
+    }
+  },
+  "changed_previously_tracked_runtime_files": [
+    "hummingbot/cli/admin_models.py"
+  ],
+  "protocol": {
+    "diagnostic": false,
+    "profile": "soak",
+    "manifest": "sha256:751be9c5a0d7ef895193bf7b3d86b400497cfc5c09d99f8987047267142708d8",
+    "host_architecture": "arm64",
+    "emulation": true,
+    "bot_limits": {
+      "cpus": 1,
+      "memory_bytes": 2147483648
+    },
+    "postgres_limits": {
+      "cpus": 2,
+      "memory_bytes": 536870912
+    },
+    "client_limits": {
+      "cpus": 1,
+      "memory_bytes": 536870912
+    },
+    "simulator_limits": {
+      "cpus": 1,
+      "memory_bytes": 536870912
+    },
+    "postgres_image_id": "sha256:4cdc921837346b979fed007530cfba7e5e1f5bd17d1c8e8779356f3e6a19260e",
+    "postgres_architecture": "arm64",
+    "postgres_version": "14.15",
+    "docker_host_resources": "cpus=8 memory_bytes=8218251264",
+    "history_orders": 100000,
+    "history_fills": 100000,
+    "funding_sync_interval_seconds": 5,
+    "trace_policy": {
+      "path": "build/mm-load/20261026-112040-e7529b/trace",
+      "slow_trace_ms": 100,
+      "loop_stall_ms": 200,
+      "database_sample_ms": 250,
+      "max_bytes_per_stream": 134217728,
+      "diagnostic_database_connections": 1,
+      "span_cpu_scope": "inclusive thread CPU; async spans include interleaved work"
+    },
+    "source_sha256": {
+      "scripts/test_mm_load.py": "36fbe5191a4ad9c6a544387bfc24848d9355190c4401551e2133444c352b380a",
+      "scripts/test_e2e_offline.py": "f28f8738f2ac36509a1c3e0ed874df49b54b7035573aca2a08e3d73056a3a026",
+      "scripts/analyze_mm_load_trace.py": "959aaf69153f0c30ef832c6571d6390ae7bb8f1f03c665752c25e188fc5cb5f9",
+      "scripts/mm_load_budgets.py": "0cae7dbde1ccc02a2ef4e6822e925ee507f3e917ec4207c00df7bfa54b033d2c",
+      "scripts/mm_load_faults.py": "48f937681bff9e6a4f4cf5c25862a3bdd673c2ce01657788c73245986e498e59",
+      "scripts/mm_load_ledger.py": "db8e38ee2948211cc5154a144472c22676571a1efd66e3cd58bb284fbc227458"
+    },
+    "fixture_sha256": {
+      "controller-spot.yml": "6f4f0d567b54d9b1152c8e5f15b014d4d1d77f6d845b38bb8541e9e4f2449078",
+      "exchange.py": "314867066a59821d207c09dae7c77c955db02289e8ceb4e255348149fd389038",
+      "pmm.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+      "load_service.py": "4a0f0c15f0f311f64d8288b774a6fd05f7883ff9840d30e13ac63b4a2d66d8f6",
+      "runtime_smoke.py": "5e378bb3c2efdbc1fa156eeae25756fb676d0fdc90b2e895868a7da4e6359e1b",
+      "life_mm_profiles.yaml": "68ec4621efb2e728a4cf24770e4ea4e5568560637ff544ecac4f238fbfa317fe",
+      "load_trace.py": "0469550580134e390453ad1fd75513a9a43163493c53d5a260f2ea6d6003b0fe",
+      "script-perpetual.yml": "a4eeed6b7576af41a387ae115122c9130bd55c9a43b8d40f9e8b86a023b95132",
+      "pmm-revised.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+      "fixtures.json": "92308feed4a3a84939942c334c2d78696fbfff684eabe6ea3f7abf0391fe0e06",
+      "controller-perpetual.yml": "9e1479b071f476626f448df4aba8e0a75b9cc8eee0a623b6b9f9ce4fb3360b45",
+      "load_client.py": "447eb57154a9f055c5362140d10eca2312aa2a1e2e70894efbf7efb64ebb3f0f"
+    }
+  },
+  "measurements": {
+    "duration_seconds": 3600,
+    "window_start_utc": 1792988479.829099,
+    "requested_reads": 72000,
+    "completed_reads": 72000,
+    "completed_reads_per_second": 19.999866197567382,
+    "read_p50_ms": 12.770408000051248,
+    "read_p95_ms": 67.76760499997181,
+    "read_p99_ms": 355.03038199999537,
+    "unexpected_errors": 0,
+    "errors": [],
+    "statuses": {
+      "200": 72000
+    },
+    "queued_reads_at_generation_end": 0,
+    "completed_reads_in_window": 71998,
+    "completed_reads_in_window_per_second": 19.999444444444446,
+    "backlog_drain_seconds": 4.274233918999926,
+    "market_measurement_seconds": 3604.244817268,
+    "market_updates_per_second": 99.96102325620974,
+    "fills_per_second": 1.0,
+    "valid_fills": 3600,
+    "peak_rss_bytes": 369020928,
+    "command_seconds": {
+      "start": 3.0325197498314083,
+      "switch": 3.2908662077970803,
+      "stop": 1.7188306669704616
+    },
+    "command_accept_p95_ms": 29.408625000030497,
+    "command_accept_p99_ms": 29.408625000030497,
+    "ledger": {
+      "unique_exchange_fills": 3600,
+      "unique_recorder_fills": 3600,
+      "positions_matched": true,
+      "identified_funding_bills": 2,
+      "daily_snapshots": 3
+    },
+    "violations": [],
+    "per_route": {
+      "/status": {
+        "count": 6546,
+        "p50": 9.771643000021868,
+        "p95": 31.403800999896703,
+        "p99": 100.19381299980523
+      },
+      "/orders?limit=1": {
+        "count": 6546,
+        "p50": 12.325205000024653,
+        "p95": 35.10763899998892,
+        "p99": 103.87703199990028
+      },
+      "/orders?limit=100": {
+        "count": 6546,
+        "p50": 19.60034299986546,
+        "p95": 42.630911999822274,
+        "p99": 120.05232199999227
+      },
+      "/orders?limit=500": {
+        "count": 6546,
+        "p50": 44.3807399999514,
+        "p95": 95.07533600003626,
+        "p99": 213.80327799988663
+      },
+      "/fills?limit=100": {
+        "count": 6546,
+        "p50": 13.330030999895826,
+        "p95": 60.597527000027185,
+        "p99": 192.11557099970378
+      },
+      "/fills?limit=500": {
+        "count": 6545,
+        "p50": 35.01209900014146,
+        "p95": 119.25144899987572,
+        "p99": 208.69282600006045
+      },
+      "/balances": {
+        "count": 6545,
+        "p50": 7.4977819999730855,
+        "p95": 68.72105000002193,
+        "p99": 173.41788099997757
+      },
+      "/positions": {
+        "count": 6545,
+        "p50": 7.510700000011639,
+        "p95": 44.999156000130824,
+        "p99": 141.7976030002137
+      },
+      "/performance": {
+        "count": 6545,
+        "p50": 8.013506999759556,
+        "p95": 30.798642000036125,
+        "p99": 121.44506100003127
+      },
+      "/reconciliation": {
+        "count": 6545,
+        "p50": 9.41371099997923,
+        "p95": 31.644155000094543,
+        "p99": 90.97265200034599
+      },
+      "/statistics/daily": {
+        "count": 6545,
+        "p50": 6.210323999994216,
+        "p95": 630.2988190000178,
+        "p99": 721.1379459999989
+      }
+    },
+    "exchange_account_reads": 115,
+    "rate_scope": "observed; random-step admission gaps are intentional; fixed mixed window enforces rates"
+  },
+  "minute_samples": 58,
+  "growth": {
+    "first_rss_median_bytes": 334843904,
+    "last_rss_median_bytes": 364826624,
+    "first_pool_p95_median_ms": 1.761333,
+    "last_pool_p95_median_ms": 1.684041,
+    "first_book_queue_median": 2,
+    "last_book_queue_median": 2,
+    "observed_halt": false
+  },
+  "final_rolling_runtime_distributions": {
+    "pool_queue_ms": {
+      "count": 12000,
+      "p50": 0.019583,
+      "p95": 0.0675,
+      "p99": 0.528708,
+      "max": 27.631959
+    },
+    "pool_queue_cpu_ms": {
+      "count": 12000,
+      "p50": 0.022958,
+      "p95": 0.066875,
+      "p99": 0.130876,
+      "max": 1.671041
+    },
+    "rollback_ms": {
+      "count": 12000,
+      "p50": 0.133875,
+      "p95": 0.644416,
+      "p99": 2.24125,
+      "max": 122.635
+    },
+    "rollback_cpu_ms": {
+      "count": 12000,
+      "p50": 0.068125,
+      "p95": 0.173874,
+      "p99": 0.259373,
+      "max": 14.207291
+    },
+    "db_connect_ms": {
+      "count": 203,
+      "p50": 16.317625,
+      "p95": 60.660833,
+      "p99": 162.647083,
+      "max": 225.447333
+    },
+    "db_connect_cpu_ms": {
+      "count": 203,
+      "p50": 9.589584,
+      "p95": 25.666457,
+      "p99": 67.513334,
+      "max": 88.872751
+    },
+    "pool_checkout_ms": {
+      "count": 12000,
+      "p50": 0.557875,
+      "p95": 1.687334,
+      "p99": 9.337625,
+      "max": 158.519584
+    },
+    "pool_checkout_cpu_ms": {
+      "count": 12000,
+      "p50": 0.302792,
+      "p95": 0.686957,
+      "p99": 0.980666,
+      "max": 16.291667
+    },
+    "sql_ms": {
+      "count": 12000,
+      "p50": 0.687541999923269,
+      "p95": 4.323625000324682,
+      "p99": 9.1780419998031,
+      "max": 501.3333340002646
+    },
+    "db_ping_ms": {
+      "count": 12000,
+      "p50": 0.421667,
+      "p95": 1.356292,
+      "p99": 7.82175,
+      "max": 158.3815
+    },
+    "db_ping_cpu_ms": {
+      "count": 12000,
+      "p50": 0.178792,
+      "p95": 0.390584,
+      "p99": 0.58025,
+      "max": 14.738751
+    },
+    "commit_ms": {
+      "count": 12000,
+      "p50": 0.176833,
+      "p95": 1.411708,
+      "p99": 4.140333,
+      "max": 46.749959
+    },
+    "commit_cpu_ms": {
+      "count": 12000,
+      "p50": 0.073584,
+      "p95": 0.1405,
+      "p99": 0.215375,
+      "max": 6.908666
+    },
+    "handler_ms": {
+      "count": 12000,
+      "p50": 5.3822079999008565,
+      "p95": 40.62850000036633,
+      "p99": 178.7939999999253,
+      "max": 848.427417000039
+    },
+    "event_loop_lag_ms": {
+      "count": 12000,
+      "p50": 2.6725211055236286,
+      "p95": 18.136893460450665,
+      "p99": 81.77298737609817,
+      "max": 260.47470959201746
+    },
+    "response_serialization_ms": {
+      "count": 12000,
+      "p50": 0.162583,
+      "p95": 3.837875,
+      "p99": 4.821541,
+      "max": 126.802125
+    },
+    "response_serialization_cpu_ms": {
+      "count": 12000,
+      "p50": 0.165583,
+      "p95": 3.839625,
+      "p99": 4.805917,
+      "max": 126.629126
+    },
+    "response_validation_ms": {
+      "count": 12000,
+      "p50": 0.060834,
+      "p95": 4.578334,
+      "p99": 5.100625,
+      "max": 135.0215
+    },
+    "response_validation_cpu_ms": {
+      "count": 12000,
+      "p50": 0.065458,
+      "p95": 4.5795,
+      "p99": 5.09775,
+      "max": 134.311916
+    },
+    "event_age_ms": {
+      "count": 12000,
+      "p50": 1.083984375,
+      "p95": 24.08349609375,
+      "p99": 96.177001953125,
+      "max": 306.684326171875
+    },
+    "book_backlog": {
+      "count": 12000,
+      "p50": 2,
+      "p95": 2,
+      "p99": 5,
+      "max": 13
+    },
+    "executor_reports_ms": {
+      "count": 3832,
+      "p50": 7.647333,
+      "p95": 12.85075,
+      "p99": 20.866083,
+      "max": 160.064417
+    },
+    "executor_reports_cpu_ms": {
+      "count": 3832,
+      "p50": 7.616667,
+      "p95": 12.4795,
+      "p99": 17.328126,
+      "max": 159.644749
+    },
+    "executor_update_ms": {
+      "count": 3832,
+      "p50": 7.784,
+      "p95": 13.068208,
+      "p99": 21.587375,
+      "max": 160.1385
+    },
+    "executor_update_cpu_ms": {
+      "count": 3832,
+      "p50": 7.736583,
+      "p95": 12.722041,
+      "p99": 17.526626,
+      "max": 159.714582
+    },
+    "recorder_ms": {
+      "count": 3600,
+      "p50": 15.794,
+      "p95": 29.92,
+      "p99": 56.87075,
+      "max": 363.999584
+    },
+    "recorder_cpu_ms": {
+      "count": 3600,
+      "p50": 10.187748,
+      "p95": 14.279664,
+      "p99": 22.286794,
+      "max": 74.411253
+    }
+  },
+  "trace": {
+    "client_summary": {
+      "sink": {
+        "written_records": 16624,
+        "written_bytes": 7232080,
+        "dropped_records": 0,
+        "writer_cpu_ms": 1289.859009999999,
+        "queue_depth": 0,
+        "max_bytes": 134217728,
+        "writer_alive": false
+      },
+      "database_sampler": {
+        "samples": 14154,
+        "errors": 0,
+        "thread_cpu_ms": 5477.368389
+      }
+    },
+    "server_counter_snapshot": {
+      "written_records": 5514,
+      "written_bytes": 13356950,
+      "dropped_records": 0,
+      "writer_cpu_ms": 563.8525520000003,
+      "queue_depth": 0,
+      "max_bytes": 134217728,
+      "writer_alive": true,
+      "dropped_spans": 3017,
+      "slow_trace_threshold_ms": 100
+    },
+    "counts": {
+      "slow_or_failed_client_requests": 2470,
+      "slow_server_roots": 1600,
+      "dropped_spans_in_slow_roots": 2784,
+      "loop_stall_samples": 15,
+      "postgres_samples": 14136
+    },
+    "observed_operations": {
+      "response_validation_ms": {
+        "count": 2596,
+        "max_ms": 264.373751,
+        "thread_cpu_at_max_ms": 220.531999
+      },
+      "response_serialization_ms": {
+        "count": 1911,
+        "max_ms": 183.612792,
+        "thread_cpu_at_max_ms": 183.373791
+      },
+      "pool_queue_ms": {
+        "count": 1602,
+        "max_ms": 318.743625,
+        "thread_cpu_at_max_ms": 0.2735
+      },
+      "db_ping_ms": {
+        "count": 1557,
+        "max_ms": 322.898042,
+        "thread_cpu_at_max_ms": 1.92504
+      },
+      "pool_checkout_ms": {
+        "count": 1600,
+        "max_ms": 327.42025,
+        "thread_cpu_at_max_ms": 0.686125
+      },
+      "sql": {
+        "count": 6038,
+        "max_ms": 1031.294876,
+        "thread_cpu_at_max_ms": 0.606292
+      },
+      "commit_ms": {
+        "count": 1190,
+        "max_ms": 134.108042,
+        "thread_cpu_at_max_ms": 0.553833
+      },
+      "rollback_ms": {
+        "count": 2187,
+        "max_ms": 225.980917,
+        "thread_cpu_at_max_ms": 1.693085
+      },
+      "http.request": {
+        "count": 1486,
+        "max_ms": 1745.199459,
+        "thread_cpu_at_max_ms": 756.921918
+      },
+      "db_connect_ms": {
+        "count": 43,
+        "max_ms": 225.416208,
+        "thread_cpu_at_max_ms": 24.408415
+      },
+      "service.observe_once": {
+        "count": 73,
+        "max_ms": 384.694792,
+        "thread_cpu_at_max_ms": 294.758548
+      },
+      "service.run_reconciliation": {
+        "count": 1,
+        "max_ms": 2290.16071,
+        "thread_cpu_at_max_ms": 401.198323
+      },
+      "service.collect_funding": {
+        "count": 18,
+        "max_ms": 652.682875,
+        "thread_cpu_at_max_ms": 183.676129
+      },
+      "recorder_ms": {
+        "count": 11,
+        "max_ms": 363.957626,
+        "thread_cpu_at_max_ms": 34.949129
+      },
+      "executor_reports_ms": {
+        "count": 3,
+        "max_ms": 145.87525,
+        "thread_cpu_at_max_ms": 138.644208
+      },
+      "executor_update_ms": {
+        "count": 3,
+        "max_ms": 146.328875,
+        "thread_cpu_at_max_ms": 139.04929
+      }
+    },
+    "trace_sha256": {
+      "server.jsonl": "cc9fed834569c9c36402dee99b88f2bccad71177ad8d2fc133d80546c92659b4",
+      "client.jsonl": "683bc05c34eb5eeea3b094c0b6093f1885ed638d071976c61dbe1ffd4af6cd1d"
+    },
+    "cgroup_cpu_delta": {
+      "usage_usec": 1034283119,
+      "user_usec": 974723057,
+      "system_usec": 59560061,
+      "nr_periods": 35984,
+      "nr_throttled": 223,
+      "throttled_usec": 3508591,
+      "nr_bursts": 0,
+      "burst_usec": 0
+    },
+    "span_drops_by_root": {
+      "service.observe_once": 3017
+    },
+    "sampler_errors": {},
+    "failed_requests": [],
+    "slowest_requests": [
+      {
+        "client": {
+          "kind": "client_request",
+          "request_id": "4bdfaf6be74d-33544",
+          "path": "/statistics/daily",
+          "status": 200,
+          "scheduled_ns": 2029416329078,
+          "dispatch_ns": 2029420449757,
+          "end_ns": 2031498286800,
+          "at": 1792990158.1199884,
+          "queue_wait_ms": 4.120679,
+          "network_and_body_ms": 2077.837043,
+          "total_ms": 2081.957722,
+          "error": null
+        },
+        "server_duration_ms": 1745.199459,
+        "overlapping_stalls": [
+          {
+            "lag_ms": 581.994876,
+            "main_stack": [
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/base_events.py",
+                "line": 684,
+                "function": "run_forever"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/base_events.py",
+                "line": 2061,
+                "function": "_run_once"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/events.py",
+                "line": 89,
+                "function": "_run"
+              },
+              {
+                "file": "/home/hummingbot/hummingbot/cli/service.py",
+                "line": 604,
+                "function": "run_service"
+              },
+              {
+                "file": "/test-assets/load_service.py",
+                "line": 302,
+                "function": "run"
+              },
+              {
+                "file": "/home/hummingbot/hummingbot/cli/service.py",
+                "line": 538,
+                "function": "run"
+              },
+              {
+                "file": "/test-assets/load_service.py",
+                "line": 283,
+                "function": "measured"
+              },
+              {
+                "file": "/home/hummingbot/hummingbot/cli/service.py",
+                "line": 430,
+                "function": "observe_once"
+              },
+              {
+                "file": "/home/hummingbot/hummingbot/model/bot_state_store.py",
+                "line": 98,
+                "function": "publish"
+              },
+              {
+                "file": "/home/hummingbot/hummingbot/model/admin_reporting.py",
+                "line": 58,
+                "function": "save_daily_balances"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+                "line": 1463,
+                "function": "execute"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/sql/elements.py",
+                "line": 533,
+                "function": "_execute_on_connection"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+                "line": 1683,
+                "function": "_execute_clauseelement"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+                "line": 1837,
+                "function": "_execute_context"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+                "line": 1958,
+                "function": "_exec_single_context"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/default.py",
+                "line": 1192,
+                "function": "do_execute"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "client": {
+          "kind": "client_request",
+          "request_id": "4bdfaf6be74d-33555",
+          "path": "/statistics/daily",
+          "status": 200,
+          "scheduled_ns": 2029966329078,
+          "dispatch_ns": 2030867139341,
+          "end_ns": 2031499900800,
+          "at": 1792990158.1215966,
+          "queue_wait_ms": 900.810263,
+          "network_and_body_ms": 632.761459,
+          "total_ms": 1533.571722,
+          "error": null
+        },
+        "server_duration_ms": 497.040584,
+        "overlapping_stalls": [
+          {
+            "lag_ms": 219.840167,
+            "main_stack": [
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/events.py",
+                "line": 89,
+                "function": "_run"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/aiohttp/web_protocol.py",
+                "line": 605,
+                "function": "start"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/aiohttp/web_protocol.py",
+                "line": 517,
+                "function": "_handle_request"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/aiohttp/web_app.py",
+                "line": 569,
+                "function": "_handle"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/aiohttp/web_middlewares.py",
+                "line": 117,
+                "function": "impl"
+              },
+              {
+                "file": "/home/hummingbot/hummingbot/cli/admin_api.py",
+                "line": 436,
+                "function": "authenticate"
+              },
+              {
+                "file": "/test-assets/load_service.py",
+                "line": 116,
+                "function": "measured"
+              },
+              {
+                "file": "/home/hummingbot/hummingbot/cli/admin_api.py",
+                "line": 68,
+                "function": "admin_errors"
+              },
+              {
+                "file": "/home/hummingbot/hummingbot/cli/admin_api.py",
+                "line": 283,
+                "function": "positions"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/threads.py",
+                "line": 26,
+                "function": "to_thread"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/base_events.py",
+                "line": 902,
+                "function": "run_in_executor"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/concurrent/futures/thread.py",
+                "line": 180,
+                "function": "submit"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/concurrent/futures/thread.py",
+                "line": 203,
+                "function": "_adjust_thread_count"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/threading.py",
+                "line": 982,
+                "function": "start"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/threading.py",
+                "line": 660,
+                "function": "wait"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/threading.py",
+                "line": 359,
+                "function": "wait"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "client": {
+          "kind": "client_request",
+          "request_id": "4bdfaf6be74d-33545",
+          "path": "/reconciliation",
+          "status": 200,
+          "scheduled_ns": 2029466329078,
+          "dispatch_ns": 2029474530132,
+          "end_ns": 2030894839841,
+          "at": 1792990157.516541,
+          "queue_wait_ms": 8.201054,
+          "network_and_body_ms": 1420.309709,
+          "total_ms": 1428.510763,
+          "error": null
+        },
+        "server_duration_ms": 713.637792,
+        "overlapping_stalls": [
+          {
+            "lag_ms": 581.994876,
+            "main_stack": [
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/base_events.py",
+                "line": 684,
+                "function": "run_forever"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/base_events.py",
+                "line": 2061,
+                "function": "_run_once"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/asyncio/events.py",
+                "line": 89,
+                "function": "_run"
+              },
+              {
+                "file": "/home/hummingbot/hummingbot/cli/service.py",
+                "line": 604,
+                "function": "run_service"
+              },
+              {
+                "file": "/test-assets/load_service.py",
+                "line": 302,
+                "function": "run"
+              },
+              {
+                "file": "/home/hummingbot/hummingbot/cli/service.py",
+                "line": 538,
+                "function": "run"
+              },
+              {
+                "file": "/test-assets/load_service.py",
+                "line": 283,
+                "function": "measured"
+              },
+              {
+                "file": "/home/hummingbot/hummingbot/cli/service.py",
+                "line": 430,
+                "function": "observe_once"
+              },
+              {
+                "file": "/home/hummingbot/hummingbot/model/bot_state_store.py",
+                "line": 98,
+                "function": "publish"
+              },
+              {
+                "file": "/home/hummingbot/hummingbot/model/admin_reporting.py",
+                "line": 58,
+                "function": "save_daily_balances"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+                "line": 1463,
+                "function": "execute"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/sql/elements.py",
+                "line": 533,
+                "function": "_execute_on_connection"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+                "line": 1683,
+                "function": "_execute_clauseelement"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+                "line": 1837,
+                "function": "_execute_context"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/base.py",
+                "line": 1958,
+                "function": "_exec_single_context"
+              },
+              {
+                "file": "/opt/conda/envs/hummingbot/lib/python3.13/site-packages/sqlalchemy/engine/default.py",
+                "line": 1192,
+                "function": "do_execute"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "closure": {
+    "one_hour_gate_passed": true,
+    "historical_timeout_cluster_deterministically_reproduced": false,
+    "exact_historical_cause_proven": false,
+    "control": "Short traced/untraced parent and patch probes; no paired untraced full-hour run.",
+    "limits": "Random step choices vary between runs. Stage distributions are rolling snapshots; thread CPU is inclusive. A passing gate does not establish the historical cause."
+  },
+  "session_observations_count": 48,
+  "observed_steps": [
+    {
+      "observed_at": 1792988515.2962701,
+      "session": {
+        "id": "44aed8ca-10e9-4dc5-b691-a0390180df5c",
+        "profile_id": "sideways",
+        "selection": "random",
+        "generation": "0",
+        "step_expires_at": "1792989078.654511",
+        "market_mode": "both",
+        "status": "running"
+      }
+    },
+    {
+      "observed_at": 1792989200.239102,
+      "session": {
+        "id": "44aed8ca-10e9-4dc5-b691-a0390180df5c",
+        "profile_id": "sideways",
+        "selection": "random",
+        "generation": "1",
+        "step_expires_at": "1792989678.654511",
+        "market_mode": "both",
+        "status": "running"
+      }
+    },
+    {
+      "observed_at": 1792989686.794888,
+      "session": {
+        "id": "44aed8ca-10e9-4dc5-b691-a0390180df5c",
+        "profile_id": "follow_token",
+        "selection": "random",
+        "generation": "2",
+        "step_expires_at": "1792990278.654511",
+        "market_mode": "both",
+        "status": "running"
+      }
+    },
+    {
+      "observed_at": 1792990297.01294,
+      "session": {
+        "id": "44aed8ca-10e9-4dc5-b691-a0390180df5c",
+        "profile_id": "follow_market",
+        "selection": "random",
+        "generation": "3",
+        "step_expires_at": "1792990878.654511",
+        "market_mode": "both",
+        "status": "running"
+      }
+    },
+    {
+      "observed_at": 1792990893.842578,
+      "session": {
+        "id": "44aed8ca-10e9-4dc5-b691-a0390180df5c",
+        "profile_id": "follow_market",
+        "selection": "random",
+        "generation": "4",
+        "step_expires_at": "1792991478.654511",
+        "market_mode": "both",
+        "status": "running"
+      }
+    },
+    {
+      "observed_at": 1792991487.3132071,
+      "session": {
+        "id": "44aed8ca-10e9-4dc5-b691-a0390180df5c",
+        "profile_id": "sideways",
+        "selection": "random",
+        "generation": "5",
+        "step_expires_at": "1792992078.654511",
+        "market_mode": "both",
+        "status": "running"
+      }
+    }
+  ]
+}
