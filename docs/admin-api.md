@@ -6,6 +6,12 @@ catalogue exposes opt-in market `quote_guards` and profile `sideways_range` thro
 the existing `/profiles` contract; trading selection still uses existing commands.
 See [strict quote guards](life-mm-quote-guards.md) for bounds and recovery semantics.
 
+Optional `status.drawdown` exposes the covered V2 report's limits, stable scope,
+peaks, observed PnL/drawdown and readiness/HALT reason. Stopped or stale current
+PnL is `null`; known peaks and confirmed breach remain visible. This metric
+includes reported trade fees and excludes funding; it is not account equity.
+See [managed MM drawdown](life-mm-drawdown.md) for configuration and bound policy.
+
 The existing aiohttp service exposes `/api/v1/admin`. Configure
 `ADMIN_API_ENABLED=true`, `ADMIN_API_USERNAME` and `ADMIN_API_PASSWORD` through
 the existing `.env` loader or injected deployment secrets. There are no usable

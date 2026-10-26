@@ -164,10 +164,13 @@ def main():
     parser.add_argument("--refresh-seconds", type=int, help="Diagnostic-only accelerated quote refresh")
     parser.add_argument("--trace", action="store_true", help="Bounded request/SQL/commit/loop-stack/PG-wait traces; no parameters or credentials")
     parser.add_argument("--strict-guards", action="store_true", help="Probe-only explicit strict-guard fixture; production defaults remain disabled")
+    parser.add_argument("--drawdown", action="store_true", help="Probe-only explicit drawdown limits; production defaults remain disabled")
     parser.add_argument("--keep-going", action="store_true", help="Continue healthy windows after budget violations; final result still fails")
     args = parser.parse_args()
     if args.strict_guards and args.profile != "probe":
         parser.error("--strict-guards currently certifies the short probe only")
+    if args.drawdown and args.profile != "probe":
+        parser.error("--drawdown currently certifies the short probe only")
     metadata = json.loads(docker("image", "inspect", args.image).stdout)[0]
     assert metadata["Architecture"] == "amd64"
     # Cached immutable digest from P4 needs no registry/network preparation again.
@@ -181,7 +184,8 @@ def main():
                     bot_limits=dict(cpus=1, memory_bytes=2 * 1024**3), postgres_limits=dict(cpus=2, memory_bytes=512 * 1024**2),
                     simulator_limits=dict(cpus=1, memory_bytes=512 * 1024**2), client_limits=dict(cpus=1, memory_bytes=512 * 1024**2),
                     history_orders=args.history_rows, history_fills=args.history_rows, funding_sync_interval_seconds=5,
-                    tracing=args.trace, strict_quote_guards=args.strict_guards, continue_after_budget_failure=args.keep_going, windows={})
+                    tracing=args.trace, strict_quote_guards=args.strict_guards, drawdown=args.drawdown,
+                    continue_after_budget_failure=args.keep_going, windows={})
     evidence["source_sha256"] = {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest() for path in (
         ROOT / "scripts/test_mm_load.py", ROOT / "scripts/test_e2e_offline.py", ROOT / "scripts/analyze_mm_load_trace.py",
         ROOT / "scripts/mm_load_budgets.py", ROOT / "scripts/mm_load_faults.py", ROOT / "scripts/mm_load_ledger.py")}
@@ -189,6 +193,12 @@ def main():
         with tempfile.TemporaryDirectory(prefix="hbot-mm-load-") as directory:
             assets = Path(directory)
             assets_for(assets)
+            if args.drawdown:
+                import yaml
+                config_path = assets / "life_mm_profiles.yaml"
+                profiles = yaml.safe_load(config_path.read_text())
+                profiles.update(max_global_drawdown_quote="1000", max_controller_drawdown_quote="500")
+                config_path.write_text(yaml.safe_dump(profiles))
             if args.strict_guards:
                 import yaml
                 config_path = assets / "life_mm_profiles.yaml"

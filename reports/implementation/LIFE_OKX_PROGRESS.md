@@ -828,3 +828,37 @@ sixty-second probe passed unchanged budgets: p95 54.99ms / p99 437.33ms, 1,200 H
 200 responses, zero unexpected errors and sixty matching fills/positions. E2–E6
 have not started; no new sixty-minute, upgrade, Cloud Run or real Demo gate is claimed.
 See [E1 report](../life-mm-e1-quote-guards.md) and [evidence](../life-mm-e1-quote-guards.json).
+
+### Incremental enhancements E2a — 2026-10-26
+
+Optional catalogue drawdown limits now use the existing V2 reports, stable
+controller scope, owner checkpoints and position-preserving service shutdown.
+Retained disabled-market positions stay covered through existing public
+non-trading feed subscriptions. Missing valuation waits and recovers; confirmed
+breach retains durable HALT across commands/restarts. Policy and monotonic peaks
+cannot be reset by random generations, new sessions, market switches or legacy
+CLI selection. No new table, ledger, cache, environment variable or reset API was
+added. Limits remain disabled by default. The declared metric includes covered
+trade fees and excludes funding; it does not claim exact account equity.
+
+Red/Green covers report scope/fees, finite thresholds, strict exceedance,
+checkpoint persistence, risk-stop behavior and report versus decision freshness.
+The first image run found a final-shutdown Decimal serialization defect after
+retained-feed recovery; a failing native shutdown test now protects the DTO
+serialization fix. This failure is retained with its original image/run identity.
+
+Verification: 1,437 native tests/nine subtests, 73 overlapping focused cases with
+RuntimeWarning treated as errors, 147 full-suite PostgreSQL tests and a final
+eleven-case selection passed. The selection adds explicit random-generation
+coverage beyond the ten cases in that full run. All nine final-image E2E groups
+passed, including read-only retained-market valuation, partial-fill preservation,
+clean restart, persistent risk HALT and rejected post-HALT admin start.
+
+Final image `sha256:84f4d33ae3153a049aaddaa55532a58a446a00a6656629f456e8e46ec7922dd0`
+(1,364,627,702 bytes) matches twenty-one runtime/config/contract hashes. The combined
+guard/drawdown sixty-second probe passed unchanged budgets: p95 74.81ms / p99
+518.06ms, 1,200 HTTP 200 responses, no unexpected errors and sixty matched
+fills/positions. Observed RSS was 328,478,720 bytes on a 1 CPU/2 GiB bot.
+E2b–E6 remain open; no new sixty-minute, upgrade, Cloud Run or real Demo gate is
+claimed. See [E2a report](../life-mm-e2a-drawdown.md) and
+[evidence](../life-mm-e2a-drawdown.json).

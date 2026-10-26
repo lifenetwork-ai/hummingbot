@@ -101,3 +101,7 @@ def test_performance_reads_use_existing_cache_and_keep_separate_market_history_a
     reporting["active_connectors"] = ["okx"]
     row["status"]["reporting"] = reporting
     assert next(item for item in reporting_view(row)["performance"] if item["market"] == "spot")["stale"]
+    controllers["spot"].processed_data["ready"] = True
+    strategy.controller_reports_error = "ValueError"
+    row["status"]["reporting"] = capture_reporting(core, reporting)
+    assert next(item for item in reporting_view(row)["performance"] if item["market"] == "spot")["stale"]

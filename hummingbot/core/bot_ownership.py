@@ -130,18 +130,21 @@ class BotOwnership:
                 recorder.sql_manager.assert_persistence_healthy()
         return dict(row)
 
-    def _mutate_recovery(self, change) -> None:
+    def _mutate_recovery(self, change, *, expected_version=None):
         self.check_owner()
         with self.connection.begin():
-            row = self.connection.execute(select(BotState.recovery_state).where(
+            row = self.connection.execute(select(BotState.recovery_state, BotState.control_version).where(
                 BotState.bot_id == self.store.bot_id, BotState.owner_uuid == self.owner_uuid,
                 BotState.owner_generation == self.generation).with_for_update()).one()
+            if expected_version is not None and row[1] != expected_version:
+                return False
             recovery = dict(row[0] or {})
             change(recovery)
             self.connection.execute(update(BotState).where(BotState.bot_id == self.store.bot_id,
                                                            BotState.owner_uuid == self.owner_uuid,
                                                            BotState.owner_generation == self.generation)
                                     .values(recovery_state=recovery))
+        return True
 
     def require_recovery(self, reason):
         self.allow_new_orders = False
@@ -333,6 +336,62 @@ class BotOwnership:
             self.account_token = None
             self.account_lock.release()
 
+    def bind_mm_drawdown(self, strategy):
+        """Extend the existing strategy checkpoint; peaks are bot/market scoped."""
+        row = self.check_owner()
+        if row["config_type"] != "mm-session" or self.config_file_path != "life_mm_profiles.yaml":
+            raise SubmissionBlocked("Managed drawdown requires the MM service identity.")
+        if row["control_version"] != self.version:
+            return False  # A superseded initialization must not bind old policy.
+        checkpoint = (row["recovery_state"] or {}).get("strategy_checkpoints", {}).get(self.config_file_path, {})
+        policy = strategy.mm_drawdown_policy()
+        bound = checkpoint.get("mm_drawdown_policy")
+        if bound is not None and bound != policy:
+            self.require_recovery("drawdown_policy_mismatch")
+            raise SubmissionBlocked("Drawdown policy/scope changed; operator-reviewed maintenance is required.")
+        try:
+            peak = Decimal(checkpoint.get("max_global_pnl", "0"))
+            peaks = {identity: Decimal(value) for identity, value in checkpoint.get("max_pnl_by_controller", {}).items()}
+            if (not peak.is_finite() or peak < 0 or any(not value.is_finite() or value < 0 for value in peaks.values())
+                    or (bound is None and (peak != 0 or any(peaks.values())))
+                    or any(value != 0 and identity not in policy["scope"] for identity, value in peaks.items())):
+                raise ValueError("Invalid or unbound peak scope")
+        except (ValueError, ArithmeticError, TypeError):
+            self.require_recovery("drawdown_checkpoint_invalid")
+            raise SubmissionBlocked("Drawdown checkpoint coverage is invalid; operator review is required.") from None
+        strategy.max_global_pnl = peak
+        strategy.max_pnl_by_controller = {identity: peaks.get(identity, Decimal("0")) for identity in policy["scope"]}
+        strategy._is_stop_triggered = bool(checkpoint.get("_is_stop_triggered", False))
+        strategy.drawdown_exited_controllers = list(checkpoint.get("drawdown_exited_controllers", []))
+        strategy._mm_drawdown_breach = checkpoint.get("mm_drawdown_breach")
+        saved = strategy.mm_drawdown_checkpoint()
+        if not self.checkpoint_mm_drawdown(saved, bind_version=self.version):
+            return False
+        strategy.mm_drawdown_checkpoint_callback = self.checkpoint_mm_drawdown
+        strategy._mm_drawdown_last_checkpoint = saved
+        strategy._mm_drawdown_bound = True
+        return True
+
+    def checkpoint_mm_drawdown(self, checkpoint, *, bind_version=None):
+        def save(state):
+            checkpoints = dict(state.get("strategy_checkpoints") or {})
+            previous = dict(checkpoints.get(self.config_file_path) or {})
+            bound = previous.get("mm_drawdown_policy")
+            if bound is not None and bound != checkpoint["mm_drawdown_policy"]:
+                raise SubmissionBlocked("Drawdown policy changed during checkpoint publication.")
+            old = dict(previous)
+            previous.update(checkpoint)
+            previous["max_global_pnl"] = str(max(Decimal(checkpoint["max_global_pnl"]), Decimal(old.get("max_global_pnl", "0"))))
+            previous["max_pnl_by_controller"] = {
+                identity: str(max(Decimal(value), Decimal((old.get("max_pnl_by_controller") or {}).get(identity, "0"))))
+                for identity, value in checkpoint["max_pnl_by_controller"].items()}
+            if old.get("_is_stop_triggered"):
+                previous.update(_is_stop_triggered=True, drawdown_exited_controllers=old.get("drawdown_exited_controllers", []),
+                                mm_drawdown_breach=old.get("mm_drawdown_breach"))
+            checkpoints[self.config_file_path] = previous
+            state["strategy_checkpoints"] = checkpoints
+        return self._mutate_recovery(save, expected_version=bind_version)
+
     async def reconcile(self, core):
         """Reuse connector read APIs and tracker events before adding strategy to clock."""
         row = self.check_owner()
@@ -347,6 +406,9 @@ class BotOwnership:
             core.strategy.max_global_pnl = Decimal(checkpoint["max_global_pnl"])
         if "max_pnl_by_controller" in checkpoint and hasattr(core.strategy, "max_pnl_by_controller"):
             core.strategy.max_pnl_by_controller = {key: Decimal(value) for key, value in checkpoint["max_pnl_by_controller"].items()}
+        scope = getattr(getattr(core.strategy, "config", None), "mm_drawdown_scope", None)
+        if isinstance(scope, dict) and scope:
+            self.bind_mm_drawdown(core.strategy)
 
         async def perform():
             while not all(connector.ready for connector in self.connectors.values()):
@@ -488,6 +550,7 @@ class BotOwnership:
         was_halted = bool((row["recovery_state"] or {}).get("halt"))
         checkpoint = {}
         strategy = core.strategy
+        scope = None
         if strategy is not None:
             for name in ("_is_stop_triggered", "drawdown_exited_controllers"):
                 if hasattr(strategy, name):
@@ -496,12 +559,19 @@ class BotOwnership:
                 checkpoint["max_global_pnl"] = str(strategy.max_global_pnl)
             if hasattr(strategy, "max_pnl_by_controller"):
                 checkpoint["max_pnl_by_controller"] = {key: str(value) for key, value in strategy.max_pnl_by_controller.items()}
+            scope = getattr(getattr(strategy, "config", None), "mm_drawdown_scope", None)
+            if isinstance(scope, dict) and scope and getattr(strategy, "_mm_drawdown_bound", False):
+                checkpoint.update(strategy.mm_drawdown_checkpoint())
 
         def begin_shutdown(state):
             state.update(halt=True, shutdown_incomplete=True)
             if self.config_file_path is not None:
                 checkpoints = dict(state.get("strategy_checkpoints") or {})
-                checkpoints[self.config_file_path] = checkpoint
+                previous = dict(checkpoints.get(self.config_file_path) or {})
+                if not (previous.get("mm_drawdown_policy") is not None
+                        and isinstance(scope, dict) and scope and not getattr(strategy, "_mm_drawdown_bound", False)):
+                    previous.update(checkpoint)
+                checkpoints[self.config_file_path] = previous
                 state["strategy_checkpoints"] = checkpoints
         self._mutate_recovery(begin_shutdown)
         deadline = asyncio.get_running_loop().time() + timeout

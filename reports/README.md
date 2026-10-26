@@ -10,6 +10,7 @@ does not certify a later image. Operational guides and plans live in [docs/](../
 | [LIFE / OKX progress](implementation/LIFE_OKX_PROGRESS.md) | Phase history and Red/Green verification |
 | [E0 service availability](life-mm-e0-availability.md) | Failure isolation, task supervision, recovery and switch/checkpoint regression evidence |
 | [E1 strict quote guards](life-mm-e1-quote-guards.md) | Target-market qualification, manual ranges, own-order bounds and recovery verification |
+| [E2a managed drawdown](life-mm-e2a-drawdown.md) | Covered V2 report limits, durable peaks, retained-market valuation and position-preserving HALT |
 | [Full-image soak retest](life-mm-soak-retest.md) | [Gate evidence](life-mm-soak-retest-evidence.json); sixty-minute gate passed; further reproduction closed by user decision |
 | [Short diagnostic iteration](life-mm-short-repro-review.md) | [CPU/probe evidence](life-mm-short-repro-evidence.json); datetime-only serialization and nested UTC fix; historical short-iteration results; follow-up closed after passing full gate |
 | [Extended traced load review](life-mm-trace-load-review.md) | [Portable trace evidence](life-mm-trace-load-evidence.json); mixed passed, sixty-minute soak failed p99/timeouts |

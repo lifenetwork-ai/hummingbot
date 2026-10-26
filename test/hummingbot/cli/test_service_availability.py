@@ -25,6 +25,23 @@ def host():
     return item
 
 
+@pytest.mark.asyncio
+async def test_final_shutdown_snapshot_persists_drawdown_as_json_without_a_custom_serializer():
+    from test.hummingbot.strategy_v2.test_mm_drawdown import runner
+
+    from hummingbot.core.mm_drawdown import checkpoint_drawdown_status
+    item = host()
+    item.mm_drawdown_state = checkpoint_drawdown_status(runner().mm_drawdown_checkpoint())
+    item.owner = MagicMock(owner_uuid="owner", generation=1)
+    item.owner.check_owner.return_value = {"control_version": 1}
+    item.owner.store.publish.side_effect = lambda **fields: json.dumps(fields["status"], allow_nan=False)
+    item.stop_core = AsyncMock(return_value=True)
+    assert await item.close()
+    status = item.owner.store.publish.call_args.kwargs["status"]["mm_drawdown"]
+    assert status["global_peak_quote"] == "0" and status["global_pnl_quote"] is None
+    item.owner.release.assert_called_once()
+
+
 def test_reporting_failure_preserves_control_snapshot_but_invalidates_old_observations(monkeypatch):
     item = host()
     item.reporting = {"accounts": [{"account_id": "a", "environment": "demo", "balances": []}]}

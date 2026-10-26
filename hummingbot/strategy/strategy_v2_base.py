@@ -283,6 +283,7 @@ class StrategyV2Base(StrategyPyBase):
         # Always initialize V2 infrastructure
         self.controllers: Dict[str, ControllerBase] = {}
         self.controller_reports: Dict[str, Dict] = {}
+        self.controller_reports_error = None
         self.market_data_provider = MarketDataProvider(connectors)
         self._is_stop_triggered = False
         self.mqtt_enabled = False
@@ -752,6 +753,7 @@ class StrategyV2Base(StrategyPyBase):
             self.controller_reports = self.executor_orchestrator.get_all_reports()
             import time
             self.controller_reports_timestamp = time.time()
+            self.controller_reports_error = None
 
             # Update each controller with its specific data
             for controller_id, controller in self.controllers.items():
@@ -761,6 +763,7 @@ class StrategyV2Base(StrategyPyBase):
                 controller.performance_report = controller_report.get("performance", [])
                 controller.executors_update_event.set()
         except Exception as e:
+            self.controller_reports_error = type(e).__name__
             self.logger().error(f"Error updating controller reports: {e}", exc_info=True)
 
     @staticmethod

@@ -761,6 +761,86 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
                                             effective_config_sha256=hashlib.sha256(path.read_bytes()).hexdigest())
         path.write_bytes(original_profiles)
 
+    def drawdown_scenario(self):
+        print("Offline E2E: durable drawdown, retained-market marks and position-preserving HALT", flush=True)
+        import yaml
+        path = self.assets / "life_mm_profiles.yaml"
+        original_profiles = path.read_bytes()
+        config = yaml.safe_load(path.read_text())
+        config.update(max_global_drawdown_quote="1", max_controller_drawdown_quote="1")
+        path.write_text(yaml.safe_dump(config))
+        self.report.joinpath("effective-drawdown-profiles.yaml").write_bytes(path.read_bytes())
+        self.env.update(ADMIN_API_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin")
+        for field, value in (("API_KEY", "offline-key"), ("SECRET_KEY", "offline-secret"), ("PASSPHRASE", "offline-pass")):
+            self.env["HBOT_OKX_PERPETUAL_" + field] = value
+        first, port = self.start("drawdown")
+        self.mm_command(port, "start", market_mode="both", selection="fixed", profile_id="sideways", duration_seconds=600)
+        buy = poll(lambda: next((row for row in self.ledger()["orders"] if row["state"] == "live"
+                                 and row["instId"] == "LIFE-USDT-SWAP" and row["side"] == "buy"), None),
+                   description="perpetual quote for partial drawdown fill")
+        self.control(fill={"clOrdId": buy["clOrdId"], "amount": str(Decimal(buy["sz"]) / 2), "fee": ".001"}, duplicate=True)
+        poll(lambda: self.sql("SELECT count(*) FROM trade_fills") == "1", description="drawdown partial fill recorded once")
+        held = self.ledger()["positions"]
+        assert held
+        self.mm_command(port, "switch", market_mode="spot", selection="fixed", profile_id="sideways", duration_seconds=600)
+        self.wait_running(port)
+        boundary = len(self.ledger()["accepted"])
+        mutation_boundary = len(self.ledger()["mutations"])
+
+        def risk():
+            return self.admin(port, "/status")[1].get("drawdown") or {}
+
+        poll(lambda: risk().get("ready") and Decimal(risk()["controllers"]["life_perpetual"]["pnl_quote"]) > 0,
+             description="disabled perpetual exposure still has a fresh marked report")
+        peak = Decimal(risk()["global_peak_quote"])
+        assert peak > 0 and len(risk()["scope"]) == 2
+        session = self.state()["mm_session"]
+        self.control(stale_instruments=["LIFE-USDT-SWAP"])
+        poll(lambda: risk().get("stale") and not risk().get("ready"), timeout=25,
+             description="stale disabled-market valuation blocks new spot risk")
+        poll(lambda: all(row["state"] in ("filled", "canceled") for row in self.ledger()["orders"]),
+             description="missing drawdown coverage cancels new quotes without closing held exposure")
+        assert risk()["global_pnl_quote"] is None and self.ledger()["positions"] == held
+        assert http(port, "/live")[0] == 200 and not self.state()["recovery_state"].get("halt")
+        self.control(stale_instruments=[])
+        self.wait_running(port)
+        poll(lambda: risk().get("ready"), description="drawdown coverage recovers in the same process")
+        assert Decimal(risk()["global_peak_quote"]) >= peak
+        assert self.state()["mm_session"]["anchors"] == session["anchors"]
+        assert self.state()["mm_session"]["expires_at"] == session["expires_at"]
+        self.terminate(first)
+        second, port = self.start("drawdown-clean-restart", auto_migrate=False)
+        self.wait_running(port)
+        poll(lambda: risk().get("ready"), description="clean restart restores peak and read-only retained feed")
+        assert Decimal(risk()["global_peak_quote"]) >= peak
+        self.control(prices={"LIFE-USDT": ".08"})
+        poll(lambda: self.state()["status"].get("phase") == "halted", description="covered drawdown breach HALTs service trading")
+        poll(lambda: all(row["state"] in ("filled", "canceled") for row in self.ledger()["orders"]),
+             description="risk HALT cancels remainders and preserves partial fill")
+        assert self.ledger()["positions"] == held
+        assert all(row["instId"] == "LIFE-USDT" and row["ordType"] == "post_only" for row in self.ledger()["accepted"][boundary:])
+        assert risk()["reason_code"] == "drawdown_global_limit" and risk()["operator_action_required"]
+        accepted = len(self.ledger()["accepted"])
+        self.terminate(second)
+        _, port = self.start("drawdown-halt-restart", auto_migrate=False)
+        poll(lambda: self.state()["status"].get("phase") == "halted", description="cold restart preserves drawdown HALT")
+        stopped = risk()
+        assert stopped["stale"] and stopped["global_pnl_quote"] is None
+        assert stopped["reason_code"] == "drawdown_global_limit" and Decimal(stopped["global_peak_quote"]) >= peak
+        status, _ = self.admin(port, "/commands", dict(action="start", expected_version=self.state()["control_version"],
+                                                       market_mode="both", selection="fixed", profile_id="sideways", duration_seconds=600), str(uuid.uuid4()))
+        assert status == 409
+        assert len(self.ledger()["accepted"]) == accepted and self.ledger()["positions"] == held
+        assert len(self.ledger()["mutations"]) == mutation_boundary
+        assert not self.ledger()["unknown"]
+        self.metrics["drawdown"] = dict(retained_disabled_market=True, partial_fill_preserved=True,
+                                        stale_coverage_waits=True, coverage_recovers=True, clean_restart_peak=True,
+                                        global_breach_halt=True, restart_halt=True, post_halt_start_rejected=True,
+                                        retained_feed_has_no_account_mutations=True,
+                                        global_peak_quote=str(peak), fresh_stopped_pnl_not_invented=True,
+                                        effective_config_sha256=hashlib.sha256(path.read_bytes()).hexdigest())
+        path.write_bytes(original_profiles)
+
     def availability_scenario(self):
         print("Offline E2E: service availability and automatic read/feed recovery", flush=True)
         self.env.update(ADMIN_API_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin")
@@ -958,7 +1038,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--image", default="hummingbot-cloudrun:local")
-    parser.add_argument("--scenario", choices=("all", "spot", "v2-spot", "v2-perpetual", "schema", "upgrade", "life-mm", "life-mm-recovery", "funding", "availability", "quote-guards"), default="all")
+    parser.add_argument("--scenario", choices=("all", "spot", "v2-spot", "v2-perpetual", "schema", "upgrade", "life-mm", "life-mm-recovery", "funding", "availability", "quote-guards", "drawdown"), default="all")
     parser.add_argument("--previous-image", help="Cached compatible prior image; required for the release upgrade gate.")
     parser.add_argument("--trading-env", choices=("live", "demo"), default="live", help="Local simulator routing mode; never contacts OKX.")
     args = parser.parse_args()
@@ -998,7 +1078,7 @@ def main():
                            f"type=bind,source={assets},target=/test-assets,readonly",
                            image, "python", "/test-assets/runtime_smoke.py", timeout=90)
             result["runtime_smoke"] = json.loads(smoke.stdout)
-            scenarios = ("schema", "spot", "v2-spot", "v2-perpetual", "life-mm", "funding", "availability", "quote-guards") if args.scenario == "all" else (args.scenario,)
+            scenarios = ("schema", "spot", "v2-spot", "v2-perpetual", "life-mm", "funding", "availability", "quote-guards", "drawdown") if args.scenario == "all" else (args.scenario,)
             if args.scenario == "all" and previous_image:
                 scenarios += ("upgrade",)
             result["scenarios"] = {}
@@ -1018,6 +1098,8 @@ def main():
                         harness.availability_scenario()
                     elif scenario == "quote-guards":
                         harness.quote_guard_scenario()
+                    elif scenario == "drawdown":
+                        harness.drawdown_scenario()
                     elif scenario == "upgrade":
                         harness.upgrade_scenario(previous_image)
                     elif scenario in ("life-mm", "life-mm-recovery"):

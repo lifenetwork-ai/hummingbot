@@ -5,6 +5,10 @@ min_duration_seconds: 60
 default_duration_seconds: 3600
 max_duration_seconds: 86400
 max_total_amount_quote: "200"
+# Optional USDT drawdown from the covered V2 report peak; null disables.
+# Once armed, policy and peaks persist across sessions/restarts. See docs/life-mm-drawdown.md.
+max_global_drawdown_quote: null
+max_controller_drawdown_quote: null
 # Profile IDs match their scenario names. Reference pairs remain configurable.
 profiles:
   follow_market:

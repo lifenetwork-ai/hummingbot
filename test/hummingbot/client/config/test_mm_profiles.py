@@ -30,6 +30,23 @@ async def test_manual_sideways_range_survives_effective_catalogue_and_only_appli
 
 
 @pytest.mark.asyncio
+async def test_drawdown_policy_is_explicit_finite_and_uses_stable_market_scope():
+    original = await MMProfilesConfig.load(CATALOGUE)
+    assert original.drawdown_policy() is None
+    raw = original.model_dump(mode="json")
+    raw.update(max_global_drawdown_quote="10.00", max_controller_drawdown_quote="5")
+    selected = MMProfilesConfig.model_validate(raw)
+    assert selected.drawdown_policy()["max_global_drawdown_quote"] == "10"
+    assert set(selected.drawdown_policy()["scope"]) == {"life_spot", "life_perpetual"}
+    for value in ("0", "-1", "NaN", "Infinity"):
+        with pytest.raises(ValueError):
+            MMProfilesConfig.model_validate({**raw, "max_global_drawdown_quote": value})
+    raw["markets"]["spot"]["initial_positions"] = [{"connector_name": "okx", "trading_pair": "LIFE-USDT", "amount": "1", "side": "BUY"}]
+    with pytest.raises(ValueError):
+        MMProfilesConfig.model_validate(raw)
+
+
+@pytest.mark.asyncio
 async def test_deployment_packages_three_default_profiles_and_two_market_templates():
     data = await load_yml_into_dict(str(CATALOGUE))
     assert data.get("reference_connector") == "okx"

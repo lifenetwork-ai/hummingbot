@@ -52,7 +52,7 @@ def capture_reporting(core, previous):
     strategy = core.strategy
     if strategy is not None:
         timestamp = getattr(strategy, "controller_reports_timestamp", None)
-        if isinstance(timestamp, (float, int)):
+        if isinstance(timestamp, (float, int)) and not isinstance(getattr(strategy, "controller_reports_error", None), str):
             for controller_id, controller in strategy.controllers.items():
                 if not controller.processed_data.get("ready"):
                     continue

@@ -318,6 +318,12 @@ class MarketsRecorder:
                 query = query.filter(Position.controller_id.in_(controller_ids))
             return query.all()
 
+    def has_uncovered_positions(self, controller_ids: List[str]) -> bool:
+        """One startup coverage check; retained foreign exposure must not vanish."""
+        with self._sql_manager.get_new_session() as session:
+            return session.query(Position.id).filter(Position.amount != 0,
+                                                     ~Position.controller_id.in_(controller_ids)).first() is not None
+
     def get_orders_for_config_and_market(self, config_file_path: str, market: ConnectorBase,
                                          with_exchange_order_id_present: Optional[bool] = False,
                                          number_of_rows: Optional[int] = None) -> List[Order]:

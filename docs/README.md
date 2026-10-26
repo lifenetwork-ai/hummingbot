@@ -14,6 +14,7 @@ under the ignored `build/` directory.
 | [Cloud Run deployment](../deploy/cloudrun/README.md) | Service configuration and deployment verification |
 | [Admin API](admin-api.md) | Authentication, commands, reporting and reconciliation |
 | [Strict quote guards](life-mm-quote-guards.md) | Opt-in market deviation, sideways range, own-order filtering and recovery |
+| [Managed MM drawdown](life-mm-drawdown.md) | Covered V2 report limits, retained-market valuation, durable peaks and position-preserving HALT |
 | [OKX environments](okx-environments.md) | Live/Demo routing, sites and credential variables |
 | [Local load testing](life-mm-load-tests.md) | Commands, workload, budgets and verification policy |
 

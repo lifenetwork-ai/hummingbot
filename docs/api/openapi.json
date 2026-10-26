@@ -685,6 +685,220 @@
         "title": "DailyResponse",
         "type": "object"
       },
+      "DrawdownControllerStatusOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "drawdown_quote": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Drawdown Quote"
+          },
+          "peak_quote": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Peak Quote"
+          },
+          "pnl_quote": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pnl Quote"
+          }
+        },
+        "required": [
+          "peak_quote",
+          "pnl_quote",
+          "drawdown_quote"
+        ],
+        "title": "DrawdownControllerStatus",
+        "type": "object"
+      },
+      "DrawdownStatusOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "breached_controller_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Breached Controller Id"
+          },
+          "controllers": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/DrawdownControllerStatusOutput"
+            },
+            "title": "Controllers",
+            "type": "object"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "fees": {
+            "const": "executor_and_held_trade_quote_fees",
+            "title": "Fees",
+            "type": "string"
+          },
+          "funding": {
+            "const": "excluded",
+            "title": "Funding",
+            "type": "string"
+          },
+          "global_drawdown_quote": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Global Drawdown Quote"
+          },
+          "global_peak_quote": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Global Peak Quote"
+          },
+          "global_pnl_quote": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Global Pnl Quote"
+          },
+          "max_controller_drawdown_quote": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Controller Drawdown Quote"
+          },
+          "max_global_drawdown_quote": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Global Drawdown Quote"
+          },
+          "metric": {
+            "const": "covered_v2_report_drawdown",
+            "description": "Covered bot V2 report peak drawdown; not account equity or campaign profit.",
+            "title": "Metric",
+            "type": "string"
+          },
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Observed At"
+          },
+          "operator_action_required": {
+            "title": "Operator Action Required",
+            "type": "boolean"
+          },
+          "ready": {
+            "title": "Ready",
+            "type": "boolean"
+          },
+          "reason_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Code"
+          },
+          "scope": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/MMDrawdownMarketOutput"
+            },
+            "title": "Scope",
+            "type": "object"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled",
+          "ready",
+          "stale",
+          "metric",
+          "reason_code",
+          "max_global_drawdown_quote",
+          "max_controller_drawdown_quote",
+          "scope",
+          "controllers",
+          "fees",
+          "funding",
+          "operator_action_required"
+        ],
+        "title": "DrawdownStatus",
+        "type": "object"
+      },
       "ErrorResponse": {
         "additionalProperties": false,
         "properties": {
@@ -1481,6 +1695,30 @@
         "title": "LifeMMConfig",
         "type": "object"
       },
+      "MMDrawdownMarketOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "connector_name": {
+            "enum": [
+              "okx",
+              "okx_perpetual"
+            ],
+            "title": "Connector Name",
+            "type": "string"
+          },
+          "trading_pair": {
+            "pattern": "^[A-Z0-9][A-Z0-9._]*-USDT$",
+            "title": "Trading Pair",
+            "type": "string"
+          }
+        },
+        "required": [
+          "connector_name",
+          "trading_pair"
+        ],
+        "title": "MMDrawdownMarket",
+        "type": "object"
+      },
       "MMProfileOutput": {
         "additionalProperties": false,
         "properties": {
@@ -1546,11 +1784,37 @@
             "title": "Markets",
             "type": "object"
           },
+          "max_controller_drawdown_quote": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Max Controller Drawdown Quote"
+          },
           "max_duration_seconds": {
             "default": 86400,
             "exclusiveMinimum": 0,
             "title": "Max Duration Seconds",
             "type": "integer"
+          },
+          "max_global_drawdown_quote": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Max Global Drawdown Quote"
           },
           "max_total_amount_quote": {
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
@@ -3949,6 +4213,17 @@
             ],
             "title": "Desired State",
             "type": "string"
+          },
+          "drawdown": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DrawdownStatusOutput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
           },
           "error": {
             "anyOf": [

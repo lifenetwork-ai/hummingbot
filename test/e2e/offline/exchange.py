@@ -43,6 +43,7 @@ class Exchange:
         self.socket_args = {}
         self.prices = {"BTC-USDT": "100", "ETH-USDT": "10", "AVAX-USDT": "20", "LIFE-USDT": "0.1"}
         self.stale_pairs = set()
+        self.stale_instruments = set()
         self.book_overrides = {}
         self.include_own_orders = False
         self.markets_task = None
@@ -146,7 +147,8 @@ class Exchange:
             for socket, args_list in list(self.socket_args.items()):
                 for arg in list(args_list):
                     pair = arg.get("instId", "")
-                    if socket.closed or arg.get("channel") != "books" or pair.removesuffix("-SWAP") in self.stale_pairs:
+                    if (socket.closed or arg.get("channel") != "books" or pair.removesuffix("-SWAP") in self.stale_pairs
+                            or pair in self.stale_instruments):
                         continue
                     await socket.send_json({"arg": arg, "action": "snapshot", "data": [self.book(pair)]})
                     self.market_update_count += 1
@@ -275,6 +277,8 @@ class Exchange:
                 self.prices[pair] = str(price)
         if "stale_pairs" in data:
             self.stale_pairs = set(data["stale_pairs"])
+        if "stale_instruments" in data:
+            self.stale_instruments = set(data["stale_instruments"])
         if "book_overrides" in data:
             self.book_overrides = data["book_overrides"]
             assert all(set(value) == {"bids", "asks"} for value in self.book_overrides.values())

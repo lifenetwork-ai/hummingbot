@@ -66,6 +66,20 @@ async def test_effective_service_config_reuses_runner_and_binds_session_scope():
 
 
 @pytest.mark.asyncio
+async def test_drawdown_thresholds_are_wired_to_existing_runner_without_an_inactive_controller():
+    host, _, _ = await setup_host()
+    data = host.mm_session.catalogue.model_dump(mode="json")
+    data.update(max_global_drawdown_quote="10", max_controller_drawdown_quote="5")
+    host.mm_session.catalogue = MMProfilesConfig.model_validate(data)
+    host.mm_session.request.market_mode = "spot"
+    effective = host.mm_effective_config(host.mm_session)
+    assert effective["max_global_drawdown_quote"] == "10"
+    assert effective["max_controller_drawdown_quote"] == "5"
+    assert len(effective["controller_config_overrides"]) == 1
+    assert set(effective["mm_drawdown_scope"]) == {"life_spot", "life_perpetual"}
+
+
+@pytest.mark.asyncio
 async def test_both_runtime_gate_rejects_one_stale_market():
     host, controllers, provider = await setup_host()
     assert host.mm_runtime_ready()

@@ -59,6 +59,7 @@ test-cloudrun-regression:
 		test/hummingbot/core/test_trading_core.py test/hummingbot/core/web_assistant \
 		test/hummingbot/strategy/test_strategy_v2_base.py \
 		test/hummingbot/strategy_v2/executors/test_executor_orchestrator.py \
+		test/hummingbot/strategy_v2/executors/test_mm_drawdown_reports.py \
 		test/hummingbot/strategy_v2/executors/position_executor
 	$(PYTHON) -m pytest -q test/hummingbot/connector/test_okx_environment.py \
 		test/hummingbot/connector/test_okx_environment_transport.py \
@@ -72,6 +73,7 @@ test-cloudrun-regression:
 		test/hummingbot/strategy_v2/controllers/test_controller_base.py \
 		test/hummingbot/strategy_v2/controllers/test_controller_lifecycle.py \
 		test/hummingbot/strategy_v2/test_runnable_base.py \
+		test/hummingbot/strategy_v2/test_mm_drawdown.py \
 		test/hummingbot/data_feed/test_market_data_provider.py test/hummingbot/data_feed/test_provider_shutdown.py
 
 build-cloudrun:

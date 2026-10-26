@@ -1,0 +1,395 @@
+{
+  "phase": "E2a",
+  "baseline": "96d6fae98",
+  "date": "2026-10-26",
+  "scope": "Covered V2 report drawdown adapter; no E2b+ or E6 release/soak claim",
+  "image_id": "sha256:84f4d33ae3153a049aaddaa55532a58a446a00a6656629f456e8e46ec7922dd0",
+  "image_size_bytes": 1364627702,
+  "architecture": "amd64",
+  "source_sha256": {
+    "controllers/market_making/life_mm.py": "eda54787f0acd1e257b606efb0ac7874bec5e5c7ee627874653cd95b214ac659",
+    "hummingbot/cli/service.py": "c1b310343e6d04860877fe6f1c591c128f416ab7560647dab717d64d545d8420",
+    "hummingbot/cli/service_availability.py": "67fc563a2c0874c719feef31d6d99dff21e55c630ea107faeec8d9695ace9bf2",
+    "hummingbot/cli/admin_api.py": "1b59ec30bc54a705ebc99f220ccc53ac3ab44565d815f1d6601c00107dce0879",
+    "hummingbot/cli/admin_models.py": "8c338450bc7398c8352a444aae3db998e9c9804abfe33e02d916a95d1239502b",
+    "hummingbot/cli/admin_observations.py": "66fcdd08dafea2facb16e5fe71027938c69c564e0caf4e1bf9a0f19a0fa3a93a",
+    "hummingbot/core/utils/read_retry.py": "5a8bfe29b0795f258a06a230c1ba1ecaa061b1ec6cf0f1fe40834535aecd7250",
+    "hummingbot/core/bot_ownership.py": "618066576906955557fe8005f15a5bfccfb858a03155218ab6115a8b71b510ef",
+    "hummingbot/model/bot_state_store.py": "80251a92cceb5338878c0708b83d12b883ed1405ebaedc5f7663a8296fc56e68",
+    "hummingbot/strategy_v2/controllers/controller_base.py": "0a8f0a7aa250eab4433e27f0f9f2e1faddfdc45f4dbe23b345be2d565e7083a7",
+    "hummingbot/strategy_v2/runnable_base.py": "bd9b68f431921e2fb4111c2bbc5e92a9055f352d4d3c76cf5d5830985fc95cee",
+    "scripts/v2_with_controllers.py": "dcbf53e9cfd13d108e8c24ee4610dddd20c5abe0b678cabe869699763a0d2c02",
+    "docs/api/openapi.json": "06ceb0ff5b259ce9fb89eeb11ec2769d24d1d6b6a8231599dbf87c90f144aa18",
+    "hummingbot/connector/markets_recorder.py": "2e536417f9b907b36edbef81743c60af7bce05f38192bbf92b0c95cc4159f07c",
+    "hummingbot/strategy_v2/utils/quote_guard.py": "d4be56a30521f383d272bcf9c75f1a5678f86780965a35eaec825c6a115b65e5",
+    "hummingbot/client/config/mm_profiles.py": "8619098fa484775b2e88bf2b4428e4ffcef895db406d6f2c9c15e18ea688d3e1",
+    "hummingbot/connector/derivative/okx_perpetual/okx_perpetual_api_order_book_data_source.py": "1235d1e54a25747a886babc0093bc3232001d3d93bc766e7d670c3d2e7d8294d",
+    "deploy/cloudrun/conf/life_mm_profiles.yaml": "ad3e984f21bb7f9e322fc8a0426a6a9adeebe8c67f078b627e7e8f20270f5f4b",
+    "hummingbot/core/mm_drawdown.py": "bc7af4a90366459803bff5bffdb5a7056a4c98cacfc04c8f3fa5b56a46557a93",
+    "hummingbot/strategy/strategy_v2_base.py": "b257d0cc5153da409b46dc83ff5f64245cc82d0c43bf0eca50191ea9162ceb1e",
+    "hummingbot/strategy_v2/executors/executor_orchestrator.py": "e33d3deaefe9c019390aaf5e4dd60f86f276331273761435e1f773f26e7a5828"
+  },
+  "packaged_paths": {
+    "controllers/market_making/life_mm.py": "controllers/market_making/life_mm.py",
+    "hummingbot/cli/service.py": "hummingbot/cli/service.py",
+    "hummingbot/cli/service_availability.py": "hummingbot/cli/service_availability.py",
+    "hummingbot/cli/admin_api.py": "hummingbot/cli/admin_api.py",
+    "hummingbot/cli/admin_models.py": "hummingbot/cli/admin_models.py",
+    "hummingbot/cli/admin_observations.py": "hummingbot/cli/admin_observations.py",
+    "hummingbot/core/utils/read_retry.py": "hummingbot/core/utils/read_retry.py",
+    "hummingbot/core/bot_ownership.py": "hummingbot/core/bot_ownership.py",
+    "hummingbot/model/bot_state_store.py": "hummingbot/model/bot_state_store.py",
+    "hummingbot/strategy_v2/controllers/controller_base.py": "hummingbot/strategy_v2/controllers/controller_base.py",
+    "hummingbot/strategy_v2/runnable_base.py": "hummingbot/strategy_v2/runnable_base.py",
+    "scripts/v2_with_controllers.py": "scripts/v2_with_controllers.py",
+    "docs/api/openapi.json": "docs/api/openapi.json",
+    "hummingbot/connector/markets_recorder.py": "hummingbot/connector/markets_recorder.py",
+    "hummingbot/strategy_v2/utils/quote_guard.py": "hummingbot/strategy_v2/utils/quote_guard.py",
+    "hummingbot/client/config/mm_profiles.py": "hummingbot/client/config/mm_profiles.py",
+    "hummingbot/connector/derivative/okx_perpetual/okx_perpetual_api_order_book_data_source.py": "hummingbot/connector/derivative/okx_perpetual/okx_perpetual_api_order_book_data_source.py",
+    "deploy/cloudrun/conf/life_mm_profiles.yaml": "conf/life_mm_profiles.yaml",
+    "hummingbot/core/mm_drawdown.py": "hummingbot/core/mm_drawdown.py",
+    "hummingbot/strategy/strategy_v2_base.py": "hummingbot/strategy/strategy_v2_base.py",
+    "hummingbot/strategy_v2/executors/executor_orchestrator.py": "hummingbot/strategy_v2/executors/executor_orchestrator.py"
+  },
+  "source_matches_image": true,
+  "registry_manifest_digest": "sha256:d7e476d7f9fee241f1c4af05965390bfb4f4787ffea117df7a01dc1d92d0c170",
+  "harness_sha256": "bb2ae07f518bd6c1a7dcd261d04bbc340ba205619d307d0117b636d2c1baeb71",
+  "native": {
+    "tests": 1437,
+    "subtests": 9,
+    "groups": [
+      151,
+      11,
+      972,
+      303
+    ],
+    "artifact": "build/e2a/regression-final.log"
+  },
+  "focused": {
+    "tests": 73,
+    "runtime_warning_as_error": true,
+    "artifact": "build/e2a/focused-final.log"
+  },
+  "postgres": {
+    "full_suite_tests": 147,
+    "artifact": "build/e2a/postgres.log",
+    "final_selection": {
+      "tests": 11,
+      "deselected": 137,
+      "artifact": "build/e2a/postgres-final-selection.log"
+    },
+    "unique_tests_covered": 148,
+    "additional_case": "Random-generation session transaction retains peak, policy and deadline"
+  },
+  "red": {
+    "reports": "build/e2a/reports-red.log",
+    "runner": "build/e2a/runner-red.log",
+    "wiring": "build/e2a/wiring-red.log",
+    "decision-age": "build/e2a/decision-age-red.log",
+    "shutdown-json": "build/e2a/shutdown-json-red.log"
+  },
+  "e2e": {
+    "artifact": "build/e2e-offline/20261026-195801-fa070f/result.json",
+    "passed": true,
+    "scenarios": {
+      "schema": {
+        "passed": true,
+        "metrics": {
+          "valid_startup_s": 8.118,
+          "valid_shutdown_s": 0.867,
+          "repaired_startup_s": 7.941,
+          "repaired_shutdown_s": 0.986,
+          "file_backend_rejected": true,
+          "empty_rejected": true,
+          "drift_rejected": true,
+          "repaired_schema_validated": true
+        }
+      },
+      "spot": {
+        "passed": true,
+        "metrics": {
+          "first_startup_s": 8.201,
+          "second_startup_s": 7.985,
+          "local_steady_resources": "cpu=4.08% memory=244.5MiB / 2GiB",
+          "local_database": {
+            "select_one_p95_ms": 0.2959170001304301
+          },
+          "first_shutdown_s": 1.29,
+          "second_shutdown_s": 0.953,
+          "third_startup_s": 8.131,
+          "fourth_startup_s": 7.979,
+          "fifth_startup_s": 8.596,
+          "sixth_startup_s": 8.12,
+          "seventh_startup_s": 16.341,
+          "accepted_orders": 14,
+          "persisted_fills": 3,
+          "websocket_reconnect": true,
+          "interrupted_recorder_recovered": true
+        }
+      },
+      "v2-spot": {
+        "passed": true,
+        "metrics": {
+          "v2-first_startup_s": 8.363,
+          "first_shutdown_s": 1.553,
+          "v2-second_startup_s": 12.141,
+          "second_shutdown_s": 1.09,
+          "accepted_orders": 1,
+          "persisted_fills": 1,
+          "position_base": "0.1",
+          "pnl_peak_restored": "12.345678"
+        }
+      },
+      "v2-perpetual": {
+        "passed": true,
+        "metrics": {
+          "v2-first_startup_s": 11.145,
+          "first_shutdown_s": 0.878,
+          "v2-second_startup_s": 8.384,
+          "second_shutdown_s": 1.409,
+          "accepted_orders": 1,
+          "persisted_fills": 1,
+          "position_base": "0.1",
+          "pnl_peak_restored": "12.345678"
+        }
+      },
+      "life-mm": {
+        "passed": true,
+        "metrics": {
+          "mm-first_startup_s": 8.94,
+          "first_shutdown_s": 1.27,
+          "mm-restart_startup_s": 8.265,
+          "mm-db-restart_startup_s": 8.87,
+          "matrix": [
+            {
+              "mode": "spot",
+              "profile": "follow_market",
+              "count": 4
+            },
+            {
+              "mode": "spot",
+              "profile": "sideways",
+              "count": 4
+            },
+            {
+              "mode": "spot",
+              "profile": "follow_token",
+              "count": 4
+            },
+            {
+              "mode": "perpetual",
+              "profile": "follow_market",
+              "count": 4
+            },
+            {
+              "mode": "perpetual",
+              "profile": "sideways",
+              "count": 4
+            },
+            {
+              "mode": "perpetual",
+              "profile": "follow_token",
+              "count": 4
+            },
+            {
+              "mode": "both",
+              "profile": "follow_market",
+              "count": 8
+            },
+            {
+              "mode": "both",
+              "profile": "sideways",
+              "count": 8
+            },
+            {
+              "mode": "both",
+              "profile": "follow_token",
+              "count": 8
+            }
+          ],
+          "cli_mm_stop": true,
+          "legacy_replaces_mm": true,
+          "exact_quote_levels": true,
+          "restart_anchors": true,
+          "weighted_reference": true,
+          "stale_both": true,
+          "fills": 2,
+          "random_steps": true,
+          "expiry": true,
+          "expiry_funding": true,
+          "reconciliation": "matched",
+          "db_fault_halt": true
+        }
+      },
+      "funding": {
+        "passed": true,
+        "metrics": {
+          "funding-first_startup_s": 9.258,
+          "first_shutdown_s": 1.21,
+          "funding-restart_startup_s": 8.337,
+          "funding-standby_startup_s": 8.048,
+          "restart_shutdown_s": 0.813,
+          "funding-db-recovery_startup_s": 8.052,
+          "identified_bills": 6,
+          "original_amounts_exact": true,
+          "same_timestamp_bills": true,
+          "stopped_observation": true,
+          "closed_position_backfill": true,
+          "repeated_pages_idempotent": true,
+          "legacy_not_double_counted": true,
+          "owner_handover": true,
+          "unavailable_visible": true,
+          "db_failure_backfill": true,
+          "no_trading_mutations_after_stop": true
+        }
+      },
+      "availability": {
+        "passed": true,
+        "metrics": {
+          "availability_startup_s": 8.769,
+          "availability": {
+            "optional_failures_recovered": 3,
+            "startup_read_recovered": true,
+            "stale_feed_recovered": true,
+            "preserved_anchor_deadline": true,
+            "unexpected_process_restarts": 0,
+            "failed_controller_halted": true
+          }
+        }
+      },
+      "quote-guards": {
+        "passed": true,
+        "metrics": {
+          "guard_startup_s": 8.723,
+          "guard_shutdown_s": 1.11,
+          "guard-restart_startup_s": 8.538,
+          "quote_guards": {
+            "own_only_rejected": true,
+            "joint_cancel": true,
+            "range_breakout": true,
+            "deviation": true,
+            "delayed_resume": true,
+            "partial_fill": true,
+            "preserved_anchor_deadline": true,
+            "unexpected_process_restarts": 0,
+            "intentional_restarts": 1,
+            "effective_config_sha256": "ea081c974bc462d9a6bda3bf65e221d67618d308b9b67aea286440906a6feb85"
+          }
+        }
+      },
+      "drawdown": {
+        "passed": true,
+        "metrics": {
+          "drawdown_startup_s": 8.535,
+          "drawdown_shutdown_s": 2.054,
+          "drawdown-clean-restart_startup_s": 8.821,
+          "restart_shutdown_s": 1.26,
+          "drawdown-halt-restart_startup_s": 8.82,
+          "drawdown": {
+            "retained_disabled_market": true,
+            "partial_fill_preserved": true,
+            "stale_coverage_waits": true,
+            "coverage_recovers": true,
+            "clean_restart_peak": true,
+            "global_breach_halt": true,
+            "restart_halt": true,
+            "post_halt_start_rejected": true,
+            "retained_feed_has_no_account_mutations": true,
+            "global_peak_quote": "0.125262626000",
+            "fresh_stopped_pnl_not_invented": true,
+            "effective_config_sha256": "eb39584c4e735e28e6b052e8e0ccd87a64fbb8513764ba0950be82c1d8a005be"
+          }
+        }
+      }
+    },
+    "runtime_smoke": {
+      "passed": true,
+      "numba_jit": true,
+      "ta_lib": true,
+      "tls_trust": true,
+      "connector_count": 63,
+      "sql_scripts": 15,
+      "build_tools_absent": true,
+      "cli_version": "hbot 2.17.0",
+      "environment_bytes": 1264264546
+    },
+    "release_scope_complete": false
+  },
+  "focused_e2e": {
+    "artifact": "build/e2e-offline/20261026-195625-bafd60/result.json",
+    "passed": true
+  },
+  "final_probe": {
+    "artifact": "build/mm-load/20261026-201233-ff4087/result.json",
+    "passed": true,
+    "diagnostic": true,
+    "drawdown": true,
+    "strict_quote_guards": true,
+    "bot_limits": {
+      "cpus": 1,
+      "memory_bytes": 2147483648
+    },
+    "emulation": true,
+    "history_orders": 100000,
+    "history_fills": 100000,
+    "source_sha256": {
+      "scripts/test_mm_load.py": "34e7b15c770b84797b35c6f6c8a35bc281a8b5ff19af6337cbcef495b4fc0340",
+      "scripts/test_e2e_offline.py": "bb2ae07f518bd6c1a7dcd261d04bbc340ba205619d307d0117b636d2c1baeb71",
+      "scripts/analyze_mm_load_trace.py": "959aaf69153f0c30ef832c6571d6390ae7bb8f1f03c665752c25e188fc5cb5f9",
+      "scripts/mm_load_budgets.py": "0cae7dbde1ccc02a2ef4e6822e925ee507f3e917ec4207c00df7bfa54b033d2c",
+      "scripts/mm_load_faults.py": "48f937681bff9e6a4f4cf5c25862a3bdd673c2ce01657788c73245986e498e59",
+      "scripts/mm_load_ledger.py": "db8e38ee2948211cc5154a144472c22676571a1efd66e3cd58bb284fbc227458"
+    },
+    "fixture_sha256": {
+      "controller-spot.yml": "6f4f0d567b54d9b1152c8e5f15b014d4d1d77f6d845b38bb8541e9e4f2449078",
+      "exchange.py": "c8268e9c8e292461aa0eb5abc7bf508ad5744e268569003139637638f5fbc903",
+      "pmm.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+      "load_service.py": "4a0f0c15f0f311f64d8288b774a6fd05f7883ff9840d30e13ac63b4a2d66d8f6",
+      "runtime_smoke.py": "5e378bb3c2efdbc1fa156eeae25756fb676d0fdc90b2e895868a7da4e6359e1b",
+      "life_mm_profiles.yaml": "3f71f618d5778e9f7a95adf2025d95ea29edda86afceebbe5a83f3a74e705f5b",
+      "load_trace.py": "0469550580134e390453ad1fd75513a9a43163493c53d5a260f2ea6d6003b0fe",
+      "script-perpetual.yml": "a4eeed6b7576af41a387ae115122c9130bd55c9a43b8d40f9e8b86a023b95132",
+      "pmm-revised.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+      "fixtures.json": "92308feed4a3a84939942c334c2d78696fbfff684eabe6ea3f7abf0391fe0e06",
+      "controller-perpetual.yml": "9e1479b071f476626f448df4aba8e0a75b9cc8eee0a623b6b9f9ce4fb3360b45",
+      "load_client.py": "447eb57154a9f055c5362140d10eca2312aa2a1e2e70894efbf7efb64ebb3f0f"
+    },
+    "metrics": {
+      "duration_seconds": 60,
+      "read_p95_ms": 74.80614799987961,
+      "read_p99_ms": 518.0612169999677,
+      "unexpected_errors": 0,
+      "statuses": {
+        "200": 1200
+      },
+      "completed_reads_per_second": 19.92502665366081,
+      "market_updates_per_second": 99.95243434166541,
+      "fills_per_second": 1.0,
+      "command_accept_p95_ms": 28.767667000010988,
+      "peak_rss_bytes": 328478720,
+      "ledger": {
+        "unique_exchange_fills": 60,
+        "unique_recorder_fills": 60,
+        "positions_matched": true,
+        "identified_funding_bills": 2,
+        "daily_snapshots": 3
+      },
+      "violations": []
+    }
+  },
+  "unsuccessful_attempts": [
+    {
+      "artifact": "build/e2e-offline/20261026-194740-bd164b/result.json",
+      "image_id": "sha256:cacf1446551476c92e6ae0655f6d5c5168a51d638e6e64d77097c0588acdc4d9",
+      "cause": "Final service publication used raw Decimal drawdown fields; clean shutdown failed. Native Red/Green fixed snapshot serialization through the existing DTO."
+    }
+  ],
+  "limits": [
+    "Covered controller-ID report history, not exact account equity/session PnL; historical Float and upstream mark/quantity conventions remain",
+    "Held trade quote fees included once; funding, transfers and initial wallet inventory excluded",
+    "Disabled by default; armed policy/scope cannot be reset by ordinary commands",
+    "Local amd64 image under ARM emulation; pre-existing broad-suite warnings retained",
+    "No new sixty-minute acceptance, previous-image upgrade, Cloud Run deployment or real OKX Demo test"
+  ]
+}

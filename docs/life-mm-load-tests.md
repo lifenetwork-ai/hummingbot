@@ -50,6 +50,13 @@ The diagnostic `python scripts/test_mm_load.py --image <image> --profile probe
 effective YAML and flag are retained with evidence. Default production guards
 remain disabled; this probe does not certify E6 mixed/burst/sixty-minute acceptance.
 
+E2a adds `--scenario drawdown` to the image matrix. It checks partial-fill
+preservation, retained perpetual valuation after switching to spot, stale-feed
+wait/recovery, clean restart and durable risk HALT. The probe's `--drawdown` flag
+explicitly sets test-only global/controller limits and can be combined with
+`--strict-guards`. The effective YAML is retained; production limits remain
+disabled by default. It is a short diagnostic, not a replacement for E6.
+
 The bot has 1 CPU and 2 GiB; PostgreSQL has 2 CPUs / 512 MiB; simulator and load
 client each have 1 CPU / 512 MiB. Swap limits equal memory limits. Record the host
 architecture, amd64 emulation, immutable image identity, source/fixture hashes

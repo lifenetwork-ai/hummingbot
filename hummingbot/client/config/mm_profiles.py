@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from controllers.market_making.life_mm import LifeMMConfig, ReferencePair
 from hummingbot.client.config.config_helpers import load_yml_into_dict
+from hummingbot.core.mm_drawdown import MMDrawdownMarket, drawdown_policy
 from hummingbot.strategy_v2.utils.quote_guard import SidewaysRange
 
 Scenario = Literal["follow_market", "sideways", "follow_token"]
@@ -48,6 +49,15 @@ class MMProfilesConfig(BaseModel):
     default_duration_seconds: int = Field(default=3600, gt=0, strict=True)
     max_duration_seconds: int = Field(default=86400, gt=0, strict=True)
     max_total_amount_quote: Decimal = Field(gt=0, allow_inf_nan=False)
+    max_global_drawdown_quote: Optional[Decimal] = Field(default=None, gt=0, allow_inf_nan=False)
+    max_controller_drawdown_quote: Optional[Decimal] = Field(default=None, gt=0, allow_inf_nan=False)
+
+    def drawdown_policy(self):
+        if self.max_global_drawdown_quote is None and self.max_controller_drawdown_quote is None:
+            return None
+        scope = {config.id: MMDrawdownMarket(connector_name=config.connector_name, trading_pair=config.trading_pair)
+                 for config in self.markets.values()}
+        return drawdown_policy(scope, self.max_global_drawdown_quote, self.max_controller_drawdown_quote)
 
     @classmethod
     async def load(cls, path):
@@ -68,6 +78,8 @@ class MMProfilesConfig(BaseModel):
         if len({template.trading_pair for template in self.markets.values()}) != 1:
             raise ValueError("Both markets must use the same LIFE trading pair")
         for market, template in self.markets.items():
+            if self.drawdown_policy() is not None and template.initial_positions:
+                raise ValueError("Managed drawdown restores recorded exposure; initial position overrides are unsupported")
             if template.sideways_range is not None:
                 raise ValueError("Put manual sideways_range in its profile, not in the shared market template")
             if template.connector_name != {"spot": "okx", "perpetual": "okx_perpetual"}[market]:

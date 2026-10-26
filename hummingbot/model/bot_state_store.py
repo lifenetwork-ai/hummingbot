@@ -58,10 +58,13 @@ class BotStateStore:
             conditions = [BotState.bot_id == self.bot_id, BotState.control_version == expected_version]
             if desired_state == "running" and config_file_path is None:
                 conditions.append(BotState.config_file_path.isnot(None))
-            row = connection.execute(select(BotState.mm_session).where(*conditions)
+            row = connection.execute(select(BotState.mm_session, BotState.recovery_state).where(*conditions)
                                      .with_for_update()).mappings().first()
             if row is None:
                 raise ControlConflict("Control version changed; read status and submit the intended command again.")
+            bound = (row["recovery_state"] or {}).get("strategy_checkpoints", {}).get("life_mm_profiles.yaml", {}).get("mm_drawdown_policy")
+            if bound is not None and desired_state != "stopped":
+                raise ControlConflict("Armed MM drawdown requires admin MM commands; policy/scope changes need operator review.")
             if config_file_path is not None:
                 # An explicit legacy YAML selection replaces the MM intent.
                 # Its former session must not keep future admin starts blocked.
@@ -132,6 +135,9 @@ class BotStateStore:
                 raise ControlConflict("Current MM session identity changed")
             if action != "stop" and (row["recovery_state"] or {}).get("halt"):
                 raise ControlConflict("Recovery HALT must be resolved before starting another session")
+            bound = (row["recovery_state"] or {}).get("strategy_checkpoints", {}).get("life_mm_profiles.yaml", {}).get("mm_drawdown_policy")
+            if action != "stop" and bound is not None and bound != catalogue.drawdown_policy():
+                raise ControlConflict("Drawdown policy/scope is already bound; operator-reviewed maintenance is required to change it")
             if action == "stop":
                 current.status = "stopping"
                 current.generation += 1

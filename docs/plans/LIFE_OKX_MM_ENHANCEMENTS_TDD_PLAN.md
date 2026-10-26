@@ -1,8 +1,8 @@
 # LIFE / OKX MM: Incremental Enhancements — TDD Plan
 
 Date: 2026-10-26 (Asia/Ho_Chi_Minh).
-Status: E0 and E1 complete with local unit/PostgreSQL/image fault/load verification;
-E2–E6 have not started.
+Status: E0, E1 and E2a complete with local unit/PostgreSQL/image fault/load verification;
+E2b–E6 have not started.
 Only verified checklist items are marked complete.
 Baseline: `1867159e7`.
 Implementation priority: service availability, explainable trading decisions and
@@ -292,7 +292,7 @@ sixty-minute, previous-image upgrade, deployment or real OKX Demo gate is claime
 ### E2a — Existing drawdown protection
 
 Reuse the runner's report-based drawdown checks and ownership checkpoints. The
-current MM effective runner config does not wire the drawdown thresholds through.
+E1 baseline MM effective runner config did not wire the drawdown thresholds through.
 First prove the report scope and initialization/recovery behavior, then connect
 the configured limits. Fix only demonstrated gaps with Red/Green tests.
 
@@ -316,11 +316,23 @@ The baseline controller stop branch does not satisfy this contract: it excludes
 partially trading executors and uses default stop actions. Add an MM-specific
 adapter to the existing service risk-stop path before enabling these thresholds.
 
-- [ ] **Red:** threshold wiring, peak initialization, finite values, equality/breach and global/per-controller scopes against the actual existing report semantics.
-- [ ] **Red:** risk-stop execution preserves positions; no unintended market closes, manual-kill restart or new sends after the stop decision.
-- [ ] **Red:** random/manual switches, spot/perpetual/both changes, retained disabled-market exposure, missing valuations, clean restart and unclean HALT preserve limits/peaks.
-- [ ] **Green:** extend existing config/report/checkpoint paths; checkpoint policy identity and scope without adding a second PnL ledger or silently changing legacy strategies.
-- [ ] **Verify/commit:** run runner/ownership regressions and real-PG persistence tests; publish the exact measurement scope in status/docs before marking complete.
+- [x] **Red:** threshold wiring, peak initialization, finite values, equality/breach and global/per-controller scopes against the actual existing report semantics.
+- [x] **Red:** risk-stop execution preserves positions; no unintended market closes, manual-kill restart or new sends after the stop decision.
+- [x] **Red:** random/manual switches, spot/perpetual/both changes, retained disabled-market exposure, missing valuations, clean restart and unclean HALT preserve limits/peaks.
+- [x] **Green:** extend existing config/report/checkpoint paths; checkpoint policy identity and scope without adding a second PnL ledger or silently changing legacy strategies.
+- [x] **Verify/commit:** run runner/ownership regressions and real-PG persistence tests; publish the exact measurement scope in status/docs before marking complete.
+
+E2a verification: 1,437 native tests/nine subtests, 147 full-suite PostgreSQL tests
+and a final eleven-case drawdown selection (one additional random-generation
+case) passed. All nine final-image E2E groups passed, including retained-market
+valuation, stale-feed recovery, partial-fill preservation and two intentional
+restarts. A combined guard/drawdown sixty-second probe passed unchanged budgets:
+p95 74.81ms / p99 518.06ms, 1,200 HTTP 200 responses and no unexpected errors.
+The image-discovered final-shutdown Decimal serialization defect was fixed with
+a failing native test before rerunning the image gates. Defaults remain disabled;
+policy/peaks/HALT cannot be reset by normal commands. See the
+[guide](../life-mm-drawdown.md), [report](../../reports/life-mm-e2a-drawdown.md)
+and [evidence](../../reports/life-mm-e2a-drawdown.json). E2b–E6 remain open.
 
 ### E2b — Rolling spot USDT outflow
 

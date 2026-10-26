@@ -240,21 +240,61 @@ class ExecutorOrchestrator:
         self._initial_positions_initialized = False
         self._initialize_cached_performance()
 
+    def _mm_scope(self):
+        scope = getattr(getattr(self.strategy, "config", None), "mm_drawdown_scope", None)
+        return scope if isinstance(scope, dict) else {}
+
+    def _mm_contains(self, controller_id, connector_name, trading_pair):
+        market = self._mm_scope().get(controller_id)
+        return market is not None and (market.connector_name, market.trading_pair) == (connector_name, trading_pair)
+
+    def _mm_mark_price(self, controller_id, connector_name, trading_pair):
+        if not self._mm_contains(controller_id, connector_name, trading_pair):
+            raise ValueError("drawdown_position_scope_unavailable")
+        provider = self.strategy.market_data_provider
+        try:
+            book = provider.get_order_book(connector_name, trading_pair)
+            stamp = max(book.snapshot_uid, book.last_diff_uid) / (1000 if connector_name == "okx_perpetual" else 1)
+            age = provider.time() - stamp
+            price = Decimal(str(provider.get_price_by_type(connector_name, trading_pair, PriceType.MidPrice)))
+            if (stamp <= 0 or not -1 <= age <= float(self.strategy.config.mm_drawdown_max_data_age_seconds)
+                    or not price.is_finite() or price <= 0):
+                raise ValueError("drawdown_valuation_unavailable")
+            return price
+        except (ValueError, KeyError, TypeError, ArithmeticError, EnvironmentError):
+            raise ValueError("drawdown_valuation_unavailable") from None
+
+    def mm_valuation_ready(self):
+        if getattr(self, "mm_scope_incomplete", False):
+            return False
+        required = {(identity, position.connector_name, position.trading_pair)
+                    for identity, positions in self.positions_held.items() for position in positions if position.net_amount_base}
+        required.update((identity, executor.config.connector_name, executor.config.trading_pair)
+                        for identity, executors in self.active_executors.items() for executor in executors)
+        try:
+            for identity, connector, pair in required:
+                self._mm_mark_price(identity, connector, pair)
+        except ValueError:
+            return False
+        return True
+
     def _initialize_cached_performance(self):
         """
         Initialize cached performance by querying the database for stored executors and positions.
         If initial positions are provided for a controller, skip loading database positions for that controller.
         """
-        for controller_id in self.strategy.controllers.keys():
+        scope = self._mm_scope()
+        controller_ids = list(scope or self.strategy.controllers)
+        self.mm_scope_incomplete = bool(scope and MarketsRecorder.get_instance().has_uncovered_positions(controller_ids))
+        for controller_id in controller_ids:
             if controller_id not in self.cached_performance:
                 self.cached_performance[controller_id] = PerformanceReport()
                 self.active_executors[controller_id] = []
                 self.positions_held[controller_id] = []
-        controller_ids = list(self.strategy.controllers)
         with closing(MarketsRecorder.get_instance().iter_executor_performance(controller_ids)) as db_executors:
             for executor in db_executors:
                 controller_id = executor.controller_id
-                if controller_id not in self.strategy.controllers:
+                if controller_id not in controller_ids:
                     continue
                 self._update_cached_performance(controller_id, executor)
 
@@ -264,11 +304,14 @@ class ExecutorOrchestrator:
         for position in db_positions:
             controller_id = position.controller_id
             # Skip if this controller has initial position overrides
-            if controller_id in self.initial_positions_by_controller or controller_id not in self.strategy.controllers:
+            if controller_id in self.initial_positions_by_controller or controller_id not in controller_ids:
                 continue
             # Skip if the connector/trading pair is not in the current strategy markets
-            if (position.connector_name not in self.strategy.markets or
-                    position.trading_pair not in self.strategy.markets.get(position.connector_name, set())):
+            if scope and not self._mm_contains(controller_id, position.connector_name, position.trading_pair):
+                self.mm_scope_incomplete = True
+                continue
+            if (not scope and (position.connector_name not in self.strategy.markets or
+                               position.trading_pair not in self.strategy.markets.get(position.connector_name, set()))):
                 self.logger().warning(f"Skipping position for {position.connector_name}.{position.trading_pair} - "
                                       f"not available in current strategy markets")
                 continue
@@ -491,13 +534,21 @@ class ExecutorOrchestrator:
                 continue
             for position in positions_list:
                 # Skip if the connector/trading pair is not in the current strategy markets
-                if (position.connector_name not in self.strategy.markets or
-                        position.trading_pair not in self.strategy.markets.get(position.connector_name, set())):
+                if (not self._mm_contains(controller_id, position.connector_name, position.trading_pair)
+                        and (position.connector_name not in self.strategy.markets or
+                             position.trading_pair not in self.strategy.markets.get(position.connector_name, set()))):
                     self.logger().warning(f"Skipping position storage for {position.connector_name}.{position.trading_pair} - "
                                           f"not available in current strategy markets")
                     continue
-                mid_price = self.strategy.market_data_provider.get_price_by_type(
-                    position.connector_name, position.trading_pair, PriceType.MidPrice)
+                try:
+                    mid_price = self.strategy.market_data_provider.get_price_by_type(
+                        position.connector_name, position.trading_pair, PriceType.MidPrice)
+                    if self._mm_scope() and (not mid_price.is_finite() or mid_price <= 0):
+                        raise ValueError("drawdown_checkpoint_mark_unavailable")
+                except (ValueError, KeyError, EnvironmentError):
+                    if self._mm_scope() and not position.order_ids:
+                        continue  # An unchanged loaded row already preserves this exposure.
+                    raise
                 position_summary = position.get_position_summary(mid_price if not mid_price.is_nan() else Decimal("0"))
 
                 # Create a Position record (id will only be used for new positions)
@@ -766,8 +817,11 @@ class ExecutorOrchestrator:
         for controller_id, positions_list in self.positions_held.items():
             positions_summary = []
             for position in positions_list:
-                mid_price = self.strategy.market_data_provider.get_price_by_type(
-                    position.connector_name, position.trading_pair, PriceType.MidPrice)
+                if self._mm_scope():
+                    mid_price = self._mm_mark_price(controller_id, position.connector_name, position.trading_pair) if position.net_amount_base else Decimal("0")
+                else:
+                    mid_price = self.strategy.market_data_provider.get_price_by_type(
+                        position.connector_name, position.trading_pair, PriceType.MidPrice)
                 positions_summary.append(position.get_position_summary(mid_price if not mid_price.is_nan() else Decimal("0")))
             report[controller_id] = positions_summary
         return report
@@ -777,6 +831,8 @@ class ExecutorOrchestrator:
         Generate a unified report containing executors, positions, and performance for all controllers.
         Returns a dictionary with controller_id as key and a dict containing all reports as value.
         """
+        if getattr(self, "mm_scope_incomplete", False):
+            raise ValueError("drawdown_position_scope_unavailable")
         # Update any pending position holds from done executors
         self._update_positions_from_done_executors()
 
@@ -816,6 +872,8 @@ class ExecutorOrchestrator:
         for executor in active_executors:
             executor_info = executor.executor_info
             if not executor_info.is_done:
+                if self._mm_scope() and executor_info.filled_amount_quote:
+                    self._mm_mark_price(controller_id, executor_info.config.connector_name, executor_info.config.trading_pair)
                 report.unrealized_pnl_quote += executor_info.net_pnl_quote
                 report.volume_traded += executor_info.filled_amount_quote
             else:
@@ -831,18 +889,26 @@ class ExecutorOrchestrator:
         positions_summary = []
         for position in positions:
             # Skip if the connector/trading pair is not in the current strategy markets
-            if (position.connector_name not in self.strategy.markets or
-                    position.trading_pair not in self.strategy.markets.get(position.connector_name, set())):
+            if (not self._mm_contains(controller_id, position.connector_name, position.trading_pair)
+                    and (position.connector_name not in self.strategy.markets or
+                         position.trading_pair not in self.strategy.markets.get(position.connector_name, set()))):
                 self.logger().warning(f"Skipping position in performance report for {position.connector_name}.{position.trading_pair} - "
                                       f"not available in current strategy markets")
                 continue
-            mid_price = self.strategy.market_data_provider.get_price_by_type(
-                position.connector_name, position.trading_pair, PriceType.MidPrice)
+            if self._mm_scope():
+                mid_price = self._mm_mark_price(controller_id, position.connector_name, position.trading_pair) if position.net_amount_base else Decimal("0")
+            else:
+                mid_price = self.strategy.market_data_provider.get_price_by_type(
+                    position.connector_name, position.trading_pair, PriceType.MidPrice)
             position_summary = position.get_position_summary(mid_price if not mid_price.is_nan() else Decimal("0"))
 
             # Update report with position data
-            # Position summary realized_pnl_quote is already net of fees (calculated correctly in position logic)
+            # PositionHold realizes trading PnL and stores fees separately. The
+            # managed MM adapter matches active/cached net-of-trade-fee reports;
+            # legacy report behavior remains unchanged.
             report.realized_pnl_quote += position_summary.realized_pnl_quote
+            if self._mm_scope():
+                report.realized_pnl_quote -= position_summary.cum_fees_quote
             report.volume_traded += position_summary.volume_traded_quote
             report.unrealized_pnl_quote += position_summary.unrealized_pnl_quote
             positions_summary.append(position_summary)

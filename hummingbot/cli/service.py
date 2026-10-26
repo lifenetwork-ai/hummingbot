@@ -65,6 +65,7 @@ class ServiceHost:
         self.halt_requested = False
         self.mm_session = None
         self.mm_readiness_reason = None
+        self.mm_drawdown_state = None
         self.applied_mm_identity = None
         self.catalogue = {}
         self.config_hashes = {}
@@ -100,7 +101,14 @@ class ServiceHost:
                 "saved_life_anchor": anchors.get("life"), "saved_source_anchors": anchors.get("sources", {}),
             })
             overrides.append(effective.model_dump(mode="json"))
-        return {"script_file_name": "v2_with_controllers.py", "controller_config_overrides": overrides}
+        result = {"script_file_name": "v2_with_controllers.py", "controller_config_overrides": overrides}
+        policy = session.catalogue.drawdown_policy()
+        if policy is not None:
+            result.update(max_global_drawdown_quote=policy["max_global_drawdown_quote"],
+                          max_controller_drawdown_quote=policy["max_controller_drawdown_quote"],
+                          mm_drawdown_scope=policy["scope"],
+                          mm_drawdown_max_data_age_seconds=str(min(config.max_data_age_seconds for config in session.catalogue.markets.values())))
+        return result
 
     def _mm_controllers(self):
         if self.mm_session is None or self.hb is None or self.hb.trading_core.strategy is None:
@@ -129,6 +137,11 @@ class ServiceHost:
             return False
 
         try:
+            if self.mm_session.catalogue.drawdown_policy() is not None:
+                strategy = self.hb.trading_core.strategy
+                if strategy is None or not strategy.mm_drawdown_ready():
+                    status = strategy.mm_drawdown_status() if strategy is not None else {}
+                    return waiting(status.get("reason_code") or "drawdown_report_unavailable")
             controllers = self._mm_controllers()
             if not controllers:
                 return waiting("controllers_unavailable")
@@ -360,8 +373,11 @@ class ServiceHost:
             load_connector_credentials(connector)
 
     def strategy_stop(self, *args, **kwargs):
+        reason = kwargs.get("mm_drawdown_reason")
+        if reason in {"drawdown_global_limit", "drawdown_controller_limit", "drawdown_checkpoint_unavailable"}:
+            self.availability.fail("drawdown", reason, operator=True)
         if self.owner is not None:
-            self.owner.require_recovery("The strategy requested a risk stop; operator review is required.")
+            self.owner.require_recovery(reason or "The strategy requested a risk stop; operator review is required.")
         self.running = False
         self.halt_requested = True
 
@@ -386,6 +402,9 @@ class ServiceHost:
     async def stop_core(self):
         self.running = False
         self.owner.allow_new_orders = False
+        strategy = self.hb.trading_core.strategy
+        if strategy is not None and isinstance(getattr(getattr(strategy, "config", None), "mm_drawdown_scope", None), dict):
+            self.mm_drawdown_state = strategy.mm_drawdown_status()
         if self.start_task is not None and not self.start_task.done():
             self.start_task.cancel()
             done, _ = await asyncio.wait({self.start_task}, timeout=0.5)
@@ -403,9 +422,19 @@ class ServiceHost:
             self.observer_progress_at = time.monotonic()
 
     def snapshot(self):
+        from hummingbot.cli.admin_models import DrawdownStatus
         from hummingbot.cli.admin_observations import capture_reporting
         from hummingbot.core.funding_sync import public_status
         core = self.hb.trading_core
+        strategy = core.strategy
+        if strategy is not None and isinstance(getattr(getattr(strategy, "config", None), "mm_drawdown_scope", None), dict):
+            self.mm_drawdown_state = strategy.mm_drawdown_status()
+        elif strategy is None and self.mm_drawdown_state is not None:
+            self.mm_drawdown_state = {**self.mm_drawdown_state, "ready": False, "stale": True,
+                                      "global_pnl_quote": None, "global_drawdown_quote": None,
+                                      "reason_code": self.mm_drawdown_state.get("reason_code") or "drawdown_not_running",
+                                      "controllers": {identity: {**value, "pnl_quote": None, "drawdown_quote": None}
+                                                      for identity, value in self.mm_drawdown_state["controllers"].items()}}
         try:
             engine_status = core.get_status()
             self.availability.clear("engine_reporting")
@@ -432,6 +461,7 @@ class ServiceHost:
                 "configuration_sha256": self.config_hashes, "engine": engine_status,
                 "balances": balances, "reporting_unavailable": reporting_unavailable,
                 "availability": self.service_status(persisted=True),
+                "mm_drawdown": DrawdownStatus.model_validate(self.mm_drawdown_state).model_dump(mode="json") if self.mm_drawdown_state is not None else None,
                 "mm_session": self.mm_session.model_dump(mode="json", exclude={"catalogue"}) if self.mm_session else None,
                 "mm_markets": [{"market": "spot" if controller.config.connector_name == "okx" else "perpetual",
                                 "connector": controller.config.connector_name, "pair": controller.config.trading_pair,
@@ -454,6 +484,10 @@ class ServiceHost:
         install_guard(self.owner)
         self.owner.runtime_ready_check = self.runtime_healthy
         row = self.owner.check_owner()
+        from hummingbot.core.mm_drawdown import checkpoint_drawdown_status
+        checkpoint = (row["recovery_state"] or {}).get("strategy_checkpoints", {}).get("life_mm_profiles.yaml", {})
+        if getattr(self.hb.trading_core, "strategy", None) is None:
+            self.mm_drawdown_state = checkpoint_drawdown_status(checkpoint)
         if row["config_type"] == "mm-session" and row.get("mm_session"):
             from random import SystemRandom
 

@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, PlainSerializer, TypeAdapter,
 from controllers.market_making.life_mm import ReferencePair
 from hummingbot.client.config.mm_profiles import MarketMode, MMProfilesConfig
 from hummingbot.core.admin_reconciliation import ReconciliationRequest
+from hummingbot.core.mm_drawdown import MMDrawdownMarket
 from hummingbot.core.mm_session import MMSessionRequest, MMSessionStatus
 from hummingbot.strategy_v2.models.executors import CloseType
 from hummingbot.strategy_v2.models.executors_info import PerformanceReport
@@ -171,7 +172,34 @@ class FundingSyncStatus(APIModel):
     source: Literal["okx_account_bills"] = "okx_account_bills"
 
 
+class DrawdownControllerStatus(APIModel):
+    peak_quote: Optional[Decimal]
+    pnl_quote: Optional[Decimal]
+    drawdown_quote: Optional[Decimal]
+
+
+class DrawdownStatus(APIModel):
+    enabled: bool
+    ready: bool
+    stale: bool
+    metric: Literal["covered_v2_report_drawdown"] = Field(description="Covered bot V2 report peak drawdown; not account equity or campaign profit.")
+    reason_code: Optional[str]
+    breached_controller_id: Optional[str] = None
+    observed_at: Optional[UTCDateTime] = None
+    global_pnl_quote: Optional[Decimal] = None
+    global_peak_quote: Optional[Decimal] = None
+    global_drawdown_quote: Optional[Decimal] = None
+    max_global_drawdown_quote: Optional[Decimal]
+    max_controller_drawdown_quote: Optional[Decimal]
+    scope: Dict[str, MMDrawdownMarket]
+    controllers: Dict[str, DrawdownControllerStatus]
+    fees: Literal["executor_and_held_trade_quote_fees"]
+    funding: Literal["excluded"]
+    operator_action_required: bool
+
+
 class StatusResponse(APIModel):
+    drawdown: Optional[DrawdownStatus] = None
     service: Optional[ServiceStatus] = None
     funding_sync: Optional[FundingSyncStatus] = None
     bot_id: str
