@@ -8,7 +8,7 @@ does not certify a later image. Operational guides and plans live in [docs/](../
 | Report | Associated artifact or scope |
 |---|---|
 | [LIFE / OKX progress](implementation/LIFE_OKX_PROGRESS.md) | Phase history and Red/Green verification |
-| [Extended traced load review](life-mm-trace-load-review.md) | Request/SQL/commit/loop-stack correlation and longer mixed/soak measurements |
+| [Extended traced load review](life-mm-trace-load-review.md) | [Portable trace evidence](life-mm-trace-load-evidence.json); mixed passed, sixty-minute soak failed p99/timeouts |
 | [MM logic-flow review](life-mm-logic-review.md) | [TDD/image/load evidence](life-mm-logic-review-evidence.json) for control, exposure, reconciliation and funding |
 | [LIFE / OKX audit](LIFE_OKX_IMPLEMENTATION_AUDIT.md) | Historical source inventory and reuse review |
 | [PostgreSQL verification](postgres-verification.md) | Port, packaging and release evidence |

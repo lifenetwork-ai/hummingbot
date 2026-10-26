@@ -113,3 +113,9 @@ observational evidence; a missing wait between samples does not rule out DB I/O.
 Nested span durations and async thread CPU are inclusive and must not be added.
 Tracing consumes CPU/I/O and adds one database connection; traced timings must
 be identified as such, with original latency budgets unchanged.
+
+For complete diagnostic windows even after latency-budget violations, use
+`python scripts/test_mm_load.py --profile mixed --trace --keep-going` (and then
+`--profile soak`). `--keep-going` preserves failures and the final nonzero exit.
+The analyzer retains up to twenty slowest requests plus twenty failed requests,
+so timeouts keep their server correlation when queued successes rank slower.

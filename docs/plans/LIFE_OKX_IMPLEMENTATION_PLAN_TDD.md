@@ -778,5 +778,9 @@ P7 final Demo evidence: P7 funding settlement verified at 2026-10-26T00:01:32.62
 ## 9. Follow-up: explain latency tails with traces
 
 - [x] Add bounded test-only request/SQL/commit/recorder/loop-stack tracing and PostgreSQL wait sampling; verify correlation and redaction.
-- [ ] Run the five-minute warmup plus fifteen-minute mixed workload and a separate sixty-minute random-session soak with traces and unchanged budgets.
-- [ ] Publish image identity, all passing/failing windows, trace loss/overhead and supported causes under `reports/`; distinguish observed causes from hypotheses.
+- [x] Run the five-minute warmup plus fifteen-minute mixed workload and a separate sixty-minute random-session soak with traces and unchanged budgets.
+- [x] Publish image identity, all passing/failing windows, trace loss/overhead and supported causes under `reports/`; distinguish observed causes from hypotheses.
+
+- [ ] Reproduce the extended traced-soak API timeout cluster under controlled traced/untraced conditions, use Red/Green tests for any confirmed runtime fix, and repeat the unchanged sixty-minute zero-error load gate. The completed mixed profile does not close this acceptance item.
+
+Traced follow-up results: fixed mixed p95/p99 158.88/830.72 ms passed; the completed sixty-minute soak failed at p99 1,250.96 ms with ten client timeouts. Fill/fee/position and resource-growth checks passed. See [the traced load review](../../reports/life-mm-trace-load-review.md) and [portable evidence](../../reports/life-mm-trace-load-evidence.json). The timeout remediation/retest item above remains open.

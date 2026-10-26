@@ -22,13 +22,17 @@ def analyze(directory, window, *, limit=20):
     low, high = data['window_start_ns'], data['window_end_ns']
     trace = directory / 'trace'
     counts = Counter()
-    clients = []
+    clients, failures = [], []
     for row in records(trace / 'client.jsonl'):
         if row['kind'] == 'client_request' and low <= row['scheduled_ns'] <= high:
             counts['slow_or_failed_client_requests'] += 1
             clients.append(row)
             clients = sorted(clients, key=lambda item: item['total_ms'], reverse=True)[:limit]
-    wanted = {row['request_id'] for row in clients}
+            if row.get('error') or row.get('status', 200) not in (200, 202):
+                failures.append(row)
+                failures = sorted(failures, key=lambda item: item['total_ms'], reverse=True)[:limit]
+    selected = {row['request_id']: row for row in (*clients, *failures)}
+    wanted = set(selected)
     roots, spans, stalls, cpu, gcs = {}, [], [], [], []
     operations = {}
     for row in records(trace / 'server.jsonl'):
@@ -90,7 +94,7 @@ def analyze(directory, window, *, limit=20):
                 if backend['backend_pid'] == span.get('backend_pid') and len(span['postgres_observations']) < 8:
                     span['postgres_observations'].append(dict(sample_ns=row['start_ns'], **backend))
     requests = []
-    for client in clients:
+    for client in selected.values():
         root = roots.get(client['request_id'])
         blocking = [row for row in stalls if overlaps(row['last_beat_ns'], row['at_ns'],
                                                       client['scheduled_ns'], client['end_ns'])]
@@ -100,7 +104,10 @@ def analyze(directory, window, *, limit=20):
     delta = {key: cpu[-1]['cgroup_cpu'][key] - cpu[0]['cgroup_cpu'][key] for key in cpu[0]['cgroup_cpu']} if len(cpu) > 1 else None
     return dict(window=window, duration_seconds=data['duration_seconds'],
                 window_start_ns=low, window_end_ns=high, image_id=result['image_id'],
-                counts=dict(counts), operations=operations, slowest_requests=requests,
+                counts=dict(counts), operations=operations,
+                slowest_requests=sorted(requests, key=lambda item: item['client']['total_ms'], reverse=True)[:limit],
+                failed_requests=[item for item in requests if item['client']['request_id'] in
+                                 {row['request_id'] for row in failures}],
                 slowest_sync_spans=[targets[row['span_id']] for row in spans],
                 worst_stalls=sorted(stalls, key=lambda item: item['lag_ms'], reverse=True)[:limit],
                 cpu_samples=len(cpu), cgroup_cpu_delta=delta, longest_gc=gcs,

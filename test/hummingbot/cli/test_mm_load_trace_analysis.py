@@ -28,3 +28,22 @@ def test_analyzer_correlates_request_stack_and_only_same_pid_wait_in_window(tmp_
     waits = result['slowest_sync_spans'][0]['postgres_observations']
     assert [row['wait_event'] for row in waits] == ['WALSync']
     assert result['operations']['commit_ms']['thread_cpu_at_max_ms'] == 2
+
+
+def test_failed_request_keeps_its_server_trace_even_when_outside_slowest_limit(tmp_path):
+    trace = tmp_path / 'trace'
+    trace.mkdir()
+    window = dict(window_start_ns=1000, window_end_ns=3000, duration_seconds=2, runtime={})
+    (tmp_path / 'result.json').write_text(json.dumps(dict(image_id='pinned', windows={'mixed': window})))
+    requests = [dict(kind='client_request', request_id='slow-success', scheduled_ns=1100,
+                     end_ns=2500, total_ms=1400, status=200),
+                dict(kind='client_request', request_id='timeout', scheduled_ns=1200,
+                     end_ns=1800, total_ms=600, status=None, error='TimeoutError')]
+    roots = [dict(kind='trace', request_id=row['request_id'], start_ns=row['scheduled_ns'],
+                  end_ns=row['end_ns'], duration_ms=row['total_ms'], spans=[], dropped_spans=0)
+             for row in requests]
+    (trace / 'server.jsonl').write_text('\n'.join(map(json.dumps, roots)))
+    (trace / 'client.jsonl').write_text('\n'.join(map(json.dumps, requests)))
+    result = analyze(tmp_path, 'mixed', limit=1)
+    assert result['slowest_requests'][0]['client']['request_id'] == 'slow-success'
+    assert result['failed_requests'][0]['server']['request_id'] == 'timeout'
