@@ -956,3 +956,17 @@ p99 225.97ms and sixty matching fills/positions. Thirty packaged paths match sou
 See [E3 report](../life-mm-e3-inventory-skew.md), [evidence](../life-mm-e3-inventory-skew.json)
 and [plan](../../docs/plans/LIFE_OKX_MM_ENHANCEMENTS_TDD_PLAN.md). Defaults remain
 disabled. E4–E6/full final matrix/soak remain open. No external account or deployment.
+
+
+## E4 — Transition history and sampled liquidity (complete)
+
+Verified 2026-10-27. Reused atomic control/session updates and status snapshots;
+added one idempotent event table with deterministic dedupe and bounded authenticated
+history/liquidity APIs. Global HALT events survive stopped controllers. Observations
+exclude pending/market orders and preserve unknown gaps across restart/generation
+changes. No polling exchange calls or new worker/cache.
+
+Native: 1538 tests/11 subtests. Full real-PG: 182; final targeted history: 12.
+Migration/schema, rollback/idempotency, filter indexes, constant query counts and
+HTTP/UTC/no-exchange-read contracts pass. See [report](../life-mm-e4-history-liquidity.md)
+and [plan](../../docs/plans/LIFE_OKX_MM_ENHANCEMENTS_TDD_PLAN.md). E5–E6 remain open.

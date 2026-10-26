@@ -2,7 +2,7 @@
 
 Date: 2026-10-26 (Asia/Ho_Chi_Minh).
 Status: E0, E1, E2a, E2b, E2c and E3 complete with local verification.
-E4–E6 have not started.
+E4 is complete; E5 is next and E6 remains open.
 Only verified checklist items are marked complete.
 Baseline: `1867159e7`.
 Implementation priority: service availability, explainable trading decisions and
@@ -564,11 +564,15 @@ crashed interval. Existing fills/fees/daily endpoints remain the source for thos
 statistics. Historical depth time series, exact profile PnL and maker-fill-rate
 denominator design are outside this phase.
 
-- [ ] **Red:** atomic event/state rollback, idempotent admin retries, automatic random transitions, repeated profile draws and owner takeover.
-- [ ] **Red:** event pagination/filter binding, auth, missing historical coverage and config snapshot preservation after later catalogue changes.
-- [ ] **Red:** partial fills/cancel-pending quotes, stale observations, zero quotes, gaps, profile boundaries and restart do not inflate notional/uptime.
-- [ ] **Green:** add minimal event migration/model and API projections; bound payload/counter sizes and label observed coverage explicitly.
-- [ ] **Verify/commit:** migration replay/schema checks, real-PG/API tests, constant query-count checks and Swagger pass; prove FE polling adds no exchange calls.
+- [x] **Red:** atomic event/state rollback, idempotent admin retries, automatic random transitions, repeated profile draws and owner takeover.
+- [x] **Red:** event pagination/filter binding, auth, missing historical coverage and config snapshot preservation after later catalogue changes.
+- [x] **Red:** partial fills/cancel-pending quotes, stale observations, zero quotes, gaps, profile boundaries and restart do not inflate notional/uptime.
+- [x] **Green:** add minimal event migration/model and API projections; bound payload/counter sizes and label observed coverage explicitly.
+- [x] **Verify/commit:** migration replay/schema checks, real-PG/API tests, constant query-count checks and Swagger pass; prove FE polling adds no exchange calls.
+
+E4 verification: [report](../../reports/life-mm-e4-history-liquidity.md),
+[evidence](../../reports/life-mm-e4-history-liquidity.json) and
+[API guide](../life-mm-history-liquidity.md). Final image verification remains E6.
 
 ## 8. E5 — Fee-aware and volatility-adjusted spread
 

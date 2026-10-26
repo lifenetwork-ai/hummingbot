@@ -64,6 +64,8 @@ class ServiceHost:
         self.running = False
         self.halt_requested = False
         self.mm_session = None
+        self.mm_liquidity_state = None
+        self.liquidity_observer = None
         self.mm_readiness_reason = None
         self.mm_drawdown_state = None
         self.spot_outflow_state = None
@@ -495,6 +497,7 @@ class ServiceHost:
                 "mm_drawdown": DrawdownStatus.model_validate(self.mm_drawdown_state).model_dump(mode="json") if self.mm_drawdown_state is not None else None,
                 "spot_outflow": SpotOutflowStatus.model_validate(self.spot_outflow_state).model_dump(mode="json") if self.spot_outflow_state is not None else None,
                 "mm_session": self.mm_session.model_dump(mode="json", exclude={"catalogue"}) if self.mm_session else None,
+                "mm_liquidity": self.mm_liquidity_state,
                 "mm_markets": [{"market": "spot" if controller.config.connector_name == "okx" else "perpetual",
                                 "connector": controller.config.connector_name, "pair": controller.config.trading_pair,
                                 "ready": bool(controller.processed_data.get("ready")), "admitted": controller._session_admitted,
@@ -632,6 +635,13 @@ class ServiceHost:
                     raise RuntimeError("Degraded runtime cleanup did not complete.")
         if (self.owner.check_owner()["recovery_state"] or {}).get("halt"):
             self.running, self.phase, self.error = False, "halted", "RecoveryRequired"
+        from hummingbot.core.mm_liquidity import capture_liquidity
+        try:
+            self.mm_liquidity_state = capture_liquidity(self)
+            self.availability.clear("liquidity")
+        except Exception as error:
+            self.mm_liquidity_state = self.liquidity_observer = None
+            self.availability.fail("liquidity", "liquidity_observation_unavailable", error)
         self.publish_status(version)
         await self.poll_reconciliation()
         self.poll_funding()

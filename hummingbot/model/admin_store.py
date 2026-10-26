@@ -61,7 +61,7 @@ class AdminStore:
         self.engine = store.engine
         self.bot_id = store.bot_id
 
-    def command(self, idempotency_key, payload, *, catalogue, request=None):
+    def command(self, idempotency_key, payload, *, catalogue, request=None, principal=None):
         if (not isinstance(idempotency_key, str) or not 1 <= len(idempotency_key) <= 128
                 or any(not 33 <= ord(character) <= 126 for character in idempotency_key)):
             raise ValueError("Idempotency-Key must contain 1–128 visible ASCII characters")
@@ -81,7 +81,7 @@ class AdminStore:
                 return dict(existing)
             result = self.store.request_mm_session(
                 action=payload["action"], expected_version=payload["expected_version"], catalogue=catalogue,
-                request=request, current_session_id=payload.get("session_id"), connection=connection)
+                request=request, current_session_id=payload.get("session_id"), connection=connection, principal=principal, source="admin_api")
             return self._insert_command(connection, {
                 "id": str(uuid.uuid4()), "bot_id": self.bot_id, "idempotency_key": idempotency_key,
                 "request_hash": request_hash, "action": payload["action"], "session_id": result["session_id"],

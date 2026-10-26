@@ -24,7 +24,11 @@ from hummingbot.cli.admin_models import (
     DailyResponse,
     FillsPage,
     FillsQuery,
+    LiquidityQuery,
+    LiquidityResponse,
     MarketQuery,
+    MMEventsPage,
+    MMEventsQuery,
     OrderDetail,
     OrderDetailQuery,
     OrdersPage,
@@ -53,7 +57,9 @@ ADMIN_ENDPOINTS = (("GET", "/profiles", "profiles"), ("GET", "/status", "status"
 ADMIN_ENDPOINTS += (("GET", "/orders", "orders"), ("GET", "/orders/{order_id}", "order"), ("GET", "/fills", "fills"))
 ADMIN_ENDPOINTS += (("GET", "/reference-pairs", "reference_pairs"),)
 ADMIN_ENDPOINTS += (("GET", "/balances", "balances"), ("GET", "/positions", "positions"), ("GET", "/performance", "performance"))
-ADMIN_ENDPOINTS += (("GET", "/statistics/daily", "daily"),)
+ADMIN_ENDPOINTS += (("GET", "/statistics/daily", "daily"),
+                    ("GET", "/sessions/{session_id}/events", "session_events"),
+                    ("GET", "/statistics/liquidity", "liquidity"))
 ADMIN_ENDPOINTS += (("POST", "/reconciliation/check", "reconciliation_check"), ("GET", "/reconciliation", "reconciliation"))
 
 
@@ -246,7 +252,7 @@ class AdminAPI:
             raise ValueError("Idempotency-Key is required")
         catalogue = await self.deployed_profiles() if command.action != "stop" else None
         session_request = command.session_request(catalogue) if command.action != "stop" else None
-        receipt = await asyncio.to_thread(self.storage().command, key, payload, catalogue=catalogue, request=session_request)
+        receipt = await asyncio.to_thread(self.storage().command, key, payload, catalogue=catalogue, request=session_request, principal=self.settings.username)
         return web.json_response(self.command_response(receipt).model_dump(mode="json"), status=202)
 
     @api_operation(operation_id="getCommand", summary="Read accepted, applying or final command outcome", tag="Control",
@@ -364,6 +370,25 @@ class AdminAPI:
         check = self.check_response(row) if row else None
         model = ReconciliationResponse(check=check, report=check.report if check else {})
         return web.json_response(model.model_dump(mode="json"))
+
+    @api_operation(operation_id="getSessionEvents", summary="Read recorded session transitions and original configuration", tag="History",
+                   response_model=MMEventsPage, query_model=MMEventsQuery, path_parameters=("session_id",))
+    async def session_events(self, request):
+        from hummingbot.model.mm_event import session_events
+        query = self.query(request, MMEventsQuery)
+        result = await asyncio.to_thread(session_events, self.storage().store, request.match_info["session_id"], **query.model_dump())
+        return web.json_response(MMEventsPage.model_validate(result).model_dump(mode="json"))
+
+    @api_operation(operation_id="getLiquidity", summary="Read sampled own-quote coverage without exchange requests", tag="Statistics",
+                   response_model=LiquidityResponse, query_model=LiquidityQuery)
+    async def liquidity(self, request):
+        from hummingbot.core.mm_liquidity import liquidity_view
+        query = self.query(request, LiquidityQuery)
+        row = await asyncio.to_thread(self.storage().store.read)
+        if row is None:
+            raise APIUnavailable("Bot status unavailable")
+        result = liquidity_view(row, **query.model_dump())
+        return web.json_response(LiquidityResponse.model_validate(result).model_dump(mode="json"))
 
     @api_operation(operation_id="getOpenAPI", summary="Read the generated API contract", tag="Documentation", response_model=dict)
     async def openapi(self, request):

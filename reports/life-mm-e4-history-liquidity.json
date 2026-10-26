@@ -1,0 +1,15 @@
+{
+  "phase": "E4",
+  "date": "2026-10-27",
+  "baseline": "b1322fb39",
+  "native_tests": 1538,
+  "native_subtests": 11,
+  "postgres_full_tests": 182,
+  "postgres_final_history_tests": 12,
+  "liquidity_unit_tests": 8,
+  "events_queries_per_page": 2,
+  "events_fixture_rows": 1000,
+  "raw_artifacts": "build/e4",
+  "image_acceptance": "deferred_to_E6",
+  "exchange_calls_per_FE_read": 0
+}

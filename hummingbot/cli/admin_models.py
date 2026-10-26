@@ -623,3 +623,71 @@ class ReconciliationReceipt(APIModel):
 class ReconciliationResponse(APIModel):
     check: Optional[ReconciliationReceipt] = None
     report: ReconciliationReport = Field(default_factory=ReconciliationReport)
+
+
+class MMEventsQuery(APIModel):
+    limit: int = Field(default=100, ge=1, le=500)
+    cursor: Optional[str] = Field(default=None, max_length=2048)
+    event_type: Optional[str] = Field(default=None, min_length=1, max_length=64)
+    source: Optional[Literal["admin_api", "scheduler", "observer", "cli", "control"]] = None
+
+
+class MMEventView(APIModel):
+    id: int
+    bot_id: str
+    session_id: str
+    event_key: str
+    event_type: str
+    source: str
+    principal: Optional[str]
+    generation: int
+    control_version: int
+    old_profile: Optional[str]
+    new_profile: Optional[str]
+    payload: dict
+    created_at: UTCDateTime
+
+
+class MMEventsPage(APIModel):
+    session_id: str
+    history_complete: bool = Field(description="A recorded session-start configuration exists; guard changes are sampled observations.")
+    coverage: Literal["recorded_transitions_since_migration"]
+    items: List[MMEventView]
+    next_cursor: Optional[str]
+
+
+class LiquidityQuery(MarketQuery):
+    session_id: Optional[str] = Field(default=None, min_length=1, max_length=128)
+
+
+class LiquidityMarket(APIModel):
+    connector: Optional[str]
+    pair: Optional[str]
+    valid: bool
+    eligible: bool
+    reason_code: Optional[str]
+    best_bid: Optional[Decimal]
+    best_ask: Optional[Decimal]
+    bid_notional: Optional[Decimal]
+    ask_notional: Optional[Decimal]
+    spread_bps: Optional[Decimal]
+    two_sided: bool
+    observed_seconds: float
+    eligible_seconds: float
+    two_sided_seconds: float
+    elapsed_seconds: float
+    unknown_seconds: float
+    two_sided_fraction_of_elapsed: Optional[float]
+
+
+class LiquidityResponse(APIModel):
+    state: Literal["observed", "unavailable"]
+    session_id: Optional[str]
+    generation: Optional[int] = None
+    profile_id: Optional[str] = None
+    coverage_started_at: Optional[UTCDateTime] = None
+    started_at: Optional[UTCDateTime] = None
+    observed_at: Optional[UTCDateTime] = None
+    ended_at: Optional[UTCDateTime] = None
+    measurement: Literal["sampled_owner_observations"]
+    markets: Dict[Literal["spot", "perpetual"], LiquidityMarket]

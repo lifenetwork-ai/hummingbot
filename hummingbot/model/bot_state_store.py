@@ -79,6 +79,9 @@ class BotStateStore:
                     session.status = "stopping"
                     session.generation += 1
                     values["mm_session"] = session.model_dump(mode="json")
+            from hummingbot.model.mm_event import record_transition
+            record_transition(connection, self.bot_id, row["mm_session"], values.get("mm_session", row["mm_session"]),
+                              expected_version + 1, source="cli")
             result = connection.execute(update(BotState).where(*conditions).values(**values)
                                         .returning(BotState.control_version)).scalar()
             if result is None:
@@ -89,7 +92,22 @@ class BotStateStore:
                 revision: Optional[str] = None, save_balances: bool = True) -> bool:
         """An old process/command cannot acknowledge newer control intent."""
         status.pop("daily_snapshot_error", None)
+        status.pop("mm_history_error", None)
         with self.engine.begin() as connection:
+            previous = connection.execute(select(BotState.status, BotState.mm_session).where(
+                BotState.bot_id == self.bot_id, BotState.owner_uuid == owner_uuid,
+                BotState.owner_generation == owner_generation, BotState.control_version == version,
+                BotState.acknowledged_version <= version).with_for_update()).mappings().first()
+            if previous is None:
+                return False
+            from sqlalchemy.exc import DataError, IntegrityError
+
+            from hummingbot.model.mm_event import record_guards
+            try:
+                record_guards(connection, self.bot_id, previous["mm_session"], previous["status"] or {}, status, version)
+            except (ValueError, TypeError, KeyError, AttributeError, OverflowError, DataError, IntegrityError):
+                status["mm_guard_observation"] = (previous["status"] or {}).get("mm_guard_observation")
+                status["mm_history_error"] = "guard_history_unavailable"
             result = connection.execute(update(BotState).where(
                 BotState.bot_id == self.bot_id, BotState.owner_uuid == owner_uuid,
                 BotState.owner_generation == owner_generation, BotState.control_version == version,
@@ -100,8 +118,6 @@ class BotStateStore:
                 return False
             from hummingbot.model.admin_store import AdminStore
             AdminStore.record_observation(connection, self.bot_id, version, status, result)
-            from sqlalchemy.exc import DataError, IntegrityError
-
             from hummingbot.model.admin_reporting import save_daily_balances
             try:
                 # A malformed optional observation must not roll back ownership,
@@ -117,7 +133,7 @@ class BotStateStore:
             return True
 
     def request_mm_session(self, *, action, expected_version, catalogue=None, request=None,
-                           current_session_id=None, rng=None, connection=None):
+                           current_session_id=None, rng=None, connection=None, principal=None, source="control"):
         from random import SystemRandom
 
         from hummingbot.core.mm_session import MMSession, MMSessionRequest
@@ -159,6 +175,9 @@ class BotStateStore:
                       "desired_state": "stopped" if action == "stop" else "running"}
             if action != "stop":
                 values.update(config_type="mm-session", config_file_path="life_mm_profiles.yaml")
+            from hummingbot.model.mm_event import record_transition
+            record_transition(connection, self.bot_id, row["mm_session"], values["mm_session"], expected_version + 1,
+                              source=source, principal=principal)
             connection.execute(update(BotState).where(BotState.bot_id == self.bot_id).values(**values))
             return {"control_version": expected_version + 1, "session_id": effective.id, "generation": effective.generation}
 
@@ -186,5 +205,7 @@ class BotStateStore:
                 values["recovery_state"] = recovery
             if session.status in ("stopping", "stopped", "expired"):
                 values["desired_state"] = "stopped"
+            from hummingbot.model.mm_event import record_transition
+            record_transition(connection, self.bot_id, row["mm_session"], values["mm_session"], version)
             connection.execute(update(BotState).where(BotState.bot_id == self.bot_id).values(**values))
             return session

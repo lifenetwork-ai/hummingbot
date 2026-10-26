@@ -21,6 +21,7 @@ def get_declarative_base():
     from .market_data import MarketData  # noqa: F401
     from .market_state import MarketState  # noqa: F401
     from .metadata import Metadata  # noqa: F401
+    from .mm_event import MMEvent  # noqa: F401
     from .order import Order  # noqa: F401
     from .order_status import OrderStatus  # noqa: F401
     from .position import Position  # noqa: F401
