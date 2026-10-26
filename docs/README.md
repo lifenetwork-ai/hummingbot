@@ -15,6 +15,7 @@ under the ignored `build/` directory.
 | [Admin API](admin-api.md) | Authentication, commands, reporting and reconciliation |
 | [Strict quote guards](life-mm-quote-guards.md) | Opt-in market deviation, sideways range, own-order filtering and recovery |
 | [Managed MM drawdown](life-mm-drawdown.md) | Covered V2 report limits, retained-market valuation, durable peaks and position-preserving HALT |
+| [Spot inventory skew](life-mm-inventory-skew.md) | Original PMM interpolation, cash-only signal, bounded sizing and neutral fallback |
 | [Listing bootstrap](life-mm-listing-bootstrap.md) | Bounded empty/own-only listing quotes, durable deadline and outside-market qualification |
 | [Spot USDT outflow](life-mm-spot-outflow.md) | Rolling committed cashflow, pending BUY reservations, account binding and BUY-only admission |
 | [OKX environments](okx-environments.md) | Live/Demo routing, sites and credential variables |

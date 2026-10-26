@@ -11,6 +11,7 @@ from hummingbot.core.data_type.common import OrderType, PositionMode, PositionSi
 from hummingbot.core.utils.read_retry import retry_delay, transient_read
 from hummingbot.strategy_v2.models.base import RunnableStatus
 from hummingbot.strategy_v2.models.executor_actions import StopExecutorAction
+from hummingbot.strategy_v2.utils.inventory_skew import InventorySkewConfig, inventory_skew_ratios
 from hummingbot.strategy_v2.utils.listing_bootstrap import ListingBootstrap
 from hummingbot.strategy_v2.utils.quote_guard import (
     MarketObservation,
@@ -65,9 +66,12 @@ class LifeMMConfig(pmm_simple.PMMSimpleConfig):
     saved_source_anchors: Dict[str, Decimal] = Field(default_factory=dict)
     quote_guards: QuoteGuardConfig = Field(default_factory=QuoteGuardConfig)
     sideways_range: Optional[SidewaysRange] = None
+    inventory_skew: InventorySkewConfig = Field(default_factory=InventorySkewConfig)
 
     @model_validator(mode="after")
     def validate_mm_policy(self):
+        if self.inventory_skew.enabled and self.connector_name != "okx":
+            raise ValueError("Inventory skew is a spot-only account cash signal")
         if self.quote_guards.mode == "bootstrap_then_market":
             if self.initial_anchor is None or self.quote_guards.bootstrap.max_quote > self.total_amount_quote:
                 raise ValueError("Bootstrap requires initial_anchor and a budget within ordinary quote allocation")
@@ -137,6 +141,8 @@ class LifeMMController(pmm_simple.PMMSimpleController):
         self._bootstrap = (ListingBootstrap(config.quote_guards, anchor=config.initial_anchor, sideways_range=config.sideways_range,
                                             max_gap_seconds=config.max_data_age_seconds)
                            if config.quote_guards.mode == "bootstrap_then_market" else None)
+        self._inventory_factors = (Decimal("1"), Decimal("1"), Decimal("1"))
+        self._inventory_status = None
         self._life_anchor = config.saved_life_anchor
         self._source_anchors = dict(config.saved_source_anchors)
         self._stops_requested = set()
@@ -230,8 +236,91 @@ class LifeMMController(pmm_simple.PMMSimpleController):
             raise ValueError(f"invalid_book:{connector_name}:{pair}")
         return (bid + ask) / 2
 
+    def _inventory_valuation_price(self, guard_status):
+        if guard_status is not None:
+            bootstrap = guard_status.get("bootstrap")
+            if not guard_status["ready"] or (bootstrap and not bootstrap["market_qualified"]):
+                raise ValueError("Inventory skew requires a qualified outside price")
+            return guard_status["market_mid"]
+        # Reuse bounded known-order filtering even if the price guard is off.
+        # Neither own quotes nor a model/session/initial anchor value inventory.
+        connector = self.market_data_provider.get_connector_with_fallback(self.config.connector_name)
+        book = self.market_data_provider.get_order_book(self.config.connector_name, self.config.trading_pair)
+        value = observe_market(connector, book, self.config.trading_pair, now=self.market_data_provider.time(),
+                               max_age_seconds=self.config.max_data_age_seconds,
+                               max_levels=self.config.quote_guards.max_book_levels,
+                               max_orders=self.config.quote_guards.max_own_orders)
+        if value.market_mid is None:
+            raise ValueError("Inventory valuation requires outside two-sided depth")
+        return value.market_mid
+
+    def _update_inventory_skew(self, guard_status):
+        if not self.config.inventory_skew.enabled:
+            return
+        connector = self.market_data_provider.get_connector_with_fallback(self.config.connector_name)
+        base_asset = self.config.trading_pair.split("-")[0]
+        # Existing mandatory engine balances still fence admission. Optional
+        # cash metadata/ratio failures below must not conceal corrupt balances.
+        balances = [Decimal(str(connector.get_balance(asset))) for asset in (base_asset, "USDT")]
+        if any(not value.is_finite() or value < 0 for value in balances):
+            raise ValueError("account_balance_unavailable")
+        now = self.market_data_provider.time()
+        from hummingbot.connector.exchange_py_base import ExchangePyBase
+        maximum_age = 2 * ExchangePyBase.LONG_POLL_INTERVAL
+        observations = getattr(connector, "account_balance_observations", {})
+        # A known stale account observation invalidates its engine balance too.
+        # Absent optional cash metadata alone still permits neutral fallback.
+        if isinstance(observations, dict):
+            for asset in (base_asset, "USDT"):
+                snapshot = observations.get(asset)
+                stamp = snapshot.get("observed_at") if isinstance(snapshot, dict) else None
+                if stamp is not None:
+                    try:
+                        fresh = -1 <= now - float(stamp) <= maximum_age
+                    except (ValueError, TypeError, OverflowError):
+                        fresh = False
+                    if not fresh:
+                        raise ValueError("account_balance_unavailable")
+        self._inventory_status = dict(state="neutral", reason_code="inventory_skew_unavailable",
+                                      scope="account_cash", base_pct=None, valuation_price=None, cash_quote=None, base_cash=None,
+                                      buy_multiplier=Decimal("1"), sell_multiplier=Decimal("1"), budget_scale=Decimal("1"),
+                                      balance_observed_at=None, evaluated_at=now)
+        try:
+            observations = connector.account_balance_observations
+            base, quote = observations[base_asset], observations["USDT"]
+            # Reuse the connector's normal 120s REST fallback cadence; a quiet
+            # account must not become stale on a ten-second market-price timer.
+            stamps = [float(value["observed_at"]) for value in (base, quote)]
+            if any(not -1 <= now - stamp <= maximum_age for stamp in stamps):
+                raise ValueError("Inventory cash observations are stale")
+            base, quote = Decimal(str(base["cash_balance"])), Decimal(str(quote["cash_balance"]))
+            price = self._inventory_valuation_price(guard_status)
+            levels = [(self.get_trade_type_from_level_id(level), *self._baseline_price_and_amount(level))
+                      for level in self.get_not_active_levels_ids([])]
+            base_range = sum((amount for _, _, amount in levels), Decimal("0")) * self.config.inventory_skew.inventory_range_multiplier
+            buy, sell = inventory_skew_ratios(base, quote, price, self.config.inventory_skew.target_base_pct, base_range)
+            proposed = sum((p * amount * (buy if side == TradeType.BUY else sell) for side, p, amount in levels), Decimal("0"))
+            with localcontext() as context:
+                context.rounding = ROUND_DOWN
+                scale = min(Decimal("1"), self._quote_budget() / proposed) if proposed > 0 else Decimal("1")
+            self._inventory_factors = (buy, sell, scale)
+            self._inventory_status.update(state="active", reason_code=None, base_pct=base * price / (base * price + quote),
+                                          valuation_price=price, cash_quote=quote, base_cash=base, buy_multiplier=buy, sell_multiplier=sell,
+                                          budget_scale=scale, balance_observed_at=min(stamps))
+        except Exception:
+            # This optional enhancement never restarts the controller or weakens
+            # the ordinary balance, exposure, price or owner/send checks.
+            pass
+        self.processed_data["inventory_skew"] = self._inventory_status
+
+    def _quote_budget(self):
+        return (self.config.quote_guards.bootstrap.max_quote
+                if self._bootstrap is not None and not self._bootstrap.market_qualified else self.config.total_amount_quote)
+
     def update_reference(self, *, sample_guard=False):
         guard_status = None
+        self._inventory_factors = (Decimal("1"), Decimal("1"), Decimal("1"))
+        self._inventory_status = None
         spread_multiplier = self.processed_data.get("spread_multiplier", Decimal("1"))
         try:
             if not self._account_ready:
@@ -271,6 +360,7 @@ class LifeMMController(pmm_simple.PMMSimpleController):
                     raise ValueError(guard_status["reason_code"])
             self.processed_data = {"reference_price": reference, "spread_multiplier": spread_multiplier, "ready": False,
                                    "quote_guard": guard_status}
+            self._update_inventory_skew(guard_status)
             for level in self.get_not_active_levels_ids([]):
                 price, _ = self.get_price_and_amount(level)
                 if not self.quote_price_valid(price):
@@ -293,7 +383,7 @@ class LifeMMController(pmm_simple.PMMSimpleController):
                      "reference_deviation", "sideways_breakout", "guard_recovering",
                      "bootstrap_binding_unavailable", "bootstrap_not_started", "bootstrap_checkpoint_pending",
                      "bootstrap_expired", "bootstrap_band", "bootstrap_range", "bootstrap_quote_crossing",
-                     "market_liquidity_unqualified", "bootstrap_anchor_mismatch"}
+                     "market_liquidity_unqualified", "bootstrap_anchor_mismatch", "account_balance_unavailable"}
             if self.config.quote_guards.enabled and guard_status is None:
                 guard_status = self._evaluate_guard(
                     MarketObservation(None, None, self.market_data_provider.time(), detail="required_data_unavailable"),
@@ -301,6 +391,7 @@ class LifeMMController(pmm_simple.PMMSimpleController):
                 guard_status["reason_code"] = reason if reason in known else "market_price_unavailable"
             self.processed_data = {"ready": False, "reason": str(error) if reason in known else type(error).__name__,
                                    "spread_multiplier": spread_multiplier, "quote_guard": guard_status,
+                                   "inventory_skew": self._inventory_status,
                                    "internal_error": not isinstance(error, (ValueError, ArithmeticError, OSError))}
 
     async def update_processed_data(self):
@@ -378,8 +469,13 @@ class LifeMMController(pmm_simple.PMMSimpleController):
             if any(not value.is_finite() or value < 0 for value in (available_quote, available_base)):
                 return []
             accepted = []
+            pending_allocation = sum((executor.config.amount * executor.config.entry_price for executor in self.executors_info
+                                      if executor.is_active or executor.status == RunnableStatus.SHUTTING_DOWN), Decimal("0")) \
+                if self.config.inventory_skew.enabled else Decimal("0")
             for action in super().create_actions_proposal():
                 config = action.executor_config
+                if self.config.inventory_skew.enabled and pending_allocation + config.amount * config.entry_price > self._quote_budget():
+                    continue
                 is_buy = config.side == TradeType.BUY
                 proposed_long = long + config.amount if is_buy else long
                 proposed_short = short + config.amount if not is_buy and self.config.connector_name == "okx_perpetual" else short
@@ -399,6 +495,7 @@ class LifeMMController(pmm_simple.PMMSimpleController):
                         continue
                     available_quote -= required_quote
                 long, short = proposed_long, proposed_short
+                pending_allocation += config.amount * config.entry_price
                 accepted.append(action)
             return accepted
         except (ValueError, ArithmeticError, TypeError):
@@ -492,7 +589,7 @@ class LifeMMController(pmm_simple.PMMSimpleController):
                 self.config.reference_connector, references, self)
         super().on_stop()
 
-    def get_price_and_amount(self, level_id):
+    def _baseline_price_and_amount(self, level_id):
         price, amount = super().get_price_and_amount(level_id)
         if self._bootstrap is not None and not self._bootstrap.market_qualified:
             side = self.get_trade_type_from_level_id(level_id)
@@ -503,7 +600,25 @@ class LifeMMController(pmm_simple.PMMSimpleController):
                           * self.config.quote_guards.bootstrap.max_quote / self.config.total_amount_quote / price)
         return price, amount
 
+    def get_price_and_amount(self, level_id):
+        price, amount = self._baseline_price_and_amount(level_id)
+        if self.config.inventory_skew.enabled:
+            buy, sell, scale = self._inventory_factors
+            with localcontext() as context:
+                context.rounding = ROUND_DOWN
+                amount = amount * (buy if self.get_trade_type_from_level_id(level_id) == TradeType.BUY else sell) * scale
+        return price, amount
+
     def get_executor_config(self, level_id, price, amount):
+        if self.config.inventory_skew.enabled:
+            connector = self.market_data_provider.get_connector_with_fallback(self.config.connector_name)
+            raw_amount = amount
+            price = connector.quantize_order_price(self.config.trading_pair, price)
+            amount = connector.quantize_order_amount(self.config.trading_pair, amount)
+            rule = connector.trading_rules[self.config.trading_pair]
+            if (amount <= 0 or amount > raw_amount or amount < rule.min_order_size
+                    or price * amount < rule.min_notional_size):
+                return None
         if not self.quote_price_valid(price):
             return None
         return super().get_executor_config(level_id, price, amount).model_copy(update={

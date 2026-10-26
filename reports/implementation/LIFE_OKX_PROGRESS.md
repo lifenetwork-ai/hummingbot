@@ -1,6 +1,6 @@
 # LIFE / OKX implementation progress
 
-Updated: 2026-10-26 (Asia/Ho_Chi_Minh).
+Updated: 2026-10-27 (Asia/Ho_Chi_Minh).
 Delivery checklist: [current plan](../../docs/plans/LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md).
 
 ## P1 — Controller and configuration foundation
@@ -926,3 +926,33 @@ Checklist and evidence: [enhancements plan](../../docs/plans/LIFE_OKX_MM_ENHANCE
 [E2c report](../life-mm-e2c-listing-bootstrap.md), [JSON evidence](../life-mm-e2c-listing-bootstrap.json).
 Defaults remain disabled. E3–E6/full final image matrix/soak remain open. No external
 OKX account or deployment was used.
+
+
+## E3 — Existing PMM spot inventory skew (complete)
+
+Verified 2026-10-27. A small validated adapter calls the original compiled PMM
+interpolation directly; original legacy/generic math files remain unchanged.
+LIFE derives range from its actual baseline level quantities, values account spot
+cash at bounded outside mid and applies size multipliers/Decimal budget scaling.
+Existing PositionExecutor, post-only execution, refresh/hold, quantization and
+funding/exposure/outflow/owner gates remain authoritative. Perpetual is unchanged.
+No service, task, schema, wallet, ledger, cache or environment flag was added.
+
+Red/Green cases protect mandatory stale account readiness, own-only valuation
+and malformed optional cash snapshots. Optional failures use neutral sizing and
+recover in place; known stale/corrupt account data blocks new quotes without
+inventing a process restart. Partial active allocation stays reserved and rejected
+allocation is never redistributed. The existing authenticated status/Swagger
+expose the account-cash signal and fallback.
+
+Final native: 1530 tests/11 subtests; focused: 58 with RuntimeWarning as errors;
+full real-PG: 171. Final image E2E passes spot/both and restart: underweight
+BUY/SELL proposals ~75.74/24.26 become ~37.31/62.69 after two simulated BUY
+fills, all within the 100-USDT proposal budget and using post-only orders.
+The final combined bootstrap/drawdown/outflow/skew 60-second diagnostic on
+1 CPU/2 GiB and 100000 historical rows passes 1200 reads, zero errors, p95 49.36ms /
+p99 225.97ms and sixty matching fills/positions. Thirty packaged paths match source.
+
+See [E3 report](../life-mm-e3-inventory-skew.md), [evidence](../life-mm-e3-inventory-skew.json)
+and [plan](../../docs/plans/LIFE_OKX_MM_ENHANCEMENTS_TDD_PLAN.md). Defaults remain
+disabled. E4–E6/full final matrix/soak remain open. No external account or deployment.

@@ -165,7 +165,7 @@ class ServiceHost:
                              "reference_deviation", "sideways_breakout", "guard_recovering",
                              "bootstrap_binding_unavailable", "bootstrap_not_started", "bootstrap_checkpoint_pending",
                              "bootstrap_expired", "bootstrap_band", "bootstrap_range", "bootstrap_quote_crossing",
-                             "market_liquidity_unqualified", "bootstrap_anchor_mismatch"}
+                             "market_liquidity_unqualified", "bootstrap_anchor_mismatch", "account_balance_unavailable"}
                     return waiting(reason if reason in known else "market_data_unavailable")
                 if not controller.market_data_provider.ready:
                     return waiting("market_data_unavailable")
@@ -500,7 +500,8 @@ class ServiceHost:
                                 "ready": bool(controller.processed_data.get("ready")), "admitted": controller._session_admitted,
                                 "reference_price": str(controller.processed_data["reference_price"]) if "reference_price" in controller.processed_data else None,
                                 "reason": controller.processed_data.get("reason"),
-                                "quote_guard": controller.processed_data.get("quote_guard")} for controller in self._mm_controllers()],
+                                "quote_guard": controller.processed_data.get("quote_guard"),
+                                "inventory_skew": controller.processed_data.get("inventory_skew")} for controller in self._mm_controllers()],
                 "reporting": self.reporting,
                 "funding_sync": {**public_status(self.funding_state, now_ms=int(time.time() * 1000), error=self.funding_error),
                                  **({"state": "not_configured"} if not self.funding_configured else {})},

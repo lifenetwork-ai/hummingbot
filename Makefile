@@ -70,6 +70,8 @@ test-cloudrun-regression:
 		test/hummingbot/strategy_v2/controllers/test_life_mm.py \
 		test/hummingbot/strategy_v2/controllers/test_quote_guard.py \
 		test/hummingbot/strategy_v2/controllers/test_listing_bootstrap.py \
+		test/hummingbot/strategy_v2/controllers/test_inventory_skew.py \
+		test/hummingbot/strategy/pure_market_making/test_inventory_skew_calculator.py \
 		test/hummingbot/strategy_v2/controllers/test_life_startup_availability.py \
 		test/hummingbot/strategy_v2/controllers/test_reference_subscriptions.py \
 		test/hummingbot/strategy_v2/controllers/test_controller_base.py \

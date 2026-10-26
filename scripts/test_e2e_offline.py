@@ -983,6 +983,78 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
                                                  effective_config_sha256=hashlib.sha256(path.read_bytes()).hexdigest())
         path.write_bytes(original)
 
+    def inventory_skew_scenario(self):
+        print("Offline E2E: existing PMM inventory interpolation on spot/both with normal post-only executors", flush=True)
+        import yaml
+        path = self.assets / "life_mm_profiles.yaml"
+        original = path.read_bytes()
+        profiles = yaml.safe_load(path.read_text())
+        profiles.update(max_global_drawdown_quote="20", spot_outflow=dict(
+            window_seconds=300, max_net_outflow_quote="10000", fee_allowance_rate=".01"))
+        profiles["markets"]["spot"]["inventory_skew"] = dict(enabled=True, target_base_pct=".015", inventory_range_multiplier="1")
+        for market in profiles["markets"].values():
+            market.update(executor_refresh_time=8, cooldown_time=0)
+        path.write_text(yaml.safe_dump(profiles))
+        self.report.joinpath("effective-inventory-skew-profiles.yaml").write_bytes(path.read_bytes())
+        self.env.update(ADMIN_API_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin")
+        for field, value in (("API_KEY", "offline-key"), ("SECRET_KEY", "offline-secret"), ("PASSPHRASE", "offline-pass")):
+            self.env["HBOT_OKX_PERPETUAL_" + field] = value
+        first, port = self.start("inventory-skew")
+        self.mm_command(port, "start", market_mode="spot", selection="fixed", profile_id="sideways", duration_seconds=600)
+
+        def live(instrument="LIFE-USDT"):
+            return [row for row in self.ledger()["orders"] if row["instId"] == instrument
+                    and row["state"] in ("live", "partially_filled")]
+
+        def status():
+            return self.admin(port, "/status")[1].get("markets", [])
+
+        def skew():
+            return next((market.get("inventory_skew") or {} for market in status() if market["market"] == "spot"), {})
+
+        def quotes(rows):
+            return {side: sum((Decimal(row["px"]) * Decimal(row["sz"]) for row in rows if row["side"] == side), Decimal("0"))
+                    for side in ("buy", "sell")}
+
+        poll(lambda: len(live()) == 4 and skew().get("state") == "active", description="spot inventory-skew quotes")
+        before = quotes(live())
+        assert before["buy"] > before["sell"] and sum(before.values()) <= 100
+        assert all(row["ordType"] == "post_only" for row in self.ledger()["accepted"])
+        original_ids = {row["clOrdId"] for row in live()}
+        for order in [row for row in live() if row["side"] == "buy"]:
+            self.control(fill=dict(clOrdId=order["clOrdId"], amount=order["sz"], fee="0"), duplicate=True)
+        poll(lambda: self.sql("SELECT count(*) FROM trade_fills") == "2", description="two normal BUY fills recorded once")
+        poll(lambda: skew().get("state") == "active" and Decimal(skew()["buy_multiplier"]) < Decimal(skew()["sell_multiplier"]),
+             description="observed spot cash inventory reverses the size bias")
+        poll(lambda: len(live()) == 4 and not original_ids.intersection(row["clOrdId"] for row in live()),
+             timeout=60, description="ordinary refresh replaces old levels with new inventory sizing")
+        after = quotes(live())
+        assert after["sell"] > after["buy"] and sum(after.values()) <= 100
+        self.mm_command(port, "switch", market_mode="both", selection="fixed", profile_id="sideways", duration_seconds=600)
+        poll(lambda: len(live()) == 4 and len(live("LIFE-USDT-SWAP")) == 4, description="spot skew and unchanged perpetual coexist")
+        markets = status()
+        assert next(market for market in markets if market["market"] == "perpetual").get("inventory_skew") is None
+        current_ratio = Decimal(skew()["base_pct"])
+        balances = {row["ccy"]: Decimal(row["cashBal"]) for row in self.ledger()["balances"]}
+        assert abs(current_ratio - balances["LIFE"] * Decimal(".1") / (balances["LIFE"] * Decimal(".1") + balances["USDT"])) < Decimal("1e-20")
+        assert sum(quotes(live()).values()) <= 100
+        self.mm_command(port, "stop")
+        self.terminate(first)
+        _, port = self.start("inventory-skew-restart", auto_migrate=False)
+        self.mm_command(port, "start", market_mode="both", selection="fixed", profile_id="sideways", duration_seconds=600)
+        poll(lambda: skew().get("state") == "active" and len(live()) == 4, description="restart derives skew from fresh existing cash observations")
+        assert abs(Decimal(skew()["base_pct"]) - current_ratio) < Decimal("1e-20")
+        self.mm_command(port, "stop")
+        assert len(self.ledger()["fills"]) == 2 and not self.ledger()["unknown"]
+        assert not self.state()["recovery_state"].get("halt") and http(port, "/startup")[0] == 200
+        self.metrics["inventory_skew"] = dict(spot_and_both=True, post_only=True, existing_refresh=True,
+                                              underweight_quote={key: str(value) for key, value in before.items()},
+                                              overweight_quote={key: str(value) for key, value in after.items()},
+                                              cash_ratio_not_shared_equity=True, perpetual_unchanged=True, restart_fresh_observation=True,
+                                              unique_fills=2, no_extra_market_orders=True,
+                                              effective_config_sha256=hashlib.sha256(path.read_bytes()).hexdigest())
+        path.write_bytes(original)
+
     def availability_scenario(self):
         print("Offline E2E: service availability and automatic read/feed recovery", flush=True)
         self.env.update(ADMIN_API_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin")
@@ -1180,7 +1252,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--image", default="hummingbot-cloudrun:local")
-    parser.add_argument("--scenario", choices=("all", "spot", "v2-spot", "v2-perpetual", "schema", "upgrade", "life-mm", "life-mm-recovery", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap"), default="all")
+    parser.add_argument("--scenario", choices=("all", "spot", "v2-spot", "v2-perpetual", "schema", "upgrade", "life-mm", "life-mm-recovery", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap", "inventory-skew"), default="all")
     parser.add_argument("--previous-image", help="Cached compatible prior image; required for the release upgrade gate.")
     parser.add_argument("--trading-env", choices=("live", "demo"), default="live", help="Local simulator routing mode; never contacts OKX.")
     args = parser.parse_args()
@@ -1220,7 +1292,7 @@ def main():
                            f"type=bind,source={assets},target=/test-assets,readonly",
                            image, "python", "/test-assets/runtime_smoke.py", timeout=90)
             result["runtime_smoke"] = json.loads(smoke.stdout)
-            scenarios = ("schema", "spot", "v2-spot", "v2-perpetual", "life-mm", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap") if args.scenario == "all" else (args.scenario,)
+            scenarios = ("schema", "spot", "v2-spot", "v2-perpetual", "life-mm", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap", "inventory-skew") if args.scenario == "all" else (args.scenario,)
             if args.scenario == "all" and previous_image:
                 scenarios += ("upgrade",)
             result["scenarios"] = {}
@@ -1242,6 +1314,8 @@ def main():
                         harness.quote_guard_scenario()
                     elif scenario == "drawdown":
                         harness.drawdown_scenario()
+                    elif scenario == "inventory-skew":
+                        harness.inventory_skew_scenario()
                     elif scenario == "listing-bootstrap":
                         harness.bootstrap_scenario()
                     elif scenario == "spot-outflow":

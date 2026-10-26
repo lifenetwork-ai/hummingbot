@@ -52,6 +52,11 @@ markets:
     min_price: "0.000001"
     max_price: "1000"
     max_base_inventory: "10000"
+    # Optional PMM sizing only; existing balance/exposure/outflow caps still apply.
+    inventory_skew:
+      enabled: false
+      target_base_pct: "0.5"
+      inventory_range_multiplier: "1"
     # Opt-in only. Enabled strict mode also requires explicit deviation/resume
     # thresholds; see docs/life-mm-quote-guards.md. No production risk defaults.
     quote_guards:

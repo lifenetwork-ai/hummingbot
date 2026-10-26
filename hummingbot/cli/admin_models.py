@@ -169,6 +169,21 @@ class QuoteGuardStatus(APIModel):
     recovery_valid_samples: int
 
 
+class InventorySkewStatus(APIModel):
+    state: Literal["active", "neutral"]
+    reason_code: Optional[str]
+    scope: Literal["account_cash"] = Field(description="Observed spot cash inventory; not an isolated campaign wallet.")
+    base_pct: Optional[Decimal]
+    valuation_price: Optional[Decimal]
+    base_cash: Optional[Decimal]
+    cash_quote: Optional[Decimal]
+    buy_multiplier: Decimal
+    sell_multiplier: Decimal
+    budget_scale: Decimal
+    balance_observed_at: Optional[UTCDateTime]
+    evaluated_at: UTCDateTime
+
+
 class MarketReadiness(APIModel):
     market: Literal["spot", "perpetual"]
     connector: str
@@ -178,6 +193,7 @@ class MarketReadiness(APIModel):
     reference_price: Optional[Decimal]
     reason: Optional[str]
     quote_guard: Optional[QuoteGuardStatus] = None
+    inventory_skew: Optional[InventorySkewStatus] = None
 
 
 class FundingSyncStatus(APIModel):

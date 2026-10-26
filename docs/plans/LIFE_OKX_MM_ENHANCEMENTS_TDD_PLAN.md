@@ -1,8 +1,8 @@
 # LIFE / OKX MM: Incremental Enhancements — TDD Plan
 
 Date: 2026-10-26 (Asia/Ho_Chi_Minh).
-Status: E0, E1, E2a and E2b complete with local verification.
-E2c is complete and locally verified; E3–E6 have not started.
+Status: E0, E1, E2a, E2b, E2c and E3 complete with local verification.
+E4–E6 have not started.
 Only verified checklist items are marked complete.
 Baseline: `1867159e7`.
 Implementation priority: service availability, explainable trading decisions and
@@ -404,7 +404,7 @@ reconstruction and prevents a new binding HALT from reopening orders. Defaults
 remain disabled; no fill table, index, cache service or reset API
 was added. See the [guide](../life-mm-spot-outflow.md),
 [report](../../reports/life-mm-e2b-spot-outflow.md) and
-[evidence](../../reports/life-mm-e2b-spot-outflow.json). E3–E6 remain open.
+[evidence](../../reports/life-mm-e2b-spot-outflow.json). E4–E6 remain open.
 
 ### E2c — Listing bootstrap without outside two-sided liquidity
 
@@ -478,7 +478,7 @@ qualified outside-depth loss; the initially failing report/shutdown path was
 fixed with Red/Green coverage. See [report](../../reports/life-mm-e2c-listing-bootstrap.md),
 [evidence](../../reports/life-mm-e2c-listing-bootstrap.json) and
 [operational guide](../life-mm-listing-bootstrap.md). Production defaults remain
-disabled. E3–E6, the final all-feature image matrix/soak and external Demo checks
+disabled. E4–E6, the final all-feature image matrix/soak and external Demo checks
 remain open; this diagnostic does not close E6.
 
 ## 6. E3 — Spot inventory skew
@@ -509,11 +509,23 @@ quote-to-base conversion. Reuse the compatible ratio/interpolation calculation;
 do not copy its base-order sizing assumption. Preserve the upstream caller's
 numerical behavior while keeping final LIFE quantities and cap checks in Decimal.
 
-- [ ] **Red:** neutral/underweight/overweight inventory, zero/invalid valuation, empty balances, stale account data and shared-collateral observations.
-- [ ] **Red:** optional skew failure degrades to neutral sizing and recovers without restarting the controller; mandatory account/price failures still block admission.
-- [ ] **Red:** all proposed levels together respect quote budget, rolling outflow and available base/quote after skew, rounding and partial-fill reservations.
-- [ ] **Green:** reuse/extract the compatible calculation with parity coverage for its existing caller; avoid introducing float precision loss into final order sizing.
-- [ ] **Verify/commit:** disabled-path and perpetual behavior remain unchanged; controller and offline spot/both scenarios demonstrate size adjustment without extra market orders.
+- [x] **Red:** neutral/underweight/overweight inventory, zero/invalid valuation, empty balances, stale account data and shared-collateral observations.
+- [x] **Red:** optional skew failure degrades to neutral sizing and recovers without restarting the controller; mandatory account/price failures still block admission.
+- [x] **Red:** all proposed levels together respect quote budget, rolling outflow and available base/quote after skew, rounding and partial-fill reservations.
+- [x] **Green:** reuse/extract the compatible calculation with parity coverage for its existing caller; avoid introducing float precision loss into final order sizing.
+- [x] **Verify/commit:** disabled-path and perpetual behavior remain unchanged; controller and offline spot/both scenarios demonstrate size adjustment without extra market orders.
+
+E3 verified on 2026-10-27: 1530 native tests/eleven subtests, 58 focused tests
+with RuntimeWarning as errors and 171 real-PG cases passed. The final image's
+spot/both/restart case demonstrates inventory-driven size reversal, unchanged
+perpetual sizing and no additional market orders. Its combined enabled 60-second
+healthy diagnostic passed 1200 HTTP 200 reads, zero errors, p95 49.36ms / p99
+225.97ms and sixty matching fills/positions with 100000 historical rows on
+1 CPU/2 GiB. Original PMM math files remain unchanged; the adapter calls the
+existing interpolation directly. See [report](../../reports/life-mm-e3-inventory-skew.md),
+[evidence](../../reports/life-mm-e3-inventory-skew.json) and
+[guide](../life-mm-inventory-skew.md). Defaults remain disabled. E4–E6 and the
+final all-feature image matrix/soak remain open; this diagnostic does not close E6.
 
 ## 7. E4 — Transition history and useful liquidity observations
 

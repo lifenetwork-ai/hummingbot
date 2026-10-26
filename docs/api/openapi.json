@@ -1482,6 +1482,156 @@
         "title": "InitialPositionConfig",
         "type": "object"
       },
+      "InventorySkewConfigOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "default": false,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "inventory_range_multiplier": {
+            "default": "1",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Inventory Range Multiplier",
+            "type": "string"
+          },
+          "target_base_pct": {
+            "default": "0.5",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Target Base Pct",
+            "type": "string"
+          }
+        },
+        "title": "InventorySkewConfig",
+        "type": "object"
+      },
+      "InventorySkewStatusOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "balance_observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Balance Observed At"
+          },
+          "base_cash": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Cash"
+          },
+          "base_pct": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Pct"
+          },
+          "budget_scale": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Budget Scale",
+            "type": "string"
+          },
+          "buy_multiplier": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Buy Multiplier",
+            "type": "string"
+          },
+          "cash_quote": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cash Quote"
+          },
+          "evaluated_at": {
+            "format": "date-time",
+            "title": "Evaluated At",
+            "type": "string"
+          },
+          "reason_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Code"
+          },
+          "scope": {
+            "const": "account_cash",
+            "description": "Observed spot cash inventory; not an isolated campaign wallet.",
+            "title": "Scope",
+            "type": "string"
+          },
+          "sell_multiplier": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Sell Multiplier",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "active",
+              "neutral"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "valuation_price": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valuation Price"
+          }
+        },
+        "required": [
+          "state",
+          "reason_code",
+          "scope",
+          "base_pct",
+          "valuation_price",
+          "base_cash",
+          "cash_quote",
+          "buy_multiplier",
+          "sell_multiplier",
+          "budget_scale",
+          "balance_observed_at",
+          "evaluated_at"
+        ],
+        "title": "InventorySkewStatus",
+        "type": "object"
+      },
       "LifeMMConfigOutput": {
         "additionalProperties": false,
         "properties": {
@@ -1578,6 +1728,9 @@
             "prompt_on_new": false,
             "title": "Initial Positions",
             "type": "array"
+          },
+          "inventory_skew": {
+            "$ref": "#/components/schemas/InventorySkewConfigOutput"
           },
           "leverage": {
             "default": 1,
@@ -2159,6 +2312,17 @@
           "connector": {
             "title": "Connector",
             "type": "string"
+          },
+          "inventory_skew": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InventorySkewStatusOutput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
           },
           "market": {
             "enum": [

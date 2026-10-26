@@ -167,8 +167,11 @@ def main():
     parser.add_argument("--drawdown", action="store_true", help="Probe-only explicit drawdown limits; production defaults remain disabled")
     parser.add_argument("--spot-outflow", action="store_true", help="Probe-only explicit outflow policy, bound on an empty DB before historical seeding")
     parser.add_argument("--listing-bootstrap", action="store_true", help="Probe-only bounded bootstrap policy with healthy outside-market qualification")
+    parser.add_argument("--inventory-skew", action="store_true", help="Probe-only spot cash skew using the existing PMM calculation")
     parser.add_argument("--keep-going", action="store_true", help="Continue healthy windows after budget violations; final result still fails")
     args = parser.parse_args()
+    if args.inventory_skew and args.profile != "probe":
+        parser.error("--inventory-skew currently certifies the short probe only")
     if args.listing_bootstrap:
         if args.profile != "probe":
             parser.error("--listing-bootstrap currently certifies the short probe only")
@@ -192,7 +195,7 @@ def main():
                     bot_limits=dict(cpus=1, memory_bytes=2 * 1024**3), postgres_limits=dict(cpus=2, memory_bytes=512 * 1024**2),
                     simulator_limits=dict(cpus=1, memory_bytes=512 * 1024**2), client_limits=dict(cpus=1, memory_bytes=512 * 1024**2),
                     history_orders=args.history_rows, history_fills=args.history_rows, funding_sync_interval_seconds=5,
-                    tracing=args.trace, strict_quote_guards=args.strict_guards, drawdown=args.drawdown, spot_outflow=args.spot_outflow, listing_bootstrap=args.listing_bootstrap,
+                    tracing=args.trace, strict_quote_guards=args.strict_guards, drawdown=args.drawdown, spot_outflow=args.spot_outflow, listing_bootstrap=args.listing_bootstrap, inventory_skew=args.inventory_skew,
                     continue_after_budget_failure=args.keep_going, windows={})
     evidence["source_sha256"] = {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest() for path in (
         ROOT / "scripts/test_mm_load.py", ROOT / "scripts/test_e2e_offline.py", ROOT / "scripts/analyze_mm_load_trace.py",
@@ -229,6 +232,15 @@ def main():
                     market["quote_guards"].update(mode="bootstrap_then_market", bootstrap=dict(
                         duration_seconds=300, max_anchor_move_bps="1000", max_quote=market["total_amount_quote"],
                         min_external_depth_quote="50", max_market_spread_bps="250", qualification_seconds="1"))
+                config_path.write_text(yaml.safe_dump(profiles))
+            if args.inventory_skew:
+                import yaml
+                config_path = assets / "life_mm_profiles.yaml"
+                profiles = yaml.safe_load(config_path.read_text())
+                # Explicit healthy-workload settings retain both funded sides.
+                # Strong asymmetric sizing is checked in the dedicated E2E.
+                profiles["markets"]["spot"]["inventory_skew"] = dict(
+                    enabled=True, target_base_pct=".01", inventory_range_multiplier="10")
                 config_path.write_text(yaml.safe_dump(profiles))
             if args.refresh_seconds is not None:
                 assert diagnostic and args.refresh_seconds > 0
