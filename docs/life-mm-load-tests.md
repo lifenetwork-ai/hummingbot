@@ -40,6 +40,16 @@ recovery, preserved session anchors/deadline and durable HALT for the failed
 trading task. The wrapper is test-only; it adds no production fault endpoint and
 does not replace a full load/soak gate. `--scenario all` includes this matrix.
 
+E1 adds the `quote-guards` simulator scenario to `--scenario all`. It explicitly
+enables strict guards, includes bot orders in observed depth, and tests own-only
+liquidity, joint cancellation, manual breakout, deviation, partial fills, delayed
+resume and a clean restart retaining anchors/deadline. Run it independently with
+`python scripts/test_e2e_offline.py --image <image> --scenario quote-guards --trading-env demo`.
+The diagnostic `python scripts/test_mm_load.py --image <image> --profile probe
+--strict-guards` enables the policy on the ordinary short load workload. Its
+effective YAML and flag are retained with evidence. Default production guards
+remain disabled; this probe does not certify E6 mixed/burst/sixty-minute acceptance.
+
 The bot has 1 CPU and 2 GiB; PostgreSQL has 2 CPUs / 512 MiB; simulator and load
 client each have 1 CPU / 512 MiB. Swap limits equal memory limits. Record the host
 architecture, amd64 emulation, immutable image identity, source/fixture hashes

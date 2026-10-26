@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from controllers.market_making.life_mm import LifeMMConfig, ReferencePair
 from hummingbot.client.config.config_helpers import load_yml_into_dict
+from hummingbot.strategy_v2.utils.quote_guard import SidewaysRange
 
 Scenario = Literal["follow_market", "sideways", "follow_token"]
 MarketMode = Literal["spot", "perpetual", "both"]
@@ -16,6 +17,13 @@ class MMProfile(BaseModel):
     scenario: Scenario
     references: List[ReferencePair] = Field(default_factory=list)
     anchor: Literal["session_start_mid"] = "session_start_mid"
+    sideways_range: Optional[SidewaysRange] = None
+
+    @model_validator(mode="after")
+    def range_scenario(self):
+        if self.sideways_range is not None and self.scenario != "sideways":
+            raise ValueError("Manual range only applies to a sideways profile")
+        return self
 
 
 class RandomSelection(BaseModel):
@@ -60,6 +68,8 @@ class MMProfilesConfig(BaseModel):
         if len({template.trading_pair for template in self.markets.values()}) != 1:
             raise ValueError("Both markets must use the same LIFE trading pair")
         for market, template in self.markets.items():
+            if template.sideways_range is not None:
+                raise ValueError("Put manual sideways_range in its profile, not in the shared market template")
             if template.connector_name != {"spot": "okx", "perpetual": "okx_perpetual"}[market]:
                 raise ValueError("Market template has the wrong connector")
             if template.total_amount_quote > self.max_total_amount_quote:
@@ -67,6 +77,7 @@ class MMProfilesConfig(BaseModel):
             for profile in self.profiles.values():
                 LifeMMConfig.model_validate({**template.model_dump(), "scenario": profile.scenario,
                                              "references": profile.references,
+                                             "sideways_range": profile.sideways_range,
                                              "reference_connector": self.reference_connector})
         return self
 
@@ -95,6 +106,7 @@ class MMProfilesConfig(BaseModel):
                 **self.markets[market].model_dump(), "scenario": profile.scenario,
                 "reference_connector": self.reference_connector,
                 "references": profile.references if references is None else references,
+                "sideways_range": profile.sideways_range,
                 "runtime_config_managed": True,
             })
             if supported_pairs is not None and config.trading_pair not in supported_pairs.get(config.connector_name, set()):

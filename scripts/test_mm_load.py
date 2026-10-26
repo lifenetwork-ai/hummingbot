@@ -163,8 +163,11 @@ def main():
     parser.add_argument("--diagnostic", action="store_true", help="Use local image ID for iteration; cannot serve as final artifact acceptance")
     parser.add_argument("--refresh-seconds", type=int, help="Diagnostic-only accelerated quote refresh")
     parser.add_argument("--trace", action="store_true", help="Bounded request/SQL/commit/loop-stack/PG-wait traces; no parameters or credentials")
+    parser.add_argument("--strict-guards", action="store_true", help="Probe-only explicit strict-guard fixture; production defaults remain disabled")
     parser.add_argument("--keep-going", action="store_true", help="Continue healthy windows after budget violations; final result still fails")
     args = parser.parse_args()
+    if args.strict_guards and args.profile != "probe":
+        parser.error("--strict-guards currently certifies the short probe only")
     metadata = json.loads(docker("image", "inspect", args.image).stdout)[0]
     assert metadata["Architecture"] == "amd64"
     # Cached immutable digest from P4 needs no registry/network preparation again.
@@ -178,7 +181,7 @@ def main():
                     bot_limits=dict(cpus=1, memory_bytes=2 * 1024**3), postgres_limits=dict(cpus=2, memory_bytes=512 * 1024**2),
                     simulator_limits=dict(cpus=1, memory_bytes=512 * 1024**2), client_limits=dict(cpus=1, memory_bytes=512 * 1024**2),
                     history_orders=args.history_rows, history_fills=args.history_rows, funding_sync_interval_seconds=5,
-                    tracing=args.trace, continue_after_budget_failure=args.keep_going, windows={})
+                    tracing=args.trace, strict_quote_guards=args.strict_guards, continue_after_budget_failure=args.keep_going, windows={})
     evidence["source_sha256"] = {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest() for path in (
         ROOT / "scripts/test_mm_load.py", ROOT / "scripts/test_e2e_offline.py", ROOT / "scripts/analyze_mm_load_trace.py",
         ROOT / "scripts/mm_load_budgets.py", ROOT / "scripts/mm_load_faults.py", ROOT / "scripts/mm_load_ledger.py")}
@@ -186,6 +189,13 @@ def main():
         with tempfile.TemporaryDirectory(prefix="hbot-mm-load-") as directory:
             assets = Path(directory)
             assets_for(assets)
+            if args.strict_guards:
+                import yaml
+                config_path = assets / "life_mm_profiles.yaml"
+                profiles = yaml.safe_load(config_path.read_text())
+                for market in profiles["markets"].values():
+                    market["quote_guards"] = dict(enabled=True, max_deviation_bps="200", resume_deviation_bps="100", recovery_delay_seconds="1")
+                config_path.write_text(yaml.safe_dump(profiles))
             if args.refresh_seconds is not None:
                 assert diagnostic and args.refresh_seconds > 0
                 import yaml
@@ -200,6 +210,8 @@ def main():
             harness.env.update(ADMIN_API_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin")
             try:
                 harness.setup()
+                if args.strict_guards:
+                    harness.control(include_own_orders=True)
                 pg_image = json.loads(docker("inspect", harness.pg).stdout)[0]["Image"]
                 evidence["postgres_image_id"] = pg_image
                 evidence["postgres_architecture"] = json.loads(docker("image", "inspect", pg_image).stdout)[0]["Architecture"]

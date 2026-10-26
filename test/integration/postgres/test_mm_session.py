@@ -1,6 +1,7 @@
 import asyncio
 import random
 from concurrent.futures import ThreadPoolExecutor
+from decimal import Decimal
 from test.hummingbot.client.config.test_mm_profiles import CATALOGUE
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
@@ -49,6 +50,48 @@ def test_migration_replay_preserves_pending_draw(sessions):
     saved = store.read()["mm_session"]
     bootstrap_postgres(store.engine, auto_migrate=True)
     assert store.read()["mm_session"] == saved
+
+
+def test_guard_policy_and_anchors_survive_pg_handover_but_recovery_delay_restarts(sessions):
+    from test.hummingbot.strategy_v2.controllers.test_life_mm import make_controller
+
+    from hummingbot.cli.service import ServiceHost
+    from hummingbot.client.config.runtime_config import RuntimeSettings
+
+    store, original = sessions
+    raw = original.model_dump(mode="json")
+    for market in raw["markets"].values():
+        market["quote_guards"] = dict(enabled=True, max_deviation_bps="200", resume_deviation_bps="100", recovery_delay_seconds="2")
+    raw["profiles"]["sideways"]["sideways_range"] = dict(
+        lower_price=".09", upper_price=".11", resume_lower_price=".095", resume_upper_price=".105")
+    catalogue = MMProfilesConfig.model_validate(raw)
+    result = store.request_mm_session(action="start", expected_version=0, catalogue=catalogue,
+                                      request=MMSessionRequest(market_mode="both", profile_id="sideways", duration_seconds=60))
+    first = BotOwnership(store.engine, "hummingbot")
+    assert first.try_acquire()
+    saved = store.update_mm_session(owner_uuid=first.owner_uuid, owner_generation=first.generation,
+                                    version=1, session_id=result["session_id"], generation=0,
+                                    change=lambda session, now: session.ready(now=now, anchors={
+                                        name: {"life": ".1", "sources": {}} for name in ("life_spot", "life_perpetual")}))
+    before = store.read()["mm_session"]
+    first.release()
+    successor = BotOwnership(store.engine, "hummingbot")
+    assert successor.try_acquire()
+    try:
+        host = ServiceHost(RuntimeSettings.from_environment({"DATABASE_URL": "postgresql://unused/test"}), asyncio.Event(), MagicMock())
+        restored = MMSession.model_validate(store.read()["mm_session"])
+        configs = host.mm_effective_config(restored)["controller_config_overrides"]
+        from controllers.market_making.life_mm import LifeMMConfig
+        for config in configs:
+            controller, _ = make_controller(LifeMMConfig.model_validate(config))
+            assert controller._quote_guard.blocked
+            assert controller._quote_guard.good_since is None
+            assert controller.reference_state() == {"life": "0.1", "sources": {}}
+            assert controller.config.sideways_range.lower_price == Decimal(".09")
+        assert restored.expires_at == saved.expires_at
+        assert store.read()["mm_session"] == before
+    finally:
+        successor.release()
 
 
 def test_stop_revokes_session_without_waiting_for_owner(sessions):

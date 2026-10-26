@@ -11,7 +11,10 @@ from controllers.market_making.life_mm import LifeMMConfig, LifeMMController
 from hummingbot.cli.service import ServiceHost
 from hummingbot.client.config.mm_profiles import MMProfilesConfig
 from hummingbot.client.config.runtime_config import RuntimeSettings
+from hummingbot.core.data_type.order_book import OrderBook
+from hummingbot.core.data_type.order_book_row import OrderBookRow
 from hummingbot.core.mm_session import MMSession, MMSessionRequest
+from hummingbot.strategy_v2.utils.quote_guard import QuoteGuard
 
 
 async def setup_host():
@@ -70,6 +73,50 @@ async def test_both_runtime_gate_rejects_one_stale_market():
         snapshot_uid=980000 if name == "okx_perpetual" else 1000, last_diff_uid=0)
     assert not host.mm_runtime_ready()
     assert not controllers["life_perpetual"].processed_data["ready"]
+
+
+@pytest.mark.asyncio
+async def test_one_market_guard_failure_blocks_both_and_readiness_does_not_advance_recovery(monkeypatch):
+    host, controllers, provider = await setup_host()
+    controller = controllers["life_perpetual"]
+    config = controller.config.model_dump()
+    config["quote_guards"] = dict(enabled=True, max_deviation_bps="200", resume_deviation_bps="100", recovery_delay_seconds="2")
+    controller.config = LifeMMConfig.model_validate(config)
+    controller._quote_guard = QuoteGuard(controller.config.quote_guards)
+    connector = provider.get_connector_with_fallback("okx_perpetual")
+    connector.name = "okx_perpetual"
+    connector.in_flight_orders = {}
+    connector._order_tracker = SimpleNamespace(cached_orders={}, lost_orders={})
+    connector.trading_rules["LIFE-USDT"] = SimpleNamespace(min_order_size=Decimal(".01"), min_base_amount_increment=Decimal(".01"))
+    guarded_book = OrderBook()
+    original = provider.get_order_book.side_effect
+    provider.get_order_book.side_effect = lambda name, pair: guarded_book if name == "okx_perpetual" else original(name, pair)
+    tick = [0]
+    monkeypatch.setattr("controllers.market_making.life_mm.time.monotonic", lambda: tick[0])
+
+    def update(price, timestamp):
+        provider.time.return_value = timestamp
+        guarded_book.apply_snapshot([OrderBookRow(float(price - Decimal(".001")), 1000, timestamp * 1000)],
+                                    [OrderBookRow(float(price + Decimal(".001")), 1000, timestamp * 1000)], timestamp * 1000)
+    update(Decimal(".1"), 1000)
+    await controller.update_processed_data()
+    tick[0] = 2
+    update(Decimal(".1"), 1002)
+    await controller.update_processed_data()
+    assert controller.processed_data["ready"]
+    # Restore fresh spot/reference fixture timestamps while testing the guarded market.
+    provider.get_order_book.side_effect = lambda name, pair: guarded_book if name == "okx_perpetual" else SimpleNamespace(snapshot_uid=provider.time(), last_diff_uid=0)
+    assert host.mm_runtime_ready()
+    anchors = controller.reference_state()
+    update(Decimal(".12"), 1003)
+    assert not host.mm_runtime_ready()
+    assert host.mm_readiness_reason == "reference_deviation"
+    assert controllers["life_spot"].processed_data["ready"]
+    update(Decimal(".1"), 1004)
+    for _ in range(50):
+        tick[0] = 100
+        assert not host.mm_runtime_ready()
+    assert controller.reference_state() == anchors
 
 
 @pytest.mark.asyncio

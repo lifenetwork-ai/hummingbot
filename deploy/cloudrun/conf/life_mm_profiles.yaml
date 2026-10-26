@@ -46,6 +46,10 @@ markets:
     min_price: "0.000001"
     max_price: "1000"
     max_base_inventory: "10000"
+    # Opt-in only. Enabled strict mode also requires explicit deviation/resume
+    # thresholds; see docs/life-mm-quote-guards.md. No production risk defaults.
+    quote_guards:
+      enabled: false
   perpetual:
     id: life_perpetual
     controller_type: market_making
@@ -65,3 +69,5 @@ markets:
     max_long_base: "10000"
     max_short_base: "10000"
     max_gross_base: "15000"
+    quote_guards:
+      enabled: false

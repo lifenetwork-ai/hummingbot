@@ -1301,6 +1301,9 @@
             "title": "Position Rebalance Threshold Pct",
             "type": "string"
           },
+          "quote_guards": {
+            "$ref": "#/components/schemas/QuoteGuardConfigOutput"
+          },
           "reference_connector": {
             "const": "okx",
             "default": "okx",
@@ -1379,6 +1382,17 @@
             "prompt_on_new": true,
             "title": "Sell Spreads",
             "type": "array"
+          },
+          "sideways_range": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SidewaysRangeOutput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
           },
           "skip_rebalance": {
             "default": true,
@@ -1491,6 +1505,17 @@
             ],
             "title": "Scenario",
             "type": "string"
+          },
+          "sideways_range": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SidewaysRangeOutput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
           }
         },
         "required": [
@@ -1675,6 +1700,17 @@
           "pair": {
             "title": "Pair",
             "type": "string"
+          },
+          "quote_guard": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QuoteGuardStatusOutput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
           },
           "ready": {
             "title": "Ready",
@@ -2378,6 +2414,192 @@
           "reporting_timezone"
         ],
         "title": "ProfilesResponse",
+        "type": "object"
+      },
+      "QuoteGuardConfigOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "default": false,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "max_book_levels": {
+            "default": 50,
+            "maximum": 200,
+            "minimum": 1,
+            "title": "Max Book Levels",
+            "type": "integer"
+          },
+          "max_deviation_bps": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Max Deviation Bps"
+          },
+          "max_own_orders": {
+            "default": 200,
+            "maximum": 1000,
+            "minimum": 1,
+            "title": "Max Own Orders",
+            "type": "integer"
+          },
+          "mode": {
+            "const": "strict",
+            "default": "strict",
+            "title": "Mode",
+            "type": "string"
+          },
+          "recovery_delay_seconds": {
+            "default": "5",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Recovery Delay Seconds",
+            "type": "string"
+          },
+          "resume_deviation_bps": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Resume Deviation Bps"
+          }
+        },
+        "title": "QuoteGuardConfig",
+        "type": "object"
+      },
+      "QuoteGuardStatusOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "book_observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Book Observed At"
+          },
+          "data_quality": {
+            "description": "Known-order filtering is a bounded observation, not proof of independent fair value.",
+            "enum": [
+              "known_order_filtered",
+              "unavailable"
+            ],
+            "title": "Data Quality",
+            "type": "string"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "deviation_bps": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deviation Bps"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "evaluated_at": {
+            "format": "date-time",
+            "title": "Evaluated At",
+            "type": "string"
+          },
+          "market_mid": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Market Mid"
+          },
+          "mode": {
+            "const": "strict",
+            "title": "Mode",
+            "type": "string"
+          },
+          "ready": {
+            "title": "Ready",
+            "type": "boolean"
+          },
+          "reason_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Code"
+          },
+          "recovery_started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recovery Started At"
+          },
+          "recovery_valid_samples": {
+            "title": "Recovery Valid Samples",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "enabled",
+          "mode",
+          "ready",
+          "reason_code",
+          "data_quality",
+          "detail",
+          "market_mid",
+          "deviation_bps",
+          "book_observed_at",
+          "evaluated_at",
+          "recovery_started_at",
+          "recovery_valid_samples"
+        ],
+        "title": "QuoteGuardStatus",
         "type": "object"
       },
       "RandomSelectionOutput": {
@@ -3448,6 +3670,39 @@
           "anchors"
         ],
         "title": "SessionState",
+        "type": "object"
+      },
+      "SidewaysRangeOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "lower_price": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Lower Price",
+            "type": "string"
+          },
+          "resume_lower_price": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Resume Lower Price",
+            "type": "string"
+          },
+          "resume_upper_price": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Resume Upper Price",
+            "type": "string"
+          },
+          "upper_price": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Upper Price",
+            "type": "string"
+          }
+        },
+        "required": [
+          "lower_price",
+          "upper_price",
+          "resume_lower_price",
+          "resume_upper_price"
+        ],
+        "title": "SidewaysRange",
         "type": "object"
       },
       "StartCommand": {

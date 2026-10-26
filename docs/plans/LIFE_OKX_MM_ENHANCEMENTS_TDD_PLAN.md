@@ -1,8 +1,9 @@
 # LIFE / OKX MM: Incremental Enhancements — TDD Plan
 
 Date: 2026-10-26 (Asia/Ho_Chi_Minh).
-Status: E0 complete with local unit/PostgreSQL/image fault/load verification;
-E1–E6 have not started. Only verified checklist items are marked complete.
+Status: E0 and E1 complete with local unit/PostgreSQL/image fault/load verification;
+E2–E6 have not started.
+Only verified checklist items are marked complete.
 Baseline: `1867159e7`.
 Implementation priority: service availability, explainable trading decisions and
 automatic recovery from classified transient failures. Compatibility and
@@ -102,7 +103,9 @@ current behavior; the new-feature acceptance runs explicitly enable the features
 being certified. Example YAML must identify disabled/default values and must not
 present arbitrary risk thresholds as suitable production settings.
 
-Proposed policy fields below are design names, not supported configuration yet:
+E1 `quote_guards` and profile `sideways_range` are supported; see the
+[guard guide](../life-mm-quote-guards.md). Other fields below remain proposed until
+their owning phase is implemented and verified:
 
 | Area | Proposed settings and semantics |
 |---|---|
@@ -228,8 +231,8 @@ and breaking a rapid switch. Final verification: 1,361 native tests/nine subtest
 nineteen recorder tests rerun after that correction, 134 real-PG tests, all seven
 offline image groups and an unchanged sixty-second probe (p95 50.40ms / p99
 232.05ms, zero unexpected HTTP errors). See the [E0 report](../../reports/life-mm-e0-availability.md)
-and [portable evidence](../../reports/life-mm-e0-availability.json). E1–E6 remain open;
-this delivery claims no new sixty-minute certification, upgrade gate or real Demo run.
+and [portable evidence](../../reports/life-mm-e0-availability.json). The E0 delivery
+did not include subsequent phases or a new sixty-minute, upgrade or real Demo gate.
 
 ## 4. E1 — Price and manual-range guards
 
@@ -267,12 +270,22 @@ boundary for the configured delay. A restart resets this recovery delay
 conservatively. In `both`, a required market failure blocks both as today, and
 neither deadline is extended. Recovery HALT always takes precedence.
 
-- [ ] **Red:** threshold equality/exceedance, invalid Decimal inputs, manual range bounds, breakout, stale/crossed/empty/own-only books and insufficient filtered depth.
-- [ ] **Red:** own partial fills/cancel races, inconsistent book/order snapshots, both-market failure, expiry during recovery and restart without recapturing anchors.
-- [ ] **Green:** implement a bounded observation/decision helper; reuse cancellation and feed subscriptions; recheck authorization after throttling so queued new orders cannot ignore a failed guard.
-- [ ] **Green:** separate sampling/state transitions from repeatable readiness checks; make recovery depend on elapsed time and distinct valid observations, not the number of calls to `update_reference()`.
-- [ ] **Green:** expose guard reason, source quality and observation timestamps; test that cancellation remains permitted while new placement is blocked.
-- [ ] **Verify/commit:** focused controller/config/guard tests, real-PG lifecycle coverage and simulator fault cases pass; update guide/Swagger and record evidence.
+- [x] **Red:** threshold equality/exceedance, invalid Decimal inputs, manual range bounds, breakout, stale/crossed/empty/own-only books and insufficient filtered depth.
+- [x] **Red:** own partial fills/cancel races, inconsistent book/order snapshots, both-market failure, expiry during recovery and restart without recapturing anchors.
+- [x] **Green:** implement a bounded observation/decision helper; reuse cancellation and feed subscriptions; recheck authorization after throttling so queued new orders cannot ignore a failed guard.
+- [x] **Green:** separate sampling/state transitions from repeatable readiness checks; make recovery depend on elapsed time and distinct valid observations, not the number of calls to `update_reference()`.
+- [x] **Green:** expose guard reason, source quality and observation timestamps; test that cancellation remains permitted while new placement is blocked.
+- [x] **Verify/commit:** focused controller/config/guard tests, real-PG lifecycle coverage and simulator fault cases pass; update guide/Swagger and record evidence.
+
+E1 verification: 1,406 native tests/nine subtests, 137 real-PG tests, all eight
+image E2E groups and a guard-enabled sixty-second probe passed (p95 54.99ms / p99
+437.33ms, zero unexpected HTTP errors). Partial/private transitions use original
+order quantity as a conservative upper bound; only clear residual depth qualifies.
+The non-unit-contract Red/Green test also fixes perpetual WS snapshot quantity
+normalization to match existing REST/diff base units. Defaults remain disabled.
+See [report](../../reports/life-mm-e1-quote-guards.md) and
+[evidence](../../reports/life-mm-e1-quote-guards.json). E2–E6 remain open; no new
+sixty-minute, previous-image upgrade, deployment or real OKX Demo gate is claimed.
 
 ## 5. E2 — Loss and spending limits
 

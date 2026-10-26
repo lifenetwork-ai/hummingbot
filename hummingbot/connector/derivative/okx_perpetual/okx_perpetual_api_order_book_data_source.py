@@ -355,7 +355,9 @@ class OkxPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
             message_queue.put_nowait(diff_message)
 
     async def _parse_order_book_snapshot_message(self, raw_message: Dict[str, Any], message_queue: asyncio.Queue):
+        await self._set_trading_rules()
         trading_pair = await self._connector.trading_pair_associated_to_exchange_symbol(symbol=raw_message["arg"]["instId"])
+        ct_val = self._trading_rules[raw_message["arg"]["instId"]]
         snapshot_data = raw_message["data"][0]
         snapshot_timestamp: float = int(snapshot_data["ts"])
         update_id: int = int(snapshot_timestamp)
@@ -363,8 +365,8 @@ class OkxPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
         order_book_message_content = {
             "trading_pair": trading_pair,
             "update_id": update_id,
-            "bids": [(bid[0], bid[1]) for bid in snapshot_data["bids"]],
-            "asks": [(ask[0], ask[1]) for ask in snapshot_data["asks"]],
+            "bids": [(bid[0], str(float(bid[1]) * ct_val)) for bid in snapshot_data["bids"]],
+            "asks": [(ask[0], str(float(ask[1]) * ct_val)) for ask in snapshot_data["asks"]],
         }
         snapshot_msg: OrderBookMessage = OrderBookMessage(
             OrderBookMessageType.SNAPSHOT,

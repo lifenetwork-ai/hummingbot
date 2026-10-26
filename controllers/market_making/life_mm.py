@@ -11,6 +11,13 @@ from hummingbot.core.data_type.common import OrderType, PositionMode, PositionSi
 from hummingbot.core.utils.read_retry import retry_delay, transient_read
 from hummingbot.strategy_v2.models.base import RunnableStatus
 from hummingbot.strategy_v2.models.executor_actions import StopExecutorAction
+from hummingbot.strategy_v2.utils.quote_guard import (
+    MarketObservation,
+    QuoteGuard,
+    QuoteGuardConfig,
+    SidewaysRange,
+    observe_market,
+)
 
 
 class ReferencePair(BaseModel):
@@ -55,9 +62,18 @@ class LifeMMConfig(pmm_simple.PMMSimpleConfig):
     mm_generation: Optional[int] = Field(default=None, ge=0, strict=True)
     saved_life_anchor: Optional[Decimal] = Field(default=None, gt=0, allow_inf_nan=False)
     saved_source_anchors: Dict[str, Decimal] = Field(default_factory=dict)
+    quote_guards: QuoteGuardConfig = Field(default_factory=QuoteGuardConfig)
+    sideways_range: Optional[SidewaysRange] = None
 
     @model_validator(mode="after")
     def validate_mm_policy(self):
+        if self.quote_guards.enabled and self.max_data_age_seconds > 30:
+            raise ValueError("Strict guard freshness cannot exceed the existing 30-second terminal-order cache")
+        if self.sideways_range is not None:
+            if self.scenario != "sideways" or not self.quote_guards.enabled:
+                raise ValueError("Manual range requires sideways with enabled strict quote guards")
+            if not self.min_price <= self.sideways_range.lower_price < self.sideways_range.upper_price <= self.max_price:
+                raise ValueError("Sideways range must be within absolute price bounds")
         if (self.mm_session_id is None) != (self.mm_generation is None) or self.mm_session_id == "":
             raise ValueError("MM session identity and generation must be supplied together")
         if self.scenario == "sideways":
@@ -117,6 +133,7 @@ class LifeMMController(pmm_simple.PMMSimpleController):
         self._startup_retry = None
         self._startup_stage = "not_started"
         self._startup_retry_sleep = asyncio.sleep
+        self._quote_guard = QuoteGuard(config.quote_guards, config.sideways_range)
 
     def admit_session(self, session_id, generation):
         if (session_id, generation) != (self.config.mm_session_id, self.config.mm_generation):
@@ -138,6 +155,8 @@ class LifeMMController(pmm_simple.PMMSimpleController):
             except ValueError:
                 self.config = previous
                 raise
+            if (self.config.quote_guards, self.config.sideways_range) != (previous.quote_guards, previous.sideways_range):
+                self._quote_guard = QuoteGuard(self.config.quote_guards, self.config.sideways_range)
 
     def _fresh_price(self, connector_name, pair, initial_anchor=None):
         connector = self.market_data_provider.get_connector_with_fallback(connector_name)
@@ -164,11 +183,27 @@ class LifeMMController(pmm_simple.PMMSimpleController):
             raise ValueError(f"invalid_book:{connector_name}:{pair}")
         return (bid + ask) / 2
 
-    def update_reference(self):
+    def update_reference(self, *, sample_guard=False):
+        guard_status = None
+        spread_multiplier = self.processed_data.get("spread_multiplier", Decimal("1"))
         try:
             if not self._account_ready:
                 raise ValueError("perpetual_account_not_confirmed")
-            life_price = self._fresh_price(self.config.connector_name, self.config.trading_pair, self.config.initial_anchor)
+            observation = None
+            if self.config.quote_guards.enabled:
+                connector = self.market_data_provider.get_connector_with_fallback(self.config.connector_name)
+                if self.config.trading_pair not in connector.trading_rules:
+                    raise ValueError("reference_pair_unavailable")
+                book = self.market_data_provider.get_order_book(self.config.connector_name, self.config.trading_pair)
+                observation = observe_market(
+                    connector, book, self.config.trading_pair, now=self.market_data_provider.time(),
+                    max_age_seconds=self.config.max_data_age_seconds, max_levels=self.config.quote_guards.max_book_levels,
+                    max_orders=self.config.quote_guards.max_own_orders)
+                if observation.market_mid is None:
+                    guard_status = self._quote_guard.evaluate(observation, Decimal("1"), time.monotonic(), sample=sample_guard)
+                    raise ValueError("market_price_unavailable")
+            life_price = (observation.market_mid if observation is not None else
+                          self._fresh_price(self.config.connector_name, self.config.trading_pair, self.config.initial_anchor))
             sources = {ref.pair: self._fresh_price(self.config.reference_connector, ref.pair)
                        for ref in self.config.references}
             life_anchor = self._life_anchor or life_price
@@ -177,7 +212,12 @@ class LifeMMController(pmm_simple.PMMSimpleController):
                 ref.weight * (sources[ref.pair] / source_anchors[ref.pair] - 1) for ref in self.config.references))
             if not reference.is_finite() or not self.config.min_price <= reference <= self.config.max_price:
                 raise ValueError("reference_out_of_bounds")
-            self.processed_data = {"reference_price": reference, "spread_multiplier": Decimal("1"), "ready": False}
+            if observation is not None:
+                guard_status = self._quote_guard.evaluate(observation, reference, time.monotonic(), sample=sample_guard)
+                if not guard_status["ready"]:
+                    raise ValueError(guard_status["reason_code"])
+            self.processed_data = {"reference_price": reference, "spread_multiplier": spread_multiplier, "ready": False,
+                                   "quote_guard": guard_status}
             for level in self.get_not_active_levels_ids([]):
                 price, _ = self.get_price_and_amount(level)
                 if not self.config.min_price <= price <= self.config.max_price:
@@ -188,12 +228,19 @@ class LifeMMController(pmm_simple.PMMSimpleController):
         except Exception as error:
             reason = str(error).split(":", 1)[0]
             known = {"perpetual_account_not_confirmed", "reference_pair_unavailable", "stale_reference",
-                     "invalid_book", "reference_out_of_bounds", "quote_out_of_bounds"}
+                     "invalid_book", "reference_out_of_bounds", "quote_out_of_bounds", "market_price_unavailable",
+                     "reference_deviation", "sideways_breakout", "guard_recovering"}
+            if self.config.quote_guards.enabled and guard_status is None:
+                guard_status = self._quote_guard.evaluate(
+                    MarketObservation(None, None, self.market_data_provider.time(), detail="required_data_unavailable"),
+                    Decimal("1"), time.monotonic())
+                guard_status["reason_code"] = reason if reason in known else "market_price_unavailable"
             self.processed_data = {"ready": False, "reason": str(error) if reason in known else type(error).__name__,
+                                   "spread_multiplier": spread_multiplier, "quote_guard": guard_status,
                                    "internal_error": not isinstance(error, (ValueError, ArithmeticError, OSError))}
 
     async def update_processed_data(self):
-        self.update_reference()
+        self.update_reference(sample_guard=True)
 
     async def control_task(self):
         # Run freshness/cancellation even when the generic provider becomes unready.

@@ -14,6 +14,22 @@ CATALOGUE = Path(__file__).resolve().parents[4] / "deploy/cloudrun/conf/life_mm_
 
 
 @pytest.mark.asyncio
+async def test_manual_sideways_range_survives_effective_catalogue_and_only_applies_to_its_profile():
+    original = await MMProfilesConfig.load(CATALOGUE)
+    raw = original.model_dump(mode="json")
+    raw["profiles"]["sideways"]["sideways_range"] = dict(
+        lower_price=".09", upper_price=".11", resume_lower_price=".095", resume_upper_price=".105")
+    for market in raw["markets"].values():
+        market["quote_guards"] = dict(enabled=True, max_deviation_bps="1000", resume_deviation_bps="500")
+    catalogue = MMProfilesConfig.model_validate(raw)
+    assert all(c.sideways_range.lower_price == Decimal(".09") for c in catalogue.controller_configs("sideways", "both", None))
+    assert all(c.sideways_range is None for c in catalogue.controller_configs("follow_market", "both", None))
+    raw["profiles"]["follow_market"]["sideways_range"] = raw["profiles"]["sideways"]["sideways_range"]
+    with pytest.raises(ValueError):
+        MMProfilesConfig.model_validate(raw)
+
+
+@pytest.mark.asyncio
 async def test_deployment_packages_three_default_profiles_and_two_market_templates():
     data = await load_yml_into_dict(str(CATALOGUE))
     assert data.get("reference_connector") == "okx"

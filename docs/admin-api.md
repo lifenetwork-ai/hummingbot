@@ -1,5 +1,11 @@
 # LIFE MM admin API
 
+Optional `status.markets[].quote_guard` reports strict guard admission, qualified
+market price, deviation, UTC observation/recovery times and source quality. The
+catalogue exposes opt-in market `quote_guards` and profile `sideways_range` through
+the existing `/profiles` contract; trading selection still uses existing commands.
+See [strict quote guards](life-mm-quote-guards.md) for bounds and recovery semantics.
+
 The existing aiohttp service exposes `/api/v1/admin`. Configure
 `ADMIN_API_ENABLED=true`, `ADMIN_API_USERNAME` and `ADMIN_API_PASSWORD` through
 the existing `.env` loader or injected deployment secrets. There are no usable

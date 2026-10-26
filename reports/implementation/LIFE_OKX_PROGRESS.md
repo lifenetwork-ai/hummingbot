@@ -799,3 +799,32 @@ Earlier failed probes, the setup race and the obsolete eleven-query benchmark
 assertion remain documented. E1–E6 have not started; no new sixty-minute, previous
 image upgrade, Cloud Run or real OKX Demo acceptance is claimed. See the
 [E0 report](../life-mm-e0-availability.md) and [evidence](../life-mm-e0-availability.json).
+
+### Incremental enhancements E1 — 2026-10-26
+
+E1 adds opt-in strict market deviation and profile-specific manual sideways ranges
+to existing controller/admission/transport paths. Known own quantities are bounded
+and removed from book depth; partial/pending/terminal observations use original
+quantity as a conservative upper bound. Recovery requires elapsed time and distinct
+control-loop book samples. Repeated readiness checks cannot advance recovery.
+Existing shared admission, cancellation, retained positions, HALT and expiry remain
+authoritative. API guard observations use Decimal strings and UTC timestamps.
+
+A non-unit-contract Red/Green test also corrects perpetual WS snapshots to use the
+same existing base-quantity conversion as REST snapshots and diffs. No new service,
+tracker, database schema, cache backend or environment variable was added. Guards
+remain disabled by default; deployment needs explicit reviewed thresholds to enable.
+
+Verification: 1,406 native tests/nine subtests, 99 overlapping focused cases with
+RuntimeWarning treated as errors, 137 PostgreSQL tests and eight final-image E2E
+groups passed. The guard matrix includes own-only depth, joint cancellation,
+breakout/deviation, a real partial fill retaining spot inventory and a cold restart
+that resets recovery delay while preserving anchors/deadline. The initial harness
+null-reason predicate failure is retained and corrected.
+
+Final image `sha256:52a7a27f8062f02f47a71140474e185bd2741e6bbeffe0729975547fc8cbe095`
+(1,364,587,950 bytes) matches eighteen source/config/contract hashes. Guard-enabled
+sixty-second probe passed unchanged budgets: p95 54.99ms / p99 437.33ms, 1,200 HTTP
+200 responses, zero unexpected errors and sixty matching fills/positions. E2–E6
+have not started; no new sixty-minute, upgrade, Cloud Run or real Demo gate is claimed.
+See [E1 report](../life-mm-e1-quote-guards.md) and [evidence](../life-mm-e1-quote-guards.json).

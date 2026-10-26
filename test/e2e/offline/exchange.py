@@ -43,6 +43,8 @@ class Exchange:
         self.socket_args = {}
         self.prices = {"BTC-USDT": "100", "ETH-USDT": "10", "AVAX-USDT": "20", "LIFE-USDT": "0.1"}
         self.stale_pairs = set()
+        self.book_overrides = {}
+        self.include_own_orders = False
         self.markets_task = None
         self.target_updates_per_second = 0
         self.market_update_count = 0
@@ -111,8 +113,18 @@ class Exchange:
 
     def book(self, pair="BTC-USDT"):
         mid = Decimal(self.prices[pair.removesuffix("-SWAP")])
-        return {"asks": [[str(mid * Decimal("1.01")), "100000", "0", "1"]],
-                "bids": [[str(mid * Decimal("0.99")), "100000", "0", "1"]], "ts": millis()}
+        defaults = {"asks": [[str(mid * Decimal("1.01")), "100000"]],
+                    "bids": [[str(mid * Decimal("0.99")), "100000"]]}
+        levels = {side: {Decimal(str(price)): Decimal(str(amount)) for price, amount in rows}
+                  for side, rows in self.book_overrides.get(pair, defaults).items()}
+        if self.include_own_orders:
+            for order in self.orders.values():
+                if order["instId"] == pair and order["state"] in ("live", "partially_filled"):
+                    side = "bids" if order["side"] == "buy" else "asks"
+                    price = Decimal(order["px"])
+                    levels[side][price] = levels[side].get(price, Decimal("0")) + Decimal(order["sz"]) - Decimal(order["accFillSz"])
+        return {**{side: [[str(price), str(amount), "0", "1"] for price, amount in sorted(
+            rows.items(), reverse=side == "bids") if amount > 0] for side, rows in levels.items()}, "ts": millis()}
 
     async def market_updates(self):
         next_update = time.monotonic()
@@ -263,6 +275,11 @@ class Exchange:
                 self.prices[pair] = str(price)
         if "stale_pairs" in data:
             self.stale_pairs = set(data["stale_pairs"])
+        if "book_overrides" in data:
+            self.book_overrides = data["book_overrides"]
+            assert all(set(value) == {"bids", "asks"} for value in self.book_overrides.values())
+        if "include_own_orders" in data:
+            self.include_own_orders = bool(data["include_own_orders"])
         if "hold_ack" in data:
             self.hold_ack = data["hold_ack"]
             self.release.clear() if self.hold_ack else self.release.set()

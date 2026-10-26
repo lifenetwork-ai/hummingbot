@@ -674,6 +674,93 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
                             restart_anchors=True, weighted_reference=True, stale_both=True,
                             fills=2, random_steps=True, expiry=True, expiry_funding=True, reconciliation="matched", db_fault_halt=True)
 
+    def quote_guard_scenario(self):
+        print("Offline E2E: strict quote guards, own-only depth, range and delayed joint recovery", flush=True)
+        import yaml
+        path = self.assets / "life_mm_profiles.yaml"
+        original_profiles = path.read_bytes()
+        config = yaml.safe_load(path.read_text())
+        for market in config["markets"].values():
+            market["quote_guards"] = dict(enabled=True, max_deviation_bps="200", resume_deviation_bps="100",
+                                          recovery_delay_seconds="3", max_book_levels=10, max_own_orders=200)
+        config["profiles"]["sideways"]["sideways_range"] = dict(
+            lower_price=".09", upper_price=".11", resume_lower_price=".095", resume_upper_price=".105")
+        path.write_text(yaml.safe_dump(config))
+        self.report.joinpath("effective-guard-profiles.yaml").write_bytes(path.read_bytes())
+        self.env.update(ADMIN_API_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin")
+        for field, value in (("API_KEY", "offline-key"), ("SECRET_KEY", "offline-secret"), ("PASSPHRASE", "offline-pass")):
+            self.env["HBOT_OKX_PERPETUAL_" + field] = value
+        self.control(target_updates_per_second=20, include_own_orders=True)
+        first, port = self.start("guard")
+        self.mm_command(port, "start", market_mode="both", selection="fixed", profile_id="sideways", duration_seconds=600)
+        poll(lambda: len(self.ledger()["accepted"]) >= 8, description="guard admits both markets with real independent depth")
+        session = self.state()["mm_session"]
+        started = json.loads(docker("inspect", first).stdout)[0]["State"]["StartedAt"]
+
+        def waiting(reason):
+            state = self.state()["status"]
+            return state["phase"] == "waiting_for_mm_readiness" and any(
+                (row.get("reason") or "").split(":", 1)[0] == reason for row in state.get("mm_markets", []))
+
+        def cancelled():
+            return all(order["state"] in ("filled", "canceled") for order in self.ledger()["orders"])
+
+        # A book containing only our acknowledged orders is not a qualified market.
+        self.control(book_overrides={"LIFE-USDT-SWAP": {"bids": [], "asks": []}})
+        poll(lambda: waiting("market_price_unavailable"), description="own-only perpetual book closes joint admission")
+        poll(cancelled, description="both markets cancel while the required market is unavailable")
+        assert http(port, "/live")[0] == 200 and http(port, "/ready")[0] == 503
+        code, value = self.admin(port, "/status")
+        assert code == 200 and any(row["quote_guard"] and row["quote_guard"]["data_quality"] == "unavailable" for row in value["markets"])
+        self.control(book_overrides={})
+        poll(lambda: waiting("guard_recovering"), description="fresh book waits for recovery observations")
+        self.wait_running(port)
+        poll(lambda: any(order["state"] == "live" for order in self.ledger()["orders"]), description="quotes after delayed recovery")
+        assert self.state()["mm_session"]["anchors"] == session["anchors"]
+        assert self.state()["mm_session"]["expires_at"] == session["expires_at"]
+        # Deviation is checked against the observed market, not the saved anchor.
+        self.control(prices={"LIFE-USDT": ".108"})
+        poll(lambda: waiting("reference_deviation"), description="market deviation suspends quotes")
+        poll(cancelled, description="deviation cancels both quote sets")
+        self.control(prices={"LIFE-USDT": ".12"})
+        poll(lambda: waiting("sideways_breakout"), description="manual outer range breakout visible")
+        self.control(prices={"LIFE-USDT": ".1"})
+        self.wait_running(port)
+        # Partial fill cannot turn the old full own book quantity into external depth.
+        buy = poll(lambda: next((order for order in self.ledger()["orders"] if order["state"] == "live"
+                                 and order["side"] == "buy" and order["instId"] == "LIFE-USDT"), None),
+                   description="spot quote available for real partial fill")
+        base_before_fill = next(Decimal(row["cashBal"]) for row in self.ledger()["balances"] if row["ccy"] == "LIFE")
+        self.control(fill={"clOrdId": buy["clOrdId"], "amount": str(Decimal(buy["sz"]) / 2), "fee": ".001"}, duplicate=True)
+        poll(lambda: self.sql("SELECT count(*) FROM trade_fills") == "1", description="partial fill is recorded once")
+        self.control(book_overrides={"LIFE-USDT": {"bids": [], "asks": []}})
+        poll(lambda: waiting("market_price_unavailable"), description="partial own-only spot depth is rejected")
+        poll(cancelled, description="partial-fill remainder cancelled without liquidation")
+        self.control(book_overrides={})
+        self.wait_running(port)
+        assert self.state()["mm_session"]["anchors"] == session["anchors"]
+        assert self.state()["mm_session"]["expires_at"] == session["expires_at"]
+        assert json.loads(docker("inspect", first).stdout)[0]["State"]["StartedAt"] == started
+        assert not self.state()["recovery_state"].get("halt")
+        self.terminate(first)
+        accepted_before_restart = len(self.ledger()["accepted"])
+        _, port = self.start("guard-restart", auto_migrate=False)
+        poll(lambda: waiting("guard_recovering"), description="cold process resets guard recovery delay")
+        assert len(self.ledger()["accepted"]) == accepted_before_restart
+        self.wait_running(port)
+        assert self.state()["mm_session"]["anchors"] == session["anchors"]
+        assert self.state()["mm_session"]["expires_at"] == session["expires_at"]
+        self.mm_command(port, "stop")
+        assert self.ledger()["positions"] == []  # Only a spot inventory fill occurred.
+        assert next(Decimal(row["cashBal"]) for row in self.ledger()["balances"] if row["ccy"] == "LIFE") == base_before_fill + Decimal(buy["sz"]) / 2
+        assert self.sql("SELECT count(*) FROM trade_fills") == "1"
+        assert not self.ledger()["unknown"]
+        self.metrics["quote_guards"] = dict(own_only_rejected=True, joint_cancel=True, range_breakout=True,
+                                            deviation=True, delayed_resume=True, partial_fill=True,
+                                            preserved_anchor_deadline=True, unexpected_process_restarts=0, intentional_restarts=1,
+                                            effective_config_sha256=hashlib.sha256(path.read_bytes()).hexdigest())
+        path.write_bytes(original_profiles)
+
     def availability_scenario(self):
         print("Offline E2E: service availability and automatic read/feed recovery", flush=True)
         self.env.update(ADMIN_API_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin")
@@ -871,7 +958,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--image", default="hummingbot-cloudrun:local")
-    parser.add_argument("--scenario", choices=("all", "spot", "v2-spot", "v2-perpetual", "schema", "upgrade", "life-mm", "life-mm-recovery", "funding", "availability"), default="all")
+    parser.add_argument("--scenario", choices=("all", "spot", "v2-spot", "v2-perpetual", "schema", "upgrade", "life-mm", "life-mm-recovery", "funding", "availability", "quote-guards"), default="all")
     parser.add_argument("--previous-image", help="Cached compatible prior image; required for the release upgrade gate.")
     parser.add_argument("--trading-env", choices=("live", "demo"), default="live", help="Local simulator routing mode; never contacts OKX.")
     args = parser.parse_args()
@@ -911,7 +998,7 @@ def main():
                            f"type=bind,source={assets},target=/test-assets,readonly",
                            image, "python", "/test-assets/runtime_smoke.py", timeout=90)
             result["runtime_smoke"] = json.loads(smoke.stdout)
-            scenarios = ("schema", "spot", "v2-spot", "v2-perpetual", "life-mm", "funding", "availability") if args.scenario == "all" else (args.scenario,)
+            scenarios = ("schema", "spot", "v2-spot", "v2-perpetual", "life-mm", "funding", "availability", "quote-guards") if args.scenario == "all" else (args.scenario,)
             if args.scenario == "all" and previous_image:
                 scenarios += ("upgrade",)
             result["scenarios"] = {}
@@ -929,6 +1016,8 @@ def main():
                         harness.funding_scenario()
                     elif scenario == "availability":
                         harness.availability_scenario()
+                    elif scenario == "quote-guards":
+                        harness.quote_guard_scenario()
                     elif scenario == "upgrade":
                         harness.upgrade_scenario(previous_image)
                     elif scenario in ("life-mm", "life-mm-recovery"):

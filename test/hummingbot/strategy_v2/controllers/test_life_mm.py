@@ -9,6 +9,7 @@ from pydantic import ValidationError
 from controllers.market_making.life_mm import LifeMMConfig, LifeMMController
 from hummingbot.core.data_type.common import OrderType, PositionMode, PositionSide, TradeType
 from hummingbot.core.data_type.order_book import OrderBook
+from hummingbot.core.data_type.order_book_row import OrderBookRow
 from hummingbot.strategy_v2.models.base import RunnableStatus
 from hummingbot.strategy_v2.models.executors import CloseType
 
@@ -63,6 +64,54 @@ async def test_sideways_keeps_its_anchor():
 
 
 @pytest.mark.parametrize("updates", [
+    {"quote_guards": {"enabled": True}},
+    {"quote_guards": {"enabled": True, "max_deviation_bps": "100", "resume_deviation_bps": "50"},
+     "max_data_age_seconds": "31"},
+    {"sideways_range": {"lower_price": ".09", "upper_price": ".11", "resume_lower_price": ".095", "resume_upper_price": ".105"}},
+])
+def test_guard_configuration_rejects_missing_thresholds_uncovered_cache_age_or_disabled_range(updates):
+    with pytest.raises(ValidationError):
+        configuration(**updates)
+
+
+@pytest.mark.asyncio
+async def test_enabled_guard_waits_for_control_samples_and_never_uses_initial_anchor_to_bypass_empty_book(monkeypatch):
+    controller, _ = make_controller(configuration(quote_guards=dict(
+        enabled=True, max_deviation_bps="200", resume_deviation_bps="100", recovery_delay_seconds="2")))
+    book = OrderBook()
+    book.apply_snapshot([], [], 1000)
+    controller.market_data_provider.get_order_book.return_value = book
+    controller.market_data_provider.get_order_book.side_effect = None
+    now = [0]
+    monkeypatch.setattr("controllers.market_making.life_mm.time.monotonic", lambda: now[0])
+    await controller.update_processed_data()
+    assert not controller.processed_data["ready"]
+    assert controller.processed_data["reason"] == "market_price_unavailable"
+    assert controller._life_anchor is None
+    book.apply_snapshot([OrderBookRow(.099, 100, 1001)], [OrderBookRow(.101, 100, 1001)], 1001)
+    controller.market_data_provider.time.return_value = 1001
+    controller.market_data_provider.get_connector_with_fallback.return_value.trading_rules = {}
+    # Restore metadata, while the known-order quantity minimum remains realistic.
+    from types import SimpleNamespace
+    connector = controller.market_data_provider.get_connector_with_fallback.return_value
+    connector.name = "okx"
+    connector.trading_rules = {"LIFE-USDT": SimpleNamespace(min_order_size=Decimal(".001"), min_base_amount_increment=Decimal(".001"))}
+    connector._order_tracker = SimpleNamespace(cached_orders={}, lost_orders={})
+    now[0] = 1
+    await controller.update_processed_data()
+    for _ in range(30):
+        now[0] = 100
+        controller.update_reference()
+    assert not controller.processed_data["ready"]
+    book.apply_snapshot([OrderBookRow(.099, 100, 1003)], [OrderBookRow(.101, 100, 1003)], 1003)
+    controller.market_data_provider.time.return_value = 1003
+    now[0] = 3
+    await controller.update_processed_data()
+    assert controller.processed_data["ready"]
+    assert controller._life_anchor == Decimal(".1")
+
+
+@pytest.mark.parametrize("updates", [
     {"scenario": "follow_market"},
     {"scenario": "sideways", "references": [{"pair": "BTC-USDT", "weight": "1"}]},
     {"scenario": "follow_token", "references": [{"pair": "BTC-USDT", "weight": "0.5"}, {"pair": "ETH-USDT", "weight": "0.5"}]},
@@ -89,6 +138,15 @@ def test_entries_are_explicitly_post_only_and_no_automatic_market_exits():
     assert config.triple_barrier_config.stop_loss is None
     assert config.triple_barrier_config.time_limit is None
     assert config.skip_rebalance
+
+
+def test_repeated_reference_checks_preserve_composed_spread_multiplier():
+    controller, _ = make_controller(configuration())
+    controller.processed_data["spread_multiplier"] = Decimal("2")
+    for _ in range(5):
+        controller.update_reference()
+    assert controller.processed_data["spread_multiplier"] == Decimal("2")
+    assert controller.get_price_and_amount("buy_0")[0] == Decimal(".098")
 
 
 @pytest.mark.asyncio

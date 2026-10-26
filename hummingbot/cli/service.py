@@ -140,7 +140,8 @@ class ServiceHost:
                 if not controller.processed_data.get("ready"):
                     reason = controller.processed_data.get("reason", "").split(":", 1)[0]
                     known = {"perpetual_account_not_confirmed", "reference_pair_unavailable", "stale_reference",
-                             "invalid_book", "reference_out_of_bounds", "quote_out_of_bounds"}
+                             "invalid_book", "reference_out_of_bounds", "quote_out_of_bounds", "market_price_unavailable",
+                             "reference_deviation", "sideways_breakout", "guard_recovering"}
                     return waiting(reason if reason in known else "market_data_unavailable")
                 if not controller.market_data_provider.ready:
                     return waiting("market_data_unavailable")
@@ -436,7 +437,8 @@ class ServiceHost:
                                 "connector": controller.config.connector_name, "pair": controller.config.trading_pair,
                                 "ready": bool(controller.processed_data.get("ready")), "admitted": controller._session_admitted,
                                 "reference_price": str(controller.processed_data["reference_price"]) if "reference_price" in controller.processed_data else None,
-                                "reason": controller.processed_data.get("reason")} for controller in self._mm_controllers()],
+                                "reason": controller.processed_data.get("reason"),
+                                "quote_guard": controller.processed_data.get("quote_guard")} for controller in self._mm_controllers()],
                 "reporting": self.reporting,
                 "funding_sync": {**public_status(self.funding_state, now_ms=int(time.time() * 1000), error=self.funding_error),
                                  **({"state": "not_configured"} if not self.funding_configured else {})},

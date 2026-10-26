@@ -1,0 +1,322 @@
+{
+  "phase": "E1",
+  "baseline": "fa75bc57f",
+  "date": "2026-10-26",
+  "scope": "strict quote/range guards, conservative own-order quantity bounds; no E2+ or sixty-minute release claim",
+  "image_id": "sha256:52a7a27f8062f02f47a71140474e185bd2741e6bbeffe0729975547fc8cbe095",
+  "image_size_bytes": 1364587950,
+  "architecture": "amd64",
+  "source_sha256": {
+    "controllers/market_making/life_mm.py": "eda54787f0acd1e257b606efb0ac7874bec5e5c7ee627874653cd95b214ac659",
+    "hummingbot/cli/service.py": "152346da20ddb55a3a988c4d96d2c2b65e55d4cf8a05582951a70dad744997b4",
+    "hummingbot/cli/service_availability.py": "67fc563a2c0874c719feef31d6d99dff21e55c630ea107faeec8d9695ace9bf2",
+    "hummingbot/cli/admin_api.py": "d49ae0e688ca08b32889d2547354b1a6351dafd8534635cf4195ee406a7f94d4",
+    "hummingbot/cli/admin_models.py": "b24967508013dec0be4bcdf881ef5b25bacbb773ce9295779c31395eaf58be2d",
+    "hummingbot/cli/admin_observations.py": "3044c5ac2eadface20914431cafb3a1e679a644e6f25c3b9ed74509f00c24d4a",
+    "hummingbot/core/utils/read_retry.py": "5a8bfe29b0795f258a06a230c1ba1ecaa061b1ec6cf0f1fe40834535aecd7250",
+    "hummingbot/core/bot_ownership.py": "ae138faa93f85f11198e9230817cb69466b5245823aba72bb74ed90a1a612744",
+    "hummingbot/model/bot_state_store.py": "1eab1ab672a96a44410f7d23f7025d65410863bde66bce6b70d690f231b4a423",
+    "hummingbot/strategy_v2/controllers/controller_base.py": "0a8f0a7aa250eab4433e27f0f9f2e1faddfdc45f4dbe23b345be2d565e7083a7",
+    "hummingbot/strategy_v2/runnable_base.py": "bd9b68f431921e2fb4111c2bbc5e92a9055f352d4d3c76cf5d5830985fc95cee",
+    "scripts/v2_with_controllers.py": "676f1994e7d43b43f5327d739313c93f66fc434efe3bf638c73923d0f642019a",
+    "docs/api/openapi.json": "031e4b7d7387ac0466aead2faf6086630e78486f14e374ee8c435bb23b57f838",
+    "hummingbot/connector/markets_recorder.py": "6717221980b40afeea0e7c269135063f519ce33c663450879872ace760bd5139",
+    "hummingbot/strategy_v2/utils/quote_guard.py": "d4be56a30521f383d272bcf9c75f1a5678f86780965a35eaec825c6a115b65e5",
+    "hummingbot/client/config/mm_profiles.py": "bbfe3ac292e04c83a4afe96fa9f2e7bfc66d6ce27524e00fedb0b4afc9578be1",
+    "hummingbot/connector/derivative/okx_perpetual/okx_perpetual_api_order_book_data_source.py": "1235d1e54a25747a886babc0093bc3232001d3d93bc766e7d670c3d2e7d8294d",
+    "deploy/cloudrun/conf/life_mm_profiles.yaml": "a096b93d127b96eda87a29d75d29b678551342dadcf3804ad00683f7cbc73858"
+  },
+  "packaged_paths": {
+    "controllers/market_making/life_mm.py": "controllers/market_making/life_mm.py",
+    "hummingbot/cli/service.py": "hummingbot/cli/service.py",
+    "hummingbot/cli/service_availability.py": "hummingbot/cli/service_availability.py",
+    "hummingbot/cli/admin_api.py": "hummingbot/cli/admin_api.py",
+    "hummingbot/cli/admin_models.py": "hummingbot/cli/admin_models.py",
+    "hummingbot/cli/admin_observations.py": "hummingbot/cli/admin_observations.py",
+    "hummingbot/core/utils/read_retry.py": "hummingbot/core/utils/read_retry.py",
+    "hummingbot/core/bot_ownership.py": "hummingbot/core/bot_ownership.py",
+    "hummingbot/model/bot_state_store.py": "hummingbot/model/bot_state_store.py",
+    "hummingbot/strategy_v2/controllers/controller_base.py": "hummingbot/strategy_v2/controllers/controller_base.py",
+    "hummingbot/strategy_v2/runnable_base.py": "hummingbot/strategy_v2/runnable_base.py",
+    "scripts/v2_with_controllers.py": "scripts/v2_with_controllers.py",
+    "docs/api/openapi.json": "docs/api/openapi.json",
+    "hummingbot/connector/markets_recorder.py": "hummingbot/connector/markets_recorder.py",
+    "hummingbot/strategy_v2/utils/quote_guard.py": "hummingbot/strategy_v2/utils/quote_guard.py",
+    "hummingbot/client/config/mm_profiles.py": "hummingbot/client/config/mm_profiles.py",
+    "hummingbot/connector/derivative/okx_perpetual/okx_perpetual_api_order_book_data_source.py": "hummingbot/connector/derivative/okx_perpetual/okx_perpetual_api_order_book_data_source.py",
+    "deploy/cloudrun/conf/life_mm_profiles.yaml": "conf/life_mm_profiles.yaml"
+  },
+  "source_matches_image": true,
+  "registry_manifest_digest": "sha256:9f6e7310d04f533c0c048ef3185f0192c60a59e601e611f39754f42b95282953",
+  "harness_sha256": "546b6a45995073e989f56cf3c6fdbfbb301277be9b44aeb62c19c8cb3c061c44",
+  "native": {
+    "tests": 1406,
+    "subtests": 9,
+    "groups": [
+      150,
+      11,
+      961,
+      284
+    ],
+    "artifact": "build/e1/regression-final.log"
+  },
+  "focused": {
+    "tests": 99,
+    "runtime_warning_as_error": true,
+    "artifact": "build/e1/final-focused.log"
+  },
+  "postgres": {
+    "tests": 137,
+    "artifact": "build/e1/postgres.log",
+    "final_guard_selection": {
+      "tests": 3,
+      "deselected": 134,
+      "artifact": "build/e1/pg-guards-final.log"
+    }
+  },
+  "red": {
+    "guard": "build/e1/guard-red.log",
+    "controller": "build/e1/controller-red.log",
+    "catalogue": "build/e1/catalogue-red.log",
+    "perpetual_units": "build/e1/perp-quantity-red.log"
+  },
+  "e2e": {
+    "artifact": "build/e2e-offline/20261026-180417-0eb7e3/result.json",
+    "passed": true,
+    "scenarios": {
+      "schema": {
+        "passed": true,
+        "metrics": {
+          "valid_startup_s": 7.858,
+          "valid_shutdown_s": 0.969,
+          "repaired_startup_s": 8.163,
+          "repaired_shutdown_s": 0.948,
+          "file_backend_rejected": true,
+          "empty_rejected": true,
+          "drift_rejected": true,
+          "repaired_schema_validated": true
+        }
+      },
+      "spot": {
+        "passed": true,
+        "metrics": {
+          "first_startup_s": 8.521,
+          "second_startup_s": 8.142,
+          "local_steady_resources": "cpu=4.31% memory=244.4MiB / 2GiB",
+          "local_database": {
+            "select_one_p95_ms": 0.593624999964959
+          },
+          "first_shutdown_s": 1.312,
+          "second_shutdown_s": 0.933,
+          "third_startup_s": 8.225,
+          "fourth_startup_s": 10.695,
+          "fifth_startup_s": 12.031,
+          "sixth_startup_s": 7.81,
+          "seventh_startup_s": 8.059,
+          "accepted_orders": 14,
+          "persisted_fills": 3,
+          "websocket_reconnect": true,
+          "interrupted_recorder_recovered": true
+        }
+      },
+      "v2-spot": {
+        "passed": true,
+        "metrics": {
+          "v2-first_startup_s": 8.407,
+          "first_shutdown_s": 0.806,
+          "v2-second_startup_s": 7.964,
+          "second_shutdown_s": 0.726,
+          "accepted_orders": 1,
+          "persisted_fills": 1,
+          "position_base": "0.1",
+          "pnl_peak_restored": "12.345678"
+        }
+      },
+      "v2-perpetual": {
+        "passed": true,
+        "metrics": {
+          "v2-first_startup_s": 8.762,
+          "first_shutdown_s": 1.04,
+          "v2-second_startup_s": 8.601,
+          "second_shutdown_s": 1.225,
+          "accepted_orders": 1,
+          "persisted_fills": 1,
+          "position_base": "0.1",
+          "pnl_peak_restored": "12.345678"
+        }
+      },
+      "life-mm": {
+        "passed": true,
+        "metrics": {
+          "mm-first_startup_s": 8.332,
+          "first_shutdown_s": 1.255,
+          "mm-restart_startup_s": 8.829,
+          "mm-db-restart_startup_s": 8.282,
+          "matrix": [
+            {
+              "mode": "spot",
+              "profile": "follow_market",
+              "count": 4
+            },
+            {
+              "mode": "spot",
+              "profile": "sideways",
+              "count": 4
+            },
+            {
+              "mode": "spot",
+              "profile": "follow_token",
+              "count": 4
+            },
+            {
+              "mode": "perpetual",
+              "profile": "follow_market",
+              "count": 4
+            },
+            {
+              "mode": "perpetual",
+              "profile": "sideways",
+              "count": 4
+            },
+            {
+              "mode": "perpetual",
+              "profile": "follow_token",
+              "count": 4
+            },
+            {
+              "mode": "both",
+              "profile": "follow_market",
+              "count": 8
+            },
+            {
+              "mode": "both",
+              "profile": "sideways",
+              "count": 8
+            },
+            {
+              "mode": "both",
+              "profile": "follow_token",
+              "count": 8
+            }
+          ],
+          "cli_mm_stop": true,
+          "legacy_replaces_mm": true,
+          "exact_quote_levels": true,
+          "restart_anchors": true,
+          "weighted_reference": true,
+          "stale_both": true,
+          "fills": 2,
+          "random_steps": true,
+          "expiry": true,
+          "expiry_funding": true,
+          "reconciliation": "matched",
+          "db_fault_halt": true
+        }
+      },
+      "funding": {
+        "passed": true,
+        "metrics": {
+          "funding-first_startup_s": 8.072,
+          "first_shutdown_s": 1.23,
+          "funding-restart_startup_s": 8.321,
+          "funding-standby_startup_s": 9.545,
+          "restart_shutdown_s": 1.339,
+          "funding-db-recovery_startup_s": 10.585,
+          "identified_bills": 6,
+          "original_amounts_exact": true,
+          "same_timestamp_bills": true,
+          "stopped_observation": true,
+          "closed_position_backfill": true,
+          "repeated_pages_idempotent": true,
+          "legacy_not_double_counted": true,
+          "owner_handover": true,
+          "unavailable_visible": true,
+          "db_failure_backfill": true,
+          "no_trading_mutations_after_stop": true
+        }
+      },
+      "availability": {
+        "passed": true,
+        "metrics": {
+          "availability_startup_s": 8.776,
+          "availability": {
+            "optional_failures_recovered": 3,
+            "startup_read_recovered": true,
+            "stale_feed_recovered": true,
+            "preserved_anchor_deadline": true,
+            "unexpected_process_restarts": 0,
+            "failed_controller_halted": true
+          }
+        }
+      },
+      "quote-guards": {
+        "passed": true,
+        "metrics": {
+          "guard_startup_s": 8.334,
+          "guard_shutdown_s": 1.393,
+          "guard-restart_startup_s": 8.29,
+          "quote_guards": {
+            "own_only_rejected": true,
+            "joint_cancel": true,
+            "range_breakout": true,
+            "deviation": true,
+            "delayed_resume": true,
+            "partial_fill": true,
+            "preserved_anchor_deadline": true,
+            "unexpected_process_restarts": 0,
+            "intentional_restarts": 1,
+            "effective_config_sha256": "390b37da2abe919160689f75b0d2fdd7376c7acb6c0d1ab43a276d4c0c4273a0"
+          }
+        }
+      }
+    },
+    "release_scope_complete": false
+  },
+  "final_probe": {
+    "artifact": "build/mm-load/20261026-181923-75546a/result.json",
+    "passed": true,
+    "diagnostic": true,
+    "strict_quote_guards": true,
+    "bot_limits": {
+      "cpus": 1,
+      "memory_bytes": 2147483648
+    },
+    "emulation": true,
+    "history_orders": 100000,
+    "history_fills": 100000,
+    "metrics": {
+      "duration_seconds": 60,
+      "read_p95_ms": 54.98675499984529,
+      "read_p99_ms": 437.3252559998946,
+      "unexpected_errors": 0,
+      "statuses": {
+        "200": 1200
+      },
+      "completed_reads_per_second": 19.907576743459526,
+      "market_updates_per_second": 99.9966046657178,
+      "fills_per_second": 1.0,
+      "command_accept_p95_ms": 14.092042000356741,
+      "peak_rss_bytes": 326066176,
+      "ledger": {
+        "unique_exchange_fills": 60,
+        "unique_recorder_fills": 60,
+        "positions_matched": true,
+        "identified_funding_bills": 2,
+        "daily_snapshots": 3
+      },
+      "violations": []
+    }
+  },
+  "unsuccessful_attempts": [
+    {
+      "artifact": "build/e2e-offline/20261026-180014-c7f4e5/result.json",
+      "cause": "Harness failed on healthy-market null reason during a correctly observed own-only guard wait"
+    }
+  ],
+  "limits": [
+    "Known-order filtering is observational, not independent fair-value proof or an atomic public/private snapshot",
+    "Full original quantities deliberately over-subtract ambiguous/terminal orders within existing tracker coverage",
+    "Local amd64 image runs under ARM emulation; existing broad-suite warnings retained",
+    "No Cloud Run deployment, real OKX Demo, previous-image upgrade or new sixty-minute certification"
+  ]
+}

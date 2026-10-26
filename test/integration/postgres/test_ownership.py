@@ -126,6 +126,59 @@ def test_mm_final_gate_rejects_expired_or_superseded_step_while_cancel_remains_a
     assert transport.call.await_count == 1
 
 
+def test_strict_quote_guard_is_rechecked_after_throttle_and_does_not_block_cancel(owned):
+    from test.hummingbot.strategy_v2.controllers.test_quote_guard import observation, ready_guard
+    guard = ready_guard()
+    current = [observation(timestamp=1002, now=1002)]
+    snapshot = {"id": "session-guard", "generation": 0, "status": "running", "started_at": time.time() - 1,
+                "expires_at": time.time() + 60, "step_expires_at": time.time() + 60}
+    with owned.engine.begin() as connection:
+        connection.execute(text("UPDATE bot_state SET config_type='mm-session', mm_session=CAST(:state AS jsonb)"),
+                           {"state": json.dumps(snapshot)})
+    owned.owner.mm_ready_check = lambda: guard.evaluate(current[0], Decimal("100"), time.monotonic())["ready"]
+    with session_order_scope("session-guard", 0):
+        tracked = intent(owned)
+
+    class ChangedBookThrottle:
+        @asynccontextmanager
+        async def execute_task(self, limit_id):
+            current[0] = observation(bids=[(109, 20)], asks=[(111, 20)], timestamp=1003, now=1003)
+            yield
+
+    rest, transport = assistant(ChangedBookThrottle())
+    with pytest.raises(SubmissionBlocked):
+        owned.loop.run_until_complete(send(rest))
+    transport.call.assert_not_awaited()
+    owned.owner.order_failed(owned.market, tracked)
+    owned.loop.run_until_complete(send(rest, path="/api/v5/trade/cancel-order"))
+    assert transport.call.await_count == 1
+    assert not owned.store.read()["recovery_state"].get("halt")
+
+
+def test_expiry_during_quote_guard_recovery_still_revokes_send(owned):
+    from test.hummingbot.strategy_v2.controllers.test_quote_guard import observation, ready_guard
+    guard = ready_guard()
+    snapshot = {"id": "session-guard", "generation": 0, "status": "running", "started_at": time.time() - 1,
+                "expires_at": time.time() + 60, "step_expires_at": time.time() + 60}
+    with owned.engine.begin() as connection:
+        connection.execute(text("UPDATE bot_state SET config_type='mm-session', mm_session=CAST(:state AS jsonb)"),
+                           {"state": json.dumps(snapshot)})
+    owned.owner.mm_ready_check = lambda: guard.evaluate(observation(), Decimal("100"), 100)["ready"]
+    with session_order_scope("session-guard", 0):
+        tracked = intent(owned)
+    guard.evaluate(observation(), Decimal("120"), 3)
+    with owned.engine.begin() as connection:
+        connection.execute(text("UPDATE bot_state SET mm_session=jsonb_set(mm_session, '{expires_at}', to_jsonb(0))"))
+    # Even a recovered market cannot renew the persisted session deadline.
+    guard.evaluate(observation(timestamp=1004, now=1004), Decimal("100"), 4, sample=True)
+    guard.evaluate(observation(timestamp=1006, now=1006), Decimal("100"), 6, sample=True)
+    rest, transport = assistant()
+    with pytest.raises(SubmissionBlocked):
+        owned.loop.run_until_complete(send(rest))
+    transport.call.assert_not_awaited()
+    owned.owner.order_failed(owned.market, tracked)
+
+
 def test_mm_intent_requires_scope_and_deadline(owned):
     snapshot = {"id": "session-1", "generation": 0, "status": "running", "started_at": time.time() - 120,
                 "expires_at": time.time() - 1, "step_expires_at": time.time() - 1}

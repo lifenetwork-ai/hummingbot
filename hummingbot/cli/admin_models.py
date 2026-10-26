@@ -127,6 +127,22 @@ class SessionState(APIModel):
     anchors: Dict[str, ReferenceAnchors]
 
 
+class QuoteGuardStatus(APIModel):
+    enabled: bool
+    mode: Literal["strict"]
+    ready: bool
+    reason_code: Optional[str]
+    data_quality: Literal["known_order_filtered", "unavailable"] = Field(
+        description="Known-order filtering is a bounded observation, not proof of independent fair value.")
+    detail: Optional[str]
+    market_mid: Optional[Decimal]
+    deviation_bps: Optional[Decimal]
+    book_observed_at: Optional[UTCDateTime]
+    evaluated_at: UTCDateTime
+    recovery_started_at: Optional[UTCDateTime]
+    recovery_valid_samples: int
+
+
 class MarketReadiness(APIModel):
     market: Literal["spot", "perpetual"]
     connector: str
@@ -135,6 +151,7 @@ class MarketReadiness(APIModel):
     admitted: bool
     reference_price: Optional[Decimal]
     reason: Optional[str]
+    quote_guard: Optional[QuoteGuardStatus] = None
 
 
 class FundingSyncStatus(APIModel):

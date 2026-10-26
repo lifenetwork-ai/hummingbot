@@ -790,6 +790,7 @@ class OKXPerpetualAPIOrderBookDataSourceTests(IsolatedAsyncioWrapperTestCase):
     # TODO
     @aioresponses()
     async def test_listen_for_order_book_snapshots_successful(self, mock_api):
+        self.data_source._trading_rules[self.trading_pair] = 1
         self.data_source.FULL_ORDER_BOOK_RESET_DELTA_SECONDS = 1
         mock_queue = AsyncMock()
         snapshot_event = {
@@ -840,6 +841,20 @@ class OKXPerpetualAPIOrderBookDataSourceTests(IsolatedAsyncioWrapperTestCase):
         self.assertEqual(8476.98, asks[0].price)
         self.assertEqual(415, asks[0].amount)
         self.assertEqual(expected_update_id, asks[0].update_id)
+
+    async def test_ws_snapshot_and_diffs_use_same_base_quantity_for_nonunit_contracts(self):
+        self.connector._set_trading_pair_symbol_map(bidict({self.ex_trading_pair: self.trading_pair}))
+        self.data_source._trading_rules[self.ex_trading_pair] = 0.01
+        message = {"arg": {"instId": self.ex_trading_pair}, "data": [{
+            "bids": [["100", "20", "0", "1"]], "asks": [["101", "30", "0", "1"]], "ts": "1700000000000"}]}
+        queue = asyncio.Queue()
+        await self.data_source._parse_order_book_snapshot_message(message, queue)
+        snapshot = queue.get_nowait()
+        await self.data_source._parse_order_book_diff_message(message, queue)
+        diff = queue.get_nowait()
+        self.assertEqual(0.2, snapshot.bids[0].amount)
+        self.assertEqual(0.3, snapshot.asks[0].amount)
+        self.assertEqual(snapshot.bids[0].amount, diff.bids[0].amount)
 
     async def test_listen_for_mark_price_cancelled_when_listening(self):
         mock_queue = MagicMock()

@@ -13,6 +13,7 @@ under the ignored `build/` directory.
 | [Cloud Run runtime image](cloudrun-runtime.md) | Build, packaging, image references and runtime caches |
 | [Cloud Run deployment](../deploy/cloudrun/README.md) | Service configuration and deployment verification |
 | [Admin API](admin-api.md) | Authentication, commands, reporting and reconciliation |
+| [Strict quote guards](life-mm-quote-guards.md) | Opt-in market deviation, sideways range, own-order filtering and recovery |
 | [OKX environments](okx-environments.md) | Live/Demo routing, sites and credential variables |
 | [Local load testing](life-mm-load-tests.md) | Commands, workload, budgets and verification policy |
 
