@@ -18,16 +18,20 @@ from collections import defaultdict, deque
 from pathlib import Path
 
 from aiohttp import web
-from load_trace import TraceRecorder, TraceSink, backend_pid, sql_metadata, stack_snapshot
+from load_trace import TraceRecorder, TraceSink, backend_pid, instrument_sync, sql_metadata, stack_snapshot
 from sqlalchemy import event
 from sqlalchemy.dialects.postgresql.psycopg2 import PGDialect_psycopg2
 from sqlalchemy.engine import Engine
 from sqlalchemy.pool import QueuePool
+from sqlalchemy.util.queue import Queue as PoolQueue
 
 sys.path.insert(0, str(Path.cwd()))
 from hummingbot.cli import service  # noqa: E402
 from hummingbot.cli.admin_api import AdminAPI  # noqa: E402
+from hummingbot.cli.admin_models import APIModel  # noqa: E402
 from hummingbot.connector.markets_recorder import MarketsRecorder  # noqa: E402
+from hummingbot.strategy.strategy_v2_base import StrategyV2Base  # noqa: E402
+from hummingbot.strategy_v2.executors.executor_orchestrator import ExecutorOrchestrator  # noqa: E402
 
 request_queries = contextvars.ContextVar("load_request_queries", default=None)
 samples = defaultdict(lambda: deque(maxlen=12000))
@@ -44,34 +48,25 @@ if trace_sink:
 
 
 def timed_sync(owner, name, key):
-    original = getattr(owner, name)
-
-    def measured(*args, **kwargs):
-        started = time.perf_counter()
-        span = tracer.begin(key) if tracer else None
-        result, error = None, None
-        try:
-            result = original(*args, **kwargs)
-            return result
-        except BaseException as exception:
-            error = type(exception).__name__
-            raise
-        finally:
-            samples[key].append((time.perf_counter() - started) * 1000)
-            totals[key + "_count"] += 1
-            if tracer:
-                pid = backend_pid(result) if key == "pool_checkout_ms" and result is not None else None
-                if key in ("commit_ms", "rollback_ms"):
-                    pid = backend_pid(args[1])
-                tracer.end(span, backend_pid=pid, error=error)
-    setattr(owner, name, measured)
+    def details(args, result):
+        pid = backend_pid(result) if key == "pool_checkout_ms" and result is not None else None
+        if key in ("commit_ms", "rollback_ms", "db_ping_ms"):
+            pid = backend_pid(args[1])
+        return {"backend_pid": pid}
+    instrument_sync(owner, name, key, samples, totals, tracer, details)
 
 
 timed_sync(QueuePool, "connect", "pool_checkout_ms")
+timed_sync(PoolQueue, "get", "pool_queue_ms")
+timed_sync(QueuePool, "_create_connection", "db_connect_ms")
+timed_sync(PGDialect_psycopg2, "do_ping", "db_ping_ms")
 timed_sync(MarketsRecorder, "_did_fill_order", "recorder_ms")
-if tracer:
-    timed_sync(PGDialect_psycopg2, "do_commit", "commit_ms")
-    timed_sync(PGDialect_psycopg2, "do_rollback", "rollback_ms")
+timed_sync(PGDialect_psycopg2, "do_commit", "commit_ms")
+timed_sync(PGDialect_psycopg2, "do_rollback", "rollback_ms")
+timed_sync(StrategyV2Base, "update_executors_info", "executor_update_ms")
+timed_sync(ExecutorOrchestrator, "get_all_reports", "executor_reports_ms")
+timed_sync(APIModel, "model_validate", "response_validation_ms")
+timed_sync(APIModel, "model_dump", "response_serialization_ms")
 
 
 @event.listens_for(Engine, "before_cursor_execute")

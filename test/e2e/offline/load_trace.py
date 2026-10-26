@@ -1,6 +1,7 @@
 """Bounded, test-only causal traces. Never records SQL parameters or frame locals."""
 import contextvars
 import hashlib
+import inspect
 import json
 import queue
 import re
@@ -10,6 +11,31 @@ import traceback
 import uuid
 from functools import lru_cache
 from pathlib import Path
+
+
+def instrument_sync(owner, name, key, samples, totals, tracer, attributes=None):
+    """Test-only synchronous wall/thread-CPU timing, preserving method binding."""
+    descriptor = inspect.getattr_static(owner, name)
+    original = descriptor.__func__ if isinstance(descriptor, classmethod) else getattr(owner, name)
+
+    def measured(*args, **kwargs):
+        started, cpu = time.perf_counter_ns(), time.thread_time_ns()
+        span = tracer.begin(key) if tracer else None
+        result, error = None, None
+        try:
+            result = original(*args, **kwargs)
+            return result
+        except BaseException as exception:
+            error = type(exception).__name__
+            raise
+        finally:
+            samples[key].append((time.perf_counter_ns() - started) / 1e6)
+            samples[key.removesuffix('_ms') + '_cpu_ms'].append((time.thread_time_ns() - cpu) / 1e6)
+            totals[key + '_count'] += 1
+            if tracer:
+                details = attributes(args, result) if attributes else {}
+                tracer.end(span, error=error, **details)
+    setattr(owner, name, classmethod(measured) if isinstance(descriptor, classmethod) else measured)
 
 
 @lru_cache(maxsize=256)

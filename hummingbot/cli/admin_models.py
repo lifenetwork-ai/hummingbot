@@ -4,7 +4,7 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Annotated, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_serializer, field_validator
+from pydantic import BaseModel, ConfigDict, Field, PlainSerializer, TypeAdapter, field_validator
 
 from controllers.market_making.life_mm import ReferencePair
 from hummingbot.client.config.mm_profiles import MarketMode, MMProfilesConfig
@@ -14,12 +14,16 @@ from hummingbot.strategy_v2.models.executors import CloseType
 from hummingbot.strategy_v2.models.executors_info import PerformanceReport
 
 
+def _as_utc(value: datetime) -> datetime:
+    return value.astimezone(timezone.utc)
+
+
+# Apply the Python callback only to timestamps, including timestamps in mappings.
+UTCDateTime = Annotated[datetime, PlainSerializer(_as_utc, return_type=datetime, when_used="json")]
+
+
 class APIModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
-
-    @field_serializer("*", mode="wrap", when_used="json")
-    def utc_timestamps(self, value, serialize):
-        return serialize(value.astimezone(timezone.utc) if isinstance(value, datetime) else value)
 
 
 class ErrorResponse(APIModel):
@@ -68,8 +72,8 @@ class CommandResponse(APIModel):
     status: Literal["accepted", "applying", "succeeded", "failed", "superseded"]
     payload: CommandRequest
     error: Optional[str] = None
-    created_at: datetime
-    updated_at: datetime
+    created_at: UTCDateTime
+    updated_at: UTCDateTime
 
 
 class ProfilesResponse(APIModel):
@@ -91,9 +95,9 @@ class SessionState(APIModel):
     generation: int
     step_index: int
     status: MMSessionStatus
-    started_at: Optional[datetime]
-    expires_at: Optional[datetime]
-    step_expires_at: Optional[datetime]
+    started_at: Optional[UTCDateTime]
+    expires_at: Optional[UTCDateTime]
+    step_expires_at: Optional[UTCDateTime]
     anchors: Dict[str, ReferenceAnchors]
 
 
@@ -137,7 +141,7 @@ class StatusResponse(APIModel):
     session: Optional[SessionState] = None
     observed_session: Optional[SessionState] = None
     markets: List[MarketReadiness] = Field(default_factory=list)
-    server_time: Optional[datetime] = None
+    server_time: Optional[UTCDateTime] = None
     time_remaining_seconds: Optional[float] = None
     error: Optional[str] = None
 
@@ -145,8 +149,8 @@ class StatusResponse(APIModel):
 class HistoryQuery(APIModel):
     market: Literal["spot", "perpetual", "all"] = "all"
     pair: Optional[str] = Field(default=None, max_length=120, pattern=r"^[A-Z0-9][A-Z0-9._]*-[A-Z0-9][A-Z0-9._]*$")
-    from_time: Optional[datetime] = Field(default=None, alias="from")
-    to_time: Optional[datetime] = Field(default=None, alias="to")
+    from_time: Optional[UTCDateTime] = Field(default=None, alias="from")
+    to_time: Optional[UTCDateTime] = Field(default=None, alias="to")
     limit: int = Field(default=100, ge=1, le=500)
     cursor: Optional[str] = Field(default=None, max_length=2048)
 
@@ -193,8 +197,8 @@ class OrderView(APIModel):
     status: str
     creation_pending: bool
     exchange_order_id: Optional[str]
-    created_at: datetime
-    updated_at: datetime
+    created_at: UTCDateTime
+    updated_at: UTCDateTime
 
 
 class OrdersPage(APIModel):
@@ -204,7 +208,7 @@ class OrdersPage(APIModel):
 
 class OrderTimeline(APIModel):
     id: int
-    timestamp: datetime
+    timestamp: UTCDateTime
     status: str
 
 
@@ -236,7 +240,7 @@ class FillView(APIModel):
     side: Literal["BUY", "SELL"]
     price: Decimal
     amount: Decimal
-    timestamp: datetime
+    timestamp: UTCDateTime
     leverage: int
     position: Optional[str]
     fee: RecordedFee
@@ -261,7 +265,7 @@ class ReferencePairsResponse(APIModel):
     price_source: Literal["spot_order_book_midpoint"] = "spot_order_book_midpoint"
     items: List[str]
     next_after: Optional[str]
-    observed_at: Optional[datetime]
+    observed_at: Optional[UTCDateTime]
     stale: bool
 
 
@@ -275,7 +279,7 @@ class BalanceObservation(APIModel):
     available_cash: Optional[Decimal]
     equity: Optional[Decimal]
     available_equity: Optional[Decimal]
-    observed_at: datetime
+    observed_at: UTCDateTime
     source: Literal["okx_account_balance"]
     connector: str
     stale: bool
@@ -292,7 +296,7 @@ class AccountBalances(APIModel):
 class BalancesResponse(APIModel):
     scope: Literal["account"] = "account"
     accounts: List[AccountBalances]
-    server_time: datetime
+    server_time: UTCDateTime
     owner_available: bool
 
 
@@ -306,7 +310,7 @@ class PositionObservation(APIModel):
     margin_mode: Optional[str] = None
     margin: Optional[Decimal] = None
     liquidation_price: Optional[Decimal] = None
-    observed_at: Optional[datetime] = None
+    observed_at: Optional[UTCDateTime] = None
     stale: bool
 
 
@@ -314,16 +318,16 @@ class PositionMarket(APIModel):
     market: Literal["spot", "perpetual"]
     connector: str
     coverage: Literal["observed", "unavailable", "not_applicable"]
-    observed_at: Optional[datetime] = None
+    observed_at: Optional[UTCDateTime] = None
     stale: bool = True
     source: Literal["okx_account_positions"] = "okx_account_positions"
-    pair_observations: Dict[str, datetime] = Field(default_factory=dict)
+    pair_observations: Dict[str, UTCDateTime] = Field(default_factory=dict)
     items: List[PositionObservation] = Field(default_factory=list)
 
 
 class PositionsResponse(APIModel):
     markets: List[PositionMarket]
-    server_time: datetime
+    server_time: UTCDateTime
     owner_available: bool
 
 
@@ -332,7 +336,7 @@ class PerformanceObservation(APIModel):
     connector: str
     pair: str
     market: Literal["spot", "perpetual"]
-    observed_at: datetime
+    observed_at: UTCDateTime
     source: Literal["v2_controller_report_cache"]
     valuation_basis: Literal["executor_and_position_hold_reports"]
     # Reuse the upstream report model; no second PnL calculation.
@@ -362,7 +366,7 @@ class PerformanceMarket(APIModel):
 class PerformanceResponse(APIModel):
     scope: Literal["controller_lifetime_and_active_exposure"] = "controller_lifetime_and_active_exposure"
     markets: List[PerformanceMarket]
-    server_time: datetime
+    server_time: UTCDateTime
     owner_available: bool
 
 
@@ -381,8 +385,8 @@ class DailyFee(APIModel):
 
 class DailyBucket(APIModel):
     day: date
-    observed_at: datetime
-    last_event_at: Optional[datetime]
+    observed_at: UTCDateTime
+    last_event_at: Optional[UTCDateTime]
     fill_count: int
     buy_volume_base: Decimal
     sell_volume_base: Decimal
@@ -411,8 +415,8 @@ class DailyBalance(APIModel):
     currency: str
     reporting_timezone: str
     day: date
-    observed_at: datetime
-    updated_at: datetime
+    observed_at: UTCDateTime
+    updated_at: UTCDateTime
     connector: str
     source: str
     cash_balance: Optional[Decimal]
@@ -425,7 +429,7 @@ class DailyResponse(APIModel):
     start_day: date
     end_day: date
     reporting_timezone: str
-    server_time: datetime
+    server_time: UTCDateTime
     coverage: Literal["observed_recorder_events"]
     balance_scope: Literal["account_last_observed"]
     trade_storage_scale: Optional[int] = Field(default=None, description="PostgreSQL NUMERIC has no fixed storage scale.")
@@ -449,8 +453,8 @@ class ReconciliationMarket(APIModel):
     market: Literal["spot", "perpetual"]
     state: Literal["matched", "mismatch", "incomplete", "unavailable"]
     complete: bool
-    local_observed_at: Optional[datetime]
-    exchange_observed_at: Optional[datetime]
+    local_observed_at: Optional[UTCDateTime]
+    exchange_observed_at: Optional[UTCDateTime]
     orders_checked: int
     fills_checked: int
     positions_checked: int
@@ -461,8 +465,8 @@ class ReconciliationMarket(APIModel):
 class ReconciliationReport(APIModel):
     scope: Literal["bot_owned_orders_and_configured_perpetual_exposure"] = "bot_owned_orders_and_configured_perpetual_exposure"
     state: Literal["not_checked", "checking", "matched", "mismatch", "incomplete", "unavailable"] = "not_checked"
-    started_at: Optional[datetime] = None
-    finished_at: Optional[datetime] = None
+    started_at: Optional[UTCDateTime] = None
+    finished_at: Optional[UTCDateTime] = None
     markets: List[ReconciliationMarket] = Field(default_factory=list)
 
 
@@ -470,8 +474,8 @@ class ReconciliationReceipt(APIModel):
     id: str
     status: Literal["accepted", "applying", "succeeded", "failed"]
     payload: ReconciliationRequest
-    created_at: datetime
-    updated_at: datetime
+    created_at: UTCDateTime
+    updated_at: UTCDateTime
     error: Optional[str] = None
     report: ReconciliationReport
 
