@@ -774,3 +774,9 @@ an additional required funding-accounting follow-up before calling the new
 idle/restart funding behavior complete; prior P1–P6 evidence does not mark it done.
 
 P7 final Demo evidence: P7 funding settlement verified at 2026-10-26T00:01:32.620179+00:00: Demo bill 4042315866684412230 reports 0.0032045728 USDT at UTC epoch-ms 1792972800651. Exact funding_bills and daily API totals match. The same stopped service was cold-restarted and the bill was ingested again without duplication. Orders/fills remain 320/5; no strategy or exchange trading command was submitted. The service stopped and released ownership after observation. See [portable result](../../reports/okx-demo-funding.json).
+
+## 9. Follow-up: explain latency tails with traces
+
+- [x] Add bounded test-only request/SQL/commit/recorder/loop-stack tracing and PostgreSQL wait sampling; verify correlation and redaction.
+- [ ] Run the five-minute warmup plus fifteen-minute mixed workload and a separate sixty-minute random-session soak with traces and unchanged budgets.
+- [ ] Publish image identity, all passing/failing windows, trace loss/overhead and supported causes under `reports/`; distinguish observed causes from hypotheses.

@@ -11,6 +11,7 @@ CLOUDRUN_REGION ?= asia-southeast1
 CLOUDRUN_EVIDENCE ?= build/e2e-offline/result.json
 OFFLINE_OKX_TRADING_ENV ?= demo
 MM_LOAD_PROFILE ?= all
+MM_LOAD_TRACE ?= false
 ifeq ($(DYDX),1)
   ENV_FILE := setup/environment_dydx.yml
 endif
@@ -81,7 +82,7 @@ test-e2e-offline:
 
 .PHONY: test-mm-load
 test-mm-load:
-	$(PYTHON) scripts/test_mm_load.py --image $(CLOUDRUN_IMAGE) --profile $(MM_LOAD_PROFILE)
+	$(PYTHON) scripts/test_mm_load.py --image $(CLOUDRUN_IMAGE) --profile $(MM_LOAD_PROFILE) $(if $(filter true,$(MM_LOAD_TRACE)),--trace,)
 
 review-cloudrun-config:
 	$(PYTHON) scripts/review_cloudrun.py $(CLOUDRUN_CONFIG) --evidence $(CLOUDRUN_EVIDENCE)

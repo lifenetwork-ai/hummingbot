@@ -158,7 +158,7 @@ class Harness:
         assert json.loads(docker("network", "inspect", self.network).stdout)[0]["Internal"]
 
     def start(self, revision, *, auto_migrate=True, runtime_role=False, expect_failure=False, additive_fixture=False,
-              storage_backend="postgres", instrumented=False):
+              storage_backend="postgres", instrumented=False, trace_directory=None):
         name = self.prefix + "-" + revision
         env = {**self.env, "K_REVISION": revision, "ENABLE_AUTO_MIGRATION": str(auto_migrate).lower(),
                "STORAGE_BACKEND": storage_backend}
@@ -176,6 +176,10 @@ class Harness:
             mounts += ["--mount", f"type=bind,source={self.assets / 'life_mm_profiles.yaml'},target=/home/hummingbot/conf/life_mm_profiles.yaml,readonly"]
         if instrumented:
             mounts += ["--mount", f"type=bind,source={self.assets},target=/test-assets,readonly"]
+        if trace_directory is not None:
+            assert instrumented
+            env["HBOT_LOAD_TRACE_DIRECTORY"] = "/trace-output"
+            mounts += ["--mount", f"type=bind,source={trace_directory},target=/trace-output"]
         self.run_container(name, ["--platform", "linux/amd64", "--cpus", "1", "--memory", "2g", "--read-only",
                                   "--tmpfs", "/tmp:rw,nosuid,size=128m", *(["--network-alias", "bot"] if instrumented else []), *mounts],
                            env=env, publish=True, command=["python", "/test-assets/load_service.py"] if instrumented else ())

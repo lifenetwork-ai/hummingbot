@@ -84,3 +84,32 @@ median RSS growth must be ≤64 MiB, book backlog ≤max(10, initial+4), and poo
 checkout p95 ≤max(20 ms, initial+5 ms). Pool timing includes pre-ping/checkout;
 it is not a pure server execution measurement. Existing bounded query-count
 checks remain: order pages ≤3 SQL statements, fills and cached performance ≤1.
+
+## Opt-in causal diagnostics
+
+```sh
+make test-mm-load MM_LOAD_PROFILE=mixed MM_LOAD_TRACE=true
+make test-mm-load MM_LOAD_PROFILE=soak MM_LOAD_TRACE=true
+python scripts/analyze_mm_load_trace.py build/mm-load/<run> --window mixed
+```
+
+`--trace` adds a test-only writable output mount; the bot filesystem remains
+read-only. Request IDs link client scheduling/network timing to server spans
+for pool checkout, SQL, commit/rollback, recorder and existing observation tasks.
+A watchdog samples the event-loop stack during stalls above 200 ms, GC pauses
+and cgroup CPU counters. One additional PostgreSQL connection in the existing
+client samples activity, waits and blocking PIDs every 250 ms. No extra service
+or production endpoint is added. SQL bind parameters, request bodies, credentials
+and frame locals are excluded; literal SQL values are redacted.
+
+Server roots below 100 ms are discarded; retained roots have at most 128 spans.
+Each JSONL stream has a 128 MiB limit and a 2,048-record nonblocking queue;
+dropped records/spans and sampler errors are reported. Client data appends across
+warmup and mixed windows. Trace files, hashes and runtime samples stay under
+ignored `build/mm-load/<run>/trace/`. Keep portable findings under `reports/`.
+The analyzer excludes startup using the workload's monotonic window and matches
+wait observations by backend PID and overlapping time. Stack/SQL/CPU overlap is
+observational evidence; a missing wait between samples does not rule out DB I/O.
+Nested span durations and async thread CPU are inclusive and must not be added.
+Tracing consumes CPU/I/O and adds one database connection; traced timings must
+be identified as such, with original latency budgets unchanged.

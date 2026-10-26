@@ -48,7 +48,7 @@ def assets_for(path):
 
     import yaml
     path.chmod(0o755)
-    for name in ("exchange.py", "load_service.py", "load_client.py", "runtime_smoke.py", "pmm.yml", "controller-spot.yml", "controller-perpetual.yml", "script-perpetual.yml"):
+    for name in ("exchange.py", "load_service.py", "load_trace.py", "load_client.py", "runtime_smoke.py", "pmm.yml", "controller-spot.yml", "controller-perpetual.yml", "script-perpetual.yml"):
         (path / name).write_bytes((ROOT / "test/e2e/offline" / name).read_bytes())
     (path / "pmm-revised.yml").write_bytes((path / "pmm.yml").read_bytes())
     write_fixtures(path / "fixtures.json")
@@ -137,6 +137,9 @@ def run_window(harness, bot, client, name, duration, report, *, options=(), burs
         destination.write_text(json.dumps(data, indent=2))
         assert metrics is not None, "Bot exited during load; client evidence and runtime logs retained"
         data["runtime"] = metrics
+        trace_summary = report / "trace" / "client-summary.json"
+        if trace_summary.exists():
+            data["client_trace"] = json.loads(trace_summary.read_text())
         data["peak_rss_bytes"] = metrics["memory"]["VmHWM"]
         if burst and data["control_results"].get("burst_ended_at"):
             end = data["control_results"]["burst_ended_at"]
@@ -159,6 +162,8 @@ def main():
     parser.add_argument("--history-rows", type=int, default=100000)
     parser.add_argument("--diagnostic", action="store_true", help="Use local image ID for iteration; cannot serve as final artifact acceptance")
     parser.add_argument("--refresh-seconds", type=int, help="Diagnostic-only accelerated quote refresh")
+    parser.add_argument("--trace", action="store_true", help="Bounded request/SQL/commit/loop-stack/PG-wait traces; no parameters or credentials")
+    parser.add_argument("--keep-going", action="store_true", help="Continue healthy windows after budget violations; final result still fails")
     args = parser.parse_args()
     metadata = json.loads(docker("image", "inspect", args.image).stdout)[0]
     assert metadata["Architecture"] == "amd64"
@@ -172,9 +177,11 @@ def main():
                     host_architecture=platform.machine(), image_architecture="amd64", emulation=platform.machine() != "x86_64",
                     bot_limits=dict(cpus=1, memory_bytes=2 * 1024**3), postgres_limits=dict(cpus=2, memory_bytes=512 * 1024**2),
                     simulator_limits=dict(cpus=1, memory_bytes=512 * 1024**2), client_limits=dict(cpus=1, memory_bytes=512 * 1024**2),
-                    history_orders=args.history_rows, history_fills=args.history_rows, funding_sync_interval_seconds=5, windows={})
+                    history_orders=args.history_rows, history_fills=args.history_rows, funding_sync_interval_seconds=5,
+                    tracing=args.trace, continue_after_budget_failure=args.keep_going, windows={})
     evidence["source_sha256"] = {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest() for path in (
-        ROOT / "scripts/test_mm_load.py", ROOT / "scripts/mm_load_budgets.py", ROOT / "scripts/mm_load_faults.py", ROOT / "scripts/mm_load_ledger.py")}
+        ROOT / "scripts/test_mm_load.py", ROOT / "scripts/test_e2e_offline.py", ROOT / "scripts/analyze_mm_load_trace.py",
+        ROOT / "scripts/mm_load_budgets.py", ROOT / "scripts/mm_load_faults.py", ROOT / "scripts/mm_load_ledger.py")}
     try:
         with tempfile.TemporaryDirectory(prefix="hbot-mm-load-") as directory:
             assets = Path(directory)
@@ -201,7 +208,15 @@ def main():
                 docker("update", "--cpus", "1", "--memory", "512m", "--memory-swap", "512m", harness.simulator)
                 docker("update", "--cpus", "2", "--memory", "512m", "--memory-swap", "512m", harness.pg)
                 harness.env["FUNDING_SYNC_INTERVAL_SECONDS"] = "5"
-                bot, port = harness.start("load-bot", instrumented=True)
+                trace_directory = report / "trace" if args.trace else None
+                if trace_directory:
+                    trace_directory.mkdir()
+                    trace_directory.chmod(0o777)  # Test-only output mount for runtime UID 10001.
+                    evidence["trace_policy"] = dict(path=str(trace_directory.relative_to(ROOT)),
+                                                    slow_trace_ms=100, loop_stall_ms=200, database_sample_ms=250,
+                                                    max_bytes_per_stream=128 * 1024**2, diagnostic_database_connections=1,
+                                                    span_cpu_scope="inclusive thread CPU; async spans include interleaved work")
+                bot, port = harness.start("load-bot", instrumented=True, trace_directory=trace_directory)
                 docker("update", "--memory", "2g", "--memory-swap", "2g", bot)
                 poll(lambda: bool(harness.state().get("status")), description="load owner status")
                 print(f"Local load evidence: {report}", flush=True)
@@ -217,9 +232,11 @@ def main():
                 _, _ = command(harness, port, "start", market_mode="both", selection="fixed", profile_id="follow_market", duration_seconds=86400)
                 poll(lambda: len([order for order in harness.ledger()["orders"] if order["state"] == "live"]) == 8, description="eight working load quotes")
                 client = harness.prefix + "-load-client"
+                client_mounts = ["--mount", f"type=bind,source={trace_directory},target=/trace-output"] if args.trace else []
+                client_env = {"HBOT_LOAD_TRACE_DIRECTORY": "/trace-output", "HBOT_LOAD_TRACE_DATABASE_URL": harness.env["DATABASE_URL"]} if args.trace else None
                 harness.run_container(client, ["--platform", "linux/amd64", "--cpus", "1", "--memory", "512m", "--memory-swap", "512m", "--read-only",
-                                               "--tmpfs", "/tmp:rw,nosuid,size=128m", "--mount", f"type=bind,source={assets},target=/test-assets,readonly"],
-                                      command=["python", "-c", "import time; time.sleep(20000)"])
+                                               "--tmpfs", "/tmp:rw,nosuid,size=128m", "--mount", f"type=bind,source={assets},target=/test-assets,readonly", *client_mounts],
+                                      env=client_env, command=["python", "-c", "import time; time.sleep(20000)"])
                 if args.profile == "probe":
                     windows = [("probe", args.probe_seconds)]
                 else:
@@ -246,12 +263,15 @@ def main():
                     evidence["windows"][name] = data
                     (report / "result.json").write_text(json.dumps(evidence, indent=2))
                     print(name, {key: data[key] for key in ("read_p95_ms", "read_p99_ms", "completed_reads_per_second", "market_updates_per_second", "fills_per_second", "violations")}, flush=True)
-                    if data["violations"]:
+                    if data["violations"] and not args.keep_going:
                         raise AssertionError("Declared load budgets failed: " + ", ".join(data["violations"]))
                 if args.profile in ("faults", "all"):
                     evidence["faults"] = fault_windows(
                         harness, bot, port, client, report, run_window,
                         lambda h, p: verify_ledger(h, p, require_running=False))
+                failed = {name: data["violations"] for name, data in evidence["windows"].items() if data.get("violations")}
+                if failed:
+                    raise AssertionError("Declared load budgets failed: " + json.dumps(failed))
                 evidence["passed"] = True
             finally:
                 try:

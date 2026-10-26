@@ -1,8 +1,11 @@
 """Opt-in isolated-network load generator. Rates use open-loop scheduled slots."""
 import argparse
 import asyncio
+import atexit
 import json
 import math
+import os
+import threading
 import time
 import uuid
 from collections import Counter
@@ -11,6 +14,84 @@ from decimal import Decimal
 from pathlib import Path
 
 import aiohttp
+from load_trace import TraceSink, sql_metadata
+
+trace_directory = os.environ.get("HBOT_LOAD_TRACE_DIRECTORY")
+trace_sink = TraceSink(Path(trace_directory) / "client.jsonl", append=True) if trace_directory else None
+trace_sequence = 0
+trace_prefix = uuid.uuid4().hex[:12]
+sampler_stop = threading.Event()
+sampler_counts = {"samples": 0, "errors": 0}
+
+
+def request_identity():
+    global trace_sequence
+    trace_sequence += 1
+    return f"{trace_prefix}-{trace_sequence}"
+
+
+def database_sampler(ready):
+    cpu_started = time.thread_time_ns()
+    import psycopg2
+    from sqlalchemy.engine import make_url
+    url = make_url(os.environ["HBOT_LOAD_TRACE_DATABASE_URL"])
+    assert url.host == "db" and url.database == "hbot_test_offline"
+    connection = None
+    while not sampler_stop.is_set():
+        started = time.monotonic_ns()
+        try:
+            if connection is None or connection.closed:
+                connection = psycopg2.connect(host=url.host, port=url.port or 5432, dbname=url.database,
+                                              user=url.username, password=url.password, connect_timeout=3,
+                                              application_name="hbot-load-trace",
+                                              options="-c statement_timeout=200 -c timezone=UTC")
+                connection.autocommit = True
+                ready.set()
+            with connection.cursor() as cursor:
+                cursor.execute("""SELECT pid,backend_type,state,wait_event_type,wait_event,
+                    pg_blocking_pids(pid),extract(epoch FROM query_start),extract(epoch FROM xact_start),query
+                    FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid()
+                    AND (state IS DISTINCT FROM 'idle' OR wait_event_type IN ('Lock','IO')
+                         OR backend_type<>'client backend') ORDER BY pid LIMIT 64""")
+                rows = []
+                for pid, kind, state, wait_type, wait, blockers, query_start, xact_start, statement in cursor:
+                    rows.append(dict(backend_pid=pid, backend_type=kind, state=state, wait_type=wait_type,
+                                     wait_event=wait, blocking_pids=blockers,
+                                     query_start=float(query_start) if query_start else None,
+                                     transaction_start=float(xact_start) if xact_start else None,
+                                     **sql_metadata(statement or "UNKNOWN")))
+            sampler_counts["samples"] += 1
+            trace_sink.emit(dict(kind="postgres_sample", at=time.time(), start_ns=started,
+                                 duration_ms=(time.monotonic_ns() - started) / 1e6, backends=rows))
+        except Exception as error:
+            sampler_counts["errors"] += 1
+            trace_sink.emit(dict(kind="postgres_sampler_error", at=time.time(), error=type(error).__name__))
+            if connection:
+                connection.close()
+                connection = None
+            ready.set()
+        sampler_stop.wait(.25)
+    if connection:
+        connection.close()
+    sampler_counts["thread_cpu_ms"] = (time.thread_time_ns() - cpu_started) / 1e6
+
+
+def start_tracing():
+    if not trace_sink:
+        return
+    ready = threading.Event()
+    thread = threading.Thread(target=database_sampler, args=(ready,), name="load-pg-sampler", daemon=True)
+    thread.start()
+    if not ready.wait(10):
+        raise RuntimeError("Trace database sampler did not initialize")
+
+    def close():
+        sampler_stop.set()
+        thread.join(timeout=4)
+        trace_sink.close()
+        (Path(trace_directory) / "client-summary.json").write_text(json.dumps(
+            dict(sink=trace_sink.summary(), database_sampler=sampler_counts), indent=2))
+    atexit.register(close)
 
 
 def percentile(values, fraction):
@@ -18,6 +99,7 @@ def percentile(values, fraction):
 
 
 async def main(args):
+    start_tracing()
     auth = aiohttp.BasicAuth("operator", "offline-admin")
     timeout = aiohttp.ClientTimeout(total=5)
     async with aiohttp.ClientSession(timeout=timeout, auth=auth) as client:
@@ -34,19 +116,51 @@ async def main(args):
                 response.raise_for_status()
                 return True
 
-        async def admin(path):
-            async with client.get("http://bot:8080/api/v1/admin" + path) as response:
-                return response.status, await response.json()
+        async def admin(path, due=None):
+            identity = request_identity()
+            started = time.monotonic_ns()
+            status, error = None, None
+            try:
+                async with client.get("http://bot:8080/api/v1/admin" + path,
+                                      headers={"X-Load-Request-ID": identity}) as response:
+                    status = response.status
+                    return status, await response.json()
+            except Exception as exception:
+                error = type(exception).__name__
+                raise
+            finally:
+                ended = time.monotonic_ns()
+                scheduled = int(due * 1e9) if due is not None else started
+                if trace_sink and ((ended - scheduled) / 1e6 >= 100 or error or status != 200):
+                    trace_sink.emit(dict(kind="client_request", request_id=identity, path=path, status=status,
+                                         scheduled_ns=scheduled, dispatch_ns=started, end_ns=ended, at=time.time(),
+                                         queue_wait_ms=(started - scheduled) / 1e6,
+                                         network_and_body_ms=(ended - started) / 1e6,
+                                         total_ms=(ended - scheduled) / 1e6, error=error))
 
         acceptance_ms, control_results = [], {}
         fill_lock = asyncio.Lock()
 
         async def post(path, payload, key):
             started = time.perf_counter()
-            async with client.post("http://bot:8080/api/v1/admin" + path, json=payload, headers={"Idempotency-Key": key}) as response:
-                body = await response.json()
-                acceptance_ms.append((time.perf_counter() - started) * 1000)
-                return response.status, body
+            started_ns, identity, status, error = time.monotonic_ns(), request_identity(), None, None
+            try:
+                async with client.post("http://bot:8080/api/v1/admin" + path, json=payload,
+                                       headers={"Idempotency-Key": key, "X-Load-Request-ID": identity}) as response:
+                    body, status = await response.json(), response.status
+                    acceptance_ms.append((time.perf_counter() - started) * 1000)
+                    return status, body
+            except Exception as exception:
+                error = type(exception).__name__
+                raise
+            finally:
+                ended = time.monotonic_ns()
+                if trace_sink and ((ended - started_ns) / 1e6 >= 100 or error or status != 202):
+                    trace_sink.emit(dict(kind="client_request", request_id=identity, path=path, status=status,
+                                         scheduled_ns=started_ns, dispatch_ns=started_ns, end_ns=ended,
+                                         at=time.time(), queue_wait_ms=0,
+                                         network_and_body_ms=(ended - started_ns) / 1e6,
+                                         total_ms=(ended - started_ns) / 1e6, error=error))
 
         async def controls():
             await asyncio.sleep(min(20, args.duration / 3))
@@ -129,6 +243,7 @@ async def main(args):
         fill_candidate_conflicts = 0
         last_completion, completed_in_window = None, 0
         origin = time.monotonic()
+        origin_utc = time.time()
         filling = True
         last_status = None
 
@@ -142,7 +257,7 @@ async def main(args):
                 due, path = item
                 schedule_lag.append(max(0, (time.monotonic() - due) * 1000))
                 try:
-                    status, body = await admin(path)
+                    status, body = await admin(path, due=due)
                     statuses[str(status)] += 1
                     if path == "/status" and status == 200:
                         last_status = body
@@ -241,7 +356,9 @@ async def main(args):
             for _ in workers:
                 await queue.put(None)
         await asyncio.gather(*workers, return_exceptions=True)
-        result = dict(duration_seconds=args.duration, requested_reads=requested, completed_reads=completed,
+        result = dict(duration_seconds=args.duration, window_start_ns=int(origin * 1e9),
+                      window_end_ns=int((origin + args.duration) * 1e9), window_start_utc=origin_utc,
+                      requested_reads=requested, completed_reads=completed,
                       requested_reads_per_second=args.read_rate, completed_reads_per_second=completed / max(args.duration, (last_completion or origin) - origin),
                       completed_reads_in_window=completed_in_window, completed_reads_in_window_per_second=completed_in_window / args.duration,
                       queued_reads_at_generation_end=queued_at_end,

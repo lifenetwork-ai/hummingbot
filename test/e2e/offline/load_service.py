@@ -4,17 +4,23 @@ No control/quote/recorder decisions change. Samples are bounded and exported to
 the container's ephemeral /tmp, never used as bot state. No metrics HTTP route.
 """
 import asyncio
+import atexit
 import contextvars
+import gc
 import json
 import logging
 import math
+import os
 import sys
+import threading
 import time
 from collections import defaultdict, deque
 from pathlib import Path
 
 from aiohttp import web
+from load_trace import TraceRecorder, TraceSink, backend_pid, sql_metadata, stack_snapshot
 from sqlalchemy import event
+from sqlalchemy.dialects.postgresql.psycopg2 import PGDialect_psycopg2
 from sqlalchemy.engine import Engine
 from sqlalchemy.pool import QueuePool
 
@@ -27,6 +33,14 @@ request_queries = contextvars.ContextVar("load_request_queries", default=None)
 samples = defaultdict(lambda: deque(maxlen=12000))
 totals = defaultdict(int)
 route_queries = defaultdict(lambda: {"calls": 0, "queries": 0, "min": None, "max": 0})
+trace_directory = os.environ.get("HBOT_LOAD_TRACE_DIRECTORY")
+trace_sink = TraceSink(Path(trace_directory) / "server.jsonl") if trace_directory else None
+tracer = TraceRecorder(trace_sink.emit) if trace_sink else None
+loop_beat_ns = time.monotonic_ns()
+watchdog_stop = threading.Event()
+gc_started = {}
+if trace_sink:
+    atexit.register(trace_sink.close)
 
 
 def timed_sync(owner, name, key):
@@ -34,16 +48,30 @@ def timed_sync(owner, name, key):
 
     def measured(*args, **kwargs):
         started = time.perf_counter()
+        span = tracer.begin(key) if tracer else None
+        result, error = None, None
         try:
-            return original(*args, **kwargs)
+            result = original(*args, **kwargs)
+            return result
+        except BaseException as exception:
+            error = type(exception).__name__
+            raise
         finally:
             samples[key].append((time.perf_counter() - started) * 1000)
             totals[key + "_count"] += 1
+            if tracer:
+                pid = backend_pid(result) if key == "pool_checkout_ms" and result is not None else None
+                if key in ("commit_ms", "rollback_ms"):
+                    pid = backend_pid(args[1])
+                tracer.end(span, backend_pid=pid, error=error)
     setattr(owner, name, measured)
 
 
 timed_sync(QueuePool, "connect", "pool_checkout_ms")
 timed_sync(MarketsRecorder, "_did_fill_order", "recorder_ms")
+if tracer:
+    timed_sync(PGDialect_psycopg2, "do_commit", "commit_ms")
+    timed_sync(PGDialect_psycopg2, "do_rollback", "rollback_ms")
 
 
 @event.listens_for(Engine, "before_cursor_execute")
@@ -53,11 +81,26 @@ def query_started(connection, cursor, statement, parameters, context, many):
     if counter is not None:
         counter[0] += 1
     totals["sql_statements"] += 1
+    if tracer:
+        context._load_trace_span = tracer.begin("sql", backend_pid=backend_pid(connection.connection),
+                                                **sql_metadata(statement))
 
 
 @event.listens_for(Engine, "after_cursor_execute")
 def query_finished(connection, cursor, statement, parameters, context, many):
     samples["sql_ms"].append((time.perf_counter() - context._load_started_at) * 1000)
+    if tracer:
+        tracer.end(context._load_trace_span)
+        context._load_trace_span = None
+
+
+@event.listens_for(Engine, "handle_error")
+def query_failed(error_context):
+    context = error_context.execution_context
+    span = getattr(context, "_load_trace_span", None)
+    if tracer and span:
+        tracer.end(span, error=type(error_context.original_exception).__name__)
+        context._load_trace_span = None
 
 
 original_register = AdminAPI.register
@@ -69,8 +112,18 @@ def register(api, app):
         counter = [0]
         token = request_queries.set(counter)
         started = time.perf_counter()
+        request_id = request.headers.get("X-Load-Request-ID", "")
+        if len(request_id) > 80 or not all(char.isalnum() or char in "-_" for char in request_id):
+            request_id = None
+        span = tracer.begin("http.request", request_id=request_id or None, route=request.path) if tracer else None
+        status = 500
         try:
-            return await handler(request)
+            response = await handler(request)
+            status = response.status
+            return response
+        except web.HTTPException as error:
+            status = error.status
+            raise
         finally:
             path = request.path
             if "/commands/" in path:
@@ -84,6 +137,8 @@ def register(api, app):
             row["max"] = max(row["max"], counter[0])
             samples["handler_ms"].append((time.perf_counter() - started) * 1000)
             request_queries.reset(token)
+            if tracer:
+                tracer.end(span, status=status)
     app.middlewares.append(measured)
     original_register(api, app)
 
@@ -135,10 +190,12 @@ def distribution(values):
 
 
 async def probe(host):
+    global loop_beat_ns
     next_sample, next_export = time.monotonic(), time.monotonic()
     while True:
         next_sample += .05
         await asyncio.sleep(max(0, next_sample - time.monotonic()))
+        loop_beat_ns = time.monotonic_ns()
         samples["event_loop_lag_ms"].append(max(0, (time.monotonic() - next_sample) * 1000))
         if time.monotonic() >= next_export:
             next_export = time.monotonic() + 5
@@ -153,6 +210,9 @@ async def probe(host):
                         totals=dict(totals), route_queries=dict(route_queries),
                         checked_out=host.engine.pool.checkedout() if host.engine else None,
                         pool_size=host.engine.pool.size() if host.engine else None)
+            if tracer:
+                data["trace"] = {**trace_sink.summary(), "dropped_spans": tracer.dropped_spans,
+                                 "slow_trace_threshold_ms": tracer.slow_ms}
             cpu = Path("/sys/fs/cgroup/cpu.stat")
             if cpu.is_file():
                 data["cgroup_cpu"] = {key: int(value) for key, value in (line.split() for line in cpu.read_text().splitlines())}
@@ -176,16 +236,84 @@ async def probe(host):
             temporary.replace("/tmp/load-metrics.json")
 
 
+def watchdog(loop_thread_id):
+    previous = 0
+    last_cpu = 0
+    while not watchdog_stop.wait(.05):
+        now = time.monotonic_ns()
+        cpu = Path("/sys/fs/cgroup/cpu.stat")
+        if now - last_cpu >= 1000000000 and cpu.is_file():
+            last_cpu = now
+            trace_sink.emit(dict(kind="cpu_sample", at=time.time(), at_ns=now,
+                                 cgroup_cpu={key: int(value) for key, value in
+                                             (line.split() for line in cpu.read_text().splitlines())}))
+        lag_ms = (now - loop_beat_ns) / 1e6 - 50
+        if lag_ms < 200 or now - previous < 100000000:
+            continue
+        previous = now
+        frames = sys._current_frames()
+        active = tracer.active_snapshot()
+        record = dict(kind="loop_stall", at=time.time(), at_ns=now, last_beat_ns=loop_beat_ns,
+                      loop_thread_id=loop_thread_id, lag_ms=lag_ms, active_spans=active,
+                      stacks={str(tid): stack_snapshot(frames.get(tid)) for tid in
+                              {loop_thread_id, *(span["thread_id"] for span in active)}})
+        if cpu.is_file():
+            record["cgroup_cpu"] = {key: int(value) for key, value in (line.split() for line in cpu.read_text().splitlines())}
+        record["pressure"] = {name: path.read_text() for name in ("cpu", "io", "memory")
+                              if (path := Path("/proc/pressure") / name).is_file()}
+        trace_sink.emit(record)
+
+
+def gc_trace(phase, info):
+    key = threading.get_ident(), info["generation"]
+    if phase == "start":
+        gc_started[key] = time.monotonic_ns()
+    elif key in gc_started:
+        started = gc_started.pop(key)
+        duration = (time.monotonic_ns() - started) / 1e6
+        if duration >= 10:
+            trace_sink.emit(dict(kind="gc", at=time.time(), start_ns=started, duration_ms=duration,
+                                 thread_id=key[0], generation=key[1], collected=info["collected"]))
+
+
+if tracer:
+    for name in ("observe_once", "collect_funding", "run_reconciliation"):
+        original = getattr(service.ServiceHost, name)
+
+        def wrap_async(original, name):
+            async def measured(*args, **kwargs):
+                span = tracer.begin("service." + name)
+                error = None
+                try:
+                    return await original(*args, **kwargs)
+                except BaseException as exception:
+                    error = type(exception).__name__
+                    raise
+                finally:
+                    tracer.end(span, error=error)
+            return measured
+        setattr(service.ServiceHost, name, wrap_async(original, name))
+
+
 original_run = service.ServiceHost.run
 
 
 async def run(host):
     task = asyncio.create_task(probe(host))
+    if tracer:
+        gc.callbacks.append(gc_trace)
+        threading.Thread(target=watchdog, args=(threading.get_ident(),), name="load-loop-watchdog", daemon=True).start()
     try:
         return await original_run(host)
     finally:
         task.cancel()
         await asyncio.gather(task, return_exceptions=True)
+        if tracer:
+            watchdog_stop.set()
+            gc.callbacks.remove(gc_trace)
+            trace_sink.close()
+            (Path(trace_directory) / "server-summary.json").write_text(json.dumps(
+                {**trace_sink.summary(), "dropped_spans": tracer.dropped_spans}, indent=2))
 
 
 service.ServiceHost.run = run
