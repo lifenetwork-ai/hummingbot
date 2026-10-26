@@ -260,6 +260,22 @@ def test_control_change_after_intent_blocks_wire_and_unsent_identity_can_be_reje
         assert "order-1" not in session.query(MarketState).one().saved_state
 
 
+def test_tracking_snapshot_excludes_queued_creates_without_durable_intent(owned):
+    queued = InFlightOrder(client_order_id="queued-without-intent", trading_pair="BTC-USDT", order_type=OrderType.LIMIT,
+                           trade_type=TradeType.BUY, amount=Decimal("0.1"), price=Decimal("100"), creation_timestamp=1700000000)
+    owned.market.tracking_states[queued.client_order_id] = queued.to_json()
+    intent(owned)
+    with owned.manager.get_new_session() as session:
+        assert session.get(Order, queued.client_order_id) is None
+        assert set(session.query(MarketState).one().saved_state) == {"order-1"}
+    # A superseding switch rejects both tasks. Only the persisted intent needs
+    # durable rejection; a queued sibling must never be restored as a remote order.
+    owned.owner.order_failed(owned.market, queued)
+    owned.owner.order_failed(owned.market, owned.market.in_flight_orders["order-1"])
+    with owned.manager.get_new_session() as session:
+        assert session.query(MarketState).one().saved_state == {}
+
+
 def test_account_mutation_pending_before_wire_and_cleared_only_after_positive_ack(owned):
     rest, transport = assistant()
     response = transport.call.return_value

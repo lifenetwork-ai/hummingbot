@@ -356,6 +356,14 @@ class MarketsRecorder:
         market_states: Optional[MarketState] = self.get_market_states(config_file_path, market, session=session)
         timestamp: int = self.db_timestamp
         saved_state = dict(market.tracking_states)
+        if saved_state and self._sql_manager.engine.dialect.name == "postgresql":
+            # Tracking begins before queued creates pass the durable send gate.
+            # A sibling intent must not checkpoint those never-admitted creates:
+            # a later switch would restore them as nonexistent exchange orders.
+            admitted = session.query(Order.id).filter(
+                Order.id.in_(saved_state), Order.config_file_path == config_file_path,
+                Order.market == market.display_name).all()
+            saved_state = {order_id: saved_state[order_id] for (order_id,) in admitted}
         if market_states is not None:
             # A connector may discard a pending create after a lost HTTP ack. Keep
             # its last durable tracking identity until reconciliation resolves it.

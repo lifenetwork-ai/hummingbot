@@ -17,6 +17,22 @@ validator. Authorization persistence is disabled. Annotations live on handlers;
 Pydantic request and response models supply the schemas. Response money fields
 are Decimal strings. All timestamp responses use UTC `Z`.
 
+`/status.service` reports service availability separately from trading readiness:
+phase/reason, observation time, observer progress age and at most sixteen current
+incidents. Incidents carry a stable reason code, component scope, severity,
+sanitized exception class, first/last occurrence, last healthy observation,
+retry count/next retry and whether operator action is required. Controller
+initialization read retries appear here while the same task waits/retries;
+they do not create another strategy or reset session deadlines.
+
+If the control DB cannot be read while this process is still responding, `/status`
+returns HTTP 503 with `error: unavailable` and local `service` diagnostics labelled
+`state_source: process`, `persisted_state_available: false`. It does not return a
+fabricated owner/control version or accept commands without durable storage.
+Ordinary status uses the owner's stored observation, marked stale when that owner
+is unavailable. A reporting projection failure marks prior account/position/PnL
+observations stale even while the trading owner remains healthy.
+
 ## Selection and commands
 
 Read `/profiles` for deployed defaults/limits and `/reference-pairs` for searchable,

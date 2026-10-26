@@ -111,6 +111,10 @@ class V2WithControllers(StrategyV2Base):
                     [StopExecutorAction(executor_id=executor.id,
                                         controller_id=executor.controller_id) for executor in executors_to_stop])
             if not controller.config.manual_kill_switch and controller.status == RunnableStatus.TERMINATED:
+                if getattr(controller, "_control_error", None):
+                    from hummingbot.client.config.runtime_config import postgres_requested
+                    if postgres_requested():
+                        continue  # The service handles failed tasks; preserve file-mode behavior.
                 if controller_id in self.drawdown_exited_controllers:
                     continue
                 self.logger().info(f"Restarting controller {controller_id}.")

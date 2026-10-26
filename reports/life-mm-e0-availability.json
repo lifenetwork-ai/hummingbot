@@ -1,0 +1,422 @@
+{
+  "phase": "E0",
+  "baseline": "3401c4412",
+  "date": "2026-10-26",
+  "scope": "local service availability; no E1+, Cloud Run deployment, real OKX or sixty-minute certification",
+  "image_id": "sha256:1791cdc64d2117f587cee15303d9d9b98a6c89321653af23b6042d776f087695",
+  "image_size_bytes": 1364564090,
+  "architecture": "amd64",
+  "source_sha256": {
+    "controllers/market_making/life_mm.py": "48a104f1399bf1208f892886f8b0bd55feb214393500f599eaa2286ac68a6de8",
+    "hummingbot/cli/service.py": "3c6e6a24cf3daa83bc2e4eca20b73109f64fbeae5f0dc368256c5019399b4785",
+    "hummingbot/cli/service_availability.py": "67fc563a2c0874c719feef31d6d99dff21e55c630ea107faeec8d9695ace9bf2",
+    "hummingbot/cli/admin_api.py": "d49ae0e688ca08b32889d2547354b1a6351dafd8534635cf4195ee406a7f94d4",
+    "hummingbot/cli/admin_models.py": "ab3cb608c0187d639adcf7e76421ab7c0dcf01c277299ba7b0c87323ac0bbdb6",
+    "hummingbot/cli/admin_observations.py": "3044c5ac2eadface20914431cafb3a1e679a644e6f25c3b9ed74509f00c24d4a",
+    "hummingbot/core/utils/read_retry.py": "5a8bfe29b0795f258a06a230c1ba1ecaa061b1ec6cf0f1fe40834535aecd7250",
+    "hummingbot/core/bot_ownership.py": "ae138faa93f85f11198e9230817cb69466b5245823aba72bb74ed90a1a612744",
+    "hummingbot/model/bot_state_store.py": "1eab1ab672a96a44410f7d23f7025d65410863bde66bce6b70d690f231b4a423",
+    "hummingbot/strategy_v2/controllers/controller_base.py": "0a8f0a7aa250eab4433e27f0f9f2e1faddfdc45f4dbe23b345be2d565e7083a7",
+    "hummingbot/strategy_v2/runnable_base.py": "bd9b68f431921e2fb4111c2bbc5e92a9055f352d4d3c76cf5d5830985fc95cee",
+    "scripts/v2_with_controllers.py": "676f1994e7d43b43f5327d739313c93f66fc434efe3bf638c73923d0f642019a",
+    "docs/api/openapi.json": "ca8d2fe7e889724f7d26e444cc948c6866beea9c2acdc41162c0be2f584b552f",
+    "hummingbot/connector/markets_recorder.py": "6717221980b40afeea0e7c269135063f519ce33c663450879872ace760bd5139"
+  },
+  "source_matches_image": true,
+  "registry_manifest_digest": "sha256:0ffa5d7028e61eefdf05de9fdf40fd292deb57604923407f957ef1d8a377e14d",
+  "native": {
+    "tests": 1361,
+    "subtests": 9,
+    "groups": [
+      149,
+      11,
+      959,
+      242
+    ],
+    "artifact": "build/e0/regression-final.log"
+  },
+  "final_recorder_recheck": {
+    "tests": 19,
+    "artifact": "build/e0/recorder-switch-green.log",
+    "overlaps_native": true
+  },
+  "focused": {
+    "tests": 26,
+    "runtime_warning_as_error": true,
+    "artifact": "build/e0/e0-focused-final.log"
+  },
+  "postgres": {
+    "tests": 134,
+    "artifact": "build/e0/postgres-accepted.log"
+  },
+  "e2e": {
+    "artifact": "build/e2e-offline/20261026-170940-057693/result.json",
+    "passed": true,
+    "scenarios": {
+      "schema": {
+        "passed": true,
+        "metrics": {
+          "valid_startup_s": 9.36,
+          "valid_shutdown_s": 0.956,
+          "repaired_startup_s": 8.661,
+          "repaired_shutdown_s": 0.854,
+          "file_backend_rejected": true,
+          "empty_rejected": true,
+          "drift_rejected": true,
+          "repaired_schema_validated": true
+        }
+      },
+      "spot": {
+        "passed": true,
+        "metrics": {
+          "first_startup_s": 8.986,
+          "second_startup_s": 8.468,
+          "local_steady_resources": "cpu=2.52% memory=242.4MiB / 2GiB",
+          "local_database": {
+            "select_one_p95_ms": 0.36604199999601406
+          },
+          "first_shutdown_s": 1.739,
+          "second_shutdown_s": 1.321,
+          "third_startup_s": 10.153,
+          "fourth_startup_s": 10.056,
+          "fifth_startup_s": 9.476,
+          "sixth_startup_s": 8.378,
+          "seventh_startup_s": 9.153,
+          "accepted_orders": 14,
+          "persisted_fills": 3,
+          "websocket_reconnect": true,
+          "interrupted_recorder_recovered": true
+        }
+      },
+      "v2-spot": {
+        "passed": true,
+        "metrics": {
+          "v2-first_startup_s": 9.319,
+          "first_shutdown_s": 1.007,
+          "v2-second_startup_s": 8.807,
+          "second_shutdown_s": 1.224,
+          "accepted_orders": 1,
+          "persisted_fills": 1,
+          "position_base": "0.1",
+          "pnl_peak_restored": "12.345678"
+        }
+      },
+      "v2-perpetual": {
+        "passed": true,
+        "metrics": {
+          "v2-first_startup_s": 8.283,
+          "first_shutdown_s": 0.803,
+          "v2-second_startup_s": 8.052,
+          "second_shutdown_s": 1.296,
+          "accepted_orders": 1,
+          "persisted_fills": 1,
+          "position_base": "0.1",
+          "pnl_peak_restored": "12.345678"
+        }
+      },
+      "life-mm": {
+        "passed": true,
+        "metrics": {
+          "mm-first_startup_s": 8.256,
+          "first_shutdown_s": 1.1,
+          "mm-restart_startup_s": 8.04,
+          "mm-db-restart_startup_s": 8.412,
+          "matrix": [
+            {
+              "mode": "spot",
+              "profile": "follow_market",
+              "count": 4
+            },
+            {
+              "mode": "spot",
+              "profile": "sideways",
+              "count": 4
+            },
+            {
+              "mode": "spot",
+              "profile": "follow_token",
+              "count": 4
+            },
+            {
+              "mode": "perpetual",
+              "profile": "follow_market",
+              "count": 4
+            },
+            {
+              "mode": "perpetual",
+              "profile": "sideways",
+              "count": 4
+            },
+            {
+              "mode": "perpetual",
+              "profile": "follow_token",
+              "count": 4
+            },
+            {
+              "mode": "both",
+              "profile": "follow_market",
+              "count": 8
+            },
+            {
+              "mode": "both",
+              "profile": "sideways",
+              "count": 8
+            },
+            {
+              "mode": "both",
+              "profile": "follow_token",
+              "count": 8
+            }
+          ],
+          "cli_mm_stop": true,
+          "legacy_replaces_mm": true,
+          "exact_quote_levels": true,
+          "restart_anchors": true,
+          "weighted_reference": true,
+          "stale_both": true,
+          "fills": 2,
+          "random_steps": true,
+          "expiry": true,
+          "expiry_funding": true,
+          "reconciliation": "matched",
+          "db_fault_halt": true
+        }
+      },
+      "funding": {
+        "passed": true,
+        "metrics": {
+          "funding-first_startup_s": 7.983,
+          "first_shutdown_s": 1.107,
+          "funding-restart_startup_s": 7.973,
+          "funding-standby_startup_s": 7.746,
+          "restart_shutdown_s": 1.092,
+          "funding-db-recovery_startup_s": 8.403,
+          "identified_bills": 6,
+          "original_amounts_exact": true,
+          "same_timestamp_bills": true,
+          "stopped_observation": true,
+          "closed_position_backfill": true,
+          "repeated_pages_idempotent": true,
+          "legacy_not_double_counted": true,
+          "owner_handover": true,
+          "unavailable_visible": true,
+          "db_failure_backfill": true,
+          "no_trading_mutations_after_stop": true
+        }
+      },
+      "availability": {
+        "passed": true,
+        "metrics": {
+          "availability_startup_s": 9.22,
+          "availability": {
+            "optional_failures_recovered": 3,
+            "startup_read_recovered": true,
+            "stale_feed_recovered": true,
+            "preserved_anchor_deadline": true,
+            "unexpected_process_restarts": 0,
+            "failed_controller_halted": true
+          }
+        }
+      }
+    },
+    "release_scope_complete": false
+  },
+  "final_probe": {
+    "artifact": "build/mm-load/20261026-172223-14ef7f/result.json",
+    "passed": true,
+    "diagnostic": true,
+    "bot_limits": {
+      "cpus": 1,
+      "memory_bytes": 2147483648
+    },
+    "emulation": true,
+    "history_orders": 100000,
+    "history_fills": 100000,
+    "metrics": {
+      "duration_seconds": 60,
+      "read_p95_ms": 50.402478000250994,
+      "read_p99_ms": 232.05423599983988,
+      "unexpected_errors": 0,
+      "statuses": {
+        "200": 1200
+      },
+      "completed_reads_per_second": 19.970337701606976,
+      "market_updates_per_second": 99.97757808114851,
+      "fills_per_second": 1.0,
+      "command_accept_p95_ms": 16.83054200020706,
+      "peak_rss_bytes": 324644864,
+      "ledger": {
+        "unique_exchange_fills": 60,
+        "unique_recorder_fills": 60,
+        "positions_matched": true,
+        "identified_funding_bills": 2,
+        "daily_snapshots": 3
+      },
+      "violations": []
+    }
+  },
+  "diagnostic_controls": [
+    {
+      "label": "per_tick_untraced",
+      "artifact": "build/mm-load/20261026-160755-697a4a/result.json",
+      "image_id": "sha256:bd1634632e12a0ad6fe517150375180b72bac44969a78ed9746ecb86647d24fd",
+      "tracing": false,
+      "passed": false,
+      "metrics": {
+        "duration_seconds": 60,
+        "read_p95_ms": 531.3257180000619,
+        "read_p99_ms": 1446.8589670000256,
+        "unexpected_errors": 0,
+        "statuses": {
+          "200": 1200
+        },
+        "completed_reads_per_second": 19.919872332135892,
+        "market_updates_per_second": 99.99052410684212,
+        "fills_per_second": 1.0,
+        "command_accept_p95_ms": 929.9868319999405,
+        "peak_rss_bytes": 328683520,
+        "ledger": {
+          "unique_exchange_fills": 60,
+          "unique_recorder_fills": 60,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "violations": [
+          "read_p95",
+          "read_p99",
+          "command_accept_p95_ms"
+        ]
+      }
+    },
+    {
+      "label": "per_tick_traced",
+      "artifact": "build/mm-load/20261026-161221-4ff019/result.json",
+      "image_id": "sha256:bd1634632e12a0ad6fe517150375180b72bac44969a78ed9746ecb86647d24fd",
+      "tracing": true,
+      "passed": true,
+      "metrics": {
+        "duration_seconds": 60,
+        "read_p95_ms": 113.96706599998652,
+        "read_p99_ms": 567.8196499998194,
+        "unexpected_errors": 0,
+        "statuses": {
+          "200": 1200
+        },
+        "completed_reads_per_second": 19.904892575767228,
+        "market_updates_per_second": 99.98373822219057,
+        "fills_per_second": 1.0,
+        "command_accept_p95_ms": 27.99383299998226,
+        "peak_rss_bytes": 330776576,
+        "ledger": {
+          "unique_exchange_fills": 60,
+          "unique_recorder_fills": 60,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "violations": []
+      }
+    },
+    {
+      "label": "per_tick_untraced_control",
+      "artifact": "build/mm-load/20261026-161655-7338b5/result.json",
+      "image_id": "sha256:bd1634632e12a0ad6fe517150375180b72bac44969a78ed9746ecb86647d24fd",
+      "tracing": false,
+      "passed": false,
+      "metrics": {
+        "duration_seconds": 60,
+        "read_p95_ms": 547.7864339995904,
+        "read_p99_ms": 935.7419839998329,
+        "unexpected_errors": 0,
+        "statuses": {
+          "200": 1200
+        },
+        "completed_reads_per_second": 19.75721154860393,
+        "market_updates_per_second": 99.963029040833,
+        "fills_per_second": 1.0,
+        "command_accept_p95_ms": 36.23620899998059,
+        "peak_rss_bytes": 328359936,
+        "ledger": {
+          "unique_exchange_fills": 60,
+          "unique_recorder_fills": 60,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "violations": [
+          "read_p95"
+        ]
+      }
+    },
+    {
+      "label": "pre_e0_application_overlay",
+      "artifact": "build/mm-load/20261026-162134-23f1b5/result.json",
+      "image_id": "sha256:d527a66315288d3368b7d76f68a92a622c462763f22c67f402c6fdcf7e3448d1",
+      "tracing": false,
+      "passed": true,
+      "metrics": {
+        "duration_seconds": 60,
+        "read_p95_ms": 82.87329399990995,
+        "read_p99_ms": 659.1663819999667,
+        "unexpected_errors": 0,
+        "statuses": {
+          "200": 1200
+        },
+        "completed_reads_per_second": 19.931418443358613,
+        "market_updates_per_second": 99.98433456407666,
+        "fills_per_second": 1.0,
+        "command_accept_p95_ms": 14.528208999763592,
+        "peak_rss_bytes": 326078464,
+        "ledger": {
+          "unique_exchange_fills": 60,
+          "unique_recorder_fills": 60,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "violations": []
+      }
+    },
+    {
+      "label": "old_publication_only_overlay",
+      "artifact": "build/mm-load/20261026-162944-e3560b/result.json",
+      "image_id": "sha256:b3d79bf9b2b71d40dd768eb66b39d7676b91951989b824609ad60cb7232aaa36",
+      "tracing": false,
+      "passed": true,
+      "metrics": {
+        "duration_seconds": 60,
+        "read_p95_ms": 54.12601199986966,
+        "read_p99_ms": 201.751042000069,
+        "unexpected_errors": 0,
+        "statuses": {
+          "200": 1200
+        },
+        "completed_reads_per_second": 20.0,
+        "market_updates_per_second": 99.95075595171116,
+        "fills_per_second": 1.0,
+        "command_accept_p95_ms": 51.255584000500676,
+        "peak_rss_bytes": 325799936,
+        "ledger": {
+          "unique_exchange_fills": 60,
+          "unique_recorder_fills": 60,
+          "positions_matched": true,
+          "identified_funding_bills": 2,
+          "daily_snapshots": 3
+        },
+        "violations": []
+      }
+    }
+  ],
+  "failed_setup": {
+    "artifact": "build/mm-load/20261026-165826-ec4292/result.json",
+    "image_id": "sha256:5a4fcd4ccb4ac13358d0b0053da1d688fee5d3449f13c54c0a11ba1c66ebed47",
+    "measured_windows": 0,
+    "cause": "Queued creates without durable intent leaked into tracking checkpoints; fixed with Red/Green PostgreSQL test"
+  },
+  "limits": [
+    "Existing deprecation/mock warnings retained in broad regression logs",
+    "Short probes vary on emulated, CPU-limited local Docker; controls do not prove every tail cause",
+    "No upgrade-from-previous-image gate in this E0 run; E6 remains open"
+  ]
+}

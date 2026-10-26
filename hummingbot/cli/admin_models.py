@@ -26,9 +26,35 @@ class APIModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class RuntimeIncident(APIModel):
+    reason_code: str
+    scope: str
+    severity: Literal["warning", "error"]
+    detail: Optional[str] = None
+    first_seen_at: UTCDateTime
+    last_seen_at: UTCDateTime
+    last_healthy_at: Optional[UTCDateTime] = None
+    retry_count: int
+    next_retry_at: Optional[UTCDateTime] = None
+    active_fallback: Optional[str] = None
+    operator_action_required: bool
+
+
+class ServiceStatus(APIModel):
+    reason_code: Optional[str] = None
+    observed_at: Optional[UTCDateTime] = None
+    state_source: Literal["postgres", "process"]
+    persisted_state_available: bool
+    phase: str
+    observer_age_seconds: Optional[float] = None
+    incidents: List[RuntimeIncident] = Field(default_factory=list)
+    stale: bool = False
+
+
 class ErrorResponse(APIModel):
     error: str
     detail: Optional[str] = None
+    service: Optional[ServiceStatus] = None
 
 
 class StartCommand(APIModel):
@@ -129,6 +155,7 @@ class FundingSyncStatus(APIModel):
 
 
 class StatusResponse(APIModel):
+    service: Optional[ServiceStatus] = None
     funding_sync: Optional[FundingSyncStatus] = None
     bot_id: str
     desired_state: Literal["running", "stopped"]

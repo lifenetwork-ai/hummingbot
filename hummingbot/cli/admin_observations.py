@@ -75,7 +75,8 @@ def reporting_view(row):
     age = row.get("heartbeat_age_s")
     available = bool(row.get("owner_uuid")) and age is not None and 0 <= float(age) <= 5
     reporting = copy.deepcopy(status.get("reporting") or {})
-    active = set(reporting.get("active_connectors", [])) if available and status.get("running") else set()
+    active = set(reporting.get("active_connectors", [])) if (
+        available and status.get("running") and not status.get("reporting_unavailable")) else set()
 
     def stale(timestamp, connector):
         return connector not in active or timestamp is None or not 0 <= now - timestamp <= 60

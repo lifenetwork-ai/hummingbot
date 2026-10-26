@@ -1,6 +1,7 @@
 import asyncio
 import inspect
 import logging
+import time
 from abc import ABC
 
 from hummingbot.core.utils.async_utils import safe_ensure_future
@@ -30,6 +31,10 @@ class RunnableBase(ABC):
         self.update_interval = update_interval
         self._status: RunnableStatus = RunnableStatus.NOT_STARTED
         self.terminated = asyncio.Event()
+        self._control_progress_at = None
+        self._control_error = None
+        self._control_stage = "not_started"
+        self._control_wait_until = None
 
     @property
     def status(self):
@@ -65,15 +70,26 @@ class RunnableBase(ABC):
         This method is responsible for executing the control task at the specified interval.
         """
         try:
+            self._control_progress_at = time.monotonic()
+            self._control_stage = "startup"
             await self.on_start()
             while not self.terminated.is_set():
                 try:
+                    self._control_progress_at = time.monotonic()
+                    self._control_stage = "control"
                     await self.control_task()
                 except Exception as e:
+                    self._control_error = type(e).__name__
                     self.logger().error(e, exc_info=True)
+                self._control_progress_at = time.monotonic()
+                self._control_stage = "sleep"
                 if not self.terminated.is_set():
                     await asyncio.sleep(self.update_interval)
+        except Exception as error:
+            self._control_error = type(error).__name__
+            raise
         finally:
+            self._control_stage = "stopped"
             cleanup = self.on_stop()
             if inspect.isawaitable(cleanup):
                 await cleanup

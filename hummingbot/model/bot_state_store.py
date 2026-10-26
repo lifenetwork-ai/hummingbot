@@ -81,8 +81,9 @@ class BotStateStore:
             return result
 
     def publish(self, *, owner_uuid: str, owner_generation: int, version: int, status: dict,
-                revision: Optional[str] = None) -> bool:
+                revision: Optional[str] = None, save_balances: bool = True) -> bool:
         """An old process/command cannot acknowledge newer control intent."""
+        status.pop("daily_snapshot_error", None)
         with self.engine.begin() as connection:
             result = connection.execute(update(BotState).where(
                 BotState.bot_id == self.bot_id, BotState.owner_uuid == owner_uuid,
@@ -94,9 +95,20 @@ class BotStateStore:
                 return False
             from hummingbot.model.admin_store import AdminStore
             AdminStore.record_observation(connection, self.bot_id, version, status, result)
+            from sqlalchemy.exc import DataError, IntegrityError
+
             from hummingbot.model.admin_reporting import save_daily_balances
-            save_daily_balances(connection, (status.get("reporting") or {}).get("accounts", []),
-                                status.get("reporting_timezone", "Asia/Ho_Chi_Minh"))
+            try:
+                # A malformed optional observation must not roll back ownership,
+                # heartbeat or a truthful command outcome. Connection/commit
+                # failures remain fatal and are deliberately not caught here.
+                if save_balances and not status.get("reporting_unavailable"):
+                    with connection.begin_nested():
+                        save_daily_balances(connection, (status.get("reporting") or {}).get("accounts", []),
+                                            status.get("reporting_timezone", "Asia/Ho_Chi_Minh"))
+            except (ValueError, TypeError, KeyError, OverflowError, DataError, IntegrityError) as error:
+                status["daily_snapshot_error"] = type(error).__name__
+                connection.execute(update(BotState).where(BotState.bot_id == self.bot_id).values(status=status))
             return True
 
     def request_mm_session(self, *, action, expected_version, catalogue=None, request=None,

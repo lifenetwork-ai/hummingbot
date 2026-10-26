@@ -47,6 +47,7 @@ class BotOwnership:
         self.account_lock = asyncio.Lock()
         self.account_token = None
         self.mm_ready_check = None
+        self.runtime_ready_check = None
         self.intent_scopes = {}
 
     def try_acquire(self) -> bool:
@@ -172,6 +173,8 @@ class BotOwnership:
     def before_order(self, connector, order):
         from hummingbot.core.order_submission_guard import current_session_scope
         row = self.check_owner(new_risk=True)
+        if self.runtime_ready_check is not None and not self.runtime_ready_check():
+            raise SubmissionBlocked("A required runtime task is not healthy.")
         scope = current_session_scope()
         self._check_mm_authority(row, scope)
         if connector.name not in SUPPORTED_CONNECTORS:
@@ -244,6 +247,8 @@ class BotOwnership:
         if path in CANCEL_PATHS:
             return None
         if path == ORDER_PATH:
+            if self.runtime_ready_check is not None and not self.runtime_ready_check():
+                raise SubmissionBlocked("A required runtime task is not healthy.")
             data = json.loads(request.data or "{}")
             client_id = data.get("clOrdId")
             self._check_mm_authority(row, self.intent_scopes.get(client_id))

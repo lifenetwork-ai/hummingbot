@@ -158,7 +158,7 @@ class Harness:
         assert json.loads(docker("network", "inspect", self.network).stdout)[0]["Internal"]
 
     def start(self, revision, *, auto_migrate=True, runtime_role=False, expect_failure=False, additive_fixture=False,
-              storage_backend="postgres", instrumented=False, trace_directory=None):
+              storage_backend="postgres", instrumented=False, trace_directory=None, availability=False):
         name = self.prefix + "-" + revision
         env = {**self.env, "K_REVISION": revision, "ENABLE_AUTO_MIGRATION": str(auto_migrate).lower(),
                "STORAGE_BACKEND": storage_backend}
@@ -174,7 +174,7 @@ class Harness:
                 mounts += ["--mount", f"type=bind,source={self.assets / filename},target=/home/hummingbot/conf/{directory}/{filename},readonly"]
         if (self.assets / "life_mm_profiles.yaml").is_file():
             mounts += ["--mount", f"type=bind,source={self.assets / 'life_mm_profiles.yaml'},target=/home/hummingbot/conf/life_mm_profiles.yaml,readonly"]
-        if instrumented:
+        if instrumented or availability:
             mounts += ["--mount", f"type=bind,source={self.assets},target=/test-assets,readonly"]
         if trace_directory is not None:
             assert instrumented
@@ -182,7 +182,8 @@ class Harness:
             mounts += ["--mount", f"type=bind,source={trace_directory},target=/trace-output"]
         self.run_container(name, ["--platform", "linux/amd64", "--cpus", "1", "--memory", "2g", "--read-only",
                                   "--tmpfs", "/tmp:rw,nosuid,size=128m", *(["--network-alias", "bot"] if instrumented else []), *mounts],
-                           env=env, publish=True, command=["python", "/test-assets/load_service.py"] if instrumented else ())
+                           env=env, publish=True, command=(["python", "/test-assets/availability_service.py"] if availability else
+                                                           ["python", "/test-assets/load_service.py"] if instrumented else ()))
         port = self.port(name)
         started = time.monotonic()
         if expect_failure:
@@ -191,10 +192,19 @@ class Harness:
             assert json.loads(docker("inspect", name).stdout)[0]["State"]["ExitCode"] != 0
             assert not self.ledger()["accepted"]
             return name, port
-        poll(lambda: http(port, "/startup")[0] == 200, timeout=200, description=f"{revision} validated startup")
+
+        def startup_ready():
+            if http(port, "/startup")[0] == 200:
+                return True
+            state = json.loads(docker("inspect", name).stdout)[0]["State"]
+            assert state["Running"], f"{revision} exited before startup; inspect retained container logs"
+            return False
+
+        poll(startup_ready, timeout=200, description=f"{revision} validated startup")
         self.metrics[revision + "_startup_s"] = round(time.monotonic() - started, 3)
         assert http(port, "/live")[0] == 200
-        expected = "b'python\\x00/test-assets/load_service.py" if instrumented else "b'python\\x00-m\\x00hummingbot.cli.service"
+        expected = ("b'python\\x00/test-assets/availability_service.py" if availability else
+                    "b'python\\x00/test-assets/load_service.py" if instrumented else "b'python\\x00-m\\x00hummingbot.cli.service")
         assert docker("exec", name, "python", "-c", "from pathlib import Path; print(Path('/proc/1/cmdline').read_bytes())").stdout.startswith(expected)
         return name, port
 
@@ -664,6 +674,74 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
                             restart_anchors=True, weighted_reference=True, stale_both=True,
                             fills=2, random_steps=True, expiry=True, expiry_funding=True, reconciliation="matched", db_fault_halt=True)
 
+    def availability_scenario(self):
+        print("Offline E2E: service availability and automatic read/feed recovery", flush=True)
+        self.env.update(ADMIN_API_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin")
+        for field, value in (("API_KEY", "offline-key"), ("SECRET_KEY", "offline-secret"), ("PASSPHRASE", "offline-pass")):
+            self.env["HBOT_OKX_PERPETUAL_" + field] = value
+        first, port = self.start("availability", availability=True)
+        self.control(target_updates_per_second=20)
+
+        def inject(**values):
+            docker("exec", first, "python", "-c", "from pathlib import Path; import sys; "
+                   "p=Path('/tmp/availability-faults.next'); p.write_text(sys.argv[1]); "
+                   "p.replace('/tmp/availability-faults.json')", json.dumps(values))
+
+        def incident(reason):
+            code, value = self.admin(port, "/status")
+            return code == 200 and any(row["reason_code"] == reason for row in (value.get("service") or {}).get("incidents", []))
+
+        poll(lambda: bool(self.state().get("status")), description="availability owner status")
+        inject(metadata_failures=3)
+        payload = dict(action="start", expected_version=self.state()["control_version"], market_mode="perpetual",
+                       selection="fixed", profile_id="follow_market", duration_seconds=600)
+        code, receipt = self.admin(port, "/commands", payload, str(uuid.uuid4()))
+        assert code == 202, receipt
+        poll(lambda: incident("controller_startup_read_retry"), description="observable startup read retry")
+        assert not self.ledger()["accepted"]
+        assert http(port, "/live")[0] == 200
+        poll(lambda: self.admin(port, "/commands/" + receipt["id"])[1]["status"] == "succeeded",
+             description="same controller recovers after metadata reads")
+        poll(lambda: len(self.ledger()["accepted"]) >= 4, description="quotes after safe startup recovery")
+        session = self.state()["mm_session"]
+        deadline = session["expires_at"]
+        process_started = json.loads(docker("inspect", first).stdout)[0]["State"]["StartedAt"]
+        for flag, reason in (("reporting_error", "reporting_unavailable"),
+                             ("daily_error", "daily_snapshot_unavailable"),
+                             ("claim_error", "reconciliation_unavailable")):
+            inject(**{flag: True})
+            poll(lambda: incident(reason), description=reason)
+            assert http(port, "/live")[0] == 200
+            assert self.state()["status"]["running"]
+            assert not self.state()["recovery_state"].get("halt")
+            inject()
+            poll(lambda: not incident(reason), description=reason + " recovery")
+        self.control(stale_pairs=["BTC-USDT"])
+        poll(lambda: self.state()["status"]["phase"] == "waiting_for_mm_readiness",
+             timeout=25, description="stale basket suspends quoting without process exit")
+        poll(lambda: all(order["state"] in ("filled", "canceled") for order in self.ledger()["orders"]),
+             description="stale quotes cancelled")
+        assert http(port, "/live")[0] == 200 and http(port, "/ready")[0] == 503
+        self.control(stale_pairs=[])
+        poll(lambda: self.state()["status"]["phase"] == "running", description="fresh basket automatically resumes")
+        assert self.state()["mm_session"]["expires_at"] == deadline
+        assert self.state()["mm_session"]["anchors"] == session["anchors"]
+        assert json.loads(docker("inspect", first).stdout)[0]["State"]["StartedAt"] == process_started
+        self.mm_command(port, "stop")
+        assert http(port, "/live")[0] == 200
+        # A real failed trading task is different from an optional observation failure.
+        self.mm_command(port, "start", market_mode="spot", selection="fixed", profile_id="sideways", duration_seconds=600)
+        inject(controller_error=True)
+        poll(lambda: bool(self.state()["recovery_state"].get("halt")), description="dead controller creates durable HALT")
+        poll(lambda: incident("controller_task_failed"), description="failed task reason exposed")
+        assert http(port, "/live")[0] == 200
+        self.metrics["availability"] = dict(optional_failures_recovered=3, startup_read_recovered=True,
+                                            stale_feed_recovered=True, preserved_anchor_deadline=True,
+                                            unexpected_process_restarts=0, failed_controller_halted=True)
+        inject()
+        self.mm_command(port, "stop")
+        assert self.state()["recovery_state"].get("halt")
+
     def funding_scenario(self):
         print("Offline E2E: stopped funding, exact bills, restart and closed-position catch-up", flush=True)
         self.env.update(ADMIN_API_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin",
@@ -793,7 +871,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--image", default="hummingbot-cloudrun:local")
-    parser.add_argument("--scenario", choices=("all", "spot", "v2-spot", "v2-perpetual", "schema", "upgrade", "life-mm", "life-mm-recovery", "funding"), default="all")
+    parser.add_argument("--scenario", choices=("all", "spot", "v2-spot", "v2-perpetual", "schema", "upgrade", "life-mm", "life-mm-recovery", "funding", "availability"), default="all")
     parser.add_argument("--previous-image", help="Cached compatible prior image; required for the release upgrade gate.")
     parser.add_argument("--trading-env", choices=("live", "demo"), default="live", help="Local simulator routing mode; never contacts OKX.")
     args = parser.parse_args()
@@ -812,7 +890,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix="hbot-e2e-assets-") as directory:
         assets = Path(directory)
         assets.chmod(0o755)
-        for name in ("exchange.py", "runtime_smoke.py", "pmm.yml", "controller-spot.yml", "controller-perpetual.yml", "script-perpetual.yml"):
+        for name in ("exchange.py", "runtime_smoke.py", "availability_service.py", "pmm.yml", "controller-spot.yml", "controller-perpetual.yml", "script-perpetual.yml"):
             assets.joinpath(name).write_bytes((ROOT / "test/e2e/offline" / name).read_bytes())
         write_fixtures(assets / "fixtures.json")
         import yaml
@@ -833,7 +911,7 @@ def main():
                            f"type=bind,source={assets},target=/test-assets,readonly",
                            image, "python", "/test-assets/runtime_smoke.py", timeout=90)
             result["runtime_smoke"] = json.loads(smoke.stdout)
-            scenarios = ("schema", "spot", "v2-spot", "v2-perpetual", "life-mm", "funding") if args.scenario == "all" else (args.scenario,)
+            scenarios = ("schema", "spot", "v2-spot", "v2-perpetual", "life-mm", "funding", "availability") if args.scenario == "all" else (args.scenario,)
             if args.scenario == "all" and previous_image:
                 scenarios += ("upgrade",)
             result["scenarios"] = {}
@@ -849,6 +927,8 @@ def main():
                         harness.schema_scenario()
                     elif scenario == "funding":
                         harness.funding_scenario()
+                    elif scenario == "availability":
+                        harness.availability_scenario()
                     elif scenario == "upgrade":
                         harness.upgrade_scenario(previous_image)
                     elif scenario in ("life-mm", "life-mm-recovery"):

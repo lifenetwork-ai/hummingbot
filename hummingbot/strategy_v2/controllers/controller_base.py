@@ -211,6 +211,7 @@ class ControllerBase(RunnableBase):
         Allow controllers to be restarted after being stopped.
         """
         if self._status != RunnableStatus.RUNNING:
+            self._control_error = None
             self.terminated.clear()
             self._status = RunnableStatus.RUNNING
             self.executors_update_event.set()
@@ -229,7 +230,8 @@ class ControllerBase(RunnableBase):
             if previous:
                 await asyncio.shield(asyncio.gather(*previous, return_exceptions=True))
             await self.control_loop()
-        except Exception:
+        except Exception as error:
+            self._control_error = type(error).__name__
             self.logger().error("Controller control loop failed.", exc_info=True)
         finally:
             if asyncio.current_task() is self._control_loop_task:

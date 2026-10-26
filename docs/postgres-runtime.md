@@ -257,6 +257,54 @@ flushes/bulk writes, including tracking snapshots. A failed fill cannot be follo
 by a committed snapshot claiming it was recorded. Exit and reconcile from durable
 state and exchange fill truth in a fresh service; do not retry/reset that manager.
 
+### Service availability and automatic read recovery
+
+Optional reporting errors are isolated from required control/receipt publication.
+Daily checkpoint attempts are scheduled once per minute, with immediate attempts
+for a new reporting day, verified account/environment or currency. Live balance
+observations and required control publication keep their existing cadence. Failed
+optional checkpoints back off instead of retrying every observer tick.
+Invalid daily balance observations roll back to a savepoint; the healthy owner
+can still commit its heartbeat and truthful command outcome. Connection errors,
+recorder failures and critical commit errors remain fail-closed. Prior reporting
+observations lose freshness if their projection fails. Reconciliation claiming
+runs as one background task so an optional read cannot occupy the owner loop.
+
+LIFE controller initialization retries explicitly read-only mode discovery,
+reference metadata and book acquisition. Attempts have a 30-second deadline;
+backoff starts around one second and doubles up to a thirty-second delay with
+jitter. Available Retry-After instructions take precedence. Each attempt runs on
+the same controller and the retry is cancellable by stop/switch. Mode/leverage
+mutations and their uncertain outcomes are never retried by this helper. HTTP
+401/403/404 and invalid configuration are not treated as transient read failures.
+Existing connector WS reconnects and feed freshness checks continue to handle
+temporary feed outages; recovered feeds do not extend session/step deadlines.
+
+The service checks retained controller tasks, clock and connector polling/user
+stream task handles. Completed/failed required tasks close order admission at
+both intent and final transport authorization. Controller progress has a deadline
+of max(5 seconds, three update intervals); declared read/backoff waits carry their
+own deadline. Unknown failed/stalled trading tasks require recovery rather than
+blind task/executor restart. File-mode controller restart behavior is preserved.
+
+| Status reason / incident | Recovery |
+|---|---|
+| `reporting_unavailable`, `engine_reporting_unavailable`, `daily_snapshot_unavailable` | Observation retries automatically; quoting continues while required owner/recorder checks pass |
+| `reconciliation_unavailable`, `reconciliation_read_unavailable` | Claim retries with backoff, or read result reports unavailable; no trading mutations |
+| `controller_startup_read_retry` | Inspect retry count/next retry; the existing task resumes on successful read |
+| `market_data_unavailable` | Inspect per-market freshness/reason; quoting resumes with valid required feeds |
+| `controller_task_failed/stopped/stalled`, `clock_task_stopped`, `connector_task_stopped` | Durable HALT; inspect runtime/connector state and reconcile before operator recovery |
+| `controller_<startup-stage>_failed` | Verify the named mode/leverage/reference stage and configuration; do not replay an uncertain mutation |
+| `operator_stopped`, `session_expired` | Expected idle state; requires explicit new trading intent |
+
+Admin `/status.service` exposes bounded incident diagnostics and observation time.
+When PostgreSQL is unavailable it can return HTTP 503 with local process details;
+this is not a fresh database/owner observation. `/live` remains healthy while the
+observer progresses during a deliberate stop, feed wait or HALT. `/ready` reports
+trading readiness and must not be configured as liveness. Core exits emit a stable
+reason and exception class without raw driver/credential details; critical
+ownership/persistence uncertainty still uses the existing controlled-exit path.
+
 Clean shutdown checkpoints known controller drawdown/PnL peaks, preserves existing
 V2 position holds, cancels working orders and confirms terminal status before
 closing the runtime marker. A false/incomplete cleanup result must terminate the

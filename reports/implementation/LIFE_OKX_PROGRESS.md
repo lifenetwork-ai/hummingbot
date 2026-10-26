@@ -773,3 +773,29 @@ retained. No new full soak, cloud deployment or real Demo account operation was
 performed; original Demo evidence keeps its own image. Conservative full-entry
 reservation can temporarily reduce quoting until terminal hold. See the
 [review](../life-mm-logic-review.md) and [portable evidence](../life-mm-logic-review-evidence.json).
+
+### Incremental enhancements E0 — 2026-10-26
+
+E0 isolates optional report/daily-checkpoint/reconciliation failures, retries only
+classified read-only initialization, supervises retained trading tasks and exposes
+sanitized incidents plus observer progress through the existing authenticated API.
+Required ownership, recorder, command-receipt and uncertain-transport failures
+retain their existing fail-closed behavior. No automatic HALT reset was added.
+
+Red/Green tests also fix an observer-ack/early-clock gate regression and a queued
+create checkpoint race found during rapid-switch probe setup. Optional daily
+checkpoints now run once per minute or on identity/currency/day changes, with
+backoff on invalid samples; live reporting/control cadence remains intact.
+
+Verification: 1,361 native tests/nine subtests, a final nineteen-test recorder
+recheck, 134 PostgreSQL tests and seven final-image offline E2E groups passed.
+The sixty-second diagnostic probe passed unchanged budgets: p95 50.40ms, p99
+232.05ms, 1,200 HTTP 200 responses and no unexpected errors; sixty fills, positions
+and funding match the independent ledger. Final image:
+`sha256:1791cdc64d2117f587cee15303d9d9b98a6c89321653af23b6042d776f087695`
+(1,364,564,090 bytes); fourteen runtime/contract hashes match source.
+
+Earlier failed probes, the setup race and the obsolete eleven-query benchmark
+assertion remain documented. E1–E6 have not started; no new sixty-minute, previous
+image upgrade, Cloud Run or real OKX Demo acceptance is claimed. See the
+[E0 report](../life-mm-e0-availability.md) and [evidence](../life-mm-e0-availability.json).

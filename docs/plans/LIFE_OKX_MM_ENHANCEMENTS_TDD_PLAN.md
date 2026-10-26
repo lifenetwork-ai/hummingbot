@@ -1,8 +1,8 @@
 # LIFE / OKX MM: Incremental Enhancements — TDD Plan
 
 Date: 2026-10-26 (Asia/Ho_Chi_Minh).
-Status: ready for staged implementation after compatibility/availability review;
-implementation has not started. All delivery checkboxes below remain open.
+Status: E0 complete with local unit/PostgreSQL/image fault/load verification;
+E1–E6 have not started. Only verified checklist items are marked complete.
 Baseline: `1867159e7`.
 Implementation priority: service availability, explainable trading decisions and
 automatic recovery from classified transient failures. Compatibility and
@@ -211,12 +211,25 @@ state with observation time; never invent command success or fresh ownership.
 Terminal exits log the reason before cleanup when possible; abrupt OS kills remain
 observable through the existing runtime marker and platform logs.
 
-- [ ] **Red:** optional report serialization/validation, snapshot write and reconciliation-claim failures do not terminate a healthy owner loop or falsify command receipts.
-- [ ] **Red:** transient read-only startup failure, stale WS feed, reconnect, timeout and rate limit recover without a second controller task or duplicate order.
-- [ ] **Red:** failed controller startup/dead task becomes visible; waiting/retry retains API access, accepts stop/switch and preserves deadlines.
-- [ ] **Red:** DB/lease loss, recorder rollback and uncertain mutation still fail closed; generic retries cannot clear HALT or replay an ambiguous placement.
-- [ ] **Green:** implement narrow failure isolation, task progress checks and structured reasons on existing service/config/API paths; preserve critical publication transactions.
-- [ ] **Verify/commit:** unit, real-PG and image fault tests prove process survival for optional/transient observation failures and classified recovery/exit for critical failures. Document reason codes and recovery actions.
+- [x] **Red:** optional report serialization/validation, snapshot write and reconciliation-claim failures do not terminate a healthy owner loop or falsify command receipts.
+- [x] **Red:** transient read-only startup failure, stale WS feed, reconnect, timeout and rate limit recover without a second controller task or duplicate order.
+- [x] **Red:** failed controller startup/dead task becomes visible; waiting/retry retains API access, accepts stop/switch and preserves deadlines.
+- [x] **Red:** DB/lease loss, recorder rollback and uncertain mutation still fail closed; generic retries cannot clear HALT or replay an ambiguous placement.
+- [x] **Green:** implement narrow failure isolation, task progress checks and structured reasons on existing service/config/API paths; preserve critical publication transactions.
+- [x] **Verify/commit:** unit, real-PG and image fault tests prove process survival for optional/transient observation failures and classified recovery/exit for critical failures. Document reason codes and recovery actions.
+
+E0 review also reproduced and fixed an early-clock/standby-handover regression:
+task health must not depend on the observer's later `running` acknowledgement.
+The existing ownership/reconciliation gate remains send authority. Readiness now
+distinguishes collateral/exposure/instrument waits from unavailable market data.
+The optional checkpoint path is now cadenced without slowing live API observations.
+A real-PG Red/Green test also fixes queued creates leaking into tracking snapshots
+and breaking a rapid switch. Final verification: 1,361 native tests/nine subtests,
+nineteen recorder tests rerun after that correction, 134 real-PG tests, all seven
+offline image groups and an unchanged sixty-second probe (p95 50.40ms / p99
+232.05ms, zero unexpected HTTP errors). See the [E0 report](../../reports/life-mm-e0-availability.md)
+and [portable evidence](../../reports/life-mm-e0-availability.json). E1–E6 remain open;
+this delivery claims no new sixty-minute certification, upgrade gate or real Demo run.
 
 ## 4. E1 — Price and manual-range guards
 

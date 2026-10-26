@@ -37,6 +37,7 @@ from hummingbot.cli.admin_models import (
     ReconciliationResponse,
     ReferencePairsQuery,
     ReferencePairsResponse,
+    ServiceStatus,
     StatusResponse,
 )
 from hummingbot.cli.api_documentation import api_operation
@@ -181,7 +182,13 @@ class AdminAPI:
     async def status(self, request):
         if self.host is None or self.host.store is None:
             raise APIUnavailable("Control store is not ready")
-        row = await asyncio.to_thread(self.host.store.read)
+        try:
+            row = await asyncio.to_thread(self.host.store.read)
+        except (SQLAlchemyError, asyncio.TimeoutError):
+            if not hasattr(self.host, "service_status"):
+                raise APIUnavailable("Control store is unavailable") from None
+            service = ServiceStatus.model_validate(self.host.service_status())
+            return web.json_response({"error": "unavailable", "service": service.model_dump(mode="json")}, status=503)
         if row is None:
             raise APIUnavailable("Bot identity is not ready")
         snapshot = row.get("status") or {}
@@ -190,7 +197,10 @@ class AdminAPI:
         session = {key: value for key, value in row["mm_session"].items() if key != "catalogue"} if row.get("mm_session") else None
         now = float(row["database_now"]) if row.get("database_now") is not None else None
         remaining = max(0, session["expires_at"] - now) if session and session.get("expires_at") is not None and now is not None else None
-        model = StatusResponse(bot_id=row["bot_id"], desired_state=row["desired_state"], control_version=row["control_version"],
+        service = snapshot.get("availability")
+        if service is not None:
+            service = {**service, "stale": not owner_available}
+        model = StatusResponse(service=service, bot_id=row["bot_id"], desired_state=row["desired_state"], control_version=row["control_version"],
                                acknowledged_version=row["acknowledged_version"], owner_available=owner_available,
                                heartbeat_age_seconds=age, running=owner_available and bool(snapshot.get("running")),
                                phase=snapshot.get("phase", "unknown") if owner_available else "owner_unavailable",

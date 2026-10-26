@@ -1,4 +1,6 @@
 """LIFE reference configuration on the existing simple V2 market maker."""
+import asyncio
+import time
 from decimal import Decimal
 from typing import Dict, List, Literal, Optional
 
@@ -6,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from controllers.market_making import pmm_simple
 from hummingbot.core.data_type.common import OrderType, PositionMode, PositionSide, PriceType, TradeType
+from hummingbot.core.utils.read_retry import retry_delay, transient_read
 from hummingbot.strategy_v2.models.base import RunnableStatus
 from hummingbot.strategy_v2.models.executor_actions import StopExecutorAction
 
@@ -111,6 +114,9 @@ class LifeMMController(pmm_simple.PMMSimpleController):
         self._stops_requested = set()
         self._account_ready = config.connector_name == "okx"
         self._session_admitted = config.mm_session_id is None
+        self._startup_retry = None
+        self._startup_stage = "not_started"
+        self._startup_retry_sleep = asyncio.sleep
 
     def admit_session(self, session_id, generation):
         if (session_id, generation) != (self.config.mm_session_id, self.config.mm_generation):
@@ -180,7 +186,11 @@ class LifeMMController(pmm_simple.PMMSimpleController):
             self._life_anchor, self._source_anchors = life_anchor, dict(source_anchors)
             self.processed_data["ready"] = True
         except Exception as error:
-            self.processed_data = {"ready": False, "reason": str(error)}
+            reason = str(error).split(":", 1)[0]
+            known = {"perpetual_account_not_confirmed", "reference_pair_unavailable", "stale_reference",
+                     "invalid_book", "reference_out_of_bounds", "quote_out_of_bounds"}
+            self.processed_data = {"ready": False, "reason": str(error) if reason in known else type(error).__name__,
+                                   "internal_error": not isinstance(error, (ValueError, ArithmeticError, OSError))}
 
     async def update_processed_data(self):
         self.update_reference()
@@ -188,7 +198,7 @@ class LifeMMController(pmm_simple.PMMSimpleController):
     async def control_task(self):
         # Run freshness/cancellation even when the generic provider becomes unready.
         await self.update_processed_data()
-        if (not self._session_admitted or not self.market_data_provider.ready or not self.processed_data["ready"]
+        if (self._control_error or not self._session_admitted or not self.market_data_provider.ready or not self.processed_data["ready"]
                 or not self._exposure_within_caps()):
             await self.send_actions(self._stop_quotes())
         elif self.executors_update_event.is_set():
@@ -284,23 +294,54 @@ class LifeMMController(pmm_simple.PMMSimpleController):
                 for executor in self.executors_info if executor.is_active
                 and self.market_data_provider.time() - executor.timestamp > self.config.executor_refresh_time]
 
+    async def _startup_read(self, operation):
+        """Retry only the supplied read; never replay an enclosing account mutation."""
+        attempt, first = 0, time.time()
+        while True:
+            self._control_progress_at = time.monotonic()
+            self._control_wait_until = time.monotonic() + 31
+            try:
+                result = await asyncio.wait_for(operation(), timeout=30)
+            except Exception as error:
+                if not transient_read(error):
+                    self._startup_retry = None
+                    raise
+                attempt = min(attempt + 1, 60)
+                delay = retry_delay(attempt, error)
+                self._startup_retry = dict(reason_code="controller_startup_read_retry", scope=f"controller:{self.config.id}",
+                                           severity="warning", detail=type(error).__name__, first_seen_at=first,
+                                           last_seen_at=time.time(), last_healthy_at=None, retry_count=attempt,
+                                           next_retry_at=time.time() + delay, active_fallback=None,
+                                           operator_action_required=False)
+                self._control_wait_until = time.monotonic() + delay + 1
+                await self._startup_retry_sleep(delay)
+            else:
+                self._startup_retry = None
+                return result
+            finally:
+                self._control_wait_until = None
+
     async def on_start(self):
         if self.config.connector_name == "okx_perpetual":
             connector = self.market_data_provider.get_connector_with_fallback(self.config.connector_name)
             async with connector._set_position_mode_lock:
-                current_mode = await connector._fetch_account_position_mode()
+                self._startup_stage = "position_mode_read"
+                current_mode = await self._startup_read(connector._fetch_account_position_mode)
                 if current_mode is None:
                     raise ValueError("Perpetual account mode is unavailable")
                 if current_mode != PositionMode.HEDGE:
                     if connector.account_positions or connector.in_flight_orders:
                         raise ValueError("Cannot change account mode with existing orders or positions")
+                    self._startup_stage = "position_mode_change"
                     success, reason = await connector._trading_pair_position_mode_set(
                         PositionMode.HEDGE, self.config.trading_pair)
                     if not success:
                         raise ValueError(f"Perpetual account mode rejected: {reason}")
+                    self._startup_stage = "position_mode_confirmation"
                     if await connector._fetch_account_position_mode() != PositionMode.HEDGE:
                         raise ValueError("Perpetual account mode was not confirmed")
                 connector._perpetual_trading.set_position_mode(PositionMode.HEDGE)
+            self._startup_stage = "leverage_change"
             success, reason = await connector._set_trading_pair_leverage(self.config.trading_pair, self.config.leverage)
             if not success:
                 raise ValueError(f"Perpetual leverage rejected: {reason}")
@@ -312,12 +353,22 @@ class LifeMMController(pmm_simple.PMMSimpleController):
             if not source.is_trading_required:
                 # Public-only connectors do not start the private trading-rules
                 # polling task. Reuse the existing public instrument request.
-                await source._update_trading_rules()
-            result = await self.market_data_provider.acquire_order_books(self.config.reference_connector, references, self)
-            if not all(result.get(pair, False) for pair in references):
-                await self.market_data_provider.release_order_books(self.config.reference_connector, references, self)
-                raise ValueError("Reference order books are unavailable")
+                self._startup_stage = "reference_metadata"
+                await self._startup_read(source._update_trading_rules)
+
+            async def acquire():
+                try:
+                    result = await self.market_data_provider.acquire_order_books(self.config.reference_connector, references, self)
+                    if not all(result.get(pair, False) for pair in references):
+                        raise OSError("Reference order books are unavailable")
+                except BaseException:
+                    await self.market_data_provider.release_order_books(self.config.reference_connector, references, self)
+                    raise
+
+            self._startup_stage = "reference_books"
+            await self._startup_read(acquire)
         await super().on_start()
+        self._startup_stage = "ready"
 
     async def on_stop(self):
         references = [ref.pair for ref in self.config.references]

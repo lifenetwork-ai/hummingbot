@@ -46,7 +46,7 @@ async def setup_host():
         controller._account_ready = True
         controller.update_reference()
         controllers[config.id] = controller
-    host.hb = SimpleNamespace(trading_core=SimpleNamespace(strategy=SimpleNamespace(
+    host.hb = SimpleNamespace(trading_core=SimpleNamespace(connector_manager=SimpleNamespace(connectors=connectors), strategy=SimpleNamespace(
         controllers=controllers, market_data_provider=provider)))
     return host, controllers, provider
 
@@ -70,6 +70,20 @@ async def test_both_runtime_gate_rejects_one_stale_market():
         snapshot_uid=980000 if name == "okx_perpetual" else 1000, last_diff_uid=0)
     assert not host.mm_runtime_ready()
     assert not controllers["life_perpetual"].processed_data["ready"]
+
+
+@pytest.mark.asyncio
+async def test_collateral_readiness_wait_reports_its_actual_reason():
+    host, controllers, _ = await setup_host()
+    host.phase = "waiting_for_mm_readiness"
+    config = next(iter(controllers.values())).config
+    controllers[config.id].executors_info = [SimpleNamespace(is_active=True, is_trading=False,
+                                                             config=SimpleNamespace(amount=Decimal("1"), entry_price=Decimal("1"),
+                                                                                    leverage=1, connector_name="okx", side=SimpleNamespace(name="BUY")))]
+    host._mm_available_quote = lambda items: Decimal("0")
+    assert not host.mm_runtime_ready()
+    assert host.service_status()["reason_code"] == "insufficient_collateral"
+    host.owner.require_recovery.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -105,6 +119,8 @@ def running_row(host, controllers, now):
     host.owner.allow_new_orders = True
     host.snapshot = lambda: {}
     host.validate_selection = AsyncMock()
+    host.poll_reconciliation = AsyncMock()
+    host.poll_funding = MagicMock()
     row = dict(config_type="mm-session", config_file_path="life_mm_profiles.yaml", control_version=1,
                desired_state="running", recovery_state={}, database_now=now,
                mm_session=host.mm_session.model_dump(mode="json"))

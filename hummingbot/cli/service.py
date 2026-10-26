@@ -11,8 +11,10 @@ import os
 import signal
 import threading
 import time
+from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from aiohttp import web
 
@@ -46,6 +48,10 @@ class ShutdownDeadline:
 
 class ServiceHost:
     def __init__(self, settings, stop, deadline):
+        from hummingbot.cli.service_availability import ServiceAvailability
+        self.availability = ServiceAvailability()
+        self.observer_progress_at = None
+        self.observer_wait_until = None
         self.settings = settings
         self.stop = stop
         self.deadline = deadline
@@ -58,10 +64,14 @@ class ServiceHost:
         self.running = False
         self.halt_requested = False
         self.mm_session = None
+        self.mm_readiness_reason = None
         self.applied_mm_identity = None
         self.catalogue = {}
         self.config_hashes = {}
         self.reporting = {}
+        self._daily_signature = None
+        self._daily_next_write_at = 0
+        self._daily_retry_at = 0
         self.reconciliation_task = None
         self.next_check_poll = 0
         self.funding_task = self.funding_sync = self.funding_store = None
@@ -112,18 +122,30 @@ class ServiceHost:
         return min(available)
 
     def mm_runtime_ready(self):
+        self.mm_readiness_reason = None
+
+        def waiting(reason):
+            self.mm_readiness_reason = reason
+            return False
+
         try:
             controllers = self._mm_controllers()
             if not controllers:
-                return False
+                return waiting("controllers_unavailable")
             for controller in controllers:
                 if ((controller.config.mm_session_id, controller.config.mm_generation)
                         != (self.mm_session.id, self.mm_session.generation)):
-                    return False
+                    return waiting("session_identity_mismatch")
                 controller.update_reference()
-                if (not controller.market_data_provider.ready or not controller.processed_data.get("ready")
-                        or not controller._exposure_within_caps()):
-                    return False
+                if not controller.processed_data.get("ready"):
+                    reason = controller.processed_data.get("reason", "").split(":", 1)[0]
+                    known = {"perpetual_account_not_confirmed", "reference_pair_unavailable", "stale_reference",
+                             "invalid_book", "reference_out_of_bounds", "quote_out_of_bounds"}
+                    return waiting(reason if reason in known else "market_data_unavailable")
+                if not controller.market_data_provider.ready:
+                    return waiting("market_data_unavailable")
+                if not controller._exposure_within_caps():
+                    return waiting("exposure_limit")
             pending_quote = Decimal("0")
             for controller in controllers:
                 for executor in controller.executors_info:
@@ -131,9 +153,53 @@ class ServiceHost:
                         config = executor.config
                         if config.connector_name != "okx" or config.side.name == "BUY":
                             pending_quote += config.amount * config.entry_price / config.leverage
-            return pending_quote <= self._mm_available_quote(controllers)
+            return True if pending_quote <= self._mm_available_quote(controllers) else waiting("insufficient_collateral")
         except Exception:
-            return False
+            return waiting("readiness_check_unavailable")
+
+    def runtime_problem(self):
+        """Cheap send-gate check; never fetch data, restart tasks or query history."""
+        core = self.hb.trading_core
+        task = getattr(core, "_clock_task", None)
+        if isinstance(task, asyncio.Task) and task.done():
+            return "clock_task_stopped"
+        for connector in core.connector_manager.connectors.values():
+            for name in ("_status_polling_task", "_user_stream_tracker_task", "_user_stream_event_listener_task",
+                         "_trading_rules_polling_task"):
+                task = getattr(connector, name, None)
+                if isinstance(task, asyncio.Task) and task.done():
+                    return "connector_task_stopped"
+        strategy = core.strategy
+        if strategy is None:
+            return None
+        for identity, controller in getattr(strategy, "controllers", {}).items():
+            if (controller.config.manual_kill_switch
+                    or identity in getattr(strategy, "drawdown_exited_controllers", [])):
+                continue
+            task = getattr(controller, "_control_loop_task", None)
+            if isinstance(task, asyncio.Task) and task.done():
+                stage = getattr(controller, "_startup_stage", None)
+                if stage in {"position_mode_read", "position_mode_change", "position_mode_confirmation",
+                             "leverage_change", "reference_metadata", "reference_books"}:
+                    return f"controller_{stage}_failed"
+                return "controller_task_stopped"
+            if getattr(controller, "_control_error", None):
+                return "controller_task_failed"
+            if controller.processed_data.get("internal_error"):
+                return "controller_data_failed"
+            progress = getattr(controller, "_control_progress_at", None)
+            if isinstance(progress, (float, int)):
+                deadline = max(progress + max(5, 3 * controller.update_interval),
+                               controller._control_wait_until or 0)
+                if time.monotonic() > deadline:
+                    return "controller_task_stalled"
+        return None
+
+    def runtime_healthy(self):
+        # Ownership already checks reconciled permission/intent before calling
+        # this gate. The observer's UI acknowledgement can lag a healthy first
+        # clock tick, especially on standby handover; it is not send authority.
+        return self.runtime_problem() is None
 
     async def admit_mm_session(self):
         if self.mm_session is None or self.mm_session.status not in ("preparing", "running") or not self.mm_runtime_ready():
@@ -145,9 +211,13 @@ class ServiceHost:
                 for name in (controller.config.connector_name, controller.config.reference_connector):
                     connector = controller.market_data_provider.get_connector_with_fallback(name)
                     supported[name] = set(connector.trading_rules)
-            self.mm_session.catalogue.controller_configs(
-                self.mm_session.profile_id, self.mm_session.request.market_mode, supported,
-                references=self.mm_session.request.references, available_quote=self._mm_available_quote(controllers))
+            try:
+                self.mm_session.catalogue.controller_configs(
+                    self.mm_session.profile_id, self.mm_session.request.market_mode, supported,
+                    references=self.mm_session.request.references, available_quote=self._mm_available_quote(controllers))
+            except ValueError as error:
+                self.mm_readiness_reason = "insufficient_collateral" if "collateral" in str(error) else "invalid_market_configuration"
+                raise
             # All markets are ready: capture this step together, with one benchmark
             # basket, before committing its start/deadline and allowing any quote.
             sources = None
@@ -192,7 +262,29 @@ class ServiceHost:
             healthy = healthy and self.bootstrapped
         elif path == "/ready":
             healthy = healthy and self.running and self.phase == "running"
+        if self.observer_progress_at is not None:
+            healthy = healthy and (time.monotonic() <= max(
+                self.observer_progress_at + 5, self.observer_wait_until or 0))
         return web.json_response({"state": self.phase}, status=200 if healthy else 503)
+
+    def service_status(self, *, persisted=False):
+        status = self.availability.snapshot()
+        strategy = self.hb.trading_core.strategy if self.hb is not None else None
+        for controller in getattr(strategy, "controllers", {}).values():
+            retry = getattr(controller, "_startup_retry", None)
+            if isinstance(retry, dict) and len(status["incidents"]) < 16:
+                status["incidents"].append(dict(retry))
+        reason = {"stopped": "operator_stopped", "standby": "owner_standby",
+                  "waiting_for_mm_readiness": "market_data_unavailable", "halted": "recovery_required",
+                  "starting": "strategy_initializing", "stopping": "strategy_stopping"}.get(self.phase)
+        if self.phase == "waiting_for_mm_readiness":
+            reason = self.mm_readiness_reason or reason
+        if self.mm_session is not None and self.mm_session.status == "expired":
+            reason = "session_expired"
+        return {**status, "observed_at": time.time(), "reason_code": reason, "state_source": "postgres" if persisted else "process",
+                "persisted_state_available": persisted, "phase": self.phase,
+                "observer_age_seconds": (max(0, time.monotonic() - self.observer_progress_at)
+                                         if self.observer_progress_at is not None else None)}
 
     async def bootstrap(self):
         from hummingbot.cli.strategy_configs import STRATEGY_TYPES, config_path, list_configs
@@ -302,18 +394,43 @@ class ServiceHost:
         core = self.hb.trading_core
         if core.strategy is None and not core.connector_manager.connectors and not core._is_running:
             return True
-        return await self.owner.shutdown_core(core)
+        self.observer_wait_until = time.monotonic() + 9
+        try:
+            return await self.owner.shutdown_core(core)
+        finally:
+            self.observer_wait_until = None
+            self.observer_progress_at = time.monotonic()
 
     def snapshot(self):
         from hummingbot.cli.admin_observations import capture_reporting
         from hummingbot.core.funding_sync import public_status
         core = self.hb.trading_core
-        self.reporting = capture_reporting(core, self.reporting)
+        try:
+            engine_status = core.get_status()
+            self.availability.clear("engine_reporting")
+        except Exception as error:
+            self.availability.fail("engine_reporting", "engine_reporting_unavailable", error)
+            # Receipt completion still needs known booleans. Missing values stay
+            # unknown rather than pretending a failed projection proves stop.
+            engine_status = {key: value if isinstance(value, bool) else None for key, value in (
+                ("strategy_running", getattr(core, "_strategy_running", None)),
+                ("clock_running", getattr(core, "_is_running", None)))}
+        try:
+            reporting = capture_reporting(core, self.reporting)
+            balances = {name: {asset: str(value) for asset, value in connector.get_all_balances().items()}
+                        for name, connector in core.connector_manager.connectors.items()}
+            json.dumps(reporting, allow_nan=False)
+            self.reporting = reporting
+            self.availability.clear("reporting")
+            reporting_unavailable = False
+        except Exception as error:
+            self.availability.fail("reporting", "reporting_unavailable", error)
+            balances, reporting_unavailable = {}, True
         return {"name": self.settings.bot_id, "running": self.running, "phase": self.phase,
                 "error": self.error, "available_configs": self.catalogue,
-                "configuration_sha256": self.config_hashes, "engine": core.get_status(),
-                "balances": {name: {asset: str(value) for asset, value in connector.get_all_balances().items()}
-                             for name, connector in core.connector_manager.connectors.items()},
+                "configuration_sha256": self.config_hashes, "engine": engine_status,
+                "balances": balances, "reporting_unavailable": reporting_unavailable,
+                "availability": self.service_status(persisted=True),
                 "mm_session": self.mm_session.model_dump(mode="json", exclude={"catalogue"}) if self.mm_session else None,
                 "mm_markets": [{"market": "spot" if controller.config.connector_name == "okx" else "perpetual",
                                 "connector": controller.config.connector_name, "pair": controller.config.trading_pair,
@@ -333,6 +450,7 @@ class ServiceHost:
             self.phase = "standby"
             return
         install_guard(self.owner)
+        self.owner.runtime_ready_check = self.runtime_healthy
         row = self.owner.check_owner()
         if row["config_type"] == "mm-session" and row.get("mm_session"):
             from random import SystemRandom
@@ -372,6 +490,7 @@ class ServiceHost:
             self.halt_requested = False
             try:
                 await self.validate_selection(row)
+                self.availability.clear("configuration")
                 # Cleanup and configuration loading can both yield to a newer
                 # stop/switch. Never prepare an engine from the old intent.
                 latest = self.owner.check_owner()
@@ -391,6 +510,7 @@ class ServiceHost:
                             session_id=self.mm_session.id, generation=self.mm_session.generation,
                             change=lambda session, now: setattr(session, "status", "stopped"))
             except Exception as error:
+                self.availability.fail("configuration", "configuration_unavailable", error, operator=True)
                 self.phase, self.error = "halted", type(error).__name__
                 self.log.error("Configuration bootstrap failed type=%s version=%s", self.error, version)
         if self.start_task is not None and self.start_task.done():
@@ -408,6 +528,14 @@ class ServiceHost:
             if not await self.stop_core():
                 raise RuntimeError("Risk-stop cleanup did not complete.")
             self.halt_requested = False
+        if self.running:
+            problem = self.runtime_problem()
+            if problem is not None:
+                self.availability.fail("runtime", problem, operator=True)
+                self.owner.require_recovery("A required runtime task failed; inspect service availability status.")
+                self.running, self.phase, self.error = False, "halted", problem
+                if not await self.stop_core():
+                    raise RuntimeError("Failed runtime-task cleanup did not complete.")
         if self.running:
             if self.mm_session is not None:
                 try:
@@ -427,19 +555,54 @@ class ServiceHost:
                     raise RuntimeError("Degraded runtime cleanup did not complete.")
         if (self.owner.check_owner()["recovery_state"] or {}).get("halt"):
             self.running, self.phase, self.error = False, "halted", "RecoveryRequired"
-        self.owner.store.publish(owner_uuid=self.owner.owner_uuid, owner_generation=self.owner.generation,
-                                 version=version, status=json.loads(json.dumps(self.snapshot(), default=str)),
-                                 revision=self.revision)
+        self.publish_status(version)
         await self.poll_reconciliation()
         self.poll_funding()
+
+    def publish_status(self, version):
+        """Publish control every tick; optional daily checkpoints at most once/minute."""
+        status = json.loads(json.dumps(self.snapshot(), default=str))
+        now = time.monotonic()
+        try:
+            zone_name = status.get("reporting_timezone", "Asia/Ho_Chi_Minh")
+            zone = ZoneInfo(zone_name)
+            signature = frozenset((account["account_id"], account["environment"], balance["currency"], zone_name,
+                                   datetime.fromtimestamp(float(balance["observed_at"]), timezone.utc)
+                                   .astimezone(zone).date())
+                                  for account in (status.get("reporting") or {}).get("accounts", [])
+                                  if account.get("identity_verified")
+                                  for balance in account.get("balances", [])
+                                  if balance.get("present_in_latest_snapshot", True))
+        except (ValueError, TypeError, KeyError, OverflowError, OSError):
+            # Leave malformed samples to the isolated writer; do not bypass its
+            # retry deadline or turn optional projection into an owner failure.
+            signature = None
+        due = (not status.get("reporting_unavailable") and now >= self._daily_retry_at
+               and (now >= self._daily_next_write_at or signature != self._daily_signature))
+        published = self.owner.store.publish(
+            owner_uuid=self.owner.owner_uuid, owner_generation=self.owner.generation,
+            version=version, status=status, revision=self.revision, save_balances=due)
+        if published and due:
+            if status.get("daily_snapshot_error"):
+                delay = self.availability.fail("daily_balances", "daily_snapshot_unavailable", retry=True)
+                self._daily_retry_at = now + delay
+            else:
+                self.availability.clear("daily_balances")
+                self._daily_signature = signature
+                self._daily_next_write_at, self._daily_retry_at = now + 60, 0
 
     def poll_funding(self):
         from hummingbot.client.config.environment_credentials import configured_environment_connectors
         if (self.funding_task is not None and not self.funding_task.done()) or time.monotonic() < self.next_funding_poll:
             return
         self.next_funding_poll = time.monotonic() + self.funding_interval
-        self.funding_configured = bool(configured_environment_connectors(["okx_perpetual"]))
+        try:
+            self.funding_configured = bool(configured_environment_connectors(["okx_perpetual"]))
+        except Exception as error:
+            self.availability.fail("funding", "funding_configuration_unavailable", error, operator=True)
+            return
         if not self.funding_configured:
+            self.availability.clear("funding")
             return
         self.funding_task = asyncio.create_task(self.collect_funding())
 
@@ -484,12 +647,14 @@ class ServiceHost:
                 self.owner.owner_uuid, self.owner.generation, now_ms=int(float(row["database_now"]) * 1000),
                 pairs=pairs, earliest_ms=earliest)
             self.funding_error = None
+            self.availability.clear("funding")
             now_ms = int(time.time() * 1000)
             if self.funding_state.get("pending") or self.funding_state.get("covered_until_ms", now_ms) < now_ms - 120000:
                 self.next_funding_poll = time.monotonic() + 1
         except asyncio.CancelledError:
             raise
         except Exception as error:
+            self.availability.fail("funding", "funding_observation_unavailable", error)
             self.funding_error = type(error).__name__
             self.log.warning("Funding observation unavailable type=%s", self.funding_error)
             if self.funding_store is not None:
@@ -503,25 +668,42 @@ class ServiceHost:
                     pass  # Lost ownership/DB failure cannot acknowledge progress.
 
     async def poll_reconciliation(self):
-        from hummingbot.model.admin_store import AdminStore
         if self.reconciliation_task is not None and not self.reconciliation_task.done():
             return
+        if self.reconciliation_task is not None and not self.reconciliation_task.cancelled():
+            error = self.reconciliation_task.exception()
+            if error is not None:
+                raise error  # Dedicated ownership failures must reach the host.
         if time.monotonic() < self.next_check_poll:
             return
         self.next_check_poll = time.monotonic() + 1
+        self.reconciliation_task = asyncio.create_task(self.claim_reconciliation())
+
+    async def claim_reconciliation(self):
+        from hummingbot.model.admin_store import AdminStore
         storage = AdminStore(self.store)
-        row = await asyncio.to_thread(storage.claim_check, self.owner.owner_uuid, self.owner.generation)
+        try:
+            row = await asyncio.to_thread(storage.claim_check, self.owner.owner_uuid, self.owner.generation)
+        except Exception as error:
+            # A pool/read error must not hide loss of the dedicated owner lease.
+            self.owner.check_owner()
+            self.next_check_poll = time.monotonic() + self.availability.fail(
+                "reconciliation", "reconciliation_unavailable", error, retry=True)
+            return
+        self.availability.clear("reconciliation")
         if row:
-            self.reconciliation_task = asyncio.create_task(self.run_reconciliation(storage, row))
+            await self.run_reconciliation(storage, row)
 
     async def run_reconciliation(self, storage, row):
         from hummingbot.core.admin_reconciliation import ReconciliationRequest, perform_check
         owner_uuid, generation = self.owner.owner_uuid, self.owner.generation
         try:
             report = await perform_check(storage, self.hb.trading_core, ReconciliationRequest.model_validate(row["payload"]))
+            self.availability.clear("reconciliation_read")
         except asyncio.CancelledError:
             raise
         except Exception as error:
+            self.availability.fail("reconciliation_read", "reconciliation_read_unavailable", error)
             report = dict(state="unavailable", markets=[], started_at=None, finished_at=None)
             self.log.warning("Observational check failed type=%s", type(error).__name__)
         try:
@@ -535,7 +717,9 @@ class ServiceHost:
     async def run(self):
         await self.bootstrap()
         while not self.stop.is_set():
+            self.observer_progress_at = time.monotonic()
             await self.observe_once()
+            self.observer_progress_at = time.monotonic()
             try:
                 await asyncio.wait_for(self.stop.wait(), timeout=0.5)
             except asyncio.TimeoutError:
@@ -606,7 +790,12 @@ async def run_service():
     except Exception as error:
         # Driver/Pydantic exceptions may include secret inputs; never log raw
         # exception text or traceback at this outer process boundary.
-        logging.getLogger(__name__).error("Service stopped type=%s", type(error).__name__)
+        from sqlalchemy.exc import SQLAlchemyError
+
+        from hummingbot.core.bot_ownership import OwnershipLost
+        reason = ("ownership_lost" if isinstance(error, OwnershipLost) else
+                  "critical_persistence_failure" if isinstance(error, SQLAlchemyError) else "service_internal_failure")
+        logging.getLogger(__name__).error("Service stopped reason=%s type=%s", reason, type(error).__name__)
         code = 1
     finally:
         deadline.request()

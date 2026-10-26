@@ -30,6 +30,16 @@ trading decisions or adding a production metrics endpoint.
 
 ## Workload and resources
 
+For the focused E0 availability matrix, run
+`python scripts/test_e2e_offline.py --image <image> --scenario availability --trading-env demo`.
+It uses the same disposable PostgreSQL/internal exchange network and real service,
+with an explicitly mounted test wrapper injecting read-only startup failures,
+optional report/snapshot/check-claim errors and a failed controller task. Required
+feed staleness comes from the simulator. It checks process survival, automatic
+recovery, preserved session anchors/deadline and durable HALT for the failed
+trading task. The wrapper is test-only; it adds no production fault endpoint and
+does not replace a full load/soak gate. `--scenario all` includes this matrix.
+
 The bot has 1 CPU and 2 GiB; PostgreSQL has 2 CPUs / 512 MiB; simulator and load
 client each have 1 CPU / 512 MiB. Swap limits equal memory limits. Record the host
 architecture, amd64 emulation, immutable image identity, source/fixture hashes
