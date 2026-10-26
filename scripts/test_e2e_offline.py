@@ -442,8 +442,8 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         self.wait_running(port)
         orders = self.wait_orders(1)
         order = orders[0]
-        # Existing V2 converts its float spread to Decimal before tick flooring.
-        assert order["side"] == "buy" and Decimal(order["px"]) == Decimal("98.99")
+        # Decimal spread calculation preserves exactly 1% below the 100 anchor.
+        assert order["side"] == "buy" and Decimal(order["px"]) == Decimal("99")
         assert Decimal(order["sz"]) == (Decimal("10") if perpetual else Decimal("0.1"))
         assert order["instId"] == ("BTC-USDT-SWAP" if perpetual else "BTC-USDT")
         if perpetual:
@@ -454,7 +454,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         poll(lambda: self.sql("SELECT count(*) FROM public.trade_fills") == "1", description="V2 unique fill persisted")
         fill = json.loads(self.sql("SELECT row_to_json(f) FROM public.trade_fills f"), parse_float=Decimal)
         assert Decimal(str(fill["amount"])) == Decimal("0.1")
-        assert Decimal(str(fill["price"])) == Decimal("98.99")
+        assert Decimal(str(fill["price"])) == Decimal("99")
         assert Decimal(str(fill["trade_fee_in_quote"])) == Decimal("0.01")
         assert fill["market"] == connector and fill["config_file_path"] == config
         assert 1700000000000 < fill["timestamp"] < 2000000000000, "Recorder timestamps must remain epoch milliseconds."
@@ -465,7 +465,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         held = json.loads(self.sql("SELECT row_to_json(p) FROM public.positions p LIMIT 1"), parse_float=Decimal)
         assert held["controller_id"] == controller_id and held["connector_name"] == connector
         assert Decimal(str(held["amount"])) == Decimal("0.1")
-        assert Decimal(str(held["breakeven_price"])) == Decimal("98.99")
+        assert Decimal(str(held["breakeven_price"])) == Decimal("99")
         assert Decimal(str(held["cum_fees_quote"])) == Decimal("0.01")
         # Reviewable test-only checkpoint seed while stopped: verify that the
         # existing controller's startup hook cannot erase the persisted risk peak.
