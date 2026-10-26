@@ -24,6 +24,9 @@ def millis():
 class Exchange:
     def __init__(self):
         self.fixtures = json.loads(Path("/test-assets/fixtures.json").read_text())
+        self.candle_width = Decimal(".005")
+        self.candle_stale = False
+        self.last_candle_bucket = None
         self.orders = {}
         self.fills = []
         self.funding_bills = []
@@ -99,7 +102,9 @@ class Exchange:
                         args_list.append(arg)
                         self.subscriptions.append({"channel": channel, "connection": self.connections})
                         await socket.send_json({"event": "subscribe", "arg": arg})
-                        if channel == "books":
+                        if channel.startswith("candle"):
+                            await socket.send_json({"arg": arg, "data": [self.candle(arg.get("instId", "LIFE-USDT"), channel[6:])]})
+                        elif channel == "books":
                             await socket.send_json({"arg": arg, "action": "snapshot", "data": [self.book(arg.get("instId", "BTC-USDT"))]})
                         elif channel == "account":
                             await socket.send_json({"arg": arg, "data": self.fixtures["balances"]["data"]})
@@ -111,6 +116,18 @@ class Exchange:
             self.sockets.pop(socket, None)
             self.socket_args.pop(socket, None)
         return socket
+
+    @staticmethod
+    def candle_interval(bar):
+        unit = bar[-1].lower()
+        return int(bar[:-1]) * {"s": 1, "m": 60, "h": 3600}[unit]
+
+    def candle(self, pair, bar, stamp=None):
+        interval = self.candle_interval(bar)
+        stamp = int(time.time()) // interval * interval if stamp is None else stamp
+        mid = Decimal(self.prices[pair.removesuffix("-SWAP")])
+        return [str(stamp * 1000), str(mid), str(mid * (1 + self.candle_width)),
+                str(mid * (1 - self.candle_width)), str(mid), "1000", "100", "100", "1"]
 
     def book(self, pair="BTC-USDT"):
         mid = Decimal(self.prices[pair.removesuffix("-SWAP")])
@@ -147,6 +164,14 @@ class Exchange:
             for socket, args_list in list(self.socket_args.items()):
                 for arg in list(args_list):
                     pair = arg.get("instId", "")
+                    channel = arg.get("channel", "")
+                    if channel.startswith("candle"):
+                        bucket = int(time.time()) // self.candle_interval(channel[6:])
+                        if not socket.closed and not self.candle_stale and arg.get("last_bucket") != bucket:
+                            arg["last_bucket"] = bucket
+                            await socket.send_json({"arg": {key: value for key, value in arg.items() if key != "last_bucket"},
+                                                    "data": [self.candle(pair, channel[6:])]})
+                        continue
                     if (socket.closed or arg.get("channel") != "books" or pair.removesuffix("-SWAP") in self.stale_pairs
                             or pair in self.stale_instruments):
                         continue
@@ -215,6 +240,15 @@ class Exchange:
             return self.ok([data])
         if path == "/api/v5/account/balance":
             return web.json_response(self.fixtures["balances"])
+        if path == "/api/v5/market/history-candles":
+            bar = request.query.get("bar", "1m")
+            interval = self.candle_interval(bar)
+            end = int(request.query.get("after", millis())) // 1000
+            end = end // interval * interval
+            if self.candle_stale:
+                end -= 86400
+            return self.ok([self.candle(request.query.get("instId", "LIFE-USDT"), bar, end - (i + 1) * interval)
+                            for i in range(min(100, int(request.query.get("limit", "100"))))])
         if path == "/api/v5/market/books":
             return self.ok([self.book(request.query.get("instId", "BTC-USDT"))])
         if path in ("/api/v5/market/ticker", "/api/v5/market/tickers"):
@@ -282,6 +316,11 @@ class Exchange:
         if "book_overrides" in data:
             self.book_overrides = data["book_overrides"]
             assert all(set(value) == {"bids", "asks"} for value in self.book_overrides.values())
+        if "candle_width" in data:
+            self.candle_width = Decimal(str(data["candle_width"]))
+            assert 0 <= self.candle_width < 1
+        if "candle_stale" in data:
+            self.candle_stale = bool(data["candle_stale"])
         if "include_own_orders" in data:
             self.include_own_orders = bool(data["include_own_orders"])
         if "hold_ack" in data:

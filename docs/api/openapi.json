@@ -1962,6 +1962,9 @@
             "title": "Skip Rebalance",
             "type": "boolean"
           },
+          "spread_policy": {
+            "$ref": "#/components/schemas/SpreadPolicyConfigOutput"
+          },
           "stop_loss": {
             "anyOf": [
               {
@@ -2804,6 +2807,17 @@
               }
             ],
             "title": "Reference Price"
+          },
+          "spread_policy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SpreadPolicyStatusOutput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
           }
         },
         "required": [
@@ -5069,6 +5083,109 @@
         "title": "SpotOutflowStatus",
         "type": "object"
       },
+      "SpreadPolicyConfigOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "fee_floor": {
+            "default": false,
+            "title": "Fee Floor",
+            "type": "boolean"
+          },
+          "volatility": {
+            "$ref": "#/components/schemas/VolatilitySpreadConfigOutput"
+          }
+        },
+        "title": "SpreadPolicyConfig",
+        "type": "object"
+      },
+      "SpreadPolicyStatusOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "buy_spreads": {
+            "items": {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            "title": "Buy Spreads",
+            "type": "array"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "fee_floor": {
+            "title": "Fee Floor",
+            "type": "boolean"
+          },
+          "multiplier": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Multiplier"
+          },
+          "sell_spreads": {
+            "items": {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            "title": "Sell Spreads",
+            "type": "array"
+          },
+          "state": {
+            "enum": [
+              "disabled",
+              "static",
+              "dynamic",
+              "static_fallback",
+              "waiting"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "valid_until": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Until"
+          }
+        },
+        "required": [
+          "enabled",
+          "fee_floor",
+          "state",
+          "multiplier",
+          "completed_at",
+          "valid_until",
+          "buy_spreads",
+          "sell_spreads"
+        ],
+        "title": "SpreadPolicyStatus",
+        "type": "object"
+      },
       "StartCommand": {
         "additionalProperties": false,
         "properties": {
@@ -5780,6 +5897,105 @@
           "trailing_delta"
         ],
         "title": "TrailingStop",
+        "type": "object"
+      },
+      "VolatilitySpreadConfigOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "default": false,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "fallback_buy_spreads": {
+            "anyOf": [
+              {
+                "items": {
+                  "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Fallback Buy Spreads"
+          },
+          "fallback_sell_spreads": {
+            "anyOf": [
+              {
+                "items": {
+                  "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Fallback Sell Spreads"
+          },
+          "interval": {
+            "default": "1m",
+            "enum": [
+              "1s",
+              "1m",
+              "3m",
+              "5m",
+              "15m",
+              "30m",
+              "1h"
+            ],
+            "title": "Interval",
+            "type": "string"
+          },
+          "length": {
+            "default": 14,
+            "maximum": 100,
+            "minimum": 2,
+            "title": "Length",
+            "type": "integer"
+          },
+          "max_age_seconds": {
+            "default": 120,
+            "maximum": 86400,
+            "minimum": 1,
+            "title": "Max Age Seconds",
+            "type": "integer"
+          },
+          "max_multiplier": {
+            "default": "3",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Max Multiplier",
+            "type": "string"
+          },
+          "min_multiplier": {
+            "default": "0.5",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Min Multiplier",
+            "type": "string"
+          },
+          "on_unavailable": {
+            "default": "wait",
+            "enum": [
+              "static",
+              "wait"
+            ],
+            "title": "On Unavailable",
+            "type": "string"
+          },
+          "target_natr": {
+            "default": "0.01",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Target Natr",
+            "type": "string"
+          }
+        },
+        "title": "VolatilitySpreadConfig",
         "type": "object"
       }
     },

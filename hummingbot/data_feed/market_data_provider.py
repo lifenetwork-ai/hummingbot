@@ -38,6 +38,9 @@ class MarketDataProvider:
                  connectors: Dict[str, ConnectorBase],
                  rates_update_interval: int = 60):
         self.candles_feeds = {}  # Stores instances of candle feeds
+        self._candle_users = {}
+        self._owned_candles = set()
+        self._optional_candles = set()
         self.connectors = connectors  # Stores instances of connectors
         self._rates_update_task = None
         self._stopping_tasks = set()
@@ -61,6 +64,9 @@ class MarketDataProvider:
             self._retain_stopping_task(self._rates_update_task)
             self._rates_update_task = None
         self.candles_feeds.clear()
+        self._candle_users.clear()
+        self._owned_candles.clear()
+        self._optional_candles.clear()
         self._rates_required.clear()
         # Stop non-trading connectors that were started for public data access
         for connector in self._non_trading_connectors.values():
@@ -85,7 +91,7 @@ class MarketDataProvider:
     @property
     def ready(self) -> bool:
         all_connectors_running = all(connector.ready for connector in self.connectors.values())
-        all_candles_feeds_running = all(feed.ready for feed in self.candles_feeds.values())
+        all_candles_feeds_running = all(feed.ready for key, feed in self.candles_feeds.items() if key not in self._optional_candles)
         return all_connectors_running and all_candles_feeds_running
 
     def time(self):
@@ -200,7 +206,31 @@ class MarketDataProvider:
         Initializes a candle feed based on the given configuration.
         :param config: CandlesConfig
         """
+        key = self._generate_candle_feed_key(config)
+        self._owned_candles.discard(key)
+        self._optional_candles.discard(key)
         self.get_candles_feed(config)
+
+    def acquire_candle_feed(self, config, owner):
+        """Optional controller-owned feed; share upstream transport and throttler."""
+        key = self._generate_candle_feed_key(config)
+        if key not in self.candles_feeds:
+            self._owned_candles.add(key)
+            self._optional_candles.add(key)
+        feed = self.get_candles_feed(config)
+        self._candle_users.setdefault(key, set()).add(owner)
+        return feed
+
+    def release_candle_feed(self, config, owner):
+        key = self._generate_candle_feed_key(config)
+        users = self._candle_users.get(key, set())
+        users.discard(owner)
+        if not users:
+            self._candle_users.pop(key, None)
+            if key in self._owned_candles:
+                self.stop_candle_feed(config)
+                self._owned_candles.discard(key)
+                self._optional_candles.discard(key)
 
     def initialize_candles_feed_list(self, config_list: List[CandlesConfig]):
         """
@@ -208,7 +238,7 @@ class MarketDataProvider:
         :param config_list: List[CandlesConfig]
         """
         for config in config_list:
-            self.get_candles_feed(config)
+            self.initialize_candles_feed(config)
 
     def get_candles_feed(self, config: CandlesConfig):
         """

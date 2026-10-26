@@ -983,6 +983,67 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
                                                  effective_config_sha256=hashlib.sha256(path.read_bytes()).hexdigest())
         path.write_bytes(original)
 
+    def spread_policy_scenario(self):
+        print("Offline E2E: fee/NATR spread response, candle outage and recovery", flush=True)
+        import yaml
+        path = self.assets / "life_mm_profiles.yaml"
+        original = path.read_bytes()
+        profiles = yaml.safe_load(path.read_text())
+        for name, market in profiles["markets"].items():
+            market.update(executor_refresh_time=4, cooldown_time=0)
+            volatility = dict(enabled=True, interval="1s", length=5, target_natr=".01",
+                              min_multiplier=".5", max_multiplier="3", max_age_seconds=2,
+                              on_unavailable="static" if name == "spot" else "wait")
+            if name == "spot":
+                volatility.update(fallback_buy_spreads=[".01", ".02"], fallback_sell_spreads=[".01", ".02"])
+            market["spread_policy"] = dict(fee_floor=True, volatility=volatility)
+        path.write_text(yaml.safe_dump(profiles))
+        self.report.joinpath("effective-spread-profiles.yaml").write_bytes(path.read_bytes())
+        self.env.update(ADMIN_API_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin")
+        for field, value in (("API_KEY", "offline-key"), ("SECRET_KEY", "offline-secret"), ("PASSPHRASE", "offline-pass")):
+            self.env["HBOT_OKX_PERPETUAL_" + field] = value
+        bot, port = self.start("spread-policy")
+        receipt = self.mm_command(port, "start", market_mode="both", selection="fixed", profile_id="sideways", duration_seconds=600)
+
+        def states():
+            return {row["market"]: row.get("spread_policy") or {} for row in self.state()["status"].get("mm_markets", [])}
+
+        def live():
+            return [row for row in self.ledger()["orders"] if row["state"] in ("live", "partially_filled")]
+
+        poll(lambda: len(states()) == 2 and all(value.get("state") == "dynamic" for value in states().values())
+             and len(live()) == 8, description="both candle feeds warm up and configured maker levels appear")
+        baseline = states()
+        self.control(candle_width=".03")
+        poll(lambda: all(Decimal(value.get("multiplier") or 0) > 2 for value in states().values()),
+             description="completed candle shock widens capped NATR spreads")
+        poll(lambda: len(live()) == 8 and all(Decimal(row["px"]) < Decimal(".098") if row["side"] == "buy"
+                                              else Decimal(row["px"]) > Decimal(".102") for row in live()),
+             description="normal executor refresh applies wider configured prices")
+        shock = states()
+        self.control(candle_stale=True)
+        poll(lambda: states().get("spot", {}).get("state") == "static_fallback"
+             and states().get("perpetual", {}).get("state") == "waiting" and not live(),
+             description="declared fallback/wait and joint cancellation on candle outage")
+        assert http(port, "/live")[0] == 200
+        self.control(candle_stale=False, candle_width=".005")
+        recovery_started = time.monotonic()
+        poll(lambda: len(states()) == 2 and all(value.get("state") == "dynamic" for value in states().values())
+             and len(live()) == 8, timeout=30, description="same process/controller resumes after required contiguous candle tail")
+        candle_recovery_seconds = time.monotonic() - recovery_started
+        assert json.loads(docker("inspect", bot).stdout)[0]["RestartCount"] == 0
+        events = self.admin(port, "/sessions/" + receipt["session_id"] + "/events?limit=500")[1]
+        assert events["history_complete"] and any(row["event_type"] == "guard_changed" for row in events["items"])
+        assert all(row["ordType"] == "post_only" for row in self.ledger()["orders"])
+        assert not self.state()["recovery_state"].get("halt") and not self.ledger()["unknown"]
+        self.mm_command(port, "stop")
+        assert http(port, "/live")[0] == 200
+        self.metrics["spread_policy"] = dict(baseline=baseline, shock=shock, outage_recovers_in_place=True,
+                                             candle_recovery_seconds=candle_recovery_seconds, service_restarts=0,
+                                             fee_floor=True, configured_maker_prices=True, events=len(events["items"]),
+                                             effective_config_sha256=hashlib.sha256(path.read_bytes()).hexdigest())
+        path.write_bytes(original)
+
     def inventory_skew_scenario(self):
         print("Offline E2E: existing PMM inventory interpolation on spot/both with normal post-only executors", flush=True)
         import yaml
@@ -1252,7 +1313,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--image", default="hummingbot-cloudrun:local")
-    parser.add_argument("--scenario", choices=("all", "spot", "v2-spot", "v2-perpetual", "schema", "upgrade", "life-mm", "life-mm-recovery", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap", "inventory-skew"), default="all")
+    parser.add_argument("--scenario", choices=("all", "spot", "v2-spot", "v2-perpetual", "schema", "upgrade", "life-mm", "life-mm-recovery", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap", "inventory-skew", "spread-policy"), default="all")
     parser.add_argument("--previous-image", help="Cached compatible prior image; required for the release upgrade gate.")
     parser.add_argument("--trading-env", choices=("live", "demo"), default="live", help="Local simulator routing mode; never contacts OKX.")
     args = parser.parse_args()
@@ -1292,7 +1353,7 @@ def main():
                            f"type=bind,source={assets},target=/test-assets,readonly",
                            image, "python", "/test-assets/runtime_smoke.py", timeout=90)
             result["runtime_smoke"] = json.loads(smoke.stdout)
-            scenarios = ("schema", "spot", "v2-spot", "v2-perpetual", "life-mm", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap", "inventory-skew") if args.scenario == "all" else (args.scenario,)
+            scenarios = ("schema", "spot", "v2-spot", "v2-perpetual", "life-mm", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap", "inventory-skew", "spread-policy") if args.scenario == "all" else (args.scenario,)
             if args.scenario == "all" and previous_image:
                 scenarios += ("upgrade",)
             result["scenarios"] = {}
@@ -1314,6 +1375,8 @@ def main():
                         harness.quote_guard_scenario()
                     elif scenario == "drawdown":
                         harness.drawdown_scenario()
+                    elif scenario == "spread-policy":
+                        harness.spread_policy_scenario()
                     elif scenario == "inventory-skew":
                         harness.inventory_skew_scenario()
                     elif scenario == "listing-bootstrap":

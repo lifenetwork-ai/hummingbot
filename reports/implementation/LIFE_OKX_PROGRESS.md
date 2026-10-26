@@ -970,3 +970,19 @@ Native: 1538 tests/11 subtests. Full real-PG: 182; final targeted history: 12.
 Migration/schema, rollback/idempotency, filter indexes, constant query counts and
 HTTP/UTC/no-exchange-read contracts pass. See [report](../life-mm-e4-history-liquidity.md)
 and [plan](../../docs/plans/LIFE_OKX_MM_ENHANCEMENTS_TDD_PLAN.md). E5–E6 remain open.
+
+
+## E5 — Optional fee and volatility spreads (complete)
+
+Verified 2026-10-27. Reused connector maker fees/conversion, existing candles/NATR,
+configured-entry executors and owner/REST gates. Disabled fixed-spread parity,
+explicit fallback/wait, shared-feed cleanup, ordered/capped spreads and Decimal
+rounding pass. Red/Green cases protect SELL tick widening, flat-fee amount rounding,
+perpetual OPEN fee signature and prompt recovery from a disconnected candle tail.
+
+1559 unique native cases/11 subtests and 185 unique PG cases across full/focused
+runs. Final image `ee3b3b0b40fe` is 1364799073 bytes; 35 packaged paths match.
+Both-market image E2E passes normal/shock/outage/recovery/stop; recovery 7.20s,
+zero restarts. See [report](../life-mm-e5-spread-policy.md),
+[evidence](../life-mm-e5-spread-policy.json) and [plan](../../docs/plans/LIFE_OKX_MM_ENHANCEMENTS_TDD_PLAN.md).
+Full final matrix/load/soak and external Demo remain E6. No deployment performed.

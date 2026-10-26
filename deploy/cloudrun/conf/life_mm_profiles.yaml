@@ -46,6 +46,12 @@ markets:
     total_amount_quote: "100"
     buy_spreads: [0.01, 0.02]
     sell_spreads: [0.01, 0.02]
+    # Optional fee/NATR spreads. Fixed spreads above remain the default.
+    # See docs/life-mm-spread-policy.md for explicit static fallback settings.
+    spread_policy:
+      fee_floor: false
+      volatility:
+        enabled: false
     executor_refresh_time: 60
     cooldown_time: 15
     leverage: 1
@@ -70,6 +76,12 @@ markets:
     total_amount_quote: "100"
     buy_spreads: [0.01, 0.02]
     sell_spreads: [0.01, 0.02]
+    # Optional fee/NATR spreads. Fixed spreads above remain the default.
+    # See docs/life-mm-spread-policy.md for explicit static fallback settings.
+    spread_policy:
+      fee_floor: false
+      volatility:
+        enabled: false
     executor_refresh_time: 60
     cooldown_time: 15
     leverage: 2

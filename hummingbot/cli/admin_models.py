@@ -184,6 +184,17 @@ class InventorySkewStatus(APIModel):
     evaluated_at: UTCDateTime
 
 
+class SpreadPolicyStatus(APIModel):
+    enabled: bool
+    fee_floor: bool
+    state: Literal["disabled", "static", "dynamic", "static_fallback", "waiting"]
+    multiplier: Optional[Decimal]
+    completed_at: Optional[UTCDateTime]
+    valid_until: Optional[UTCDateTime]
+    buy_spreads: List[Decimal]
+    sell_spreads: List[Decimal]
+
+
 class MarketReadiness(APIModel):
     market: Literal["spot", "perpetual"]
     connector: str
@@ -194,6 +205,7 @@ class MarketReadiness(APIModel):
     reason: Optional[str]
     quote_guard: Optional[QuoteGuardStatus] = None
     inventory_skew: Optional[InventorySkewStatus] = None
+    spread_policy: Optional[SpreadPolicyStatus] = None
 
 
 class FundingSyncStatus(APIModel):

@@ -47,6 +47,7 @@ class BotOwnership:
         self.account_lock = asyncio.Lock()
         self.account_token = None
         self.mm_ready_check = None
+        self.mm_quote_check = None
         self.runtime_ready_check = None
         self.intent_scopes = {}
         self.spot_outflow = None
@@ -196,6 +197,8 @@ class BotOwnership:
             self.listing_bootstrap.before_order(connector, order, row)
         if self.spot_outflow is not None:
             self.spot_outflow.before_order(connector, order, row)
+        if self.mm_quote_check is not None:
+            self.mm_quote_check(connector, order)
         recorder.record_order_intent(connector, order)
         self.active_intents.add(order.client_order_id)
         self.intent_scopes[order.client_order_id] = scope
@@ -277,6 +280,21 @@ class BotOwnership:
             bootstrap_deadline = self.listing_bootstrap.authorize(data, row) if self.listing_bootstrap is not None else None
             if self.spot_outflow is not None:
                 self.spot_outflow.authorize(data, row)
+            if self.mm_quote_check is not None:
+                from hummingbot.core.data_type.common import OrderType
+                connector, order = next(((connector, connector.in_flight_orders[client_id])
+                                         for connector in self.connectors.values() if client_id in connector.in_flight_orders), (None, None))
+                if order is None:
+                    raise SubmissionBlocked("Spread policy tracked order unavailable")
+                size = Decimal(str(data.get("sz")))
+                if connector.name == "okx_perpetual":
+                    size = connector._format_size_to_amount(order.trading_pair, size)
+                instrument = order.trading_pair + ("-SWAP" if connector.name == "okx_perpetual" else "")
+                if (data.get("instId") != instrument or data.get("side") != order.trade_type.name.lower()
+                        or Decimal(str(data.get("px"))) != order.price or size != order.amount
+                        or data.get("ordType") != "post_only" or order.order_type != OrderType.LIMIT_MAKER):
+                    raise SubmissionBlocked("Spread policy order payload changed")
+                self.mm_quote_check(connector, order)
             # OKX's documented expTime deadline also constrains a process paused
             # after this gate but before transport. It does not replace recovery.
             headers = dict(request.headers or {})

@@ -1,0 +1,193 @@
+"""Optional LIFE spread composition using existing maker fees and NATR only."""
+import math
+from decimal import Decimal
+from typing import List, Literal, Optional
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from hummingbot.core.data_type.common import OrderType, PositionAction, TradeType
+
+ONE = Decimal('1')
+
+
+class VolatilitySpreadConfig(BaseModel):
+    model_config = ConfigDict(extra='forbid', frozen=True)
+    enabled: bool = False
+    interval: Literal['1s', '1m', '3m', '5m', '15m', '30m', '1h'] = '1m'
+    length: int = Field(default=14, ge=2, le=100, strict=True)
+    target_natr: Decimal = Field(default=Decimal('.01'), gt=0, lt=1, allow_inf_nan=False)
+    min_multiplier: Decimal = Field(default=Decimal('.5'), gt=0, allow_inf_nan=False)
+    max_multiplier: Decimal = Field(default=Decimal('3'), gt=0, le=20, allow_inf_nan=False)
+    max_age_seconds: int = Field(default=120, ge=1, le=86400, strict=True)
+    on_unavailable: Literal['static', 'wait'] = 'wait'
+    fallback_buy_spreads: Optional[List[Decimal]] = None
+    fallback_sell_spreads: Optional[List[Decimal]] = None
+
+    @model_validator(mode='after')
+    def check_limits(self):
+        if self.min_multiplier > self.max_multiplier:
+            raise ValueError('Volatility multiplier limits are reversed')
+        if self.enabled and self.on_unavailable == 'static' and (
+                not self.fallback_buy_spreads or not self.fallback_sell_spreads):
+            raise ValueError('Static fallback requires explicit buy and sell spreads')
+        for values in (self.fallback_buy_spreads, self.fallback_sell_spreads):
+            if values is not None and (not values or any(not x.is_finite() or not 0 < x < 1 for x in values)
+                                       or values != sorted(values)):
+                raise ValueError('Fallback spreads must be finite, ordered fractions')
+        return self
+
+
+class SpreadPolicyConfig(BaseModel):
+    model_config = ConfigDict(extra='forbid', frozen=True)
+    fee_floor: bool = False
+    volatility: VolatilitySpreadConfig = Field(default_factory=VolatilitySpreadConfig)
+
+    @property
+    def enabled(self):
+        return self.fee_floor or self.volatility.enabled
+
+
+def natr_value(frame, length):
+    # Same indicator as upstream PMM dynamic, with no MACD or anchor shift.
+    import pandas_ta as ta
+    result = ta.natr(frame['high'], frame['low'], frame['close'], length=length, talib=False)
+    value = Decimal(str(result.iloc[-1])) / 100 if result is not None else Decimal('NaN')
+    if not value.is_finite() or value < 0:
+        raise ValueError('candles_unavailable')
+    return value
+
+
+class SpreadPolicy:
+    def __init__(self, config):
+        self.config = config
+        self.key = None
+        self.value = None
+        self.valid_until = None
+        self.completed_at = None
+        self.state = 'disabled' if not config.enabled else 'static'
+        self.effective = None
+
+    def refresh(self, feed, now):
+        """Only owner/control samples inspect bounded candles; send gates use cache."""
+        cfg = self.config.volatility
+        if not cfg.enabled:
+            return
+        try:
+            rows = feed._candles
+            interval = feed.interval_in_seconds
+            # Feed itself keeps ordered rows. Validate the selected bounded window
+            # before NATR; the forming candle is never used, even at boundaries.
+            candidate = rows[-1] if rows[-1][0] + interval <= now else rows[-2]
+            completed = float(candidate[0])
+            if not math.isfinite(completed) or not 0 <= now - completed - interval <= cfg.max_age_seconds:
+                raise ValueError('candles_unavailable')
+            key = (id(feed), completed)
+            if self.key == key:
+                return
+            import pandas as pd
+            selected = [row[:5] for row in rows if row[0] <= completed][-cfg.length - 100:]
+            # A feed gap resets the indicator's history, not its controller.
+            # Older disconnected rows must not postpone recovery for 100 intervals.
+            for index in range(len(selected) - 1, 0, -1):
+                if selected[index][0] - selected[index - 1][0] != interval:
+                    selected = selected[index:]
+                    break
+            if len(selected) < cfg.length + 1:
+                raise ValueError('candles_unavailable')
+            for index, row in enumerate(selected):
+                stamp, opening, high, low, close = map(float, row)
+                if (not all(math.isfinite(x) for x in (stamp, opening, high, low, close))
+                        or min(opening, low, close) <= 0 or not low <= opening <= high or not low <= close <= high
+                        or index and stamp - selected[index - 1][0] != interval):
+                    raise ValueError('candles_unavailable')
+            frame = pd.DataFrame(selected, columns=['timestamp', 'open', 'high', 'low', 'close'])
+            value = natr_value(frame, cfg.length) / cfg.target_natr
+            if not value.is_finite() or value < 0:
+                raise ValueError('candles_unavailable')
+            self.value = max(cfg.min_multiplier, min(cfg.max_multiplier, value))
+            self.key, self.completed_at = key, completed + interval
+            self.valid_until = self.completed_at + cfg.max_age_seconds
+        except Exception:
+            # Optional outage follows the declared policy and recovers next sample.
+            self.key, self.value, self.completed_at, self.valid_until = None, None, None, None
+
+    def multiplier(self, now):
+        if not self.config.volatility.enabled:
+            return ONE
+        if self.value is None or not self.completed_at <= now <= self.valid_until:
+            return None
+        return self.value
+
+    def _fee(self, connector, pair, side, price, amount):
+        base, quote = pair.split('-')
+        try:
+            extra = dict(position_action=PositionAction.OPEN) if connector.name == "okx_perpetual" else {}
+            fee = connector.get_fee(base_currency=base, quote_currency=quote, order_type=OrderType.LIMIT_MAKER,
+                                    order_side=side, amount=amount, price=price, is_maker=True, **extra)
+            if (not fee.percent.is_finite() or fee.percent_token not in (None, base, quote)
+                    or any(item.token not in (base, quote) or not item.amount.is_finite() for item in fee.flat_fees)):
+                raise ValueError('fee_basis_unavailable')
+            value = fee.fee_amount_in_token(pair, price, amount, quote)
+            if not value.is_finite():
+                raise ValueError('fee_basis_unavailable')
+            # Do not spend a hypothetical rebate in advance or narrow base spreads.
+            return max(Decimal('0'), value)
+        except Exception as error:
+            raise ValueError('fee_basis_unavailable') from error
+
+    def quote_valid(self, connector, pair, side, price, amount, reference):
+        if any(not value.is_finite() or value <= 0 for value in (price, amount, reference)):
+            return False
+        if not self.config.fee_floor:
+            return True
+        fee = self._fee(connector, pair, side, price, amount)
+        edge = amount * (reference - price if side == TradeType.BUY else price - reference)
+        return edge >= fee
+
+    def compose(self, connector, pair, reference, buy, sell, buy_quote, sell_quote, *, now):
+        factor = self.multiplier(now)
+        cfg = self.config.volatility
+        if factor is None:
+            if cfg.on_unavailable == 'wait':
+                self.state = 'waiting'
+                raise ValueError('candles_unavailable')
+            buy, sell = cfg.fallback_buy_spreads, cfg.fallback_sell_spreads
+            factor, self.state = ONE, 'static_fallback'
+        else:
+            self.state = 'dynamic' if cfg.enabled else 'static'
+        result = []
+        for side, spreads, allocations in ((TradeType.BUY, buy, buy_quote), (TradeType.SELL, sell, sell_quote)):
+            values, previous = [], Decimal('0')
+            for spread, allocation in zip(spreads, allocations):
+                spread = max(previous, Decimal(str(spread)) * factor)
+                if self.config.fee_floor:
+                    for _ in range(8):
+                        if not 0 < spread < 1:
+                            raise ValueError('quote_out_of_bounds')
+                        price = reference * (1 + (-1 if side == TradeType.BUY else 1) * spread)
+                        amount = Decimal(allocation) / price
+                        fee = self._fee(connector, pair, side, price, amount)
+                        edge = amount * (reference - price if side == TradeType.BUY else price - reference)
+                        if edge >= fee:
+                            break
+                        rate = fee / Decimal(allocation)
+                        if rate >= 1:
+                            raise ValueError('fee_basis_unavailable')
+                        spread = max(spread.next_plus(), rate / (1 - rate) + Decimal('1e-24'))
+                    else:
+                        raise ValueError('fee_basis_unavailable')
+                if not 0 < spread < 1:
+                    raise ValueError('quote_out_of_bounds')
+                values.append(spread)
+                previous = spread
+            result.append(values)
+        self.effective = tuple(result)
+        return self.effective
+
+    def status(self, now):
+        state = self.state
+        if self.config.volatility.enabled and self.multiplier(now) is None:
+            state = 'waiting' if self.config.volatility.on_unavailable == 'wait' else 'static_fallback'
+        return dict(enabled=self.config.enabled, fee_floor=self.config.fee_floor, state=state,
+                    multiplier=str(self.multiplier(now)) if self.multiplier(now) is not None else None, completed_at=self.completed_at, valid_until=self.valid_until,
+                    buy_spreads=[str(x) for x in self.effective[0]] if self.effective else [], sell_spreads=[str(x) for x in self.effective[1]] if self.effective else [])

@@ -13,6 +13,8 @@ under the ignored `build/` directory.
 | [Cloud Run runtime image](cloudrun-runtime.md) | Build, packaging, image references and runtime caches |
 | [Cloud Run deployment](../deploy/cloudrun/README.md) | Service configuration and deployment verification |
 | [Admin API](admin-api.md) | Authentication, commands, reporting and reconciliation |
+| [Session history and liquidity](life-mm-history-liquidity.md) | Atomic transitions, recorded configuration, sampled quote coverage and FE polling |
+| [Optional fee/NATR spreads](life-mm-spread-policy.md) | Existing maker fee conversion and completed-candle NATR, fallback/wait and rounding |
 | [Strict quote guards](life-mm-quote-guards.md) | Opt-in market deviation, sideways range, own-order filtering and recovery |
 | [Managed MM drawdown](life-mm-drawdown.md) | Covered V2 report limits, retained-market valuation, durable peaks and position-preserving HALT |
 | [Spot inventory skew](life-mm-inventory-skew.md) | Original PMM interpolation, cash-only signal, bounded sizing and neutral fallback |

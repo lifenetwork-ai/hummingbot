@@ -138,6 +138,17 @@ class ServiceHost:
         # Both adapters may expose the same collateral. Never add them together.
         return min(available)
 
+    def mm_quote_valid(self, connector, order):
+        from hummingbot.core.order_submission_guard import SubmissionBlocked
+        controller = next((value for value in self._mm_controllers()
+                           if (value.config.connector_name, value.config.trading_pair) == (connector.name, order.trading_pair)), None)
+        try:
+            valid = controller is not None and controller.spread_quote_valid(order.trade_type, order.price, order.amount)
+        except ValueError:
+            valid = False
+        if not valid:
+            raise SubmissionBlocked("spread_policy_quote_rejected")
+
     def mm_runtime_ready(self, *, allow_bootstrap_start=False):
         self.mm_readiness_reason = None
 
@@ -167,7 +178,8 @@ class ServiceHost:
                              "reference_deviation", "sideways_breakout", "guard_recovering",
                              "bootstrap_binding_unavailable", "bootstrap_not_started", "bootstrap_checkpoint_pending",
                              "bootstrap_expired", "bootstrap_band", "bootstrap_range", "bootstrap_quote_crossing",
-                             "market_liquidity_unqualified", "bootstrap_anchor_mismatch", "account_balance_unavailable"}
+                             "market_liquidity_unqualified", "bootstrap_anchor_mismatch", "account_balance_unavailable",
+                             "fee_basis_unavailable", "candles_unavailable"}
                     return waiting(reason if reason in known else "market_data_unavailable")
                 if not controller.market_data_provider.ready:
                     return waiting("market_data_unavailable")
@@ -504,7 +516,8 @@ class ServiceHost:
                                 "reference_price": str(controller.processed_data["reference_price"]) if "reference_price" in controller.processed_data else None,
                                 "reason": controller.processed_data.get("reason"),
                                 "quote_guard": controller.processed_data.get("quote_guard"),
-                                "inventory_skew": controller.processed_data.get("inventory_skew")} for controller in self._mm_controllers()],
+                                "inventory_skew": controller.processed_data.get("inventory_skew"),
+                                "spread_policy": controller.processed_data.get("spread_policy")} for controller in self._mm_controllers()],
                 "reporting": self.reporting,
                 "funding_sync": {**public_status(self.funding_state, now_ms=int(time.time() * 1000), error=self.funding_error),
                                  **({"state": "not_configured"} if not self.funding_configured else {})},
@@ -555,6 +568,8 @@ class ServiceHost:
             self.mm_session = None
         mm_identity = (self.mm_session.id, self.mm_session.generation) if self.mm_session else None
         self.owner.mm_ready_check = self.mm_runtime_ready if self.mm_session else None
+        self.owner.mm_quote_check = (self.mm_quote_valid if self.mm_session and any(
+            config.spread_policy.enabled for config in self.mm_session.catalogue.markets.values()) else None)
         version = row["control_version"]
         if version != self.applied_version or mm_identity != self.applied_mm_identity:
             self.phase = "stopping"

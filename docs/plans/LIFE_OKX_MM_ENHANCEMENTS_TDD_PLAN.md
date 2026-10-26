@@ -2,7 +2,7 @@
 
 Date: 2026-10-26 (Asia/Ho_Chi_Minh).
 Status: E0, E1, E2a, E2b, E2c and E3 complete with local verification.
-E4 is complete; E5 is next and E6 remains open.
+E4 and E5 are complete; E6 verification is next.
 Only verified checklist items are marked complete.
 Baseline: `1867159e7`.
 Implementation priority: service availability, explainable trading decisions and
@@ -606,11 +606,15 @@ send-gate `update_reference()` call cannot overwrite it with multiplier 1. Final
 checks validate freshness/version of the same composed decision without running
 NATR or copying the full book again for each order.
 
-- [ ] **Red:** fee currencies/rebates, unknown fee basis, one-sided/two-sided spread semantics and Decimal/tick-rounding boundaries.
-- [ ] **Red:** insufficient/stale/flat candles, NaN/infinite indicators, shocks, multiplier caps and final quote limits.
-- [ ] **Red:** candle warmup/outage selects the declared static/wait policy, preserves an enabled fee floor and returns to dynamic quoting without process/controller restart.
-- [ ] **Green:** integrate a small policy using existing providers/helpers; keep session anchors fixed and spot/perpetual observations separate.
-- [ ] **Verify/commit:** disabled parity, simulator spread response, subscription cleanup, CPU/query cost and feed-recovery behavior pass before E6.
+- [x] **Red:** fee currencies/rebates, unknown fee basis, one-sided/two-sided spread semantics and Decimal/tick-rounding boundaries.
+- [x] **Red:** insufficient/stale/flat candles, NaN/infinite indicators, shocks, multiplier caps and final quote limits.
+- [x] **Red:** candle warmup/outage selects the declared static/wait policy, preserves an enabled fee floor and returns to dynamic quoting without process/controller restart.
+- [x] **Green:** integrate a small policy using existing providers/helpers; keep session anchors fixed and spot/perpetual observations separate.
+- [x] **Verify/commit:** disabled parity, simulator spread response, subscription cleanup, CPU/query cost and feed-recovery behavior pass before E6.
+
+E5 verification: [report](../../reports/life-mm-e5-spread-policy.md),
+[evidence](../../reports/life-mm-e5-spread-policy.json) and
+[guide](../life-mm-spread-policy.md). Final-image candle-gap recovery: 7.20s, zero restarts.
 
 ## 9. E6 — Verification and delivery gates
 

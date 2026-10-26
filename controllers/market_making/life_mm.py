@@ -9,10 +9,12 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from controllers.market_making import pmm_simple
 from hummingbot.core.data_type.common import OrderType, PositionMode, PositionSide, PriceType, TradeType
 from hummingbot.core.utils.read_retry import retry_delay, transient_read
+from hummingbot.data_feed.candles_feed.data_types import CandlesConfig
 from hummingbot.strategy_v2.models.base import RunnableStatus
 from hummingbot.strategy_v2.models.executor_actions import StopExecutorAction
 from hummingbot.strategy_v2.utils.inventory_skew import InventorySkewConfig, inventory_skew_ratios
 from hummingbot.strategy_v2.utils.listing_bootstrap import ListingBootstrap
+from hummingbot.strategy_v2.utils.mm_spread import SpreadPolicy, SpreadPolicyConfig
 from hummingbot.strategy_v2.utils.quote_guard import (
     MarketObservation,
     QuoteGuard,
@@ -67,9 +69,22 @@ class LifeMMConfig(pmm_simple.PMMSimpleConfig):
     quote_guards: QuoteGuardConfig = Field(default_factory=QuoteGuardConfig)
     sideways_range: Optional[SidewaysRange] = None
     inventory_skew: InventorySkewConfig = Field(default_factory=InventorySkewConfig)
+    spread_policy: SpreadPolicyConfig = Field(default_factory=SpreadPolicyConfig)
 
     @model_validator(mode="after")
     def validate_mm_policy(self):
+        vol = self.spread_policy.volatility
+        if self.spread_policy.enabled:
+            for spreads in (self.buy_spreads, self.sell_spreads):
+                if spreads != sorted(spreads):
+                    raise ValueError("Spread policy requires ordered base levels")
+        if vol.enabled:
+            if (vol.on_unavailable == "static" and
+                    (len(vol.fallback_buy_spreads) != len(self.buy_spreads)
+                     or len(vol.fallback_sell_spreads) != len(self.sell_spreads))):
+                raise ValueError("Fallback must cover every configured quote level")
+            if any(Decimal(str(x)) * vol.max_multiplier >= 1 for x in self.buy_spreads + self.sell_spreads):
+                raise ValueError("Maximum dynamic spread must remain below one")
         if self.inventory_skew.enabled and self.connector_name != "okx":
             raise ValueError("Inventory skew is a spot-only account cash signal")
         if self.quote_guards.mode == "bootstrap_then_market":
@@ -152,6 +167,34 @@ class LifeMMController(pmm_simple.PMMSimpleController):
         self._startup_stage = "not_started"
         self._startup_retry_sleep = asyncio.sleep
         self._quote_guard = QuoteGuard(config.quote_guards, config.sideways_range)
+        self._spread_policy = SpreadPolicy(config.spread_policy)
+        self._effective_spreads = None
+
+    def _spread_candle_config(self):
+        cfg = self.config.spread_policy.volatility
+        return CandlesConfig(connector=self.config.connector_name, trading_pair=self.config.trading_pair,
+                             interval=cfg.interval, max_records=cfg.length + 102)
+
+    def initialize_candles(self):
+        # Optional candles cannot make the shared provider globally unready:
+        # this controller applies the explicit static/wait decision itself.
+        if self.config.spread_policy.volatility.enabled:
+            self.market_data_provider.acquire_candle_feed(self._spread_candle_config(), self)
+
+    def spread_quote_valid(self, side, price, amount):
+        if not self.config.spread_policy.enabled:
+            return True
+        if not self.processed_data.get("ready"):
+            return False
+        now = self.market_data_provider.time()
+        if self._spread_policy.multiplier(now) is None and self.config.spread_policy.volatility.on_unavailable == "wait":
+            return False
+        reference = self.processed_data["reference_price"]
+        spreads = self._effective_spreads[0 if side == TradeType.BUY else 1]
+        actual = (reference - price if side == TradeType.BUY else price - reference) / reference
+        connector = self.market_data_provider.get_connector_with_fallback(self.config.connector_name)
+        return actual >= min(spreads) and self._spread_policy.quote_valid(
+            connector, self.config.trading_pair, side, price, amount, reference)
 
     def restore_bootstrap_episode(self, episode):
         if self._bootstrap is not None:
@@ -360,6 +403,20 @@ class LifeMMController(pmm_simple.PMMSimpleController):
                     raise ValueError(guard_status["reason_code"])
             self.processed_data = {"reference_price": reference, "spread_multiplier": spread_multiplier, "ready": False,
                                    "quote_guard": guard_status}
+            if self.config.spread_policy.enabled:
+                provider = self.market_data_provider
+                cfg = self.config.spread_policy.volatility
+                if sample_guard and cfg.enabled:
+                    candle = self._spread_candle_config()
+                    key = provider._generate_candle_feed_key(candle)
+                    # Use existing feed only. Readiness/send checks never create/fetch a feed.
+                    self._spread_policy.refresh(provider.candles_feeds.get(key), provider.time())
+                connector = provider.get_connector_with_fallback(self.config.connector_name)
+                buy, buy_quote = self.config.get_spreads_and_amounts_in_quote(TradeType.BUY)
+                sell, sell_quote = self.config.get_spreads_and_amounts_in_quote(TradeType.SELL)
+                self._effective_spreads = self._spread_policy.compose(
+                    connector, self.config.trading_pair, reference, buy, sell, buy_quote, sell_quote, now=provider.time())
+                self.processed_data["spread_policy"] = self._spread_policy.status(provider.time())
             self._update_inventory_skew(guard_status)
             for level in self.get_not_active_levels_ids([]):
                 price, _ = self.get_price_and_amount(level)
@@ -383,7 +440,8 @@ class LifeMMController(pmm_simple.PMMSimpleController):
                      "reference_deviation", "sideways_breakout", "guard_recovering",
                      "bootstrap_binding_unavailable", "bootstrap_not_started", "bootstrap_checkpoint_pending",
                      "bootstrap_expired", "bootstrap_band", "bootstrap_range", "bootstrap_quote_crossing",
-                     "market_liquidity_unqualified", "bootstrap_anchor_mismatch", "account_balance_unavailable"}
+                     "market_liquidity_unqualified", "bootstrap_anchor_mismatch", "account_balance_unavailable",
+                     "fee_basis_unavailable", "candles_unavailable"}
             if self.config.quote_guards.enabled and guard_status is None:
                 guard_status = self._evaluate_guard(
                     MarketObservation(None, None, self.market_data_provider.time(), detail="required_data_unavailable"),
@@ -392,6 +450,7 @@ class LifeMMController(pmm_simple.PMMSimpleController):
             self.processed_data = {"ready": False, "reason": str(error) if reason in known else type(error).__name__,
                                    "spread_multiplier": spread_multiplier, "quote_guard": guard_status,
                                    "inventory_skew": self._inventory_status,
+                                   "spread_policy": self._spread_policy.status(self.market_data_provider.time()) if self.config.spread_policy.enabled else None,
                                    "internal_error": not isinstance(error, (ValueError, ArithmeticError, OSError))}
 
     async def update_processed_data(self):
@@ -583,6 +642,8 @@ class LifeMMController(pmm_simple.PMMSimpleController):
         self._startup_stage = "ready"
 
     async def on_stop(self):
+        if self.config.spread_policy.volatility.enabled:
+            self.market_data_provider.release_candle_feed(self._spread_candle_config(), self)
         references = [ref.pair for ref in self.config.references]
         if references:
             await self.market_data_provider.release_order_books(
@@ -591,6 +652,13 @@ class LifeMMController(pmm_simple.PMMSimpleController):
 
     def _baseline_price_and_amount(self, level_id):
         price, amount = super().get_price_and_amount(level_id)
+        if self.config.spread_policy.enabled:
+            side = self.get_trade_type_from_level_id(level_id)
+            index = int(self.get_level_from_level_id(level_id))
+            spread = self._effective_spreads[0 if side == TradeType.BUY else 1][index]
+            price = self.processed_data["reference_price"] * (1 + (-1 if side == TradeType.BUY else 1) * spread)
+            _, allocations = self.config.get_spreads_and_amounts_in_quote(side)
+            amount = Decimal(allocations[index]) / price
         if self._bootstrap is not None and not self._bootstrap.market_qualified:
             side = self.get_trade_type_from_level_id(level_id)
             _, allocations = self.config.get_spreads_and_amounts_in_quote(side)
@@ -610,7 +678,18 @@ class LifeMMController(pmm_simple.PMMSimpleController):
         return price, amount
 
     def get_executor_config(self, level_id, price, amount):
-        if self.config.inventory_skew.enabled:
+        if self.config.spread_policy.enabled:
+            connector = self.market_data_provider.get_connector_with_fallback(self.config.connector_name)
+            rounded = connector.quantize_order_price(self.config.trading_pair, price)
+            if self.get_trade_type_from_level_id(level_id) == TradeType.SELL and rounded < price:
+                rounded = connector.quantize_order_price(
+                    self.config.trading_pair, rounded + connector.get_order_price_quantum(self.config.trading_pair, price))
+            if rounded > price:
+                with localcontext() as context:
+                    context.rounding = ROUND_DOWN
+                    amount = amount * price / rounded
+            price = rounded
+        if self.config.inventory_skew.enabled or self.config.spread_policy.enabled:
             connector = self.market_data_provider.get_connector_with_fallback(self.config.connector_name)
             raw_amount = amount
             price = connector.quantize_order_price(self.config.trading_pair, price)
@@ -621,6 +700,12 @@ class LifeMMController(pmm_simple.PMMSimpleController):
                 return None
         if not self.quote_price_valid(price):
             return None
+        if self.config.spread_policy.enabled:
+            try:
+                if not self.spread_quote_valid(self.get_trade_type_from_level_id(level_id), price, amount):
+                    return None
+            except ValueError:
+                return None
         return super().get_executor_config(level_id, price, amount).model_copy(update={
             "mm_session_id": self.config.mm_session_id, "mm_generation": self.config.mm_generation,
-            "use_configured_entry_price": self._bootstrap is not None and not self._bootstrap.market_qualified})
+            "use_configured_entry_price": self.config.spread_policy.enabled or (self._bootstrap is not None and not self._bootstrap.market_qualified)})
