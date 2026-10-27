@@ -33,6 +33,7 @@ class VolatilityDefense:
         self.state = 'normal'
         self.good_since = self.last_sample = None
         self.good_samples = 0
+        self.last_observation = None
 
     def reset_recovery(self):
         self.good_since = self.last_sample = None
@@ -42,19 +43,24 @@ class VolatilityDefense:
         if raw is None:
             self.reset_recovery()
             return
-        if raw >= self.config.reduce_at_natr:
+        if raw >= self.config.stop_at_natr:
+            self.state = 'paused'
+            self.reset_recovery()
+        elif self.state != 'paused' and raw >= self.config.reduce_at_natr:
             self.state = 'reduced'
             self.reset_recovery()
-        elif self.state == 'reduced':
-            if raw >= self.config.resume_below_natr:
+        elif self.state in ('reduced', 'paused'):
+            threshold = self.config.reduce_at_natr if self.state == 'paused' else self.config.resume_below_natr
+            if raw >= threshold:
                 self.reset_recovery()
-            elif token != self.last_sample:
+            elif self.last_observation is None or token > self.last_observation:
                 self.good_since = monotonic_now if self.good_since is None else self.good_since
                 self.last_sample = token
                 self.good_samples += 1
                 if self.good_samples >= 2 and monotonic_now - self.good_since >= self.config.recovery_seconds:
-                    self.state = 'normal'
+                    self.state = 'reduced' if self.state == 'paused' else 'normal'
                     self.reset_recovery()
+        self.last_observation = max(token, self.last_observation) if self.last_observation is not None else token
 
 
 class VolatilitySpreadConfig(BaseModel):
@@ -180,6 +186,8 @@ class SpreadPolicy:
     def size_factor(self, now):
         if self.defense is None:
             return ONE
+        if self.defense.state == 'paused':
+            return Decimal('0')
         return (self.defense.config.reduced_size_factor
                 if self.defense.state != 'normal' or self.multiplier(now) is None else ONE)
 
@@ -217,6 +225,9 @@ class SpreadPolicy:
         return edge >= fee
 
     def compose(self, connector, pair, reference, buy, sell, buy_quote, sell_quote, *, now):
+        if self.defense is not None and self.defense.state == 'paused':
+            self.state = 'waiting'
+            raise ValueError('volatility_paused')
         factor = self.multiplier(now)
         cfg = self.config.volatility
         if factor is None:

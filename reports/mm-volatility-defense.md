@@ -58,3 +58,32 @@ bootstrap/skew/per-level cases were added. The regression Make target includes
 the new defense tests. Default deployed YAML and original file-mode policies
 remain unchanged. An initially incomplete bootstrap test book was corrected to
 supply real bid/ask entries; no production guard was weakened.
+
+## V3 — Durable pause and recovery
+
+Red reproduced an extreme threshold being treated only as reduction, backward
+candle replay earning recovery, a missing durable checkpoint adapter and static
+fallback continuing spread composition after a known extreme event. A retention
+regression also demonstrated that a strong controller map kept a retired
+controller alive. Green adds strict severity/recovery sampling, a bounded
+owner-fenced JSON pause checkpoint and weak controller references.
+
+Latches are account/environment and connector/pair scoped. Profile/session IDs,
+Stop/Start/Switch and market selection do not clear them. Control CAS prevents
+stale checkpoint clearing, transaction rollback leaves the latch in place,
+corrupt/account-mismatched checkpoints require recovery, and YAML policy changes
+are rejected while the corresponding pause is active. Recovery never credits
+offline time. The existing account-identity helper is shared with spot outflow.
+
+Controller cancellation requests precede the transition write; quantities and
+filled positions retain the existing executor lifecycle. Static fallback cannot
+clear a pause. Bootstrap admission cannot bypass defense readiness. Final REST
+transport rejects an earlier narrower quote through the real owner and recorder.
+Catalogues can now admit the complete feature; unsupported unmanaged mode is
+rejected. No database table or migration was added.
+
+Verification: 107 focused defense/spread/guard/bootstrap tests and 15 disposable
+PostgreSQL defense cases pass. The native regression invocation also passed
+1,732 tests plus 11 subtests before the final standalone paused-composition case
+was added. Existing position-executor tests cover partial-fill preservation and
+terminal cancellation proofs. Image/fault/load and Demo acceptance remain V5.

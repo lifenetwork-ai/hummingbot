@@ -7,6 +7,19 @@ import time
 from decimal import Decimal, InvalidOperation
 
 
+def account_identity(connectors):
+    """Read the already-observed common OKX account; never make another request."""
+    identities = {(getattr(connector, 'account_uid', None), getattr(connector, 'trading_environment', None))
+                  for name, connector in connectors.items() if name in ('okx', 'okx_perpetual')}
+    if not identities or any(not isinstance(uid, str) or not uid or environment not in ('live', 'demo')
+                             for uid, environment in identities):
+        raise ValueError('identity_unavailable')
+    if len(identities) != 1:
+        raise ValueError('binding_mismatch')
+    uid, environment = identities.pop()
+    return dict(account_id=uid, environment=environment)
+
+
 async def observe_account_identity(connector):
     """One authenticated read per connector, retried conservatively on failure."""
     if getattr(connector, "account_uid", None) or time.time() < getattr(connector, "_account_identity_retry_at", 0):

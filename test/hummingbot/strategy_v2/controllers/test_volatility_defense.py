@@ -61,6 +61,73 @@ def test_static_fallback_uses_smaller_size_and_disabled_policy_is_unchanged():
     assert SpreadPolicy(SpreadPolicyConfig()).size_factor(1200) == 1
 
 
+def test_extreme_pause_cannot_be_cleared_by_fallback_or_one_candle(monkeypatch):
+    policy = SpreadPolicy(SpreadPolicyConfig(**defense_policy()))
+    sample(policy, monkeypatch, '.05')
+    assert policy.defense.state == 'paused'
+    assert policy.size_factor(1200) == 0
+    policy.sample_defense(2000, 1000)
+    assert policy.defense.state == 'paused'
+    sample(policy, monkeypatch, '.019', epoch=2060, monotonic=1100)
+    assert policy.defense.state == 'paused'
+    sample(policy, monkeypatch, '.019', epoch=2120, monotonic=1160)
+    assert policy.defense.state == 'reduced'
+    sample(policy, monkeypatch, '.01', epoch=2180, monotonic=1220)
+    assert policy.defense.state == 'reduced'
+    sample(policy, monkeypatch, '.01', epoch=2240, monotonic=1280)
+    assert policy.defense.state == 'normal'
+
+
+def test_paused_spread_composition_cannot_offer_static_fallback(monkeypatch):
+    policy = SpreadPolicy(SpreadPolicyConfig(**defense_policy()))
+    sample(policy, monkeypatch, '.05')
+    connector = MagicMock()
+    connector.get_fee.return_value = AddedToCostTradeFee(percent=Decimal('.001'))
+    with pytest.raises(ValueError, match='volatility_paused'):
+        policy.compose(connector, 'LIFE-USDT', Decimal('.1'), [.01], [.01], [50], [50], now=2000)
+
+
+def test_recovery_rejects_backwards_replayed_candles(monkeypatch):
+    policy = SpreadPolicy(SpreadPolicyConfig(**defense_policy()))
+    sample(policy, monkeypatch, '.02')
+    sample(policy, monkeypatch, '.01', epoch=1320, monotonic=110)
+    sample(policy, monkeypatch, '.01', epoch=1260, monotonic=200)
+    assert policy.size_factor(1260) == Decimal('.5')
+
+
+@pytest.mark.asyncio
+async def test_pause_sends_position_preserving_cancellation_before_checkpoint(monkeypatch, clock):
+    from unittest.mock import AsyncMock
+    controller = defended_controller(monkeypatch, clock)
+    events = []
+    controller.bind_volatility_defense(paused=False, checkpoint=lambda paused: events.append(('checkpoint', paused)) or True)
+    controller.send_actions = AsyncMock(side_effect=lambda actions: events.append(('cancel', actions)))
+    controller.executors_info = [SimpleNamespace(id='working', is_active=True)]
+    monkeypatch.setattr('hummingbot.strategy_v2.utils.mm_spread.natr_value', lambda *args: Decimal('.05'))
+    await controller.control_task()
+    assert events[0][0] == 'cancel'
+    assert events[0][1][0].keep_position
+    assert events[1] == ('checkpoint', True)
+    assert controller.processed_data['reason'] == 'volatility_paused'
+    assert not controller.processed_data['quote_guard']['can_admit']
+    assert not controller.processed_data['ready']
+
+
+def test_restored_pause_requires_fresh_recovery_before_pending_clear(monkeypatch, clock):
+    controller = defended_controller(monkeypatch, clock)
+    controller.bind_volatility_defense(paused=True, checkpoint=lambda paused: False)
+    monkeypatch.setattr('hummingbot.strategy_v2.utils.mm_spread.natr_value', lambda *args: Decimal('.01'))
+    controller.update_reference(sample_guard=True)
+    assert controller.processed_data['reason'] == 'volatility_paused'
+    from test.hummingbot.strategy_v2.controllers.test_life_mm_spread import feed
+    clock.epoch, clock.monotonic = 1260, 160
+    controller.market_data_provider.candles_feeds['feed'] = feed(now=clock.epoch)
+    controller.update_reference(sample_guard=True)
+    assert controller.processed_data['reason'] == 'volatility_checkpoint_pending'
+    assert not controller.sync_volatility_checkpoint()
+    assert controller._volatility_saved_pause
+
+
 @pytest.mark.parametrize('updates', [dict(min_multiplier='.5'), dict(enabled=False),
                                      dict(defense=dict(reduce_at_natr='.02', stop_at_natr='.01',
                                                        resume_below_natr='.015', reduced_size_factor='.5', recovery_seconds=60))])
@@ -86,6 +153,7 @@ def defended_controller(monkeypatch, clock, **updates):
                   quote_guards=dict(enabled=True, max_deviation_bps='200', resume_deviation_bps='100'))
     values.update(updates)
     controller, _ = make_controller(configuration(**values))
+    controller.bind_volatility_defense(paused=False, checkpoint=lambda paused: True)
     controller._session_admitted = True
     controller._evaluate_guard = MagicMock(return_value=dict(ready=True, can_admit=True))
     monkeypatch.setattr('controllers.market_making.life_mm.observe_market',

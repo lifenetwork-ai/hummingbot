@@ -52,6 +52,7 @@ class BotOwnership:
         self.intent_scopes = {}
         self.spot_outflow = None
         self.listing_bootstrap = None
+        self.volatility_checkpoints = None
 
     def try_acquire(self) -> bool:
         if self.lost:
@@ -526,6 +527,15 @@ class BotOwnership:
         elif final_state.get("spot_outflow"):
             self.require_recovery("spot_outflow_policy_unavailable")
             raise SubmissionBlocked("Armed spot_outflow requires its original managed policy")
+        controllers = getattr(core.strategy, 'controllers', {})
+        if (any(getattr(getattr(controller.config, 'spread_policy', None), 'volatility', None) is not None
+                and controller.config.spread_policy.volatility.defense is not None for controller in controllers.values())
+                or (final_state.get('volatility_defense') or {}).get('pauses')):
+            from hummingbot.core.volatility_defense import VolatilityCheckpoints
+            self.volatility_checkpoints = VolatilityCheckpoints(self, controllers)
+            self.volatility_checkpoints.attach()
+        else:
+            self.volatility_checkpoints = None
         self.allow_new_orders = True
 
     def fill_committed(self, row):

@@ -72,6 +72,9 @@ class BotStateStore:
                 raise ControlConflict("Armed MM drawdown requires admin MM commands; policy/scope changes need operator review.")
             if any((row["recovery_state"] or {}).get(key) for key in ("spot_outflow", "listing_bootstrap")) and desired_state != "stopped":
                 raise ControlConflict("Armed spot_outflow requires admin MM commands and its bound policy.")
+            if ((row['recovery_state'] or {}).get('volatility_defense') or {}).get('pauses') and desired_state != 'stopped':
+                raise ControlConflict('Active volatility pauses require admin MM commands and their bound YAML policy.',
+                                      code='volatility_pause_policy_bound')
             if config_file_path is not None:
                 # An explicit legacy YAML selection replaces the MM intent.
                 # Its former session must not keep future admin starts blocked.
@@ -165,6 +168,9 @@ class BotStateStore:
             if action != "stop" and bootstrap is not None and bootstrap.get("policies") != catalogue.bootstrap_policies():
                 raise ControlConflict("listing_bootstrap policy is already bound; operator-reviewed maintenance is required", code="bootstrap_policy_bound")
             outflow = (row["recovery_state"] or {}).get("spot_outflow")
+            if action != 'stop':
+                from hummingbot.core.volatility_defense import validate_catalogue_pauses
+                validate_catalogue_pauses(row['recovery_state'] or {}, catalogue)
             if action != "stop" and outflow is not None and outflow.get("policy") != catalogue.outflow_policy():
                 raise ControlConflict("spot_outflow policy is already bound; operator-reviewed maintenance is required to change it", code="outflow_policy_bound")
             if action == "stop":

@@ -164,6 +164,9 @@ class ServiceHost:
             return False
 
         try:
+            defense = getattr(self.owner, 'volatility_checkpoints', None)
+            if defense is not None and not defense.attach():
+                return waiting('volatility_checkpoint_pending')
             if self.mm_session.catalogue.drawdown_policy() is not None:
                 strategy = self.hb.trading_core.strategy
                 if strategy is None or not strategy.mm_drawdown_ready():

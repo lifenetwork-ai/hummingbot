@@ -30,15 +30,11 @@ class SpotOutflowGuard:
         self.last_buy_denial = None
 
     def identity(self):
-        identities = {(getattr(connector, "account_uid", None), getattr(connector, "trading_environment", None))
-                      for name, connector in self.owner.connectors.items() if name in ("okx", "okx_perpetual")}
-        if not identities or any(not isinstance(uid, str) or not uid or environment not in ("live", "demo")
-                                 for uid, environment in identities):
-            raise ValueError("spot_outflow_identity_unavailable")
-        if len(identities) != 1:
-            raise ValueError("spot_outflow_binding_mismatch")
-        uid, environment = identities.pop()
-        return dict(account_id=uid, environment=environment, trading_pair=self.policy["trading_pair"])
+        from hummingbot.connector.okx_account_observations import account_identity
+        try:
+            return dict(**account_identity(self.owner.connectors), trading_pair=self.policy['trading_pair'])
+        except ValueError as error:
+            raise ValueError('spot_outflow_' + str(error)) from error
 
     async def initialize(self):
         row = self.owner.check_owner()

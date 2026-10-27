@@ -181,6 +181,8 @@ class LifeMMController(pmm_simple.PMMSimpleController):
         self._startup_retry_sleep = asyncio.sleep
         self._quote_guard = QuoteGuard(config.quote_guards, config.sideways_range)
         self._spread_policy = SpreadPolicy(config.spread_policy)
+        self._volatility_saved_pause = None
+        self._volatility_checkpoint = None
         self._effective_spreads = None
         self._quote_diagnostics = None
 
@@ -244,6 +246,26 @@ class LifeMMController(pmm_simple.PMMSimpleController):
                 return False
         return actual >= min(spreads) and self._spread_policy.quote_valid(
             connector, self.config.trading_pair, side, price, amount, reference)
+
+    def bind_volatility_defense(self, *, paused, checkpoint):
+        self._volatility_saved_pause = paused
+        self._volatility_checkpoint = checkpoint
+        if paused:
+            self._spread_policy.defense.state = 'paused'
+        self._spread_policy.defense.reset_recovery()
+
+    def sync_volatility_checkpoint(self):
+        if self._spread_policy.defense is None:
+            return True
+        paused = self._spread_policy.defense.state == 'paused'
+        if self._volatility_saved_pause is None or self._volatility_checkpoint is None:
+            return False
+        if self._volatility_saved_pause == paused:
+            return True
+        if not self._volatility_checkpoint(paused):
+            return False
+        self._volatility_saved_pause = paused
+        return True
 
     def restore_bootstrap_episode(self, episode):
         if self._bootstrap is not None:
@@ -478,6 +500,11 @@ class LifeMMController(pmm_simple.PMMSimpleController):
                     # Use existing feed only. Readiness/send checks never create/fetch a feed.
                     self._spread_policy.refresh(provider.candles_feeds.get(key), provider.time())
                     self._spread_policy.sample_defense(provider.time(), time.monotonic())
+                if cfg.defense is not None:
+                    if self._spread_policy.defense.state == 'paused':
+                        raise ValueError('volatility_paused')
+                    if self._volatility_saved_pause is not False:
+                        raise ValueError('volatility_checkpoint_pending')
                 connector = provider.get_connector_with_fallback(self.config.connector_name)
                 buy, buy_quote = self.config.get_spreads_and_amounts_in_quote(TradeType.BUY)
                 sell, sell_quote = self.config.get_spreads_and_amounts_in_quote(TradeType.SELL)
@@ -505,6 +532,11 @@ class LifeMMController(pmm_simple.PMMSimpleController):
                 self.processed_data["reason"] = guard_status["reason_code"]
         except Exception as error:
             reason = str(error).split(":", 1)[0]
+            if self._spread_policy.defense is not None:
+                if sample_guard and reason not in ('volatility_paused', 'volatility_checkpoint_pending'):
+                    self._spread_policy.defense.reset_recovery()
+                if guard_status is not None:
+                    guard_status = {**guard_status, 'can_admit': False}
             if self.config.quote_guards.enabled and guard_status is None:
                 guard_status = self._evaluate_guard(
                     MarketObservation(None, None, self.market_data_provider.time(), detail="required_data_unavailable"),
@@ -529,6 +561,10 @@ class LifeMMController(pmm_simple.PMMSimpleController):
             await self.send_actions(self.stop_quote_actions())
         elif self.executors_update_event.is_set():
             await self.send_actions(self.determine_executor_actions())
+        # Publish cancellation requests before the synchronous, owner-fenced
+        # transition write. A failed/pending write never reopens admission.
+        if self._spread_policy.defense is not None and self.sync_volatility_checkpoint():
+            self.update_reference()
 
     def stop_quote_actions(self):
         active = {executor.id for executor in self.executors_info if executor.is_active}

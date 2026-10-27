@@ -1,7 +1,7 @@
 # LIFE / OKX volatility defense — incremental TDD plan
 
 Date: 2026-10-28 (Asia/Ho_Chi_Minh).
-Status: V0–V2 complete; V3–V5 implementation and acceptance remain open.
+Status: V0–V3 complete; V4–V5 operations and final acceptance remain open.
 Evidence: [implementation report](../../reports/mm-volatility-defense.md).
 
 Improve quote protection and automatic recovery while keeping the existing
@@ -246,18 +246,18 @@ snake_case migration and document why; do not prebuild a generic persistence lay
 
 ### V3 — Extreme-volatility pause and durable recovery
 
-- [ ] Red/Green threshold equality, normal/reduced/paused transitions, hysteresis,
+- [x] Red/Green threshold equality, normal/reduced/paused transitions, hysteresis,
   distinct completed-candle recovery, stale/gapped data and static/wait fallback.
-- [ ] Red/Green latch writes/restoration with real PostgreSQL, owner fencing,
+- [x] Red/Green latch writes/restoration with real PostgreSQL, owner fencing,
   rollback/failure, clean/unclean restart and reset recovery timing.
-- [ ] Cover Stop/Start/Switch, disabled-market return, random boundaries,
+- [x] Cover Stop/Start/Switch, disabled-market return, random boundaries,
   until-stopped sessions, timed expiry, policy-change rejection and existing HALT.
-- [ ] Cover partial fill during cancel, slow/missing cancel acknowledgment,
+- [x] Cover partial fill during cancel, slow/missing cancel acknowledgment,
   duplicate/late events and changed payloads at final send. Never double-place
   or infer that sending cancel means the exchange has removed an order.
-- [ ] Verify listing without candles/outside depth, bounded bootstrap expiry and
+- [x] Verify listing without candles/outside depth, bounded bootstrap expiry and
   delayed market qualification. Static fallback cannot bypass a saved pause.
-- [ ] Verify joint both-market wait/cancellation and healthy process/API while
+- [x] Verify joint both-market wait/cancellation and healthy process/API while
   paused. Existing uncertain-outcome handling remains authoritative.
 
 ### V4 — Operator/API integration

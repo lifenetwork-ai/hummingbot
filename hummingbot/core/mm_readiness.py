@@ -6,4 +6,4 @@ MM_READINESS_REASONS = frozenset({"perpetual_account_not_confirmed", "reference_
                                   "bootstrap_binding_unavailable", "bootstrap_not_started", "bootstrap_checkpoint_pending",
                                   "bootstrap_expired", "bootstrap_band", "bootstrap_range", "bootstrap_quote_crossing",
                                   "market_liquidity_unqualified", "bootstrap_anchor_mismatch", "account_balance_unavailable",
-                                  "fee_basis_unavailable", "candles_unavailable"})
+                                  "fee_basis_unavailable", "candles_unavailable", "volatility_paused", "volatility_checkpoint_pending"})
