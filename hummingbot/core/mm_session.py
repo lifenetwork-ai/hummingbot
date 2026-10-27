@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from controllers.market_making.life_mm import ReferencePair
 from hummingbot.client.config.mm_profiles import MarketMode, MMProfilesConfig
+from hummingbot.core.control_errors import RequestError
 
 MMSessionStatus = Literal["preparing", "running", "stopping", "stopped", "expired"]
 
@@ -79,11 +80,11 @@ class MMSession(BaseModel):
         catalogue.validate_duration(request.duration_seconds)
         if request.selection == "fixed":
             if request.profile_id not in catalogue.profiles or request.profile_ids is not None or request.step_duration_seconds is not None:
-                raise ValueError("Fixed selection requires one known profile and no random fields")
+                raise RequestError("Fixed selection requires one known profile and no random fields", code="selection_invalid", field="profile_id")
             profile_id = request.profile_id
         else:
             if request.references is not None or request.profile_id is not None:
-                raise ValueError("Random selection uses configured profile pools and baskets")
+                raise RequestError("Random selection uses configured profile pools and baskets", code="selection_invalid", field="profile_id")
             pool = list(catalogue.random.profile_ids) if request.profile_ids is None else request.profile_ids
             if not pool or len(pool) != len(set(pool)) or not set(pool) <= set(catalogue.random.profile_ids):
                 raise ValueError("Random selection requires unique profile IDs from the configured random pool")

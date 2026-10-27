@@ -1,6 +1,7 @@
 """Durable observational check receipts; no trading control transition."""
 import hashlib
 import json
+import math
 import uuid
 from datetime import timedelta
 
@@ -33,13 +34,15 @@ def request_check(store, key, payload):
                                                               AdminCommand.idempotency_key == key)).mappings().first()
         if prior:
             if prior["action"] != "reconciliation_check" or prior["request_hash"] != digest:
-                raise ControlConflict("Retry identity conflict")
+                raise ControlConflict("Retry identity conflict", code="idempotency_key_reused")
             return dict(prior)
         latest = connection.execute(select(AdminCommand).where(AdminCommand.bot_id == store.bot_id,
                                                                AdminCommand.action == "reconciliation_check").order_by(AdminCommand.created_at.desc()).limit(1)).mappings().first()
-        if latest and (latest["status"] in ("accepted", "applying") or
-                       state["database_now"] - latest["created_at"] < timedelta(seconds=30)):
-            raise ControlConflict("One bounded check at a time, at most one new check per thirty seconds")
+        if latest and latest["status"] in ("accepted", "applying"):
+            raise ControlConflict("A check is already running", code="check_in_progress")
+        if latest and state["database_now"] - latest["created_at"] < timedelta(seconds=30):
+            delay = math.ceil(30 - (state["database_now"] - latest["created_at"]).total_seconds())
+            raise ControlConflict("Checks require thirty seconds between requests", code="check_cooldown", retry_after_seconds=delay)
         available = state["owner_uuid"] and state["heartbeat"] and timedelta(0) <= state["database_now"] - state["heartbeat"] <= timedelta(seconds=5)
         values = dict(id=str(uuid.uuid4()), bot_id=store.bot_id, idempotency_key=key, request_hash=digest,
                       action="reconciliation_check", session_id=(state["mm_session"] or {}).get("id"),

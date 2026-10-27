@@ -421,20 +421,21 @@
             "type": "string"
           },
           "payload": {
+            "description": "Original receipt, including historical overrides when present. These legacy fields are not accepted on new commands.",
             "discriminator": {
               "mapping": {
-                "start": "#/components/schemas/StartCommandOutput",
+                "start": "#/components/schemas/RecordedStartCommandOutput",
                 "stop": "#/components/schemas/StopCommandOutput",
-                "switch": "#/components/schemas/SwitchCommandOutput"
+                "switch": "#/components/schemas/RecordedSwitchCommandOutput"
               },
               "propertyName": "action"
             },
             "oneOf": [
               {
-                "$ref": "#/components/schemas/StartCommandOutput"
+                "$ref": "#/components/schemas/RecordedStartCommandOutput"
               },
               {
-                "$ref": "#/components/schemas/SwitchCommandOutput"
+                "$ref": "#/components/schemas/RecordedSwitchCommandOutput"
               },
               {
                 "$ref": "#/components/schemas/StopCommandOutput"
@@ -1098,6 +1099,18 @@
       "ErrorResponse": {
         "additionalProperties": false,
         "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Code"
+          },
           "detail": {
             "anyOf": [
               {
@@ -1113,6 +1126,57 @@
           "error": {
             "title": "Error",
             "type": "string"
+          },
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/FieldError"
+            },
+            "title": "Fields",
+            "type": "array"
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Request Id"
+          },
+          "retry": {
+            "anyOf": [
+              {
+                "enum": [
+                  "fix_request",
+                  "refresh_state",
+                  "same_request",
+                  "wait",
+                  "contact_support",
+                  "reconnect"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Retry"
+          },
+          "retry_after_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Retry After Seconds"
           },
           "service": {
             "anyOf": [
@@ -1150,6 +1214,25 @@
           "amount"
         ],
         "title": "FeeAmount",
+        "type": "object"
+      },
+      "FieldError": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "code"
+        ],
+        "title": "FieldError",
         "type": "object"
       },
       "FillViewOutput": {
@@ -4207,6 +4290,232 @@
         "title": "RecordedFee",
         "type": "object"
       },
+      "RecordedStartCommandOutput": {
+        "additionalProperties": false,
+        "description": "Read-only compatibility with receipts created before YAML-only commands.",
+        "properties": {
+          "action": {
+            "const": "start",
+            "title": "Action",
+            "type": "string"
+          },
+          "duration_seconds": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Session duration within deployed YAML bounds; omit for its default. Profile settings cannot be overridden.",
+            "title": "Duration Seconds"
+          },
+          "expected_version": {
+            "minimum": 0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "market_mode": {
+            "enum": [
+              "spot",
+              "perpetual",
+              "both"
+            ],
+            "title": "Market Mode",
+            "type": "string"
+          },
+          "profile_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Deployed profile ID for fixed selection, such as follow_market, sideways or follow_token. Omit for random.",
+            "title": "Profile Id"
+          },
+          "profile_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Profile Ids"
+          },
+          "references": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ReferencePairOutput"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "References"
+          },
+          "selection": {
+            "default": "fixed",
+            "description": "Fixed runs one profile; random chooses timed steps from a profile pool.",
+            "enum": [
+              "fixed",
+              "random"
+            ],
+            "title": "Selection",
+            "type": "string"
+          },
+          "step_duration_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Step Duration Seconds"
+          }
+        },
+        "required": [
+          "action",
+          "expected_version",
+          "market_mode"
+        ],
+        "title": "RecordedStartCommand",
+        "type": "object"
+      },
+      "RecordedSwitchCommandOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "const": "switch",
+            "title": "Action",
+            "type": "string"
+          },
+          "duration_seconds": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Session duration within deployed YAML bounds; omit for its default. Profile settings cannot be overridden.",
+            "title": "Duration Seconds"
+          },
+          "expected_version": {
+            "minimum": 0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "market_mode": {
+            "enum": [
+              "spot",
+              "perpetual",
+              "both"
+            ],
+            "title": "Market Mode",
+            "type": "string"
+          },
+          "profile_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Deployed profile ID for fixed selection, such as follow_market, sideways or follow_token. Omit for random.",
+            "title": "Profile Id"
+          },
+          "profile_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Profile Ids"
+          },
+          "references": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ReferencePairOutput"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "References"
+          },
+          "selection": {
+            "default": "fixed",
+            "description": "Fixed runs one profile; random chooses timed steps from a profile pool.",
+            "enum": [
+              "fixed",
+              "random"
+            ],
+            "title": "Selection",
+            "type": "string"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "step_duration_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Step Duration Seconds"
+          }
+        },
+        "required": [
+          "action",
+          "expected_version",
+          "market_mode",
+          "session_id"
+        ],
+        "title": "RecordedSwitchCommand",
+        "type": "object"
+      },
       "ReferenceAnchorsOutput": {
         "additionalProperties": false,
         "properties": {
@@ -4229,35 +4538,6 @@
           "sources"
         ],
         "title": "ReferenceAnchors",
-        "type": "object"
-      },
-      "ReferencePair": {
-        "additionalProperties": false,
-        "properties": {
-          "pair": {
-            "title": "Pair",
-            "type": "string"
-          },
-          "weight": {
-            "anyOf": [
-              {
-                "exclusiveMinimum": 0.0,
-                "maximum": 1.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              }
-            ],
-            "title": "Weight"
-          }
-        },
-        "required": [
-          "pair",
-          "weight"
-        ],
-        "title": "ReferencePair",
         "type": "object"
       },
       "ReferencePairOutput": {
@@ -5205,6 +5485,7 @@
               }
             ],
             "default": null,
+            "description": "Session duration within deployed YAML bounds; omit for its default. Profile settings cannot be overridden.",
             "title": "Duration Seconds"
           },
           "expected_version": {
@@ -5234,37 +5515,6 @@
             "description": "Deployed profile ID for fixed selection, such as follow_market, sideways or follow_token. Omit for random.",
             "title": "Profile Id"
           },
-          "profile_ids": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "description": "Optional subset of random.profile_ids for random selection; omit to use that YAML pool. Omit for fixed.",
-            "title": "Profile Ids"
-          },
-          "references": {
-            "anyOf": [
-              {
-                "items": {
-                  "$ref": "#/components/schemas/ReferencePair"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "References"
-          },
           "selection": {
             "default": "fixed",
             "description": "Fixed runs one profile; random chooses timed steps from a profile pool.",
@@ -5274,130 +5524,6 @@
             ],
             "title": "Selection",
             "type": "string"
-          },
-          "step_duration_seconds": {
-            "anyOf": [
-              {
-                "exclusiveMinimum": 0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Step Duration Seconds"
-          }
-        },
-        "required": [
-          "action",
-          "expected_version",
-          "market_mode"
-        ],
-        "title": "StartCommand",
-        "type": "object"
-      },
-      "StartCommandOutput": {
-        "additionalProperties": false,
-        "properties": {
-          "action": {
-            "const": "start",
-            "title": "Action",
-            "type": "string"
-          },
-          "duration_seconds": {
-            "anyOf": [
-              {
-                "exclusiveMinimum": 0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Duration Seconds"
-          },
-          "expected_version": {
-            "minimum": 0,
-            "title": "Expected Version",
-            "type": "integer"
-          },
-          "market_mode": {
-            "enum": [
-              "spot",
-              "perpetual",
-              "both"
-            ],
-            "title": "Market Mode",
-            "type": "string"
-          },
-          "profile_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "description": "Deployed profile ID for fixed selection, such as follow_market, sideways or follow_token. Omit for random.",
-            "title": "Profile Id"
-          },
-          "profile_ids": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "description": "Optional subset of random.profile_ids for random selection; omit to use that YAML pool. Omit for fixed.",
-            "title": "Profile Ids"
-          },
-          "references": {
-            "anyOf": [
-              {
-                "items": {
-                  "$ref": "#/components/schemas/ReferencePairOutput"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "References"
-          },
-          "selection": {
-            "default": "fixed",
-            "description": "Fixed runs one profile; random chooses timed steps from a profile pool.",
-            "enum": [
-              "fixed",
-              "random"
-            ],
-            "title": "Selection",
-            "type": "string"
-          },
-          "step_duration_seconds": {
-            "anyOf": [
-              {
-                "exclusiveMinimum": 0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Step Duration Seconds"
           }
         },
         "required": [
@@ -5653,6 +5779,7 @@
               }
             ],
             "default": null,
+            "description": "Session duration within deployed YAML bounds; omit for its default. Profile settings cannot be overridden.",
             "title": "Duration Seconds"
           },
           "expected_version": {
@@ -5682,37 +5809,6 @@
             "description": "Deployed profile ID for fixed selection, such as follow_market, sideways or follow_token. Omit for random.",
             "title": "Profile Id"
           },
-          "profile_ids": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "description": "Optional subset of random.profile_ids for random selection; omit to use that YAML pool. Omit for fixed.",
-            "title": "Profile Ids"
-          },
-          "references": {
-            "anyOf": [
-              {
-                "items": {
-                  "$ref": "#/components/schemas/ReferencePair"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "References"
-          },
           "selection": {
             "default": "fixed",
             "description": "Fixed runs one profile; random chooses timed steps from a profile pool.",
@@ -5728,137 +5824,6 @@
             "minLength": 1,
             "title": "Session Id",
             "type": "string"
-          },
-          "step_duration_seconds": {
-            "anyOf": [
-              {
-                "exclusiveMinimum": 0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Step Duration Seconds"
-          }
-        },
-        "required": [
-          "action",
-          "expected_version",
-          "market_mode",
-          "session_id"
-        ],
-        "title": "SwitchCommand",
-        "type": "object"
-      },
-      "SwitchCommandOutput": {
-        "additionalProperties": false,
-        "properties": {
-          "action": {
-            "const": "switch",
-            "title": "Action",
-            "type": "string"
-          },
-          "duration_seconds": {
-            "anyOf": [
-              {
-                "exclusiveMinimum": 0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Duration Seconds"
-          },
-          "expected_version": {
-            "minimum": 0,
-            "title": "Expected Version",
-            "type": "integer"
-          },
-          "market_mode": {
-            "enum": [
-              "spot",
-              "perpetual",
-              "both"
-            ],
-            "title": "Market Mode",
-            "type": "string"
-          },
-          "profile_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "description": "Deployed profile ID for fixed selection, such as follow_market, sideways or follow_token. Omit for random.",
-            "title": "Profile Id"
-          },
-          "profile_ids": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "description": "Optional subset of random.profile_ids for random selection; omit to use that YAML pool. Omit for fixed.",
-            "title": "Profile Ids"
-          },
-          "references": {
-            "anyOf": [
-              {
-                "items": {
-                  "$ref": "#/components/schemas/ReferencePairOutput"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "References"
-          },
-          "selection": {
-            "default": "fixed",
-            "description": "Fixed runs one profile; random chooses timed steps from a profile pool.",
-            "enum": [
-              "fixed",
-              "random"
-            ],
-            "title": "Selection",
-            "type": "string"
-          },
-          "session_id": {
-            "maxLength": 128,
-            "minLength": 1,
-            "title": "Session Id",
-            "type": "string"
-          },
-          "step_duration_seconds": {
-            "anyOf": [
-              {
-                "exclusiveMinimum": 0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Step Duration Seconds"
           }
         },
         "required": [
@@ -6024,7 +5989,33 @@
                 }
               }
             },
-            "description": "Success"
+            "description": "Success",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid JSON",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "401": {
             "content": {
@@ -6040,6 +6031,12 @@
                 "schema": {
                   "type": "string"
                 }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -6051,7 +6048,15 @@
                 }
               }
             },
-            "description": "Origin not permitted"
+            "description": "Origin not permitted",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "404": {
             "content": {
@@ -6061,19 +6066,48 @@
                 }
               }
             },
-            "description": "Resource not found"
+            "description": "Resource not found",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "409": {
             "content": {
               "application/json": {
+                "example": {
+                  "code": "control_version_changed",
+                  "error": "control_or_idempotency_conflict",
+                  "fields": [],
+                  "request_id": "example-request",
+                  "retry": "refresh_state"
+                },
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
-            "description": "Control or retry identity conflict"
+            "description": "Control or retry identity conflict",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until a new check may be requested, when present",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
-          "422": {
+          "415": {
             "content": {
               "application/json": {
                 "schema": {
@@ -6081,7 +6115,63 @@
                 }
               }
             },
-            "description": "Request validation failed"
+            "description": "Unsupported content type",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "yaml_configuration_read_only",
+                  "error": "validation_failed",
+                  "fields": [
+                    {
+                      "code": "yaml_configuration_read_only",
+                      "path": "references"
+                    }
+                  ],
+                  "request_id": "example-request",
+                  "retry": "fix_request"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unexpected server error",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "503": {
             "content": {
@@ -6091,7 +6181,15 @@
                 }
               }
             },
-            "description": "Service/data unavailable"
+            "description": "Service/data unavailable",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -6126,6 +6224,17 @@
           "content": {
             "application/json": {
               "examples": {
+                "configured_reference": {
+                  "summary": "Follow the token configured in the deployed YAML profile",
+                  "value": {
+                    "action": "start",
+                    "duration_seconds": 3600,
+                    "expected_version": 0,
+                    "market_mode": "perpetual",
+                    "profile_id": "follow_token",
+                    "selection": "fixed"
+                  }
+                },
                 "fixed_profile": {
                   "summary": "Run one specific profile",
                   "value": {
@@ -6144,30 +6253,7 @@
                     "duration_seconds": 3600,
                     "expected_version": 0,
                     "market_mode": "both",
-                    "profile_ids": [
-                      "follow_market",
-                      "sideways",
-                      "follow_token"
-                    ],
-                    "selection": "random",
-                    "step_duration_seconds": 600
-                  }
-                },
-                "runtime_reference": {
-                  "summary": "Follow a supported reference pair outside the YAML defaults",
-                  "value": {
-                    "action": "start",
-                    "duration_seconds": 3600,
-                    "expected_version": 0,
-                    "market_mode": "perpetual",
-                    "profile_id": "follow_token",
-                    "references": [
-                      {
-                        "pair": "AVAX-USDT",
-                        "weight": "1"
-                      }
-                    ],
-                    "selection": "fixed"
+                    "selection": "random"
                   }
                 }
               },
@@ -6205,7 +6291,33 @@
                 }
               }
             },
-            "description": "Accepted; poll command result"
+            "description": "Accepted; poll command result",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid JSON",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "401": {
             "content": {
@@ -6221,6 +6333,12 @@
                 "schema": {
                   "type": "string"
                 }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -6232,7 +6350,15 @@
                 }
               }
             },
-            "description": "Origin not permitted"
+            "description": "Origin not permitted",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "404": {
             "content": {
@@ -6242,19 +6368,48 @@
                 }
               }
             },
-            "description": "Resource not found"
+            "description": "Resource not found",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "409": {
             "content": {
               "application/json": {
+                "example": {
+                  "code": "control_version_changed",
+                  "error": "control_or_idempotency_conflict",
+                  "fields": [],
+                  "request_id": "example-request",
+                  "retry": "refresh_state"
+                },
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
-            "description": "Control or retry identity conflict"
+            "description": "Control or retry identity conflict",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until a new check may be requested, when present",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
-          "422": {
+          "415": {
             "content": {
               "application/json": {
                 "schema": {
@@ -6262,7 +6417,63 @@
                 }
               }
             },
-            "description": "Request validation failed"
+            "description": "Unsupported content type",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "yaml_configuration_read_only",
+                  "error": "validation_failed",
+                  "fields": [
+                    {
+                      "code": "yaml_configuration_read_only",
+                      "path": "references"
+                    }
+                  ],
+                  "request_id": "example-request",
+                  "retry": "fix_request"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unexpected server error",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "503": {
             "content": {
@@ -6272,7 +6483,15 @@
                 }
               }
             },
-            "description": "Service/data unavailable"
+            "description": "Service/data unavailable",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -6309,7 +6528,33 @@
                 }
               }
             },
-            "description": "Success"
+            "description": "Success",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid JSON",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "401": {
             "content": {
@@ -6325,6 +6570,12 @@
                 "schema": {
                   "type": "string"
                 }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -6336,7 +6587,15 @@
                 }
               }
             },
-            "description": "Origin not permitted"
+            "description": "Origin not permitted",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "404": {
             "content": {
@@ -6346,19 +6605,48 @@
                 }
               }
             },
-            "description": "Resource not found"
+            "description": "Resource not found",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "409": {
             "content": {
               "application/json": {
+                "example": {
+                  "code": "control_version_changed",
+                  "error": "control_or_idempotency_conflict",
+                  "fields": [],
+                  "request_id": "example-request",
+                  "retry": "refresh_state"
+                },
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
-            "description": "Control or retry identity conflict"
+            "description": "Control or retry identity conflict",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until a new check may be requested, when present",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
-          "422": {
+          "415": {
             "content": {
               "application/json": {
                 "schema": {
@@ -6366,7 +6654,63 @@
                 }
               }
             },
-            "description": "Request validation failed"
+            "description": "Unsupported content type",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "yaml_configuration_read_only",
+                  "error": "validation_failed",
+                  "fields": [
+                    {
+                      "code": "yaml_configuration_read_only",
+                      "path": "references"
+                    }
+                  ],
+                  "request_id": "example-request",
+                  "retry": "fix_request"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unexpected server error",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "503": {
             "content": {
@@ -6376,7 +6720,15 @@
                 }
               }
             },
-            "description": "Service/data unavailable"
+            "description": "Service/data unavailable",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -6402,7 +6754,33 @@
                 }
               }
             },
-            "description": "Success"
+            "description": "Success",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid JSON",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "401": {
             "content": {
@@ -6418,6 +6796,12 @@
                 "schema": {
                   "type": "string"
                 }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -6429,7 +6813,15 @@
                 }
               }
             },
-            "description": "Origin not permitted"
+            "description": "Origin not permitted",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "404": {
             "content": {
@@ -6439,19 +6831,48 @@
                 }
               }
             },
-            "description": "Resource not found"
+            "description": "Resource not found",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "409": {
             "content": {
               "application/json": {
+                "example": {
+                  "code": "control_version_changed",
+                  "error": "control_or_idempotency_conflict",
+                  "fields": [],
+                  "request_id": "example-request",
+                  "retry": "refresh_state"
+                },
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
-            "description": "Control or retry identity conflict"
+            "description": "Control or retry identity conflict",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until a new check may be requested, when present",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
-          "422": {
+          "415": {
             "content": {
               "application/json": {
                 "schema": {
@@ -6459,7 +6880,63 @@
                 }
               }
             },
-            "description": "Request validation failed"
+            "description": "Unsupported content type",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "yaml_configuration_read_only",
+                  "error": "validation_failed",
+                  "fields": [
+                    {
+                      "code": "yaml_configuration_read_only",
+                      "path": "references"
+                    }
+                  ],
+                  "request_id": "example-request",
+                  "retry": "fix_request"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unexpected server error",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "503": {
             "content": {
@@ -6469,7 +6946,15 @@
                 }
               }
             },
-            "description": "Service/data unavailable"
+            "description": "Service/data unavailable",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -6507,7 +6992,33 @@
                 }
               }
             },
-            "description": "Success"
+            "description": "Success",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid JSON",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "401": {
             "content": {
@@ -6523,6 +7034,12 @@
                 "schema": {
                   "type": "string"
                 }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -6534,7 +7051,15 @@
                 }
               }
             },
-            "description": "Origin not permitted"
+            "description": "Origin not permitted",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "404": {
             "content": {
@@ -6544,19 +7069,48 @@
                 }
               }
             },
-            "description": "Resource not found"
+            "description": "Resource not found",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "409": {
             "content": {
               "application/json": {
+                "example": {
+                  "code": "control_version_changed",
+                  "error": "control_or_idempotency_conflict",
+                  "fields": [],
+                  "request_id": "example-request",
+                  "retry": "refresh_state"
+                },
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
-            "description": "Control or retry identity conflict"
+            "description": "Control or retry identity conflict",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until a new check may be requested, when present",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
-          "422": {
+          "415": {
             "content": {
               "application/json": {
                 "schema": {
@@ -6564,7 +7118,63 @@
                 }
               }
             },
-            "description": "Request validation failed"
+            "description": "Unsupported content type",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "yaml_configuration_read_only",
+                  "error": "validation_failed",
+                  "fields": [
+                    {
+                      "code": "yaml_configuration_read_only",
+                      "path": "references"
+                    }
+                  ],
+                  "request_id": "example-request",
+                  "retry": "fix_request"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unexpected server error",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "503": {
             "content": {
@@ -6574,7 +7184,15 @@
                 }
               }
             },
-            "description": "Service/data unavailable"
+            "description": "Service/data unavailable",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -6721,7 +7339,33 @@
                 }
               }
             },
-            "description": "Success"
+            "description": "Success",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid JSON",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "401": {
             "content": {
@@ -6737,6 +7381,12 @@
                 "schema": {
                   "type": "string"
                 }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -6748,7 +7398,15 @@
                 }
               }
             },
-            "description": "Origin not permitted"
+            "description": "Origin not permitted",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "404": {
             "content": {
@@ -6758,19 +7416,48 @@
                 }
               }
             },
-            "description": "Resource not found"
+            "description": "Resource not found",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "409": {
             "content": {
               "application/json": {
+                "example": {
+                  "code": "control_version_changed",
+                  "error": "control_or_idempotency_conflict",
+                  "fields": [],
+                  "request_id": "example-request",
+                  "retry": "refresh_state"
+                },
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
-            "description": "Control or retry identity conflict"
+            "description": "Control or retry identity conflict",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until a new check may be requested, when present",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
-          "422": {
+          "415": {
             "content": {
               "application/json": {
                 "schema": {
@@ -6778,7 +7465,63 @@
                 }
               }
             },
-            "description": "Request validation failed"
+            "description": "Unsupported content type",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "yaml_configuration_read_only",
+                  "error": "validation_failed",
+                  "fields": [
+                    {
+                      "code": "yaml_configuration_read_only",
+                      "path": "references"
+                    }
+                  ],
+                  "request_id": "example-request",
+                  "retry": "fix_request"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unexpected server error",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "503": {
             "content": {
@@ -6788,7 +7531,15 @@
                 }
               }
             },
-            "description": "Service/data unavailable"
+            "description": "Service/data unavailable",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -6815,7 +7566,33 @@
                 }
               }
             },
-            "description": "Success"
+            "description": "Success",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid JSON",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "401": {
             "content": {
@@ -6831,6 +7608,12 @@
                 "schema": {
                   "type": "string"
                 }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -6842,7 +7625,15 @@
                 }
               }
             },
-            "description": "Origin not permitted"
+            "description": "Origin not permitted",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "404": {
             "content": {
@@ -6852,19 +7643,48 @@
                 }
               }
             },
-            "description": "Resource not found"
+            "description": "Resource not found",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "409": {
             "content": {
               "application/json": {
+                "example": {
+                  "code": "control_version_changed",
+                  "error": "control_or_idempotency_conflict",
+                  "fields": [],
+                  "request_id": "example-request",
+                  "retry": "refresh_state"
+                },
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
-            "description": "Control or retry identity conflict"
+            "description": "Control or retry identity conflict",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until a new check may be requested, when present",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
-          "422": {
+          "415": {
             "content": {
               "application/json": {
                 "schema": {
@@ -6872,7 +7692,63 @@
                 }
               }
             },
-            "description": "Request validation failed"
+            "description": "Unsupported content type",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "yaml_configuration_read_only",
+                  "error": "validation_failed",
+                  "fields": [
+                    {
+                      "code": "yaml_configuration_read_only",
+                      "path": "references"
+                    }
+                  ],
+                  "request_id": "example-request",
+                  "retry": "fix_request"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unexpected server error",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "503": {
             "content": {
@@ -6882,7 +7758,15 @@
                 }
               }
             },
-            "description": "Service/data unavailable"
+            "description": "Service/data unavailable",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -7025,7 +7909,33 @@
                 }
               }
             },
-            "description": "Success"
+            "description": "Success",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid JSON",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "401": {
             "content": {
@@ -7041,6 +7951,12 @@
                 "schema": {
                   "type": "string"
                 }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -7052,7 +7968,15 @@
                 }
               }
             },
-            "description": "Origin not permitted"
+            "description": "Origin not permitted",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "404": {
             "content": {
@@ -7062,19 +7986,48 @@
                 }
               }
             },
-            "description": "Resource not found"
+            "description": "Resource not found",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "409": {
             "content": {
               "application/json": {
+                "example": {
+                  "code": "control_version_changed",
+                  "error": "control_or_idempotency_conflict",
+                  "fields": [],
+                  "request_id": "example-request",
+                  "retry": "refresh_state"
+                },
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
-            "description": "Control or retry identity conflict"
+            "description": "Control or retry identity conflict",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until a new check may be requested, when present",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
-          "422": {
+          "415": {
             "content": {
               "application/json": {
                 "schema": {
@@ -7082,7 +8035,63 @@
                 }
               }
             },
-            "description": "Request validation failed"
+            "description": "Unsupported content type",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "yaml_configuration_read_only",
+                  "error": "validation_failed",
+                  "fields": [
+                    {
+                      "code": "yaml_configuration_read_only",
+                      "path": "references"
+                    }
+                  ],
+                  "request_id": "example-request",
+                  "retry": "fix_request"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unexpected server error",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "503": {
             "content": {
@@ -7092,7 +8101,15 @@
                 }
               }
             },
-            "description": "Service/data unavailable"
+            "description": "Service/data unavailable",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -7141,7 +8158,33 @@
                 }
               }
             },
-            "description": "Success"
+            "description": "Success",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid JSON",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "401": {
             "content": {
@@ -7157,6 +8200,12 @@
                 "schema": {
                   "type": "string"
                 }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -7168,7 +8217,15 @@
                 }
               }
             },
-            "description": "Origin not permitted"
+            "description": "Origin not permitted",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "404": {
             "content": {
@@ -7178,19 +8235,48 @@
                 }
               }
             },
-            "description": "Resource not found"
+            "description": "Resource not found",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "409": {
             "content": {
               "application/json": {
+                "example": {
+                  "code": "control_version_changed",
+                  "error": "control_or_idempotency_conflict",
+                  "fields": [],
+                  "request_id": "example-request",
+                  "retry": "refresh_state"
+                },
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
-            "description": "Control or retry identity conflict"
+            "description": "Control or retry identity conflict",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until a new check may be requested, when present",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
-          "422": {
+          "415": {
             "content": {
               "application/json": {
                 "schema": {
@@ -7198,7 +8284,63 @@
                 }
               }
             },
-            "description": "Request validation failed"
+            "description": "Unsupported content type",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "yaml_configuration_read_only",
+                  "error": "validation_failed",
+                  "fields": [
+                    {
+                      "code": "yaml_configuration_read_only",
+                      "path": "references"
+                    }
+                  ],
+                  "request_id": "example-request",
+                  "retry": "fix_request"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unexpected server error",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "503": {
             "content": {
@@ -7208,7 +8350,15 @@
                 }
               }
             },
-            "description": "Service/data unavailable"
+            "description": "Service/data unavailable",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -7251,7 +8401,33 @@
                 }
               }
             },
-            "description": "Success"
+            "description": "Success",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid JSON",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "401": {
             "content": {
@@ -7267,6 +8443,12 @@
                 "schema": {
                   "type": "string"
                 }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -7278,7 +8460,15 @@
                 }
               }
             },
-            "description": "Origin not permitted"
+            "description": "Origin not permitted",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "404": {
             "content": {
@@ -7288,19 +8478,48 @@
                 }
               }
             },
-            "description": "Resource not found"
+            "description": "Resource not found",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "409": {
             "content": {
               "application/json": {
+                "example": {
+                  "code": "control_version_changed",
+                  "error": "control_or_idempotency_conflict",
+                  "fields": [],
+                  "request_id": "example-request",
+                  "retry": "refresh_state"
+                },
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
-            "description": "Control or retry identity conflict"
+            "description": "Control or retry identity conflict",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until a new check may be requested, when present",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
-          "422": {
+          "415": {
             "content": {
               "application/json": {
                 "schema": {
@@ -7308,7 +8527,63 @@
                 }
               }
             },
-            "description": "Request validation failed"
+            "description": "Unsupported content type",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "yaml_configuration_read_only",
+                  "error": "validation_failed",
+                  "fields": [
+                    {
+                      "code": "yaml_configuration_read_only",
+                      "path": "references"
+                    }
+                  ],
+                  "request_id": "example-request",
+                  "retry": "fix_request"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unexpected server error",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "503": {
             "content": {
@@ -7318,7 +8593,15 @@
                 }
               }
             },
-            "description": "Service/data unavailable"
+            "description": "Service/data unavailable",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -7361,7 +8644,33 @@
                 }
               }
             },
-            "description": "Success"
+            "description": "Success",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid JSON",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "401": {
             "content": {
@@ -7377,6 +8686,12 @@
                 "schema": {
                   "type": "string"
                 }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -7388,7 +8703,15 @@
                 }
               }
             },
-            "description": "Origin not permitted"
+            "description": "Origin not permitted",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "404": {
             "content": {
@@ -7398,19 +8721,48 @@
                 }
               }
             },
-            "description": "Resource not found"
+            "description": "Resource not found",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "409": {
             "content": {
               "application/json": {
+                "example": {
+                  "code": "control_version_changed",
+                  "error": "control_or_idempotency_conflict",
+                  "fields": [],
+                  "request_id": "example-request",
+                  "retry": "refresh_state"
+                },
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
-            "description": "Control or retry identity conflict"
+            "description": "Control or retry identity conflict",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until a new check may be requested, when present",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
-          "422": {
+          "415": {
             "content": {
               "application/json": {
                 "schema": {
@@ -7418,7 +8770,63 @@
                 }
               }
             },
-            "description": "Request validation failed"
+            "description": "Unsupported content type",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "yaml_configuration_read_only",
+                  "error": "validation_failed",
+                  "fields": [
+                    {
+                      "code": "yaml_configuration_read_only",
+                      "path": "references"
+                    }
+                  ],
+                  "request_id": "example-request",
+                  "retry": "fix_request"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unexpected server error",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "503": {
             "content": {
@@ -7428,7 +8836,15 @@
                 }
               }
             },
-            "description": "Service/data unavailable"
+            "description": "Service/data unavailable",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -7454,7 +8870,33 @@
                 }
               }
             },
-            "description": "Success"
+            "description": "Success",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid JSON",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "401": {
             "content": {
@@ -7470,6 +8912,12 @@
                 "schema": {
                   "type": "string"
                 }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -7481,7 +8929,15 @@
                 }
               }
             },
-            "description": "Origin not permitted"
+            "description": "Origin not permitted",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "404": {
             "content": {
@@ -7491,19 +8947,48 @@
                 }
               }
             },
-            "description": "Resource not found"
+            "description": "Resource not found",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "409": {
             "content": {
               "application/json": {
+                "example": {
+                  "code": "control_version_changed",
+                  "error": "control_or_idempotency_conflict",
+                  "fields": [],
+                  "request_id": "example-request",
+                  "retry": "refresh_state"
+                },
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
-            "description": "Control or retry identity conflict"
+            "description": "Control or retry identity conflict",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until a new check may be requested, when present",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
-          "422": {
+          "415": {
             "content": {
               "application/json": {
                 "schema": {
@@ -7511,7 +8996,63 @@
                 }
               }
             },
-            "description": "Request validation failed"
+            "description": "Unsupported content type",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "yaml_configuration_read_only",
+                  "error": "validation_failed",
+                  "fields": [
+                    {
+                      "code": "yaml_configuration_read_only",
+                      "path": "references"
+                    }
+                  ],
+                  "request_id": "example-request",
+                  "retry": "fix_request"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unexpected server error",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "503": {
             "content": {
@@ -7521,7 +9062,15 @@
                 }
               }
             },
-            "description": "Service/data unavailable"
+            "description": "Service/data unavailable",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -7547,7 +9096,33 @@
                 }
               }
             },
-            "description": "Success"
+            "description": "Success",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid JSON",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "401": {
             "content": {
@@ -7563,6 +9138,12 @@
                 "schema": {
                   "type": "string"
                 }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -7574,7 +9155,15 @@
                 }
               }
             },
-            "description": "Origin not permitted"
+            "description": "Origin not permitted",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "404": {
             "content": {
@@ -7584,19 +9173,48 @@
                 }
               }
             },
-            "description": "Resource not found"
+            "description": "Resource not found",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "409": {
             "content": {
               "application/json": {
+                "example": {
+                  "code": "control_version_changed",
+                  "error": "control_or_idempotency_conflict",
+                  "fields": [],
+                  "request_id": "example-request",
+                  "retry": "refresh_state"
+                },
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
-            "description": "Control or retry identity conflict"
+            "description": "Control or retry identity conflict",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until a new check may be requested, when present",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
-          "422": {
+          "415": {
             "content": {
               "application/json": {
                 "schema": {
@@ -7604,7 +9222,63 @@
                 }
               }
             },
-            "description": "Request validation failed"
+            "description": "Unsupported content type",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "yaml_configuration_read_only",
+                  "error": "validation_failed",
+                  "fields": [
+                    {
+                      "code": "yaml_configuration_read_only",
+                      "path": "references"
+                    }
+                  ],
+                  "request_id": "example-request",
+                  "retry": "fix_request"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unexpected server error",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "503": {
             "content": {
@@ -7614,7 +9288,15 @@
                 }
               }
             },
-            "description": "Service/data unavailable"
+            "description": "Service/data unavailable",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -7664,7 +9346,33 @@
                 }
               }
             },
-            "description": "Accepted; poll command result"
+            "description": "Accepted; poll command result",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid JSON",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "401": {
             "content": {
@@ -7680,6 +9388,12 @@
                 "schema": {
                   "type": "string"
                 }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -7691,7 +9405,15 @@
                 }
               }
             },
-            "description": "Origin not permitted"
+            "description": "Origin not permitted",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "404": {
             "content": {
@@ -7701,19 +9423,48 @@
                 }
               }
             },
-            "description": "Resource not found"
+            "description": "Resource not found",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "409": {
             "content": {
               "application/json": {
+                "example": {
+                  "code": "control_version_changed",
+                  "error": "control_or_idempotency_conflict",
+                  "fields": [],
+                  "request_id": "example-request",
+                  "retry": "refresh_state"
+                },
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
-            "description": "Control or retry identity conflict"
+            "description": "Control or retry identity conflict",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until a new check may be requested, when present",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
-          "422": {
+          "415": {
             "content": {
               "application/json": {
                 "schema": {
@@ -7721,7 +9472,63 @@
                 }
               }
             },
-            "description": "Request validation failed"
+            "description": "Unsupported content type",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "yaml_configuration_read_only",
+                  "error": "validation_failed",
+                  "fields": [
+                    {
+                      "code": "yaml_configuration_read_only",
+                      "path": "references"
+                    }
+                  ],
+                  "request_id": "example-request",
+                  "retry": "fix_request"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unexpected server error",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "503": {
             "content": {
@@ -7731,7 +9538,15 @@
                 }
               }
             },
-            "description": "Service/data unavailable"
+            "description": "Service/data unavailable",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -7795,7 +9610,33 @@
                 }
               }
             },
-            "description": "Success"
+            "description": "Success",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid JSON",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "401": {
             "content": {
@@ -7811,6 +9652,12 @@
                 "schema": {
                   "type": "string"
                 }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -7822,7 +9669,15 @@
                 }
               }
             },
-            "description": "Origin not permitted"
+            "description": "Origin not permitted",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "404": {
             "content": {
@@ -7832,19 +9687,48 @@
                 }
               }
             },
-            "description": "Resource not found"
+            "description": "Resource not found",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "409": {
             "content": {
               "application/json": {
+                "example": {
+                  "code": "control_version_changed",
+                  "error": "control_or_idempotency_conflict",
+                  "fields": [],
+                  "request_id": "example-request",
+                  "retry": "refresh_state"
+                },
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
-            "description": "Control or retry identity conflict"
+            "description": "Control or retry identity conflict",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until a new check may be requested, when present",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
-          "422": {
+          "415": {
             "content": {
               "application/json": {
                 "schema": {
@@ -7852,7 +9736,63 @@
                 }
               }
             },
-            "description": "Request validation failed"
+            "description": "Unsupported content type",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "yaml_configuration_read_only",
+                  "error": "validation_failed",
+                  "fields": [
+                    {
+                      "code": "yaml_configuration_read_only",
+                      "path": "references"
+                    }
+                  ],
+                  "request_id": "example-request",
+                  "retry": "fix_request"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unexpected server error",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "503": {
             "content": {
@@ -7862,7 +9802,15 @@
                 }
               }
             },
-            "description": "Service/data unavailable"
+            "description": "Service/data unavailable",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -7972,7 +9920,33 @@
                 }
               }
             },
-            "description": "Success"
+            "description": "Success",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid JSON",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "401": {
             "content": {
@@ -7988,6 +9962,12 @@
                 "schema": {
                   "type": "string"
                 }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -7999,7 +9979,15 @@
                 }
               }
             },
-            "description": "Origin not permitted"
+            "description": "Origin not permitted",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "404": {
             "content": {
@@ -8009,19 +9997,48 @@
                 }
               }
             },
-            "description": "Resource not found"
+            "description": "Resource not found",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "409": {
             "content": {
               "application/json": {
+                "example": {
+                  "code": "control_version_changed",
+                  "error": "control_or_idempotency_conflict",
+                  "fields": [],
+                  "request_id": "example-request",
+                  "retry": "refresh_state"
+                },
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
-            "description": "Control or retry identity conflict"
+            "description": "Control or retry identity conflict",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until a new check may be requested, when present",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
-          "422": {
+          "415": {
             "content": {
               "application/json": {
                 "schema": {
@@ -8029,7 +10046,63 @@
                 }
               }
             },
-            "description": "Request validation failed"
+            "description": "Unsupported content type",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "yaml_configuration_read_only",
+                  "error": "validation_failed",
+                  "fields": [
+                    {
+                      "code": "yaml_configuration_read_only",
+                      "path": "references"
+                    }
+                  ],
+                  "request_id": "example-request",
+                  "retry": "fix_request"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unexpected server error",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "503": {
             "content": {
@@ -8039,7 +10112,15 @@
                 }
               }
             },
-            "description": "Service/data unavailable"
+            "description": "Service/data unavailable",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -8139,7 +10220,33 @@
                 }
               }
             },
-            "description": "Success"
+            "description": "Success",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid JSON",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "401": {
             "content": {
@@ -8155,6 +10262,12 @@
                 "schema": {
                   "type": "string"
                 }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -8166,7 +10279,15 @@
                 }
               }
             },
-            "description": "Origin not permitted"
+            "description": "Origin not permitted",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "404": {
             "content": {
@@ -8176,19 +10297,48 @@
                 }
               }
             },
-            "description": "Resource not found"
+            "description": "Resource not found",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "409": {
             "content": {
               "application/json": {
+                "example": {
+                  "code": "control_version_changed",
+                  "error": "control_or_idempotency_conflict",
+                  "fields": [],
+                  "request_id": "example-request",
+                  "retry": "refresh_state"
+                },
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
-            "description": "Control or retry identity conflict"
+            "description": "Control or retry identity conflict",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until a new check may be requested, when present",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
-          "422": {
+          "415": {
             "content": {
               "application/json": {
                 "schema": {
@@ -8196,7 +10346,63 @@
                 }
               }
             },
-            "description": "Request validation failed"
+            "description": "Unsupported content type",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "yaml_configuration_read_only",
+                  "error": "validation_failed",
+                  "fields": [
+                    {
+                      "code": "yaml_configuration_read_only",
+                      "path": "references"
+                    }
+                  ],
+                  "request_id": "example-request",
+                  "retry": "fix_request"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unexpected server error",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "503": {
             "content": {
@@ -8206,7 +10412,15 @@
                 }
               }
             },
-            "description": "Service/data unavailable"
+            "description": "Service/data unavailable",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -8268,7 +10482,33 @@
                 }
               }
             },
-            "description": "Success"
+            "description": "Success",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid JSON",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "401": {
             "content": {
@@ -8284,6 +10524,12 @@
                 "schema": {
                   "type": "string"
                 }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -8295,7 +10541,15 @@
                 }
               }
             },
-            "description": "Origin not permitted"
+            "description": "Origin not permitted",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "404": {
             "content": {
@@ -8305,19 +10559,48 @@
                 }
               }
             },
-            "description": "Resource not found"
+            "description": "Resource not found",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "409": {
             "content": {
               "application/json": {
+                "example": {
+                  "code": "control_version_changed",
+                  "error": "control_or_idempotency_conflict",
+                  "fields": [],
+                  "request_id": "example-request",
+                  "retry": "refresh_state"
+                },
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
-            "description": "Control or retry identity conflict"
+            "description": "Control or retry identity conflict",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until a new check may be requested, when present",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
-          "422": {
+          "415": {
             "content": {
               "application/json": {
                 "schema": {
@@ -8325,7 +10608,63 @@
                 }
               }
             },
-            "description": "Request validation failed"
+            "description": "Unsupported content type",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "yaml_configuration_read_only",
+                  "error": "validation_failed",
+                  "fields": [
+                    {
+                      "code": "yaml_configuration_read_only",
+                      "path": "references"
+                    }
+                  ],
+                  "request_id": "example-request",
+                  "retry": "fix_request"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unexpected server error",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "503": {
             "content": {
@@ -8335,7 +10674,15 @@
                 }
               }
             },
-            "description": "Service/data unavailable"
+            "description": "Service/data unavailable",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -8361,7 +10708,33 @@
                 }
               }
             },
-            "description": "Success"
+            "description": "Success",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid JSON",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "401": {
             "content": {
@@ -8377,6 +10750,12 @@
                 "schema": {
                   "type": "string"
                 }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -8388,7 +10767,15 @@
                 }
               }
             },
-            "description": "Origin not permitted"
+            "description": "Origin not permitted",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "404": {
             "content": {
@@ -8398,19 +10785,48 @@
                 }
               }
             },
-            "description": "Resource not found"
+            "description": "Resource not found",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "409": {
             "content": {
               "application/json": {
+                "example": {
+                  "code": "control_version_changed",
+                  "error": "control_or_idempotency_conflict",
+                  "fields": [],
+                  "request_id": "example-request",
+                  "retry": "refresh_state"
+                },
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
-            "description": "Control or retry identity conflict"
+            "description": "Control or retry identity conflict",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until a new check may be requested, when present",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
-          "422": {
+          "415": {
             "content": {
               "application/json": {
                 "schema": {
@@ -8418,7 +10834,63 @@
                 }
               }
             },
-            "description": "Request validation failed"
+            "description": "Unsupported content type",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": "yaml_configuration_read_only",
+                  "error": "validation_failed",
+                  "fields": [
+                    {
+                      "code": "yaml_configuration_read_only",
+                      "path": "references"
+                    }
+                  ],
+                  "request_id": "example-request",
+                  "retry": "fix_request"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unexpected server error",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "503": {
             "content": {
@@ -8428,7 +10900,15 @@
                 }
               }
             },
-            "description": "Service/data unavailable"
+            "description": "Service/data unavailable",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated diagnostic identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "security": [

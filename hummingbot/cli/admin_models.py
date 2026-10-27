@@ -53,8 +53,18 @@ class ServiceStatus(APIModel):
     stale: bool = False
 
 
+class FieldError(APIModel):
+    path: str
+    code: str
+
+
 class ErrorResponse(APIModel):
     error: str
+    code: Optional[str] = None
+    request_id: Optional[str] = None
+    retry: Optional[Literal["fix_request", "refresh_state", "same_request", "wait", "contact_support", "reconnect"]] = None
+    retry_after_seconds: Optional[int] = None
+    fields: List[FieldError] = Field(default_factory=list)
     detail: Optional[str] = None
     service: Optional[ServiceStatus] = None
 
@@ -65,10 +75,7 @@ class StartCommand(APIModel):
     market_mode: MarketMode
     selection: Literal["fixed", "random"] = Field(default="fixed", description="Fixed runs one profile; random chooses timed steps from a profile pool.")
     profile_id: Optional[str] = Field(default=None, description="Deployed profile ID for fixed selection, such as follow_market, sideways or follow_token. Omit for random.")
-    references: Optional[List[ReferencePair]] = None
-    profile_ids: Optional[List[str]] = Field(default=None, description="Optional subset of random.profile_ids for random selection; omit to use that YAML pool. Omit for fixed.")
-    duration_seconds: Optional[int] = Field(default=None, gt=0, strict=True)
-    step_duration_seconds: Optional[int] = Field(default=None, gt=0, strict=True)
+    duration_seconds: Optional[int] = Field(default=None, gt=0, strict=True, description="Session duration within deployed YAML bounds; omit for its default. Profile settings cannot be overridden.")
 
     def session_request(self, catalogue):
         values = self.model_dump(exclude={"action", "expected_version", "session_id"}, exclude_none=True)
@@ -91,6 +98,21 @@ CommandRequest = Annotated[Union[StartCommand, SwitchCommand, StopCommand], Fiel
 COMMAND_REQUEST = TypeAdapter(CommandRequest)
 
 
+class RecordedStartCommand(StartCommand):
+    """Read-only compatibility with receipts created before YAML-only commands."""
+    references: Optional[List[ReferencePair]] = None
+    profile_ids: Optional[List[str]] = None
+    step_duration_seconds: Optional[int] = None
+
+
+class RecordedSwitchCommand(RecordedStartCommand):
+    action: Literal["switch"]
+    session_id: str
+
+
+RecordedCommand = Annotated[Union[RecordedStartCommand, RecordedSwitchCommand, StopCommand], Field(discriminator="action")]
+
+
 class CommandResponse(APIModel):
     id: str
     action: Literal["start", "switch", "stop"]
@@ -98,7 +120,7 @@ class CommandResponse(APIModel):
     expected_version: int
     effective_version: int
     status: Literal["accepted", "applying", "succeeded", "failed", "superseded"]
-    payload: CommandRequest
+    payload: RecordedCommand = Field(description="Original receipt, including historical overrides when present. These legacy fields are not accepted on new commands.")
     error: Optional[str] = None
     created_at: UTCDateTime
     updated_at: UTCDateTime

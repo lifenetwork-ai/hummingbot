@@ -28,6 +28,8 @@ spec:
               cpu: '1'
               memory: 2Gi
           env:
+            - name: ENV
+              value: production
             - name: LOG_FORMAT
               value: json
             - name: LOG_LEVEL

@@ -52,7 +52,7 @@ def _timestamp(value):
 
 
 class IdempotencyConflict(ControlConflict):
-    pass
+    code = "idempotency_key_reused"
 
 
 class AdminStore:

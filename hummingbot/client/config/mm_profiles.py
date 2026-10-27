@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from controllers.market_making.life_mm import LifeMMConfig, ReferencePair
 from hummingbot.client.config.config_helpers import load_yml_into_dict
+from hummingbot.core.control_errors import RequestError
 from hummingbot.core.listing_bootstrap import BootstrapMarketPolicy, canonical_policy
 from hummingbot.core.mm_drawdown import MMDrawdownMarket, drawdown_policy
 from hummingbot.core.spot_outflow import SpotOutflowConfig, SpotOutflowPolicy
@@ -126,7 +127,7 @@ class MMProfilesConfig(BaseModel):
     def validate_duration(self, duration_seconds):
         if (type(duration_seconds) is not int
                 or not self.min_duration_seconds <= duration_seconds <= self.max_duration_seconds):
-            raise ValueError("Duration is outside the configured integer-second bounds")
+            raise RequestError("Duration is outside the configured integer-second bounds", code="duration_out_of_range", field="duration_seconds")
         return duration_seconds
 
     def controller_configs(self, profile_id: str, market_mode: MarketMode,
@@ -137,7 +138,7 @@ class MMProfilesConfig(BaseModel):
         if market_mode not in ("spot", "perpetual", "both"):
             raise ValueError("Unsupported market mode")
         if profile_id not in self.profiles:
-            raise ValueError("Unknown profile")
+            raise RequestError("Unknown profile", code="profile_unavailable", field="profile_id")
         profile = self.profiles[profile_id]
         selected = ("spot", "perpetual") if market_mode == "both" else (market_mode,)
         configs = []

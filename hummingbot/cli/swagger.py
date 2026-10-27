@@ -49,11 +49,20 @@ def build_spec():
                          security=[{"basicAuth": []}], responses={
                              str(metadata["status"]): {"description": "Accepted; poll command result" if metadata["status"] == 202 else "Success",
                                                        "content": {metadata["response_content_type"]: {"schema": schema_for(metadata["response_model"], "serialization")}}}})
-        for code, description in ((401, "Basic authentication required"), (403, "Origin not permitted"),
+        for code, description in ((400, "Invalid JSON"), (401, "Basic authentication required"), (403, "Origin not permitted"),
                                   (404, "Resource not found"), (409, "Control or retry identity conflict"),
-                                  (422, "Request validation failed"), (503, "Service/data unavailable")):
+                                  (415, "Unsupported content type"), (422, "Request validation failed"),
+                                  (500, "Unexpected server error"), (503, "Service/data unavailable")):
             operation["responses"][str(code)] = {"description": description, "content": {"application/json": {"schema": errors}}}
-        operation["responses"]["401"]["headers"] = {"WWW-Authenticate": {"schema": {"type": "string"}}}
+        for response in operation["responses"].values():
+            response["headers"] = {"X-Request-ID": {"schema": {"type": "string"}, "description": "Server-generated diagnostic identifier"}}
+        operation["responses"]["409"]["headers"]["Retry-After"] = {"schema": {"type": "integer"}, "description": "Seconds until a new check may be requested, when present"}
+        operation["responses"]["422"]["content"]["application/json"]["example"] = dict(
+            error="validation_failed", code="yaml_configuration_read_only", retry="fix_request",
+            fields=[dict(path="references", code="yaml_configuration_read_only")], request_id="example-request")
+        operation["responses"]["409"]["content"]["application/json"]["example"] = dict(
+            error="control_or_idempotency_conflict", code="control_version_changed", retry="refresh_state", fields=[], request_id="example-request")
+        operation["responses"]["401"]["headers"]["WWW-Authenticate"] = {"schema": {"type": "string"}}
         parameters = [{"name": key, "in": "header", "required": True,
                        "description": "Stable retry identity; reuse only for the identical request body",
                        "schema": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[!-~]+$"}}

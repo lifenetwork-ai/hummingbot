@@ -61,6 +61,16 @@ def test_response_money_fields_are_documented_as_decimal_strings():
     assert fill["properties"]["price"].get("type") == "string"
 
 
+def test_commands_document_only_session_controls_and_all_handler_errors():
+    spec = build_spec()
+    command = spec["paths"][ADMIN_PREFIX + "/commands"]["post"]
+    assert {"400", "415", "422", "409", "500", "503"} <= set(command["responses"])
+    start = spec["components"]["schemas"]["StartCommand"]
+    assert not {"references", "profile_ids", "step_duration_seconds"}.intersection(start["properties"])
+    assert start["additionalProperties"] is False
+    assert "X-Request-ID" in command["responses"]["202"]["headers"]
+
+
 def test_bundled_swagger_assets_match_pinned_manifest():
     root = Path(__file__).resolve().parents[3] / "hummingbot/cli/static/swagger_ui"
     manifest = json.loads((root / "manifest.json").read_text())

@@ -1,5 +1,12 @@
 # LIFE MM admin API
 
+New commands control sessions only. YAML owns profile settings: `references`,
+`profile_ids`, `step_duration_seconds`, budgets, spreads, leverage and guards
+cannot be overridden, even with null or an unchanged value. Accepted controls
+are start/switch/stop, spot/perpetual/both, fixed profile/random selection and
+session duration within YAML bounds. Persisted legacy sessions/receipts remain
+readable and retain their original snapshots on restart.
+
 Optional `status.markets[].quote_guard` reports strict guard admission, qualified
 market price, deviation, UTC observation/recovery times and source quality. The
 catalogue exposes opt-in market `quote_guards` and profile `sideways_range` through
@@ -27,7 +34,11 @@ The existing aiohttp service exposes `/api/v1/admin`. Configure
 `ADMIN_API_ENABLED=true`, `ADMIN_API_USERNAME` and `ADMIN_API_PASSWORD` through
 the existing `.env` loader or injected deployment secrets. There are no usable
 credential defaults. Health probes remain separate. All admin endpoints,
-including `/docs`, `/openapi.json` and bundled Swagger assets, require Basic Auth.
+including development `/docs`, `/openapi.json` and bundled Swagger assets, require Basic Auth.
+Documentation routes exist only with `ENV=dev` or `development` (case-insensitive).
+The default is `dev`; other values return 404 for UI, schema and assets. The
+production deployment template sets `ENV=production`. This flag does not change
+`OKX_TRADING_ENV` or the operational API. Offline `make swagger` remains available.
 
 `ADMIN_CORS_ORIGINS=*` permits an FE on any origin. Send an explicit Basic
 `Authorization` header with `credentials: "omit"`. Wildcard responses omit
@@ -66,10 +77,10 @@ and marks it stale. YAML reference pairs are defaults, not a closed allowlist.
 
 Two controls are independent:
 
-- `selection: fixed` chooses one `profile_id`: `follow_market`, `sideways`, or
-  `follow_token`. Weighted basket or single-token references can be overridden.
+- `selection: fixed` chooses one deployed `profile_id`: `follow_market`, `sideways`,
+  or `follow_token`. References and weights come from that YAML profile.
 - `selection: random` uses the YAML `random.profile_ids` pool and
-  `step_duration_seconds`; an API `profile_ids` override may narrow that pool.
+  `step_duration_seconds`; neither field can be overridden by the API.
   Each profile has equal probability; consecutive draws may repeat.
 - Either selection accepts `market_mode: spot | perpetual | both`.
 
@@ -84,7 +95,11 @@ Matching retries return the original receipt before stale-version checks; a key
 reused with another body or a conflicting version returns `409`. Invalid static
 settings return `422`. An accepted command that fails runtime startup is reported
 as failed; readiness waits remain visible in status. Neither commands nor checks
-clear a recovery HALT. Swagger includes fixed, random and runtime AVAX examples.
+clear a recovery HALT. Swagger includes fixed, random and configured-token examples.
+Errors retain `error` and add a stable `code`, English `detail`, safe field paths,
+`retry` guidance and server-generated `request_id` (also `X-Request-ID`). No raw
+exception messages or invalid input values are returned. Reconciliation cooldown
+includes `retry_after_seconds` and `Retry-After`; do not treat every 409 as retryable.
 
 ## History and charts
 

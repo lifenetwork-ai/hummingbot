@@ -9,6 +9,7 @@ does not certify a later image. Operational guides and plans live in [docs/](../
 |---|---|
 | [LIFE / OKX progress](implementation/LIFE_OKX_PROGRESS.md) | Phase history and Red/Green verification |
 | [Admin API / dashboard UX review](admin-api-dashboard-ux-review.md) | Current contract, browser access, operator workflow gaps and proposed FE follow-up; no runtime changes |
+| [Operations API implementation](admin-operations-api-implementation.md) | YAML-only profile configuration, operator API changes and scoped TDD evidence |
 | [E0 service availability](life-mm-e0-availability.md) | Failure isolation, task supervision, recovery and switch/checkpoint regression evidence |
 | [E1 strict quote guards](life-mm-e1-quote-guards.md) | Target-market qualification, manual ranges, own-order bounds and recovery verification |
 | [E2a managed drawdown](life-mm-e2a-drawdown.md) | Covered V2 report limits, durable peaks, retained-market valuation and position-preserving HALT |

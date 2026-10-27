@@ -577,8 +577,6 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
                 print(f"Offline LIFE: {mode}/{profile}", flush=True)
                 before = len(self.ledger()["accepted"])
                 fields = dict(market_mode=mode, selection="fixed", profile_id=profile, duration_seconds=600)
-                if profile == "follow_token":
-                    fields["references"] = [{"pair": "AVAX-USDT", "weight": "1"}]
                 self.mm_command(port, "start", **fields)
                 count = 8 if mode == "both" else 4
                 poll(lambda: len(self.ledger()["accepted"]) >= before + count, description="MM post-only levels")
@@ -673,8 +671,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         poll(lambda: sum(order["state"] == "live" for order in self.ledger()["orders"]) == 8,
              description="normal maker quotes recover after terminal-before-create race")
         self.metrics["terminal_cancel_ack_before_create"] = True
-        self.mm_command(port, "switch", market_mode="both", selection="random", profile_ids=["sideways"],
-                        step_duration_seconds=15, duration_seconds=60)
+        self.mm_command(port, "switch", market_mode="both", selection="random", duration_seconds=60)
         first_draw = self.state()["mm_session"]
         first_order_count = len(self.ledger()["accepted"])
         poll(lambda: self.state()["mm_session"]["generation"] > first_draw["generation"], timeout=30, description="persisted random step")
@@ -1383,6 +1380,9 @@ def main():
         write_fixtures(assets / "fixtures.json")
         import yaml
         profiles = yaml.safe_load((ROOT / "deploy/cloudrun/conf/life_mm_profiles.yaml").read_text())
+        # Test policy belongs to the immutable fixture, just like production YAML.
+        profiles["profiles"]["follow_token"]["references"] = [{"pair": "AVAX-USDT", "weight": "1"}]
+        profiles["random"] = dict(profile_ids=["sideways"], step_duration_seconds=15)
         for config in profiles["markets"].values():
             config.update(executor_refresh_time=120, cooldown_time=1)
         assets.joinpath("life_mm_profiles.yaml").write_text(yaml.safe_dump(profiles))

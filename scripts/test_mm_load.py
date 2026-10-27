@@ -328,7 +328,7 @@ def main():
                         windows.append(("soak", 3600))
                 for name, duration in windows:
                     if name == "soak":
-                        _, _ = command(harness, port, "switch", market_mode="both", selection="random", step_duration_seconds=600, duration_seconds=7200)
+                        _, _ = command(harness, port, "switch", market_mode="both", selection="random", duration_seconds=7200)
                     data = run_window(harness, bot, client, name, duration, report, burst=name == "bursts",
                                       options=("--random-soak",) if name == "soak" else ())
                     data["command_seconds"] = data["control_results"].get("command_seconds", controls)

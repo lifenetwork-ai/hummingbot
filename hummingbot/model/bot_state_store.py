@@ -6,11 +6,8 @@ from sqlalchemy import select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.engine import Engine
 
+from hummingbot.core.control_errors import ControlConflict
 from hummingbot.model.bot_state import BotState
-
-
-class ControlConflict(RuntimeError):
-    pass
 
 
 class BotStateStore:
@@ -149,31 +146,31 @@ class BotStateStore:
         with (self.engine.begin() if connection is None else nullcontext(connection)) as connection:
             row = connection.execute(select(BotState).where(BotState.bot_id == self.bot_id).with_for_update()).mappings().first()
             if row is None or row["control_version"] != expected_version:
-                raise ControlConflict("Control version changed")
+                raise ControlConflict("Control version changed", code="control_version_changed")
             current = MMSession.model_validate(row["mm_session"]) if row["mm_session"] else None
             if action == "start":
                 if row["desired_state"] == "running" or (current and current.status in ("preparing", "running", "stopping")):
-                    raise ControlConflict("An active strategy/session must be stopped or explicitly switched")
+                    raise ControlConflict("An active strategy/session must be stopped or explicitly switched", code="session_active")
             elif current is None or current.id != current_session_id:
-                raise ControlConflict("Current MM session identity changed")
+                raise ControlConflict("Current MM session identity changed", code="session_changed")
             if action != "stop" and (row["recovery_state"] or {}).get("halt"):
-                raise ControlConflict("Recovery HALT must be resolved before starting another session")
+                raise ControlConflict("Recovery HALT must be resolved before starting another session", code="recovery_required")
             bound = (row["recovery_state"] or {}).get("strategy_checkpoints", {}).get("life_mm_profiles.yaml", {}).get("mm_drawdown_policy")
             if action != "stop" and bound is not None and bound != catalogue.drawdown_policy():
-                raise ControlConflict("Drawdown policy/scope is already bound; operator-reviewed maintenance is required to change it")
+                raise ControlConflict("Drawdown policy/scope is already bound; operator-reviewed maintenance is required to change it", code="drawdown_policy_bound")
             bootstrap = (row["recovery_state"] or {}).get("listing_bootstrap")
             if action != "stop" and bootstrap is not None and bootstrap.get("policies") != catalogue.bootstrap_policies():
-                raise ControlConflict("listing_bootstrap policy is already bound; operator-reviewed maintenance is required")
+                raise ControlConflict("listing_bootstrap policy is already bound; operator-reviewed maintenance is required", code="bootstrap_policy_bound")
             outflow = (row["recovery_state"] or {}).get("spot_outflow")
             if action != "stop" and outflow is not None and outflow.get("policy") != catalogue.outflow_policy():
-                raise ControlConflict("spot_outflow policy is already bound; operator-reviewed maintenance is required to change it")
+                raise ControlConflict("spot_outflow policy is already bound; operator-reviewed maintenance is required to change it", code="outflow_policy_bound")
             if action == "stop":
                 current.status = "stopping"
                 current.generation += 1
                 effective = current
             else:
                 if action == "switch" and current.status not in ("preparing", "running"):
-                    raise ControlConflict("Only an active MM session can be switched")
+                    raise ControlConflict("Only an active MM session can be switched", code="session_not_active")
                 effective = MMSession.create(catalogue, MMSessionRequest.model_validate(request),
                                              rng=rng or SystemRandom())
             values = {"control_version": expected_version + 1, "mm_session": effective.model_dump(mode="json"),

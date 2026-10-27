@@ -10,6 +10,25 @@ from hummingbot.client.config.admin_config import AdminSettings
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("environment,visible", [(None, True), ("DEV", True), ("dev", True), ("development", True),
+                                                 ("production", False), ("prod", False), ("staging", False), ("", False)])
+async def test_documentation_is_development_only_and_defaults_to_dev(environment, visible):
+    values = {"ADMIN_API_ENABLED": "true", "ADMIN_API_USERNAME": "operator", "ADMIN_API_PASSWORD": "test-password"}
+    if environment is not None:
+        values["ENV"] = environment
+    settings = AdminSettings.from_environment(values)
+    app = web.Application(middlewares=[admin_middleware(settings)])
+    AdminAPI(None, settings).register(app)
+    async with TestClient(TestServer(app)) as client:
+        for path in ("/docs", "/openapi.json", "/docs/assets/swagger-ui.css"):
+            assert (await client.get(ADMIN_PREFIX + path)).status == (401 if visible else 404)
+            response = await client.get(ADMIN_PREFIX + path, headers={"Authorization": BasicAuth("operator", "test-password").encode()})
+            assert response.status == (200 if visible else 404)
+        # Production admin routes still enforce normal Basic Auth.
+        assert (await client.get(ADMIN_PREFIX + "/status")).status == 401
+
+
+@pytest.mark.asyncio
 async def test_packaged_schema_and_swagger_ui_work_without_database_or_external_assets(tmp_path, monkeypatch):
     artifact = tmp_path / "openapi.json"
     artifact.write_text(swagger.rendered_spec())

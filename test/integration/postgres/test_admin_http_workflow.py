@@ -99,7 +99,7 @@ async def test_real_http_control_receipts_retry_conflicts_failures_and_market_mo
             first = await response.json()
             assert response.status == 202
             switch = dict(action="switch", expected_version=version, session_id=first["session_id"], market_mode="perpetual",
-                          selection="random", profile_ids=["sideways"], step_duration_seconds=60, duration_seconds=120)
+                          selection="random", duration_seconds=120)
             assert (await client.post(ADMIN_PREFIX + "/commands", json=switch, headers={"Idempotency-Key": "stale-switch"})).status == 409
             switch["expected_version"] = version + 1
             response = await client.post(ADMIN_PREFIX + "/commands", json=switch, headers={"Idempotency-Key": "valid-switch"})

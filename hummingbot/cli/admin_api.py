@@ -15,6 +15,7 @@ from cachetools import TTLCache
 from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 
+from hummingbot.cli.admin_errors import error_response, request_id, validation_fields
 from hummingbot.cli.admin_models import (
     COMMAND_REQUEST,
     BalancesResponse,
@@ -46,6 +47,7 @@ from hummingbot.cli.admin_models import (
 )
 from hummingbot.cli.api_documentation import api_operation
 from hummingbot.client.config.mm_profiles import MMProfilesConfig
+from hummingbot.core.control_errors import RequestError
 from hummingbot.model.admin_store import AdminStore
 from hummingbot.model.bot_state_store import ControlConflict
 
@@ -73,18 +75,27 @@ async def admin_errors(request, handler):
         return await handler(request)
     try:
         return await handler(request)
-    except ControlConflict:
-        return web.json_response({"error": "control_or_idempotency_conflict"}, status=409)
-    except (ValidationError, ValueError):
-        return web.json_response({"error": "validation_failed"}, status=422)
+    except ControlConflict as error:
+        return error_response(request, "control_or_idempotency_conflict", status=409, code=error.code,
+                              retry_after_seconds=error.retry_after_seconds)
+    except ValidationError as error:
+        fields = validation_fields(error)
+        code = "yaml_configuration_read_only" if any(f["code"] == "yaml_configuration_read_only" for f in fields) else "validation_failed"
+        return error_response(request, "validation_failed", status=422, code=code, fields=fields)
+    except RequestError as error:
+        return error_response(request, "validation_failed", status=422, code=error.code,
+                              fields=[dict(path=error.field, code=error.code)] if error.field else [])
+    except ValueError:
+        return error_response(request, "validation_failed", status=422)
     except (APIUnavailable, SQLAlchemyError, asyncio.TimeoutError):
-        return web.json_response({"error": "unavailable"}, status=503)
+        return error_response(request, "unavailable", status=503)
     except web.HTTPException as error:
-        return web.json_response({"error": {400: "invalid_json", 404: "not_found", 415: "unsupported_media_type"}.get(
-            error.status, "http_error")}, status=error.status)
+        return error_response(request, {400: "invalid_json", 404: "not_found", 415: "unsupported_media_type"}.get(
+            error.status, "http_error"), status=error.status)
     except Exception as error:
-        logging.getLogger(__name__).error("Admin handler failed type=%s", type(error).__name__)
-        return web.json_response({"error": "internal_error"}, status=500)
+        logging.getLogger(__name__).error("Admin handler failed type=%s request_id=%s", type(error).__name__, request_id(request),
+                                          extra={"event": "admin_request_failed", "request_id": request_id(request)})
+        return error_response(request, "internal_error", status=500)
 
 
 class AdminAPI:
@@ -194,7 +205,7 @@ class AdminAPI:
             if not hasattr(self.host, "service_status"):
                 raise APIUnavailable("Control store is unavailable") from None
             service = ServiceStatus.model_validate(self.host.service_status())
-            return web.json_response({"error": "unavailable", "service": service.model_dump(mode="json")}, status=503)
+            return error_response(request, "unavailable", status=503, service=service)
         if row is None:
             raise APIUnavailable("Bot identity is not ready")
         snapshot = row.get("status") or {}
@@ -232,11 +243,10 @@ class AdminAPI:
                            "profile_id": "follow_market", "duration_seconds": 3600}},
                        "random_profiles": {"summary": "Random profile selection every ten minutes", "value": {
                            "action": "start", "expected_version": 0, "market_mode": "both", "selection": "random",
-                           "profile_ids": ["follow_market", "sideways", "follow_token"],
-                           "duration_seconds": 3600, "step_duration_seconds": 600}},
-                       "runtime_reference": {"summary": "Follow a supported reference pair outside the YAML defaults", "value": {
+                           "duration_seconds": 3600}},
+                       "configured_reference": {"summary": "Follow the token configured in the deployed YAML profile", "value": {
                            "action": "start", "expected_version": 0, "market_mode": "perpetual", "selection": "fixed",
-                           "profile_id": "follow_token", "references": [{"pair": "AVAX-USDT", "weight": "1"}],
+                           "profile_id": "follow_token",
                            "duration_seconds": 3600}},
                    })
     async def commands(self, request):
@@ -249,7 +259,7 @@ class AdminAPI:
         command = COMMAND_REQUEST.validate_python(payload)
         key = request.headers.get("Idempotency-Key", "")
         if not 1 <= len(key) <= 128 or any(not 33 <= ord(character) <= 126 for character in key):
-            raise ValueError("Idempotency-Key is required")
+            raise RequestError("Idempotency-Key is required", code="idempotency_key_required", field="Idempotency-Key")
         catalogue = await self.deployed_profiles() if command.action != "stop" else None
         session_request = command.session_request(catalogue) if command.action != "stop" else None
         receipt = await asyncio.to_thread(self.storage().command, key, payload, catalogue=catalogue, request=session_request, principal=self.settings.username)
@@ -442,8 +452,13 @@ def admin_middleware(settings):
     async def authenticate(request, handler):
         if request.path != ADMIN_PREFIX and not request.path.startswith(ADMIN_PREFIX + "/"):
             return await handler(request)
+        request_id(request)
         if not settings.enabled:
-            return web.json_response({"error": "admin_api_disabled"}, status=404)
+            return error_response(request, "admin_api_disabled", status=404)
+        if not settings.documentation_enabled and (request.path == ADMIN_PREFIX + "/openapi.json"
+                                                   or request.path == ADMIN_PREFIX + "/docs"
+                                                   or request.path.startswith(ADMIN_PREFIX + "/docs/")):
+            return error_response(request, "not_found", status=404)
         origin = request.headers.get("Origin")
         wildcard = "*" in settings.cors_origins
         if origin:
@@ -453,12 +468,12 @@ def admin_middleware(settings):
             except ValueError:
                 same_origin = False
             if not wildcard and origin not in settings.cors_origins and not same_origin:
-                return web.json_response({"error": "origin_not_allowed"}, status=403)
+                return error_response(request, "origin_not_allowed", status=403)
         if request.method == "OPTIONS":
             headers = {value.strip().lower() for value in request.headers.get("Access-Control-Request-Headers", "").split(",") if value.strip()}
             method = request.headers.get("Access-Control-Request-Method", "")
             if not origin or method not in ("GET", "POST", "HEAD") or not headers <= {"authorization", "content-type", "idempotency-key"}:
-                return web.json_response({"error": "preflight_not_allowed"}, status=403)
+                return error_response(request, "preflight_not_allowed", status=403)
             response = web.Response(status=204, headers={
                 "Access-Control-Allow-Methods": "GET, POST, HEAD, OPTIONS",
                 "Access-Control-Allow-Headers": "Authorization, Content-Type, Idempotency-Key",
@@ -472,13 +487,15 @@ def admin_middleware(settings):
             except ValueError:
                 authenticated = False
             if not authenticated:
-                response = web.json_response({"error": "authentication_required"}, status=401,
-                                             headers={"WWW-Authenticate": 'Basic realm="Hummingbot admin", charset="UTF-8"'})
+                response = error_response(request, "authentication_required", status=401)
+                response.headers["WWW-Authenticate"] = 'Basic realm="Hummingbot admin", charset="UTF-8"'
             else:
                 response = await handler(request)
         response.headers["Cache-Control"] = "no-store"
+        response.headers["X-Request-ID"] = request_id(request)
         if origin:
             response.headers["Access-Control-Allow-Origin"] = "*" if wildcard else origin
+            response.headers["Access-Control-Expose-Headers"] = "X-Request-ID, Retry-After"
             if not wildcard:
                 response.headers["Access-Control-Allow-Credentials"] = "true"
             response.headers["Vary"] = ", ".join(filter(None, (response.headers.get("Vary"), "Origin")))

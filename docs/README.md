@@ -33,6 +33,7 @@ under the ignored `build/` directory.
 - [LIFE / OKX implementation plan](plans/LIFE_OKX_IMPLEMENTATION_PLAN_TDD.md)
 - [LIFE / OKX incremental enhancements — TDD plan](plans/LIFE_OKX_MM_ENHANCEMENTS_TDD_PLAN.md)
 - [Pre-listing economic stress plan](plans/LIFE_MM_ECONOMIC_STRESS_PLAN.md)
+- [Operations API and configuration ownership plan](plans/ADMIN_OPERATIONS_API_TDD_PLAN.md)
 - [OpenAPI contract](api/openapi.json), generated from API handlers/models with
   `make swagger` and checked with `make swagger-check`. This JSON is API
   documentation, rather than a test-result artifact.

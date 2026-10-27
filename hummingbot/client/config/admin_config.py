@@ -17,6 +17,7 @@ class AdminSettings:
     cors_origins: tuple = ("*",)
     reporting_timezone: str = "Asia/Ho_Chi_Minh"
     statistics_cache_ttl_seconds: float = 5
+    documentation_enabled: bool = True
 
     @classmethod
     def from_environment(cls, environ=None):
@@ -54,4 +55,6 @@ class AdminSettings:
                 raise ValueError
         except (ValueError, TypeError):
             raise RuntimeConfigurationError("ADMIN_STATISTICS_CACHE_TTL_SECONDS must be between 0 and 60.") from None
-        return cls(enabled, username, password, ("*",) if "*" in origins else tuple(dict.fromkeys(origins)), timezone, ttl)
+        documentation_enabled = values.get("ENV", DEFAULT_ENV_CONFIG["ENV"]).strip().lower() in ("dev", "development")
+        return cls(enabled, username, password, ("*",) if "*" in origins else tuple(dict.fromkeys(origins)), timezone, ttl,
+                   documentation_enabled)
