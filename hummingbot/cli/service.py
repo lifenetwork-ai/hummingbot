@@ -494,7 +494,6 @@ class ServiceHost:
             reporting = capture_reporting(core, self.reporting)
             balances = {name: {asset: str(value) for asset, value in connector.get_all_balances().items()}
                         for name, connector in core.connector_manager.connectors.items()}
-            json.dumps(reporting, allow_nan=False)
             self.reporting = reporting
             self.availability.clear("reporting")
             reporting_unavailable = False

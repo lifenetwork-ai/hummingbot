@@ -189,7 +189,7 @@ class AdminAPI:
         if self.host is None or self.host.store is None:
             raise APIUnavailable("Control store is not ready")
         try:
-            row = await asyncio.to_thread(self.host.store.read)
+            row = await asyncio.to_thread(self.host.store.read, publication=True)
         except (SQLAlchemyError, asyncio.TimeoutError):
             if not hasattr(self.host, "service_status"):
                 raise APIUnavailable("Control store is unavailable") from None
@@ -384,7 +384,7 @@ class AdminAPI:
     async def liquidity(self, request):
         from hummingbot.core.mm_liquidity import liquidity_view
         query = self.query(request, LiquidityQuery)
-        row = await asyncio.to_thread(self.storage().store.read)
+        row = await asyncio.to_thread(self.storage().store.read, publication=True)
         if row is None:
             raise APIUnavailable("Bot status unavailable")
         result = liquidity_view(row, **query.model_dump())

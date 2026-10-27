@@ -107,7 +107,9 @@ class BotOwnership:
             raise OwnershipLost("The bot ownership session is unavailable.")
         try:
             row = connection.execute(text("""
-                SELECT b.*, pg_backend_pid() AS backend_pid,
+                SELECT b.bot_id, b.config_file_path, b.config_type, b.desired_state, b.control_version,
+                    b.acknowledged_version, b.owner_uuid, b.owner_generation, b.heartbeat, b.revision,
+                    b.recovery_state, b.mm_session, pg_backend_pid() AS backend_pid,
                     EXTRACT(EPOCH FROM clock_timestamp()) AS database_now FROM public.bot_state b
                 WHERE bot_id=:bot_id AND owner_uuid=:owner AND owner_generation=:generation
                 AND EXISTS (SELECT 1 FROM pg_locks WHERE locktype='advisory' AND granted

@@ -66,7 +66,7 @@ def capture_reporting(core, previous):
                         observed_at=timestamp, source="v2_controller_report_cache",
                         valuation_basis="executor_and_position_hold_reports", report=report.model_dump(mode="json"))
     # These observations become part of the existing JSONB status publication.
-    return json.loads(json.dumps(result, default=str))
+    return json.loads(json.dumps(result, default=str, allow_nan=False))
 
 
 def reporting_view(row):

@@ -18,10 +18,15 @@ class BotStateStore:
         self.engine = engine
         self.bot_id = bot_id
 
-    def read(self) -> Optional[dict]:
+    def read(self, *, publication: bool = False) -> Optional[dict]:
+        # Reporting needs fresh control/heartbeat and the published snapshot,
+        # but not private recovery details or the full archived catalogue.
+        columns = ("bot_id, desired_state, control_version, acknowledged_version, owner_uuid, owner_generation, "
+                   "heartbeat, status, revision, CASE WHEN jsonb_typeof(mm_session)='object' "
+                   "THEN mm_session - 'catalogue' ELSE mm_session END AS mm_session") if publication else "*"
         with self.engine.connect() as connection:
-            row = connection.execute(text("""
-                SELECT *, EXTRACT(EPOCH FROM (clock_timestamp() - heartbeat)) AS heartbeat_age_s,
+            row = connection.execute(text(f"""
+                SELECT {columns}, EXTRACT(EPOCH FROM (clock_timestamp() - heartbeat)) AS heartbeat_age_s,
                     EXTRACT(EPOCH FROM clock_timestamp()) AS database_now
                 FROM public.bot_state WHERE bot_id=:bot_id
             """), {"bot_id": self.bot_id}).mappings().first()

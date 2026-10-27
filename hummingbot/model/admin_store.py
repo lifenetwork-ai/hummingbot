@@ -103,7 +103,7 @@ class AdminStore:
 
     def observations(self):
         from hummingbot.cli.admin_observations import reporting_view
-        row = self.store.read()
+        row = self.store.read(publication=True)
         if row is None:
             raise ControlConflict("Bot identity is unavailable")
         return reporting_view(row)
