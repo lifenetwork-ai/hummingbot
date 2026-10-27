@@ -25,3 +25,13 @@ runtime fix. Deterministic candle and clock cases follow in the owning phases.
 Verification: five characterization cases pass. Candle fixtures reuse the
 completed/forming/gapped feed helper in `test_life_mm_spread.py`; a separate wall
 and monotonic clock fixture prevents offline time from earning recovery credit.
+
+## V1 — Existing spread floors
+
+Verified every level at zero/moderate/shock NATR and explicit static fallback
+with `min_multiplier: 1`, ordered spreads and existing fee/rounding behavior.
+Legacy low-multiplier/tighter-fallback settings remain readable. The MM guide
+now explains three-level weights and the existing floor settings.
+
+Verification: 31 focused spread/characterization tests pass. This phase needs
+no new runtime flag; defense-specific validation is implemented with V2's schema.

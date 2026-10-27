@@ -646,6 +646,21 @@ Fixed `buy_spreads` / `sell_spreads` remain the default. Configure each market
 independently; spot and perpetual use their own existing candle feed and maker
 fee helper. The three reference formulas and session anchors are unchanged.
 
+The existing engine supports weighted multiple levels without a new strategy.
+For example, three levels can use `buy_spreads: [0.004, 0.009, 0.018]`, the same
+`sell_spreads`, and `buy_amounts_pct: [50, 30, 20]` /
+`sell_amounts_pct: [50, 30, 20]`. These symmetric weights assign half the market
+budget to each side, then 50/30/20 within that side. This is a sizing example,
+not a production spread recommendation; minimum sizes and other guards can
+prevent some levels from being placed.
+
+To preserve base spreads with the current policy, set `min_multiplier: "1"`
+or greater and make every explicit fallback spread at least as wide as the
+corresponding base level. A multiplier of `0.5` intentionally allows narrower
+spreads. Proposed reduced-sizing/pause behavior is tracked in the
+[volatility defense plan](plans/MM_VOLATILITY_DEFENSE_TDD_PLAN.md) and is not
+implied by these existing settings.
+
 ```yaml
 spread_policy:
   fee_floor: true

@@ -1,7 +1,7 @@
 # LIFE / OKX volatility defense — incremental TDD plan
 
 Date: 2026-10-28 (Asia/Ho_Chi_Minh).
-Status: V0 characterized; V1–V5 implementation and acceptance remain open.
+Status: V0–V1 complete; V2–V5 implementation and acceptance remain open.
 Evidence: [implementation report](../../reports/mm-volatility-defense.md).
 
 Improve quote protection and automatic recovery while keeping the existing
@@ -221,13 +221,13 @@ snake_case migration and document why; do not prebuild a generic persistence lay
 
 ### V1 — Base spread floor using existing configuration
 
-- [ ] Verify `min_multiplier >= 1`, explicit fallback floors, maker fees and
+- [x] Verify `min_multiplier >= 1`, explicit fallback floors, maker fees and
   BUY/SELL tick rounding preserve each base level. Cover zero/flat NATR and
   ordered levels that round to the same price.
-- [ ] Retain compatibility for disabled defense and older pinned snapshots.
+- [x] Retain compatibility for disabled defense and older pinned snapshots.
   Pin the cross-field expectations for V2's optional schema; do not add a second
   base-floor toggle or modify legacy defaults globally.
-- [ ] Document the three-level YAML example without changing default production
+- [x] Document the three-level YAML example without changing default production
   spreads, budget, market availability or risk settings.
 
 ### V2 — Reduced sizing

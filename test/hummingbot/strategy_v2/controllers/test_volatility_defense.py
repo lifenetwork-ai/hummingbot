@@ -3,12 +3,15 @@ from decimal import Decimal
 from pathlib import Path
 from test.hummingbot.strategy_v2.controllers.test_life_mm import configuration, make_controller
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 import yaml
 
 from hummingbot.client.config.mm_profiles import MMProfilesConfig
 from hummingbot.core.data_type.common import TradeType
+from hummingbot.core.data_type.trade_fee import AddedToCostTradeFee
+from hummingbot.strategy_v2.utils.mm_spread import SpreadPolicy, SpreadPolicyConfig
 
 
 @pytest.fixture
@@ -45,3 +48,29 @@ def test_current_catalogue_keeps_two_equal_levels_and_market_selection(mode, cou
             assert spreads == [.01, .02]
             assert amounts == [Decimal('25'), Decimal('25')]
         assert not config.spread_policy.enabled
+
+
+@pytest.mark.parametrize('raw', ['0', '.02', '.08', None])
+def test_existing_spread_controls_preserve_every_base_level(monkeypatch, raw):
+    from test.hummingbot.strategy_v2.controllers.test_life_mm_spread import feed
+    base = [Decimal('.004'), Decimal('.009'), Decimal('.018')]
+    policy = SpreadPolicy(SpreadPolicyConfig(fee_floor=True, volatility=dict(
+        enabled=True, min_multiplier='1', on_unavailable='static',
+        fallback_buy_spreads=base, fallback_sell_spreads=base)))
+    if raw is not None:
+        monkeypatch.setattr('hummingbot.strategy_v2.utils.mm_spread.natr_value', lambda *args: Decimal(raw))
+        policy.refresh(feed(), 1200)
+    connector = MagicMock()
+    connector.get_fee.return_value = AddedToCostTradeFee(percent=Decimal('.001'))
+    for values in policy.compose(connector, 'LIFE-USDT', Decimal('.1'), base, base, [50, 30, 20], [50, 30, 20], now=1200):
+        assert all(actual >= minimum for actual, minimum in zip(values, base))
+        assert values == sorted(values)
+
+
+def test_legacy_low_multiplier_and_tighter_static_fallback_stay_readable():
+    config = configuration(spread_policy=dict(volatility=dict(
+        enabled=True, min_multiplier='.5', on_unavailable='static',
+        fallback_buy_spreads=['.001'], fallback_sell_spreads=['.001'])))
+    restored = type(config).model_validate_json(config.model_dump_json())
+    assert restored.spread_policy.volatility.min_multiplier == Decimal('.5')
+    assert restored.spread_policy.volatility.fallback_buy_spreads == [Decimal('.001')]
