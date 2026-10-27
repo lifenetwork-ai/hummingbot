@@ -58,10 +58,12 @@ def save_daily_balances(connection, accounts, reporting_timezone):
     return connection.execute(statement).rowcount
 
 
+# Core recorder fees are JSON. Native JSON access avoids rebuilding JSONB for
+# every fill; notional and fee arithmetic remain PostgreSQL NUMERIC.
 FILL_SCOPE = """
-    SELECT *, (to_timestamp(timestamp / 1000.0) AT TIME ZONE :tz)::date AS day,
-        (COALESCE((trade_fee::jsonb->>'percent')::numeric, 0) <> 0 OR EXISTS (
-            SELECT 1 FROM jsonb_array_elements(COALESCE(trade_fee::jsonb->'flat_fees', '[]'::jsonb)) fee
+    SELECT *, (to_timestamp(timestamp::double precision / 1000) AT TIME ZONE :tz)::date AS day,
+        (COALESCE((trade_fee->>'percent')::numeric, 0) <> 0 OR EXISTS (
+            SELECT 1 FROM json_array_elements(COALESCE(trade_fee->'flat_fees', '[]'::json)) fee
             WHERE (fee->>'amount')::numeric <> 0)) AS has_original_fee
     FROM trade_fills WHERE market = ANY(:markets) AND timestamp >= :start_ms AND timestamp < :end_ms
         AND (:pair IS NULL OR symbol = :pair)
@@ -95,7 +97,7 @@ def daily(engine, *, start_day=None, end_day=None, reporting_timezone, market="a
                 SUM(CASE WHEN trade_type='SELL' THEN price*amount ELSE 0 END) AS sell_volume_quote,
                 COUNT(*) FILTER (WHERE valid_conversion) AS converted_fill_count,
                 COUNT(*) FILTER (WHERE NOT valid_conversion) AS unconverted_fill_count,
-                COUNT(*) FILTER (WHERE COALESCE((trade_fee::jsonb->>'percent')::numeric,0) <> 0) AS percentage_fee_fill_count,
+                COUNT(*) FILTER (WHERE COALESCE((trade_fee->>'percent')::numeric,0) <> 0) AS percentage_fee_fill_count,
                 SUM(trade_fee_in_quote) FILTER (WHERE valid_conversion) AS fee_in_usdt
             FROM converted GROUP BY market, day ORDER BY market, day
         """), params).mappings().all()
@@ -104,7 +106,7 @@ def daily(engine, *, start_day=None, end_day=None, reporting_timezone, market="a
                 SUM(GREATEST((fee->>'amount')::numeric,0)) AS paid,
                 SUM(GREATEST(-(fee->>'amount')::numeric,0)) AS rebates,
                 SUM((fee->>'amount')::numeric) AS net
-            FROM scoped CROSS JOIN LATERAL jsonb_array_elements(COALESCE(trade_fee::jsonb->'flat_fees','[]'::jsonb)) fee
+            FROM scoped CROSS JOIN LATERAL json_array_elements(COALESCE(trade_fee->'flat_fees','[]'::json)) fee
             GROUP BY market, day, fee->>'token' ORDER BY market, day, currency
         """), params).mappings().all()
         funding = connection.execute(text("""

@@ -65,6 +65,24 @@ def test_daily_groups_local_event_day_markets_fees_rebates_and_observed_funding(
     assert again["markets"][0]["days"][0]["fee_in_usdt"] == Decimal("0.3")
 
 
+@pytest.mark.parametrize("zone,start_day,end_day,start,end", [
+    ("America/New_York", "2026-03-08", "2026-03-09", "2026-03-08T05:00:00+00:00", "2026-03-09T04:00:00+00:00"),
+    ("America/New_York", "2026-11-01", "2026-11-02", "2026-11-01T04:00:00+00:00", "2026-11-02T05:00:00+00:00"),
+    ("UTC", "1969-12-31", "1970-01-01", "1969-12-31T00:00:00+00:00", "1970-01-01T00:00:00+00:00"),
+    ("UTC", "9998-06-01", "9998-06-02", "9998-06-01T00:00:00+00:00", "9998-06-02T00:00:00+00:00"),
+])
+def test_daily_preserves_dst_day_and_half_open_millisecond_boundaries(daily_store, zone, start_day, end_day, start, end):
+    for identity, timestamp in (("before", millis(start) - 1), ("first", millis(start)),
+                                ("last", millis(end) - 1), ("after", millis(end))):
+        add_fill(daily_store.engine, identity, "okx", timestamp, "0.00000001", Decimal("0.00000001"))
+    result = daily_store.daily(start_day=start_day, end_day=end_day, reporting_timezone=zone, market="spot")
+    days = result["markets"][0]["days"]
+    assert len(days) == 1 and str(days[0]["day"]) == start_day
+    assert days[0]["fill_count"] == 2
+    assert days[0]["buy_volume_quote"] == Decimal("2")
+    assert days[0]["fee_in_usdt"] == Decimal("0.00000002")
+
+
 def test_daily_snapshot_upsert_is_fenced_rate_limited_and_keeps_timezone_gaps(daily_store):
     from hummingbot.model.admin_reporting import save_daily_balances
     observation = datetime.now(timezone.utc) - timedelta(seconds=10)
