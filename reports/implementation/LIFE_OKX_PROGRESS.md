@@ -1036,3 +1036,37 @@ OKX request, trading session or deployment was started.
 
 See [guide](../../docs/okx-demo-configuration.md) and
 [sanitized validation](../okx-demo-preset-validation.json).
+
+
+## Runtime flow optimization (complete)
+
+Verified 2026-10-27. Reused the existing SQLAlchemy pool, reporting queries,
+state store and rolling outflow projection. Four runtime commits retain the
+five-connection ceiling while reusing readers, remove redundant fee JSONB/day
+conversion, narrow fresh publication/owner reads and drain wholly expired heaps
+in the same Decimal order. No new cache backend, service or schema migration.
+
+Controlled native measurements: daily median 498.29 to 375.14 ms (about 25%),
+daily p95 549.71 to 440.94 ms (about 20%); 50000-fill expiry CPU 177.74 to
+143.94 ms (about 19%). Projection construction is about 5% slower; the detailed
+report retains that trade-off and the rejected slower day-join experiment.
+
+Image `c89ce9122a39`, 1366522531 bytes: 53 packaged paths match. Native: 1571
+tests/11 subtests; real PG on final runtime: 204; Swagger/hooks and fourteen
+E2E scenario groups pass. All four healthy windows retain the original budgets:
+97800 primary plus 9780 separate auxiliary reads, zero unexpected errors.
+Sixty-minute soak p95/p99: 84.25/461.65 ms; median RSS growth 10.07 MiB.
+4884 actual fills match the recorder and independent fees/positions/funding.
+
+The first combined load root remains failed: after four fault windows passed,
+preparing the fifth timed out because the simulator public-feed loop could die
+on a closing transport. Two Red/Green book/candle regressions and fixture commit
+`9d6538343` protect that race without changing the production image. A separate
+five-fault retest on the same image, with real simulated spot/perpetual fills and
+retained positions, passes all five windows. This combined evidence is not a
+passing monolithic rerun; both original and supplemental scopes are preserved.
+
+Runtime commits: `d6fac719b`, `ce22de4e3`, `7594b1784`, `6aae523fc`.
+See [optimization report](../life-mm-runtime-optimization.md) and
+[portable evidence](../life-mm-runtime-optimization.json). All work is local;
+historical E6 Demo and cold traced stress limits retain their original scope.

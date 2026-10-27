@@ -57,8 +57,9 @@ of the selected trading backend or automatic-migration flag.
 special characters in URL credentials; SSL query settings such as `sslmode=require`
 are passed to the driver. Only the synchronous psycopg2 driver is supported.
 Connections use `public`, connect timeout 5s, runtime statement timeout 2s, lock timeout 1s,
-pool size 3, overflow 2 and pool checkout timeout 2s. Budget additional migration
-and ownership sessions and both old/new processes during deployment overlap.
+pool size 5, no overflow and pool checkout timeout 2s. The owner retains one of
+these connections; warm readers use the remaining slots. Budget separate migration
+engines and both old/new processes during deployment overlap.
 Session advisory locks require direct/session-pooled PostgreSQL connections;
 transaction-pooling proxies are unsupported.
 
