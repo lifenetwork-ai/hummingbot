@@ -1070,3 +1070,18 @@ Runtime commits: `d6fac719b`, `ce22de4e3`, `7594b1784`, `6aae523fc`.
 See [optimization report](../life-mm-runtime-optimization.md) and
 [portable evidence](../life-mm-runtime-optimization.json). All work is local;
 historical E6 Demo and cold traced stress limits retain their original scope.
+
+
+## Maintainability refactor (in progress)
+
+Work proceeds in small behavior-preserving commits on the existing runtime.
+
+- [x] Share the 22 MM readiness reasons between controller and service.
+- [x] Move persisted reporting views into a neutral core module; retain the old import for compatibility.
+- [ ] Improve command diagnostics and persist partial fault results.
+- [ ] Expose the all-feature load configuration through Make.
+- [ ] Replace cross-layer controller state mutation with explicit methods.
+- [ ] Extract snapshot and funding orchestration from ServiceHost without changing ownership/control ordering.
+
+Shared reasons/reporting projection: 83 focused controller, service and reporting
+tests pass. No response schema, freshness window or submission check changes.

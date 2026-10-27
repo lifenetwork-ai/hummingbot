@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from controllers.market_making import pmm_simple
 from hummingbot.core.data_type.common import OrderType, PositionMode, PositionSide, PriceType, TradeType
+from hummingbot.core.mm_readiness import MM_READINESS_REASONS
 from hummingbot.core.utils.read_retry import retry_delay, transient_read
 from hummingbot.data_feed.candles_feed.data_types import CandlesConfig
 from hummingbot.strategy_v2.models.base import RunnableStatus
@@ -435,19 +436,12 @@ class LifeMMController(pmm_simple.PMMSimpleController):
                 self.processed_data["reason"] = guard_status["reason_code"]
         except Exception as error:
             reason = str(error).split(":", 1)[0]
-            known = {"perpetual_account_not_confirmed", "reference_pair_unavailable", "stale_reference",
-                     "invalid_book", "reference_out_of_bounds", "quote_out_of_bounds", "market_price_unavailable",
-                     "reference_deviation", "sideways_breakout", "guard_recovering",
-                     "bootstrap_binding_unavailable", "bootstrap_not_started", "bootstrap_checkpoint_pending",
-                     "bootstrap_expired", "bootstrap_band", "bootstrap_range", "bootstrap_quote_crossing",
-                     "market_liquidity_unqualified", "bootstrap_anchor_mismatch", "account_balance_unavailable",
-                     "fee_basis_unavailable", "candles_unavailable"}
             if self.config.quote_guards.enabled and guard_status is None:
                 guard_status = self._evaluate_guard(
                     MarketObservation(None, None, self.market_data_provider.time(), detail="required_data_unavailable"),
                     Decimal("1"), False)
-                guard_status["reason_code"] = reason if reason in known else "market_price_unavailable"
-            self.processed_data = {"ready": False, "reason": str(error) if reason in known else type(error).__name__,
+                guard_status["reason_code"] = reason if reason in MM_READINESS_REASONS else "market_price_unavailable"
+            self.processed_data = {"ready": False, "reason": str(error) if reason in MM_READINESS_REASONS else type(error).__name__,
                                    "spread_multiplier": spread_multiplier, "quote_guard": guard_status,
                                    "inventory_skew": self._inventory_status,
                                    "spread_policy": self._spread_policy.status(self.market_data_provider.time()) if self.config.spread_policy.enabled else None,
