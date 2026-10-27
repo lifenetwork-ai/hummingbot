@@ -122,6 +122,17 @@ class ServiceHost:
             return []
         return [current[config.id] for config in configs]
 
+    def mm_startup_pending(self):
+        """Do not abort read/account initialization just to rotate a random step.
+
+        Expired step authority still blocks every new order at the send gates.
+        Explicit stop/switch and overall timed expiry retain their normal cleanup.
+        """
+        if self.start_task is not None and not self.start_task.done():
+            return True
+        return any(getattr(controller, '_startup_stage', None) not in (None, 'ready')
+                   for controller in self._mm_controllers())
+
     def _mm_available_quote(self, controllers):
         available = [Decimal(str(controller.market_data_provider.get_connector_with_fallback(
             controller.config.connector_name).get_available_balance("USDT"))) for controller in controllers]
@@ -481,12 +492,14 @@ class ServiceHost:
 
             from hummingbot.core.mm_session import MMSession
             self.mm_session = MMSession.model_validate(row["mm_session"])
+            session_expired = (self.mm_session.expires_at is not None
+                               and float(row['database_now']) >= self.mm_session.expires_at)
             if (row["desired_state"] == "running"
                     and self.mm_session.status in ("preparing", "running")
                     and self.mm_session.step_expires_at is not None
                     and float(row["database_now"]) >= self.mm_session.step_expires_at
-                    and (not (row["recovery_state"] or {}).get("halt")
-                         or (self.mm_session.expires_at is not None and float(row["database_now"]) >= self.mm_session.expires_at))):
+                    and (not (row["recovery_state"] or {}).get("halt") or session_expired)
+                    and (session_expired or not self.mm_startup_pending())):
                 try:
                     self.mm_session = self.store.update_mm_session(
                         owner_uuid=self.owner.owner_uuid, owner_generation=self.owner.generation, version=row["control_version"],

@@ -48,3 +48,25 @@ continuous sessions, retaining finite episode and request expiration headers.
 All 14 selected PG tests passed. The first handover test omitted the explicit
 `catalogue=None` argument on its stop helper; the fixture was corrected and rerun.
 No schema migration, new worker or external scheduler was added.
+
+## Cold-start boundary regression found by the image test
+
+Two runs of the first image `8740710b4acc` failed after restarting a continuous
+random session with short 15-second test windows. The second run retained safe
+before/after shutdown evidence: no HALT, pending mutation or incomplete shutdown
+remained, and the stopped checkpoint was false. HALT appeared during the new
+process's startup when a random boundary cancelled reconciliation in progress;
+the replacement startup then correctly refused the unresolved state.
+
+Two new service regressions failed before the fix: a pending strategy startup
+must not rotate just for a random boundary, and controller account/reference
+initialization must also finish before automatic rotation. Overall timed expiry
+still wins, completed initialization still rotates, and expired step send
+authority remains closed. The 42-test runtime/session/availability selection then
+passed. Explicit Stop/Switch cleanup and real recovery HALT were not weakened.
+
+Automatic rotation now waits for startup completion and then skips directly to
+the current window using the original start clock. It does not extend the old
+step, clear HALT or retry uncertain mutations. The image test retains the
+shutdown summary and repeats the original nine timed profile/market cases plus
+continuous rollover, actual restart and Stop.
