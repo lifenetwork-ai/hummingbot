@@ -732,6 +732,12 @@ and maker fee floor must be enabled. `min_multiplier` must be at least one and
 fallback lists must be no narrower than their matching base spreads. No API
 command can override the YAML policy or reset a saved pause.
 
+Disabled defense is omitted from serialized policy snapshots to preserve the
+legacy shape. Once a session or saved pause uses defense, its serving and
+rollback revisions must understand this policy/checkpoint schema. Verify a
+compatible prior artifact before a rollout; an older unsupported runtime is
+not a recovery method for an active pause.
+
 Append this fragment **inside an enabled volatility configuration**, together
 with explicit floor/fallback/guard settings. Values illustrate the schema only;
 they are not calibrated LIFE listing thresholds:

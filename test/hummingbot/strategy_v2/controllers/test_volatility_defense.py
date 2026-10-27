@@ -353,3 +353,4 @@ def test_legacy_low_multiplier_and_tighter_static_fallback_stay_readable():
     restored = type(config).model_validate_json(config.model_dump_json())
     assert restored.spread_policy.volatility.min_multiplier == Decimal('.5')
     assert restored.spread_policy.volatility.fallback_buy_spreads == [Decimal('.001')]
+    assert 'defense' not in restored.spread_policy.volatility.model_dump(mode='json')

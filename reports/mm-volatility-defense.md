@@ -125,3 +125,10 @@ was logged before later price validation failed, producing ten contradictory
 WARNING transitions in five unchanged control samples. A Red test reproduced
 this; Green publishes/logs only the final controller decision. This changes the
 final runtime source, so image/load acceptance will use a rebuilt artifact.
+
+A second compatibility Red test found that serializing disabled defense as a
+new null field changed legacy policy payloads for readers that forbid unknown
+fields. A standard Pydantic wrapper now omits only disabled defense; enabled
+defense remains fully pinned. The 83-case controller/session/economic/fixture
+selection and Swagger check pass after this change. Enabled-policy rollbacks
+still require a runtime that understands the feature and its saved latches.

@@ -3,7 +3,7 @@ import math
 from decimal import Decimal
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_validator
 
 from hummingbot.core.data_type.common import OrderType, PositionAction, TradeType
 
@@ -76,6 +76,15 @@ class VolatilitySpreadConfig(BaseModel):
     fallback_buy_spreads: Optional[List[Decimal]] = None
     fallback_sell_spreads: Optional[List[Decimal]] = None
     defense: Optional[VolatilityDefenseConfig] = None
+
+    @model_serializer(mode='wrap')
+    def serialize_policy(self, handler):
+        values = handler(self)
+        # Disabled policies keep their original wire/snapshot shape. Older
+        # readers forbid unknown fields, including an otherwise harmless null.
+        if self.defense is None:
+            values.pop('defense', None)
+        return values
 
     @model_validator(mode='after')
     def check_limits(self):
