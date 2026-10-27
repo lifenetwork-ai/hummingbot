@@ -1252,3 +1252,16 @@ or hour-soak result. FE/browser integration and Cloud Run access routing are sti
 external tasks. See [report](../admin-operations-api-implementation.md),
 [evidence](../admin-operations-api-evidence.json) and
 [completed plan](../../docs/plans/ADMIN_OPERATIONS_API_TDD_PLAN.md).
+
+## Working-order activity and diagnostics (2026-10-28)
+
+- [x] Record existing proposal rejection reasons per BUY/SELL without re-running exchange checks or changing order decisions.
+- [x] Expose both-sided, one-sided, absent, idle and unavailable working-order states; scope fill observations to current working orders.
+- [x] Add a deployment-only 120-second continuous missing-order warning, disabled with 0; do not count gaps/restart/generation changes.
+- [x] Publish through existing status/liquidity reads and Swagger; use plain English working-order labels and WARNING/INFO log events.
+- [x] Verify 1,661 native tests + 11 subtests, 42 final focused tests and 18 disposable PostgreSQL tests; retain one query per status/liquidity request and no control mutation.
+
+Source changes are committed separately from the existing packaged-image results.
+No new image/load/soak, real exchange, FE browser or cloud verification is claimed.
+See [report](../mm-quote-activity.md), [evidence](../mm-quote-activity-evidence.json)
+and [completed plan](../../docs/plans/MM_QUOTE_ACTIVITY_TDD_PLAN.md).

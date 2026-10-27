@@ -20,6 +20,7 @@ and checked [OpenAPI contract](api/openapi.json).
 | Guards, bootstrap, drawdown, outflow, inventory/spread policies | YAML plus existing durable policy bindings | No | New session only where compatible with bound policy; conflicts require technical review |
 | Credentials, database, auth/CORS, logging, runtime intervals | Process environment / local `.env` / deployment secrets | No | New process with reviewed environment |
 | Swagger availability | `ENV`, default `dev` | No | New process; only `dev`/`development`, case-insensitive, expose UI/schema/assets |
+| Missing working-order warning | `MM_NO_QUOTE_WARNING_SECONDS`, default 120; 0 disables | No | New process; monitoring only, continuous window resets after restart |
 | Exchange live/demo routing | `OKX_TRADING_ENV` and matching credentials | No | Deployment-level account/environment change; not a session switch |
 
 Environment precedence is existing process values, then local dotenv, then shared

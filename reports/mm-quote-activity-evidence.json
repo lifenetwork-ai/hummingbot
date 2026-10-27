@@ -1,0 +1,58 @@
+{
+  "date": "2026-10-28",
+  "runtime_revision": "de2a272dfde3208de5a4f1adeaeec4aa5f03f74b",
+  "verification": {
+    "native_passed": 1661,
+    "native_subtests_passed": 11,
+    "native_groups": [
+      165,
+      11,
+      1052,
+      433
+    ],
+    "final_focused_passed": 42,
+    "postgres_selection_passed": 18,
+    "postgres_deselected": 193,
+    "swagger_drift_passed": true,
+    "read_queries_per_status_or_liquidity": 1,
+    "read_mutations": false
+  },
+  "monitoring": {
+    "default_warning_seconds": 120,
+    "disabled_value": 0,
+    "continuous_sample_max_gap_seconds": 5,
+    "log_repeat_seconds": 60,
+    "fill_scope": "current_working_orders",
+    "api_overrides": false
+  },
+  "source_sha256": {
+    "controllers/market_making/life_mm.py": "0d93fa5cb2641a1c269eee074872fb4bd362dd0c9eed409bf1f3c6803affcda3",
+    "hummingbot/core/mm_liquidity.py": "17599538f804d0202557df01e5b65ae029ca653238c66dece1b930f9c541c7a9",
+    "hummingbot/core/mm_quote_activity.py": "be504d26f630956bd4ff6731cae799b343480387b533307d1d696510c6a39ea9",
+    "hummingbot/cli/admin_models.py": "6b35abc4560a7f02b735d2154a304645a525a74510bcba51cfca23a78d31670f",
+    "hummingbot/cli/admin_operations.py": "721a5707fa4847cd51ec2213b0d2fa5bfb334649a9d52f4c266a2c980e4718d2",
+    "hummingbot/client/config/admin_config.py": "7e3a352c4eacad6d2953ca4c89d841a6378126a0e71b4c22ed60675eef2f8292",
+    "hummingbot/client/config/defaults.py": "98f95a916cc30c1a5563d3d8003fa931783b33e79e36332800c6c1685f6f6266",
+    "docs/api/openapi.json": "0b99dd8154fb298b92cfd69cd142f6adb02a6a5c37916b4d801b6a9e48bef62e",
+    ".env.example": "5377ea33108ce1c2c10a3727125533fca7a54049836dd919692f57e9286d8702",
+    "deploy/cloudrun/service.example.yaml": "83d5618f811299864283024bfe6c9201ea93dc138ec189143370ee74f9329a63"
+  },
+  "evidence_sha256": {
+    "build/admin-operations/quote-diagnostics-red.log": "3986ccf04c2b627b75befa2a14c152a5ba1253c39d9411e627cb743bd9b3b1a9",
+    "build/admin-operations/quote-diagnostics-green.log": "f8f83a6d4b8473a5e8c42f0de14e7262cba9ed018ee657aed7115bb1dd4884e3",
+    "build/admin-operations/quote-activity-red.log": "3f99e787f17f53410268fe59c8be931f6d67bb2ca9ef99249d4f44590c70cd6f",
+    "build/admin-operations/quote-activity-green.log": "17bb43d439ecd13627e1b6f3c6cc2cc1d7362988e236733ee9b947b8e34bdcda",
+    "build/admin-operations/quote-activity-http-red.log": "dcc7ef8ec5edec738952afa18244c5b53b69183c504a5f36dd19f617c4ec7e76",
+    "build/admin-operations/quote-activity-http-green.log": "15958b6b55e7f645c92866ae45981ded3b982e1f5523b10e29eaf852714cef4b",
+    "build/admin-operations/quote-outflow-reason-red.log": "f6a69d088fee488535d25400cd6ac7176ed2aaf40c480e34e3ef7abb164a7b60",
+    "build/admin-operations/quote-activity-plain-label-red.log": "f080d49bd0212e981cf56a18a78d562b70095173fe1c860efd84787da2e6081f",
+    "build/admin-operations/quote-activity-regression-final.log": "77da92195299b63af898a449a386c007fe5677fadb41c9faf22fb33a233bee48",
+    "build/admin-operations/quote-activity-final-focused.log": "ab936f0bddad93cc9f5829a1f3b0c27c80077323684ee0cbbbcc6e7a62b5412f",
+    "build/admin-operations/quote-activity-postgres-complete.log": "4a4f08e3cc253d88298e3525bd69e468d2b7426197b9cd944e0f321e4cf8b00a"
+  },
+  "limits": [
+    "Native and disposable PostgreSQL verification only; no newly built runtime image or load/soak acceptance.",
+    "No real exchange, Cloud Run or frontend/browser integration was exercised.",
+    "Warnings only observe continuous fresh samples; unknown periods do not count as absent orders."
+  ]
+}

@@ -86,6 +86,19 @@ drawdown and spot outflow have separate effects. For example, a spot BUY denial
 does not imply funded SELL or perpetual admission is blocked. A disabled optional
 policy is labelled **Disabled**, not **Healthy** or **Failed**.
 
+Use “Working orders” in the main UI: a quote is a resting limit buy/sell order;
+a fill is an execution. Read `status.quote_activity[market]` or the identical
+liquidity activity object for observed sides, fill scope, fresh proposal reasons
+and `warning_active`. “Current orders waiting for fills” is normal liquidity,
+not a failed session. Do not label this as zero fills over the entire session.
+
+A short no-order interval during refresh is a waiting condition. Show a persistent
+warning only when `warning_active=true`; present each missing side's English
+detail and give the operator the relevant balances, spending-policy or managed
+limits panel. Proposal counts are not working orders. Unknown/stale data must
+show “Order status unavailable,” without keeping an old warning as current.
+See [activity semantics](life-mm-history-liquidity.md#working-orders-fills-and-missing-order-warnings).
+
 Keep a fallback for unknown phase/reason codes: display a neutral explanation and
 observation time instead of crashing or guessing that it is safe.
 Backend action guidance is advisory; submitting a command still requires the

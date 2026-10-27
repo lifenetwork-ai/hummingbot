@@ -123,6 +123,13 @@ are disclosed without rewriting the historical session.
 
 ## History and charts
 
+`/status.quote_activity` and `/statistics/liquidity` expose per-market working
+orders, current-working-order fill observations, per-side proposal reasons and
+continuous missing-order warnings. Operator messages are English and use
+“Working orders.” The deployment setting `MM_NO_QUOTE_WARNING_SECONDS` defaults
+to 120; 0 disables warnings. See [activity semantics](life-mm-history-liquidity.md#working-orders-fills-and-missing-order-warnings)
+for freshness, reset rules and the limited fill-observation scope.
+
 `GET /commands` discovers control receipts, with optional `action`, `status` and
 `session_id` filters. `GET /sessions` discovers recorded session creations, their
 latest recorded transitions and links to events/configuration. Both accept

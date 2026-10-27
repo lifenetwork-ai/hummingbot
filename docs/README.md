@@ -16,7 +16,7 @@ under the ignored `build/` directory.
 | [Admin API](admin-api.md) | Authentication, commands, reporting and reconciliation |
 | [Configuration ownership](admin-configuration-ownership.md) | API controls versus YAML/environment, pinned settings and restart/rollout rules |
 | [Operations dashboard integration](admin-dashboard-integration.md) | FE screen/API mapping, commands, freshness, polling and operational UX |
-| [Session history and liquidity](life-mm-history-liquidity.md) | Atomic transitions, recorded configuration, sampled quote coverage and FE polling |
+| [Session history and liquidity](life-mm-history-liquidity.md) | Atomic transitions, working-order/fill observations, missing-order warnings and sampled liquidity |
 | [Optional fee/NATR spreads](life-mm-spread-policy.md) | Existing maker fee conversion and completed-candle NATR, fallback/wait and rounding |
 | [Strict quote guards](life-mm-quote-guards.md) | Opt-in market deviation, sideways range, own-order filtering and recovery |
 | [Managed MM drawdown](life-mm-drawdown.md) | Covered V2 report limits, retained-market valuation, durable peaks and position-preserving HALT |
@@ -35,6 +35,7 @@ under the ignored `build/` directory.
 - [LIFE / OKX incremental enhancements — TDD plan](plans/LIFE_OKX_MM_ENHANCEMENTS_TDD_PLAN.md)
 - [Pre-listing economic stress plan](plans/LIFE_MM_ECONOMIC_STRESS_PLAN.md)
 - [Operations API and configuration ownership plan](plans/ADMIN_OPERATIONS_API_TDD_PLAN.md)
+- [Working-order activity and diagnostics plan](plans/MM_QUOTE_ACTIVITY_TDD_PLAN.md)
 - [OpenAPI contract](api/openapi.json), generated from API handlers/models with
   `make swagger` and checked with `make swagger-check`. This JSON is API
   documentation, rather than a test-result artifact.
