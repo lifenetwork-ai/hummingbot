@@ -9,6 +9,7 @@ import tempfile
 import threading
 import time
 import tracemalloc
+from collections import Counter
 from decimal import Decimal
 from pathlib import Path
 from statistics import median
@@ -54,6 +55,8 @@ def main():
     parser.add_argument('--image', default='hummingbot-cloudrun:local')
     parser.add_argument('--seconds', type=int, default=600)
     parser.add_argument('--component-only', action='store_true')
+    parser.add_argument('--check-position-startup', action='store_true',
+                        help='Also reject private-stream contract-size startup errors across the complete lifecycle')
     args = parser.parse_args()
     if args.component_only:
         print(json.dumps(component_probe(), indent=2))
@@ -152,6 +155,20 @@ def main():
             assert final['retention']['strategies'] == final['retention']['providers'] == 0, final['retention']
             component = docker('exec', client, 'python', '/test-assets/test_mm_memory.py', '--component-only', timeout=90)
             evidence['component'] = json.loads(component.stdout)
+            if args.check_position_startup:
+                logs = docker('logs', bot)
+                errors = []
+                for line in (logs.stdout + logs.stderr).splitlines():
+                    try:
+                        event = json.loads(line)
+                    except ValueError:
+                        continue
+                    if event.get('severity') == 'ERROR':
+                        errors.append(event)
+                evidence['runtime_error_messages'] = dict(Counter(event['message'] for event in errors))
+                metadata_errors = [event for event in errors if 'Missing or invalid contract size' in event.get('exception', '')]
+                evidence['contract_size_startup_errors'] = len(metadata_errors)
+                assert not metadata_errors, 'Private position startup metadata regression; inspect retained runtime logs'
             evidence['passed'] = True
         finally:
             finished.set()

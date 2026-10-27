@@ -41,6 +41,41 @@ initial implementation rejected an entire response containing one malformed
 instrument. The existing ignore-bad-rule regression caught that; validation now
 skips just the invalid instrument and preserves valid neighbors.
 
-Full native regression passes **1,703 tests + 11 subtests**. PostgreSQL and built
-image verification are recorded below when completed. No real OKX account or
+Full native regression passes **1,703 tests + 11 subtests**. Final PostgreSQL and built
+image verification are recorded below. No real OKX account or
 Cloud Run deployment is used by these local simulator checks.
+
+## Final image verification — passed
+
+Full PostgreSQL regression: **219 passed**. The current amd64 image
+`2468c5f49687` byte-matches six changed runtime Python sources, including the
+position handler. The 300-second internal-network simulator run exercised both
+markets, 30-second random steps, explicit Stop/Start, fixed/random Switch and a
+final Stop. It seeded 100,000 orders and 100,000 fills and ran with 1 CPU / 2 GiB
+for the bot on an arm64 host with amd64 emulation.
+
+- **0 contract-size startup errors; 0 structured ERROR logs**, including retained
+  runtime logs after cleanup. Real error handlers/severity were not suppressed.
+- All **6,000 original + 1,500 auxiliary reads** completed, with zero unexpected
+  HTTP errors. Original p95/p99: **72.8 / 301.4 ms**; auxiliary: **62.8 / 141.7 ms**.
+- **298/298 fills** agreed on the independent recorder/exchange comparison;
+  positions matched. A pre-completion checkpoint recorded nine step starts and
+  all Start/Stop/Switch receipts succeeded, with no HALT.
+- Peak RSS: **322.8 MiB**; first/last sample median growth: **3.5 MiB**. After Stop
+  and the diagnostic collection, old strategies/providers were **0/0**, with two
+  remaining service/probe tasks. No forced GC was used during the load window.
+
+The diagnostic runner now supports `--check-position-startup` to repeat the
+specific full-log regression gate. This is a scoped lifecycle/load check, not a
+new unchanged hour-long release gate or real-exchange reconnect verification:
+
+```sh
+python scripts/test_mm_memory.py --image hummingbot-cloudrun:local --seconds 300 --check-position-startup
+```
+
+See [portable evidence](okx-ws-position-startup-evidence.json) and the
+[completed plan](../docs/plans/OKX_WS_POSITION_STARTUP_TDD_PLAN.md). Raw artifacts
+remain in `build/memory-review/20261028-031943/` and `build/ws-startup-review/`.
+The historical ten-minute run retains its four errors; the differing windows
+are not a controlled RSS/latency comparison. No database migration, API/YAML
+change, extra production task or real order was required by this fix.

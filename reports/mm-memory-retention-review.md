@@ -145,3 +145,10 @@ See [portable evidence](mm-memory-retention-evidence.json) and the
 [completed checklist](../docs/plans/MM_MEMORY_RETENTION_REVIEW.md). Raw artifacts
 remain in `build/memory-review/20261028-024013/`. No real exchange, cloud deploy,
 new sixty-minute release gate or multi-day uptime verification was performed.
+
+## Startup follow-up resolved
+
+The early private-position contract-size issue above was subsequently fixed and
+verified in [the WS startup review](okx-ws-position-startup.md). Its new image
+lifecycle run recorded zero contract-size/ERROR logs. The historical measurements
+and four errors in this report/evidence remain unchanged.

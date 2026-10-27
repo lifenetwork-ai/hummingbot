@@ -38,6 +38,7 @@ under the ignored `build/` directory.
 - [Working-order activity and diagnostics plan](plans/MM_QUOTE_ACTIVITY_TDD_PLAN.md)
 - [Until-stopped MM sessions plan](plans/MM_UNTIL_STOPPED_TDD_PLAN.md)
 - [MM memory retention review plan](plans/MM_MEMORY_RETENTION_REVIEW.md)
+- [OKX WS position startup TDD plan](plans/OKX_WS_POSITION_STARTUP_TDD_PLAN.md)
 - [OpenAPI contract](api/openapi.json), generated from API handlers/models with
   `make swagger` and checked with `make swagger-check`. This JSON is API
   documentation, rather than a test-result artifact.

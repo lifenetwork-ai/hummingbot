@@ -1,0 +1,161 @@
+{
+  "date": "2026-10-28",
+  "status": "Position startup race fixed; scoped tests and image lifecycle checks passed",
+  "source_revision": "46c4bc9940654944a7f3b87843298eb2f2aaa9fc",
+  "image": {
+    "image_id": "sha256:2468c5f49687b889940daf5316bb55ec8c7cda5cedc33480d8f86f651a9728b9",
+    "image_bytes": 1366812494,
+    "architecture": "amd64",
+    "source_sha256": {
+      "hummingbot/cli/service.py": "dbca789a4cdd2728b92f45d26fd270235cbb589e7677466ae65e6f3b8e01b790",
+      "hummingbot/connector/derivative/okx_perpetual/okx_perpetual_derivative.py": "ca645bb81e74727d81ecce01a5324ae0834be7304cf5b2356c5f25d64f3fc666",
+      "hummingbot/connector/markets_recorder.py": "62d3a1c05e9f7e8ee496ec44b329ffac0ba27e1248011292fddf6c694239320a",
+      "hummingbot/core/bot_ownership.py": "1bd44653dc7c79c93ac5b1450751c36820ecbf09ae2de452f93ffe68652af507",
+      "hummingbot/core/trading_core.py": "f5905a2102ed7f7cd9e5050dc9ac090285cddff57f078d9a0c23e7b8edda0ae2",
+      "hummingbot/strategy_v2/executors/executor_orchestrator.py": "2d44f48d962bb3f48237138b62a11bd5de638636606d14c9c297273d60f2c42f"
+    },
+    "source_matches": true
+  },
+  "host_architecture": "arm64",
+  "diagnostic": true,
+  "release_scope_complete": false,
+  "tests": {
+    "native": 1703,
+    "subtests": 11,
+    "postgres": 219,
+    "connector_selection": 154,
+    "connector_selection_subtests": 9,
+    "focused_startup_selection": 12
+  },
+  "raw_result": {
+    "path": "build/memory-review/20261028-031943/result.json",
+    "sha256": "8f5afa97dff56c388f8f115dde7b8ff43e8ba9302136e996163fd46c4b9fa473"
+  },
+  "workload": {
+    "seconds": 300,
+    "history_orders": 100000,
+    "history_fills": 100000,
+    "bot_cpus": 1,
+    "bot_memory_bytes": 2147483648,
+    "modes": "Both markets, until-stopped random/fixed, Stop/Start and two Switch commands"
+  },
+  "metrics": {
+    "requested_reads": 6000,
+    "completed_reads": 6000,
+    "unexpected_errors": 0,
+    "read_p95_ms": 72.82965800004604,
+    "read_p99_ms": 301.36930499998016,
+    "peak_rss_bytes": 338436096,
+    "auxiliary": {
+      "requested_reads": 1500,
+      "completed_reads": 1500,
+      "statuses": {
+        "200": 1500
+      },
+      "read_p95_ms": 62.76825600002667,
+      "read_p99_ms": 141.66390499997306
+    }
+  },
+  "contract_size_startup_errors": 0,
+  "runtime_error_messages": {},
+  "retained_runtime_log_errors": {},
+  "ledger": {
+    "unique_exchange_fills": 298,
+    "unique_recorder_fills": 298,
+    "positions_matched": true,
+    "identified_funding_bills": 0,
+    "daily_snapshots": 3
+  },
+  "controls": [
+    {
+      "action": "restart_session",
+      "elapsed_seconds": 94.25447329110466,
+      "receipt_id": "a25677c5-e102-4d8a-890e-92903126c173"
+    },
+    {
+      "action": "fixed",
+      "elapsed_seconds": 183.1386587501038,
+      "receipt_id": "a8d74c51-9ac4-4dd0-a093-571a6a239659"
+    },
+    {
+      "action": "random",
+      "elapsed_seconds": 213.05223845806904,
+      "receipt_id": "7396e929-4ebf-4d0e-8252-888bffe19eb4"
+    }
+  ],
+  "after_stop_gc": {
+    "tasks": 2,
+    "strategies": 0,
+    "providers": 0,
+    "gc_runs": 1,
+    "resident_executors": 0,
+    "processed_executor_ids": 0,
+    "position_order_ids": 0,
+    "resident_held_order_ids": 0,
+    "connectors": {}
+  },
+  "rss_growth_bytes": 3670016.0,
+  "checkpoint": {
+    "at": "2026-10-27T20:24:38.234163+00:00",
+    "phase": "running",
+    "halt": null,
+    "steps": 9,
+    "commands": [
+      {
+        "action": "start",
+        "status": "succeeded"
+      },
+      {
+        "action": "stop",
+        "status": "succeeded"
+      },
+      {
+        "action": "start",
+        "status": "succeeded"
+      },
+      {
+        "action": "switch",
+        "status": "succeeded"
+      },
+      {
+        "action": "switch",
+        "status": "succeeded"
+      }
+    ]
+  },
+  "fixture_sha256": {
+    "test_mm_memory.py": "ee063bdfae89e8bfca8c26fd6d7b175ecb94610c9aafa6d8b014eb376985cda1",
+    "controller-spot.yml": "6f4f0d567b54d9b1152c8e5f15b014d4d1d77f6d845b38bb8541e9e4f2449078",
+    "exchange.py": "efe73d8a850e1b645b8527c112fbc4a782e25d36d61ca23eefda7db66a8aa887",
+    "pmm.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+    "load_service.py": "713ae3a986fbdd13cf3cab852d77f5dbaf752ec61a1b8c04ac639bc5401bdd56",
+    "runtime_smoke.py": "e4205b4605cf3990b7138b5e5fdd9dd244e7e18898827d4d8b89ea47a4331c30",
+    "life_mm_profiles.yaml": "035a8743913fd9786ff36077762297334b059b09870e5a084318d49bbf34242e",
+    "load_trace.py": "0469550580134e390453ad1fd75513a9a43163493c53d5a260f2ea6d6003b0fe",
+    "script-perpetual.yml": "a4eeed6b7576af41a387ae115122c9130bd55c9a43b8d40f9e8b86a023b95132",
+    "pmm-revised.yml": "c9897fd4a3894c86c2724e5fab9cc615d837c35d615a307ebd8e2d8197ff7cfc",
+    "fixtures.json": "92308feed4a3a84939942c334c2d78696fbfff684eabe6ea3f7abf0391fe0e06",
+    "controller-perpetual.yml": "9e1479b071f476626f448df4aba8e0a75b9cc8eee0a623b6b9f9ce4fb3360b45",
+    "load_client.py": "1113ad4c611075e372a388acda93e5287810f3d97d86fa4f7bab47aecc874f1f"
+  },
+  "log_sha256": {
+    "build/ws-startup-review/red-final.log": "ed46424b50abe5c28e1aae02cf2e59ec900bbdb3da57cbcfea0915a8c57823f7",
+    "build/ws-startup-review/connector-green-final.log": "f75b284ba2d652cd8330b6a890ed3b4aebab08688a2043ab99b90b35c3904ab6",
+    "build/ws-startup-review/lifecycle-final.log": "8fb4e7c4f651ab8fe0ebc2c968d4a41be65aa4cbb3a599352456bf5e1984ef83",
+    "build/ws-startup-review/native.log": "fc774a1e396079787a7506112c39917cdef0632e658decb23a8403677bb06260",
+    "build/ws-startup-review/postgres.log": "3a7b938e16d68f128dd33caa01252dff4b8d6e367592d67083eded47ae2bba38",
+    "build/ws-startup-review/image-churn.log": "18ca3345ec4a517f80be4a29e0925ea2515cc73e090b017ca0b3eb1ebd52cefd",
+    "build/ws-startup-review/probe-hooks.log": "360c0680ffeedd2aacf06436710a7f51de37e1ca622b4794c532fd6d2b37fbda"
+  },
+  "historical_comparison": {
+    "path": "reports/mm-memory-retention-evidence.json",
+    "startup_errors": 4,
+    "scope": "Different historical ten-minute run/image; retained unchanged, not a matched performance benchmark"
+  },
+  "not_verified": [
+    "New sixty-minute release soak",
+    "Real OKX reconnect/network fault session",
+    "Cloud Run deployment",
+    "Multi-day uptime"
+  ]
+}

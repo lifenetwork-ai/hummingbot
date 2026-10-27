@@ -63,8 +63,12 @@ after the measured window and Stop to check collectability; production GC policy
 is unchanged. After building the image, run:
 
 ```sh
-python scripts/test_mm_memory.py --image hummingbot-cloudrun:local --seconds 600
+python scripts/test_mm_memory.py --image hummingbot-cloudrun:local --seconds 600 --check-position-startup
 ```
 
 See [retention review](../reports/mm-memory-retention-review.md) for measured
 scope and limitations. A bounded probe is not proof of unlimited uptime.
+
+`--check-position-startup` also checks the entire runtime log for the resolved
+private-position contract-size startup error. It does not change service logging
+or relax position/readiness validation.

@@ -1291,5 +1291,18 @@ not claim a new full release soak, real exchange, cloud deployment or FE browser
 See [report](../mm-memory-retention-review.md), [evidence](../mm-memory-retention-evidence.json)
 and [completed checklist](../../docs/plans/MM_MEMORY_RETENTION_REVIEW.md). This is
 scoped memory evidence, not a new release-hour/multi-day production guarantee.
-Early private-stream contract-size initialization errors remain a separately
-recorded startup follow-up; they were not hidden by the HTTP-error result.
+Early private-stream contract-size initialization errors were recorded as a
+startup follow-up; the later section below records their resolution. The old
+HTTP-error result did not hide those runtime logs.
+
+## OKX private-position startup ordering (2026-10-28)
+
+- [x] Reproduce cold WS metadata ordering and verify warm reconnect, cancellation/retry, REST fencing and invalid sizes with TDD.
+- [x] Reuse existing lazy instrument lookup/lock and publish symbols with validated contract sizes; preserve readiness, exact units and error handling.
+- [x] Pass 1,703 native tests + 11 subtests, 219 PG tests and a 300-second current-image lifecycle/load diagnostic.
+- [x] Verify zero contract-size/structured ERROR logs, 7,500 completed reads, 298/298 matching fills and correct positions through Stop/Start/Switch.
+- [x] Close the earlier memory-review startup follow-up while retaining its historical four errors and original image evidence.
+
+See [report](../okx-ws-position-startup.md), [evidence](../okx-ws-position-startup-evidence.json)
+and [completed plan](../../docs/plans/OKX_WS_POSITION_STARTUP_TDD_PLAN.md). No real
+OKX, cloud deployment, hour-long release gate or multi-day uptime claim is added.
