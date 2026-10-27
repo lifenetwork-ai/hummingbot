@@ -172,5 +172,5 @@ Raw logs remain under ignored `build/e0/`, `build/e2e-offline/` and `build/mm-lo
   external cache, Cloud Run deployment or real OKX Demo operation.
 
 Operational contracts are in the [runtime guide](../docs/postgres-runtime.md),
-[admin API guide](../docs/admin-api.md) and
+[admin API guide](../docs/fe-integration.md) and
 [local test guide](../docs/life-mm-load-tests.md).

@@ -501,7 +501,7 @@ The actual image/simulator matrix and Demo transport/account acceptance remain P
 - [x] Package Swagger UI at `/api/v1/admin/docs`, reading the generated `/api/v1/admin/openapi.json`; verify Basic Auth, command headers and schema/UI availability without external assets.
 - [x] **Green/refactor:** exercise all three market modes and supported commands with bounded read/query assertions; record evidence and commit.
 
-P3 evidence: [implementation progress](../../reports/implementation/LIFE_OKX_PROGRESS.md#p3--admin-api-reporting-and-observational-reconciliation) and [admin API guide](../admin-api.md).
+P3 evidence: [implementation progress](../../reports/implementation/LIFE_OKX_PROGRESS.md#p3--admin-api-reporting-and-observational-reconciliation) and [admin API guide](../fe-integration.md).
 1,362 unit/regression tests, 2 subtests and all 100 disposable-PostgreSQL tests pass.
 Swagger drift and changed-file pre-commit checks pass. Deployment-image integration,
 local load/soak and exchange Demo acceptance remain P4–P6.

@@ -85,13 +85,13 @@ HTTP/docs/Swagger selection also passed 28 tests.
 
 ## D — FE and maintainer handoff
 
-The [ownership matrix](../docs/admin-configuration-ownership.md) separates session
+The [ownership matrix](../docs/fe-integration.md#what-can-change-and-when) separates session
 controls, immutable YAML settings, deployment environment and durable risk-policy
 bindings. Examples cover restart, changed YAML, legacy overrides and technical
 recovery. The API guide and original plan's command examples no longer recommend
 reference/random overrides on new requests.
 
-The [FE guide](../docs/admin-dashboard-integration.md) keeps Market, Profile/Random
+The [FE guide](../docs/fe-integration.md) keeps Market, Profile/Random
 and Duration as the editable session form. It specifies short English operator
 messages, read-only managed settings, Details for technical fields, stable history
 links, safe retry behavior, shared-wallet accounting and per-widget freshness.

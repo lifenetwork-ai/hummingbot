@@ -11,7 +11,7 @@ is making state, errors and recovery understandable, rather than adding another
 trading engine or analytics platform. Liquidity, availability, inventory and
 operating cost take precedence over profit in this dashboard.
 
-The [FE integration guide](../docs/admin-dashboard-integration.md) defines the
+The [FE integration guide](../docs/fe-integration.md) defines the
 proposed screens and how to use today's contract. Recommendations below are
 **not implemented by this review**. No trading or deployment settings changed.
 
@@ -189,7 +189,7 @@ Priority: correct labels now; historical intraday storage can wait.
 
 The findings above describe the original review baseline. Backend follow-up is
 recorded in [the implementation report](admin-operations-api-implementation.md).
-The current [ownership contract](../docs/admin-configuration-ownership.md)
+The current [ownership contract](../docs/fe-integration.md#what-can-change-and-when)
 supersedes the original request-override behavior. Unchecked external tasks are
 not failures of the backend test suite.
 

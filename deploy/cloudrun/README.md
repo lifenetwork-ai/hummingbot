@@ -29,7 +29,7 @@ restart does not reset that state.
 
 The service exposes GET `/startup`, `/live`, and `/ready`. With
 `ADMIN_API_ENABLED=true`, it also exposes Basic Auth control/reporting endpoints
-and Swagger; see the [admin API guide](../../docs/admin-api.md). Startup becomes
+and Swagger; see the [admin API guide](../../docs/fe-integration.md). Startup becomes
 successful after migrations/schema/configuration/credential bootstrap, including
 valid stopped or standby states. Liveness does not query the DB/exchange.
 Readiness describes active trading; do not use it as a deployment startup probe,

@@ -169,7 +169,7 @@ handling were not changed. Existing deprecation/AsyncMock warnings remain visibl
 ## P3 — Admin API, reporting and observational reconciliation
 
 Implemented on the existing aiohttp/owner/recorder paths. Operational details and
-response semantics: [admin API guide](../../docs/admin-api.md). No OKX account, live order
+response semantics: [admin API guide](../../docs/fe-integration.md). No OKX account, live order
 or deployment was used. The following evidence covers local P3 behavior; the
 deployment image/scenario matrix, load/soak and Demo gates remain P4–P6.
 

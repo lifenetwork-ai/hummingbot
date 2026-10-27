@@ -68,7 +68,7 @@ image is verified locally; existing real Demo funding/trading evidence retains
 its original image identity. No real exchange orders or Demo database changes
 are part of this follow-up.
 
-Operational contracts: [admin reconciliation](../docs/admin-api.md#observational-reconciliation),
+Operational contracts: [admin reconciliation](../docs/fe-integration.md#observational-reconciliation),
 [funding observation](../docs/postgres-runtime.md#funding-while-trading-is-stopped).
 
 ## Final image and load verification

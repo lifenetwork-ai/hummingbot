@@ -188,7 +188,7 @@ curl --fail-with-body --user demo-admin \
 `curl` prompts for the admin password. Use `selection: random` instead of the
 fixed selection/profile fields to draw from the configured `random.profile_ids`.
 Switch/stop require the current session ID and control version; follow the
-[admin API contract](admin-api.md). A command receipt is not proof of quote
+[admin API contract](fe-integration.md). A command receipt is not proof of quote
 admission: inspect its completion and the market readiness/reason fields.
 
 ## Cloud Run configuration
