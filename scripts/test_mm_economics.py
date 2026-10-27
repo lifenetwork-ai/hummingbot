@@ -59,6 +59,7 @@ def aggregate(cases):
                            worst_equity_drawdown_quote=str(max(Decimal(row['max_equity_drawdown_quote']) for row in metrics)),
                            median_joint_quality_fraction=str(statistics.median(quality)), worst_joint_quality_fraction=str(min(quality)),
                            no_fill_cases=sum(row['fills'] == 0 for row in metrics),
+                           outflow_above_cap_cases=sum(row['outflow_above_cap_observations'] > 0 for row in metrics),
                            negative_initial_margin_headroom_cases=sum(Decimal(row['minimum_initial_margin_headroom_quote']) < 0 for row in metrics),
                            total_fills=sum(row['fills'] for row in metrics), total_fees_quote=str(sum((Decimal(row['fees_quote']) for row in metrics), Decimal(0)))))
     return groups
@@ -106,6 +107,8 @@ async def run_experiment(cfg, output, *, diagnostic=False, case_runner=run_case)
     try:
         dimensions = itertools.product(cfg.scenarios, cfg.seeds, cfg.profiles, cfg.market_modes, cfg.variants, cfg.sensitivities)
         for index, (scenario, seed, profile, market_mode, variant, sensitivity) in enumerate(dimensions, 1):
+            result['current_case'] = dict(index=index, scenario=scenario, seed=seed, profile=profile,
+                                          market_mode=market_mode, variant=variant, sensitivity=sensitivity)
             case = await case_runner(cfg, scenario=scenario, seed=seed, profile=profile, market_mode=market_mode,
                                      variant=variant, sensitivity=sensitivity)
             key = (scenario, seed)
@@ -134,6 +137,7 @@ async def run_experiment(cfg, output, *, diagnostic=False, case_runner=run_case)
             raise AssertionError('Replay source changed during experiment')
         result.update(integrity_passed=True, cases=cases, groups=aggregate(cases),
                       exogenous_tape_count=len(tapes), completed_cases=len(cases))
+        result.pop('current_case', None)
         (output / 'review.md').write_text(markdown(result))
     except BaseException as error:
         result.update(error_type=type(error).__name__, completed_cases=len(cases), cases=cases)

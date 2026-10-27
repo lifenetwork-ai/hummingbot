@@ -223,13 +223,13 @@ async def run_case(cfg, *, scenario, seed, profile, market_mode, variant, sensit
     outflow = SpotOutflowProjection(SpotOutflowConfig(window_seconds=cfg.outflow_window_seconds,
                                                       max_net_outflow_quote=cfg.outflow_cap_quote, fee_allowance_rate=cfg.fee_allowance_rate), 'LIFE-USDT',
                                     coverage_start_ms=(EPOCH - cfg.outflow_window_seconds) * 1000)
-    orders, rows, fills, funding_rows, equity = [], [], [], [], []
+    orders, rows, fills, funding_rows, equity, buy_admissions = [], [], [], [], [], []
     reasons = Counter()
     stats = {market: dict(elapsed_seconds=cfg.duration_seconds, eligible_seconds=0, qualified_seconds=0,
                           eligible_qualified_seconds=0) for market in markets}
     peak_outflow, volume, equity_peak, drawdown, cancellations, rejections = ZERO, ZERO, wallet.equity(cfg.initial_mark), ZERO, 0, 0
     min_cash, min_base, max_base, peak_gross, min_margin = wallet.cash, wallet.base, wallet.base, ZERO, wallet.cash
-    joint_quality, expired_placements = 0, 0
+    joint_quality, expired_placements, outflow_above_cap = 0, 0, 0
     with patch('controllers.market_making.life_mm.time', SimpleNamespace(monotonic=provider.time, time=provider.time)), \
             patch('test.e2e.offline.exchange.millis', lambda: str(int(provider.time() * 1000))):
         provider.observe(tape[0])
@@ -343,6 +343,9 @@ async def run_case(cfg, *, scenario, seed, profile, market_mode, variant, sensit
                                 if not outflow.reserve(SimpleNamespace(client_order_id=identifier, amount=amount, price=price)):
                                     reasons['spot_outflow_cap'] += 1
                                     continue
+                                assert max(ZERO, outflow.net) + outflow.reserved() <= cfg.outflow_cap_quote
+                                buy_admissions.append(dict(order_id=identifier, at=tick, committed_positive=str(max(ZERO, outflow.net)),
+                                                           reserved_after=str(outflow.reserved()), cap=str(cfg.outflow_cap_quote)))
                             config = config.model_copy(update={'id': identifier, 'entry_price': price, 'amount': amount})
                             order = PassiveOrder(identifier, market, config.side.name, price, amount, tick,
                                                  tick + assumptions.placement_latency_seconds, assumptions.queue_ahead_base,
@@ -356,7 +359,9 @@ async def run_case(cfg, *, scenario, seed, profile, market_mode, variant, sensit
                                                                posSide='long' if config.side == TradeType.BUY else 'short', state='live', accFillSz='0',
                                                                px=str(price), sz=str(amount / (CONTRACT if market == 'perpetual' else 1)))
                 peak_outflow = max(peak_outflow, max(ZERO, outflow.net) + outflow.reserved())
-                assert peak_outflow <= cfg.outflow_cap_quote + D('1e-18')
+                # Expiring earlier SELL credits can raise the rolling net after
+                # valid earlier buys. Only new BUY admission is constrained.
+                outflow_above_cap += int(max(ZERO, outflow.net) + outflow.reserved() > cfg.outflow_cap_quote)
                 min_cash, min_base, max_base = min(min_cash, wallet.cash), min(min_base, wallet.base), max(max_base, wallet.base)
                 peak_gross = max(peak_gross, sum((abs(h.net_amount_base) for h in wallet.holds.values()), ZERO))
                 margin = wallet.cash + wallet.unrealized(mark) - sum((abs(h.net_amount_base) * h.avg_entry_price / 2 for h in wallet.holds.values()), ZERO)
@@ -423,6 +428,7 @@ async def run_case(cfg, *, scenario, seed, profile, market_mode, variant, sensit
                              excess_over_hold_after_cost_quote=str(final - hold - operating), max_equity_drawdown_quote=str(drawdown),
                              ending_cash=str(wallet.cash), ending_spot_base=str(wallet.base), min_cash=str(min_cash), min_spot_base=str(min_base),
                              max_spot_base=str(max_base), peak_spot_outflow_with_reservations_quote=str(peak_outflow),
+                             outflow_above_cap_observations=outflow_above_cap,
                              ending_perpetual_long_base=str(wallet.holds['BUY'].net_amount_base),
                              ending_perpetual_short_base=str(abs(wallet.holds['SELL'].net_amount_base)), peak_perpetual_gross_base=str(peak_gross),
                              minimum_initial_margin_headroom_quote=str(min_margin), observed_net_cost_quote=str(net_cost),
@@ -432,4 +438,5 @@ async def run_case(cfg, *, scenario, seed, profile, market_mode, variant, sensit
                              cancels=cancellations, post_only_rejections=rejections, expired_placement_rejections=expired_placements,
                              observation_seconds=tape[-1]['at']),
                 liquidity=stats, reasons=dict(reasons), markouts=markouts(fills, {row['at']: D(row['mark']) for row in tape}),
-                raw=dict(tape=tape, fills=fills, recorder_shaped_fills=rows, funding_bills=exchange.funding_bills, orders=order_rows, equity=equity))
+                raw=dict(tape=tape, fills=fills, recorder_shaped_fills=rows, funding_bills=exchange.funding_bills,
+                         spot_buy_admissions=buy_admissions, orders=order_rows, equity=equity))

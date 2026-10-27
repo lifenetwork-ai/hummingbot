@@ -89,6 +89,13 @@ inventory. It is distinct from the covered-V2 drawdown guard. Remaining inventor
 and positions, gross exposure and initial-margin headroom are explicit. Marked
 PnL has no assumed terminal sale, exit slippage or exit fees.
 
+The spot rolling outflow limit constrains **new BUY admission**, using the existing
+net committed-flow formula and reservations. Expiring older SELL credits can
+raise the measured net above the cap after previously valid buys; it is not a
+continuous hard loss/gross-spending guarantee. The experiment retains every BUY
+admission check, peak rolling measurement and above-cap observation rather than
+clipping results or treating that legitimate window transition as corrupt data.
+
 Liquidity requires both resting sides around the independent scenario mark,
 the declared maximum spread and minimum depth within its half-band. The full
 session is the denominator, including startup, waits and bad quotes. Both mode

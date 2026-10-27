@@ -177,3 +177,14 @@ async def test_failed_matrix_retains_completed_case_without_claiming_acceptance(
     assert not result['integrity_passed'] and result['completed_cases'] == 1
     assert (output / 'case-0001.json').exists() and not (output / 'review.md').exists()
     assert len((output / 'cases.jsonl').read_text().splitlines()) == 1
+
+
+@pytest.mark.asyncio
+async def test_rolling_sell_credit_expiry_is_reported_without_inventing_an_over_cap_buy():
+    from test.e2e.offline.mm_economics_replay import run_case
+    result = await run_case(experiment(), scenario='reference_divergence', seed=11, profile='sideways',
+                            market_mode='spot', variant='fixed', sensitivity='assumed_base')
+    assert D(result['metrics']['peak_spot_outflow_with_reservations_quote']) > experiment().outflow_cap_quote
+    assert result['metrics']['outflow_above_cap_observations'] > 0
+    admissions = result['raw']['spot_buy_admissions']
+    assert admissions and all(D(row['committed_positive']) + D(row['reserved_after']) <= D(row['cap']) for row in admissions)
