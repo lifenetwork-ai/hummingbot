@@ -91,6 +91,48 @@ async def test_emitter_counts_only_delivered_book_frames_under_burst_load():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('closing_channel', ['books', 'candle1s'])
+async def test_closed_transport_during_market_send_does_not_kill_other_subscribers(closing_channel):
+    import asyncio
+
+    from aiohttp import ClientConnectionResetError
+    with patch('test.e2e.offline.exchange.Path.read_text', return_value=json.dumps({})):
+        exchange = Exchange()
+    delivered = asyncio.Event()
+    messages = []
+
+    class ClosingSocket:
+        closed = False  # The transport closes after the initial closed check.
+
+        async def send_json(self, message):
+            raise ClientConnectionResetError('Cannot write to closing transport')
+
+    class HealthySocket:
+        closed = False
+
+        async def send_json(self, message):
+            messages.append(message)
+            delivered.set()
+
+    closing, healthy = ClosingSocket(), HealthySocket()
+    exchange.socket_args[closing] = [dict(channel=closing_channel, instId='LIFE-USDT')]
+    exchange.socket_args[healthy] = [dict(channel='books', instId='LIFE-USDT')]
+    exchange.sockets[closing] = {closing_channel}
+    exchange.target_updates_per_second = 500
+    task = asyncio.create_task(exchange.market_updates())
+    waiting = asyncio.create_task(delivered.wait())
+    try:
+        done, _ = await asyncio.wait((task, waiting), timeout=2, return_when=asyncio.FIRST_COMPLETED)
+        assert waiting in done and not task.done(), 'A closed client killed the simulator market feed'
+        assert closing not in exchange.socket_args and closing not in exchange.sockets
+        assert exchange.market_update_count == len(messages) > 0
+    finally:
+        task.cancel()
+        waiting.cancel()
+        await asyncio.gather(task, waiting, return_exceptions=True)
+
+
+@pytest.mark.asyncio
 async def test_hot_load_reads_do_not_serialize_the_growing_exchange_ledger():
     from types import SimpleNamespace
     with patch('test.e2e.offline.exchange.Path.read_text', return_value=json.dumps({})):

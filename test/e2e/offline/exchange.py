@@ -167,21 +167,27 @@ class Exchange:
             except asyncio.TimeoutError:
                 pass
             for socket, args_list in list(self.socket_args.items()):
-                for arg in list(args_list):
-                    pair = arg.get("instId", "")
-                    channel = arg.get("channel", "")
-                    if channel.startswith("candle"):
-                        bucket = int(time.time()) // self.candle_interval(channel[6:])
-                        if not socket.closed and not self.candle_stale and arg.get("last_bucket") != bucket:
-                            arg["last_bucket"] = bucket
-                            await socket.send_json({"arg": {key: value for key, value in arg.items() if key != "last_bucket"},
-                                                    "data": [self.candle(pair, channel[6:])]})
-                        continue
-                    if (socket.closed or arg.get("channel") != "books" or pair.removesuffix("-SWAP") in self.stale_pairs
-                            or pair in self.stale_instruments):
-                        continue
-                    await socket.send_json({"arg": arg, "action": "snapshot", "data": [self.book(pair)]})
-                    self.market_update_count += 1
+                try:
+                    for arg in list(args_list):
+                        pair = arg.get("instId", "")
+                        channel = arg.get("channel", "")
+                        if channel.startswith("candle"):
+                            bucket = int(time.time()) // self.candle_interval(channel[6:])
+                            if not socket.closed and not self.candle_stale and arg.get("last_bucket") != bucket:
+                                arg["last_bucket"] = bucket
+                                await socket.send_json({"arg": {key: value for key, value in arg.items() if key != "last_bucket"},
+                                                        "data": [self.candle(pair, channel[6:])]})
+                            continue
+                        if (socket.closed or arg.get("channel") != "books" or pair.removesuffix("-SWAP") in self.stale_pairs
+                                or pair in self.stale_instruments):
+                            continue
+                        await socket.send_json({"arg": arg, "action": "snapshot", "data": [self.book(pair)]})
+                        self.market_update_count += 1
+                except ConnectionError:
+                    # A client may close after the check and before send_json.
+                    # Retire that subscription without killing every other feed.
+                    self.socket_args.pop(socket, None)
+                    self.sockets.pop(socket, None)
 
     def funding(self, pair="BTC-USDT-SWAP"):
         price = self.prices[pair.removesuffix("-SWAP")]

@@ -35,6 +35,16 @@ def fault_windows(harness, bot, port, client, report, run_window, verify):
         harness.mm_command(port, "start", market_mode="both", selection="fixed", profile_id="follow_market", duration_seconds=600)
         harness.wait_running(port)
 
+    # Standalone faults need real retained positions too, not only the seeded
+    # reporting history. The full healthy profile already supplies these fills.
+    if not harness.ledger()["fills"]:
+        for instrument in ("LIFE-USDT", "LIFE-USDT-SWAP"):
+            order = next(row for row in harness.ledger()["orders"]
+                         if row["instId"] == instrument and row["side"] == "buy" and row["state"] == "live")
+            harness.control(fill={"clOrdId": order["clOrdId"], "amount": order["sz"], "fee": "0.01"}, duplicate=True)
+        poll(lambda: len(harness.ledger()["fills"]) == 2, description="standalone fault fills in both markets")
+        verify(harness, port)
+
     def feed():
         deadline = harness.state()["mm_session"]["expires_at"]
         harness.control(stale_pairs=["BTC-USDT"])
