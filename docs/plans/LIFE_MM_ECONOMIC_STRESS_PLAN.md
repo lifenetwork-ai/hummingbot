@@ -6,13 +6,13 @@ conditional stress outcomes, not calibrated backtests or profit forecasts.
 
 - [x] E0: Red/Green coverage for conservative fills, latency/cancel races,
   shared flow consumption, exact cash/fee/funding accounting and hold baseline.
-- [ ] E1: Replay the real LIFE controller, spread/inventory/quote policies and
+- [x] E1: Replay the real LIFE controller, spread/inventory/quote policies and
   upstream position accounting with local providers and no exchange/DB access.
 - [ ] E2: Paired deterministic scenarios for empty/no-flow, sideways, sustained
   buys, sustained sells, independent-reference divergence and gaps/slow cancels.
 - [ ] E3: Compare fixed, fee/volatility and fee/volatility/inventory variants on
   spot, perpetual and both with the same seed, wallet and scenario within a pair.
-- [ ] E4: Provide YAML assumptions, CLI/Make targets, bounded/censored markouts,
+- [x] E4: Provide YAML assumptions, CLI/Make targets, bounded/censored markouts,
   liquidity denominators, equity/drawdown, costs, hold-relative PnL and raw ledgers.
 - [ ] E5: Run native and packaged-runtime verification, retain provenance and
   publish a report with limitations, failures and conditional results.

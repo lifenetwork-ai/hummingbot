@@ -102,6 +102,13 @@ test-e2e-offline:
 	$(PYTHON) scripts/test_e2e_offline.py --image $(CLOUDRUN_IMAGE) --trading-env $(OFFLINE_OKX_TRADING_ENV) $(if $(CLOUDRUN_PREVIOUS_IMAGE),--previous-image $(CLOUDRUN_PREVIOUS_IMAGE),)
 
 .PHONY: test-mm-load test-mm-load-enhancements
+.PHONY: test-mm-economics test-mm-economics-probe
+test-mm-economics:
+	$(PYTHON) scripts/test_mm_economics.py
+
+test-mm-economics-probe:
+	$(PYTHON) scripts/test_mm_economics.py --probe
+
 test-mm-load:
 	$(PYTHON) scripts/test_mm_load.py --image $(CLOUDRUN_IMAGE) --profile $(MM_LOAD_PROFILE) $(if $(filter true,$(MM_LOAD_TRACE)),--trace,) $(if $(filter true,$(MM_LOAD_ENHANCEMENTS)),--enhancements,)
 

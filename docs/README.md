@@ -24,6 +24,7 @@ under the ignored `build/` directory.
 | [OKX environments](okx-environments.md) | Live/Demo routing, sites and credential variables |
 | [Explicit OKX Demo preset](okx-demo-configuration.md) | Enabled switches, BTC-USDT policies, packaging and reason-based recovery |
 | [Local load testing](life-mm-load-tests.md) | Commands, workload, budgets and verification policy |
+| [Pre-listing economic stress](life-mm-economic-stress.md) | Synthetic paired controller replay, execution assumptions, accounting and limitations |
 
 ## Plans and API contract
 

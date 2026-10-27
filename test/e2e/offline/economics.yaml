@@ -1,0 +1,49 @@
+# Synthetic experiment assumptions only. These are NOT OKX fees or production settings.
+version: 1
+duration_seconds: 300
+seeds: [11, 29]
+scenarios: [empty_no_flow, sideways, sustained_buys, sustained_sells, reference_divergence, gap_slow_cancel]
+profiles: [sideways, follow_market, follow_token]
+market_references: [{pair: BTC-USDT, weight: '0.6'}, {pair: ETH-USDT, weight: '0.4'}]
+trend_reference: {pair: AVAX-USDT, weight: '1'}
+market_modes: [spot, perpetual, both]
+variants:
+  fixed: {fee_floor: false, volatility: false, inventory_skew: false}
+  fee_volatility: {fee_floor: true, volatility: true, inventory_skew: false}
+  fee_volatility_inventory: {fee_floor: true, volatility: true, inventory_skew: true}
+sensitivities:
+  assumed_base:
+    maker_fee_rate: '0.001'
+    placement_latency_seconds: 1
+    cancel_latency_seconds: 1
+    queue_ahead_base: '10'
+    max_fill_fraction_per_event: '0.5'
+    funding_rate_per_event: '0.0001'
+  assumed_stress:
+    maker_fee_rate: '0.003'
+    placement_latency_seconds: 3
+    cancel_latency_seconds: 3
+    queue_ahead_base: '40'
+    max_fill_fraction_per_event: '0.25'
+    funding_rate_per_event: '0.001'
+initial_cash: '100'
+initial_base: '1000'
+initial_mark: '0.1'
+external_depth_base: '20'
+external_half_spread: '0.001'
+quote_budget_per_market: '40'
+spreads: ['0.0015', '0.003']
+refresh_seconds: 15
+max_spot_base: '3000'
+max_perpetual_side_base: '3000'
+max_perpetual_gross_base: '4000'
+outflow_window_seconds: 60
+outflow_cap_quote: '60'
+fee_allowance_rate: '0.01'
+bootstrap_seconds: 30
+funding_interval_seconds: 60
+# Illustrative external service cost, not a Cloud Run price estimate.
+operating_cost_per_hour_quote: '0.01'
+# Two-sided quote quality is measured against the independent scenario mark.
+max_quoted_spread_bps: '150'
+minimum_side_quote: '5'

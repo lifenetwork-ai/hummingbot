@@ -23,6 +23,7 @@ class PassiveOrder:
     cancel_at: int = None
     level: str = ""
     config: object = None
+    create_deadline: int = None
 
     def live(self, now):
         return self.filled < self.amount and (self.cancel_at is None or now < self.cancel_at)
@@ -32,7 +33,7 @@ class PassiveOrder:
         return self.amount - self.filled
 
 
-def match_flow(orders, *, now, aggressor, limit, quantity, fraction):
+def match_flow(orders, *, now, aggressor, limit, quantity, fraction, quantum=ZERO, external_levels=()):
     """Independent aggressor sweep, strict trade-through and conservative queue.
 
     One flow budget is shared across all eligible levels. A partial allocation
@@ -42,14 +43,25 @@ def match_flow(orders, *, now, aggressor, limit, quantity, fraction):
     if aggressor not in ("BUY", "SELL") or not ZERO < fraction <= 1 or quantity < 0 or limit <= 0:
         raise ValueError("Invalid flow assumptions")
     candidates = [order for order in orders if order.live(now) and now >= order.active_at
+                  and (order.create_deadline is None or order.active_at < order.create_deadline)
                   and order.side != aggressor and (order.price < limit if aggressor == "BUY" else order.price > limit)]
-    candidates.sort(key=lambda order: (order.price if aggressor == "BUY" else -order.price, order.created_at, order.id))
+    entries = [(o.price, 1, o.created_at, o.id, o, ZERO) for o in candidates]
+    entries += [(price, 0, 0, str(index), None, size) for index, (price, size) in enumerate(external_levels)
+                if (price <= limit if aggressor == 'BUY' else price >= limit)]
+    entries.sort(key=lambda row: (row[0] if aggressor == 'BUY' else -row[0], *row[1:4]))
     fills = []
-    for order in candidates:
+    for _, _, _, _, order, external_size in entries:
+        if order is None:
+            quantity -= min(quantity, external_size)
+            if quantity <= 0:
+                break
+            continue
         ahead = min(quantity, order.queue_ahead)
         order.queue_ahead -= ahead
         quantity -= ahead
         amount = min(quantity, order.remaining, order.amount * fraction)
+        if quantum:
+            amount = amount // quantum * quantum
         if amount > 0:
             order.filled += amount
             quantity -= amount
@@ -57,6 +69,16 @@ def match_flow(orders, *, now, aggressor, limit, quantity, fraction):
         if quantity <= 0 or order.remaining > 0:
             break
     return fills
+
+
+def post_only_crosses(order, previous_orders, now, bid, ask):
+    if order.side == 'BUY' and ask is not None and order.price >= ask:
+        return True
+    if order.side == 'SELL' and bid is not None and order.price <= bid:
+        return True
+    return any(other.market == order.market and other.side != order.side and other.live(now) and other.active_at <= now
+               and (order.price >= other.price if order.side == 'BUY' else order.price <= other.price)
+               for other in previous_orders)
 
 
 class Wallet:
