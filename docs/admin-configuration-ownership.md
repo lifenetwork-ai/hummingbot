@@ -33,6 +33,11 @@ Changing a file in the repository requires a new image/deployment before a new
 process sees it. This API does not reload profile files in a running process.
 If a deployment mounts configuration instead, restart the process to load it.
 
+This API revision includes idempotent migration 017 for session-history indexing.
+With `ENABLE_AUTO_MIGRATION=false`, apply `make migrate` before starting the new
+image; startup still validates schema compatibility. With it enabled, the normal
+startup migration path applies the script before trading admission.
+
 ## Requested, deployed and pinned configuration
 
 - `GET /profiles` describes the responding process's deployed catalogue and its

@@ -10,6 +10,8 @@ make build-cloudrun
 make test-mm-load
 # Short diagnostics only:
 make test-mm-load MM_LOAD_PROFILE=probe
+# Add operator-history/configuration polling to the same diagnostic workload:
+python scripts/test_mm_load.py --profile probe --probe-seconds 60 --history-rows 100000 --operations
 ```
 
 `CLOUDRUN_IMAGE` selects the deployment artifact. Full profiles pin its registry
@@ -19,6 +21,13 @@ are sanitized JSON under `build/mm-load/<run>/`; failures retain logs and exit
 nonzero. Every test container/network is cleaned in `finally`. No local `.env`
 or real exchange credentials are used. Application, PostgreSQL, exchange and
 client run on an internal Docker network with dummy Demo credentials.
+
+`--operations` preserves the original eleven-route read population and all its
+budgets. In addition to the existing event/liquidity reads, it adds one command
+list, session list and pinned-configuration read per second. The additional reads
+share the auxiliary latency/error gates and have per-route measurements. This
+bounded multi-widget workload is not a replacement for the unchanged hour soak
+or an actual FE browser test.
 
 The gate reuses the deployment-image E2E harness, real OKX adapters, real recorder,
 session/ownership guard, V2 executors and PostgreSQL schema runner. Its simulator

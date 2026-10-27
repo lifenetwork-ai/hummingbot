@@ -214,9 +214,9 @@ not failures of the backend test suite.
 - [x] U5: if order progress is displayed, add the grouped recorded-fill projection
   and verify query counts are independent of visible order count. Intraday history
   remains optional until the operational need is established.
-- [ ] Run the existing API/load gates for changed backend code and a bounded
+- [x] Run native/PG API regression and a targeted current-image load probe for changed backend code and a bounded
   multi-dashboard polling workload. Record image/source scope; this review is not
-  a new production-image acceptance result.
+  a new full release/hour-soak acceptance result. See the implementation report.
 
 Defer WebSockets/SSE, Redis, a new auth/RBAC platform, a general strategy editor,
 arbitrary YAML writes, account-wide order controls and a profit-optimization UI.

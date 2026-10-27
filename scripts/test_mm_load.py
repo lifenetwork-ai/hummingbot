@@ -180,6 +180,7 @@ def main():
     parser.add_argument("--inventory-skew", action="store_true", help="Spot cash skew using the existing PMM calculation")
     parser.add_argument("--enhancements", action="store_true", help="Explicit E6 all-feature healthy fixture, including completed candles and an active same-time outflow expiry burst")
     parser.add_argument("--keep-going", action="store_true", help="Continue healthy windows after budget violations; final result still fails")
+    parser.add_argument("--operations", action="store_true", help="Add three operator-history/configuration reads/s to the existing read mix")
     args = parser.parse_args()
     if args.enhancements:
         args.inventory_skew = args.listing_bootstrap = args.drawdown = args.spot_outflow = args.strict_guards = True
@@ -199,6 +200,7 @@ def main():
                     simulator_limits=dict(cpus=1, memory_bytes=512 * 1024**2), client_limits=dict(cpus=1, memory_bytes=512 * 1024**2),
                     history_orders=args.history_rows, history_fills=args.history_rows, funding_sync_interval_seconds=5,
                     enhancements=args.enhancements, active_outflow_history=args.enhancements, history_read_mix="original eleven routes/rates/latency population unchanged; add 1 event + 1 liquidity read/s with the same separate latency/error gates",
+                    operations_reads_per_second=3 if args.operations else 0,
                     tracing=args.trace, strict_quote_guards=args.strict_guards, drawdown=args.drawdown, spot_outflow=args.spot_outflow, listing_bootstrap=args.listing_bootstrap, inventory_skew=args.inventory_skew,
                     continue_after_budget_failure=args.keep_going, windows={})
     evidence["source_sha256"] = {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest() for path in (
@@ -329,8 +331,8 @@ def main():
                 for name, duration in windows:
                     if name == "soak":
                         _, _ = command(harness, port, "switch", market_mode="both", selection="random", duration_seconds=7200)
-                    data = run_window(harness, bot, client, name, duration, report, burst=name == "bursts",
-                                      options=("--random-soak",) if name == "soak" else ())
+                    options = (("--random-soak",) if name == "soak" else ()) + (("--operations",) if args.operations else ())
+                    data = run_window(harness, bot, client, name, duration, report, burst=name == "bursts", options=options)
                     data["command_seconds"] = data["control_results"].get("command_seconds", controls)
                     data["ledger"] = verify_ledger(harness, port)
                     data["violations"] = violations(data, require_rates=name != "soak")

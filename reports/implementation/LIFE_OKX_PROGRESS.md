@@ -1234,3 +1234,21 @@ No profitable/optimal strategy, new load/soak/full release matrix/upgrade,
 real OKX trading or Cloud Run run is claimed. See [results](../life-mm-economic-stress.md),
 [portable evidence](../life-mm-economic-stress-evidence.json) and
 [the completed plan](../../docs/plans/LIFE_MM_ECONOMIC_STRESS_PLAN.md).
+
+## Operations API and configuration ownership (2026-10-27)
+
+- [x] Reject profile-setting overrides on new commands; preserve legacy saved sessions/receipts.
+- [x] Add English operator/error guidance, request IDs, process/owner identity, freshness and pinned/deployed configuration provenance.
+- [x] Make Swagger development-only with the requested `ENV=dev` default and explicit production template setting.
+- [x] Add bounded command/session history, stable check lookup and constant-query recorded fill progress.
+- [x] Document API/YAML/environment ownership, restart/rollout behavior and low-technical-literacy FE workflows.
+- [x] Verify 1,634 native tests + 11 subtests, 210 PG tests, current-image LIFE MM matrix and a 60-second 100k-history polling diagnostic.
+
+Image `a2d823c5a2c9` matches 18 changed runtime/schema files. The diagnostic completed
+1,500 reads with no errors/violations (original read p95/p99 69.94/301.42 ms).
+An obsolete 16-script packaging assertion was corrected to 17 before the same
+image passed. This is scoped backend/image verification, not a new full release
+or hour-soak result. FE/browser integration and Cloud Run access routing are still
+external tasks. See [report](../admin-operations-api-implementation.md),
+[evidence](../admin-operations-api-evidence.json) and
+[completed plan](../../docs/plans/ADMIN_OPERATIONS_API_TDD_PLAN.md).

@@ -98,6 +98,20 @@ not prove that shutdown/cancellations completed.
 
 ## Start and switch workflow
 
+Use plain labels for the shipped profiles; do not require operators to understand
+JSON identifiers. Other deployed profile IDs need a neutral readable fallback.
+
+| API selection | Operator label | Short description |
+|---|---|---|
+| Fixed `follow_market` | Follow market basket | Quote around the configured weighted reference basket |
+| Fixed `sideways` | Quote around session anchor | Quote around the session's starting price anchor |
+| Fixed `follow_token` | Follow configured token | Follow the reference token shown in Managed settings |
+| Random | Rotate profiles | Choose from the configured pool at the displayed interval |
+
+These describe how quotes are calculated, not a guarantee that market trades or
+the exchange chart follow that path. Display the actual reference pairs alongside
+the description; do not hard-code BTC/ETH/AVAX labels in the FE.
+
 1. Read status and deployed profiles. Preserve the current `control_version` and
    session ID and deployed `catalogue_hash` for submission. Refresh when the review screen opens; keep draft
    edits intact if another operator changes the session.
@@ -128,6 +142,10 @@ Generate TypeScript types from the checked OpenAPI; use one small client wrapper
 for authentication, errors and retries. Do not auto-generate a giant form exposing
 every upstream controller field. Keep `expected_version`, IDs and keys out of
 normal editable form controls.
+
+Read `fields[].path` from an error response for inline validation. All returned
+`detail` messages are English. The default operator screen needs one clear status
+and next action; it should not dump the entire error JSON or enum name as a toast.
 
 `202` means accepted for processing, not that quoting started. This is also the
 standard HTTP meaning of [202 Accepted](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status/202).

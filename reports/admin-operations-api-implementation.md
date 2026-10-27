@@ -98,3 +98,48 @@ links, safe retry behavior, shared-wallet accounting and per-widget freshness.
 Swagger is generated offline for FE types; production HTTP docs stay hidden.
 Frontend implementation/browser acceptance and deployment routing are external
 prerequisites, not completed features in this repository.
+
+## E — Final scoped verification
+
+Portable evidence: [admin-operations-api-evidence.json](admin-operations-api-evidence.json).
+Runtime commit `a04d56808`; image
+`sha256:a2d823c5a2c907c5db45edb24adace180ad4c489577da2a59bb35f80064143a6`.
+All 18 changed runtime/schema files match source byte-for-byte. The Linux amd64
+image is 1,366,753,844 bytes and was exercised under emulation on this arm64 host.
+
+| Verification | Result |
+|---|---|
+| Native regression | 1,634 tests + 11 subtests passed |
+| Full disposable PostgreSQL suite | 210 passed |
+| Focused harness/Swagger checks | 17 passed; overlaps native suite |
+| Contract/style/docs | Swagger drift check, changed-file hooks and five guides' local links passed |
+| Packaged runtime | ABI/JIT/TLS/logging smoke, connector discovery and all 17 SQL scripts passed |
+| Targeted LIFE MM E2E | Nine profile/spot/perpetual/both combinations passed; exact quotes, CLI handshake, restart anchors/deadlines, stale-feed wait/recovery, random/expiry, held-position funding, reconciliation and DB-fault HALT verified |
+| New API on image | YAML overrides rejected; catalogue precondition, command/session discovery, pinned config after restart, stable check ID and recorded fill fields verified |
+
+The first image attempt stopped at the old smoke assertion expecting 16 SQL
+scripts. The fixture now expects 17 and checks migration 017 by name; the same
+image then passed. Earlier build output is not used as current-image evidence.
+
+The 60-second polling diagnostic seeded 100,000 orders and 100,000 fills. It kept
+the original eleven-route 20 reads/s, market and fill workload, and existing
+event/liquidity reads. Three new command/session/configuration reads per second
+were added; no budget was relaxed. The bot was limited to one CPU and 2 GiB.
+
+| Metric | Observed |
+|---|---|
+| Original population | 1,200 / 1,200 reads; p95 69.94 ms, p99 301.42 ms |
+| Auxiliary population, including new operations reads | 300 / 300 reads; p95 75.72 ms, p99 254.74 ms |
+| Errors / budget violations | 0 / none |
+| Market updates / fills | 99.96 updates/s; 1 fill/s |
+| Start / switch / stop applied | 2.69 s / 2.90 s / 1.79 s |
+| Command acceptance p99 | 46.93 ms |
+| Peak RSS | 331,530,240 bytes |
+| Independent ledger | 60 exchange fills = 60 recorder fills; positions matched; two identified funding bills |
+
+Raw artifacts are retained in `build/admin-operations/`,
+`build/e2e-offline/20261027-220115-fb7e8d/` and
+`build/mm-load/20261027-220614-8388f1/`; hashes and summaries are in the portable
+evidence. Existing dependency warnings remain. No browser app, real OKX request,
+Cloud Run deployment, full release/upgrade matrix or new sixty-minute soak is
+claimed. FE implementation and hosted access-route verification remain separate.

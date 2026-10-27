@@ -1,0 +1,222 @@
+{
+  "date": "2026-10-27",
+  "runtime_revision": "a04d56808e70b3fa24fcb16964aad652b8f5999b",
+  "scope": "Operations API/backend; targeted simulator and bounded diagnostic polling only",
+  "image": {
+    "image_id": "sha256:a2d823c5a2c907c5db45edb24adace180ad4c489577da2a59bb35f80064143a6",
+    "architecture": "amd64",
+    "image_bytes": 1366753844,
+    "source_files": {
+      "docs/api/openapi.json": "82c57fcd89da9d35d4e8aba64c36ab1ad2420d32ee699a9a0fc4c75f07b86193",
+      "hummingbot/cli/admin_api.py": "937059c5f320a1a892576167908621bd01249946a5a8fcd8e28d4dad7616acd9",
+      "hummingbot/cli/admin_errors.py": "001298dd78677a9652c51845b8b47aeae3f7882ff176960903195ceef69f855a",
+      "hummingbot/cli/admin_models.py": "639c580ee5d1452c0d0a927f7065ef0b57f7d28897fa528a7e8ead743e2b2d62",
+      "hummingbot/cli/admin_operations.py": "375ccfde9476bd3229aa0bf7c042b06533aabe823c14d6fdf55ec7c63c3f1e75",
+      "hummingbot/cli/service.py": "ba6c7200a10967307dcff87e4954ce1460dade952c1ca7ba47e4dac987e1e612",
+      "hummingbot/cli/swagger.py": "8f310248823c3a91ce3ba094115679a7eaa2d61cf3c2304e9b7755ce96381196",
+      "hummingbot/client/config/admin_config.py": "6a412407c3c2b74f1f7dbbccb65d896c04dc0269dd3c3a906a79fd28e458ef2a",
+      "hummingbot/client/config/defaults.py": "79de1595b7dbecaf16ea3b8126f19f33897c1312cabd36abbbf3709b827759ae",
+      "hummingbot/client/config/mm_profiles.py": "496997827c27ab373ab0952574c85bdf8b7873f7e4d4ef9492f8179baddc2a66",
+      "hummingbot/core/control_errors.py": "e67624e0aec99bd98bfa08cc72d02608a2491ad0d26313201f50e8c0203f094b",
+      "hummingbot/core/mm_session.py": "ca5e847b65458275aa0527be82a48f8aa162c85db732dc0e57315deda4c3c586",
+      "hummingbot/model/admin_history.py": "3ae9d5de8b27750905e26d0a2c0bb9759400c677256f9d055c68575c713733ad",
+      "hummingbot/model/admin_reconciliation.py": "fa7e0288baa6c762610844162170c2d6c99e129c0cdfd38f3b975dc9e2d26bc8",
+      "hummingbot/model/admin_store.py": "6cadc3f6027dd68fbfedd3956083d8e2262a46e304547304963d05f4d36f476d",
+      "hummingbot/model/bot_state_store.py": "a3cb68c725c6a3a763c73365aef421afe74adc138a6f40a0e1cc8a4fb723f79c",
+      "hummingbot/model/db_migration/postgres/scripts/017_add_session_discovery_index.sql": "2eef395325fd160096ae95e8e6466b6b0183ca021cc86e6b501bec7f2fea3821",
+      "hummingbot/model/mm_event.py": "6335d14858f8cdeb58e32cc056dfe736de72303b3214e73929f0bbb7b947d2fa"
+    },
+    "source_files_match": true,
+    "registry_manifest_digest": "sha256:a644691ff578e7b271daaedd0104649a420c9ee0f06e76dc87253c9c68c418c8"
+  },
+  "native": {
+    "passed": 1634,
+    "subtests_passed": 11,
+    "groups": [
+      158,
+      11,
+      1050,
+      415
+    ]
+  },
+  "postgres": {
+    "passed": 210
+  },
+  "harness_checks": {
+    "passed": 17,
+    "overlaps_native": true
+  },
+  "swagger_drift_check": true,
+  "local_document_links_checked": 5,
+  "e2e": {
+    "path": "build/e2e-offline/20261027-220115-fb7e8d/result.json",
+    "runtime_smoke": {
+      "passed": true,
+      "numba_jit": true,
+      "ta_lib": true,
+      "tls_trust": true,
+      "connector_count": 63,
+      "sql_scripts": 17,
+      "build_tools_absent": true,
+      "cli_version": "hbot 2.17.0",
+      "environment_bytes": 1266030472,
+      "service_logging": {
+        "passed": true,
+        "all_severities": true,
+        "network_warning": true,
+        "utc_context": true,
+        "redaction": true,
+        "startup_failure_json": true,
+        "python_warning_json": true,
+        "sql_parameters_suppressed": true
+      }
+    },
+    "scenarios": {
+      "life-mm": {
+        "passed": true,
+        "metrics": {
+          "mm-first_startup_s": 10.018,
+          "first_shutdown_s": 1.202,
+          "mm-restart_startup_s": 9.674,
+          "admin_operations_contract": true,
+          "terminal_cancel_ack_before_create": true,
+          "mm-db-restart_startup_s": 9.784,
+          "matrix": [
+            {
+              "mode": "spot",
+              "profile": "follow_market",
+              "count": 4
+            },
+            {
+              "mode": "spot",
+              "profile": "sideways",
+              "count": 4
+            },
+            {
+              "mode": "spot",
+              "profile": "follow_token",
+              "count": 4
+            },
+            {
+              "mode": "perpetual",
+              "profile": "follow_market",
+              "count": 4
+            },
+            {
+              "mode": "perpetual",
+              "profile": "sideways",
+              "count": 4
+            },
+            {
+              "mode": "perpetual",
+              "profile": "follow_token",
+              "count": 4
+            },
+            {
+              "mode": "both",
+              "profile": "follow_market",
+              "count": 8
+            },
+            {
+              "mode": "both",
+              "profile": "sideways",
+              "count": 8
+            },
+            {
+              "mode": "both",
+              "profile": "follow_token",
+              "count": 8
+            }
+          ],
+          "cli_mm_stop": true,
+          "legacy_replaces_mm": true,
+          "exact_quote_levels": true,
+          "restart_anchors": true,
+          "weighted_reference": true,
+          "stale_both": true,
+          "fills": 2,
+          "random_steps": true,
+          "expiry": true,
+          "expiry_funding": true,
+          "reconciliation": "matched",
+          "db_fault_halt": true
+        }
+      }
+    },
+    "passed": true,
+    "release_scope_complete": false
+  },
+  "polling": {
+    "path": "build/mm-load/20261027-220614-8388f1/result.json",
+    "diagnostic": true,
+    "passed": true,
+    "duration_seconds": 60,
+    "history_orders": 100000,
+    "history_fills": 100000,
+    "operations_reads_per_second": 3,
+    "host_architecture": "arm64",
+    "emulation": true,
+    "bot_limits": {
+      "cpus": 1,
+      "memory_bytes": 2147483648
+    },
+    "requested_reads": 1200,
+    "completed_reads": 1200,
+    "auxiliary": {
+      "requested_reads": 300,
+      "completed_reads": 300,
+      "statuses": {
+        "200": 300
+      },
+      "read_p95_ms": 75.71788300015214,
+      "read_p99_ms": 254.7434160001103
+    },
+    "unexpected_errors": 0,
+    "read_p95_ms": 69.938896000167,
+    "read_p99_ms": 301.42051000007086,
+    "peak_rss_bytes": 331530240,
+    "command_seconds": {
+      "start": 2.692609916906804,
+      "switch": 2.8986568339169025,
+      "stop": 1.7940394589677453
+    },
+    "command_accept_p95_ms": 46.92758300006972,
+    "command_accept_p99_ms": 46.92758300006972,
+    "ledger": {
+      "unique_exchange_fills": 60,
+      "unique_recorder_fills": 60,
+      "positions_matched": true,
+      "identified_funding_bills": 2,
+      "daily_snapshots": 3
+    },
+    "violations": [],
+    "market_updates_per_second": 99.96435919655949,
+    "fills_per_second": 1.0
+  },
+  "evidence_sha256": {
+    "build/admin-operations/native-regression.log": "3a83d9214e426b91041c5f6e146da4a9020193079c229405d37e9d42be6344c8",
+    "build/admin-operations/postgres-regression.log": "eccb6cb98c7695b19e58880c0158171d6c77247bef12b8853f5b570c07fe02c1",
+    "build/admin-operations/harness-checks.log": "07b4d01d5692151680a8dee494274bab49df89fcec084b9cc29b46c18c6f8e1d",
+    "build/admin-operations/hooks.log": "360c0680ffeedd2aacf06436710a7f51de37e1ca622b4794c532fd6d2b37fbda",
+    "build/e2e-offline/20261027-220115-fb7e8d/result.json": "a3ccd4ab5de81b30cc44e3511735278a2256efb17fb3d4c22806299061ce8dac",
+    "build/mm-load/20261027-220614-8388f1/result.json": "4ded91eb71d8a136243f71b889769149f4fbaef15da34e7181c09fd3e9ad40e8"
+  },
+  "harness_sha256": {
+    "scripts/test_e2e_offline.py": "57aacc3dd8aa626887a5deb55a18e810ba6aa32c67d0d74604d48c2714b8aa37",
+    "scripts/test_mm_load.py": "4ea032a1ed31f306ff5ff20a9191ea27f11c87e1f026c68780c65619bf4535a7",
+    "test/e2e/offline/load_client.py": "1113ad4c611075e372a388acda93e5287810f3d97d86fa4f7bab47aecc874f1f",
+    "test/e2e/offline/runtime_smoke.py": "e4205b4605cf3990b7138b5e5fdd9dd244e7e18898827d4d8b89ea47a4331c30"
+  },
+  "initial_image_smoke": {
+    "path": "build/e2e-offline/20261027-215928-a0a6f4/result.json",
+    "passed": false,
+    "reason": "Stale test expected 16 SQL scripts; updated to 17 and required migration 017. Same runtime image passed afterward."
+  },
+  "not_verified": [
+    "Frontend/browser integration in separate repository",
+    "Cloud Run browser ingress/IAM route",
+    "Cloud deployment",
+    "Live or OKX Demo exchange calls",
+    "Full release matrix/upgrade or new sixty-minute soak"
+  ]
+}

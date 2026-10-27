@@ -571,13 +571,27 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         poll(lambda: bool(self.state().get("status")), description="MM owner status")
         assert http(port, "/api/v1/admin/status")[0] == 401
         assert self.admin(port, "/docs")[0] == 200
+        profiles = self.admin(port, "/profiles")[1]
+        assert profiles["configuration_policy"]["profile_settings"] == "yaml_only"
+        assert profiles["process_identity"]["trading_environment"] == self.env["OKX_TRADING_ENV"]
+        invalid = dict(action="start", expected_version=self.state()["control_version"], market_mode="spot",
+                       profile_id="sideways", references=None)
+        code, rejected = self.admin(port, "/commands", invalid, str(uuid.uuid4()))
+        assert code == 422 and rejected["code"] == "yaml_configuration_read_only"
+        assert rejected["request_id"] and rejected["retry"] == "fix_request"
         cases = []
         for mode in (("spot", "perpetual", "both") if matrix else ()):
             for profile in ("follow_market", "sideways", "follow_token"):
                 print(f"Offline LIFE: {mode}/{profile}", flush=True)
                 before = len(self.ledger()["accepted"])
                 fields = dict(market_mode=mode, selection="fixed", profile_id=profile, duration_seconds=600)
-                self.mm_command(port, "start", **fields)
+                receipt = self.mm_command(port, "start", expected_catalogue_hash=profiles["catalogue_hash"], **fields)
+                commands = self.admin(port, "/commands?action=start&limit=1")[1]
+                assert commands["items"][0]["id"] == receipt["id"]
+                sessions = self.admin(port, "/sessions?limit=1")[1]
+                assert sessions["items"][0]["id"] == receipt["session_id"]
+                config = self.admin(port, "/sessions/" + receipt["session_id"] + "/configuration")[1]
+                assert config["catalogue_hash"] == profiles["catalogue_hash"] and not config["legacy_overrides"]
                 count = 8 if mode == "both" else 4
                 poll(lambda: len(self.ledger()["accepted"]) >= before + count, description="MM post-only levels")
                 orders = self.ledger()["accepted"][before:]
@@ -620,6 +634,8 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         restored = self.state()["mm_session"]
         assert restored["id"] == session["id"] and restored["anchors"] == session["anchors"]
         assert restored["started_at"] == session["started_at"] and restored["expires_at"] == session["expires_at"]
+        restored_config = self.admin(port, "/sessions/" + session["id"] + "/configuration")[1]
+        assert restored_config["catalogue_hash"] == profiles["catalogue_hash"]
         # One stale reference blocks both markets without extending the session.
         self.control(stale_pairs=["BTC-USDT"])
         poll(lambda: not self.state()["status"]["running"] or self.state()["status"]["phase"] == "waiting_for_mm_readiness",
@@ -652,6 +668,8 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         report = poll(lambda: (value if (value := self.admin(port, "/reconciliation")[1])["check"]["status"] in ("succeeded", "failed") else None),
                       description="MM observational check completion")
         assert report["report"]["state"] == "matched", report
+        stable_check = self.admin(port, "/reconciliation/" + receipt["id"])[1]
+        assert stable_check["id"] == receipt["id"] and stable_check["report"] == report["report"]
         # OKX may cancel a post-only order in the private stream before its
         # positive REST create response. A terminal exchange identity resolves
         # that durable intent without reopening the order or halting the bot.
@@ -667,6 +685,9 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         canceled_views = [row for row in self.admin(port, "/orders?limit=500")[1]["items"] if row["id"] in canceled_ids]
         assert len(canceled_views) >= 8 and all(row["side"] in ("BUY", "SELL") and row["exchange_order_id"]
                                                 for row in canceled_views)
+        assert all(row["progress_basis"] == "recorded_fills_only" and Decimal(row["recorded_filled_amount"]) == 0
+                   for row in canceled_views)
+        self.metrics["admin_operations_contract"] = True
         self.control(cancel_before_ack=False, hold_ack=False)
         poll(lambda: sum(order["state"] == "live" for order in self.ledger()["orders"]) == 8,
              description="normal maker quotes recover after terminal-before-create race")

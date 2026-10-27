@@ -41,7 +41,7 @@ rewritten. Recovery HALT is never cleared by these APIs.
   indexes unless query evidence requires a small additive index.
 - [x] D — Complete API/YAML/environment ownership tables, restart/rollout examples,
   API/FE guide and Swagger. Mark the external FE scope explicitly.
-- [ ] E — Run native regression, disposable PostgreSQL, current-image targeted
+- [x] E — Run native regression, disposable PostgreSQL, current-image targeted
   functional/polling verification and changed-file checks; save scoped evidence
   and commit. Do not claim browser, real exchange or cloud acceptance from Python
   tests or historical image results.
@@ -60,3 +60,12 @@ The deployment access route remains an operator deployment prerequisite: the
 template's internal ingress is not changed by this work. No cloud deployment,
 live account interaction, frontend app, automatic recovery reset or extra cache
 service is part of this implementation.
+
+Final scoped verification: 1,634 native tests plus 11 subtests, all 210 PostgreSQL
+tests, generated-schema drift and changed-file hooks pass. Image `a2d823c5a2c9`
+matches all 18 changed runtime/schema files. Its targeted LIFE MM matrix passes
+nine profile/market combinations, restart, expiry, reconciliation and DB-fault
+handling. A 60-second diagnostic with 100,000 orders and 100,000 fills completes
+1,500 reads without errors or budget violations. This is not the full release
+matrix or a new hour soak. See the [report](../../reports/admin-operations-api-implementation.md)
+and [portable evidence](../../reports/admin-operations-api-evidence.json).
