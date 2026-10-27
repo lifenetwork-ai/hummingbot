@@ -9,7 +9,7 @@ from typing import Dict, List, Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from controllers.market_making.life_mm import ReferencePair
-from hummingbot.client.config.mm_profiles import MarketMode, MMProfilesConfig
+from hummingbot.client.config.mm_profiles import DurationMode, MarketMode, MMProfilesConfig
 from hummingbot.core.control_errors import RequestError
 
 MMSessionStatus = Literal["preparing", "running", "stopping", "stopped", "expired"]
@@ -18,8 +18,22 @@ MMSessionStatus = Literal["preparing", "running", "stopping", "stopped", "expire
 def session_permits(state, *, session_id, generation, now):
     """Small final-gate projection; no catalogue parsing or exchange calls."""
     try:
-        return (state["status"] == "running" and state["id"] == session_id and state["generation"] == generation
-                and math.isfinite(now) and state["started_at"] <= now < min(state["expires_at"], state["step_expires_at"]))
+        if not (state['status'] == 'running' and state['id'] == session_id and state['generation'] == generation
+                and math.isfinite(now) and math.isfinite(state['started_at']) and state['started_at'] <= now):
+            return False
+        request = state.get('request') or {}
+        mode = request.get('duration_mode', 'timed')
+        end, step = state['expires_at'], state['step_expires_at']
+        if mode == 'timed':
+            return (end is not None and step is not None and math.isfinite(end) and math.isfinite(step)
+                    and now < min(end, step))
+        if (mode != 'until_stopped' or (state.get('catalogue') or {}).get('allow_until_stopped') is not True
+                or end is not None or request.get('duration_seconds') is not None):
+            return False
+        if request.get('selection') == 'fixed':
+            return step is None and request.get('step_duration_seconds') is None and bool(request.get('profile_id'))
+        return (request.get('selection') == 'random' and step is not None and math.isfinite(step) and now < step
+                and type(request.get('step_duration_seconds')) is int and request['step_duration_seconds'] > 0)
     except (KeyError, TypeError, ValueError):
         return False
 
@@ -28,11 +42,19 @@ class MMSessionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     market_mode: MarketMode
     selection: Literal["fixed", "random"] = "fixed"
-    duration_seconds: int = Field(gt=0, strict=True)
+    duration_mode: DurationMode = 'timed'
+    duration_seconds: Optional[int] = Field(default=None, gt=0, strict=True)
     profile_id: Optional[str] = None
     references: Optional[List[ReferencePair]] = None
     profile_ids: Optional[List[str]] = None
     step_duration_seconds: Optional[int] = Field(default=None, gt=0, strict=True)
+
+    @model_validator(mode='after')
+    def duration_matches_mode(self):
+        if ((self.duration_mode == 'timed' and self.duration_seconds is None)
+                or (self.duration_mode == 'until_stopped' and self.duration_seconds is not None)):
+            raise ValueError('Timed sessions require a duration; until stopped must omit it')
+        return self
 
 
 class MMSession(BaseModel):
@@ -77,7 +99,7 @@ class MMSession(BaseModel):
 
     @classmethod
     def create(cls, catalogue, request, *, rng, session_id=None):
-        catalogue.validate_duration(request.duration_seconds)
+        catalogue.validate_duration(request.duration_seconds, duration_mode=request.duration_mode)
         if request.selection == "fixed":
             if request.profile_id not in catalogue.profiles or request.profile_ids is not None or request.step_duration_seconds is not None:
                 raise RequestError("Fixed selection requires one known profile and no random fields", code="selection_invalid", field="profile_id")
@@ -136,9 +158,12 @@ class MMSession(BaseModel):
             raise ValueError("Both markets must share the same benchmark anchors")
         if self.started_at is None:
             self.started_at = now
-            self.expires_at = now + self.request.duration_seconds
-            self.step_expires_at = min(self.expires_at, now + self.request.step_duration_seconds) \
-                if self.request.selection == "random" else self.expires_at
+            self.expires_at = now + self.request.duration_seconds if self.request.duration_mode == 'timed' else None
+            if self.request.selection == 'random':
+                step_end = now + self.request.step_duration_seconds
+                self.step_expires_at = min(self.expires_at, step_end) if self.expires_at is not None else step_end
+            else:
+                self.step_expires_at = self.expires_at
         self.anchors = json.loads(json.dumps(anchors))
         self.status = "running"
 
@@ -147,7 +172,7 @@ class MMSession(BaseModel):
             return False
         if not math.isfinite(now) or now < self.started_at:
             raise ValueError("Session clock is invalid")
-        if now >= self.expires_at:
+        if self.expires_at is not None and now >= self.expires_at:
             self.status = "expired"
             self.generation += 1
             return True
@@ -161,10 +186,13 @@ class MMSession(BaseModel):
         self.profile_id = self._draw(self.catalogue, self.request, rng)
         self.status = "preparing"
         self.anchors = {}
-        self.step_expires_at = min(self.expires_at, self.started_at + (step_index + 1) * self.request.step_duration_seconds)
+        step_end = self.started_at + (step_index + 1) * self.request.step_duration_seconds
+        self.step_expires_at = min(self.expires_at, step_end) if self.expires_at is not None else step_end
         return True
 
     def permits(self, *, session_id, generation, now):
-        return session_permits({name: getattr(self, name) for name in (
-            "status", "id", "generation", "started_at", "expires_at", "step_expires_at")},
-            session_id=session_id, generation=generation, now=now)
+        state = {name: getattr(self, name) for name in (
+            "status", "id", "generation", "started_at", "expires_at", "step_expires_at")}
+        state['request'] = self.request.model_dump(exclude={'references', 'profile_ids'})
+        state['catalogue'] = {'allow_until_stopped': self.catalogue.allow_until_stopped}
+        return session_permits(state, session_id=session_id, generation=generation, now=now)

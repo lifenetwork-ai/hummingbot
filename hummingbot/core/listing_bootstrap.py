@@ -159,7 +159,8 @@ class ListingBootstrapGuard:
                 if not controller.processed_data.get("quote_guard", {}).get("can_admit"):
                     raise SubmissionBlocked("bootstrap market is not jointly ready")
                 duration = self.policies[key]["quote_guards"]["bootstrap"]["duration_seconds"]
-                expiry = min(now + duration, session.expires_at, session.step_expires_at)
+                expiry = min([now + duration] + [deadline for deadline in (session.expires_at, session.step_expires_at)
+                                                 if deadline is not None])
                 if not math.isfinite(expiry) or expiry <= now:
                     raise SubmissionBlocked("bootstrap admission already expired")
                 episode.update(started_at=now, expires_at=expiry)

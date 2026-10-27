@@ -16,6 +16,7 @@ from hummingbot.strategy_v2.utils.quote_guard import SidewaysRange
 
 Scenario = Literal["follow_market", "sideways", "follow_token"]
 MarketMode = Literal["spot", "perpetual", "both"]
+DurationMode = Literal['timed', 'until_stopped']
 
 
 class MMProfile(BaseModel):
@@ -53,6 +54,7 @@ class MMProfilesConfig(BaseModel):
     min_duration_seconds: int = Field(default=60, gt=0, strict=True)
     default_duration_seconds: int = Field(default=3600, gt=0, strict=True)
     max_duration_seconds: int = Field(default=86400, gt=0, strict=True)
+    allow_until_stopped: bool = Field(default=False, strict=True, description='Allow explicitly requested sessions with no overall expiry; risk policies and random-step deadlines remain active.')
     max_total_amount_quote: Decimal = Field(gt=0, allow_inf_nan=False)
     max_global_drawdown_quote: Optional[Decimal] = Field(default=None, gt=0, allow_inf_nan=False)
     max_controller_drawdown_quote: Optional[Decimal] = Field(default=None, gt=0, allow_inf_nan=False)
@@ -130,7 +132,15 @@ class MMProfilesConfig(BaseModel):
                                              "reference_connector": self.reference_connector})
         return self
 
-    def validate_duration(self, duration_seconds):
+    def validate_duration(self, duration_seconds, *, duration_mode='timed'):
+        if duration_mode == 'until_stopped':
+            if not self.allow_until_stopped:
+                raise RequestError('Until-stopped sessions are disabled in YAML', code='duration_mode_not_allowed', field='duration_mode')
+            if duration_seconds is not None:
+                raise RequestError('Until stopped cannot include duration_seconds', code='duration_mode_conflict', field='duration_seconds')
+            return None
+        if duration_mode != 'timed':
+            raise RequestError('Unknown duration mode', code='duration_mode_not_allowed', field='duration_mode')
         if (type(duration_seconds) is not int
                 or not self.min_duration_seconds <= duration_seconds <= self.max_duration_seconds):
             raise RequestError("Duration is outside the configured integer-second bounds", code="duration_out_of_range", field="duration_seconds")

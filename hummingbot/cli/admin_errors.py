@@ -7,6 +7,7 @@ from aiohttp import web
 from hummingbot.cli.admin_models import ErrorResponse
 
 RETRIES = {
+    'duration_mode_not_allowed': 'fix_request', 'duration_mode_conflict': 'fix_request',
     "validation_failed": "fix_request", "yaml_configuration_read_only": "fix_request",
     "duration_out_of_range": "fix_request", "profile_unavailable": "fix_request",
     "selection_invalid": "fix_request", "idempotency_key_required": "fix_request",
@@ -23,6 +24,8 @@ RETRIES = {
 }
 
 MESSAGES = {
+    'duration_mode_not_allowed': 'Until stopped is not enabled in the deployed configuration. Choose Timed or contact your maintainer.',
+    'duration_mode_conflict': 'Choose a duration for Timed, or omit it for Until stopped.',
     "validation_failed": "Check the highlighted fields and try again.",
     "yaml_configuration_read_only": "Profile settings are managed in YAML. Choose a configured profile instead.",
     "duration_out_of_range": "Choose a duration within the configured limits.",

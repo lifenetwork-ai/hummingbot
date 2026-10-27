@@ -2784,6 +2784,12 @@
       "MMProfilesConfigOutput": {
         "additionalProperties": false,
         "properties": {
+          "allow_until_stopped": {
+            "default": false,
+            "description": "Allow explicitly requested sessions with no overall expiry; risk policies and random-step deadlines remain active.",
+            "title": "Allow Until Stopped",
+            "type": "boolean"
+          },
           "default_duration_seconds": {
             "default": 3600,
             "exclusiveMinimum": 0,
@@ -2886,10 +2892,27 @@
       "MMSessionRequestOutput": {
         "additionalProperties": false,
         "properties": {
+          "duration_mode": {
+            "default": "timed",
+            "enum": [
+              "timed",
+              "until_stopped"
+            ],
+            "title": "Duration Mode",
+            "type": "string"
+          },
           "duration_seconds": {
-            "exclusiveMinimum": 0,
-            "title": "Duration Seconds",
-            "type": "integer"
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Duration Seconds"
           },
           "market_mode": {
             "enum": [
@@ -2966,8 +2989,7 @@
           }
         },
         "required": [
-          "market_mode",
-          "duration_seconds"
+          "market_mode"
         ],
         "title": "MMSessionRequest",
         "type": "object"
@@ -3854,6 +3876,17 @@
           },
           "configuration_policy": {
             "$ref": "#/components/schemas/ConfigurationPolicyOutput"
+          },
+          "duration_modes": {
+            "items": {
+              "enum": [
+                "timed",
+                "until_stopped"
+              ],
+              "type": "string"
+            },
+            "title": "Duration Modes",
+            "type": "array"
           },
           "market_modes": {
             "items": {
@@ -4774,6 +4807,16 @@
             "title": "Action",
             "type": "string"
           },
+          "duration_mode": {
+            "default": "timed",
+            "description": "Timed uses YAML duration bounds/default. Until stopped requires YAML permission and must omit duration_seconds.",
+            "enum": [
+              "timed",
+              "until_stopped"
+            ],
+            "title": "Duration Mode",
+            "type": "string"
+          },
           "duration_seconds": {
             "anyOf": [
               {
@@ -4785,7 +4828,7 @@
               }
             ],
             "default": null,
-            "description": "Session duration within deployed YAML bounds; omit for its default. Profile settings cannot be overridden.",
+            "description": "Timed-session duration within YAML bounds; omit for its default. Must be absent/null for until_stopped.",
             "title": "Duration Seconds"
           },
           "expected_catalogue_hash": {
@@ -4898,6 +4941,16 @@
             "title": "Action",
             "type": "string"
           },
+          "duration_mode": {
+            "default": "timed",
+            "description": "Timed uses YAML duration bounds/default. Until stopped requires YAML permission and must omit duration_seconds.",
+            "enum": [
+              "timed",
+              "until_stopped"
+            ],
+            "title": "Duration Mode",
+            "type": "string"
+          },
           "duration_seconds": {
             "anyOf": [
               {
@@ -4909,7 +4962,7 @@
               }
             ],
             "default": null,
-            "description": "Session duration within deployed YAML bounds; omit for its default. Profile settings cannot be overridden.",
+            "description": "Timed-session duration within YAML bounds; omit for its default. Must be absent/null for until_stopped.",
             "title": "Duration Seconds"
           },
           "expected_catalogue_hash": {
@@ -6245,6 +6298,16 @@
             "title": "Action",
             "type": "string"
           },
+          "duration_mode": {
+            "default": "timed",
+            "description": "Timed uses YAML duration bounds/default. Until stopped requires YAML permission and must omit duration_seconds.",
+            "enum": [
+              "timed",
+              "until_stopped"
+            ],
+            "title": "Duration Mode",
+            "type": "string"
+          },
           "duration_seconds": {
             "anyOf": [
               {
@@ -6256,7 +6319,7 @@
               }
             ],
             "default": null,
-            "description": "Session duration within deployed YAML bounds; omit for its default. Profile settings cannot be overridden.",
+            "description": "Timed-session duration within YAML bounds; omit for its default. Must be absent/null for until_stopped.",
             "title": "Duration Seconds"
           },
           "expected_catalogue_hash": {
@@ -6647,6 +6710,16 @@
             "title": "Action",
             "type": "string"
           },
+          "duration_mode": {
+            "default": "timed",
+            "description": "Timed uses YAML duration bounds/default. Until stopped requires YAML permission and must omit duration_seconds.",
+            "enum": [
+              "timed",
+              "until_stopped"
+            ],
+            "title": "Duration Mode",
+            "type": "string"
+          },
           "duration_seconds": {
             "anyOf": [
               {
@@ -6658,7 +6731,7 @@
               }
             ],
             "default": null,
-            "description": "Session duration within deployed YAML bounds; omit for its default. Profile settings cannot be overridden.",
+            "description": "Timed-session duration within YAML bounds; omit for its default. Must be absent/null for until_stopped.",
             "title": "Duration Seconds"
           },
           "expected_catalogue_hash": {
@@ -7447,6 +7520,16 @@
                     "market_mode": "perpetual",
                     "profile_id": "follow_token",
                     "selection": "fixed"
+                  }
+                },
+                "continuous_random": {
+                  "summary": "Rotate configured profiles until stopped, when enabled in YAML",
+                  "value": {
+                    "action": "start",
+                    "duration_mode": "until_stopped",
+                    "expected_version": 0,
+                    "market_mode": "both",
+                    "selection": "random"
                   }
                 },
                 "fixed_profile": {

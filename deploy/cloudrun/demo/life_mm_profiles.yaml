@@ -4,6 +4,7 @@ reference_connector: okx
 min_duration_seconds: 60
 default_duration_seconds: 1800
 max_duration_seconds: 7200
+allow_until_stopped: true
 max_total_amount_quote: "200"
 # USDT decline from the covered V2 PnL peak; these are not wallet-equity stops.
 max_global_drawdown_quote: "25"

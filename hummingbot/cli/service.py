@@ -486,7 +486,7 @@ class ServiceHost:
                     and self.mm_session.step_expires_at is not None
                     and float(row["database_now"]) >= self.mm_session.step_expires_at
                     and (not (row["recovery_state"] or {}).get("halt")
-                         or float(row["database_now"]) >= self.mm_session.expires_at)):
+                         or (self.mm_session.expires_at is not None and float(row["database_now"]) >= self.mm_session.expires_at))):
                 try:
                     self.mm_session = self.store.update_mm_session(
                         owner_uuid=self.owner.owner_uuid, owner_generation=self.owner.generation, version=row["control_version"],

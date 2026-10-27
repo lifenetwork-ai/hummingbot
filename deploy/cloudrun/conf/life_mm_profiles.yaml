@@ -4,6 +4,8 @@ reference_connector: okx
 min_duration_seconds: 60
 default_duration_seconds: 3600
 max_duration_seconds: 86400
+# Permission only; sessions still default to timed and require an explicit Start.
+allow_until_stopped: true
 max_total_amount_quote: "200"
 # Optional USDT drawdown from the covered V2 report peak; null disables.
 # Once armed, policy and peaks persist across sessions/restarts. See docs/life-mm-drawdown.md.

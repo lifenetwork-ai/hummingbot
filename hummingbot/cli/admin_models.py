@@ -7,8 +7,9 @@ from typing import Annotated, Dict, List, Literal, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field, PlainSerializer, TypeAdapter, field_validator
 
 from controllers.market_making.life_mm import ReferencePair
-from hummingbot.client.config.mm_profiles import MarketMode, MMProfilesConfig
+from hummingbot.client.config.mm_profiles import DurationMode, MarketMode, MMProfilesConfig
 from hummingbot.core.admin_reconciliation import ReconciliationRequest
+from hummingbot.core.control_errors import RequestError
 from hummingbot.core.mm_drawdown import MMDrawdownMarket
 from hummingbot.core.mm_session import MMSessionRequest, MMSessionStatus
 from hummingbot.core.spot_outflow import SpotOutflowPolicy
@@ -77,11 +78,17 @@ class StartCommand(APIModel):
     market_mode: MarketMode
     selection: Literal["fixed", "random"] = Field(default="fixed", description="Fixed runs one profile; random chooses timed steps from a profile pool.")
     profile_id: Optional[str] = Field(default=None, description="Deployed profile ID for fixed selection, such as follow_market, sideways or follow_token. Omit for random.")
-    duration_seconds: Optional[int] = Field(default=None, gt=0, strict=True, description="Session duration within deployed YAML bounds; omit for its default. Profile settings cannot be overridden.")
+    duration_mode: DurationMode = Field(default='timed', description='Timed uses YAML duration bounds/default. Until stopped requires YAML permission and must omit duration_seconds.')
+    duration_seconds: Optional[int] = Field(default=None, gt=0, strict=True, description="Timed-session duration within YAML bounds; omit for its default. Must be absent/null for until_stopped.")
 
     def session_request(self, catalogue):
         values = self.model_dump(exclude={"action", "expected_version", "expected_catalogue_hash", "session_id"}, exclude_none=True)
-        values["duration_seconds"] = self.duration_seconds or catalogue.default_duration_seconds
+        if self.duration_mode == 'until_stopped':
+            if self.duration_seconds is not None:
+                raise RequestError('Until stopped cannot include duration_seconds', code='duration_mode_conflict', field='duration_seconds')
+            values['duration_seconds'] = None
+        else:
+            values["duration_seconds"] = self.duration_seconds or catalogue.default_duration_seconds
         return MMSessionRequest.model_validate(values)
 
 
@@ -167,7 +174,7 @@ class SessionsPage(APIModel):
 
 class ConfigurationPolicy(APIModel):
     profile_settings: Literal["yaml_only"] = "yaml_only"
-    session_controls: List[str] = Field(default_factory=lambda: ["market_mode", "selection", "profile_id", "duration_seconds"])
+    session_controls: List[str] = Field(default_factory=lambda: ["market_mode", "selection", "profile_id", 'duration_mode', "duration_seconds"])
     restart_behavior: Literal["restore_persisted_session"] = "restore_persisted_session"
     yaml_change_behavior: Literal["new_sessions_only"] = "new_sessions_only"
     bound_policies_require_review: bool = True
@@ -183,6 +190,7 @@ class RuntimeIdentity(APIModel):
 class ProfilesResponse(APIModel):
     catalogue: MMProfilesConfig
     market_modes: List[MarketMode]
+    duration_modes: List[DurationMode] = Field(default_factory=lambda: ['timed'])
     reporting_timezone: str
     catalogue_hash: Optional[str] = None
     configuration_policy: ConfigurationPolicy = Field(default_factory=ConfigurationPolicy)

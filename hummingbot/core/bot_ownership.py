@@ -310,7 +310,9 @@ class BotOwnership:
                     expiry = min(expiry, int(headers["expTime"]))
                 if row["config_type"] == "mm-session":
                     mm = row["mm_session"]
-                    expiry = min(expiry, int(min(mm["expires_at"], mm["step_expires_at"]) * 1000))
+                    for deadline in (mm['expires_at'], mm['step_expires_at']):
+                        if deadline is not None:
+                            expiry = min(expiry, int(deadline * 1000))
             except (ValueError, TypeError):
                 raise SubmissionBlocked("Order request expiration header is invalid.") from None
             headers["expTime"] = str(expiry)

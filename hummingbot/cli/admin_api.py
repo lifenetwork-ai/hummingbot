@@ -194,6 +194,7 @@ class AdminAPI:
         if len(modes) == 2:
             modes.append("both")
         model = ProfilesResponse(catalogue=catalogue, market_modes=modes, catalogue_hash=catalogue.catalogue_hash(),
+                                 duration_modes=['timed', 'until_stopped'] if catalogue.allow_until_stopped else ['timed'],
                                  process_identity=process_identity(self.host), reporting_timezone=self.settings.reporting_timezone)
         return web.json_response(model.model_dump(mode="json"))
 
@@ -257,6 +258,9 @@ class AdminAPI:
                        "random_profiles": {"summary": "Random rotation using the deployed YAML pool and timing", "value": {
                            "action": "start", "expected_version": 0, "market_mode": "both", "selection": "random",
                            "duration_seconds": 3600}},
+                       'continuous_random': {'summary': 'Rotate configured profiles until stopped, when enabled in YAML', 'value': {
+                           'action': 'start', 'expected_version': 0, 'market_mode': 'both', 'selection': 'random',
+                           'duration_mode': 'until_stopped'}},
                        "configured_reference": {"summary": "Follow the token configured in the deployed YAML profile", "value": {
                            "action": "start", "expected_version": 0, "market_mode": "perpetual", "selection": "fixed",
                            "profile_id": "follow_token",
