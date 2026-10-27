@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 import pytest_asyncio
+from bidict import bidict
 
 from hummingbot.connector.derivative.okx_perpetual.okx_perpetual_derivative import OkxPerpetualDerivative
 from hummingbot.core.data_type.common import PositionSide
@@ -12,6 +13,7 @@ from hummingbot.core.data_type.common import PositionSide
 @pytest_asyncio.fixture
 async def exchange():
     connector = OkxPerpetualDerivative(trading_pairs=["LIFE-USDT"], trading_required=False)
+    connector._set_trading_pair_symbol_map(bidict({"LIFE-USDT-SWAP": "LIFE-USDT"}))
     connector._contract_sizes["LIFE-USDT"] = Decimal("0.1")
     connector.trading_pair_associated_to_exchange_symbol = AsyncMock(return_value="LIFE-USDT")
     connector.exchange_symbol_associated_to_pair = AsyncMock(return_value="LIFE-USDT-SWAP")

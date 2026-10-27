@@ -420,7 +420,7 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
             try:
                 if okx_utils.is_exchange_information_valid(rule):
                     trading_pair = combine_to_hb_trading_pair(rule['ctValCcy'], rule['settleCcy'])
-                    contract_size = Decimal(rule["ctVal"])
+                    contract_size = self._validated_contract_size(rule)
                     self._contract_sizes[trading_pair] = contract_size
                     minimum_order_quantity = Decimal(rule["minSz"])
                     min_order_size = minimum_order_quantity * contract_size
@@ -741,6 +741,11 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
             ex_trading_pair = position_msg["instId"]
             trading_pair = await self.trading_pair_associated_to_exchange_symbol(symbol=ex_trading_pair)
             self._position_event_versions[trading_pair] = self._position_event_versions.get(trading_pair, 0) + 1
+            # OKX's symbol shortcut does not initialize instrument metadata.
+            # Retain this event on the existing await/lock until cold metadata
+            # is available. Record its version first to fence older REST reads.
+            if trading_pair not in self._contract_sizes and Decimal(position_msg["pos"]) != 0:
+                await self.trading_pair_symbol_map()
             position_side = self.get_position_side(position_msg)
             entry_price = Decimal(position_msg["avgPx"]) if bool(position_msg["avgPx"]) else Decimal("0")
             amount = self.get_position_amount(position_msg, trading_pair)
@@ -838,11 +843,28 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
         exchange_info = await self._api_get(path_url=self.trading_rules_request_path, params=params)
         return exchange_info
 
+    @staticmethod
+    def _validated_contract_size(instrument):
+        size = Decimal(instrument["ctVal"])
+        if not size.is_finite() or size <= 0:
+            raise ValueError("Missing or invalid contract size in instrument metadata")
+        return size
+
     def _initialize_trading_pair_symbols_from_exchange_info(self, exchange_info: Dict[str, Any]):
-        mapping = bidict()
+        mapping, contract_sizes = bidict(), {}
         for symbol_data in filter(okx_utils.is_exchange_information_valid, exchange_info["data"]):
-            mapping[symbol_data["instId"]] = combine_to_hb_trading_pair(base=symbol_data["ctValCcy"],
-                                                                        quote=symbol_data["settleCcy"])
+            try:
+                size = self._validated_contract_size(symbol_data)
+            except (ValueError, ArithmeticError, KeyError, TypeError):
+                self.logger().error("Invalid contract size for instrument %s; symbol was not published.",
+                                    symbol_data.get("instId"))
+                continue
+            pair = combine_to_hb_trading_pair(base=symbol_data["ctValCcy"], quote=symbol_data["settleCcy"])
+            mapping[symbol_data["instId"]] = pair
+            contract_sizes[pair] = size
+        # No await between publication: resolving a symbol also makes its
+        # quantity conversion available, including the lazy/public-data path.
+        self._contract_sizes = contract_sizes
         self._set_trading_pair_symbol_map(mapping)
 
     async def _fetch_account_position_mode(self) -> Optional[PositionMode]:
