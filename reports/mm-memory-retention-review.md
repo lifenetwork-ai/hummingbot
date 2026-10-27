@@ -64,3 +64,27 @@ limited to 1,000 / 30 seconds, daily reporting to 32 TTL entries, candle windows
 to configured records, and controller/provider tasks have awaited cleanup.
 Allocator high-water RSS may remain elevated after objects are collectible.
 The special full-history balance modes above remain an explicit growth risk.
+
+## Additional lifecycle issue exposed by the first image probe
+
+The first image `15c48fe0b649` did not pass the memory run. Its explicit Stop
+arrived during a new random step's readiness/reconciliation reads; cancellation
+then incorrectly created a durable recovery HALT, preventing the next Start.
+The run was interrupted and retained as failed evidence under
+`build/memory-review/20261028-022433/`. Samples after HALT are not accepted as
+healthy memory stability evidence.
+
+Two further Red tests reproduced cancellation during readiness and an open-order
+GET. Reconciliation now distinguishes those read-only cancellations from an
+interruption after a cancel request may have reached the exchange. The former
+keeps send authority closed and leaves prior HALT/intents untouched; the latter
+still requires recovery. Timeouts, read failures and economic mismatches keep
+their existing failure behavior. New real-PG cases cover both branches and an
+already-halted state. This is a lifecycle correction discovered by the memory
+workload, not a memory-budget waiver or automatic HALT reset.
+
+After this additional correction, the complete native regression passes
+**1,691 tests + 11 subtests**, and the full disposable PG suite passes
+**219 tests**. The four new PG cases preserve existing HALT, distinguish
+read-only cancellation from a potentially dispatched cancel, and keep send
+authority closed. The failed image run remains failed; a new image run is needed.

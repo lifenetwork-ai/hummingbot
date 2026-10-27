@@ -449,7 +449,10 @@ class BotOwnership:
         if isinstance(scope, dict) and scope:
             self.bind_mm_drawdown(core.strategy)
 
+        may_have_exchange_effects = False
+
         async def perform():
+            nonlocal may_have_exchange_effects
             while not all(connector.ready for connector in self.connectors.values()):
                 await asyncio.sleep(0.1)
                 self.check_owner()
@@ -464,6 +467,9 @@ class BotOwnership:
                 restored = list(connector.in_flight_orders.values())
                 await self._refresh_orders(connector, restored)
                 if any(not order.is_done for order in restored):
+                    # Once a cancellation may have reached the exchange, an
+                    # interrupted reconciliation still requires recovery.
+                    may_have_exchange_effects = True
                     await connector.cancel_all(5)
                     while any(not order.is_done for order in restored):
                         self.check_owner()
@@ -476,6 +482,14 @@ class BotOwnership:
             self._check_intents(core.markets_recorder)
         try:
             await asyncio.wait_for(perform(), timeout=30)
+        except asyncio.CancelledError:
+            # Stop/Switch may interrupt readiness or GET-only initialization.
+            # No send authority has been granted and no exchange mutation was
+            # attempted. Preserve prior HALT/intents, but do not invent a new
+            # unresolved-effect HALT for a cleanly cancelled read.
+            if may_have_exchange_effects:
+                self.require_recovery("Exchange reconciliation did not complete; new risk remains blocked.")
+            raise
         except BaseException:
             self.require_recovery("Exchange reconciliation did not complete; new risk remains blocked.")
             raise
