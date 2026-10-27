@@ -36,7 +36,7 @@ rewritten. Recovery HALT is never cleared by these APIs.
 - [x] B — Red/Green configured capabilities, process/owner identity, observation
   freshness, read-only recovery/action guidance and pinned/deployed configuration
   provenance. Add a catalogue-hash precondition to guard against revision drift.
-- [ ] C — Red/Green bounded command/session history discovery, stable check lookup
+- [x] C — Red/Green bounded command/session history discovery, stable check lookup
   and page-level recorded fill aggregates without N+1. Use existing tables and
   indexes unless query evidence requires a small additive index.
 - [ ] D — Complete API/YAML/environment ownership tables, restart/rollout examples,
@@ -53,6 +53,9 @@ Swagger cases first failed, then passed. The focused post-change suite passed
 Phase B: three HTTP tests and a real-PG catalogue precondition test first failed;
 47 focused tests and five PG tests then passed, including immutable archive lookup,
 restart decoding, same-key retry after YAML changes and safe publication fields.
+Phase C: three missing-history/progress tests and a 20,000-event query-plan test
+failed before their fixes. The final history/configuration/migration selection
+passed 28 PostgreSQL tests. Order pages use three queries for both one and 500 rows.
 The deployment access route remains an operator deployment prerequisite: the
 template's internal ingress is not changed by this work. No cloud deployment,
 live account interaction, frontend app, automatic recovery reset or extra cache

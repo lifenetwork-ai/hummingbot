@@ -58,3 +58,27 @@ Post-change selection: 47 focused unit/HTTP tests and five disposable PG tests
 passed, including old/current catalogue comparison, stable retries across YAML
 changes, archived configuration lookup and private-state exclusion. ENV gating
 and trading environment remain independent.
+
+## C — Discoverable history and bounded order progress
+
+Command and session lists use filter-bound keyset cursors over existing tables.
+Command pagination preserves microsecond timestamp ties. Session summaries expose
+the last recorded transition, current-session identity and links to configuration
+and events; legacy sessions without a creation event are explicitly not invented.
+Reconciliation receipts have a stable ID lookup even after a newer check begins.
+HTTP contracts omit storage retry keys/hashes and retain Basic Auth and UTC output.
+
+Order pages aggregate recorded fill amounts in one grouped query and reuse that
+result for missing-side inference. One-row and 500-row pages both use three SQL
+queries. Recorded remaining amount is original quantity minus recorded fills,
+not exchange resting quantity; provisional/inconsistent rows return null remaining.
+No per-row API requests or new cache is necessary.
+
+Three missing-feature tests first failed. A 20,000-event EXPLAIN test then exposed
+session discovery scanning the primary-key stream through unrelated guard events.
+Migration 017 adds the ordinary `(bot_id,event_type,id)` index; the final plan uses
+it with at most two filtered rows. An initial partial-index attempt failed the
+existing schema validator and was replaced by an ordinary index, preserving the
+validator rather than broadening migration behavior. The final history, HTTP,
+configuration and migration selection passed 28 PostgreSQL tests. The focused
+HTTP/docs/Swagger selection also passed 28 tests.

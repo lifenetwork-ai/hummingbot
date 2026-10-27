@@ -128,6 +128,43 @@ class CommandResponse(APIModel):
     updated_at: UTCDateTime
 
 
+class PageQuery(APIModel):
+    limit: int = Field(default=100, ge=1, le=500)
+    cursor: Optional[str] = Field(default=None, max_length=2048)
+
+
+class CommandsQuery(PageQuery):
+    action: Optional[Literal["start", "switch", "stop"]] = None
+    status: Optional[Literal["accepted", "applying", "succeeded", "failed", "superseded"]] = None
+    session_id: Optional[str] = Field(default=None, min_length=1, max_length=128)
+
+
+class CommandsPage(APIModel):
+    items: List[CommandResponse]
+    next_cursor: Optional[str]
+
+
+class SessionSummary(APIModel):
+    id: str
+    request: MMSessionRequest
+    config_hash: str
+    profile_id: str
+    status: Literal["preparing", "running", "stopping", "stopped", "expired", "replaced", "unknown"]
+    state_source: Literal["current_session", "last_recorded_transition"]
+    is_current: bool
+    created_at: UTCDateTime
+    last_event_at: UTCDateTime
+    configuration_url: str
+    events_url: str
+
+
+class SessionsPage(APIModel):
+    items: List[SessionSummary]
+    next_cursor: Optional[str]
+    current_session_id: Optional[str]
+    coverage: Literal["recorded_session_creations"] = Field(description="Legacy sessions without a creation event may be absent. This is not historical quote coverage.")
+
+
 class ConfigurationPolicy(APIModel):
     profile_settings: Literal["yaml_only"] = "yaml_only"
     session_controls: List[str] = Field(default_factory=lambda: ["market_mode", "selection", "profile_id", "duration_seconds"])
@@ -441,6 +478,9 @@ class OrderView(APIModel):
     exchange_order_id: Optional[str]
     created_at: UTCDateTime
     updated_at: UTCDateTime
+    recorded_filled_amount: Optional[Decimal] = None
+    recorded_remaining_amount: Optional[Decimal] = Field(default=None, description="Original amount minus recorded fills, not exchange resting quantity. Can remain positive after cancellation; null for provisional/inconsistent orders.")
+    progress_basis: Optional[Literal["recorded_fills_only", "provisional_order", "inconsistent_recording"]] = None
 
 
 class OrdersPage(APIModel):

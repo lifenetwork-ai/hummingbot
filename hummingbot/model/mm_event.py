@@ -23,6 +23,7 @@ from hummingbot.model import HummingbotBase
 class MMEvent(HummingbotBase):
     __tablename__ = "mm_events"
     __table_args__ = (UniqueConstraint("event_key"),
+                      Index("idx_mm_events_bot_id_event_type_id", "bot_id", "event_type", "id"),
                       Index("idx_mm_events_bot_id_session_id_id", "bot_id", "session_id", "id"),
                       Index("idx_mm_events_bot_id_session_id_event_type_id", "bot_id", "session_id", "event_type", "id"),
                       Index("idx_mm_events_bot_id_session_id_source_id", "bot_id", "session_id", "source", "id"))

@@ -30,7 +30,7 @@ def _cursor(kind, filters, last):
                                                separators=(",", ":")).encode()).decode().rstrip("=")
 
 
-def _cursor_values(value, kind, filters, size):
+def _cursor_values(value, kind, filters, size, *, max_first=253402300799999999 // 1000):
     if value is None:
         return None
     try:
@@ -39,7 +39,7 @@ def _cursor_values(value, kind, filters, size):
         decoded = json.loads(base64.b64decode(value + "=" * (-len(value) % 4), altchars=b"-_", validate=True))
         last = decoded["last"]
         if (decoded["v"] != 1 or decoded["scope"] != _scope(kind, filters) or not isinstance(last, list) or len(last) != size
-                or type(last[0]) is not int or not 0 <= last[0] <= 253402300799999
+                or type(last[0]) is not int or not 0 <= last[0] <= max_first
                 or any(not isinstance(part, str) or not 1 <= len(part) <= 128 for part in last[1:])):
             raise ValueError
         return last
@@ -103,6 +103,18 @@ class AdminStore:
             row = connection.execute(select(AdminCommand).where(AdminCommand.bot_id == self.bot_id,
                                                                 AdminCommand.id == command_id)).mappings().first()
             return dict(row) if row else None
+
+    def commands_page(self, **filters):
+        from hummingbot.model.admin_history import commands_page
+        return commands_page(self, **filters)
+
+    def sessions_page(self, **filters):
+        from hummingbot.model.admin_history import sessions_page
+        return sessions_page(self, **filters)
+
+    def check_by_id(self, check_id):
+        row = self.command_by_id(check_id)
+        return row if row and row["action"] == "reconciliation_check" else None
 
     def session_configuration(self, session_id):
         from hummingbot.client.config.mm_profiles import MMProfilesConfig
@@ -181,7 +193,7 @@ class AdminStore:
         return query
 
     @staticmethod
-    def _order_sides(session, rows):
+    def _order_sides(session, rows, fill_stats=None):
         ids = [row.id for row in rows]
         if not ids:
             return {}
@@ -192,19 +204,43 @@ class AdminStore:
             side = "BUY" if status in ("PendingBuy", "BuyOrderCreated") else "SELL"
             sides[order_id] = side if order_id not in sides else (side if sides[order_id] == side else None)
         missing = set(ids) - set(sides)
-        if missing:
+        if missing and fill_stats is not None:
+            for order_id in missing:
+                stats = fill_stats.get(order_id)
+                if stats:
+                    sides[order_id] = stats["first_side"] if stats["first_side"] == stats["last_side"] else None
+        elif missing:
             for order_id, first, last in session.query(TradeFill.order_id, func.min(TradeFill.trade_type), func.max(TradeFill.trade_type)).filter(
                     TradeFill.market.in_(tuple(MARKETS.values())), TradeFill.order_id.in_(missing)).group_by(TradeFill.order_id):
                 sides[order_id] = first if first == last else None
         return sides
 
     @staticmethod
-    def _order_view(row, sides):
-        return dict(id=row.id, connector=row.market, market="spot" if row.market == "okx" else "perpetual",
-                    pair=row.symbol, side=sides.get(row.id), amount=row.amount, price=row.price,
-                    order_type=row.order_type, position=row.position, leverage=row.leverage, status=row.last_status,
-                    creation_pending=row.creation_pending, exchange_order_id=row.exchange_order_id,
-                    created_at=_timestamp(row.creation_timestamp), updated_at=_timestamp(row.last_update_timestamp))
+    def _order_view(row, sides, fill_stats=None):
+        result = dict(id=row.id, connector=row.market, market="spot" if row.market == "okx" else "perpetual",
+                      pair=row.symbol, side=sides.get(row.id), amount=row.amount, price=row.price,
+                      order_type=row.order_type, position=row.position, leverage=row.leverage, status=row.last_status,
+                      creation_pending=row.creation_pending, exchange_order_id=row.exchange_order_id,
+                      created_at=_timestamp(row.creation_timestamp), updated_at=_timestamp(row.last_update_timestamp))
+        if fill_stats is not None:
+            stats = fill_stats.get(row.id, {})
+            filled = stats.get("amount", Decimal("0"))
+            inconsistent = not filled.is_finite() or filled < 0 or filled > row.amount or stats.get("min_amount", 0) < 0
+            provisional = bool(row.creation_pending)
+            result.update(recorded_filled_amount=filled if filled.is_finite() else None,
+                          recorded_remaining_amount=None if inconsistent or provisional else row.amount - filled,
+                          progress_basis="inconsistent_recording" if inconsistent else "provisional_order" if provisional else "recorded_fills_only")
+        return result
+
+    @staticmethod
+    def _fill_stats(session, rows):
+        if not rows:
+            return {}
+        result = session.query(TradeFill.order_id, func.sum(TradeFill.amount), func.min(TradeFill.amount),
+                               func.min(TradeFill.trade_type), func.max(TradeFill.trade_type)).filter(
+            tuple_(TradeFill.market, TradeFill.order_id).in_([(row.market, row.id) for row in rows])).group_by(TradeFill.order_id)
+        return {identity: dict(amount=amount, min_amount=minimum, first_side=first, last_side=last)
+                for identity, amount, minimum, first, last in result}
 
     def orders(self, *, market="all", pair=None, start_ms=None, end_ms=None, limit=100, cursor=None, state="all"):
         if type(limit) is not int or not 1 <= limit <= 500 or state not in ("open", "closed", "all"):
@@ -220,9 +256,10 @@ class AdminStore:
                 query = query.filter(tuple_(Order.creation_timestamp, Order.id) < tuple(point))
             rows = query.order_by(Order.creation_timestamp.desc(), Order.id.desc()).limit(limit + 1).all()
             selected = rows[:limit]
-            sides = self._order_sides(session, selected)
+            stats = self._fill_stats(session, selected)
+            sides = self._order_sides(session, selected, stats)
             next_cursor = _cursor("orders", scope, [selected[-1].creation_timestamp, selected[-1].id]) if len(rows) > limit else None
-            return dict(items=[self._order_view(row, sides) for row in selected], next_cursor=next_cursor)
+            return dict(items=[self._order_view(row, sides, stats) for row in selected], next_cursor=next_cursor)
 
     def order(self, order_id, *, timeline_limit=100):
         if type(timeline_limit) is not int or not 1 <= timeline_limit <= 500:
@@ -233,7 +270,8 @@ class AdminStore:
                 return None
             events = session.query(OrderStatus).filter(OrderStatus.order_id == order_id).order_by(
                 OrderStatus.timestamp.desc(), OrderStatus.id.desc()).limit(timeline_limit + 1).all()
-            return dict(order=self._order_view(row, self._order_sides(session, [row])),
+            stats = self._fill_stats(session, [row])
+            return dict(order=self._order_view(row, self._order_sides(session, [row], stats), stats),
                         timeline=[dict(id=item.id, timestamp=_timestamp(item.timestamp), status=item.status)
                                   for item in reversed(events[:timeline_limit])],
                         timeline_truncated=len(events) > timeline_limit,

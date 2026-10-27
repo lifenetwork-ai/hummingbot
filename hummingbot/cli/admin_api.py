@@ -21,6 +21,8 @@ from hummingbot.cli.admin_models import (
     BalancesResponse,
     CommandRequest,
     CommandResponse,
+    CommandsPage,
+    CommandsQuery,
     DailyQuery,
     DailyResponse,
     FillsPage,
@@ -34,6 +36,7 @@ from hummingbot.cli.admin_models import (
     OrderDetailQuery,
     OrdersPage,
     OrdersQuery,
+    PageQuery,
     PerformanceResponse,
     PositionsResponse,
     ProfilesResponse,
@@ -44,6 +47,7 @@ from hummingbot.cli.admin_models import (
     ReferencePairsResponse,
     ServiceStatus,
     SessionConfigurationResponse,
+    SessionsPage,
     StatusResponse,
 )
 from hummingbot.cli.admin_operations import operator_view, process_identity
@@ -66,6 +70,8 @@ ADMIN_ENDPOINTS += (("GET", "/statistics/daily", "daily"),
                     ("GET", "/statistics/liquidity", "liquidity"))
 ADMIN_ENDPOINTS += (("POST", "/reconciliation/check", "reconciliation_check"), ("GET", "/reconciliation", "reconciliation"))
 ADMIN_ENDPOINTS += (("GET", "/sessions/{session_id}/configuration", "session_configuration"),)
+ADMIN_ENDPOINTS += (("GET", "/commands", "commands_history"), ("GET", "/sessions", "sessions"),
+                    ("GET", "/reconciliation/{check_id}", "reconciliation_by_id"))
 
 
 class APIUnavailable(RuntimeError):
@@ -248,7 +254,7 @@ class AdminAPI:
                        "fixed_profile": {"summary": "Run one specific profile", "value": {
                            "action": "start", "expected_version": 0, "market_mode": "spot", "selection": "fixed",
                            "profile_id": "follow_market", "duration_seconds": 3600}},
-                       "random_profiles": {"summary": "Random profile selection every ten minutes", "value": {
+                       "random_profiles": {"summary": "Random rotation using the deployed YAML pool and timing", "value": {
                            "action": "start", "expected_version": 0, "market_mode": "both", "selection": "random",
                            "duration_seconds": 3600}},
                        "configured_reference": {"summary": "Follow the token configured in the deployed YAML profile", "value": {
@@ -282,6 +288,21 @@ class AdminAPI:
         if receipt is None or receipt["action"] not in ("start", "switch", "stop"):
             raise web.HTTPNotFound()
         return web.json_response(self.command_response(receipt).model_dump(mode="json"))
+
+    @api_operation(operation_id="listCommands", summary="Find previous session-control receipts after reload or operator handover", tag="Control",
+                   response_model=CommandsPage, query_model=CommandsQuery)
+    async def commands_history(self, request):
+        query = self.query(request, CommandsQuery)
+        page = await asyncio.to_thread(self.storage().commands_page, **query.model_dump())
+        model = CommandsPage(items=[self.command_response(row) for row in page["items"]], next_cursor=page["next_cursor"])
+        return web.json_response(model.model_dump(mode="json"))
+
+    @api_operation(operation_id="listSessions", summary="Find recorded sessions; legacy sessions without creation history may be absent", tag="History",
+                   response_model=SessionsPage, query_model=PageQuery)
+    async def sessions(self, request):
+        query = self.query(request, PageQuery)
+        page = await asyncio.to_thread(self.storage().sessions_page, **query.model_dump())
+        return web.json_response(SessionsPage.model_validate(page).model_dump(mode="json"))
 
     @api_operation(operation_id="listOrders", summary="Read bounded bot-owned order history", tag="History",
                    response_model=OrdersPage, query_model=OrdersQuery)
@@ -387,6 +408,17 @@ class AdminAPI:
         check = self.check_response(row) if row else None
         model = ReconciliationResponse(check=check, report=check.report if check else {})
         return web.json_response(model.model_dump(mode="json"))
+
+    @api_operation(operation_id="getReconciliationById", summary="Read the requested check even after a newer check starts", tag="Reconciliation",
+                   response_model=ReconciliationReceipt, path_parameters=("check_id",))
+    async def reconciliation_by_id(self, request):
+        identity = request.match_info["check_id"]
+        if not 1 <= len(identity) <= 128:
+            raise ValueError("Invalid check identity")
+        row = await asyncio.to_thread(self.storage().check_by_id, identity)
+        if row is None:
+            raise web.HTTPNotFound()
+        return web.json_response(self.check_response(row).model_dump(mode="json"))
 
     @api_operation(operation_id="getSessionEvents", summary="Read recorded session transitions and original configuration", tag="History",
                    response_model=MMEventsPage, query_model=MMEventsQuery, path_parameters=("session_id",))
