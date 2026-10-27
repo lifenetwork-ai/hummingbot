@@ -3,6 +3,9 @@
 Date: 2026-10-26 (Asia/Ho_Chi_Minh).
 Status: E0–E6 complete; final artifact, load and Demo evidence is linked in E6.
 Only verified checklist items are marked complete.
+Follow-up scope is tracked separately in the proposed
+[volatility defense plan](MM_VOLATILITY_DEFENSE_TDD_PLAN.md); the completed E0–E6
+checklist below does not imply that the follow-up has been implemented.
 Baseline: `1867159e7`.
 Implementation priority: service availability, explainable trading decisions and
 automatic recovery from classified transient failures. Compatibility and
