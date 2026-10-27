@@ -561,7 +561,6 @@ class LifeMMController(pmm_simple.PMMSimpleController):
                     buy_quote, sell_quote = ([value * scale for value in allocations] for allocations in (buy_quote, sell_quote))
                 self._effective_spreads = self._spread_policy.compose(
                     connector, self.config.trading_pair, reference, buy, sell, buy_quote, sell_quote, now=provider.time())
-                self.processed_data["spread_policy"] = self._spread_status(sample=sample_guard)
             self._update_inventory_skew(guard_status)
             for level in self.get_not_active_levels_ids([]):
                 price, _ = self.get_price_and_amount(level)
@@ -578,6 +577,8 @@ class LifeMMController(pmm_simple.PMMSimpleController):
             self.processed_data["ready"] = guard_status is None or guard_status["ready"]
             if not self.processed_data["ready"]:
                 self.processed_data["reason"] = guard_status["reason_code"]
+            if self.config.spread_policy.enabled:
+                self.processed_data['spread_policy'] = self._spread_status(reason=self.processed_data.get('reason'), sample=sample_guard)
         except Exception as error:
             reason = str(error).split(":", 1)[0]
             if self._spread_policy.defense is not None:

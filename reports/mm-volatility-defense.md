@@ -108,3 +108,20 @@ defense/history cases pass; Swagger generation/check and guide-link validation
 pass. An earlier full PostgreSQL run (before the additional lifecycle/retention
 cases) passed 226 tests. Final-source broad regression and image/load/Demo gates
 remain V5.
+
+## V5 — Acceptance in progress
+
+The first dedicated image attempt failed in its observer: separate ledger reads
+spanned quote replacement and produced an empty comparison group. The harness
+now evaluates one ledger snapshot and retains first terminal-cancel time rather
+than a later duplicate acknowledgment time. That retry passed weighted levels,
+partial fills, delayed cancellation, durable pause/restart/new continuous-random
+session, automatic recovery, all market modes and position-preserving Stop on
+image `809f75ed0a05`. Its result remains scoped to that image.
+
+A 72-case declared synthetic comparison passed independent accounting and replay
+integrity. It also exposed an observability defect: intermediate spread state
+was logged before later price validation failed, producing ten contradictory
+WARNING transitions in five unchanged control samples. A Red test reproduced
+this; Green publishes/logs only the final controller decision. This changes the
+final runtime source, so image/load acceptance will use a rebuilt artifact.

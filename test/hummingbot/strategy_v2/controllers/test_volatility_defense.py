@@ -156,6 +156,19 @@ def test_defense_status_is_typed_english_and_polling_does_not_sample(monkeypatch
     assert changes[-1].levelno == logging.INFO
 
 
+def test_failed_quote_validation_logs_only_final_defense_decision(monkeypatch, clock, caplog):
+    import logging
+    controller = defended_controller(monkeypatch, clock)
+    controller.quote_price_valid = MagicMock(return_value=False)
+    monkeypatch.setattr('hummingbot.strategy_v2.utils.mm_spread.natr_value', lambda *args: Decimal('.025'))
+    with caplog.at_level(logging.WARNING):
+        for _ in range(5):
+            controller.update_reference(sample_guard=True)
+    changes = [row for row in caplog.records if getattr(row, 'event', None) == 'mm_volatility_defense_changed']
+    assert len(changes) == 1
+    assert controller.processed_data['spread_policy']['defense']['state'] == 'waiting'
+
+
 @pytest.mark.parametrize('updates', [dict(min_multiplier='.5'), dict(enabled=False),
                                      dict(defense=dict(reduce_at_natr='.02', stop_at_natr='.01',
                                                        resume_below_natr='.015', reduced_size_factor='.5', recovery_seconds=60))])
