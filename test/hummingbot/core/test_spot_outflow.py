@@ -1,4 +1,7 @@
+import copy
+import heapq
 from decimal import Decimal
+from random import Random
 from types import SimpleNamespace
 
 import pytest
@@ -19,6 +22,44 @@ def fill(identity, timestamp, side="BUY", price="10", amount="1", fees=()):
 
 def order(identity, amount="5", price="10"):
     return SimpleNamespace(client_order_id=identity, amount=Decimal(amount), price=Decimal(price))
+
+
+@pytest.mark.parametrize("amount", [".001", ".00000001234567890123456789"])
+def test_large_expiry_batch_matches_incremental_clock_with_bounded_heap_operations(monkeypatch, amount):
+    from hummingbot.core import spot_outflow
+
+    batch = SpotOutflowProjection(policy(), "LIFE-USDT", coverage_start_ms=0)
+    batch.advance(20000)
+    indices = list(range(4096))
+    Random(7).shuffle(indices)
+    for index in indices:
+        batch.add_fill(fill(f"order-{index}:fill", 15000 + index, "BUY" if index % 2 else "SELL",
+                            amount=amount, fees=[("USDT", ".00000001"), ("LIFE", "-.000001")]))
+    batch.add_fill(fill("future:fill", 50000))
+    reference = copy.deepcopy(batch)
+    for now in range(25001, 29097):
+        reference.advance(now)
+    calls = []
+
+    def pop(heap):
+        calls.append(1)
+        return heapq.heappop(heap)
+
+    monkeypatch.setattr(spot_outflow, "heapq", SimpleNamespace(heappop=pop, heappush=heapq.heappush))
+    batch.advance(29096)
+    assert batch.status() == reference.status()
+    assert batch.entries == reference.entries
+    assert batch.future == reference.future and batch.expiry == reference.expiry
+    # A cost budget rather than a machine-sensitive millisecond assertion.
+    assert len(calls) <= 16
+    for projection in (batch, reference):
+        projection.add_fill(fill("new:fill", 29095, amount=".5"))
+        projection.advance(39096)
+        projection.advance(50001)
+        assert projection.status()["recorded_net_outflow_quote"] == Decimal("10")
+        projection.advance(60001)
+    assert batch.status() == reference.status()
+    assert not batch.entries and not batch.expiry and not batch.future
 
 
 def test_exact_cashflow_original_fee_currencies_and_duplicate_same_timestamp_ids():

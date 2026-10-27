@@ -39,6 +39,7 @@ class SpotOutflowProjection:
         self.coverage_start_ms = coverage_start_ms
         self.now_ms = 0
         self.entries, self.future, self.expiry = {}, [], []
+        self._latest_expiry_ms = 0
         self.reservations: Dict[str, Reservation] = {}
         self.net = ZERO
         self.future_risk = ZERO
@@ -66,15 +67,30 @@ class SpotOutflowProjection:
             if stamp >= start:
                 self._apply(value, 1)
                 heapq.heappush(self.expiry, (stamp, key))
+                self._latest_expiry_ms = max(self._latest_expiry_ms, stamp)
             else:
                 self.invalid.discard(key)
                 self.entries.pop(key, None)
-        while self.expiry and self.expiry[0][0] < start:
-            _, key = heapq.heappop(self.expiry)
-            value = self.entries.pop(key, None)
-            if value is not None:
-                self._apply(value, -1)
-                self.invalid.discard(key)
+        if len(self.expiry) >= 1024 and self._latest_expiry_ms < start:
+            # All entries in this heap are due. Sorting once preserves exactly
+            # the heappop order (including Decimal arithmetic) without repeated
+            # heap repair during a large same-time expiry. Future risk is separate.
+            self.expiry.sort()
+            expired, self.expiry = self.expiry, []
+            for _, key in expired:
+                value = self.entries.pop(key, None)
+                if value is not None:
+                    self._apply(value, -1)
+                    self.invalid.discard(key)
+        else:
+            while self.expiry and self.expiry[0][0] < start:
+                _, key = heapq.heappop(self.expiry)
+                value = self.entries.pop(key, None)
+                if value is not None:
+                    self._apply(value, -1)
+                    self.invalid.discard(key)
+        if not self.expiry:
+            self._latest_expiry_ms = 0
         for key, reservation in list(self.reservations.items()):
             if reservation.terminal_amount is not None and reservation.committed >= reservation.terminal_amount:
                 del self.reservations[key]
@@ -139,6 +155,7 @@ class SpotOutflowProjection:
         if stamp < self.now_ms:
             self._apply(value, 1)
             heapq.heappush(self.expiry, (stamp, key))
+            self._latest_expiry_ms = max(self._latest_expiry_ms, stamp)
         else:
             covered = (amount * reservation.price * (1 + self.config.fee_allowance_rate) + reservation.flat_fee
                        if reservation is not None else ZERO)
