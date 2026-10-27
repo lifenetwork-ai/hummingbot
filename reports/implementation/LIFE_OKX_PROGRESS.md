@@ -1072,7 +1072,7 @@ See [optimization report](../life-mm-runtime-optimization.md) and
 historical E6 Demo and cold traced stress limits retain their original scope.
 
 
-## Maintainability refactor (in progress)
+## Maintainability refactor (complete)
 
 Work proceeds in small behavior-preserving commits on the existing runtime.
 
@@ -1106,5 +1106,34 @@ cancels funding before disposing the engine, and a new single-flight test checks
 that a poll deadline cannot create overlapping batches. Trace instrumentation
 follows the moved collector while preserving its existing span name.
 
-Final native/PostgreSQL, packaged-image E2E and short load verification remain
-pending; the earlier optimized image's sixty-minute result is historical evidence.
+Final verification, 2026-10-27: 1578 native tests/11 subtests, 204 real-PG tests,
+Swagger and hooks pass. Image `b720c28a226c` is 1366524884 bytes; all 57 checked
+runtime paths match the frozen source. `hummingbot-cloudrun:local` and
+`hummingbot-cloudrun:refactored` are aliases for that same verified image.
+
+Thirteen functional E2E groups pass, including nine profile/market combinations.
+The combined matrix stopped before upgrade because its historical comparison
+image disappeared from Docker's cache. That failed root is retained. Upgrade,
+takeover and rollback then pass separately against a reconstructed fixture whose
+53 Python/SQL source paths match baseline `917800b59`. The fixture inherits the
+current dependency/runtime layers; this is not certification of the deleted
+historical binary or a passing monolithic matrix rerun.
+
+The all-feature untraced 150-second diagnostic uses 100000 historical orders and
+fills, completes 3000 primary plus 300 separate auxiliary reads with zero
+unexpected errors, and records p95/p99 55.22/289.74 ms. The active outflow history
+falls from 50000 entries to 75 after expiry. All 150 actual fills, original fees,
+positions and two funding bills match the independent ledger. All five fault
+windows pass on the same image with retained spot/perpetual positions. During
+that run, the root JSON already contained two completed fault cases while its
+overall pass flag was still unset, confirming incremental evidence persistence.
+
+A separate 30-second traced diagnostic on 1000 historical rows passes and retains
+two slow `service.collect_funding` spans from the moved collector. These short
+checks do not replace a new sixty-minute soak or certify cold large-window tracing.
+The earlier optimized image's long-soak results retain their original scope.
+No connected OKX account, Cloud Run deployment, schema change, cache backend or
+new service is involved.
+
+Implementation commits: `09dc7198d`, `1c405ba57`, `7400c296d`, `37cad9c0a`.
+See [portable verification evidence](../life-mm-maintainability.json).

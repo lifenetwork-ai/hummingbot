@@ -28,6 +28,7 @@ does not certify a later image. Operational guides and plans live in [docs/](../
 | [Load and soak results](life-mm-load-tests.md) | [Original acceptance JSON](life-mm-load-acceptance.json) |
 | [MM optimization review](life-mm-optimization-review.md) | Cache, SQL and task-lifecycle follow-up |
 | [Runtime flow optimization](life-mm-runtime-optimization.md) | Reader reuse, daily SQL, fresh state projections and exact outflow expiry; healthy soak plus separate five-fault retest |
+| [Maintainability verification](life-mm-maintainability.json) | Six refactor items; native/PG, 13 functional groups plus separate baseline-fixture upgrade, short load and five faults; details in the progress report |
 | [OKX Demo acceptance](okx-demo-acceptance.md) | [Protocol JSON](okx-demo-acceptance.json), [natural-fill JSON](okx-demo-fill-acceptance.json) |
 | [Explicit Demo preset validation](okx-demo-preset-validation.json) | Nine static-metadata selections and runtime/package smoke; no connected or full release gate |
 | [Decimal precision evidence](postgres-decimal-precision.json) | Exact decimal storage migration and verification |
