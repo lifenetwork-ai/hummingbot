@@ -1,7 +1,8 @@
 # LIFE / OKX volatility defense — incremental TDD plan
 
 Date: 2026-10-28 (Asia/Ho_Chi_Minh).
-Status: planned; implementation and acceptance checklists below are open.
+Status: V0 characterized; V1–V5 implementation and acceptance remain open.
+Evidence: [implementation report](../../reports/mm-volatility-defense.md).
 
 Improve quote protection and automatic recovery while keeping the existing
 Hummingbot execution engine. Priorities are explainable liquidity provision,
@@ -211,11 +212,11 @@ snake_case migration and document why; do not prebuild a generic persistence lay
 
 ### V0 — Lock contracts and characterize the baseline
 
-- [ ] Locate exact controller, owner/final-transport, checkpoint and status hooks;
+- [x] Locate exact controller, owner/final-transport, checkpoint and status hooks;
   add existing test coverage locations to implementation evidence.
-- [ ] Characterize three weighted levels, 200-quote allocation split, original
+- [x] Characterize three weighted levels, 200-quote allocation split, original
   two-level behavior and spot/perpetual/both modes with frozen fixture data.
-- [ ] Pin deterministic candle/fake-clock fixtures and the state, sizing,
+- [x] Pin deterministic candle/fake-clock fixtures and the state, sizing,
   fallback and restart contracts above before changing runtime behavior.
 
 ### V1 — Base spread floor using existing configuration
