@@ -27,9 +27,13 @@ from hummingbot.core.web_assistant.connections.data_types import RESTMethod, RES
 owned = _owned
 
 
-def setup(context):
+def setup(context, *, duration_mode='timed', selection='fixed'):
     catalogue = MMProfilesConfig.model_validate(bootstrap_catalogue())
-    session = MMSession.create(catalogue, MMSessionRequest(market_mode='spot', profile_id='sideways', duration_seconds=600), rng=random.Random(1))
+    selected = MMSessionRequest(market_mode='spot', selection=selection, duration_mode=duration_mode,
+                                profile_id='sideways' if selection == 'fixed' else None,
+                                profile_ids=['sideways'] if selection == 'random' else None,
+                                duration_seconds=600 if duration_mode == 'timed' else None)
+    session = MMSession.create(catalogue, selected, rng=random.Random(1))
     with context.engine.begin() as connection:
         connection.execute(text("UPDATE bot_state SET config_type='mm-session', config_file_path='life_mm_profiles.yaml', mm_session=CAST(:value AS jsonb)"),
                            {'value': json.dumps(session.model_dump(mode='json'))})
@@ -86,6 +90,22 @@ def request(identity='a', price='.099', size='100'):
     return RESTRequest(method=RESTMethod.POST, url='https://www.okx.com/api/v5/trade/order', is_auth_required=True,
                        data=json.dumps(dict(clOrdId=identity, instId='LIFE-USDT', side='buy', sz=size, px=price,
                                             ordType='post_only', tdMode='cash')))
+
+
+@pytest.mark.parametrize('selection', ['fixed', 'random'])
+def test_until_stopped_still_has_a_finite_persisted_bootstrap_and_transport_deadline(owned, selection):
+    _, session, controller, guard, _ = setup(owned, duration_mode='until_stopped', selection=selection)
+    session = admit(owned, session, controller, guard)
+    assert session.expires_at is None
+    assert (session.step_expires_at is None) == (selection == 'fixed')
+    episode = guard.frame['episodes'][controller.config.id]
+    assert episode['expires_at'] - episode['started_at'] == 30
+    proposal(owned, session)
+    req = request()
+    asyncio.run(owned.owner.authorize_rest(req))
+    assert int(req.headers['expTime']) <= int(episode['expires_at'] * 1000)
+    assert int(req.headers['expTime']) <= int((time.time() + 5) * 1000)
+    assert episode['expires_at'] > time.time()
 
 
 def test_atomic_start_rollback_and_restart_cannot_renew_original_episode(owned):

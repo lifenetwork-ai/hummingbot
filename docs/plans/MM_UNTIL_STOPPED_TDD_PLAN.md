@@ -8,7 +8,7 @@ policies remain authoritative. Bootstrap retains its own finite episode deadline
 
 - [x] A — Red/Green request/catalogue validation, indefinite fixed/random clocks,
   strict final-send gates, skipped-window restart and old-session compatibility.
-- [ ] B — Red/Green service scheduling, bootstrap expiry and PostgreSQL HTTP
+- [x] B — Red/Green service scheduling, bootstrap expiry and PostgreSQL HTTP
   start/switch/stop/retry/restart, including disabled current YAML versus a pinned
   active session and HALT behavior.
 - [ ] C — Capabilities, English Swagger/FE controls and documentation, native/PG
