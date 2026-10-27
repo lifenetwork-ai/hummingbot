@@ -19,6 +19,7 @@ def runner(global_limit="10", controller_limit=None, spot="0", perpetual="0"):
                                      max_controller_drawdown_quote=controller_limit, mm_drawdown_scope=SCOPE)
     controller = SimpleNamespace(config=SimpleNamespace(manual_kill_switch=False), status=RunnableStatus.RUNNING,
                                  _session_admitted=True, stop=MagicMock(), start=MagicMock())
+    controller.revoke_session = lambda: setattr(controller, "_session_admitted", False)
     item = SimpleNamespace(config=config, controllers={"life_spot": controller},
                            max_global_pnl=Decimal("0"), max_pnl_by_controller={}, drawdown_exited_controllers=[],
                            _is_stop_triggered=False, controller_reports_timestamp=1000, controller_reports_error=None,

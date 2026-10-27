@@ -187,7 +187,8 @@ class V2WithControllers(StrategyV2Base):
         self._is_stop_triggered = True
         self.drawdown_exited_controllers = list(self.config.mm_drawdown_scope)
         for controller in self.controllers.values():
-            controller._session_admitted = False
+            if callable(getattr(controller, "revoke_session", None)):
+                controller.revoke_session()
         HummingbotApplication.main_application().stop(mm_drawdown_reason=reason)
 
     def _control_mm_drawdown(self):
@@ -220,7 +221,8 @@ class V2WithControllers(StrategyV2Base):
             self.drawdown_exited_controllers = list(self.config.mm_drawdown_scope)
             self._mm_drawdown_breach = dict(reason_code=reason, controller_id=breached)
             for controller in self.controllers.values():
-                controller._session_admitted = False
+                if callable(getattr(controller, "revoke_session", None)):
+                    controller.revoke_session()
         self._mm_drawdown_state = dict(ready=reason is None, stale=False, reason_code=reason,
                                        observed_at=self.controller_reports_timestamp, global_pnl_quote=total,
                                        global_drawdown_quote=self.max_global_pnl - total, controller_pnl=values,

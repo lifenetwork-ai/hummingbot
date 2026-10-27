@@ -178,7 +178,7 @@ class ServiceHost:
                     return waiting(reason if reason in MM_READINESS_REASONS else "market_data_unavailable")
                 if not controller.market_data_provider.ready:
                     return waiting("market_data_unavailable")
-                if not controller._exposure_within_caps():
+                if not controller.exposure_within_caps():
                     return waiting("exposure_limit")
             pending_quote = Decimal("0")
             for controller in controllers:
@@ -262,13 +262,9 @@ class ServiceHost:
             # basket, before committing its start/deadline and allowing any quote.
             sources = None
             for controller in controllers:
-                controller._life_anchor = None
-                controller._source_anchors = {} if sources is None else dict(sources)
-                controller.update_reference()
-                if not (controller.processed_data.get("ready")
-                        or (controller.processed_data.get("quote_guard") or {}).get("can_admit")):
+                sources = controller.prepare_session_anchors(sources)
+                if sources is None:
                     return False
-                sources = controller._source_anchors
             anchors = {controller.config.id: controller.reference_state() for controller in controllers}
         if anchors is not None or (bootstrap is not None and bootstrap.needs_start()):
             self.mm_session = self.store.update_mm_session(
@@ -506,7 +502,7 @@ class ServiceHost:
                 "mm_liquidity": self.mm_liquidity_state,
                 "mm_markets": [{"market": "spot" if controller.config.connector_name == "okx" else "perpetual",
                                 "connector": controller.config.connector_name, "pair": controller.config.trading_pair,
-                                "ready": bool(controller.processed_data.get("ready")), "admitted": controller._session_admitted,
+                                "ready": bool(controller.processed_data.get("ready")), "admitted": controller.session_admitted,
                                 "reference_price": str(controller.processed_data["reference_price"]) if "reference_price" in controller.processed_data else None,
                                 "reason": controller.processed_data.get("reason"),
                                 "quote_guard": controller.processed_data.get("quote_guard"),
@@ -634,8 +630,8 @@ class ServiceHost:
                 self.phase = "running" if admitted else "waiting_for_mm_readiness"
                 if not admitted:
                     for controller in self._mm_controllers():
-                        controller._session_admitted = False
-                        await controller.send_actions(controller._stop_quotes())
+                        controller.revoke_session()
+                        await controller.send_actions(controller.stop_quote_actions())
             if (core.trade_fill_db is None or not core.trade_fill_db.persistence_healthy
                     or not self.owner.allow_new_orders or not core._strategy_running):
                 self.owner.require_recovery("Trading/recorder health requires reconciliation.")

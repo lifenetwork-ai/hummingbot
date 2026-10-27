@@ -44,6 +44,42 @@ def make_controller(config):
 
 
 @pytest.mark.asyncio
+async def test_public_session_revocation_is_idempotent_and_identity_still_fences_admission():
+    controller, _ = make_controller(configuration(runtime_config_managed=True, mm_session_id='session', mm_generation=2))
+    await controller.update_processed_data()
+    assert not controller.session_admitted
+    controller.admit_session('session', 2)
+    assert controller.session_admitted and controller.create_actions_proposal()
+    controller.revoke_session()
+    controller.revoke_session()
+    assert not controller.session_admitted and controller.create_actions_proposal() == []
+    with pytest.raises(ValueError, match='identity'):
+        controller.admit_session('session', 1)
+    assert not controller.session_admitted
+
+
+@pytest.mark.asyncio
+async def test_preparing_shared_anchors_copies_the_basket_without_admitting_quotes():
+    config = configuration(runtime_config_managed=True, mm_session_id='session', mm_generation=1, scenario='follow_market',
+                           references=[{'pair': 'BTC-USDT', 'weight': '1'}])
+    first, _ = make_controller(config)
+    second, prices = make_controller(config)
+    sources = first.prepare_session_anchors()
+    assert sources == {'BTC-USDT': Decimal('100')}
+    prices['BTC-USDT'] = Decimal('110')
+    copied = second.prepare_session_anchors(sources)
+    assert second.processed_data['reference_price'] == Decimal('0.11')
+    assert not first.session_admitted and not second.session_admitted
+    copied['BTC-USDT'] = Decimal('999')
+    sources['BTC-USDT'] = Decimal('888')
+    assert first.reference_state()['sources'] == second.reference_state()['sources'] == {'BTC-USDT': '100'}
+    prices.pop('BTC-USDT')
+    assert second.prepare_session_anchors() is None
+    with pytest.raises(ValueError, match='not ready'):
+        second.reference_state()
+
+
+@pytest.mark.asyncio
 async def test_spot_outflow_rejection_skips_buy_proposals_but_keeps_funded_sells(monkeypatch):
     controller, _ = make_controller(configuration(runtime_config_managed=True))
     await controller.update_processed_data()

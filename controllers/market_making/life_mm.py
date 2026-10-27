@@ -237,6 +237,22 @@ class LifeMMController(pmm_simple.PMMSimpleController):
             raise ValueError("Session admission identity changed")
         self._session_admitted = True
 
+    @property
+    def session_admitted(self):
+        return self._session_admitted
+
+    def revoke_session(self):
+        self._session_admitted = False
+
+    def prepare_session_anchors(self, source_anchors=None):
+        """Prepare a copied basket; the host persists all markets before admission."""
+        self._life_anchor = None
+        self._source_anchors = dict(source_anchors or {})
+        self.update_reference()
+        if not (self.processed_data.get("ready") or (self.processed_data.get("quote_guard") or {}).get("can_admit")):
+            return None
+        return dict(self._source_anchors)
+
     def reference_state(self):
         if self._life_anchor is None:
             raise ValueError("Reference anchors are not ready")
@@ -454,12 +470,12 @@ class LifeMMController(pmm_simple.PMMSimpleController):
         # Run freshness/cancellation even when the generic provider becomes unready.
         await self.update_processed_data()
         if (self._control_error or not self._session_admitted or not self.market_data_provider.ready or not self.processed_data["ready"]
-                or not self._exposure_within_caps()):
-            await self.send_actions(self._stop_quotes())
+                or not self.exposure_within_caps()):
+            await self.send_actions(self.stop_quote_actions())
         elif self.executors_update_event.is_set():
             await self.send_actions(self.determine_executor_actions())
 
-    def _stop_quotes(self):
+    def stop_quote_actions(self):
         active = {executor.id for executor in self.executors_info if executor.is_active}
         self._stops_requested.intersection_update(active)
         actions = [StopExecutorAction(controller_id=self.config.id, executor_id=executor_id, keep_position=True)
@@ -468,8 +484,8 @@ class LifeMMController(pmm_simple.PMMSimpleController):
         return actions
 
     def determine_executor_actions(self):
-        if not self._session_admitted or not self.processed_data.get("ready") or not self._exposure_within_caps():
-            return self._stop_quotes()
+        if not self._session_admitted or not self.processed_data.get("ready") or not self.exposure_within_caps():
+            return self.stop_quote_actions()
         return super().determine_executor_actions()
 
     def _exposure(self):
@@ -502,7 +518,7 @@ class LifeMMController(pmm_simple.PMMSimpleController):
         return (long <= self.config.max_long_base and short <= self.config.max_short_base
                 and long + short <= self.config.max_gross_base)
 
-    def _exposure_within_caps(self):
+    def exposure_within_caps(self):
         try:
             return self._within_caps(*self._exposure())
         except (ValueError, ArithmeticError, TypeError):
