@@ -47,7 +47,7 @@ wider actual prices after a candle shock, explicit fallback/wait on outage,
 7.20-second recovery, authenticated events and clean stop with no unknown effects.
 Raw result: `build/e2e-offline/20261027-015200-fa0bb7/result.json`.
 
-See [guide](../docs/life-mm-spread-policy.md) and [JSON evidence](life-mm-e5-spread-policy.json).
+See [guide](../docs/life-mm-controls.md#fee-and-volatility-spreads) and [JSON evidence](life-mm-e5-spread-policy.json).
 Fee coverage is an estimate valued through the existing helper, not a realized
 profit guarantee. Full all-feature matrix/load/soak and external Demo remain E6.
 No external exchange account or deployment was used for E5.

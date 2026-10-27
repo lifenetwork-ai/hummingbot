@@ -103,7 +103,7 @@ being certified. Example YAML must identify disabled/default values and must not
 present arbitrary risk thresholds as suitable production settings.
 
 E1 `quote_guards` and profile `sideways_range` are supported; see the
-[guard guide](../life-mm-quote-guards.md). Other fields below remain proposed until
+[guard guide](../life-mm-controls.md#quote-guards). Other fields below remain proposed until
 their owning phase is implemented and verified:
 
 | Area | Proposed settings and semantics |
@@ -330,7 +330,7 @@ p95 74.81ms / p99 518.06ms, 1,200 HTTP 200 responses and no unexpected errors.
 The image-discovered final-shutdown Decimal serialization defect was fixed with
 a failing native test before rerunning the image gates. Defaults remain disabled;
 policy/peaks/HALT cannot be reset by normal commands. See the
-[guide](../life-mm-drawdown.md), [report](../../reports/life-mm-e2a-drawdown.md)
+[guide](../life-mm-controls.md#drawdown), [report](../../reports/life-mm-e2a-drawdown.md)
 and [evidence](../../reports/life-mm-e2a-drawdown.json). At that phase, E2b–E6 remained open.
 
 ### E2b — Rolling spot USDT outflow
@@ -401,7 +401,7 @@ Upper-edge pending debit and per-order dedupe bounds have explicit Red/Green
 tests. A real-PG Red/Green startup test also keeps setup permission during
 reconstruction and prevents a new binding HALT from reopening orders. Defaults
 remain disabled; no fill table, index, cache service or reset API
-was added. See the [guide](../life-mm-spot-outflow.md),
+was added. See the [guide](../life-mm-controls.md#spot-outflow),
 [report](../../reports/life-mm-e2b-spot-outflow.md) and
 [evidence](../../reports/life-mm-e2b-spot-outflow.json). At that phase, E4–E6 remained open.
 
@@ -476,7 +476,7 @@ p95 57.74ms / p99 296.04ms and sixty matching fills. The image scenario injects
 qualified outside-depth loss; the initially failing report/shutdown path was
 fixed with Red/Green coverage. See [report](../../reports/life-mm-e2c-listing-bootstrap.md),
 [evidence](../../reports/life-mm-e2c-listing-bootstrap.json) and
-[operational guide](../life-mm-listing-bootstrap.md). Production defaults remain
+[operational guide](../life-mm-controls.md#listing-bootstrap). Production defaults remain
 disabled. At that phase, E4–E6, the final all-feature image matrix/soak and external Demo checks
 remained open; this diagnostic does not close E6.
 
@@ -523,7 +523,7 @@ healthy diagnostic passed 1200 HTTP 200 reads, zero errors, p95 49.36ms / p99
 1 CPU/2 GiB. Original PMM math files remain unchanged; the adapter calls the
 existing interpolation directly. See [report](../../reports/life-mm-e3-inventory-skew.md),
 [evidence](../../reports/life-mm-e3-inventory-skew.json) and
-[guide](../life-mm-inventory-skew.md). Defaults remain disabled. At that phase, E4–E6 and the
+[guide](../life-mm-controls.md#inventory-skew). Defaults remain disabled. At that phase, E4–E6 and the
 final all-feature image matrix/soak remained open; this diagnostic does not close E6.
 
 ## 7. E4 — Transition history and useful liquidity observations
@@ -571,7 +571,7 @@ denominator design are outside this phase.
 
 E4 verification: [report](../../reports/life-mm-e4-history-liquidity.md),
 [evidence](../../reports/life-mm-e4-history-liquidity.json) and
-[API guide](../life-mm-history-liquidity.md). Final image verification remains E6.
+[API guide](../fe-integration.md#session-history-and-liquidity). Final image verification remains E6.
 
 ## 8. E5 — Fee-aware and volatility-adjusted spread
 
@@ -613,7 +613,7 @@ NATR or copying the full book again for each order.
 
 E5 verification: [report](../../reports/life-mm-e5-spread-policy.md),
 [evidence](../../reports/life-mm-e5-spread-policy.json) and
-[guide](../life-mm-spread-policy.md). Final-image candle-gap recovery: 7.20s, zero restarts.
+[guide](../life-mm-controls.md#fee-and-volatility-spreads). Final-image candle-gap recovery: 7.20s, zero restarts.
 
 ## 9. E6 — Verification and delivery gates
 

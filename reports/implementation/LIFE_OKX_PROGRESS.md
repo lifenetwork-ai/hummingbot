@@ -255,7 +255,7 @@ Wire and test explicit OKX Demo/live transport selection using local transports,
 then extend the deployment-image simulator matrix. P5 load/soak and P6 dedicated
 OKX Demo acceptance follow in order.
 
-Environment contract: [OKX live/Demo routing](../../docs/okx-environments.md). Both existing
+Environment contract: [OKX live/Demo routing](../../docs/okx-operations.md#environment-and-credentials). Both existing
 adapters share process-level mode/site validation and a REST header preprocessor;
 public reference discovery and candle business feeds follow the same selection.
 Dedicated Demo credential variables never fall back to live values. Existing
@@ -1034,7 +1034,7 @@ image was rebuilt, so these new image IDs have configuration/runtime smoke
 evidence, not the previous E6 artifact's full release certification. No connected
 OKX request, trading session or deployment was started.
 
-See [guide](../../docs/okx-demo-configuration.md) and
+See [guide](../../docs/okx-operations.md#demo-preset) and
 [sanitized validation](../okx-demo-preset-validation.json).
 
 
@@ -1164,7 +1164,7 @@ This verification covers source/native execution, not a rebuilt container,
 Cloud Logging ingestion, a new load/soak run or a Cloud Run deployment. Existing
 image tags and historical load evidence still refer to their previous source.
 Build and verify a new image before deployment. HTTP request trace propagation
-is not included in this change. See [the logging operations guide](../../docs/cloudrun-logging.md).
+is not included in this change. See [the logging operations guide](../../docs/cloudrun.md#logs-and-severity).
 
 ### Image logging follow-up
 

@@ -38,7 +38,7 @@ policy remain as documented below; renaming an old key does not activate it.
 | `LOG_LEVEL` | `INFO`; supports `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` |
 
 Service logging and severity conventions are described in
-[Cloud Run logging](cloudrun-logging.md).
+[Cloud Run logging](cloudrun.md#logs-and-severity).
 
 Choose the backend before starting a process:
 
@@ -67,6 +67,11 @@ these connections; warm readers use the remaining slots. Budget separate migrati
 engines and both old/new processes during deployment overlap.
 Session advisory locks require direct/session-pooled PostgreSQL connections;
 transaction-pooling proxies are unsupported.
+
+PostgreSQL runtime connections use UTC and bound idle open transactions to five
+seconds. This releases a paused process's uncommitted row locks after its owner
+session is lost. The separate committed advisory owner session is unaffected;
+loss of either required DB authority keeps new submissions closed.
 
 ## Migration policy
 
@@ -202,7 +207,7 @@ editing remains available; packaging/deploying a new YAML version is the durable
 cloud update mechanism. The service publishes active configuration hashes and revision in PostgreSQL.
 PostgreSQL controller configurations require unique, nonempty stable `id` values
 so restarts select the same persisted position and risk state.
-See the [deployment instructions](../deploy/cloudrun/README.md) for packaging and the release contract.
+See the [deployment instructions](cloudrun.md#service-and-configuration) for packaging and the release contract.
 
 ## PostgreSQL CLI control
 

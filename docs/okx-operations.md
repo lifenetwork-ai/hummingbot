@@ -1,4 +1,73 @@
-# Explicit OKX Demo preset
+# OKX operations
+
+The [environment/credential contract](#environment-and-credentials) applies to
+the whole process. The [explicit Demo preset](#demo-preset) packages BTC-USDT
+spot/perpetual and enabled example policies for testing before LIFE is listed.
+Keep Demo and live accounts, secrets and database history separate.
+
+For policy calculations use [MM controls](life-mm-controls.md); for migrations,
+ownership and HALT recovery use [PostgreSQL operations](postgres-runtime.md).
+Deployment is documented in [Cloud Run operations](cloudrun.md), and FE session
+controls in [FE integration](fe-integration.md).
+
+## Environment and credentials
+
+`OKX_TRADING_ENV=live|demo` selects one environment for the entire process,
+independent of API `market_mode: spot|perpetual|both`. The compatible default is
+`live`. Changing environment requires a process restart, dedicated credentials
+and a separate database/BOT_ID deployment. The admin API cannot hot-switch it.
+
+`OKX_SITE=www|app|my` selects Global/US/EEA account registration. The existing
+`HBOT_OKX_REGISTRATION_SUB_DOMAIN` is also recognized; conflicting explicit
+connector/site selections fail validation. Unknown modes/sites do not fall back.
+The existing AWS perpetual variant is retained only for global live routing.
+
+| Site | REST host | Live WS host | Demo WS host |
+|---|---|---|---|
+| `www` | `www.okx.com` | `ws.okx.com` | `wspap.okx.com` |
+| `app` | `us.okx.com` | `wsus.okx.com` | `wsuspap.okx.com` |
+| `my` | `eea.okx.com` | `wseea.okx.com` | `wseeapap.okx.com` |
+
+REST reuses the connector's existing supported account host. All Demo REST requests
+through the connector factory carry `x-simulated-trading: 1`, including public
+instrument reads. Live requests remove that header. Both public/private WS and
+business candle feeds use the selected host and default TLS port 443; reconnects
+retain the environment. Public reference discovery uses the same process settings.
+
+PostgreSQL/service credential loading requires dedicated variables in Demo mode:
+
+```dotenv
+OKX_TRADING_ENV=demo
+OKX_SITE=www
+HBOT_OKX_DEMO_API_KEY=
+HBOT_OKX_DEMO_SECRET_KEY=
+HBOT_OKX_DEMO_PASSPHRASE=
+HBOT_OKX_PERPETUAL_DEMO_API_KEY=
+HBOT_OKX_PERPETUAL_DEMO_SECRET_KEY=
+HBOT_OKX_PERPETUAL_DEMO_PASSPHRASE=
+```
+
+Populate these with **Demo** API credentials through injected secrets or the
+existing dotenv mechanism. Demo mode never falls back to `HBOT_OKX_API_KEY` or
+`HBOT_OKX_PERPETUAL_API_KEY` and their live secret/passphrase fields. The runtime
+cannot inspect a key's actual exchange permissions or origin; final P6 verifies
+the dedicated account. Original file credential storage remains available in file
+mode; selecting Demo there likewise requires supplying actual Demo keys.
+
+Local transport tests use only public dummy credentials and a loopback HTTP/WS
+server. They instantiate real connectors/auth/data sources and inspect final REST
+headers, WS login and repeated connect routes. They do not contact OKX. The isolated
+image simulator exercises LIFE listing behavior even when Demo lacks LIFE pairs.
+
+References, checked on 2026-10-25:
+[Global Demo services](https://www.okx.com/docs-v5/en/#overview-demo-trading-services),
+[US API](https://app.okx.com/docs-v5/en/),
+[EEA API](https://my.okx.com/docs-v5/en/), and
+[official port 8443 retirement](https://www.okx.com/en-eu/help/okx-websocket-port-8443-discontinuation-announcement).
+OKX documents port 443 as already available and retires public-internet 8443 on
+2026-10-31. Regional Demo WS hosts are also listed in that announcement.
+
+## Demo preset
 
 Use this preset to exercise the existing PostgreSQL service and admin API with
 BTC-USDT spot/perpetual before LIFE is listed. The default LIFE catalogue and
@@ -18,10 +87,9 @@ new continuous sessions; update the deployed/copied catalogue intentionally.
 | [Demo environment example](../deploy/cloudrun/demo/env.example) | PostgreSQL, migrations, admin API and dedicated Demo credential names |
 | [Demo image layer](../deploy/cloudrun/Dockerfile.demo) | Inherits the existing runtime and packages this catalogue at its normal path |
 
-## Enable switches
+### Enable switches
 
-Process environment overrides local dotenv values, which override shared code
-defaults. Cloud Run uses injected values instead of reading dotenv files.
+Environment precedence and API/YAML ownership follow [the integration contract](fe-integration.md#what-can-change-and-when).
 
 | Switch | Enabled | Disabled |
 | --- | --- | --- |
@@ -43,7 +111,7 @@ policy when populated and disables it when null, subject to existing durable
 policy bindings. Its `fee_allowance_rate` is a reservation allowance, not the
 exchange's actual fee rate. All fields are configuration of the existing engine.
 
-## Availability while policies are enabled
+### Availability while policies are enabled
 
 Track service availability and trading admission separately. Guard waits retain
 the running process and admin control while their required DB path is healthy.
@@ -67,7 +135,7 @@ The E6 [availability/load evidence](../reports/life-mm-e6-verification.md)
 describes the tested runtime artifact and fault scopes. This configuration
 example does not change those runtime rules or certify a new image digest.
 
-### What to do when quoting is blocked
+#### What to do when quoting is blocked
 
 Read `GET /api/v1/admin/status` first: process/session phase, market readiness,
 `quote_guard`, `spread_policy`, `inventory_skew`, `spot_outflow`, service incidents
@@ -93,7 +161,7 @@ For a future thin LIFE listing, choose the bounded bootstrap policy before that
 session using its guide and required risk bindings. The BTC strict preset does
 not synthesize outside liquidity or automatically turn bootstrap on when blocked.
 
-## Effective behavior
+### Effective behavior
 
 | Setting | Demo value and effect |
 | --- | --- |
@@ -125,10 +193,10 @@ the fee floor and spreads remain enabled and the bot never forces a match.
 
 BTC uses strict external-depth qualification. Listing bootstrap is intentionally
 absent from this liquid-market preset; use the existing
-[bootstrap guide](life-mm-listing-bootstrap.md) and offline simulator for
+[bootstrap guide](life-mm-controls.md#listing-bootstrap) and offline simulator for
 empty/own-only LIFE books. Perpetual has no spot-cash inventory skew.
 
-## Build and run locally
+### Build and run locally
 
 Use a dedicated Demo account and PostgreSQL database with known exposure/history.
 The service reconciles existing exchange positions and orders before trading.
@@ -191,10 +259,10 @@ Switch/stop require the current session ID and control version; follow the
 [admin API contract](fe-integration.md). A command receipt is not proof of quote
 admission: inspect its completion and the market readiness/reason fields.
 
-## Cloud Run configuration
+### Cloud Run configuration
 
 Use the same Demo image with the existing
-[service template and deployment workflow](../deploy/cloudrun/README.md).
+[service template and deployment workflow](cloudrun.md#service-and-configuration).
 Replace the template's live credential names with the six dedicated
 `HBOT_OKX_DEMO_*` / `HBOT_OKX_PERPETUAL_DEMO_*` names from the environment example,
 and inject their values plus `DATABASE_URL` and admin credentials through
@@ -206,8 +274,3 @@ Build/package validation of this preset does not replace release evidence for
 its new image digest. The existing deployment review still requires matching
 passing full image E2E evidence. No Cloud Run deployment, automatic trading start
 or fresh connected OKX run is performed by creating/building this preset.
-
-See [environment routing](okx-environments.md), [quote guards](life-mm-quote-guards.md),
-[drawdown](life-mm-drawdown.md), [spot outflow](life-mm-spot-outflow.md),
-[inventory skew](life-mm-inventory-skew.md) and [spreads](life-mm-spread-policy.md)
-for exact calculations, durable bindings and recovery behavior.

@@ -111,4 +111,4 @@ automatic widening was added.
 This is local simulator/disposable-PG verification. No real OKX account, Cloud Run
 deployment, previous-image upgrade gate or new sixty-minute certification is
 claimed. E2 and subsequent phases remain open. Operational semantics and example
-configuration are in the [guard guide](../docs/life-mm-quote-guards.md).
+configuration are in the [guard guide](../docs/life-mm-controls.md#quote-guards).

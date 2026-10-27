@@ -8,7 +8,7 @@ max_duration_seconds: 86400
 allow_until_stopped: true
 max_total_amount_quote: "200"
 # Optional USDT drawdown from the covered V2 report peak; null disables.
-# Once armed, policy and peaks persist across sessions/restarts. See docs/life-mm-drawdown.md.
+# Once armed, policy and peaks persist across sessions/restarts. See docs/life-mm-controls.md#drawdown.
 max_global_drawdown_quote: null
 max_controller_drawdown_quote: null
 # Optional rolling spot USDT outflow. Explicit window/cap/fee allowance required.
@@ -49,7 +49,7 @@ markets:
     buy_spreads: [0.01, 0.02]
     sell_spreads: [0.01, 0.02]
     # Optional fee/NATR spreads. Fixed spreads above remain the default.
-    # See docs/life-mm-spread-policy.md for explicit static fallback settings.
+    # See docs/life-mm-controls.md#fee-and-volatility-spreads for explicit static fallback settings.
     spread_policy:
       fee_floor: false
       volatility:
@@ -66,7 +66,7 @@ markets:
       target_base_pct: "0.5"
       inventory_range_multiplier: "1"
     # Opt-in only. Enabled strict mode also requires explicit deviation/resume
-    # thresholds; see docs/life-mm-quote-guards.md. No production risk defaults.
+    # thresholds; see docs/life-mm-controls.md#quote-guards. No production risk defaults.
     quote_guards:
       enabled: false
   perpetual:
@@ -79,7 +79,7 @@ markets:
     buy_spreads: [0.01, 0.02]
     sell_spreads: [0.01, 0.02]
     # Optional fee/NATR spreads. Fixed spreads above remain the default.
-    # See docs/life-mm-spread-policy.md for explicit static fallback settings.
+    # See docs/life-mm-controls.md#fee-and-volatility-spreads for explicit static fallback settings.
     spread_policy:
       fee_floor: false
       volatility:

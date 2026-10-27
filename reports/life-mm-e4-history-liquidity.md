@@ -25,7 +25,7 @@ polling without exchange calls. Eight liquidity unit cases cover partial/pending
 orders, gaps, stale data, zero quotes, stopped sessions and bounded checkpoints.
 Scoped hooks and generated Swagger are checked before commit.
 
-See [API guide](../docs/life-mm-history-liquidity.md). Coverage is deliberately
+See [API guide](../docs/fe-integration.md#session-history-and-liquidity). Coverage is deliberately
 sampled; no fabricated pre-migration history, historical depth time series or
 exact profile PnL. Final full-image matrix/load/soak remain E6 and are not claimed
 by this phase. No external OKX account or deployment was used.

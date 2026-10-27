@@ -515,7 +515,7 @@ local load/soak and exchange Demo acceptance remain P4–P6.
 - [x] Extend the simulator with LIFE spot/SWAP plus reference pairs. Verify three scenarios × spot/perpetual/both, weighted baskets, random selection, API switches, expiry and restart through the deployment image.
 - [x] **Green/refactor:** run relevant existing regression, real-PG and image E2E gates, including FE history/daily-statistics/reconciliation workflow, stale feed/DB faults and held exposure. Verify daily totals against simulator fills and observed balances without double-counting `both`. Save image/config hashes and commit. No OKX account is used here.
 
-P4 evidence: [implementation progress](../../reports/implementation/LIFE_OKX_PROGRESS.md#p4--local-image-and-demo-transport-integration) and [routing guide](../okx-environments.md).
+P4 evidence: [implementation progress](../../reports/implementation/LIFE_OKX_PROGRESS.md#p4--local-image-and-demo-transport-integration) and [routing guide](../okx-operations.md#environment-and-credentials).
 All six deployment-image scenarios pass, including the nine LIFE profile/market
 combinations and upgrade/rollback. 1,557 regressions, 2 subtests and all 101
 disposable-PostgreSQL tests pass. Real OKX account checks remain P6.
@@ -612,7 +612,7 @@ pilot, zero fills, UTC, no HALT and no owner. Those exchange reads showed no pen
 orders or perpetual positions and unchanged cash. No new full load/soak or Cloud
 Run deployment was performed. See [Demo acceptance](../../reports/okx-demo-acceptance.md),
 [portable evidence](../../reports/okx-demo-acceptance.json) and
-[environment setup](../okx-environments.md).
+[environment setup](../okx-operations.md#environment-and-credentials).
 
 Post-observation log review identified duplicate cancel response `51400` being
 misclassified as an error and a late-acknowledgement terminal-state race. The

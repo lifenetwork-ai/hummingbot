@@ -46,7 +46,7 @@ proposals cannot deadlock initial drawdown readiness.
 API/Swagger expose bootstrap state, source label, bounds/budget, UTC deadline,
 remaining time, depth/spread and qualification progress. Model/configured anchors
 are not labelled independent market fair value. Operational instructions and
-illustrative configuration are in the [guide](../docs/life-mm-listing-bootstrap.md).
+illustrative configuration are in the [guide](../docs/life-mm-controls.md#listing-bootstrap).
 Production defaults remain disabled; no production settings or credentials were
 changed.
 

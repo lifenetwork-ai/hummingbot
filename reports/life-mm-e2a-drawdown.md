@@ -17,7 +17,7 @@ equity or a newly created session's PnL. Global and per-controller peaks have th
 upstream zero floor and include covered report history. Fees recorded separately
 on held positions are subtracted once; funding is excluded. Existing active
 executor versus held-position mark/quantity conventions and historical Float
-precision remain explicit limitations. See the [operating guide](../docs/life-mm-drawdown.md).
+precision remain explicit limitations. See the [operating guide](../docs/life-mm-controls.md#drawdown).
 
 Both configured controller identities remain in scope when one market is
 disabled. Retained nonzero exposure uses the existing provider's public,

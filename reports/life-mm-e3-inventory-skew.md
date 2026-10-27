@@ -42,7 +42,7 @@ Known stale/invalid account timestamps and corrupt mandatory engine balances
 block readiness and recover automatically with fresh data. Freshness follows two
 normal long-poll periods (currently 240 seconds), avoiding an availability gap on
 quiet accounts normally polled every 120 seconds. No additional poll is scheduled.
-See the [operational guide](../docs/life-mm-inventory-skew.md).
+See the [operational guide](../docs/life-mm-controls.md#inventory-skew).
 
 ## TDD and limits
 

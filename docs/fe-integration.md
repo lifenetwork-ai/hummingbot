@@ -239,18 +239,68 @@ drawdown and spot outflow have separate effects. For example, a spot BUY denial
 does not imply funded SELL or perpetual admission is blocked. A disabled optional
 policy is labelled **Disabled**, not **Healthy** or **Failed**.
 
-Use “Working orders” in the main UI: a quote is a resting limit buy/sell order;
-a fill is an execution. Read `status.quote_activity[market]` or the identical
-liquidity activity object for observed sides, fill scope, fresh proposal reasons
-and `warning_active`. “Current orders waiting for fills” is normal liquidity,
-not a failed session. Do not label this as zero fills over the entire session.
+### Working orders, fills and missing-order warnings
 
-A short no-order interval during refresh is a waiting condition. Show a persistent
-warning only when `warning_active=true`; present each missing side's English
-detail and give the operator the relevant balances, spending-policy or managed
-limits panel. Proposal counts are not working orders. Unknown/stale data must
-show “Order status unavailable,” without keeping an old warning as current.
-See [activity semantics](life-mm-history-liquidity.md#working-orders-fills-and-missing-order-warnings).
+A quote is a resting buy or sell limit order placed by the bot. A fill is an
+execution against an order. Working orders can provide liquidity without fills.
+The operator UI should say **Working orders**, rather than require understanding
+of the word quote. API machine fields retain `quote_activity`.
+
+`GET /status` returns `quote_activity[market]`; `GET /statistics/liquidity`
+returns `markets[market].quote_activity`. Both carry the same sampled observations. GET reads add no exchange requests
+or extra state queries. Spot and perpetual have separate activity and BUY/SELL
+reasons; the top operator summary reflects missing or one-sided orders separately
+from the engine's `running`/`phase` fields.
+
+| State | Meaning for operators |
+|---|---|
+| `orders_working` | Acknowledged working buy and sell limit orders are present |
+| `one_sided` | Working orders exist on only one side; inspect the other side |
+| `no_quotes` | A fresh sample has no acknowledged working limit orders |
+| `unavailable` | Current orders cannot be confirmed; retain last-good values as stale |
+| `idle` | Session is stopping, stopped, expired or not yet actively admitted |
+
+`fill_observation_basis=current_working_orders` is deliberately limited to the
+current working orders. `no_fills_on_working_orders` means none of those orders
+has an observed executed base amount. It does **not** mean there have been no
+earlier session/account fills: filled/cancelled orders may already have left the
+working tracker. Use `/fills` for recorded history. A no-fill observation is not
+a service failure and does not trigger a missing-order warning.
+
+Each side has its observed `order_count`, English detail, reason codes and
+`proposed_count` from the last actual controller evaluation. A proposal is not
+exchange acceptance. Missing-side reasons include insufficient quote/base funds,
+inventory/allocation constraints, spending-guard denial, size/price/spread checks,
+active executors and cooldown. `spot_outflow_blocked` is a guard denial, not proof
+that the spending ceiling was reached: inspect `/status.spot_outflow`, including
+coverage, pending terminal orders and the last BUY denial, for its specific cause.
+
+Proposal diagnostics expire after five seconds. Their original UTC
+`proposal_observed_at` stays visible; an outdated or absent diagnosis becomes
+`quote_reason_unavailable` instead of repeating an old balance denial as current.
+Fresh controller readiness reasons remain useful during guard/data waits.
+
+`MM_NO_QUOTE_WARNING_SECONDS` is a process environment setting, default **120**;
+valid values are `0` (disable warnings) or 5–86,400 seconds. It cannot be changed
+by the command API. It controls monitoring only. During a running, started session,
+`no_quote_seconds` accumulates only consecutive valid samples of complete order
+absence within five seconds, for the same owner and session generation. Any
+working side, unknown sample, gap, restart or generation change resets that
+continuous window. Stop/expiry clears a current warning. API reads do not advance
+the sampled duration. A brief refresh gap can show `no_quotes` before it warrants
+a warning; do not show an error toast on each poll.
+
+At the threshold, `warning_active=true` and the existing service logger emits
+**WARNING** `mm_no_quotes_warning`, with bot/session identity and a market-specific
+`scope`. Repeated warnings are limited to once per minute per market. Clearing the
+warning emits **INFO** `mm_no_quotes_warning_cleared`; its `reason_code` may be
+`unavailable` or `idle`, so this log alone does not prove that orders returned.
+These are API/log signals, not email/Slack notifications or automatic repair.
+
+All diagnostic paths reuse existing quote decisions and the order tracker. They
+do not restart sessions, reset deadlines/HALT, change limits or submit trades.
+
+### Session freshness and operator messages
 
 Use `server_time` and absolute expiry for a local countdown, periodically resynced;
 do not require one HTTP call per displayed second. If the latest status is stale,
@@ -283,24 +333,24 @@ Optional `status.markets[].quote_guard` reports strict guard admission, qualifie
 market price, deviation, UTC observation/recovery times and source quality. The
 catalogue exposes opt-in market `quote_guards` and profile `sideways_range` through
 the existing `/profiles` contract; trading selection still uses existing commands.
-See [strict quote guards](life-mm-quote-guards.md) for bounds and recovery semantics.
+See [strict quote guards](life-mm-controls.md#quote-guards) for bounds and recovery semantics.
 
 Optional `status.drawdown` exposes the covered V2 report's limits, stable scope,
 peaks, observed PnL/drawdown and readiness/HALT reason. Stopped or stale current
 PnL is `null`; known peaks and confirmed breach remain visible. This metric
 includes reported trade fees and excludes funding; it is not account equity.
-See [managed MM drawdown](life-mm-drawdown.md) for configuration and bound policy.
+See [managed MM drawdown](life-mm-controls.md#drawdown) for configuration and bound policy.
 
 Optional `status.spot_outflow` exposes the bound rolling spot USDT policy,
 committed/reserved/remaining capacity, original non-USDT fees and BUY-only
 coverage/denial reasons. Capacity loss does not stop funded SELL or perpetual
-admission. See [spot outflow](life-mm-spot-outflow.md) for provenance, window and
+admission. See [spot outflow](life-mm-controls.md#spot-outflow) for provenance, window and
 terminal-proof semantics. Owner-unavailable observations are marked stale.
 
 Optional `status.markets[].spread_policy` reports static/dynamic/fallback/wait
 state, maker fee-floor enablement, cached NATR multiplier, UTC candle freshness
 and effective per-side spreads. Session anchors and reference formulas are
-unchanged. See [fee/NATR spread policy](life-mm-spread-policy.md).
+unchanged. See [fee/NATR spread policy](life-mm-controls.md#fee-and-volatility-spreads).
 
 ## Session command workflow
 
@@ -440,18 +490,37 @@ latest recorded transitions and links to events/configuration. Both accept
 Session coverage explicitly excludes legacy sessions with no creation event,
 while `current_session_id` remains available. These reads do not contact OKX.
 
-`/sessions/{session_id}/events` reads atomic session/profile transitions and
-recorded startup configuration. It uses bounded keyset pagination, event/source
-filters and filter-bound cursors. `history_complete` means a recorded session-start
-configuration exists; it does not imply continuous historical market coverage.
-History begins at migration 016.
+### Session history and liquidity
 
-`/statistics/liquidity` returns current/session sampled own quotes, remaining
-notionals, spread, observed/eligible/two-sided duration and unknown gaps, separately
-for spot and perpetual. Stale owner/feed data loses freshness rather than inflating
-uptime. Both endpoints reuse PostgreSQL/status data without per-read exchange
-calls. See [history and liquidity](life-mm-history-liquidity.md) for coverage,
-restart and pagination semantics.
+Transition history begins at migration 016; older sessions can have incomplete
+creation/event coverage. Missing history is not replaced with current YAML.
+
+- `GET /api/v1/admin/sessions/{session_id}/events`: newest-first keyset pagination, `limit` 1–500, optional `event_type` and `source`. Cursors bind all filters and bot/session identity. `history_complete` indicates that a session-start configuration was recorded; it does not imply exact historical market coverage. History begins at migration 016.
+- `GET /api/v1/admin/statistics/liquidity`: current session observations, optional `session_id` and `market=all|spot|perpetual`. Historical sessions without a current checkpoint return unavailable. Use existing fills/fees/daily endpoints for financial history.
+
+Events include immutable resolved configuration at creation, profile/step transitions,
+stop/expiry and observed guard changes. Control transitions share their original
+transaction and fencing. Duplicate command retries and owner takeover do not create
+duplicate transitions. Authenticated username or scheduler/observer source is
+recorded; credentials are never part of the event payload. Identical guard ticks
+create no event. Global HALT remains visible after controllers have stopped.
+
+Liquidity uses existing exchange-acknowledged limit orders in OPEN/PARTIALLY_FILLED
+state. Remaining quantities determine notionals; pending creation/cancellation and
+unacknowledged orders are excluded. Counters use consecutive fresh owner samples
+within five seconds and persistent bid/ask identities for two-sided coverage.
+They measure sampled observations, not guaranteed continuous exchange availability.
+Zero quotes on a valid sample means zero two-sided coverage. Feed gaps, restart,
+owner or profile generation changes are unknown intervals. Elapsed time includes
+unknown intervals, so gaps cannot inflate the reported uptime fraction. Stop/expiry
+freezes elapsed time. Only spot/perpetual counters are retained, without book history.
+
+Stale owners or observations hide quote values and extend unknown time; optional
+projection errors report unavailable and do not change trading intent. API reads
+reuse PostgreSQL/status snapshots and issue no exchange calls. Events take two
+bounded queries per page, independent of result count; indexes cover keyset and
+single-filter pagination. Liquidity takes one existing state read. There is no
+new worker, external cache, ledger or exchange client.
 
 ### Orders and fills
 

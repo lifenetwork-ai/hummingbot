@@ -9,22 +9,13 @@ under the ignored `build/` directory.
 
 | Document | Purpose |
 |---|---|
-| [PostgreSQL runtime](postgres-runtime.md) | Environment, migrations, storage, ownership, recovery and funding observation |
-| [Cloud Run runtime image](cloudrun-runtime.md) | Build, packaging, image references and runtime caches |
-| [Cloud Run logging](cloudrun-logging.md) | JSON console logs, severity levels, redaction and operational filters |
-| [Cloud Run deployment](../deploy/cloudrun/README.md) | Service configuration and deployment verification |
-| [FE integration](fe-integration.md) | Single FE handoff: API/authentication, dashboard UX, API/YAML ownership, history/charts, polling and browser acceptance |
-| [Session history and liquidity](life-mm-history-liquidity.md) | Atomic transitions, working-order/fill observations, missing-order warnings and sampled liquidity |
-| [Optional fee/NATR spreads](life-mm-spread-policy.md) | Existing maker fee conversion and completed-candle NATR, fallback/wait and rounding |
-| [Strict quote guards](life-mm-quote-guards.md) | Opt-in market deviation, sideways range, own-order filtering and recovery |
-| [Managed MM drawdown](life-mm-drawdown.md) | Covered V2 report limits, retained-market valuation, durable peaks and position-preserving HALT |
-| [Spot inventory skew](life-mm-inventory-skew.md) | Original PMM interpolation, cash-only signal, bounded sizing and neutral fallback |
-| [Listing bootstrap](life-mm-listing-bootstrap.md) | Bounded empty/own-only listing quotes, durable deadline and outside-market qualification |
-| [Spot USDT outflow](life-mm-spot-outflow.md) | Rolling committed cashflow, pending BUY reservations, account binding and BUY-only admission |
-| [OKX environments](okx-environments.md) | Live/Demo routing, sites and credential variables |
-| [Explicit OKX Demo preset](okx-demo-configuration.md) | Enabled switches, BTC-USDT policies, packaging and reason-based recovery |
-| [Local load testing](life-mm-load-tests.md) | Commands, workload, budgets and verification policy |
-| [Pre-listing economic stress](life-mm-economic-stress.md) | Synthetic paired controller replay, execution assumptions, accounting and limitations |
+| [FE integration](fe-integration.md) | API/auth, operator UX, API/YAML ownership, working orders, history/charts and browser acceptance |
+| [Cloud Run operations](cloudrun.md) | Runtime images, service/deployment configuration, logging and release verification |
+| [PostgreSQL operations](postgres-runtime.md) | Environment, migrations, persistence, ownership/recovery and idle funding observation |
+| [OKX operations](okx-operations.md) | Live/Demo routing, credentials, enabled Demo preset and blocked-quote runbook |
+| [MM controls](life-mm-controls.md) | Quote guards, drawdown, spot outflow, listing bootstrap, inventory skew and fee/NATR spreads |
+| [Local load testing](life-mm-load-tests.md) | Commands, workloads, declared budgets and verification policy |
+| [Economic stress replay](life-mm-economic-stress.md) | Pre-listing synthetic execution assumptions, accounting and metric limitations |
 
 ## Plans and API contract
 

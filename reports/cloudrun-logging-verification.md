@@ -60,6 +60,6 @@ comparison image is no longer cached; no reconstructed baseline is substituted.
 Cloud Run deployment or Cloud Logging ingestion is certified by these checks.
 
 See [portable evidence](cloudrun-logging-verification.json), the
-[operations guide](../docs/cloudrun-logging.md), and raw final results under
+[operations guide](../docs/cloudrun.md#logs-and-severity), and raw final results under
 `build/e2e-offline/20261027-171618-8bf611/`. Build/check logs and packaged hashes
 remain under ignored `build/service-logging/`.

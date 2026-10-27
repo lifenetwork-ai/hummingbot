@@ -39,7 +39,7 @@ existing bot recovery state. Unbound spot history waits a full observed window;
 it is not relabelled with current credentials. Account/environment mismatch
 retains HALT. Profile/random/market selection and clean restart retain policy,
 coverage and window spending; ordinary commands cannot disable it or bypass it
-through legacy strategy selection. See the [guide](../docs/life-mm-spot-outflow.md).
+through legacy strategy selection. See the [guide](../docs/life-mm-controls.md#spot-outflow).
 
 Status/Swagger include binding, policy, UTC window/observation times, exact
 Decimal strings for recorded/reserved/remaining quote, original non-USDT fees,
