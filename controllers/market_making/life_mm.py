@@ -1,6 +1,7 @@
 """LIFE reference configuration on the existing simple V2 market maker."""
 import asyncio
 import time
+from copy import deepcopy
 from decimal import ROUND_DOWN, Decimal, localcontext
 from typing import Dict, List, Literal, Optional
 
@@ -13,6 +14,7 @@ from hummingbot.core.utils.read_retry import retry_delay, transient_read
 from hummingbot.data_feed.candles_feed.data_types import CandlesConfig
 from hummingbot.strategy_v2.models.base import RunnableStatus
 from hummingbot.strategy_v2.models.executor_actions import StopExecutorAction
+from hummingbot.strategy_v2.models.executors import CloseType
 from hummingbot.strategy_v2.utils.inventory_skew import InventorySkewConfig, inventory_skew_ratios
 from hummingbot.strategy_v2.utils.listing_bootstrap import ListingBootstrap
 from hummingbot.strategy_v2.utils.mm_spread import SpreadPolicy, SpreadPolicyConfig
@@ -170,6 +172,35 @@ class LifeMMController(pmm_simple.PMMSimpleController):
         self._quote_guard = QuoteGuard(config.quote_guards, config.sideways_range)
         self._spread_policy = SpreadPolicy(config.spread_policy)
         self._effective_spreads = None
+        self._quote_diagnostics = None
+
+    @property
+    def quote_diagnostics(self):
+        """Last proposal evaluation; it is not exchange admission or a live balance check."""
+        return deepcopy(self._quote_diagnostics)
+
+    def _reset_quote_diagnostics(self):
+        self._quote_diagnostics = dict(observed_at=self.market_data_provider.time(),
+                                       reasons={'BUY': [], 'SELL': []}, proposed={'BUY': 0, 'SELL': 0})
+
+    def _quote_reason(self, reason, side=None):
+        if self._quote_diagnostics is not None:
+            for name in (side.name,) if side is not None else ('BUY', 'SELL'):
+                reasons = self._quote_diagnostics['reasons'][name]
+                if reason not in reasons:
+                    reasons.append(reason)
+
+    def _quote_readiness_reason(self):
+        if self._control_error:
+            return 'controller_unavailable'
+        if not self._session_admitted:
+            return 'session_not_admitted'
+        if not self.market_data_provider.ready:
+            return 'market_data_unavailable'
+        if not self.processed_data.get('ready'):
+            reason = str(self.processed_data.get('reason') or '').split(':', 1)[0]
+            return reason if reason in MM_READINESS_REASONS else 'readiness_unavailable'
+        return None
 
     def _spread_candle_config(self):
         cfg = self.config.spread_policy.volatility
@@ -471,6 +502,8 @@ class LifeMMController(pmm_simple.PMMSimpleController):
         await self.update_processed_data()
         if (self._control_error or not self._session_admitted or not self.market_data_provider.ready or not self.processed_data["ready"]
                 or not self.exposure_within_caps()):
+            self._reset_quote_diagnostics()
+            self._quote_reason(self._quote_readiness_reason() or 'inventory_limit')
             await self.send_actions(self.stop_quote_actions())
         elif self.executors_update_event.is_set():
             await self.send_actions(self.determine_executor_actions())
@@ -485,8 +518,18 @@ class LifeMMController(pmm_simple.PMMSimpleController):
 
     def determine_executor_actions(self):
         if not self._session_admitted or not self.processed_data.get("ready") or not self.exposure_within_caps():
+            self._reset_quote_diagnostics()
+            self._quote_reason(self._quote_readiness_reason() or 'inventory_limit')
             return self.stop_quote_actions()
         return super().determine_executor_actions()
+
+    def get_levels_to_execute(self):
+        levels = super().get_levels_to_execute()
+        for executor in self.executors_info:
+            if executor.is_active or (executor.close_type == CloseType.STOP_LOSS
+                                      and self.market_data_provider.time() - executor.close_timestamp < self.config.cooldown_time):
+                self._quote_reason('active_executor' if executor.is_active else 'cooldown', executor.config.side)
+        return levels
 
     def _exposure(self):
         connector = self.market_data_provider.get_connector_with_fallback(self.config.connector_name)
@@ -525,17 +568,21 @@ class LifeMMController(pmm_simple.PMMSimpleController):
             return False
 
     def create_actions_proposal(self):
+        self._reset_quote_diagnostics()
         if not self._session_admitted or not self.processed_data.get("ready") or not self.market_data_provider.ready:
+            self._quote_reason(self._quote_readiness_reason() or 'readiness_unavailable')
             return []
         try:
             long, short = self._exposure()
             if not self._within_caps(long, short):
+                self._quote_reason('inventory_limit')
                 return []
             connector = self.market_data_provider.get_connector_with_fallback(self.config.connector_name)
             available_quote = Decimal(str(connector.get_available_balance("USDT")))
             available_base = Decimal(str(connector.get_available_balance(self.config.trading_pair.split("-")[0]))) \
                 if self.config.connector_name == "okx" else Decimal("0")
             if any(not value.is_finite() or value < 0 for value in (available_quote, available_base)):
+                self._quote_reason('account_balance_unavailable')
                 return []
             accepted = []
             pending_allocation = sum((executor.config.amount * executor.config.entry_price for executor in self.executors_info
@@ -544,6 +591,7 @@ class LifeMMController(pmm_simple.PMMSimpleController):
             for action in super().create_actions_proposal():
                 config = action.executor_config
                 if self.config.inventory_skew.enabled and pending_allocation + config.amount * config.entry_price > self._quote_budget():
+                    self._quote_reason('allocation_limit', config.side)
                     continue
                 is_buy = config.side == TradeType.BUY
                 proposed_long = long + config.amount if is_buy else long
@@ -552,22 +600,29 @@ class LifeMMController(pmm_simple.PMMSimpleController):
                 if self.config.runtime_config_managed and self.config.connector_name == "okx" and is_buy:
                     from hummingbot.core.order_submission_guard import spot_buy_preview
                     if not spot_buy_preview(connector, config.amount, config.entry_price):
+                        self._quote_reason('spot_outflow_limit', config.side)
                         continue
                 if not self._within_caps(proposed_long, proposed_short):
+                    self._quote_reason('inventory_limit', config.side)
                     continue
                 if self.config.connector_name == "okx" and not is_buy:
                     if config.amount > available_base:
+                        self._quote_reason('insufficient_base_balance', config.side)
                         continue
                     available_base -= config.amount
                 else:
                     if required_quote > available_quote:
+                        self._quote_reason('insufficient_quote_balance', config.side)
                         continue
                     available_quote -= required_quote
                 long, short = proposed_long, proposed_short
                 pending_allocation += config.amount * config.entry_price
                 accepted.append(action)
+                self._quote_diagnostics['proposed'][config.side.name] += 1
             return accepted
         except (ValueError, ArithmeticError, TypeError):
+            self._quote_diagnostics['proposed'] = {'BUY': 0, 'SELL': 0}
+            self._quote_reason('proposal_evaluation_unavailable')
             return []
 
     def executors_to_refresh(self):
@@ -707,14 +762,18 @@ class LifeMMController(pmm_simple.PMMSimpleController):
             rule = connector.trading_rules[self.config.trading_pair]
             if (amount <= 0 or amount > raw_amount or amount < rule.min_order_size
                     or price * amount < rule.min_notional_size):
+                self._quote_reason('order_size_rejected', self.get_trade_type_from_level_id(level_id))
                 return None
         if not self.quote_price_valid(price):
+            self._quote_reason('quote_price_rejected', self.get_trade_type_from_level_id(level_id))
             return None
         if self.config.spread_policy.enabled:
             try:
                 if not self.spread_quote_valid(self.get_trade_type_from_level_id(level_id), price, amount):
+                    self._quote_reason('spread_policy_rejected', self.get_trade_type_from_level_id(level_id))
                     return None
             except ValueError:
+                self._quote_reason('spread_policy_unavailable', self.get_trade_type_from_level_id(level_id))
                 return None
         return super().get_executor_config(level_id, price, amount).model_copy(update={
             "mm_session_id": self.config.mm_session_id, "mm_generation": self.config.mm_generation,
