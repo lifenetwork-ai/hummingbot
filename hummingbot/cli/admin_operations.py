@@ -80,11 +80,32 @@ def operator_view(row, process):
         elif any(value['state'] == 'one_sided' for value in quotes.values()):
             label, detail = 'Orders working on one side', 'Check the side without working orders in each market panel.'
     drawdown = deepcopy(snapshot.get("mm_drawdown"))
+    if not stale and state in ('running', 'waiting'):
+        defenses = [(market.get('spread_policy') or {}).get('defense') for market in markets]
+        defenses = [value for value in defenses if value]
+        restricted = next((value for value in defenses if value.get('state') in ('paused', 'waiting', 'checkpoint_pending')), None)
+        reduced = next((value for value in defenses if value.get('state') in ('reduced', 'static_fallback')), None)
+        if restricted:
+            state, label, detail, next_action = 'waiting', restricted['label'], restricted['next_action'], 'wait'
+        elif reduced and state == 'running':
+            label, detail = reduced['label'], reduced['next_action']
+    if halted or pending:
+        for market in markets:
+            defense = (market.get('spread_policy') or {}).get('defense')
+            if defense:
+                defense.update(automatic_recovery_expected=False, next_action='Contact support before restarting trading.')
     if stale:
         for market in markets:
             market.update(ready=False, admitted=False, reference_price=None)
             if market.get("quote_guard"):
                 market["quote_guard"].update(ready=False, can_admit=False)
+            if market.get('spread_policy'):
+                market['spread_policy'].update(stale=True, raw_natr=None, multiplier=None, buy_spreads=[], sell_spreads=[])
+                if market['spread_policy'].get('defense'):
+                    market['spread_policy']['defense'].update(state='unavailable', reason_code='observation_stale',
+                                                              label='Volatility status unavailable', next_action='Wait for current service observations.',
+                                                              automatic_recovery_expected=False, size_factor='0', effective_allocation_quote='0',
+                                                              cancellation_pending=None, paused_latch_persisted=None)
         if drawdown:
             drawdown.update(ready=False, stale=True, global_pnl_quote=None, global_drawdown_quote=None)
             for value in drawdown.get("controllers", {}).values():

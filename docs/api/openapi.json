@@ -6225,6 +6225,17 @@
             ],
             "title": "Completed At"
           },
+          "defense": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VolatilityDefenseStatusOutput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
           "enabled": {
             "title": "Enabled",
             "type": "boolean"
@@ -6245,6 +6256,20 @@
             ],
             "title": "Multiplier"
           },
+          "raw_natr": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Fresh completed-candle NATR as a fraction, before multiplier clamping; null when unavailable.",
+            "title": "Raw Natr"
+          },
           "sell_spreads": {
             "items": {
               "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
@@ -6252,6 +6277,11 @@
             },
             "title": "Sell Spreads",
             "type": "array"
+          },
+          "stale": {
+            "default": false,
+            "title": "Stale",
+            "type": "boolean"
           },
           "state": {
             "enum": [
@@ -6830,9 +6860,166 @@
         "title": "TrailingStop",
         "type": "object"
       },
+      "VolatilityDefenseConfigOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "recovery_seconds": {
+            "exclusiveMinimum": 0,
+            "maximum": 3600,
+            "title": "Recovery Seconds",
+            "type": "integer"
+          },
+          "reduce_at_natr": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Reduce At Natr",
+            "type": "string"
+          },
+          "reduced_size_factor": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Reduced Size Factor",
+            "type": "string"
+          },
+          "resume_below_natr": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Resume Below Natr",
+            "type": "string"
+          },
+          "stop_at_natr": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Stop At Natr",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reduce_at_natr",
+          "stop_at_natr",
+          "resume_below_natr",
+          "reduced_size_factor",
+          "recovery_seconds"
+        ],
+        "title": "VolatilityDefenseConfig",
+        "type": "object"
+      },
+      "VolatilityDefenseStatusOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "automatic_recovery_expected": {
+            "description": "Conditional on fresh data and the existing session/ownership/risk gates. Not an ETA or a HALT reset.",
+            "title": "Automatic Recovery Expected",
+            "type": "boolean"
+          },
+          "cancellation_pending": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Executor cancellation/retirement pending; not proof that all exchange orders have been removed. Null when observation is stale.",
+            "title": "Cancellation Pending"
+          },
+          "effective_allocation_quote": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Effective Allocation Quote",
+            "type": "string"
+          },
+          "evaluated_at": {
+            "format": "date-time",
+            "title": "Evaluated At",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "next_action": {
+            "title": "Next Action",
+            "type": "string"
+          },
+          "paused_latch_persisted": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paused Latch Persisted"
+          },
+          "reason_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Code"
+          },
+          "recovery_elapsed_seconds": {
+            "minimum": 0,
+            "title": "Recovery Elapsed Seconds",
+            "type": "number"
+          },
+          "recovery_samples": {
+            "minimum": 0,
+            "title": "Recovery Samples",
+            "type": "integer"
+          },
+          "size_factor": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Size Factor",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "normal",
+              "reduced",
+              "paused",
+              "waiting",
+              "static_fallback",
+              "checkpoint_pending",
+              "unavailable"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "reason_code",
+          "label",
+          "next_action",
+          "automatic_recovery_expected",
+          "size_factor",
+          "effective_allocation_quote",
+          "evaluated_at",
+          "recovery_samples",
+          "recovery_elapsed_seconds",
+          "paused_latch_persisted",
+          "cancellation_pending"
+        ],
+        "title": "VolatilityDefenseStatus",
+        "type": "object"
+      },
       "VolatilitySpreadConfigOutput": {
         "additionalProperties": false,
         "properties": {
+          "defense": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VolatilityDefenseConfigOutput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
           "enabled": {
             "default": false,
             "title": "Enabled",

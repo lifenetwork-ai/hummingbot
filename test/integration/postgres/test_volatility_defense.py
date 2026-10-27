@@ -166,6 +166,23 @@ def test_checkpoint_adapter_does_not_retain_retired_controller(owned):
     assert not adapter.controllers
 
 
+def test_attached_readiness_does_not_query_or_write_database(owned):
+    from sqlalchemy import event
+    item = controller()
+    adapter = checkpoints(owned, item)
+    queries = []
+
+    def count(*args):
+        queries.append(1)
+    event.listen(owned.engine, 'before_cursor_execute', count)
+    try:
+        for _ in range(20):
+            assert adapter.attach()
+    finally:
+        event.remove(owned.engine, 'before_cursor_execute', count)
+    assert not queries
+
+
 def test_pause_rejects_changed_policy_and_account(owned):
     from hummingbot.core.order_submission_guard import SubmissionBlocked
     from hummingbot.core.volatility_defense import VolatilityCheckpoints

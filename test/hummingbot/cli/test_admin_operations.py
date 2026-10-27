@@ -12,6 +12,7 @@ from hummingbot.model.admin_store import IdempotencyConflict
     ("references", [{"pair": "AVAX-USDT", "weight": "1"}]),
     ("references", None), ("profile_ids", ["sideways"]), ("step_duration_seconds", 600),
     ("total_amount_quote", "100"), ("leverage", 2),
+    ('spread_policy', {'volatility': {'defense': {'reduced_size_factor': '.5'}}}),
 ])
 async def test_api_rejects_yaml_overrides_with_safe_field_errors(field, value):
     async with client() as (http, storage):

@@ -87,3 +87,24 @@ PostgreSQL defense cases pass. The native regression invocation also passed
 1,732 tests plus 11 subtests before the final standalone paused-composition case
 was added. Existing position-executor tests cover partial-fill preservation and
 terminal cancellation proofs. Image/fault/load and Demo acceptance remain V5.
+
+## V4 — Observable operation
+
+Red reproduced missing typed raw-NATR/defense status, a generic operator label
+for a volatility pause and stale snapshots still presenting a known pause/cancel
+state. Green adds English labels/actions, Decimal/UTC status, current effective
+allocation, recovery samples/time, pending cancellation and saved-latch status.
+The global HALT/Stop/expiry contract stays authoritative; stale observations are
+unknown rather than healthy. FE policy override remains rejected.
+
+Only sampled state/reason changes log WARNING/INFO with bounded DEBUG detail;
+checkpoint failures log ERROR. Repeated cached readiness/status evaluations do
+not advance recovery or spam transition logs. Existing guard events record state
+changes, and an attached checkpoint readiness check performs zero DB statements.
+Swagger and the three canonical operating/integration guides were updated.
+
+Verification: 63 native API/operations/defense/activity cases and 28 PostgreSQL
+defense/history cases pass; Swagger generation/check and guide-link validation
+pass. An earlier full PostgreSQL run (before the additional lifecycle/retention
+cases) passed 226 tests. Final-source broad regression and image/load/Demo gates
+remain V5.

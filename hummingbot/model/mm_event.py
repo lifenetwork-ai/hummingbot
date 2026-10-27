@@ -111,6 +111,7 @@ def record_guards(connection, bot_id, session, previous, status, version):
                                drawdown_reason=(status.get("mm_drawdown") or {}).get("reason_code"),
                                inventory_reason=(market.get("inventory_skew") or {}).get("reason_code"),
                                spread_state=(market.get("spread_policy") or {}).get("state"),
+                               defense_state=((market.get('spread_policy') or {}).get('defense') or {}).get('state'),
                                outflow_buy_allowed=(status.get("spot_outflow") or {}).get("buy_allowed") if name == "spot" else None)
     sequence = old.get("sequence", 0)
     status["mm_guard_observation"] = old

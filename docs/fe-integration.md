@@ -352,6 +352,39 @@ state, maker fee-floor enablement, cached NATR multiplier, UTC candle freshness
 and effective per-side spreads. Session anchors and reference formulas are
 unchanged. See [fee/NATR spread policy](life-mm-controls.md#fee-and-volatility-spreads).
 
+Optional `spread_policy.defense` explains volatility restrictions in English:
+
+| State | Suggested operator presentation |
+|---|---|
+| `normal` | Normal order sizing |
+| `reduced` | Trading with smaller orders |
+| `static_fallback` | Trading with smaller orders using fallback spreads |
+| `paused` | Waiting for volatility to settle |
+| `waiting` | Waiting for market data |
+| `checkpoint_pending` | Waiting for recovery state confirmation |
+| `unavailable` | Volatility status unavailable; wait for a fresh snapshot |
+
+Use the returned `label`, `next_action`, `reason_code` and global operator state.
+`raw_natr` is a fraction from fresh completed candles, not a percent string or
+the clamped spread multiplier. Money/factors remain Decimal strings and times
+remain UTC. `effective_allocation_quote` describes the current proposal budget;
+it is not remaining wallet cash, cumulative session spending or maximum loss.
+Show `cancellation_pending` separately from observed working orders: a request to
+cancel does not prove that orders have disappeared. Null means unknown.
+
+Recovery progress exposes distinct sampled candles and elapsed qualification
+time, not a countdown promise. `automatic_recovery_expected` is conditional on
+fresh data, active session and existing ownership/risk gates. Global HALT,
+operator Stop or expiry takes precedence. Do not suggest restarting or switching
+profiles to clear a volatility pause. An active saved-policy change returns
+`volatility_pause_policy_bound`; ask the maintainer to restore the saved YAML
+policy. Thresholds, size factors and fallback remain YAML-only.
+
+Stale observations mark spread status stale and defense unavailable, clear fresh
+NATR/spreads and make cancellation/latch confirmation unknown. Never present the
+last cached sizing state as live health. Continue the existing bounded polling;
+these fields need no additional exchange request or new endpoint.
+
 ## Session command workflow
 
 ### Operator form and review

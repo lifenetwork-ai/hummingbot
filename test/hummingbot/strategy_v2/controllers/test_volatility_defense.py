@@ -128,6 +128,34 @@ def test_restored_pause_requires_fresh_recovery_before_pending_clear(monkeypatch
     assert controller._volatility_saved_pause
 
 
+def test_defense_status_is_typed_english_and_polling_does_not_sample(monkeypatch, clock, caplog):
+    import logging
+
+    from hummingbot.cli.admin_models import SpreadPolicyStatus
+    controller = defended_controller(monkeypatch, clock)
+    monkeypatch.setattr('hummingbot.strategy_v2.utils.mm_spread.natr_value', lambda *args: Decimal('.025'))
+    with caplog.at_level(logging.DEBUG):
+        controller.update_reference(sample_guard=True)
+        for _ in range(10):
+            controller.update_reference()
+    status = SpreadPolicyStatus.model_validate(controller.processed_data['spread_policy']).model_dump(mode='json')
+    assert status['raw_natr'] == '0.025'
+    assert status['defense']['label'] == 'Trading with smaller orders'
+    assert status['defense']['effective_allocation_quote'] == '100.0'
+    assert status['defense']['evaluated_at'].endswith('Z')
+    assert controller._spread_policy.defense.good_samples == 0
+    assert len([row for row in caplog.records if getattr(row, 'event', None) == 'mm_volatility_defense_changed']) == 1
+    from test.hummingbot.strategy_v2.controllers.test_life_mm_spread import feed
+    monkeypatch.setattr('hummingbot.strategy_v2.utils.mm_spread.natr_value', lambda *args: Decimal('.01'))
+    with caplog.at_level(logging.DEBUG):
+        for clock.epoch, clock.monotonic in [(1260, 110), (1320, 170)]:
+            controller.market_data_provider.candles_feeds['feed'] = feed(now=clock.epoch)
+            controller.update_reference(sample_guard=True)
+    changes = [row for row in caplog.records if getattr(row, 'event', None) == 'mm_volatility_defense_changed']
+    assert len(changes) == 2
+    assert changes[-1].levelno == logging.INFO
+
+
 @pytest.mark.parametrize('updates', [dict(min_multiplier='.5'), dict(enabled=False),
                                      dict(defense=dict(reduce_at_natr='.02', stop_at_natr='.01',
                                                        resume_below_natr='.015', reduced_size_factor='.5', recovery_seconds=60))])

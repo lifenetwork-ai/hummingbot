@@ -1,7 +1,7 @@
 # LIFE / OKX volatility defense — incremental TDD plan
 
 Date: 2026-10-28 (Asia/Ho_Chi_Minh).
-Status: V0–V3 complete; V4–V5 operations and final acceptance remain open.
+Status: V0–V4 complete; V5 image/load/Demo acceptance remains open.
 Evidence: [implementation report](../../reports/mm-volatility-defense.md).
 
 Improve quote protection and automatic recovery while keeping the existing
@@ -262,21 +262,21 @@ snake_case migration and document why; do not prebuild a generic persistence lay
 
 ### V4 — Operator/API integration
 
-- [ ] Extend existing typed spread status with raw NATR, defense state, effective
+- [x] Extend existing typed spread status with raw NATR, defense state, effective
   size/allocation, sample/freshness times, reason, recovery progress and whether
   cancellation is pending. Distinguish requested cancellation from observed
   working orders; unknown state must not look healthy.
-- [ ] Publish English labels such as `Trading with smaller orders`,
+- [x] Publish English labels such as `Trading with smaller orders`,
   `Waiting for volatility to settle`, and `Waiting for market data`, with a clear
   next action. Report `automatic_recovery_expected` without promising an ETA.
-- [ ] Reuse guard-transition history and severity logging: WARNING on restriction,
+- [x] Reuse guard-transition history and severity logging: WARNING on restriction,
   INFO on recovery, bounded DEBUG diagnostics, ERROR for internal/persistence
   failures. Avoid per-tick/per-poll log spam and unbounded event storage in memory.
-- [ ] Update handler/model annotations, `make swagger`, `make swagger-check`,
+- [x] Update handler/model annotations, `make swagger`, `make swagger-check`,
   [FE guide](../fe-integration.md), [MM controls](../life-mm-controls.md) and
   [OKX operations](../okx-operations.md). Keep English API text, UTC timestamps,
   Decimal strings, YAML ownership and development-only Swagger.
-- [ ] Extend existing snapshots/endpoints; prove FE polling does not perform
+- [x] Extend existing snapshots/endpoints; prove FE polling does not perform
   exchange calls, advance policy or introduce N+1 queries. No dashboard app here.
 
 ### V5 — Local acceptance, load and final Demo compatibility

@@ -272,5 +272,6 @@ class SpreadPolicy:
         if self.config.volatility.enabled and self.multiplier(now) is None:
             state = 'waiting' if self.config.volatility.on_unavailable == 'wait' else 'static_fallback'
         return dict(enabled=self.config.enabled, fee_floor=self.config.fee_floor, state=state,
+                    raw_natr=str(self.raw_natr) if self.multiplier(now) is not None and self.raw_natr is not None else None,
                     multiplier=str(self.multiplier(now)) if self.multiplier(now) is not None else None, completed_at=self.completed_at, valid_until=self.valid_until,
                     buy_spreads=[str(x) for x in self.effective[0]] if self.effective else [], sell_spreads=[str(x) for x in self.effective[1]] if self.effective else [])

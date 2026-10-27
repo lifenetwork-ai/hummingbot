@@ -657,9 +657,8 @@ prevent some levels from being placed.
 To preserve base spreads with the current policy, set `min_multiplier: "1"`
 or greater and make every explicit fallback spread at least as wide as the
 corresponding base level. A multiplier of `0.5` intentionally allows narrower
-spreads. Proposed reduced-sizing/pause behavior is tracked in the
-[volatility defense plan](plans/MM_VOLATILITY_DEFENSE_TDD_PLAN.md) and is not
-implied by these existing settings.
+spreads. Reduced sizing and extreme-volatility pause are separate opt-in
+settings described below; these floor settings alone do not enable them.
 
 ```yaml
 spread_policy:
@@ -724,3 +723,68 @@ static/dynamic/fallback/wait state, cached multiplier, completed interval/freshn
 and effective level spreads. Decimal values are strings and timestamps are UTC.
 Guard history records state changes without storing each candle or quote tick.
 No new service, task, database table, external cache or environment flag is added.
+
+### Volatility defense
+
+Managed PostgreSQL sessions can opt into `spread_policy.volatility.defense`.
+Absence/null preserves the previous behavior. Existing quote guards, volatility
+and maker fee floor must be enabled. `min_multiplier` must be at least one and
+fallback lists must be no narrower than their matching base spreads. No API
+command can override the YAML policy or reset a saved pause.
+
+Append this fragment **inside an enabled volatility configuration**, together
+with explicit floor/fallback/guard settings. Values illustrate the schema only;
+they are not calibrated LIFE listing thresholds:
+
+```yaml
+defense:
+  reduce_at_natr: "0.02"
+  stop_at_natr: "0.05"
+  resume_below_natr: "0.015"
+  reduced_size_factor: "0.5"
+  recovery_seconds: 60
+```
+
+Thresholds use raw completed-candle NATR fractions, before spread-multiplier
+clamping. At/above the reduction threshold, the market/bootstrap allocation is
+scaled down before weighted sizing and inventory skew. The same reduced budget
+still bounds skewed proposals; rejected/minimum-size levels are not enlarged or
+redistributed. Fees, balances, exposure, outflow and final exchange rounding
+remain authoritative. Oversized or newly too-narrow working quotes are cancelled
+through the existing position-preserving executor lifecycle. Pending original
+allocation stays reserved until terminal proof; replacements cannot stack over
+an unconfirmed cancellation.
+
+At/above the stop threshold, new quotes pause and working remainders are
+cancelled. The PostgreSQL owner checkpoints a small account/environment and
+connector/pair pause latch. Stop/Start, random steps, switching market/profile
+and restart do not clear it. Recovery requires fresh completed candles below
+the reduction threshold, at least two distinct increasing candle identities and
+the elapsed monotonic recovery duration. It resumes reduced; another qualified
+window below `resume_below_natr` permits normal sizing. Offline time and repeated
+API/send checks earn no recovery credit. A paused policy cannot be removed or
+changed on session admission until it recovers under its saved policy; restore
+the YAML or arrange operator-reviewed maintenance if necessary.
+
+Missing candles use the declared `wait` or explicit `static` policy. Static
+fallback uses reduced size and still requires trustworthy mandatory price data;
+it cannot clear an existing extreme-volatility pause. No candles at initial
+listing is not proof of extreme volatility. Strict guards still require outside
+liquidity, and bootstrap still needs its explicit bounded permission and original
+finite deadline. NATR is not an instantaneous price-jump detector: existing
+current-book/deviation checks remain active.
+
+The service/API stay alive during temporary waits. In `both`, existing joint
+readiness pauses both markets when either requires a wait. Fresh-data recovery
+cannot restart an operator-stopped/expired session or clear risk HALT, ownership
+loss, uncertain exchange effects or a failed durable checkpoint. Unsupported
+unmanaged/file-mode defense is rejected instead of pretending to persist it.
+
+`status.markets[].spread_policy` adds fresh `raw_natr` and optional `defense`:
+state, English label/next action, size factor/effective allocation, evaluated
+time, sampled recovery progress, saved-latch status and pending cancellation.
+Cancellation pending is not exchange terminal proof; current working orders
+remain visible separately. WARN/INFO transition logs and existing guard history
+record restrictions/recovery, without per-tick candle storage or FE-triggered
+exchange reads. See [FE integration](fe-integration.md) and the
+[implementation checklist](plans/MM_VOLATILITY_DEFENSE_TDD_PLAN.md).

@@ -146,6 +146,9 @@ and their freshness/reason fields. A command receipt alone does not imply admiss
 | Stale feed, `market_price_unavailable`, guard recovery | Check connectivity, book freshness and outside depth; the normal loop retries/requalifies automatically |
 | Reference deviation | Inspect the selected reference pairs, model anchor and configured boundaries; correct an erroneous configuration through the normal reviewed configuration workflow |
 | Candle fallback | Verify explicit static spreads are effective; optional candles can recover on the same controller |
+| `volatility_paused` | Keep the service running and inspect fresh NATR, required prices and working-order cancellation. Recovery needs distinct completed candles plus the configured delay; restarting/profile switching does not clear the pause |
+| `volatility_checkpoint_pending` | Wait for owner/account identity or durable transition confirmation. Check DB/ownership health if persistent; do not bypass the final-send gate |
+| `volatility_pause_policy_bound` | Restore the saved market defense policy in YAML and let it recover, or arrange operator-reviewed maintenance. The API cannot reset this latch |
 | Unknown fee basis | Inspect fee/currency observations; new quotes wait until the basis is usable |
 | Spot capacity exhausted | Inspect recorded outflow and reserved BUY amounts; capacity is reevaluated as the rolling window/cashflow changes and terminal orders are proven |
 | Only one spot quote side | Inspect observed cash inventory and skew target; zero allocation may be an intentional policy result |

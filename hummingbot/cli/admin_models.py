@@ -284,6 +284,21 @@ class InventorySkewStatus(APIModel):
     evaluated_at: UTCDateTime
 
 
+class VolatilityDefenseStatus(APIModel):
+    state: Literal['normal', 'reduced', 'paused', 'waiting', 'static_fallback', 'checkpoint_pending', 'unavailable']
+    reason_code: Optional[str]
+    label: str
+    next_action: str
+    automatic_recovery_expected: bool = Field(description='Conditional on fresh data and the existing session/ownership/risk gates. Not an ETA or a HALT reset.')
+    size_factor: Decimal
+    effective_allocation_quote: Decimal
+    evaluated_at: UTCDateTime
+    recovery_samples: int = Field(ge=0)
+    recovery_elapsed_seconds: float = Field(ge=0)
+    paused_latch_persisted: Optional[bool]
+    cancellation_pending: Optional[bool] = Field(description='Executor cancellation/retirement pending; not proof that all exchange orders have been removed. Null when observation is stale.')
+
+
 class SpreadPolicyStatus(APIModel):
     enabled: bool
     fee_floor: bool
@@ -293,6 +308,9 @@ class SpreadPolicyStatus(APIModel):
     valid_until: Optional[UTCDateTime]
     buy_spreads: List[Decimal]
     sell_spreads: List[Decimal]
+    raw_natr: Optional[Decimal] = Field(default=None, description='Fresh completed-candle NATR as a fraction, before multiplier clamping; null when unavailable.')
+    defense: Optional[VolatilityDefenseStatus] = None
+    stale: bool = False
 
 
 class QuoteSideActivity(APIModel):

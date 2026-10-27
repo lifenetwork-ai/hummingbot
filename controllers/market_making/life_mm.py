@@ -183,6 +183,7 @@ class LifeMMController(pmm_simple.PMMSimpleController):
         self._spread_policy = SpreadPolicy(config.spread_policy)
         self._volatility_saved_pause = None
         self._volatility_checkpoint = None
+        self._last_defense_log = None
         self._effective_spreads = None
         self._quote_diagnostics = None
 
@@ -262,10 +263,57 @@ class LifeMMController(pmm_simple.PMMSimpleController):
             return False
         if self._volatility_saved_pause == paused:
             return True
-        if not self._volatility_checkpoint(paused):
-            return False
+        try:
+            if not self._volatility_checkpoint(paused):
+                return False
+        except Exception:
+            self.logger().error('MM volatility checkpoint failed controller=%s', self.config.id,
+                                extra={'event': 'mm_volatility_checkpoint_failed', 'scope': self.config.id})
+            raise
         self._volatility_saved_pause = paused
         return True
+
+    def _spread_status(self, *, reason=None, sample=False):
+        now = self.market_data_provider.time()
+        result = self._spread_policy.status(now)
+        defense = self._spread_policy.defense
+        if defense is None:
+            return result
+        pending = self._volatility_saved_pause is None or self._volatility_saved_pause != (defense.state == 'paused')
+        state = defense.state
+        if state != 'paused':
+            if pending:
+                state, reason = 'checkpoint_pending', 'volatility_checkpoint_pending'
+            elif reason is not None:
+                state = 'waiting'
+            elif self._spread_policy.multiplier(now) is None:
+                state, reason = ('static_fallback' if self.config.spread_policy.volatility.on_unavailable == 'static' else 'waiting'), 'candles_unavailable'
+        else:
+            reason = 'volatility_paused'
+        labels = dict(normal='Normal order sizing', reduced='Trading with smaller orders',
+                      paused='Waiting for volatility to settle', waiting='Waiting for market data',
+                      static_fallback='Trading with smaller orders using fallback spreads',
+                      checkpoint_pending='Waiting for recovery state confirmation')
+        factor = self._spread_policy.size_factor(now) if state in ('normal', 'reduced', 'static_fallback') else Decimal('0')
+        value = dict(state=state, reason_code=reason, label=labels[state],
+                     next_action=('Monitor working orders and inventory.' if state in ('normal', 'reduced', 'static_fallback') else
+                                  'Wait for fresh market data to pass recovery checks. Do not restart to bypass this wait.'),
+                     automatic_recovery_expected=state != 'normal' and self._control_error is None,
+                     size_factor=factor, effective_allocation_quote=self._quote_budget() if factor else Decimal('0'),
+                     evaluated_at=now, recovery_samples=defense.good_samples,
+                     recovery_elapsed_seconds=max(0, time.monotonic() - defense.good_since) if defense.good_since is not None else 0,
+                     paused_latch_persisted=self._volatility_saved_pause,
+                     cancellation_pending=any(executor.id in self._stops_requested or getattr(executor, 'status', None) == RunnableStatus.SHUTTING_DOWN
+                                              for executor in self.executors_info))
+        result['defense'] = value
+        signature = (state, reason)
+        if sample and signature != self._last_defense_log:
+            log = self.logger().info if state == 'normal' else self.logger().warning
+            log('MM volatility defense controller=%s state=%s reason=%s', self.config.id, state, reason or '-',
+                extra={'event': 'mm_volatility_defense_changed', 'scope': self.config.id, 'reason_code': reason or state})
+            self.logger().debug('MM volatility sizing controller=%s natr=%s factor=%s', self.config.id, result['raw_natr'], factor)
+            self._last_defense_log = signature
+        return result
 
     def restore_bootstrap_episode(self, episode):
         if self._bootstrap is not None:
@@ -513,7 +561,7 @@ class LifeMMController(pmm_simple.PMMSimpleController):
                     buy_quote, sell_quote = ([value * scale for value in allocations] for allocations in (buy_quote, sell_quote))
                 self._effective_spreads = self._spread_policy.compose(
                     connector, self.config.trading_pair, reference, buy, sell, buy_quote, sell_quote, now=provider.time())
-                self.processed_data["spread_policy"] = self._spread_policy.status(provider.time())
+                self.processed_data["spread_policy"] = self._spread_status(sample=sample_guard)
             self._update_inventory_skew(guard_status)
             for level in self.get_not_active_levels_ids([]):
                 price, _ = self.get_price_and_amount(level)
@@ -545,7 +593,7 @@ class LifeMMController(pmm_simple.PMMSimpleController):
             self.processed_data = {"ready": False, "reason": str(error) if reason in MM_READINESS_REASONS else type(error).__name__,
                                    "spread_multiplier": spread_multiplier, "quote_guard": guard_status,
                                    "inventory_skew": self._inventory_status,
-                                   "spread_policy": self._spread_policy.status(self.market_data_provider.time()) if self.config.spread_policy.enabled else None,
+                                   "spread_policy": self._spread_status(reason=reason, sample=sample_guard) if self.config.spread_policy.enabled else None,
                                    "internal_error": not isinstance(error, (ValueError, ArithmeticError, OSError))}
 
     async def update_processed_data(self):
